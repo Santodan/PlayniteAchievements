@@ -9,6 +9,7 @@ using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Animation;
 using Playnite.SDK;
+using PlayniteAchievements.Common;
 using PlayniteAchievements.Models;
 using PlayniteAchievements.Models.Settings;
 using PlayniteAchievements.Services.Overview;
@@ -94,6 +95,34 @@ namespace PlayniteAchievements.Views.Showcase
         private readonly System.Windows.Threading.DispatcherTimer _snapshotRefreshTimer;
         private bool _snapshotRefreshPending;
 
+        // Widget projections are applied one per Background dispatcher pass rather than all in
+        // one operation. A body apply is cheap by itself, but the layout pass it triggers
+        // inflates the widget's template, realizes grid rows and mosaic tiles, and plots its
+        // charts; nine of those in one operation held the UI thread for over a second on open.
+        // Draining one widget per pass lets input, rendering, and the next widget interleave.
+        // The queue is FIFO in enqueue order (visible blocks in reading order first), dedupes by
+        // host, and is emptied by a dashboard rebuild or dispose, which is the only generation
+        // tracking needed while this control is the sole producer.
+        private sealed class WidgetApplyRequest
+        {
+            public ShowcaseWidgetControl Host;
+
+            public ShowcaseWidgetInstanceSettings Widget;
+
+            // Set for a request raised for a visible block; null for a cached off-page host.
+            public string BlockId;
+
+            // True when only the snapshot moved (data refresh), false when the widget's own
+            // configuration changed and a re-projection is required regardless of the snapshot.
+            public bool SnapshotOnly;
+        }
+
+        private readonly Queue<WidgetApplyRequest> _applyQueue = new Queue<WidgetApplyRequest>();
+        private readonly HashSet<ShowcaseWidgetControl> _applyQueued = new HashSet<ShowcaseWidgetControl>();
+        private bool _applyDrainScheduled;
+        private int _applyDrainApplied;
+        private long _applyDrainStartedTicks;
+
         // Edit-mode size labels: each column's width along the top edge, each row's height along
         // the left. Refreshed at most every TrackRulerInterval while the window resizes or a
         // gripper drags, so they track live without re-reading layout on every mouse move.
@@ -109,6 +138,7 @@ namespace PlayniteAchievements.Views.Showcase
             Action persist,
             IPlayniteAPI api)
         {
+            using var perf = PerfScope.Start(Logger, "Showcase.Ctor", thresholdMs: 30);
             InitializeComponent();
             _overview = overview ?? throw new ArgumentNullException(nameof(overview));
             _settings = settings ?? throw new ArgumentNullException(nameof(settings));
@@ -179,11 +209,13 @@ namespace PlayniteAchievements.Views.Showcase
                 return;
             }
 
+            using var perf = PerfScope.Start(Logger, "Showcase.Dispose", thresholdMs: 20);
             ClearDragVisuals();
             _disposed = true;
             ShowcaseControlBarStateStore.Instance.Flush();
             _snapshotRefreshTimer.Stop();
             _trackRulerTimer.Stop();
+            ClearApplyQueue();
             // The cached widget bodies hold PersistedSettings-subscribed grids and slideshow
             // timers that only release in Dispose; drop them explicitly rather than relying
             // on Unloaded, which WPF does not guarantee.
@@ -244,8 +276,12 @@ namespace PlayniteAchievements.Views.Showcase
                 return;
             }
 
+            using var perf = PerfScope.Start(Logger, "Showcase.BuildDashboard", thresholdMs: 20);
             DashboardGrid.Children.Clear();
             _blockVisuals.Clear();
+            // Every visible block re-enqueues through CreateWidgetHost below; anything still
+            // queued targets containers this rebuild discards.
+            ClearApplyQueue();
             _trackGrippers.Clear();
             _trackRulers.Clear();
             _columnRulerTexts.Clear();
@@ -258,6 +294,7 @@ namespace PlayniteAchievements.Views.Showcase
             DashboardGrid.RowDefinitions.Clear();
             DashboardGrid.ColumnDefinitions.Clear();
             var gridSize = PageGridSize;
+            perf?.SetContext($"page={CurrentPage.PageId} blocks={CurrentPage.Blocks.Count} grid={gridSize}");
             var rowWeights = ShowcaseLayoutService.NormalizeTrackWeights(CurrentPage.RowWeights, gridSize);
             var columnWeights = ShowcaseLayoutService.NormalizeTrackWeights(CurrentPage.ColumnWeights, gridSize);
             for (var index = 0; index < gridSize; index++)
@@ -268,7 +305,6 @@ namespace PlayniteAchievements.Views.Showcase
                     new ColumnDefinition { Width = new GridLength(columnWeights[index], GridUnitType.Star) });
             }
 
-            var snapshot = _overview.LatestSnapshot ?? new OverviewDataSnapshot();
             if (EditLayoutButton.IsChecked == true &&
                 !CurrentPage.Blocks.Any(block => string.Equals(
                     block.BlockId,
@@ -280,7 +316,7 @@ namespace PlayniteAchievements.Views.Showcase
 
             foreach (var block in CurrentPage.Blocks)
             {
-                var container = CreateBlockContainer(block, snapshot);
+                var container = CreateBlockContainer(block);
                 Grid.SetRow(container, block.Row);
                 Grid.SetColumn(container, block.Column);
                 Grid.SetRowSpan(container, block.RowSpan);
@@ -288,7 +324,14 @@ namespace PlayniteAchievements.Views.Showcase
                 DashboardGrid.Children.Add(container);
             }
 
-            AddTrackGrippers();
+            // Grippers and rulers are edit-mode chrome: 4x(N-1) thumbs and 2N text boxes that a
+            // viewing dashboard only ever collapses. They are built when edit mode is entered
+            // (UpdateTrackGripperVisibility), so a plain open skips them.
+            if (EditLayoutButton.IsChecked == true)
+            {
+                AddTrackGrippers();
+            }
+
             UpdateLayoutHandles();
             ApplyPendingCutVisual();
 
@@ -592,7 +635,7 @@ namespace PlayniteAchievements.Views.Showcase
             {
                 Cursor = vertical ? Cursors.SizeWE : Cursors.SizeNS,
                 Focusable = false,
-                Template = CreateTrackGripperTemplate(vertical)
+                Template = vertical ? TrackGripperTemplateVertical : TrackGripperTemplateHorizontal
             };
             var lastCell = PageGridSize - 1;
             var edgeOffset = TrackGripperSize / 2;
@@ -634,6 +677,12 @@ namespace PlayniteAchievements.Views.Showcase
             return thumb;
         }
 
+        // Built once per orientation, like TrackRulerBoxTemplate: the template is identical for
+        // every gripper, and the accent brush inside it is a resource reference, so sharing it
+        // across thumbs and dashboards loses nothing.
+        private static readonly ControlTemplate TrackGripperTemplateVertical = CreateTrackGripperTemplate(vertical: true);
+        private static readonly ControlTemplate TrackGripperTemplateHorizontal = CreateTrackGripperTemplate(vertical: false);
+
         private static ControlTemplate CreateTrackGripperTemplate(bool vertical)
         {
             // Transparent pad for a comfortable grab target, with a small accent pill
@@ -658,6 +707,15 @@ namespace PlayniteAchievements.Views.Showcase
         private void UpdateTrackGripperVisibility()
         {
             var editing = EditLayoutButton.IsChecked == true;
+            // First entry into edit mode on this dashboard: build the chrome now. AddTrackGrippers
+            // re-enters here once the lists are populated (a one-track page has no grippers but
+            // still gets rulers, so both lists gate the re-entry).
+            if (editing && _blockVisuals.Count > 0 && _trackGrippers.Count == 0 && _trackRulers.Count == 0)
+            {
+                AddTrackGrippers();
+                return;
+            }
+
             foreach (var gripper in _trackGrippers)
             {
                 gripper.Visibility = editing ? Visibility.Visible : Visibility.Collapsed;
@@ -1554,9 +1612,7 @@ namespace PlayniteAchievements.Views.Showcase
             }
         }
 
-        private FrameworkElement CreateBlockContainer(
-            ShowcaseBlockSettings block,
-            OverviewDataSnapshot snapshot)
+        private FrameworkElement CreateBlockContainer(ShowcaseBlockSettings block)
         {
             // The container never changes BorderThickness or Padding: edit-mode chrome is drawn
             // by an overlay layer so toggling edit mode cannot shift the widget layout.
@@ -1758,25 +1814,210 @@ namespace PlayniteAchievements.Views.Showcase
             // selection work on every click. The widget menu rides on the block container so
             // it stays reachable with the body inert.
             host.IsHitTestVisible = EditLayoutButton.IsChecked != true;
-            var blockId = block.BlockId;
-            Dispatcher.BeginInvoke(
-                new Action(() =>
+            QueueWidgetApply(host, widget, block.BlockId, snapshotOnly: false);
+            return host;
+        }
+
+        private void QueueWidgetApply(
+            ShowcaseWidgetControl host,
+            ShowcaseWidgetInstanceSettings widget,
+            string blockId,
+            bool snapshotOnly)
+        {
+            if (_disposed || host == null || widget == null)
+            {
+                return;
+            }
+
+            // A data refresh that carries the snapshot this host already projected has nothing
+            // new for it. Every SnapshotChanged publishes a fresh snapshot instance, so
+            // reference identity is the data identity (the projection service's per-snapshot
+            // cache relies on the same fact). Configuration changes never take this exit.
+            if (snapshotOnly && IsProjectedFrom(host, _overview.LatestSnapshot))
+            {
+                return;
+            }
+
+            if (!_applyQueued.Add(host))
+            {
+                // Already waiting: keep its place, but a configuration change must not be
+                // downgraded to a snapshot-only request that a later guard could skip.
+                if (!snapshotOnly)
                 {
-                    if (_disposed ||
-                        !_blockVisuals.TryGetValue(blockId, out var current) ||
-                        !ReferenceEquals(current?.Host, host))
+                    foreach (var pending in _applyQueue)
                     {
-                        return;
+                        if (ReferenceEquals(pending.Host, host))
+                        {
+                            pending.SnapshotOnly = false;
+                            break;
+                        }
+                    }
+                }
+
+                return;
+            }
+
+            if (_applyQueue.Count == 0)
+            {
+                _applyDrainStartedTicks = System.Diagnostics.Stopwatch.GetTimestamp();
+                _applyDrainApplied = 0;
+            }
+
+            _applyQueue.Enqueue(new WidgetApplyRequest
+            {
+                Host = host,
+                Widget = widget,
+                BlockId = blockId,
+                SnapshotOnly = snapshotOnly
+            });
+            ScheduleApplyDrain();
+        }
+
+        private void ScheduleApplyDrain()
+        {
+            if (_applyDrainScheduled || _disposed || _applyQueue.Count == 0)
+            {
+                return;
+            }
+
+            _applyDrainScheduled = true;
+            Dispatcher.BeginInvoke(
+                new Action(DrainApplyQueue),
+                System.Windows.Threading.DispatcherPriority.Background);
+        }
+
+        // Applies at most one widget, then re-posts itself. The snapshot is read when the
+        // request runs, not when it was queued, so a widget reached after a newer snapshot
+        // landed projects the newer one and is not queued twice for it.
+        private void DrainApplyQueue()
+        {
+            _applyDrainScheduled = false;
+            if (_disposed)
+            {
+                ClearApplyQueue();
+                return;
+            }
+
+            try
+            {
+                while (_applyQueue.Count > 0)
+                {
+                    var request = _applyQueue.Dequeue();
+                    _applyQueued.Remove(request.Host);
+                    if (!IsLiveRequest(request))
+                    {
+                        continue;
                     }
 
-                    host.Apply(ShowcaseWidgetProjectionService.Build(
-                        _overview.LatestSnapshot ?? new OverviewDataSnapshot(),
-                        Layout,
-                        widget,
-                        gridOptions: _settings.Persisted?.GridOptions));
-                }),
-                System.Windows.Threading.DispatcherPriority.Background);
-            return host;
+                    var snapshot = _overview.LatestSnapshot;
+                    if (request.SnapshotOnly && IsProjectedFrom(request.Host, snapshot))
+                    {
+                        continue;
+                    }
+
+                    ApplyWidgetProjection(request.Host, request.Widget, snapshot);
+                    _applyDrainApplied++;
+                    break;
+                }
+            }
+            finally
+            {
+                if (_applyQueue.Count > 0)
+                {
+                    ScheduleApplyDrain();
+                }
+                else if (_applyDrainApplied > 0 && PerfScope.PerfTracingEnabled)
+                {
+                    var elapsedMs = (System.Diagnostics.Stopwatch.GetTimestamp() - _applyDrainStartedTicks) * 1000L /
+                                    System.Diagnostics.Stopwatch.Frequency;
+                    Logger.Debug($"[Showcase] apply drain done widgets={_applyDrainApplied} ms={elapsedMs}");
+                    _applyDrainApplied = 0;
+                }
+            }
+        }
+
+        // A request is stale once its host no longer backs the block it was raised for (a
+        // rebuild replaced the container) or, for an off-page host, once the cache dropped it.
+        private bool IsLiveRequest(WidgetApplyRequest request)
+        {
+            if (request.BlockId != null)
+            {
+                return _blockVisuals.TryGetValue(request.BlockId, out var state) &&
+                       ReferenceEquals(state?.Host, request.Host);
+            }
+
+            return !string.IsNullOrWhiteSpace(request.Widget?.InstanceId) &&
+                   _hostCache.TryGetValue(request.Widget.InstanceId, out var live) &&
+                   ReferenceEquals(live, request.Host);
+        }
+
+        private static bool IsProjectedFrom(ShowcaseWidgetControl host, OverviewDataSnapshot snapshot)
+        {
+            return snapshot != null && ReferenceEquals(host?.Projection?.Snapshot, snapshot);
+        }
+
+        private void ClearApplyQueue()
+        {
+            _applyQueue.Clear();
+            _applyQueued.Clear();
+        }
+
+        // The one place a widget host receives its projection. Apply only sets the Projection
+        // property; the body's template inflation, grid row and mosaic tile realization, and
+        // chart plotting all run in the layout pass that follows, so a scope around Apply alone
+        // would under-report. With tracing on, layout is forced here so the per-widget number
+        // covers the whole cost; shipped builds leave layout to the dispatcher as before.
+        //
+        // A null snapshot means the overview has not produced one yet (a fresh open, before
+        // RefreshViewAsync lands). Projecting against an empty stand-in would build a "No data"
+        // body per widget only for SnapshotChanged to rebuild every one of them moments later,
+        // so the host shows a loading caption instead and the snapshot pass does the first
+        // real projection.
+        private void ApplyWidgetProjection(
+            ShowcaseWidgetControl host,
+            ShowcaseWidgetInstanceSettings widget,
+            OverviewDataSnapshot snapshot)
+        {
+            if (snapshot == null)
+            {
+                host.ShowLoadingPlaceholder();
+                return;
+            }
+
+            var context = $"kind={widget?.Kind} id={widget?.InstanceId}";
+            ShowcaseWidgetProjection projection;
+            using (var build = PerfScope.Start(Logger, "Showcase.Widget.Build", thresholdMs: 10, context: context))
+            {
+                projection = ShowcaseWidgetProjectionService.Build(
+                    snapshot,
+                    Layout,
+                    widget,
+                    gridOptions: _settings.Persisted?.GridOptions);
+                build?.SetContext(context + " " + DescribeProjection(projection));
+            }
+
+            using (PerfScope.Start(Logger, "Showcase.Widget.Apply", thresholdMs: 10, context: context))
+            {
+                host.Apply(projection);
+            }
+
+            if (PerfScope.PerfTracingEnabled)
+            {
+                using (PerfScope.Start(Logger, "Showcase.Widget.Layout", thresholdMs: 10, context: context))
+                {
+                    host.UpdateLayout();
+                }
+            }
+        }
+
+        private static string DescribeProjection(ShowcaseWidgetProjection projection)
+        {
+            return
+                $"rows={projection?.AchievementRows?.Count ?? 0} " +
+                $"mosaic={projection?.MosaicAchievements?.Count ?? 0} " +
+                $"games={projection?.Games?.Count ?? 0} " +
+                $"chart={projection?.ChartEntries?.Count ?? 0} " +
+                $"snapshot={projection?.Snapshot?.Achievements?.Count ?? 0}";
         }
 
         private Button CreateAddWidgetButton(ShowcaseBlockSettings block)
@@ -2372,7 +2613,6 @@ namespace PlayniteAchievements.Views.Showcase
                 _selectedBlockId = blocks.FirstOrDefault()?.BlockId;
             }
 
-            var snapshot = _overview.LatestSnapshot ?? new OverviewDataSnapshot();
             foreach (var block in blocks)
             {
                 if (_blockVisuals.TryGetValue(block.BlockId, out var existing))
@@ -2391,8 +2631,7 @@ namespace PlayniteAchievements.Views.Showcase
                             Column = block.Column,
                             RowSpan = block.RowSpan,
                             ColumnSpan = block.ColumnSpan
-                        },
-                        snapshot);
+                        });
                     created.Tag = block;
                     _blockVisuals[block.BlockId].Block = block;
                     // Below the ZIndex'd overlays either way; first keeps child order stable.
@@ -2675,8 +2914,9 @@ namespace PlayniteAchievements.Views.Showcase
         // would re-run the drag wiring and recreate every control). The per-kind view models update
         // their bindings without discarding their visual tree.
         //
-        // includeCachedHosts re-projects the off-page hosts as well; see the comment on that loop
-        // for why only a snapshot change needs it.
+        // This only enqueues; the apply queue projects one widget per dispatcher pass, visible
+        // blocks first in reading order. includeCachedHosts re-projects the off-page hosts as
+        // well; see the comment on that loop for why only a snapshot change needs it.
         private void RefreshWidgetData(bool includeCachedHosts)
         {
             if (_disposed)
@@ -2690,20 +2930,18 @@ namespace PlayniteAchievements.Views.Showcase
                 return;
             }
 
-            var snapshot = _overview.LatestSnapshot ?? new OverviewDataSnapshot();
-            var applied = new HashSet<ShowcaseWidgetControl>();
-            foreach (var visual in _blockVisuals.Values)
+            var queued = new HashSet<ShowcaseWidgetControl>();
+            foreach (var block in CurrentPage.Blocks.OrderBy(block => block.Row).ThenBy(block => block.Column))
             {
-                if (visual?.Host != null && visual.Widget != null)
+                if (!_blockVisuals.TryGetValue(block.BlockId, out var visual) ||
+                    visual?.Host == null ||
+                    visual.Widget == null)
                 {
-                    visual.Host.Apply(
-                        ShowcaseWidgetProjectionService.Build(
-                            snapshot,
-                            Layout,
-                            visual.Widget,
-                            gridOptions: _settings.Persisted?.GridOptions));
-                    applied.Add(visual.Host);
+                    continue;
                 }
+
+                QueueWidgetApply(visual.Host, visual.Widget, block.BlockId, snapshotOnly: includeCachedHosts);
+                queued.Add(visual.Host);
             }
 
             // Re-project the cached hosts for the other pages too, but only when the snapshot
@@ -2730,19 +2968,14 @@ namespace PlayniteAchievements.Views.Showcase
             foreach (var entry in _hostCache)
             {
                 if (entry.Value == null ||
-                    applied.Contains(entry.Value) ||
+                    queued.Contains(entry.Value) ||
                     entry.Value.Projection == null ||
                     !widgetsById.TryGetValue(entry.Key, out var widget))
                 {
                     continue;
                 }
 
-                entry.Value.Apply(
-                    ShowcaseWidgetProjectionService.Build(
-                        snapshot,
-                        Layout,
-                        widget,
-                        gridOptions: _settings.Persisted?.GridOptions));
+                QueueWidgetApply(entry.Value, widget, blockId: null, snapshotOnly: true);
             }
         }
 
@@ -3149,11 +3382,7 @@ namespace PlayniteAchievements.Views.Showcase
                 return;
             }
 
-            host.Apply(ShowcaseWidgetProjectionService.Build(
-                _overview.LatestSnapshot ?? new OverviewDataSnapshot(),
-                Layout,
-                widget,
-                gridOptions: _settings.Persisted?.GridOptions));
+            QueueWidgetApply(host, widget, blockId: null, snapshotOnly: false);
         }
 
         // Captures the current page as it renders on screen and saves it as a PNG the user

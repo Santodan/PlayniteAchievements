@@ -448,6 +448,34 @@ namespace PlayniteAchievements.Tests.Views
             StringAssert.Contains(gameGrid, "ShowcasePinService.MoveGame");
         }
 
+        // Per-instance controls merge the plugin dictionaries through the shared cache: a plain
+        // Source= merge re-parses the dictionary for every realized tile, widget host, and grid.
+        [TestMethod]
+        public void PerInstanceControls_MergeResourceDictionariesThroughTheSharedCache()
+        {
+            var files = new[]
+            {
+                new[] { "source", "Views", "Controls", "AchievementCompactItemControl.xaml" },
+                new[] { "source", "Views", "Showcase", "ShowcaseWidgetControl.xaml" },
+                new[] { "source", "Views", "Controls", "GridControlBarControl.xaml" },
+                new[] { "source", "Views", "Controls", "AchievementDataGridControl.xaml" },
+                new[] { "source", "Views", "Controls", "GameSummariesGridControl.xaml" },
+                new[] { "source", "Views", "Controls", "ScoreCardControl.xaml" },
+                new[] { "source", "Views", "Controls", "PieChartWithRadialIcons.xaml" },
+                new[] { "source", "Views", "Showcase", "ScreenshotInfoPanel.xaml" },
+                new[] { "source", "Views", "OverviewControl.xaml" },
+                new[] { "source", "Views", "StartPage", "StartPageShowcaseWidgetView.xaml" }
+            };
+
+            foreach (var parts in files)
+            {
+                var xaml = ReadRepoFile(parts);
+                var name = parts[parts.Length - 1];
+                StringAssert.Contains(xaml, "helpers:SharedResourceDictionary Source=", name);
+                Assert.IsFalse(xaml.Contains("<ResourceDictionary Source="), name);
+            }
+        }
+
         private static void AssertEnumKeys<T>(
             string localization,
             string prefix,

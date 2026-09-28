@@ -395,6 +395,19 @@ namespace PlayniteAchievements.Views.Showcase
             _bodyViewModel = null;
         }
 
+        /// <summary>
+        /// Shown by the host while the overview has no snapshot yet, so a fresh dashboard reads
+        /// as loading rather than as empty. Only a never-projected host takes it; the first
+        /// projection apply replaces it through RebuildBody.
+        /// </summary>
+        public void ShowLoadingPlaceholder()
+        {
+            if (BodyHost.Content == null && _projection == null)
+            {
+                SetBodyContent(CreateEmptyText(Localize("LOCPlayAch_Status_LoadingAchievements")));
+            }
+        }
+
         // Reuses (or lazily creates) the body view model for this control and feeds it the
         // current projection and viewport. Implicit templates in ShowcaseWidgetTemplates.xaml render
         // the returned view model. The type check replaces the view model when a collapsed kind's
