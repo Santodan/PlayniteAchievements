@@ -10,27 +10,49 @@ using System.Linq;
 namespace PlayniteAchievements.Services.GameCustomData
 {
     /// <summary>
-    /// The .pacustom package: a zip holding one CSV of custom achievement definitions
-    /// (<see cref="CustomAchievementCsvFormat"/>) and, when any definition has an icon, the
-    /// bundled icon files under the same images folder the .pa package uses. A template is the
-    /// same package with a header-only CSV.
+    /// The custom-achievements form of the .pa package: a zip holding one CSV of custom
+    /// achievement definitions (<see cref="CustomAchievementCsvFormat"/>) and, when any
+    /// definition has an icon, the bundled icon files under the package images folder. It has
+    /// no <see cref="PortablePackageManifestEntryName"/> entry, which is what tells it apart from
+    /// a whole-game package. A template is the same package with a header-only CSV.
     /// </summary>
     public sealed partial class GameCustomDataStore
     {
-        public const string CustomAchievementsPackageFileExtension = ".pacustom";
         public const string CustomAchievementsPackageCsvEntryName = "custom-achievements.csv";
+
+        /// <summary>
+        /// Whether a .pa package carries custom achievements only (the CSV and no manifest), and
+        /// so merges into the editor instead of replacing the game's custom data.
+        /// </summary>
+        public bool IsCustomAchievementsPackage(string sourcePath)
+        {
+            if (!File.Exists(sourcePath))
+            {
+                throw new FileNotFoundException("Package file not found.", sourcePath);
+            }
+
+            using (var archive = ZipFile.OpenRead(sourcePath))
+            {
+                return IsCustomAchievementsPackage(
+                    archive.Entries.Select(entry => NormalizeArchiveEntryName(entry.FullName)));
+            }
+        }
+
+        private static bool IsCustomAchievementsPackage(IEnumerable<string> entryNames)
+        {
+            var names = new HashSet<string>(
+                entryNames.Where(name => !string.IsNullOrWhiteSpace(name)),
+                StringComparer.OrdinalIgnoreCase);
+            return !names.Contains(PortablePackageManifestEntryName) &&
+                   names.Contains(CustomAchievementsPackageCsvEntryName);
+        }
 
         public void ExportCustomAchievementsPackage(
             Guid playniteGameId,
             IReadOnlyList<CustomAchievementDefinition> definitions,
             string destinationPath)
         {
-            if (string.IsNullOrWhiteSpace(destinationPath) ||
-                !destinationPath.EndsWith(CustomAchievementsPackageFileExtension, StringComparison.OrdinalIgnoreCase))
-            {
-                throw new InvalidOperationException(
-                    "Destination path must end with " + CustomAchievementsPackageFileExtension + ".");
-            }
+            EnsurePortablePackageExtension(destinationPath);
 
             var clones = (definitions ?? Array.Empty<CustomAchievementDefinition>())
                 .Where(definition => definition != null)
@@ -95,11 +117,7 @@ namespace PlayniteAchievements.Services.GameCustomData
                     .GroupBy(item => item.Name, StringComparer.OrdinalIgnoreCase)
                     .ToDictionary(group => group.Key, group => group.First().Entry, StringComparer.OrdinalIgnoreCase);
 
-                var csvEntry = entriesByName.TryGetValue(CustomAchievementsPackageCsvEntryName, out var namedEntry)
-                    ? namedEntry
-                    : entriesByName.Values.FirstOrDefault(entry =>
-                        entry.Name.EndsWith(".csv", StringComparison.OrdinalIgnoreCase));
-                if (csvEntry == null)
+                if (!entriesByName.TryGetValue(CustomAchievementsPackageCsvEntryName, out var csvEntry))
                 {
                     throw new InvalidOperationException(
                         "Package does not contain " + CustomAchievementsPackageCsvEntryName + ".");
