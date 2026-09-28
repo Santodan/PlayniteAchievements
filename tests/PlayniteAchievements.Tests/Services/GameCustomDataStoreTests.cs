@@ -517,6 +517,7 @@ namespace PlayniteAchievements.Services.Tests
 
                 var packagePath = Path.Combine(tempDir, "notification.pa");
                 store.ExportPortablePackage(gameId, packagePath);
+                Assert.IsFalse(store.IsCustomAchievementsPackage(packagePath), "A whole-game package replaces, it does not merge.");
                 using (var archive = ZipFile.OpenRead(packagePath))
                 {
                     var entryNames = archive.Entries.Select(entry => entry.FullName).ToList();
