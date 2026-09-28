@@ -43,6 +43,7 @@ namespace PlayniteAchievements.ViewModels
         private bool _isDisposed;
         private Guid? _activeRefreshOperationId;
         private bool _isApplyingTimelineState;
+        private DispatcherTimer _timelinePersistTimer;
 
         // Standard refresh-progress UI state (mirrors OverviewViewModel). The progress bar stays
         // visible while a refresh runs, lingers at 100% briefly on completion, then auto-hides.
@@ -506,8 +507,36 @@ namespace PlayniteAchievements.ViewModels
 
             if (changed)
             {
-                PersistSettingsForUi();
+                SchedulePersistTimelineSettings();
             }
+        }
+
+        // A full settings write per chip click makes the strip feel laggy, so a burst collapses
+        // into one write; Dispose flushes a pending one.
+        private void SchedulePersistTimelineSettings()
+        {
+            if (_timelinePersistTimer == null)
+            {
+                _timelinePersistTimer = new DispatcherTimer(DispatcherPriority.Background)
+                {
+                    Interval = TimeSpan.FromMilliseconds(600)
+                };
+                _timelinePersistTimer.Tick += (_, __) => FlushTimelineSettingsPersist();
+            }
+
+            _timelinePersistTimer.Stop();
+            _timelinePersistTimer.Start();
+        }
+
+        private void FlushTimelineSettingsPersist()
+        {
+            if (_timelinePersistTimer == null || !_timelinePersistTimer.IsEnabled)
+            {
+                return;
+            }
+
+            _timelinePersistTimer.Stop();
+            PersistSettingsForUi();
         }
 
         private void PersistTimelineVisibility(bool isVisible)
@@ -1260,6 +1289,7 @@ namespace PlayniteAchievements.ViewModels
                 _progressHideTimer = null;
             }
             LocalDayRollover.Unsubscribe(OnLocalDayChanged);
+            FlushTimelineSettingsPersist();
             if (Timeline != null)
             {
                 Timeline.PropertyChanged -= Timeline_PropertyChanged;
