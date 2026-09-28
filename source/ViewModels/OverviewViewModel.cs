@@ -89,6 +89,7 @@ namespace PlayniteAchievements.ViewModels
         private System.Windows.Threading.DispatcherTimer _refreshDebounceTimer;
         private System.Windows.Threading.DispatcherTimer _deltaBatchTimer;
         private bool _isApplyingTimelineRange;
+        private System.Windows.Threading.DispatcherTimer _timelinePersistTimer;
         private bool _selectedGameLoadInProgress;
         private bool _selectedGameContentReady;
         private CancellationTokenSource _selectedGameLoadCts;
@@ -454,13 +455,41 @@ namespace PlayniteAchievements.ViewModels
 
                 if (changed)
                 {
-                    _persistSettingsForUi?.Invoke();
+                    SchedulePersistTimelineSettings();
                 }
             }
             finally
             {
                 _isApplyingTimelineRange = false;
             }
+        }
+
+        // A full settings write per chip click is what makes the strip feel laggy (it serializes the
+        // whole tree and notifies every listener), so a burst of clicks collapses into one write.
+        private void SchedulePersistTimelineSettings()
+        {
+            if (_timelinePersistTimer == null)
+            {
+                _timelinePersistTimer = new System.Windows.Threading.DispatcherTimer(System.Windows.Threading.DispatcherPriority.Background)
+                {
+                    Interval = TimeSpan.FromMilliseconds(600)
+                };
+                _timelinePersistTimer.Tick += (_, __) => FlushTimelineSettingsPersist();
+            }
+
+            _timelinePersistTimer.Stop();
+            _timelinePersistTimer.Start();
+        }
+
+        private void FlushTimelineSettingsPersist()
+        {
+            if (_timelinePersistTimer == null || !_timelinePersistTimer.IsEnabled)
+            {
+                return;
+            }
+
+            _timelinePersistTimer.Stop();
+            _persistSettingsForUi?.Invoke();
         }
 
         private void ApplySavedTimelineWindow()
@@ -4792,6 +4821,8 @@ namespace PlayniteAchievements.ViewModels
                 _gameCustomDataStore.CustomDataChanged -= OnCustomDataChanged;
             }
             LocalDayRollover.Unsubscribe(OnLocalDayChanged);
+            // The last click in a burst must not be lost when the window closes inside the debounce.
+            FlushTimelineSettingsPersist();
             if (GlobalTimeline != null)
             {
                 GlobalTimeline.PropertyChanged -= Timeline_PropertyChanged;
