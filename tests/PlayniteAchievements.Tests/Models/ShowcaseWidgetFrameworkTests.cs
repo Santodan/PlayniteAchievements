@@ -68,6 +68,49 @@ namespace PlayniteAchievements.Tests.Models
         }
 
         [TestMethod]
+        public void TimeWindow_ReadsLegacyPresetNameAndRoundTripsCustomRanges()
+        {
+            var instance = new ShowcaseWidgetInstanceSettings { Kind = ShowcaseWidgetKind.Timeline };
+            instance.Options["TimelineRange"] = "OneYear";
+            Assert.AreEqual(TimeWindow.FromPreset(TimelineRange.OneYear), ShowcaseTimelineOptions.GetWindow(instance));
+
+            var custom = TimeWindow.Custom(new System.DateTime(2024, 1, 1), null);
+            instance.SetOption("RangeDays", 30);
+            ShowcaseTimelineOptions.SetWindow(instance, custom);
+
+            Assert.AreEqual(custom, ShowcaseTimelineOptions.GetWindow(instance));
+            Assert.AreEqual("Custom:2024-01-01..", instance.Options["TimelineRange"]);
+            Assert.IsFalse(instance.Options.ContainsKey("RangeDays"));
+            Assert.AreEqual(TimelineRange.ThreeMonths, ShowcaseTimelineOptions.GetRange(instance), "custom windows report the default preset through the shim");
+        }
+
+        [TestMethod]
+        public void TimelineGranularity_DefaultsToAutoAndPersists()
+        {
+            var instance = new ShowcaseWidgetInstanceSettings { Kind = ShowcaseWidgetKind.Timeline };
+            Assert.AreEqual(TimelineGranularity.Auto, ShowcaseTimelineOptions.GetGranularity(instance));
+
+            ShowcaseTimelineOptions.SetGranularity(instance, TimelineGranularity.Week);
+
+            Assert.AreEqual(TimelineGranularity.Week, ShowcaseTimelineOptions.GetGranularity(instance));
+        }
+
+        [TestMethod]
+        public void LastPlayedTimeWindow_DefaultsToOneMonthAndAcceptsCustomRanges()
+        {
+            var instance = new ShowcaseWidgetInstanceSettings { Kind = ShowcaseWidgetKind.IconMosaic };
+            Assert.AreEqual(TimeWindow.FromPreset(TimelineRange.OneMonth), ShowcaseWidgetOptions.GetLastPlayedTimeWindow(instance));
+
+            ShowcaseWidgetOptions.SetLastPlayedWindow(instance, TimelineRange.All);
+            Assert.AreEqual(TimeWindow.All, ShowcaseWidgetOptions.GetLastPlayedTimeWindow(instance));
+
+            var custom = TimeWindow.Custom(new System.DateTime(2025, 3, 1), new System.DateTime(2025, 3, 31));
+            ShowcaseWidgetOptions.SetLastPlayedTimeWindow(instance, custom);
+            Assert.AreEqual(custom, ShowcaseWidgetOptions.GetLastPlayedTimeWindow(instance));
+            Assert.AreEqual(TimelineRange.OneMonth, ShowcaseWidgetOptions.GetLastPlayedWindow(instance), "shim falls back to the default preset");
+        }
+
+        [TestMethod]
         public void WidgetOptions_RejectInvalidEnumsAndClampNumericValues()
         {
             var instance = new ShowcaseWidgetInstanceSettings();
