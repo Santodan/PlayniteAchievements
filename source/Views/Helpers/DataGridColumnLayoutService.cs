@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.ComponentModel;
+using System.Diagnostics;
 using System.Linq;
 using System.Windows;
 using System.Windows.Automation;
@@ -23,6 +24,14 @@ namespace PlayniteAchievements.Views.Helpers
     {
         private const int InitialNormalizationMaxAttempts = 8;
         private const double LayoutWidthChangeThreshold = 0.2d;
+
+        /// <summary>
+        /// Minimum gap between two viewport-driven column refits. A window drag raises a size
+        /// change per frame, and each refit writes every column width and forces another layout
+        /// pass, so refitting on every frame stutters. The first change in a burst still applies
+        /// at once; the rest collapse into one trailing refit this long after the last one.
+        /// </summary>
+        private const int ViewportRescaleThrottleMilliseconds = 60;
 
         private readonly DataGrid _grid;
         private readonly ILogger _logger;
@@ -55,6 +64,9 @@ namespace PlayniteAchievements.Views.Helpers
         private ColumnResizeWidthAdorner _resizeWidthAdorner;
         private AdornerLayer _resizeWidthAdornerLayer;
         private DispatcherTimer _saveTimer;
+        private DispatcherTimer _viewportRescaleTimer;
+        private readonly Stopwatch _viewportRescaleClock = Stopwatch.StartNew();
+        private long _lastViewportRescaleMilliseconds = long.MinValue / 2;
         private bool _isApplyingWidths;
         private bool _isApplyingOrder;
         private bool _isResizeInProgress;
@@ -227,6 +239,7 @@ namespace PlayniteAchievements.Views.Helpers
             DetachNormalizationHandlers();
             DetachScrollViewerHandlers();
             CancelQueuedNormalization();
+            StopViewportRescaleTimer();
 
             if (_saveTimer != null)
             {
@@ -1532,11 +1545,65 @@ namespace PlayniteAchievements.Views.Helpers
                 return;
             }
 
+            ThrottleViewportRescale();
+        }
+
+        /// <summary>
+        /// Leading-edge throttle for viewport refits: run now if the last one is at least
+        /// <see cref="ViewportRescaleThrottleMilliseconds"/> old, otherwise (re)arm one trailing
+        /// refit for when that gap has passed. The trailing refit reads the grid's width when it
+        /// runs, so it always fits the final size of the burst.
+        /// </summary>
+        private void ThrottleViewportRescale()
+        {
+            var elapsed = _viewportRescaleClock.ElapsedMilliseconds - _lastViewportRescaleMilliseconds;
+            if (elapsed >= ViewportRescaleThrottleMilliseconds)
+            {
+                _viewportRescaleTimer?.Stop();
+                RunViewportRescale();
+                return;
+            }
+
+            if (_viewportRescaleTimer == null)
+            {
+                _viewportRescaleTimer = new DispatcherTimer(DispatcherPriority.Loaded, _grid.Dispatcher);
+                _viewportRescaleTimer.Tick += ViewportRescaleTimer_Tick;
+            }
+
+            _viewportRescaleTimer.Stop();
+            _viewportRescaleTimer.Interval = TimeSpan.FromMilliseconds(Math.Max(1, ViewportRescaleThrottleMilliseconds - elapsed));
+            _viewportRescaleTimer.Start();
+        }
+
+        private void ViewportRescaleTimer_Tick(object sender, EventArgs e)
+        {
+            _viewportRescaleTimer?.Stop();
+            if (!_isAttached || _grid == null || (_grid.IsLoaded && !_grid.IsVisible))
+            {
+                return;
+            }
+
+            RunViewportRescale();
+        }
+
+        private void RunViewportRescale()
+        {
+            _lastViewportRescaleMilliseconds = _viewportRescaleClock.ElapsedMilliseconds;
             // Loaded, not Background: a window drag floods the dispatcher with input, which
-            // starves Background work, so the columns visibly lag the new width. Loaded runs
-            // after each layout pass and ahead of input, and QueueNormalization still
-            // coalesces the burst into one fit per pass.
+            // starves Background work, so the columns would visibly lag the new width.
             QueueNormalization(rescaleAll: true, DispatcherPriority.Loaded);
+        }
+
+        private void StopViewportRescaleTimer()
+        {
+            if (_viewportRescaleTimer == null)
+            {
+                return;
+            }
+
+            _viewportRescaleTimer.Stop();
+            _viewportRescaleTimer.Tick -= ViewportRescaleTimer_Tick;
+            _viewportRescaleTimer = null;
         }
 
         private bool ShouldRescaleAll(bool requestedRescaleAll)
