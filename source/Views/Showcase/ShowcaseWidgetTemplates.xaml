@@ -355,20 +355,31 @@
                 Margin="0,2,4,0"
                 ToolTip="{DynamicResource LOCPlayAch_Score_Info_ButtonTooltip}"
                 showcase:ScoreCardInfoBehavior.Enabled="True"/>
-        <ItemsControl ItemsSource="{Binding Cards}" VerticalAlignment="Center">
+        <ItemsControl ItemsSource="{Binding Cards}">
             <ItemsControl.ItemsPanel>
                 <ItemsPanelTemplate>
                     <UniformGrid Rows="{Binding Rows}"
-                                 Columns="{Binding Columns}"
-                                 VerticalAlignment="Center"/>
+                                 Columns="{Binding Columns}"/>
                 </ItemsPanelTemplate>
             </ItemsControl.ItemsPanel>
             <ItemsControl.ItemTemplate>
                 <DataTemplate>
-                    <!-- Grid rows (not a StackPanel) so a small cell compresses the chart row
-                         instead of clipping the date labels off the bottom. -->
+                    <!-- Grid rows (not a StackPanel) so the chart row takes whatever height the
+                         cell has left: a tall cell grows the chart, a small cell compresses it
+                         instead of clipping the date labels off the bottom. A card without a
+                         chart has nothing to grow, so it centers in the cell instead. -->
                     <Grid Margin="4"
                           MaxWidth="{Binding DataContext.MaxCardWidth, RelativeSource={RelativeSource AncestorType=ItemsControl}}">
+                        <Grid.Style>
+                            <Style TargetType="Grid">
+                                <Setter Property="VerticalAlignment" Value="Stretch"/>
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding ShowChart}" Value="False">
+                                        <Setter Property="VerticalAlignment" Value="Center"/>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Grid.Style>
                         <Grid.RowDefinitions>
                             <RowDefinition Height="Auto"/>
                             <RowDefinition Height="Auto"/>
@@ -389,7 +400,6 @@
                                    FontSize="{DynamicResource PlayAch.FontSize.Caption}"
                                    Visibility="{Binding ShowChart, Converter={StaticResource BoolToVis}}"/>
                         <lvc:CartesianChart Grid.Row="2"
-                                            MaxHeight="{Binding DataContext.ChartHeight, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
                                             MinHeight="34"
                                             LegendLocation="None"
                                             Hoverable="True"
