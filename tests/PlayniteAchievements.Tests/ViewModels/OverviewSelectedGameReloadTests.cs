@@ -94,36 +94,40 @@ namespace PlayniteAchievements.Tests.ViewModels
             StringAssert.Contains(deltaBranch, "if (SelectedGame?.PlayniteGameId == gameId)");
             StringAssert.Contains(
                 deltaBranch,
-                "ApplySelectedGameIconOverrides(gameId);",
-                "The in-place re-stamp stays as the immediate visual.");
-            StringAssert.Contains(
-                deltaBranch,
                 "_selectedGameReloadRequested = true;",
                 "Every delta for the selected game must reach the reload.");
             Assert.IsFalse(
-                deltaBranch.Contains("!ApplySelectedGameIconOverrides"),
-                "Gating the reload on the icon re-stamp is the regression.");
+                deltaBranch.Contains("ApplySelectedGameIconOverrides"),
+                "Icons ride the in-place update like every other facet; a per-facet patch " +
+                "beside it is the sibling path this replaced.");
         }
 
         [TestMethod]
-        public void TheReload_KeepsTheSearch_WhileASelectionClearsIt()
+        public void TheReload_UpdatesRowsInPlace_AndKeepsTheSearch()
         {
             var source = ReadViewModel();
 
-            // Every delta for the selected game now reloads it, so a reload that cleared the
-            // search would wipe what the user typed on each edit.
+            // Every delta for the selected game reloads it. Handing the grid all-new instances
+            // re-realized every row and stalled the UI for about a second per edit, and clearing
+            // the search would wipe what the user typed.
             var reload = Between(
                 source,
                 "private async Task ReloadSelectedGameIfRequestedAsync()",
                 "private void RemarkCapturePresence(");
-            StringAssert.Contains(reload, "resetSearch: false");
+            StringAssert.Contains(reload, "inPlace: true");
 
             var load = Between(
                 source,
                 "private async Task<bool> LoadSelectedGameAchievementsAsync(",
-                "if (targetGameId == null)");
-            StringAssert.Contains(load, "bool resetSearch = true");
-            StringAssert.Contains(load, "if (resetSearch)");
+                "private bool IsSelectedGameLoadCurrent(");
+            StringAssert.Contains(load, "bool inPlace = false");
+            StringAssert.Contains(load, "if (!inPlace)");
+            StringAssert.Contains(load, "items = MergeIntoShownSelectedGameRows(gameId, items);");
+            StringAssert.Contains(
+                load,
+                "CollectionHelper.MergeByKey(",
+                "The merge keeps each row's instance, keyed by ApiName.");
+            StringAssert.Contains(load, "kept.UpdateFrom(source);");
         }
 
         private static string Between(string source, string start, string end)
