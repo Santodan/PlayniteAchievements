@@ -327,14 +327,6 @@ namespace PlayniteAchievements.Models
 
         public static void SetGranularity(ShowcaseWidgetInstanceSettings instance, TimelineGranularity value) =>
             instance?.SetOption(GranularityOption, value);
-
-        /// <summary>Transitional: the preset behind the window, for callers not yet on <see cref="GetWindow"/>.</summary>
-        public static TimelineRange GetRange(ShowcaseWidgetInstanceSettings instance) =>
-            GetWindow(instance).Preset ?? TimelineRange.ThreeMonths;
-
-        /// <summary>Transitional: see <see cref="SetWindow"/>.</summary>
-        public static void SetRange(ShowcaseWidgetInstanceSettings instance, TimelineRange range) =>
-            SetWindow(instance, TimeWindow.FromPreset(range));
     }
 
     /// <summary>
@@ -749,15 +741,6 @@ namespace PlayniteAchievements.Models
 
         public static void SetLastPlayedTimeWindow(ShowcaseWidgetInstanceSettings settings, TimeWindow window) =>
             settings?.SetOption(LastPlayedWindow, (window ?? DefaultLastPlayedWindow).ToKey());
-
-        /// <summary>Transitional: the preset behind the window, for callers not yet on <see cref="GetLastPlayedTimeWindow"/>.</summary>
-        public static TimelineRange GetLastPlayedWindow(ShowcaseWidgetInstanceSettings settings) =>
-            GetLastPlayedTimeWindow(settings).Preset ?? TimelineRange.OneMonth;
-
-        /// <summary>Transitional: see <see cref="SetLastPlayedTimeWindow"/>.</summary>
-        public static void SetLastPlayedWindow(
-            ShowcaseWidgetInstanceSettings settings,
-            TimelineRange value) => SetLastPlayedTimeWindow(settings, TimeWindow.FromPreset(value));
 
         /// <summary>
         /// Most rows a single game may contribute to Unlock Next. The pool the overview builder

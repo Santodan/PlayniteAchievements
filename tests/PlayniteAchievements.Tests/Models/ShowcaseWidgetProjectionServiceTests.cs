@@ -309,7 +309,7 @@ namespace PlayniteAchievements.Tests.Models
             var settings = new ShowcaseSettings();
             var mosaic = new ShowcaseWidgetInstanceSettings { Kind = ShowcaseWidgetKind.IconMosaic };
             ShowcaseWidgetOptions.SetMosaicSource(mosaic, ShowcaseMosaicSource.UnlockNext);
-            ShowcaseWidgetOptions.SetLastPlayedWindow(mosaic, TimelineRange.All);
+            ShowcaseWidgetOptions.SetLastPlayedTimeWindow(mosaic, TimeWindow.FromPreset(TimelineRange.All));
 
             // One per game by default. Closest to completion (the default) leads with the nearly
             // finished game, and within each game with its most commonly earned leftover.
@@ -373,7 +373,7 @@ namespace PlayniteAchievements.Tests.Models
             var settings = new ShowcaseSettings();
             var mosaic = new ShowcaseWidgetInstanceSettings { Kind = ShowcaseWidgetKind.IconMosaic };
             ShowcaseWidgetOptions.SetMosaicSource(mosaic, ShowcaseMosaicSource.UnlockNext);
-            ShowcaseWidgetOptions.SetLastPlayedWindow(mosaic, TimelineRange.All);
+            ShowcaseWidgetOptions.SetLastPlayedTimeWindow(mosaic, TimeWindow.FromPreset(TimelineRange.All));
             ShowcaseWidgetOptions.SetUnlockNextCriterion(mosaic, UnlockNextCriterion.Easiest);
             ShowcaseWidgetOptions.SetMosaicCount(mosaic, 3);
 
@@ -450,7 +450,7 @@ namespace PlayniteAchievements.Tests.Models
             var settings = new ShowcaseSettings();
             var mosaic = new ShowcaseWidgetInstanceSettings { Kind = ShowcaseWidgetKind.IconMosaic };
             ShowcaseWidgetOptions.SetMosaicSource(mosaic, ShowcaseMosaicSource.UnlockNext);
-            ShowcaseWidgetOptions.SetLastPlayedWindow(mosaic, TimelineRange.OneMonth);
+            ShowcaseWidgetOptions.SetLastPlayedTimeWindow(mosaic, TimeWindow.FromPreset(TimelineRange.OneMonth));
             ShowcaseWidgetOptions.SetMaxPerGame(mosaic, 10);
 
             CollectionAssert.AreEqual(
@@ -463,7 +463,7 @@ namespace PlayniteAchievements.Tests.Models
                 ApiNames(ShowcaseWidgetProjectionService.ResolveMosaic(snapshot, settings, mosaic)));
 
             // Widening the window lets the stale game back in.
-            ShowcaseWidgetOptions.SetLastPlayedWindow(mosaic, TimelineRange.All);
+            ShowcaseWidgetOptions.SetLastPlayedTimeWindow(mosaic, TimeWindow.FromPreset(TimelineRange.All));
             CollectionAssert.Contains(
                 ApiNames(ShowcaseWidgetProjectionService.ResolveMosaic(snapshot, settings, mosaic)),
                 "stale");
@@ -522,7 +522,7 @@ namespace PlayniteAchievements.Tests.Models
             };
             var games = new[] { barely, easy, almost, unplayed };
             var instance = new ShowcaseWidgetInstanceSettings { Kind = ShowcaseWidgetKind.GameSummaries };
-            ShowcaseWidgetOptions.SetLastPlayedWindow(instance, TimelineRange.OneMonth);
+            ShowcaseWidgetOptions.SetLastPlayedTimeWindow(instance, TimeWindow.FromPreset(TimelineRange.OneMonth));
 
             CollectionAssert.AreEqual(
                 new[] { almost, easy, barely },
@@ -593,13 +593,13 @@ namespace PlayniteAchievements.Tests.Models
             var mosaic = new ShowcaseWidgetInstanceSettings { Kind = ShowcaseWidgetKind.IconMosaic };
             ShowcaseWidgetOptions.SetMosaicContent(mosaic, ShowcaseMosaicContent.Games);
             ShowcaseWidgetOptions.SetGameMosaicSource(mosaic, ShowcaseGameMosaicSource.FinishNext);
-            ShowcaseWidgetOptions.SetLastPlayedWindow(mosaic, TimelineRange.OneMonth);
+            ShowcaseWidgetOptions.SetLastPlayedTimeWindow(mosaic, TimeWindow.FromPreset(TimelineRange.OneMonth));
 
             CollectionAssert.AreEqual(
                 new[] { almost, halfway },
                 ShowcaseWidgetProjectionService.ResolveGameMosaic(snapshot, settings, mosaic).ToArray());
 
-            ShowcaseWidgetOptions.SetLastPlayedWindow(mosaic, TimelineRange.All);
+            ShowcaseWidgetOptions.SetLastPlayedTimeWindow(mosaic, TimeWindow.FromPreset(TimelineRange.All));
             CollectionAssert.AreEqual(
                 new[] { almost, forgotten, halfway },
                 ShowcaseWidgetProjectionService.ResolveGameMosaic(snapshot, settings, mosaic).ToArray());
@@ -750,7 +750,7 @@ namespace PlayniteAchievements.Tests.Models
             {
                 Kind = ShowcaseWidgetKind.ActivityCalendar
             };
-            ShowcaseTimelineOptions.SetRange(instance, range);
+            ShowcaseTimelineOptions.SetWindow(instance, TimeWindow.FromPreset(range));
             return instance;
         }
 
@@ -1010,7 +1010,7 @@ namespace PlayniteAchievements.Tests.Models
             };
             var instance = new ShowcaseWidgetInstanceSettings { Kind = ShowcaseWidgetKind.RecentAchievements };
             ShowcaseWidgetOptions.SetAchievementGridSource(instance, ShowcaseAchievementGridSource.UnlockNext);
-            ShowcaseWidgetOptions.SetLastPlayedWindow(instance, TimelineRange.All);
+            ShowcaseWidgetOptions.SetLastPlayedTimeWindow(instance, TimeWindow.FromPreset(TimelineRange.All));
 
             var built = ShowcaseWidgetProjectionService.Build(snapshot, new ShowcaseSettings(), instance);
 
