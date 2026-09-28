@@ -7,7 +7,7 @@ using System.Linq;
 namespace PlayniteAchievements.Services
 {
     /// <summary>
-    /// The CSV shape written into a .pacustom package. The header uses readable column names;
+    /// The CSV shape written into a custom-achievements .pa package. The header uses readable column names;
     /// <see cref="CustomAchievementTextImportService"/> normalizes them back to fields, so a
     /// template and an export share this single header.
     /// </summary>
