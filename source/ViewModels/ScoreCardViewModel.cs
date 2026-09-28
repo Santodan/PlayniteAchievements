@@ -450,6 +450,12 @@ namespace PlayniteAchievements.ViewModels
                 total.ToString("N0", FormattingCulture.Current));
         }
 
+        /// <summary>The accent brush of a rank's tier, for hosts that color by rank outside a card.</summary>
+        public static Brush GetAccentBrushForRank(AchievementRank rank)
+        {
+            return GetScoreAccentBrush(rank.ToString());
+        }
+
         private static Brush GetScoreAccentBrush(string rank)
         {
             var tier = AchievementRankPresentation.GetRarityTier(rank);
