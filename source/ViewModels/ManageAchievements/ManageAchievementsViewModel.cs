@@ -1225,6 +1225,22 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
 
         private void ImportCustomJson()
         {
+            ImportPortable();
+        }
+
+        /// <summary>
+        /// The one Import for this game's .pa files, shared by the Overview and Editor tabs. A
+        /// whole-game package replaces the game's custom data; a custom-achievements package is
+        /// merged by ID, into <paramref name="mergeCustomAchievements"/> when the caller has rows
+        /// of its own, or into the stored definitions otherwise.
+        /// </summary>
+        /// <param name="mergeCustomAchievements">Receives a custom-achievements package's parsed
+        /// definitions instead of the stored merge.</param>
+        /// <param name="beforeReplace">Runs just before a whole-game package is written.</param>
+        public void ImportPortable(
+            Action<CustomAchievementTextImportResult> mergeCustomAchievements = null,
+            Action beforeReplace = null)
+        {
             if (!HasGame)
             {
                 return;
@@ -1250,32 +1266,23 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                     throw new InvalidOperationException("Game custom data store is not available.");
                 }
 
-                var previousData = TryLoadStoredCustomData(store);
-                var importResult = store.ImportReplacePortable(_gameId, dialog.FileName);
-                var currentData = importResult?.ImportedData;
-                if (currentData == null)
+                if (store.IsCustomAchievementsPackage(dialog.FileName))
                 {
-                    throw new InvalidOperationException("Imported custom game data was empty.");
+                    var parsed = store.ImportCustomAchievementsPackage(_gameId, dialog.FileName);
+                    if (mergeCustomAchievements != null)
+                    {
+                        mergeCustomAchievements(parsed);
+                    }
+                    else
+                    {
+                        MergeCustomAchievementsIntoStore(store, parsed);
+                    }
+
+                    return;
                 }
 
-                var transitionEffects = AnalyzeCustomDataTransition(previousData, currentData);
-                NotifyCustomDataChanged(transitionEffects.RequiresRefresh, transitionEffects.ForceIconRefresh);
-
-                var successMessage = L("LOCPlayAch_Status_Succeeded");
-                if (importResult.HasIgnoredPackageImages)
-                {
-                    successMessage += "\n\n" + string.Format(
-                        L("LOCPlayAch_ManageAchievements_Overrides_ImportIgnoredPackageImages"),
-                        importResult.IgnoredPackageImageCount);
-                }
-
-                _playniteApi?.Dialogs?.ShowMessage(
-                    successMessage,
-                    L("LOCPlayAch_Title_PluginName"),
-                    MessageBoxButton.OK,
-                    importResult.HasIgnoredPackageImages
-                        ? MessageBoxImage.Warning
-                        : MessageBoxImage.Information);
+                beforeReplace?.Invoke();
+                ReplaceFromPortablePackage(store, dialog.FileName);
             }
             catch (Exception ex)
             {
@@ -1286,6 +1293,75 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                     MessageBoxButton.OK,
                     MessageBoxImage.Error);
             }
+        }
+
+        private void MergeCustomAchievementsIntoStore(GameCustomDataStore store, CustomAchievementTextImportResult parsed)
+        {
+            if (parsed == null || parsed.HasErrors)
+            {
+                throw new InvalidOperationException(
+                    string.Join(Environment.NewLine, parsed?.Errors?.Take(8) ?? Enumerable.Empty<string>()));
+            }
+
+            if (parsed.Definitions.Count == 0)
+            {
+                _playniteApi?.Dialogs?.ShowMessage(
+                    L("LOCPlayAch_ManageAchievements_Custom_NoImportRows"),
+                    L("LOCPlayAch_Title_PluginName"),
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Warning);
+                return;
+            }
+
+            if (_achievementOverridesService == null)
+            {
+                throw new InvalidOperationException("Achievement overrides service is not available.");
+            }
+
+            var previousData = TryLoadStoredCustomData(store);
+            _achievementOverridesService.MergeCustomAchievements(_gameId, parsed.Definitions, out var added, out var updated);
+            var transitionEffects = AnalyzeCustomDataTransition(previousData, TryLoadStoredCustomData(store));
+            NotifyCustomDataChanged(transitionEffects.RequiresRefresh, transitionEffects.ForceIconRefresh);
+
+            _playniteApi?.Dialogs?.ShowMessage(
+                string.Format(
+                    L("LOCPlayAch_ManageAchievements_Custom_ImportSummary"),
+                    parsed.Definitions.Count,
+                    added,
+                    updated),
+                L("LOCPlayAch_Title_PluginName"),
+                MessageBoxButton.OK,
+                MessageBoxImage.Information);
+        }
+
+        private void ReplaceFromPortablePackage(GameCustomDataStore store, string path)
+        {
+            var previousData = TryLoadStoredCustomData(store);
+            var importResult = store.ImportReplacePortable(_gameId, path);
+            var currentData = importResult?.ImportedData;
+            if (currentData == null)
+            {
+                throw new InvalidOperationException("Imported custom game data was empty.");
+            }
+
+            var transitionEffects = AnalyzeCustomDataTransition(previousData, currentData);
+            NotifyCustomDataChanged(transitionEffects.RequiresRefresh, transitionEffects.ForceIconRefresh);
+
+            var successMessage = L("LOCPlayAch_Status_Succeeded");
+            if (importResult.HasIgnoredPackageImages)
+            {
+                successMessage += "\n\n" + string.Format(
+                    L("LOCPlayAch_ManageAchievements_Overrides_ImportIgnoredPackageImages"),
+                    importResult.IgnoredPackageImageCount);
+            }
+
+            _playniteApi?.Dialogs?.ShowMessage(
+                successMessage,
+                L("LOCPlayAch_Title_PluginName"),
+                MessageBoxButton.OK,
+                importResult.HasIgnoredPackageImages
+                    ? MessageBoxImage.Warning
+                    : MessageBoxImage.Information);
         }
 
         /// <summary>
