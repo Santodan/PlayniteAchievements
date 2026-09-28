@@ -485,8 +485,8 @@ namespace PlayniteAchievements.Views.Controls
 
         /// <summary>
         /// Whether a game that has trophies shows trophy badges in place of its rarity badges.
-        /// Resolved from the global setting; consumed by ProgressBadgeRowTemplate, which pairs it
-        /// with each row's own HasTrophyTypes.
+        /// Resolved from the global setting; consumed by the footer's ProgressBadgeStrip, which
+        /// pairs it with each row's own HasTrophyTypes.
         /// </summary>
         public bool PreferTrophyBadges
         {
