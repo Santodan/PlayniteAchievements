@@ -561,16 +561,14 @@ namespace PlayniteAchievements.Tests.Views
                 service.SetColumnLocked(column, true);
 
                 Assert.IsTrue(service.IsColumnLocked(column));
-                Assert.IsFalse(column.CanUserResize);
+                // The lock never touches CanUserResize: the column keeps rescaling with the grid.
+                Assert.IsTrue(column.CanUserResize);
                 Assert.IsTrue(DataGridColumnGripperBehavior.GetIsLocked(column));
                 Assert.IsTrue(column.Width.IsAbsolute);
                 Assert.IsTrue(maps.Locks.TryGetValue("B", out var locked) && locked);
                 Assert.AreEqual(column.Width.Value, maps.Widths["B"]);
                 Assert.AreEqual(1, saveCount);
-
-                // A normalization pass pins the fixed column's bounds; unlocking has to lift them.
-                column.MinWidth = column.Width.Value;
-                column.MaxWidth = column.Width.Value;
+                Assert.IsFalse(service.CanLockColumn(column));
 
                 service.SetColumnLocked(column, false);
 
@@ -586,7 +584,7 @@ namespace PlayniteAchievements.Tests.Views
         }
 
         [TestMethod]
-        public void Attach_WithPersistedLockAppliesTheSavedWidthBeforeLocking()
+        public void Attach_WithPersistedLockRestoresTheLockAndTheSavedWidth()
         {
             RunOnStaThread(() =>
             {
@@ -605,21 +603,21 @@ namespace PlayniteAchievements.Tests.Views
 
                 var column = ColumnByKey(grid, "B");
                 Assert.IsTrue(service.IsColumnLocked(column));
-                Assert.IsFalse(column.CanUserResize);
+                Assert.IsTrue(DataGridColumnGripperBehavior.GetIsLocked(column));
+                Assert.IsTrue(column.CanUserResize);
                 Assert.IsTrue(column.Width.IsAbsolute);
                 Assert.AreEqual(150d, column.Width.Value);
-                Assert.IsTrue(ColumnByKey(grid, "A").CanUserResize);
+                Assert.IsFalse(service.IsColumnLocked(ColumnByKey(grid, "A")));
 
                 service.Detach();
 
-                // Released on detach so a re-attach can apply widths to it again.
-                Assert.IsTrue(column.CanUserResize);
                 Assert.IsFalse(service.IsColumnLocked(column));
+                Assert.IsFalse(DataGridColumnGripperBehavior.GetIsLocked(column));
             });
         }
 
         [TestMethod]
-        public void CanLockColumn_IsFalseForTheLastResizableColumn()
+        public void CanLockColumn_IsFalseForTheLastUnlockedColumn()
         {
             RunOnStaThread(() =>
             {
@@ -634,9 +632,125 @@ namespace PlayniteAchievements.Tests.Views
                 Assert.IsFalse(service.CanLockColumn(ColumnByKey(grid, "C")));
                 service.SetColumnLocked(ColumnByKey(grid, "C"), true);
                 Assert.IsFalse(service.IsColumnLocked(ColumnByKey(grid, "C")));
-                Assert.IsTrue(ColumnByKey(grid, "C").CanUserResize);
 
                 service.Detach();
+            });
+        }
+
+        [TestMethod]
+        public void LockedColumn_StillRescalesWhenTheGridWidthChanges()
+        {
+            RunOnStaThread(() =>
+            {
+                var order = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+                var grid = CreateGrid();
+                grid.Width = 360;
+                grid.Height = 160;
+
+                var window = new Window
+                {
+                    Width = 480,
+                    Height = 220,
+                    Content = grid,
+                    ShowActivated = false
+                };
+
+                DataGridColumnLayoutService service = null;
+                try
+                {
+                    window.Show();
+                    grid.UpdateLayout();
+
+                    service = CreateService(grid, order, () => { });
+                    service.Attach();
+                    DrainDispatcher();
+                    grid.UpdateLayout();
+
+                    var locked = ColumnByKey(grid, "B");
+                    service.SetColumnLocked(locked, true);
+                    DrainDispatcher();
+                    grid.UpdateLayout();
+                    var lockedBefore = locked.ActualWidth;
+                    Assert.IsTrue(lockedBefore > 0);
+
+                    grid.Width = 270;
+                    grid.UpdateLayout();
+                    DrainDispatcher();
+                    grid.UpdateLayout();
+
+                    var total = 0d;
+                    foreach (var column in grid.Columns)
+                    {
+                        total += column.ActualWidth;
+                    }
+
+                    // Three-quarters of the width: the locked column shrinks with the others
+                    // rather than holding its pixels and squeezing them.
+                    Assert.IsTrue(locked.ActualWidth < lockedBefore - 10, $"locked {locked.ActualWidth} vs {lockedBefore}");
+                    Assert.AreEqual(lockedBefore * 0.75, locked.ActualWidth, 6d);
+                    Assert.IsTrue(total <= 270.5, $"total {total}");
+                }
+                finally
+                {
+                    service?.Detach();
+                    window.Close();
+                }
+            });
+        }
+
+        [TestMethod]
+        public void SetColumnWidthFromInput_NeverTakesSpaceFromALockedColumn()
+        {
+            RunOnStaThread(() =>
+            {
+                var order = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+                var grid = CreateGrid();
+                grid.Width = 360;
+                grid.Height = 160;
+
+                var window = new Window
+                {
+                    Width = 420,
+                    Height = 220,
+                    Content = grid,
+                    ShowActivated = false
+                };
+
+                DataGridColumnLayoutService service = null;
+                try
+                {
+                    window.Show();
+                    grid.UpdateLayout();
+
+                    service = CreateService(grid, order, () => { });
+                    service.Attach();
+                    DrainDispatcher();
+                    grid.UpdateLayout();
+
+                    // A | B(locked) | C: widening A must skip B and take from C.
+                    var locked = ColumnByKey(grid, "B");
+                    service.SetColumnLocked(locked, true);
+                    DrainDispatcher();
+                    grid.UpdateLayout();
+                    var lockedBefore = locked.ActualWidth;
+                    var absorber = ColumnByKey(grid, "C");
+                    var absorberBefore = absorber.ActualWidth;
+
+                    var target = ColumnByKey(grid, "A");
+                    var typed = Math.Round(target.ActualWidth) + 30;
+                    service.SetColumnWidthFromInput(target, typed);
+                    DrainDispatcher();
+                    grid.UpdateLayout();
+
+                    Assert.AreEqual(typed, target.ActualWidth, 1d);
+                    Assert.AreEqual(lockedBefore, locked.ActualWidth, 1d);
+                    Assert.AreEqual(absorberBefore - 30, absorber.ActualWidth, 1d);
+                }
+                finally
+                {
+                    service?.Detach();
+                    window.Close();
+                }
             });
         }
 
