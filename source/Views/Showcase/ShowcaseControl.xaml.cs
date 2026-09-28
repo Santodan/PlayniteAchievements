@@ -324,7 +324,14 @@ namespace PlayniteAchievements.Views.Showcase
                 DashboardGrid.Children.Add(container);
             }
 
-            AddTrackGrippers();
+            // Grippers and rulers are edit-mode chrome: 4x(N-1) thumbs and 2N text boxes that a
+            // viewing dashboard only ever collapses. They are built when edit mode is entered
+            // (UpdateTrackGripperVisibility), so a plain open skips them.
+            if (EditLayoutButton.IsChecked == true)
+            {
+                AddTrackGrippers();
+            }
+
             UpdateLayoutHandles();
             ApplyPendingCutVisual();
 
@@ -628,7 +635,7 @@ namespace PlayniteAchievements.Views.Showcase
             {
                 Cursor = vertical ? Cursors.SizeWE : Cursors.SizeNS,
                 Focusable = false,
-                Template = CreateTrackGripperTemplate(vertical)
+                Template = vertical ? TrackGripperTemplateVertical : TrackGripperTemplateHorizontal
             };
             var lastCell = PageGridSize - 1;
             var edgeOffset = TrackGripperSize / 2;
@@ -670,6 +677,12 @@ namespace PlayniteAchievements.Views.Showcase
             return thumb;
         }
 
+        // Built once per orientation, like TrackRulerBoxTemplate: the template is identical for
+        // every gripper, and the accent brush inside it is a resource reference, so sharing it
+        // across thumbs and dashboards loses nothing.
+        private static readonly ControlTemplate TrackGripperTemplateVertical = CreateTrackGripperTemplate(vertical: true);
+        private static readonly ControlTemplate TrackGripperTemplateHorizontal = CreateTrackGripperTemplate(vertical: false);
+
         private static ControlTemplate CreateTrackGripperTemplate(bool vertical)
         {
             // Transparent pad for a comfortable grab target, with a small accent pill
@@ -694,6 +707,15 @@ namespace PlayniteAchievements.Views.Showcase
         private void UpdateTrackGripperVisibility()
         {
             var editing = EditLayoutButton.IsChecked == true;
+            // First entry into edit mode on this dashboard: build the chrome now. AddTrackGrippers
+            // re-enters here once the lists are populated (a one-track page has no grippers but
+            // still gets rulers, so both lists gate the re-entry).
+            if (editing && _blockVisuals.Count > 0 && _trackGrippers.Count == 0 && _trackRulers.Count == 0)
+            {
+                AddTrackGrippers();
+                return;
+            }
+
             foreach (var gripper in _trackGrippers)
             {
                 gripper.Visibility = editing ? Visibility.Visible : Visibility.Collapsed;
