@@ -1599,10 +1599,12 @@
                                         <ColumnDefinition Width="Auto" />
                                     </Grid.ColumnDefinitions>
                                     <!-- Single line, unlike the pane's wrapped preview: the row is
-                                         34px and the full note is on the tooltip. -->
+                                         34px and the full note is on the tooltip. The preview keeps
+                                         the note's inline markup so it renders as the other grids
+                                         render notes, with only the line breaks folded away. -->
                                     <TextBlock Grid.Column="0"
-                                               Text="{Binding NotePreview}"
-                                               ToolTip="{Binding AchievementNote}"
+                                               helpers:InlineMarkdownFormatter.FormattedText="{Binding NotePreview}"
+                                               helpers:InlineMarkdownFormatter.NoteToolTip="{Binding AchievementNote}"
                                                TextTrimming="CharacterEllipsis"
                                                VerticalAlignment="Center"
                                                Opacity="0.8"
@@ -2216,8 +2218,11 @@
                                     <ColumnDefinition Width="*" />
                                     <ColumnDefinition Width="Auto" />
                                 </Grid.ColumnDefinitions>
+                                <!-- The note itself, formatted as the other grids format it; the
+                                     tooltip carries whatever the height cap cuts off. -->
                                 <TextBlock Grid.Column="0"
-                                           Text="{Binding NotePreview}"
+                                           helpers:InlineMarkdownFormatter.FormattedText="{Binding AchievementNote}"
+                                           helpers:InlineMarkdownFormatter.NoteToolTip="{Binding AchievementNote}"
                                            TextTrimming="CharacterEllipsis"
                                            TextWrapping="Wrap"
                                            MaxHeight="52"
