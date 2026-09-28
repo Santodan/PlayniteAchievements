@@ -86,6 +86,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         private string _lastUpdatedLocalText;
         private string _lastUpdatedUtcText;
         private int _totalAchievements;
+        private string _sidebarStatWidthReservationText;
         private int _unlockedAchievements;
         private bool _isCompleted;
         private string _currentCapstoneName;
@@ -518,6 +519,17 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             }
         }
 
+        /// <summary>
+        /// "2N / 2N" for the achievement count on the window's first load. A hidden chip
+        /// measures it so the sidebar reserves that width once; it is never recomputed, so a
+        /// count changing later cannot resize the sidebar and re-lay-out the content beside it.
+        /// </summary>
+        public string SidebarStatWidthReservationText
+        {
+            get => _sidebarStatWidthReservationText;
+            private set => SetValue(ref _sidebarStatWidthReservationText, value);
+        }
+
         public int UnlockedAchievements
         {
             get => _unlockedAchievements;
@@ -871,6 +883,11 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 var achievements = gameData?.Achievements ?? Enumerable.Empty<AchievementDetail>();
                 var list = achievements.Where(a => a != null).ToList();
                 TotalAchievements = list.Count;
+                if (SidebarStatWidthReservationText == null)
+                {
+                    var reserve = Math.Max(1, list.Count * 2);
+                    SidebarStatWidthReservationText = FormatProgress(reserve, reserve);
+                }
                 UnlockedAchievements = list.Count(a => a.Unlocked);
                 IsCompleted = gameData?.IsCompleted ?? false;
 
