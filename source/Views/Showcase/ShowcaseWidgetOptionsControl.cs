@@ -831,6 +831,10 @@ namespace PlayniteAchievements.Views.Showcase
                 .Where(candidate => !Services.Achievements.TimelineBucketing.Fits(
                     candidate, range.Start, range.End, Services.Achievements.TimelineBucketing.MaxOverrideBarCount))
                 .ToList();
+            if (picker.UnavailableGranularities.Contains(picker.Granularity))
+            {
+                picker.Granularity = TimelineGranularity.Auto;
+            }
         }
 
         private void PersistAndPublish()
