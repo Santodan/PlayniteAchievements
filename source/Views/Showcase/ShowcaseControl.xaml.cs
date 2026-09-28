@@ -21,6 +21,8 @@ namespace PlayniteAchievements.Views.Showcase
     public partial class ShowcaseControl : UserControl, IDisposable
     {
         private const string WidgetDragFormat = "PlayniteAchievements.Showcase.Widget";
+        private static readonly ILogger Logger =
+            Services.Logging.PluginLogger.GetLogger(nameof(ShowcaseControl));
         private readonly OverviewViewModel _overview;
         private readonly PlayniteAchievementsSettings _settings;
         private readonly Action _persist;
@@ -2962,12 +2964,20 @@ namespace PlayniteAchievements.Views.Showcase
                     ShowcaseLayoutService.DuplicatePage(
                         Layout,
                         CurrentPage.PageId,
-                        Localize("LOCPlayAch_Showcase_CopySuffix"));
+                        Localize("LOCPlayAch_Showcase_CopySuffix"),
+                        _settings.Persisted?.GridOptions);
                     SaveAndRebuild();
                 }));
             menu.Items.Add(MenuItem(
                 Localize("LOCPlayAch_Showcase_RenamePage"),
                 RenameCurrentPage));
+            menu.Items.Add(new Separator());
+            menu.Items.Add(MenuItem(
+                Localize("LOCPlayAch_ManageAchievements_Overrides_ExportButton"),
+                ExportCurrentPage));
+            menu.Items.Add(MenuItem(
+                Localize("LOCPlayAch_Common_Import"),
+                ImportPageFromFile));
             menu.Items.Add(new Separator());
             menu.Items.Add(MenuItem(
                 Localize("LOCPlayAch_Showcase_MovePageLeft"),
@@ -3112,6 +3122,105 @@ namespace PlayniteAchievements.Views.Showcase
             {
                 _api?.Dialogs?.ShowErrorMessage(exception.Message, string.Empty);
             }
+        }
+
+        // Writes the current page to a .pashowcase package: layout and appearance only, no pin
+        // collections, profile data, or control-bar filter state.
+        private void ExportCurrentPage()
+        {
+            var page = CurrentPage;
+            if (page == null)
+            {
+                return;
+            }
+
+            string path;
+            using (var dialog = new System.Windows.Forms.SaveFileDialog
+            {
+                FileName = ShowcasePagePortableStore.SuggestFileName(page.Name),
+                Filter = "*" + ShowcasePagePortableStore.PackageFileExtension +
+                         "|*" + ShowcasePagePortableStore.PackageFileExtension,
+                DefaultExt = ShowcasePagePortableStore.PackageFileExtension.TrimStart('.'),
+                OverwritePrompt = true
+            })
+            {
+                if (dialog.ShowDialog() != System.Windows.Forms.DialogResult.OK ||
+                    string.IsNullOrWhiteSpace(dialog.FileName))
+                {
+                    return;
+                }
+
+                path = ShowcasePagePortableStore.NormalizeExportPath(dialog.FileName);
+            }
+
+            try
+            {
+                ShowcasePagePortableStore.Write(
+                    path,
+                    ShowcasePagePortableStore.BuildPortable(
+                        Layout,
+                        _settings.Persisted?.GridOptions,
+                        page.PageId));
+                _api?.Dialogs?.ShowMessage(
+                    Localize("LOCPlayAch_Status_Succeeded") + "\n" + path,
+                    Localize("LOCPlayAch_Title_PluginName"),
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Information);
+            }
+            catch (Exception exception)
+            {
+                Logger.Error(exception, "Failed exporting showcase page.");
+                ShowPortableFailure(exception);
+            }
+        }
+
+        // Adds the page from a .pashowcase package after the current page. The import goes
+        // through the normal save path, so it normalizes the page and can be undone.
+        private void ImportPageFromFile()
+        {
+            string path;
+            using (var dialog = new System.Windows.Forms.OpenFileDialog
+            {
+                Filter = "*" + ShowcasePagePortableStore.PackageFileExtension +
+                         "|*" + ShowcasePagePortableStore.PackageFileExtension +
+                         ";*" + ShowcasePagePortableStore.PackageFileExtension + ".zip",
+                CheckFileExists = true,
+                Multiselect = false
+            })
+            {
+                if (dialog.ShowDialog() != System.Windows.Forms.DialogResult.OK ||
+                    string.IsNullOrWhiteSpace(dialog.FileName))
+                {
+                    return;
+                }
+
+                path = dialog.FileName;
+            }
+
+            try
+            {
+                var portable = ShowcasePagePortableStore.Read(path);
+                ShowcasePagePortableStore.ApplyPortable(
+                    Layout,
+                    _settings.Persisted?.GridOptions,
+                    portable,
+                    CurrentPage?.PageId);
+                SaveAndRebuild();
+            }
+            catch (Exception exception)
+            {
+                Logger.Error(exception, "Failed importing showcase page.");
+                ShowPortableFailure(exception);
+            }
+        }
+
+        private void ShowPortableFailure(Exception exception)
+        {
+            _api?.Dialogs?.ShowMessage(
+                string.Format(Localize("LOCPlayAch_Status_Failed"), exception.Message),
+                Localize("LOCPlayAch_Title_PluginName"),
+                MessageBoxButton.OK,
+                MessageBoxImage.Error);
         }
 
         private void DeleteCurrentPage()
