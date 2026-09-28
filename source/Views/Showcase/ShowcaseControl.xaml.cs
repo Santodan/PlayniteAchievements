@@ -3260,27 +3260,7 @@ namespace PlayniteAchievements.Views.Showcase
             ShowcaseWidgetInstanceSettings source,
             ShowcaseWidgetInstanceSettings copy)
         {
-            var catalog = _settings.Persisted?.GridOptions;
-            if (catalog == null || source == null || copy == null)
-            {
-                return;
-            }
-
-            var sourceKey = ShowcaseGridSurfaces.ResolveWidgetSurface(source.Kind, source.InstanceId);
-            var targetKey = ShowcaseGridSurfaces.ResolveWidgetSurface(copy.Kind, copy.InstanceId);
-            if (string.IsNullOrWhiteSpace(sourceKey) || string.IsNullOrWhiteSpace(targetKey))
-            {
-                return;
-            }
-
-            if (ShowcaseGridSurfaces.IsAchievementSurface(sourceKey))
-            {
-                catalog.Achievement[targetKey] = catalog.GetAchievement(sourceKey).Clone();
-            }
-            else if (ShowcaseGridSurfaces.IsGameSurface(sourceKey))
-            {
-                catalog.GameSummaries[targetKey] = catalog.GetGameSummaries(sourceKey).Clone();
-            }
+            ShowcaseGridSurfaces.CopySurface(_settings.Persisted?.GridOptions, source, copy);
         }
 
         private void SelectBlockAfterPaste(ShowcaseBlockSettings block)
