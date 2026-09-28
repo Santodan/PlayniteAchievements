@@ -2547,6 +2547,16 @@ namespace PlayniteAchievements.Views.Controls
 
         private void ReattachColumnPersistence()
         {
+            if (!_isAttached)
+            {
+                // Before Loaded nothing is attached; rebuild the pre-measure column state for
+                // the new key so the first rows lay out with that surface's columns.
+                _columnPersistence?.Dispose();
+                _columnPersistence = null;
+                PrepareColumnsForFirstMeasure();
+                return;
+            }
+
             if (_columnPersistence == null)
             {
                 return;
@@ -2943,6 +2953,48 @@ namespace PlayniteAchievements.Views.Controls
                 AchievementsDataGrid,
                 () => GetHeaderAlignmentsByKey(settings));
 
+            EnsureColumnPersistence(settings);
+            UpdateColumnPersistenceContextOverrides();
+            UpdateColumnVisibility();
+
+            _columnPersistence.Attach();
+        }
+
+        // Applies the persisted column order, visibility, and widths before the first measure.
+        // Loaded (and with it Attach) only runs after the first layout pass, so without this the
+        // first rows are laid out with every XAML column visible and the star columns clamped to
+        // MinWidth, then rebuilt once Attach collapses the hidden ones. Idempotent and cheap.
+        private void PrepareColumnsForFirstMeasure()
+        {
+            if (_isAttached || AchievementsDataGrid == null)
+            {
+                return;
+            }
+
+            var settings = PlayniteAchievementsPlugin.Instance?.Settings;
+            if (settings?.Persisted == null)
+            {
+                return;
+            }
+
+            EnsureColumnPersistence(settings);
+            UpdateColumnPersistenceContextOverrides();
+            _columnPersistence.PrepareColumns();
+        }
+
+        public override void OnApplyTemplate()
+        {
+            base.OnApplyTemplate();
+            PrepareColumnsForFirstMeasure();
+        }
+
+        private void EnsureColumnPersistence(PlayniteAchievementsSettings settings)
+        {
+            if (_columnPersistence != null)
+            {
+                return;
+            }
+
             _columnPersistence = new DataGridColumnLayoutService(
                 AchievementsDataGrid,
                 Logger,
@@ -3016,11 +3068,6 @@ namespace PlayniteAchievements.Views.Controls
                     }
                 });
             _columnPersistence.DelayInitialRenderUntilNormalized = DelayInitialRenderUntilNormalized;
-
-            UpdateColumnPersistenceContextOverrides();
-            UpdateColumnVisibility();
-
-            _columnPersistence.Attach();
         }
 
         private Dictionary<string, double> GetMergedWidths(PlayniteAchievementsSettings settings)
