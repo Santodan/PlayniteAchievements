@@ -26,6 +26,14 @@ namespace PlayniteAchievements.Views.Controls
         private const int MinTicks = 3;
         private const int MaxTicks = 10;
 
+        /// <summary>
+        /// Narrowest column unit worth drawing: the column style pads 1 px, so anything under 3 px
+        /// per bar is a hairline, and below the padding LiveCharts draws nothing at all.
+        /// </summary>
+        private const double PixelsPerBar = 3;
+        private const double AxisLabelGutter = 44;
+        private const int MinBars = 24;
+
         public static readonly DependencyProperty SeriesProperty = DependencyProperty.Register(
             nameof(Series), typeof(SeriesCollection), typeof(UnlockTimelineChart), new PropertyMetadata(null));
 
@@ -62,6 +70,13 @@ namespace PlayniteAchievements.Views.Controls
         /// </summary>
         public static readonly DependencyProperty MaxTickCountProperty = DependencyProperty.Register(
             nameof(MaxTickCount), typeof(int), typeof(UnlockTimelineChart), new PropertyMetadata(8));
+
+        /// <summary>
+        /// Bars that fit the current width. Set from the size like <see cref="MaxTickCount"/>; hosts
+        /// bind it OneWayToSource so the view model escalates the bar unit instead of overflowing.
+        /// </summary>
+        public static readonly DependencyProperty MaxBarCountProperty = DependencyProperty.Register(
+            nameof(MaxBarCount), typeof(int), typeof(UnlockTimelineChart), new PropertyMetadata(400));
 
         public static readonly DependencyProperty AxisForegroundProperty = DependencyProperty.Register(
             nameof(AxisForeground), typeof(Brush), typeof(UnlockTimelineChart), new PropertyMetadata(null));
@@ -206,6 +221,12 @@ namespace PlayniteAchievements.Views.Controls
             set => SetValue(MaxTickCountProperty, value);
         }
 
+        public int MaxBarCount
+        {
+            get => (int)GetValue(MaxBarCountProperty);
+            set => SetValue(MaxBarCountProperty, value);
+        }
+
         public Brush AxisForeground
         {
             get => (Brush)GetValue(AxisForegroundProperty);
@@ -278,6 +299,9 @@ namespace PlayniteAchievements.Views.Controls
 
             var ticks = (int)Math.Floor(e.NewSize.Width / PixelsPerTick);
             MaxTickCount = Math.Max(MinTicks, Math.Min(MaxTicks, ticks));
+
+            var bars = (int)Math.Floor((e.NewSize.Width - AxisLabelGutter) / PixelsPerBar);
+            MaxBarCount = Math.Max(MinBars, bars);
         }
     }
 }

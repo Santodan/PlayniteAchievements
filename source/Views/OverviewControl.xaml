@@ -865,7 +865,8 @@
                                                                   YAxisStep="{Binding GlobalTimeline.YAxisStep}"
                                                                   YLabelFormatter="{Binding GlobalTimeline.YAxisFormatter}"
                                                                   IsEmpty="{Binding GlobalTimeline.IsEmpty}"
-                                                                  MaxTickCount="{Binding GlobalTimeline.MaxTickCount, Mode=OneWayToSource}"/>
+                                                                  MaxTickCount="{Binding GlobalTimeline.MaxTickCount, Mode=OneWayToSource}"
+                                                                  MaxBarCount="{Binding GlobalTimeline.MaxBarCount, Mode=OneWayToSource}"/>
                                 </Grid>
                             </DataTemplate>
                         </Border.Resources>

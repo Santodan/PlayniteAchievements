@@ -26,7 +26,11 @@
                             TooltipTimeout="0:0:0.1"
                             DisableAnimations="True">
             <lvc:CartesianChart.Resources>
-                <Style TargetType="lvc:ColumnSeries" BasedOn="{StaticResource PlayAch.ChartColumnSeriesStyle}"/>
+                <!-- 1 px padding so dense windows keep a visible bar; the bar cap in code-behind
+                     keeps every column at least 3 px wide. -->
+                <Style TargetType="lvc:ColumnSeries" BasedOn="{StaticResource PlayAch.ChartColumnSeriesStyle}">
+                    <Setter Property="ColumnPadding" Value="1"/>
+                </Style>
             </lvc:CartesianChart.Resources>
         </lvc:CartesianChart>
 

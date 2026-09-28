@@ -45,6 +45,7 @@ namespace PlayniteAchievements.ViewModels
         private double _yAxisStep = 1;
         private bool _isEmpty = true;
         private int _maxTickCount = TimelineAxisTicks.DefaultMaxTicks;
+        private int _maxBarCount = TimelineBucketing.MaxOverrideBarCount;
 
         public TimelineViewModel()
         {
@@ -172,6 +173,23 @@ namespace PlayniteAchievements.ViewModels
             }
         }
 
+        /// <summary>
+        /// Most bars the host can draw; the chart control sets it from its width. A finer unit
+        /// than fits (Day on a year, say) escalates to the next one rather than rendering nothing.
+        /// </summary>
+        public int MaxBarCount
+        {
+            get => _maxBarCount;
+            set
+            {
+                var clamped = Math.Max(1, value);
+                if (SetValueAndReturn(ref _maxBarCount, clamped))
+                {
+                    ScheduleUpdate();
+                }
+            }
+        }
+
         public Func<double, string> YAxisFormatter { get; } = value => value.ToString("N0", FormattingCulture.Current);
 
         public ICommand SetTimeRangeCommand { get; }
@@ -193,6 +211,7 @@ namespace PlayniteAchievements.ViewModels
             var window = _window;
             var granularity = _granularity;
             var maxTicks = _maxTickCount;
+            var maxBars = _maxBarCount;
             var culture = FormattingCulture.Current;
 
             _ = Task.Run(() =>
@@ -202,7 +221,7 @@ namespace PlayniteAchievements.ViewModels
                     var today = DateTime.Now.Date;
                     var earliest = UnlockDayCounts.Earliest(counts);
                     var range = window.Resolve(today, earliest);
-                    var plan = TimelineBucketing.Build(range.Start, range.End, counts, granularity);
+                    var plan = TimelineBucketing.Build(range.Start, range.End, counts, granularity, maxBars);
                     var labels = TimelineAxisTicks.Plan(plan.Buckets, plan.Unit, maxTicks, culture);
                     var scale = NiceScale.ForMax(plan.Max);
 
