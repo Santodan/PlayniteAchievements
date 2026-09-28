@@ -1510,6 +1510,24 @@ namespace PlayniteAchievements.ViewModels
             }
         }
 
+        private static string DescribeRefreshCaller()
+        {
+            // Skips this helper and RefreshViewAsync's own frame; the async state machine's
+            // MoveNext and the builder's Start come next and say nothing, so they are dropped.
+            var frames = new System.Diagnostics.StackTrace(2, false).GetFrames()
+                ?? Array.Empty<System.Diagnostics.StackFrame>();
+            return string.Join(
+                " <- ",
+                frames
+                    .Select(frame => frame.GetMethod())
+                    .Where(method => method != null &&
+                                     method.Name != "MoveNext" &&
+                                     method.Name != "Start" &&
+                                     method.DeclaringType?.Namespace?.StartsWith("System.Runtime.CompilerServices", StringComparison.Ordinal) != true)
+                    .Take(8)
+                    .Select(method => (method.DeclaringType?.Name ?? "?") + "." + method.Name));
+        }
+
         private void AttachSharedSnapshotPublisher()
         {
             if (_sharedSnapshotTarget != null)
@@ -1556,6 +1574,14 @@ namespace PlayniteAchievements.ViewModels
             if (!_isActive)
             {
                 return;
+            }
+
+            // A whole-library rebuild has eight callers and at least two public entry points, and
+            // the log could not say which one ran it per edit. Taken before the first await, the
+            // stack still names the synchronous chain that asked - down to the event that fired.
+            if (PerfScope.PerfTracingEnabled)
+            {
+                _logger?.Debug("[Overview] RefreshViewAsync requested by: " + DescribeRefreshCaller());
             }
 
             // Ensure the UI gets a chance to paint before we begin heavy work.
