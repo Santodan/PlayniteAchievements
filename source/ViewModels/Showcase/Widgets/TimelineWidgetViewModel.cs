@@ -32,8 +32,6 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
     public sealed class TimelineWidgetViewModel : ShowcaseWidgetViewModelBase
     {
         private readonly TimelineViewModel _timeline = new TimelineViewModel();
-        private bool _showChart;
-        private bool _showEmpty;
 
         public TimelineWidgetViewModel()
         {
@@ -49,10 +47,6 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
 
         public TimelineViewModel Timeline => _timeline;
 
-        public bool ShowChart { get => _showChart; private set => SetValue(ref _showChart, value); }
-
-        public bool ShowEmpty { get => _showEmpty; private set => SetValue(ref _showEmpty, value); }
-
         public IReadOnlyList<TimelineRangeOptionViewModel> Ranges { get; }
 
         public RelayCommand SetRangeCommand { get; }
@@ -62,10 +56,8 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
             var counts = Projection?.Timeline ?? new Dictionary<DateTime, int>();
             _timeline.Window = ShowcaseTimelineOptions.GetWindow(Projection?.Instance);
             _timeline.Granularity = ShowcaseTimelineOptions.GetGranularity(Projection?.Instance);
+            // The chart itself shows the empty caption when the window holds no unlocks.
             _timeline.SetCounts(counts.ToDictionary(pair => pair.Key, pair => pair.Value));
-
-            ShowEmpty = counts.Count == 0;
-            ShowChart = counts.Count > 0;
         }
 
         private void SetRange(object parameter)
