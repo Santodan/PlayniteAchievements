@@ -505,11 +505,18 @@
       </DockPanel>
     </DataTemplate>
 
-    <!-- Pie: reuses PieChartWithRadialIcons with an optional legend docked right. -->
+    <!-- Pie: reuses PieChartWithRadialIcons with an optional legend on the right; the pair is centered. -->
     <DataTemplate DataType="{x:Type widgets:PieWidgetViewModel}">
-        <DockPanel>
-            <ItemsControl DockPanel.Dock="Right"
-                          ItemsSource="{Binding LegendRows}"
+        <showcase:ShowcasePieLegendPanel>
+            <controls:PieChartWithRadialIcons
+                PieSeries="{Binding Chart.PieSeries}"
+                LegendItems="{Binding Chart.LegendItems}"
+                HighlightedLabels="{Binding Chart.HighlightedLabels}"
+                ExactUnlockedCount="{Binding Chart.ExactUnlockedCount}"
+                ExactTotalCount="{Binding Chart.ExactTotalCount}"
+                ShowCenterPercentage="{Binding Chart.ShowCenterPercentage}"
+                MinHeight="70"/>
+            <ItemsControl ItemsSource="{Binding LegendRows}"
                           VerticalAlignment="Center"
                           Margin="8,0,0,0"
                           Visibility="{Binding ShowLegend, Converter={StaticResource BoolToVis}}">
@@ -545,15 +552,7 @@
                     </DataTemplate>
                 </ItemsControl.ItemTemplate>
             </ItemsControl>
-            <controls:PieChartWithRadialIcons
-                PieSeries="{Binding Chart.PieSeries}"
-                LegendItems="{Binding Chart.LegendItems}"
-                HighlightedLabels="{Binding Chart.HighlightedLabels}"
-                ExactUnlockedCount="{Binding Chart.ExactUnlockedCount}"
-                ExactTotalCount="{Binding Chart.ExactTotalCount}"
-                ShowCenterPercentage="{Binding Chart.ShowCenterPercentage}"
-                MinHeight="70"/>
-        </DockPanel>
+        </showcase:ShowcasePieLegendPanel>
     </DataTemplate>
 
     <!-- Timeline: the reused LiveCharts column chart with range buttons, identical at every size. -->
