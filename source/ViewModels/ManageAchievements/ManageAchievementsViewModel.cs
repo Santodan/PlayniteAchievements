@@ -520,7 +520,8 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         }
 
         /// <summary>
-        /// "2N / 2N" for the achievement count on the window's first load. A hidden chip
+        /// "2N / 2N" for the achievement count on the window's first load, at least two digits
+        /// a side. A hidden chip
         /// measures it so the sidebar reserves that width once; it is never recomputed, so a
         /// count changing later cannot resize the sidebar and re-lay-out the content beside it.
         /// </summary>
@@ -885,7 +886,8 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 TotalAchievements = list.Count;
                 if (SidebarStatWidthReservationText == null)
                 {
-                    var reserve = Math.Max(1, list.Count * 2);
+                    // At least two digits, so a small or empty game still fits early edits.
+                    var reserve = Math.Max(10, list.Count * 2);
                     SidebarStatWidthReservationText = FormatProgress(reserve, reserve);
                 }
                 UnlockedAchievements = list.Count(a => a.Unlocked);
