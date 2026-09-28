@@ -849,32 +849,12 @@
                                                Opacity="{StaticResource PlayAch.Opacity.Subtle}"
                                                Margin="{StaticResource PlayAch.Thickness.Bottom.Compact}"/>
 
-                                    <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="{StaticResource PlayAch.Thickness.Bottom.Sm}">
-                                        <RadioButton Content="{DynamicResource LOCPlayAch_TimeRange_7D}" GroupName="GlobalTimeRangeDefault"
-                                                     Style="{StaticResource TimeRangeButtonStyle}"
-                                                     IsChecked="{Binding GlobalTimeline.TimelineRange, Converter={StaticResource EnumToBool}, ConverterParameter=SevenDays}"
-                                                     Command="{Binding GlobalTimeline.SetTimeRangeCommand}" CommandParameter="SevenDays"/>
-                                        <RadioButton Content="{DynamicResource LOCPlayAch_TimeRange_14D}" GroupName="GlobalTimeRangeDefault"
-                                                     Style="{StaticResource TimeRangeButtonStyle}"
-                                                     IsChecked="{Binding GlobalTimeline.TimelineRange, Converter={StaticResource EnumToBool}, ConverterParameter=FourteenDays}"
-                                                     Command="{Binding GlobalTimeline.SetTimeRangeCommand}" CommandParameter="FourteenDays"/>
-                                        <RadioButton Content="{DynamicResource LOCPlayAch_TimeRange_1M}" GroupName="GlobalTimeRangeDefault"
-                                                     Style="{StaticResource TimeRangeButtonStyle}"
-                                                     IsChecked="{Binding GlobalTimeline.TimelineRange, Converter={StaticResource EnumToBool}, ConverterParameter=OneMonth}"
-                                                     Command="{Binding GlobalTimeline.SetTimeRangeCommand}" CommandParameter="OneMonth"/>
-                                        <RadioButton Content="{DynamicResource LOCPlayAch_TimeRange_3M}" GroupName="GlobalTimeRangeDefault"
-                                                     Style="{StaticResource TimeRangeButtonStyle}"
-                                                     IsChecked="{Binding GlobalTimeline.TimelineRange, Converter={StaticResource EnumToBool}, ConverterParameter=ThreeMonths}"
-                                                     Command="{Binding GlobalTimeline.SetTimeRangeCommand}" CommandParameter="ThreeMonths"/>
-                                        <RadioButton Content="{DynamicResource LOCPlayAch_TimeRange_1Y}" GroupName="GlobalTimeRangeDefault"
-                                                     Style="{StaticResource TimeRangeButtonStyle}"
-                                                     IsChecked="{Binding GlobalTimeline.TimelineRange, Converter={StaticResource EnumToBool}, ConverterParameter=OneYear}"
-                                                     Command="{Binding GlobalTimeline.SetTimeRangeCommand}" CommandParameter="OneYear"/>
-                                        <RadioButton Content="{DynamicResource LOCPlayAch_Common_All}" GroupName="GlobalTimeRangeDefault"
-                                                     Style="{StaticResource TimeRangeButtonStyle}"
-                                                     IsChecked="{Binding GlobalTimeline.TimelineRange, Converter={StaticResource EnumToBool}, ConverterParameter=All}"
-                                                     Command="{Binding GlobalTimeline.SetTimeRangeCommand}" CommandParameter="All"/>
-                                    </StackPanel>
+                                    <controls:TimeWindowPicker Grid.Row="1"
+                                                               Window="{Binding GlobalTimeline.Window, Mode=TwoWay}"
+                                                               Granularity="{Binding GlobalTimeline.Granularity, Mode=TwoWay}"
+                                                               ShowGranularity="True"
+                                                               MinDate="{Binding GlobalTimeline.EarliestDate}"
+                                                               Margin="{StaticResource PlayAch.Thickness.Bottom.Sm}"/>
 
                                     <controls:UnlockTimelineChart Grid.Row="2"
                                                                   Series="{Binding GlobalTimeline.TimelineSeries}"
