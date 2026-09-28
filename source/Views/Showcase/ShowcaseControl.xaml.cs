@@ -6,6 +6,7 @@ using System.Windows.Automation;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
 using System.Windows.Input;
+using System.Windows.Media;
 using System.Windows.Media.Animation;
 using Playnite.SDK;
 using PlayniteAchievements.Models;
@@ -1681,11 +1682,7 @@ namespace PlayniteAchievements.Views.Showcase
             dropStatusPanel.SetResourceReference(Border.BorderBrushProperty, "PlayAch.Brush.Accent");
             dropStatusPanel.SetResourceReference(Border.CornerRadiusProperty, "PlayAch.Radius.Card");
             layers.Children.Add(dropStatusPanel);
-            // A widget that measures past its cell (a UniformToFill banner, a wrap panel wider
-            // than its column) must not inflate DashboardGrid's desired size: WPF would then
-            // arrange the grid smaller than it asked for and clip it, cutting off the track
-            // grippers and size labels that hang outside its bounds.
-            border.Child = new ClampedDesiredSizeDecorator { Child = layers };
+            border.Child = layers;
             var visualState = new BlockVisualState
             {
                 Block = block,
@@ -1705,10 +1702,9 @@ namespace PlayniteAchievements.Views.Showcase
             return border;
         }
 
-        // The block's layer grid sits inside the desired-size clamp CreateBlockContainer wraps it in.
         private static Grid LayersOf(FrameworkElement container)
         {
-            return ((container as Border)?.Child as ClampedDesiredSizeDecorator)?.Child as Grid;
+            return (container as Border)?.Child as Grid;
         }
 
         // Drops cached controls for widgets that no longer exist, so deleted widgets do not pin
@@ -1980,6 +1976,56 @@ namespace PlayniteAchievements.Views.Showcase
             }
 
             UpdateLayoutHandles();
+            Dispatcher.BeginInvoke(
+                new Action(ReportDashboardClip),
+                System.Windows.Threading.DispatcherPriority.Loaded);
+        }
+
+        // Diagnostic for the edit-mode overhang (grippers and rulers) being cut off: names every
+        // element from the dashboard grid up to the root that WPF is clipping after a selection
+        // change, with the sizes that decided it. Silent while nothing is clipped.
+        private void ReportDashboardClip()
+        {
+            if (_disposed || EditLayoutButton.IsChecked != true)
+            {
+                return;
+            }
+
+            var root = Window.GetWindow(this) as FrameworkElement ?? this;
+            var gripper = _trackGrippers.FirstOrDefault();
+            try
+            {
+                var gridBounds = DashboardGrid.TransformToAncestor(root)
+                    .TransformBounds(new Rect(DashboardGrid.RenderSize));
+                var gripperBounds = gripper == null
+                    ? Rect.Empty
+                    : gripper.TransformToAncestor(root).TransformBounds(new Rect(gripper.RenderSize));
+                Logger.Info(
+                    $"Dashboard geometry after selection: root {root.GetType().Name} {root.ActualWidth:0.##}x{root.ActualHeight:0.##}, " +
+                    $"grid {gridBounds}, first gripper {gripperBounds} visible={gripper?.IsVisible}, " +
+                    $"grid desired {DashboardGrid.DesiredSize.Width:0.##}x{DashboardGrid.DesiredSize.Height:0.##}");
+            }
+            catch (InvalidOperationException)
+            {
+                // Not connected to the root yet; the clip walk below still runs.
+            }
+
+            DependencyObject current = DashboardGrid;
+            while (current is FrameworkElement element)
+            {
+                var layoutClip = System.Windows.Controls.Primitives.LayoutInformation.GetLayoutClip(element);
+                if (layoutClip != null || element.Clip != null || element.ClipToBounds)
+                {
+                    Logger.Info(
+                        $"Dashboard overhang clipped by {element.GetType().Name} '{element.Name}': " +
+                        $"desired {element.DesiredSize.Width:0.##}x{element.DesiredSize.Height:0.##}, " +
+                        $"rendered {element.RenderSize.Width:0.##}x{element.RenderSize.Height:0.##}, " +
+                        $"layoutClip={(layoutClip == null ? "none" : layoutClip.Bounds.ToString())}, " +
+                        $"clip={(element.Clip == null ? "none" : "set")}, clipToBounds={element.ClipToBounds}");
+                }
+
+                current = VisualTreeHelper.GetParent(current) ?? LogicalTreeHelper.GetParent(current);
+            }
         }
 
         private void Block_PreviewMouseMove(object sender, MouseEventArgs e)
