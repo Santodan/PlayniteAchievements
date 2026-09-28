@@ -675,6 +675,10 @@ namespace PlayniteAchievements.Tests.Views
 
                     grid.Width = 270;
                     grid.UpdateLayout();
+                    // Viewport refits are throttled; wait out the trailing refit before pumping.
+                    Thread.Sleep(120);
+                    DrainDispatcher();
+                    grid.UpdateLayout();
                     DrainDispatcher();
                     grid.UpdateLayout();
 

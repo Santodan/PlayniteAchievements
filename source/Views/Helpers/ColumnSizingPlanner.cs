@@ -317,6 +317,15 @@ namespace PlayniteAchievements.Views.Helpers
             }
         }
 
+        /// <summary>
+        /// Turns the planned fractional widths into whole pixels that sum to the whole-pixel
+        /// target. Largest-remainder rounding: every column is floored, then the pixels still
+        /// owed go one each to the columns that lost the most, so a proportional rescale spreads
+        /// its growth across the columns instead of piling the rounding remainder on one of them.
+        /// The dragged column and locked columns take a remainder pixel only when nobody else can.
+        /// The target itself is floored, never rounded up, so the plan never exceeds a fractional
+        /// viewport and clips the last column.
+        /// </summary>
         private static Dictionary<string, double> RoundToTarget(
             IReadOnlyList<string> keys,
             IReadOnlyList<double> widths,
@@ -326,31 +335,84 @@ namespace PlayniteAchievements.Views.Helpers
             IReadOnlyCollection<string> excludedAbsorberKeys,
             double targetWidth)
         {
-            var roundedWidths = new List<double>(keys.Count);
-            var roundedFloors = new List<double>(keys.Count);
+            var wholeWidths = new List<double>(keys.Count);
+            var wholeFloors = new List<double>(keys.Count);
+            var droppedFractions = new List<double>(keys.Count);
             for (var i = 0; i < keys.Count; i++)
             {
-                var roundedFloor = RoundPixelWidth(floorWidths[i]);
-                roundedFloors.Add(roundedFloor);
-                roundedWidths.Add(Math.Max(roundedFloor, RoundPixelWidth(widths[i])));
+                var wholeFloor = FloorPixelWidth(floorWidths[i]);
+                var wholeWidth = Math.Max(wholeFloor, Math.Floor(widths[i]));
+                wholeFloors.Add(wholeFloor);
+                wholeWidths.Add(wholeWidth);
+                droppedFractions.Add(Math.Max(0d, widths[i] - wholeWidth));
             }
 
-            var delta = RoundPixelWidth(targetWidth) - roundedWidths.Sum();
-            if (Math.Abs(delta) > LayoutEpsilon)
+            var wholeTarget = FloorPixelWidth(targetWidth);
+            var remainder = wholeTarget - wholeWidths.Sum();
+            if (remainder > LayoutEpsilon)
             {
-                DistributeRoundedDelta(roundedWidths, roundedFloors, keys, protectedKey, preferredAbsorberKey, excludedAbsorberKeys, delta);
+                HandOutRemainderPixels(wholeWidths, droppedFractions, keys, protectedKey, excludedAbsorberKeys, (int)Math.Round(remainder));
+            }
+            else if (remainder < -LayoutEpsilon)
+            {
+                TakeBackExcessPixels(wholeWidths, wholeFloors, keys, protectedKey, preferredAbsorberKey, excludedAbsorberKeys, remainder);
             }
 
             var result = new Dictionary<string, double>(StringComparer.OrdinalIgnoreCase);
             for (var i = 0; i < keys.Count; i++)
             {
-                result[keys[i]] = Math.Max(roundedFloors[i], roundedWidths[i]);
+                result[keys[i]] = Math.Max(wholeFloors[i], wholeWidths[i]);
             }
 
             return result;
         }
 
-        private static void DistributeRoundedDelta(
+        private static void HandOutRemainderPixels(
+            IList<double> widths,
+            IReadOnlyList<double> droppedFractions,
+            IReadOnlyList<string> keys,
+            string protectedKey,
+            IReadOnlyCollection<string> excludedAbsorberKeys,
+            int pixels)
+        {
+            if (pixels <= 0 || widths.Count == 0)
+            {
+                return;
+            }
+
+            var byFraction = Enumerable.Range(0, widths.Count)
+                .OrderByDescending(i => droppedFractions[i])
+                .ThenBy(i => i)
+                .ToList();
+            var eligible = byFraction
+                .Where(i => !KeysEqual(keys[i], protectedKey) && !IsExcluded(keys[i], excludedAbsorberKeys))
+                .ToList();
+            var reserved = byFraction.Except(eligible).ToList();
+
+            // Wider than one pass when the remainder exceeds the column count, which only happens
+            // when the floors themselves fell short; the pixels then cycle round in the same order.
+            var order = eligible.Count > 0 ? eligible : reserved;
+            while (pixels > 0)
+            {
+                foreach (var index in order)
+                {
+                    if (pixels == 0)
+                    {
+                        break;
+                    }
+
+                    widths[index] += 1d;
+                    pixels--;
+                }
+
+                if (order.Count == 0)
+                {
+                    break;
+                }
+            }
+        }
+
+        private static void TakeBackExcessPixels(
             IList<double> widths,
             IReadOnlyList<double> floorWidths,
             IReadOnlyList<string> keys,
@@ -362,12 +424,6 @@ namespace PlayniteAchievements.Views.Helpers
             var absorberOrder = BuildAbsorberOrder(keys, protectedKey, preferredAbsorberKey, excludedAbsorberKeys);
             if (absorberOrder.Count == 0)
             {
-                return;
-            }
-
-            if (delta > 0)
-            {
-                widths[absorberOrder[0]] += delta;
                 return;
             }
 
@@ -430,11 +486,11 @@ namespace PlayniteAchievements.Views.Helpers
             return !double.IsNaN(width) && !double.IsInfinity(width) && width > 0;
         }
 
-        private static double RoundPixelWidth(double width)
+        private static double FloorPixelWidth(double width)
         {
             return IsValidWidth(width)
-                ? Math.Max(1d, Math.Round(width, MidpointRounding.AwayFromZero))
-                : 0d;
+                ? Math.Max(1d, Math.Floor(width))
+                : 1d;
         }
     }
 }
