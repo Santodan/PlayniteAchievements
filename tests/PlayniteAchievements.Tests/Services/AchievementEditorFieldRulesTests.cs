@@ -49,6 +49,30 @@ namespace PlayniteAchievements.Services.Tests
         }
 
         [TestMethod]
+        public void Rarity_BlankOnAnAuthoredRowReadsAsCommon()
+        {
+            // The stored definition already defaulted blank to Common on save; the row now shows
+            // the same value so the field never looks optional.
+            Assert.AreEqual("Common", AchievementEditorFieldRules.NormalizeAuthoredRarity(null, isBulkRow: false));
+            Assert.AreEqual("Common", AchievementEditorFieldRules.NormalizeAuthoredRarity("   ", isBulkRow: false));
+        }
+
+        [TestMethod]
+        public void Rarity_BlankOnTheBulkProxyStaysBlank()
+        {
+            // Blank on the proxy means the selected rows disagree, not Common.
+            Assert.IsNull(AchievementEditorFieldRules.NormalizeAuthoredRarity(null, isBulkRow: true));
+            Assert.IsNull(AchievementEditorFieldRules.NormalizeAuthoredRarity(string.Empty, isBulkRow: true));
+        }
+
+        [TestMethod]
+        public void Rarity_SuppliedValueIsTrimmedAndKept()
+        {
+            Assert.AreEqual("Rare", AchievementEditorFieldRules.NormalizeAuthoredRarity(" Rare ", isBulkRow: false));
+            Assert.AreEqual("Rare", AchievementEditorFieldRules.NormalizeAuthoredRarity("Rare", isBulkRow: true));
+        }
+
+        [TestMethod]
         public void UnlockTime_IsEditableOnlyWhileUnlocked()
         {
             Assert.IsFalse(AchievementEditorFieldRules.CanEditUnlockTime(unlocked: false));
