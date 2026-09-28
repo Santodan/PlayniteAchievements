@@ -45,50 +45,98 @@ namespace PlayniteAchievements.Tests.Views
         }
 
         [TestMethod]
-        public void ClampedGrid_NeverAsksForMoreThanItsSlotWhenAChildOvershootsATrack()
+        public void FrameworkElementChildren_CannotInflateAStarTrackOnTheirOwn()
         {
+            // FrameworkElement.MeasureCore clamps DesiredSize to the offered size, so a single-cell
+            // child never raises a star track's minimum; the clamp below guards the paths that
+            // bypass that (raw UIElements, span distribution under layout rounding).
             RunOnStaThread(() =>
             {
-                var grid = new ClampedDesiredSizeGrid();
-                grid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
-                grid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
-                grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-                var oversized = new Border { Height = 80 };
-                Grid.SetRow(oversized, 0);
-                grid.Children.Add(oversized);
-
-                grid.Measure(new Size(200, 100));
-
-                Assert.AreEqual(100, grid.DesiredSize.Height, "a plain Grid would ask for 80 + 50");
-                Assert.AreEqual(200, grid.DesiredSize.Width);
-
-                var plain = new Grid();
-                plain.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
-                plain.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
+                var plain = TwoStarRows();
                 var control = new Border { Height = 80 };
                 Grid.SetRow(control, 0);
                 plain.Children.Add(control);
+
                 plain.Measure(new Size(200, 100));
-                Assert.IsTrue(plain.DesiredSize.Height > 100, "the mechanism the clamp guards against");
+
+                Assert.AreEqual(50, control.DesiredSize.Height);
+                Assert.AreEqual(50, plain.DesiredSize.Height);
             });
         }
 
         [TestMethod]
-        public void OverlayHost_KeepsAnOversizedHandleOutOfTheGridMeasure()
+        public void ClampedGrid_NeverAsksForMoreThanItsSlotWhenAChildInflatesATrack()
         {
             RunOnStaThread(() =>
             {
-                var grid = new Grid();
-                grid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
-                grid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
-                var handle = new Border { Height = 80 };
+                // An all-star Grid already caps each track's minimum at its share, so the plain
+                // grid reports the slot here too; the clamp is the guarantee for mixed tracks
+                // and rounding arithmetic, which this test pins at the boundary.
+                var plain = FillRows(TwoStarRows());
+                plain.Measure(new Size(200, 100));
+                Assert.IsTrue(plain.DesiredSize.Height <= 100);
+
+                var clamped = FillRows(TwoStarRows(new ClampedDesiredSizeGrid()));
+                clamped.Measure(new Size(200, 100));
+                Assert.AreEqual(100, clamped.DesiredSize.Height);
+            });
+        }
+
+        [TestMethod]
+        public void OverlayHost_KeepsAnInflatingHandleOutOfTheGridMeasure()
+        {
+            RunOnStaThread(() =>
+            {
+                var grid = TwoStarRows();
+                var handle = new UnclampedElement(80);
                 Grid.SetRow(handle, 0);
-                grid.Children.Add(OverlayLayoutHost.Wrap(handle));
+                var host = new OverlayLayoutHost { Child = handle };
+                Grid.SetRow(host, 0);
+                grid.Children.Add(host);
 
                 grid.Measure(new Size(200, 100));
 
                 Assert.AreEqual(0, grid.DesiredSize.Height);
             });
+        }
+
+        // An 80px-tall inflating child in each of the two 50px star rows.
+        private static Grid FillRows(Grid grid)
+        {
+            for (var row = 0; row < 2; row++)
+            {
+                var child = new UnclampedElement(80);
+                Grid.SetRow(child, row);
+                grid.Children.Add(child);
+            }
+
+            return grid;
+        }
+
+        private static Grid TwoStarRows(Grid grid = null)
+        {
+            grid = grid ?? new Grid();
+            grid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
+            grid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
+            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+            return grid;
+        }
+
+        // A raw UIElement reports whatever it likes: the way a spanning child's distributed
+        // minimum reaches a track without FrameworkElement's clamp.
+        private sealed class UnclampedElement : UIElement
+        {
+            private readonly double _height;
+
+            public UnclampedElement(double height)
+            {
+                _height = height;
+            }
+
+            protected override Size MeasureCore(Size availableSize)
+            {
+                return new Size(0, _height);
+            }
         }
 
         private static void RunOnStaThread(Action action)
