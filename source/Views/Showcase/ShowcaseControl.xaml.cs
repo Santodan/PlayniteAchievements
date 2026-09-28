@@ -1807,6 +1807,15 @@ namespace PlayniteAchievements.Views.Showcase
                 return;
             }
 
+            // A data refresh that carries the snapshot this host already projected has nothing
+            // new for it. Every SnapshotChanged publishes a fresh snapshot instance, so
+            // reference identity is the data identity (the projection service's per-snapshot
+            // cache relies on the same fact). Configuration changes never take this exit.
+            if (snapshotOnly && IsProjectedFrom(host, _overview.LatestSnapshot))
+            {
+                return;
+            }
+
             if (!_applyQueued.Add(host))
             {
                 // Already waiting: keep its place, but a configuration change must not be
@@ -1878,7 +1887,13 @@ namespace PlayniteAchievements.Views.Showcase
                         continue;
                     }
 
-                    ApplyWidgetProjection(request.Host, request.Widget, _overview.LatestSnapshot);
+                    var snapshot = _overview.LatestSnapshot;
+                    if (request.SnapshotOnly && IsProjectedFrom(request.Host, snapshot))
+                    {
+                        continue;
+                    }
+
+                    ApplyWidgetProjection(request.Host, request.Widget, snapshot);
                     _applyDrainApplied++;
                     break;
                 }
@@ -1912,6 +1927,11 @@ namespace PlayniteAchievements.Views.Showcase
             return !string.IsNullOrWhiteSpace(request.Widget?.InstanceId) &&
                    _hostCache.TryGetValue(request.Widget.InstanceId, out var live) &&
                    ReferenceEquals(live, request.Host);
+        }
+
+        private static bool IsProjectedFrom(ShowcaseWidgetControl host, OverviewDataSnapshot snapshot)
+        {
+            return snapshot != null && ReferenceEquals(host?.Projection?.Snapshot, snapshot);
         }
 
         private void ClearApplyQueue()
