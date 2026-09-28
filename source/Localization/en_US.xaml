@@ -1372,6 +1372,8 @@
     <sys:String x:Key="LOCPlayAch_Showcase_DuplicatePage">Duplicate page</sys:String>
     <sys:String x:Key="LOCPlayAch_Showcase_CopySuffix">Copy</sys:String>
     <sys:String x:Key="LOCPlayAch_Showcase_RenamePage">Rename page</sys:String>
+    <sys:String x:Key="LOCPlayAch_Showcase_ExportPage">Export page</sys:String>
+    <sys:String x:Key="LOCPlayAch_Showcase_ImportPage">Import page</sys:String>
     <sys:String x:Key="LOCPlayAch_Showcase_RenamePrompt">Enter a page name:</sys:String>
     <sys:String x:Key="LOCPlayAch_Showcase_MovePageLeft">Move page left</sys:String>
     <sys:String x:Key="LOCPlayAch_Showcase_MovePageRight">Move page right</sys:String>
