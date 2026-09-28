@@ -997,6 +997,10 @@ namespace PlayniteAchievements.Views.ManageAchievements
         /// Text editors bind on focus loss so a half-typed value is not persisted; Enter commits
         /// the same way the other Manage tabs do.
         /// </summary>
+        /// <remarks>
+        /// Focus then goes back to the grid, as it does for a cell editor: with the caret left in
+        /// the box nothing showed that the value had been taken, and a second Enter did nothing.
+        /// </remarks>
         private void EditorTextBox_KeyDown(object sender, KeyEventArgs e)
         {
             if (e.Key != Key.Enter || !(sender is TextBox textBox))
@@ -1005,6 +1009,7 @@ namespace PlayniteAchievements.Views.ManageAchievements
             }
 
             textBox.GetBindingExpression(TextBox.TextProperty)?.UpdateSource();
+            CustomAchievementsGrid?.Focus();
             e.Handled = true;
         }
 
