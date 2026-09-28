@@ -122,6 +122,7 @@ namespace PlayniteAchievements.Views.Showcase
         private bool _applyDrainScheduled;
         private int _applyDrainApplied;
         private long _applyDrainStartedTicks;
+        private long _applyPassEndedTicks;
 
         // Edit-mode size labels: each column's width along the top edge, each row's height along
         // the left. Refreshed at most every TrackRulerInterval while the window resizes or a
@@ -1915,7 +1916,21 @@ namespace PlayniteAchievements.Views.Showcase
                         continue;
                     }
 
+                    if (PerfScope.PerfTracingEnabled && _applyDrainApplied > 0)
+                    {
+                        // Wall time between the previous pass ending and this one starting:
+                        // render, Loaded broadcasts, image decodes and any other dispatcher work
+                        // the drain yielded to. Large gaps mean the cost is outside the scopes.
+                        var gapMs = (System.Diagnostics.Stopwatch.GetTimestamp() - _applyPassEndedTicks) * 1000L /
+                                    System.Diagnostics.Stopwatch.Frequency;
+                        if (gapMs >= 50)
+                        {
+                            Logger.Debug($"[Showcase] apply gap ms={gapMs} before kind={request.Widget.Kind}");
+                        }
+                    }
+
                     ApplyWidgetProjection(request.Host, request.Widget, snapshot);
+                    _applyPassEndedTicks = System.Diagnostics.Stopwatch.GetTimestamp();
                     _applyDrainApplied++;
                     break;
                 }
@@ -2015,7 +2030,11 @@ namespace PlayniteAchievements.Views.Showcase
         // slow grid widget can be read as per-row cost versus a virtualization failure.
         private static string DescribeRealizedRows(ShowcaseWidgetControl host)
         {
-            var grid = Views.Helpers.VisualTreeHelpers.FindVisualChildren<DataGrid>(host).FirstOrDefault();
+            // The achievement grid control hosts several DataGrids (category list, drill, rows);
+            // the populated one is the one whose rows were realized.
+            var grid = Views.Helpers.VisualTreeHelpers.FindVisualChildren<DataGrid>(host)
+                .OrderByDescending(candidate => candidate.Items.Count)
+                .FirstOrDefault();
             if (grid == null)
             {
                 return string.Empty;
