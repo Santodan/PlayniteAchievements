@@ -12,11 +12,28 @@ namespace PlayniteAchievements.Services.Showcase
     /// <summary>
     /// A portable showcase page: one page's grid, its widgets, and the column settings of its
     /// grid widgets, wrapped with a <see cref="Kind"/> discriminator so import can reject
-    /// foreign files. Carries layout and appearance only: no pin collections, profile data,
-    /// or control-bar search and filter state.
+    /// foreign files. Carries layout and appearance only: no pin collections, no control-bar
+    /// search and filter state, and of a profile card only its background image (name,
+    /// subtitle, avatar and links stay with the exporting user).
     /// </summary>
     public sealed class ShowcasePagePortableFile
     {
+        /// <summary>
+        /// Archive image entries (<c>images/&lt;name&gt;</c>) and the local file each one is read
+        /// from on export or was extracted to on import. Not part of the manifest.
+        /// </summary>
+        [JsonIgnore]
+        public Dictionary<string, string> BundledImages { get; set; } =
+            new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+
+        /// <summary>
+        /// The temporary folder <see cref="ShowcasePagePortableStore.Read"/> extracted bundled
+        /// images into; the importer deletes it through
+        /// <see cref="ShowcasePagePortableStore.DeleteExtractedImages"/> once they are stored.
+        /// </summary>
+        [JsonIgnore]
+        public string ExtractedDirectory { get; set; }
+
         public const string ShowcasePageKind = "PlayniteAchievements.ShowcasePage";
 
         public string Kind { get; set; }
@@ -43,15 +60,20 @@ namespace PlayniteAchievements.Services.Showcase
 
     /// <summary>
     /// Exports and imports a single showcase page as a <c>.pashowcase</c> zip package holding a
-    /// JSON manifest. The <see cref="BuildPortable"/> and <see cref="ApplyPortable"/> transforms
-    /// are pure over the settings objects; <see cref="Write"/> and <see cref="Read"/> do the IO.
-    /// An <c>images/</c> folder is reserved for bundling images in a later version.
+    /// JSON manifest plus an <c>images/</c> folder with the profile backgrounds the page uses.
+    /// The <see cref="BuildPortable"/> and <see cref="ApplyPortable"/> transforms are pure over
+    /// the settings objects (the manifest refers to images by entry name and the caller supplies
+    /// how an extracted file becomes a stored one); <see cref="Write"/> and <see cref="Read"/>
+    /// do the IO.
     /// </summary>
     public static class ShowcasePagePortableStore
     {
         public const string PackageFileExtension = ".pashowcase";
         public const string ManifestEntryName = "showcase-page.json";
-        public const int CurrentVersion = 1;
+        public const string ImagesFolderName = "images";
+
+        // Version 2 bundles profile background images and refers to them by archive entry.
+        public const int CurrentVersion = 2;
 
         // Per-user search and filter state written by ShowcaseControlBarStateStore
         // ("ControlBar.Games", "ControlBar.Achievements").
@@ -112,6 +134,7 @@ namespace PlayniteAchievements.Services.Showcase
 
                 var copy = widget.Clone();
                 StripUserOptions(copy);
+                BundleProfileBackground(copy, portable);
                 portable.Widgets.Add(copy);
                 CaptureGridSurface(gridOptions, copy, portable);
             }
@@ -121,14 +144,17 @@ namespace PlayniteAchievements.Services.Showcase
 
         /// <summary>
         /// Inserts the file's page after <paramref name="insertAfterPageId"/> under fresh ids and
-        /// writes its grid settings onto the new widget instances. The caller persists the
-        /// result through the normal save path, which normalizes the page.
+        /// writes its grid settings onto the new widget instances. A profile background the file
+        /// bundles is handed to <paramref name="storeImage"/> as the extracted file's path and
+        /// replaced by what it returns (null drops the image). The caller persists the result
+        /// through the normal save path, which normalizes the page.
         /// </summary>
         public static ShowcasePageSettings ApplyPortable(
             ShowcaseSettings settings,
             GridOptionsCatalog gridOptions,
             ShowcasePagePortableFile portable,
-            string insertAfterPageId)
+            string insertAfterPageId,
+            Func<string, string> storeImage = null)
         {
             Validate(portable);
             return ShowcaseLayoutService.ImportPage(
@@ -136,7 +162,11 @@ namespace PlayniteAchievements.Services.Showcase
                 portable.Page,
                 portable.Widgets,
                 insertAfterPageId,
-                (source, imported) => RestoreGridSurface(gridOptions, portable, source, imported));
+                (source, imported) =>
+                {
+                    RestoreGridSurface(gridOptions, portable, source, imported);
+                    RestoreProfileBackground(portable, imported, storeImage);
+                });
         }
 
         public static void Write(string destinationPath, ShowcasePagePortableFile portable)
@@ -170,6 +200,22 @@ namespace PlayniteAchievements.Services.Showcase
                     {
                         writer.Write(JsonConvert.SerializeObject(portable, WriteSettings));
                     }
+
+                    foreach (var pair in (portable.BundledImages ?? new Dictionary<string, string>())
+                        .OrderBy(pair => pair.Key, StringComparer.OrdinalIgnoreCase))
+                    {
+                        if (string.IsNullOrWhiteSpace(pair.Value) || !File.Exists(pair.Value))
+                        {
+                            continue;
+                        }
+
+                        var imageEntry = archive.CreateEntry(pair.Key, CompressionLevel.Optimal);
+                        using (var source = File.OpenRead(pair.Value))
+                        using (var destination = imageEntry.Open())
+                        {
+                            source.CopyTo(destination);
+                        }
+                    }
                 }
 
                 File.Copy(tempPath, destinationPath, overwrite: true);
@@ -183,6 +229,12 @@ namespace PlayniteAchievements.Services.Showcase
             }
         }
 
+        /// <summary>
+        /// Reads the manifest and extracts the bundled images the page's profile widgets refer
+        /// to into a temporary folder (<see cref="ShowcasePagePortableFile.ExtractedDirectory"/>),
+        /// which the caller removes with <see cref="DeleteExtractedImages"/> after
+        /// <see cref="ApplyPortable"/> has stored them.
+        /// </summary>
         public static ShowcasePagePortableFile Read(string sourcePath)
         {
             if (string.IsNullOrWhiteSpace(sourcePath) || !File.Exists(sourcePath))
@@ -196,7 +248,7 @@ namespace PlayniteAchievements.Services.Showcase
                 using (var archive = ZipFile.OpenRead(sourcePath))
                 {
                     var entry = archive.Entries.FirstOrDefault(candidate => string.Equals(
-                        candidate.FullName.Replace('\\', '/').TrimStart('/'),
+                        NormalizeEntryName(candidate.FullName),
                         ManifestEntryName,
                         StringComparison.OrdinalIgnoreCase));
                     if (entry == null)
@@ -209,6 +261,9 @@ namespace PlayniteAchievements.Services.Showcase
                     {
                         portable = JsonConvert.DeserializeObject<ShowcasePagePortableFile>(reader.ReadToEnd());
                     }
+
+                    Validate(portable);
+                    ExtractBundledImages(archive, portable);
                 }
             }
             catch (InvalidDataException ex)
@@ -222,8 +277,36 @@ namespace PlayniteAchievements.Services.Showcase
                     "This showcase page file is damaged and could not be read.", ex);
             }
 
-            Validate(portable);
             return portable;
+        }
+
+        /// <summary>Removes the folder <see cref="Read"/> extracted bundled images into.</summary>
+        public static void DeleteExtractedImages(ShowcasePagePortableFile portable)
+        {
+            var directory = portable?.ExtractedDirectory;
+            if (string.IsNullOrWhiteSpace(directory))
+            {
+                return;
+            }
+
+            try
+            {
+                if (Directory.Exists(directory))
+                {
+                    Directory.Delete(directory, recursive: true);
+                }
+            }
+            catch (IOException)
+            {
+                // A locked temp file is left for the OS temp cleanup; nothing depends on it.
+            }
+            catch (UnauthorizedAccessException)
+            {
+            }
+            finally
+            {
+                portable.ExtractedDirectory = null;
+            }
         }
 
         public static bool IsPackagePath(string path)
@@ -293,6 +376,140 @@ namespace PlayniteAchievements.Services.Showcase
                 .ToList())
             {
                 widget.Options.Remove(key);
+            }
+
+            // Of the profile card only the background travels; the rest identifies the user.
+            if (widget.Profile != null)
+            {
+                widget.Profile = new ShowcaseProfileSettings
+                {
+                    BackgroundPath = widget.Profile.BackgroundPath
+                };
+            }
+        }
+
+        // Rewrites the profile background to an archive entry name and records the file it is
+        // read from; a background whose file is gone is dropped.
+        private static void BundleProfileBackground(
+            ShowcaseWidgetInstanceSettings widget,
+            ShowcasePagePortableFile portable)
+        {
+            var profile = widget.Profile;
+            if (profile == null)
+            {
+                return;
+            }
+
+            var path = profile.BackgroundPath?.Trim();
+            if (string.IsNullOrWhiteSpace(path) || !File.Exists(path))
+            {
+                profile.BackgroundPath = null;
+                return;
+            }
+
+            // Stored images are named by content, so equal names are the same file; a raw path
+            // that happens to share a name with a different file gets a numbered entry.
+            var fileName = Path.GetFileName(path);
+            var entryName = ImagesFolderName + "/" + fileName;
+            for (var suffix = 2;
+                 portable.BundledImages.TryGetValue(entryName, out var existing) &&
+                 !string.Equals(existing, path, StringComparison.OrdinalIgnoreCase);
+                 suffix++)
+            {
+                entryName = ImagesFolderName + "/" +
+                            Path.GetFileNameWithoutExtension(fileName) + "-" + suffix + Path.GetExtension(fileName);
+            }
+
+            portable.BundledImages[entryName] = path;
+            profile.BackgroundPath = entryName;
+        }
+
+        private static void RestoreProfileBackground(
+            ShowcasePagePortableFile portable,
+            ShowcaseWidgetInstanceSettings imported,
+            Func<string, string> storeImage)
+        {
+            var profile = imported.Profile;
+            if (profile == null || string.IsNullOrWhiteSpace(profile.BackgroundPath))
+            {
+                return;
+            }
+
+            // Every background in a portable file names an archive entry; anything else (or an
+            // entry the archive did not carry) cannot be shown on this machine.
+            string extracted = null;
+            var hasEntry = portable.BundledImages != null &&
+                           portable.BundledImages.TryGetValue(profile.BackgroundPath.Trim(), out extracted);
+            profile.BackgroundPath = hasEntry && !string.IsNullOrWhiteSpace(extracted)
+                ? storeImage?.Invoke(extracted)
+                : null;
+        }
+
+        private static void ExtractBundledImages(ZipArchive archive, ShowcasePagePortableFile portable)
+        {
+            var wanted = new HashSet<string>(
+                (portable.Widgets ?? new List<ShowcaseWidgetInstanceSettings>())
+                    .Select(widget => widget?.Profile?.BackgroundPath?.Trim())
+                    .Where(name => !string.IsNullOrWhiteSpace(name)),
+                StringComparer.OrdinalIgnoreCase);
+            if (wanted.Count == 0)
+            {
+                return;
+            }
+
+            foreach (var name in wanted)
+            {
+                ValidateImageEntryName(name);
+            }
+
+            var directory = Path.Combine(
+                Path.GetTempPath(),
+                "PlayniteAchievements",
+                "ShowcasePageImports",
+                Guid.NewGuid().ToString("N"));
+            Directory.CreateDirectory(directory);
+            portable.ExtractedDirectory = directory;
+
+            foreach (var entry in archive.Entries)
+            {
+                var name = NormalizeEntryName(entry.FullName);
+                if (!wanted.Contains(name))
+                {
+                    continue;
+                }
+
+                var target = Path.Combine(directory, name.Substring(ImagesFolderName.Length + 1));
+                using (var source = entry.Open())
+                using (var destination = File.Create(target))
+                {
+                    source.CopyTo(destination);
+                }
+
+                portable.BundledImages[name] = target;
+            }
+        }
+
+        private static string NormalizeEntryName(string value)
+        {
+            return (value ?? string.Empty).Replace('\\', '/').TrimStart('/');
+        }
+
+        // Bundled images live flat under images/, so a manifest can never point outside the
+        // extraction folder.
+        private static void ValidateImageEntryName(string value)
+        {
+            var normalized = NormalizeEntryName(value);
+            var prefix = ImagesFolderName + "/";
+            var fileName = normalized.StartsWith(prefix, StringComparison.OrdinalIgnoreCase)
+                ? normalized.Substring(prefix.Length)
+                : null;
+            if (string.IsNullOrWhiteSpace(fileName) ||
+                fileName.IndexOf('/') >= 0 ||
+                fileName.Contains("..") ||
+                fileName.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0)
+            {
+                throw new InvalidOperationException(
+                    "This showcase page file is damaged and could not be read.");
             }
         }
 

@@ -734,6 +734,7 @@ namespace PlayniteAchievements.Services.Showcase
             }
 
             settings.LayoutVersion = ShowcaseSettings.CurrentLayoutVersion;
+            MigrateLegacyProfile(settings);
             settings.WidgetInstances = NormalizeWidgets(settings.WidgetInstances);
             var widgetIds = new HashSet<string>(
                 settings.WidgetInstances.Select(widget => widget.InstanceId),
@@ -812,8 +813,40 @@ namespace PlayniteAchievements.Services.Showcase
             settings.GamePinCollections = NormalizeGameCollections(
                 settings.GamePinCollections,
                 settings.DefaultGamePinCollectionId);
-            settings.Profile = settings.Profile ?? new ShowcaseProfileSettings();
             settings.StartPageInstances = NormalizeStartPageInstances(settings.StartPageInstances);
+        }
+
+        // Profile data used to live once on the layout; it now lives on each profile widget.
+        // A layout saved by an older version still carries the shared object, which seeds every
+        // profile widget that has none of its own, then goes away so it can never reseed a card
+        // the user has since edited.
+        private static void MigrateLegacyProfile(ShowcaseSettings settings)
+        {
+            var legacy = settings.Profile;
+            if (legacy == null)
+            {
+                return;
+            }
+
+            var widgets = (settings.WidgetInstances ?? new List<ShowcaseWidgetInstanceSettings>())
+                .Concat(settings.StartPageInstances?.Values ?? Enumerable.Empty<ShowcaseWidgetInstanceSettings>());
+            foreach (var widget in widgets)
+            {
+                if (widget != null && widget.Kind == ShowcaseWidgetKind.Profile && widget.Profile == null)
+                {
+                    widget.Profile = legacy.Clone();
+                }
+            }
+
+            settings.Profile = null;
+        }
+
+        // A profile widget always carries a profile object; no other kind carries one.
+        private static void NormalizeProfile(ShowcaseWidgetInstanceSettings widget)
+        {
+            widget.Profile = widget.Kind == ShowcaseWidgetKind.Profile
+                ? widget.Profile ?? new ShowcaseProfileSettings()
+                : null;
         }
 
         public static bool IsValidPartition(
@@ -1074,6 +1107,7 @@ namespace PlayniteAchievements.Services.Showcase
                 widget.Options = widget.Options != null
                     ? new Dictionary<string, string>(widget.Options, StringComparer.OrdinalIgnoreCase)
                     : new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+                NormalizeProfile(widget);
                 result.Add(widget);
             }
 
@@ -1289,6 +1323,7 @@ namespace PlayniteAchievements.Services.Showcase
                 pair.Value.Options = pair.Value.Options != null
                     ? new Dictionary<string, string>(pair.Value.Options, StringComparer.OrdinalIgnoreCase)
                     : new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+                NormalizeProfile(pair.Value);
                 result[pair.Key.Trim()] = pair.Value;
             }
 

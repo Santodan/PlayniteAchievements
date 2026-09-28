@@ -1293,15 +1293,16 @@ namespace PlayniteAchievements.Tests.Models
                     }
                 }
             };
-            var settings = new ShowcaseSettings
-            {
-                Profile = new ShowcaseProfileSettings { Subtitle = "Completionist" }
-            };
+            var settings = new ShowcaseSettings();
 
             var built = ShowcaseWidgetProjectionService.Build(
                 snapshot,
                 settings,
-                new ShowcaseWidgetInstanceSettings { Kind = ShowcaseWidgetKind.Profile });
+                new ShowcaseWidgetInstanceSettings
+                {
+                    Kind = ShowcaseWidgetKind.Profile,
+                    Profile = new ShowcaseProfileSettings { Subtitle = "Completionist" }
+                });
 
             Assert.AreEqual("SteamName", built.ResolvedProfile.DisplayName);
             Assert.AreEqual(@"C:\avatar.png", built.ResolvedProfile.AvatarPath);

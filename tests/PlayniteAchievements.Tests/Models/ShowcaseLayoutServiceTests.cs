@@ -431,19 +431,110 @@ namespace PlayniteAchievements.Tests.Models
                 ApiName = "first",
                 LastKnownAchievementName = "First"
             });
-            settings.Profile.DisplayName = "Player";
+            var profileWidget = settings.WidgetInstances.Single(widget => widget.Kind == ShowcaseWidgetKind.Profile);
+            profileWidget.Profile.DisplayName = "Player";
+            profileWidget.Profile.Links = new List<ShowcaseProfileLink>
+            {
+                new ShowcaseProfileLink { ProviderKey = "Steam", Value = "player" }
+            };
 
             var clone = settings.Clone();
             clone.Pages[0].Name = "Changed";
             clone.WidgetInstances[0].SetOption("Mode", "Changed");
             clone.GamePinCollections[0].GameIds.Clear();
             clone.AchievementPinCollections[0].Pins[0].ApiName = "changed";
-            clone.Profile.DisplayName = "Changed";
+            var clonedProfile = clone.WidgetInstances.Single(widget => widget.Kind == ShowcaseWidgetKind.Profile).Profile;
+            clonedProfile.DisplayName = "Changed";
+            clonedProfile.Links[0].Value = "changed";
 
             Assert.AreEqual("Showcase", settings.Pages[0].Name);
             Assert.AreEqual(1, settings.GamePinCollections[0].GameIds.Count);
             Assert.AreEqual("first", settings.AchievementPinCollections[0].Pins[0].ApiName);
-            Assert.AreEqual("Player", settings.Profile.DisplayName);
+            Assert.AreEqual("Player", profileWidget.Profile.DisplayName);
+            Assert.AreEqual("player", profileWidget.Profile.Links[0].Value);
+        }
+
+        [TestMethod]
+        public void Normalize_MovesLegacyProfileOntoProfileWidgetsAndClearsIt()
+        {
+            var settings = ShowcaseLayoutService.CreateDefault();
+            var pageProfile = settings.WidgetInstances.Single(widget => widget.Kind == ShowcaseWidgetKind.Profile);
+            pageProfile.Profile = null;
+            var edited = ShowcaseLayoutService.CreateWidget(settings, ShowcaseWidgetKind.Profile);
+            edited.Profile = new ShowcaseProfileSettings { DisplayName = "Mine" };
+            settings.StartPageInstances["start:1"] = new ShowcaseWidgetInstanceSettings
+            {
+                Kind = ShowcaseWidgetKind.Profile
+            };
+            settings.StartPageInstances["start:2"] = new ShowcaseWidgetInstanceSettings
+            {
+                Kind = ShowcaseWidgetKind.Pie
+            };
+            settings.Profile = new ShowcaseProfileSettings
+            {
+                DisplayName = "Legacy",
+                BackgroundPath = @"C:\art\banner.png"
+            };
+
+            ShowcaseLayoutService.Normalize(settings);
+
+            Assert.IsNull(settings.Profile, "legacy object is consumed");
+            Assert.AreEqual("Legacy", pageProfile.Profile.DisplayName);
+            Assert.AreEqual(@"C:\art\banner.png", pageProfile.Profile.BackgroundPath);
+            Assert.AreEqual("Legacy", settings.StartPageInstances["start:1"].Profile.DisplayName);
+            Assert.AreEqual("Mine", edited.Profile.DisplayName, "a card with its own data keeps it");
+            Assert.IsNull(settings.StartPageInstances["start:2"].Profile, "only profile widgets carry one");
+            Assert.AreNotSame(pageProfile.Profile, settings.StartPageInstances["start:1"].Profile);
+
+            settings.Profile = new ShowcaseProfileSettings { DisplayName = "Again" };
+            pageProfile.Profile.DisplayName = "Edited";
+            ShowcaseLayoutService.Normalize(settings);
+            Assert.AreEqual("Edited", pageProfile.Profile.DisplayName, "never reseeds an existing card");
+        }
+
+        [TestMethod]
+        public void Normalize_GivesEveryProfileWidgetItsOwnProfileObject()
+        {
+            var settings = ShowcaseLayoutService.CreateDefault();
+            var profile = settings.WidgetInstances.Single(widget => widget.Kind == ShowcaseWidgetKind.Profile);
+            profile.Profile = null;
+            var pie = settings.WidgetInstances.First(widget => widget.Kind != ShowcaseWidgetKind.Profile);
+            pie.Profile = new ShowcaseProfileSettings { DisplayName = "Stray" };
+
+            ShowcaseLayoutService.Normalize(settings);
+
+            Assert.IsNotNull(profile.Profile);
+            Assert.IsNull(pie.Profile);
+        }
+
+        [TestMethod]
+        public void DuplicatePage_ProfileEditOnCopyLeavesOriginalUnchanged()
+        {
+            var settings = ShowcaseLayoutService.CreateDefault();
+            var page = settings.Pages.Single();
+            var original = settings.WidgetInstances.Single(widget => widget.Kind == ShowcaseWidgetKind.Profile);
+            original.Profile.DisplayName = "Original";
+            original.Profile.BackgroundPath = @"C:\art\one.png";
+            original.Profile.Links = new List<ShowcaseProfileLink>
+            {
+                new ShowcaseProfileLink { ProviderKey = "Steam", Value = "one" }
+            };
+
+            var copy = ShowcaseLayoutService.DuplicatePage(settings, page.PageId);
+            var copied = copy.Blocks
+                .Where(block => block.WidgetInstanceId != null)
+                .Select(block => settings.WidgetInstances.Single(widget => widget.InstanceId == block.WidgetInstanceId))
+                .Single(widget => widget.Kind == ShowcaseWidgetKind.Profile);
+
+            Assert.AreNotSame(original, copied);
+            Assert.AreEqual("Original", copied.Profile.DisplayName, "the copy starts from the original");
+            copied.Profile.DisplayName = "Copy";
+            copied.Profile.BackgroundPath = @"C:\art\two.png";
+            copied.Profile.Links[0].Value = "two";
+
+            Assert.AreEqual("Original", original.Profile.DisplayName);
+            Assert.AreEqual(@"C:\art\one.png", original.Profile.BackgroundPath);
+            Assert.AreEqual("one", original.Profile.Links[0].Value);
         }
 
         [TestMethod]

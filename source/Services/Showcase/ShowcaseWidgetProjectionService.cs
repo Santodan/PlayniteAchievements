@@ -211,7 +211,7 @@ namespace PlayniteAchievements.Services.Showcase
             {
                 Instance = instance,
                 Snapshot = snapshot,
-                Profile = settings.Profile ?? new ShowcaseProfileSettings()
+                Profile = instance.Profile ?? new ShowcaseProfileSettings()
             };
 
             AchievementGridOptions achievementOptions = null;
@@ -236,7 +236,7 @@ namespace PlayniteAchievements.Services.Showcase
                 case ShowcaseWidgetKind.Profile:
                     result.Statistics = GetStatistics(snapshot, now ?? DateTime.Now);
                     result.ResolvedProfile = ShowcaseProfileResolver.Resolve(
-                        settings.Profile,
+                        instance.Profile,
                         snapshot.CurrentUserIdentities);
                     break;
                 case ShowcaseWidgetKind.Statistics:

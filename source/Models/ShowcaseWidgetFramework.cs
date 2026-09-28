@@ -919,6 +919,8 @@ namespace PlayniteAchievements.Models
                     ShowcaseWidgetOptions.SetPieSmallSliceMode(settings, OverviewPieSmallSliceMode.Round);
                     break;
                 case ShowcaseWidgetKind.Profile:
+                    // A new profile card starts blank and shows the provider identity until edited.
+                    settings.Profile = new ShowcaseProfileSettings();
                     ShowcaseWidgetOptions.SetProfileMedalMode(settings, ShowcaseProfileMedalMode.Rarity);
                     ShowcaseWidgetOptions.SetProfileFullBleed(settings, false);
                     ShowcaseWidgetOptions.SetProfileLayout(settings, ShowcaseProfileLayout.Left);
