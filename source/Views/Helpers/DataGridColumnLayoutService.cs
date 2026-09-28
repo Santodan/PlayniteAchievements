@@ -1238,12 +1238,18 @@ namespace PlayniteAchievements.Views.Helpers
             var effectiveProtectedKey = protectedKey;
             var effectiveAbsorberKey = _lastResizeAbsorberColumnKey;
 
+            // A proportional rescale is seeded from the saved widths, not from the previous pass's
+            // rounded output. Re-rounding rounded output on every pass is lossy and path dependent:
+            // a window dragged one pixel at a time poured all growth into one column, while the
+            // same width reached in one jump spread it evenly. From the saved widths the plan is a
+            // pure function of the layout and the current width. Protected-column passes (a drag or
+            // typed width landing) still start from what is on screen.
             return ColumnWidthNormalization.TryBuildNormalizedWidths(
                 _grid,
                 effectiveProtectedKey,
                 effectiveAbsorberKey,
                 rescaleAll,
-                BuildNormalizationPreferredWidths(includePending: true),
+                BuildNormalizationPreferredWidths(includePending: true, includeNormalizedOverrides: !rescaleAll),
                 fallbackAvailableWidth: 0,
                 useEqualWidthForMissing: true,
                 GetLockedColumnKeys(),
@@ -1704,15 +1710,18 @@ namespace PlayniteAchievements.Views.Helpers
             return BuildPreferredWidths(includePending, includeDefaultSeeds: false);
         }
 
-        private Dictionary<string, double> BuildNormalizationPreferredWidths(bool includePending)
+        private Dictionary<string, double> BuildNormalizationPreferredWidths(bool includePending, bool includeNormalizedOverrides = true)
         {
             var result = BuildPreferredWidths(includePending: false, includeDefaultSeeds: true);
 
-            foreach (var pair in _normalizedWidthOverrides)
+            if (includeNormalizedOverrides)
             {
-                if (!string.IsNullOrWhiteSpace(pair.Key) && IsValidWidth(pair.Value))
+                foreach (var pair in _normalizedWidthOverrides)
                 {
-                    result[pair.Key] = ColumnWidthNormalization.RoundPixelWidth(pair.Value);
+                    if (!string.IsNullOrWhiteSpace(pair.Key) && IsValidWidth(pair.Value))
+                    {
+                        result[pair.Key] = ColumnWidthNormalization.RoundPixelWidth(pair.Value);
+                    }
                 }
             }
 
