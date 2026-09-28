@@ -314,10 +314,10 @@ namespace PlayniteAchievements.Views.Showcase
         {
             for (var boundary = 0; boundary < PageGridSize - 1; boundary++)
             {
-                DashboardGrid.Children.Add(CreateTrackGripper(vertical: true, boundary, nearEdge: true));
-                DashboardGrid.Children.Add(CreateTrackGripper(vertical: true, boundary, nearEdge: false));
-                DashboardGrid.Children.Add(CreateTrackGripper(vertical: false, boundary, nearEdge: true));
-                DashboardGrid.Children.Add(CreateTrackGripper(vertical: false, boundary, nearEdge: false));
+                AddOverlay(CreateTrackGripper(vertical: true, boundary, nearEdge: true));
+                AddOverlay(CreateTrackGripper(vertical: true, boundary, nearEdge: false));
+                AddOverlay(CreateTrackGripper(vertical: false, boundary, nearEdge: true));
+                AddOverlay(CreateTrackGripper(vertical: false, boundary, nearEdge: false));
             }
 
             AddTrackRulers();
@@ -344,7 +344,7 @@ namespace PlayniteAchievements.Views.Showcase
                 column.VerticalAlignment = VerticalAlignment.Top;
                 column.Margin = new Thickness(0, -TrackRulerOverhang, 0, 0);
                 _columnRulerTexts.Add(columnBox);
-                DashboardGrid.Children.Add(column);
+                AddOverlay(column);
 
                 var row = CreateTrackRuler(vertical: false, index, out var rowBox);
                 Grid.SetRow(row, index);
@@ -354,7 +354,23 @@ namespace PlayniteAchievements.Views.Showcase
                 row.Margin = new Thickness(-TrackRulerOverhang, 0, 0, 0);
                 row.LayoutTransform = new System.Windows.Media.RotateTransform(-90);
                 _rowRulerTexts.Add(rowBox);
-                DashboardGrid.Children.Add(row);
+                AddOverlay(row);
+            }
+        }
+
+        // Every edit-mode element that is not a block goes through here: grippers, rulers, lattice
+        // and cut lines, chevrons, ghosts and previews. Hosted so its size never reaches the
+        // grid's tracks (see OverlayLayoutHost); RemoveOverlay takes the same element back out.
+        private void AddOverlay(FrameworkElement element)
+        {
+            DashboardGrid.Children.Add(OverlayLayoutHost.Wrap(element));
+        }
+
+        private void RemoveOverlay(UIElement element)
+        {
+            if (element != null)
+            {
+                DashboardGrid.Children.Remove(OverlayLayoutHost.HostOf(element));
             }
         }
 
@@ -742,7 +758,7 @@ namespace PlayniteAchievements.Views.Showcase
         {
             foreach (var handle in _layoutHandles)
             {
-                DashboardGrid.Children.Remove(handle);
+                RemoveOverlay(handle);
             }
 
             _layoutHandles.Clear();
@@ -866,7 +882,7 @@ namespace PlayniteAchievements.Views.Showcase
         private void AddLayoutHandle(FrameworkElement handle)
         {
             _layoutHandles.Add(handle);
-            DashboardGrid.Children.Add(handle);
+            AddOverlay(handle);
         }
 
         private System.Windows.Controls.Primitives.Thumb CreateCutLine(
@@ -1156,7 +1172,7 @@ namespace PlayniteAchievements.Views.Showcase
 
             Panel.SetZIndex(ghost, 45);
             _cutGhost = ghost;
-            DashboardGrid.Children.Add(ghost);
+            AddOverlay(ghost);
             MoveCutGhost(vertical, boundary);
         }
 
@@ -1183,7 +1199,7 @@ namespace PlayniteAchievements.Views.Showcase
         {
             if (_cutGhost != null)
             {
-                DashboardGrid.Children.Remove(_cutGhost);
+                RemoveOverlay(_cutGhost);
                 _cutGhost = null;
             }
         }
@@ -1441,7 +1457,7 @@ namespace PlayniteAchievements.Views.Showcase
                 // Above the blocks and the cut line, below the drag ghost line.
                 Panel.SetZIndex(ghost, 44);
                 _layoutPreviewGhosts.Add(ghost);
-                DashboardGrid.Children.Add(ghost);
+                AddOverlay(ghost);
             }
         }
 
@@ -1449,7 +1465,7 @@ namespace PlayniteAchievements.Views.Showcase
         {
             foreach (var ghost in _layoutPreviewGhosts)
             {
-                DashboardGrid.Children.Remove(ghost);
+                RemoveOverlay(ghost);
             }
 
             _layoutPreviewGhosts.Clear();
