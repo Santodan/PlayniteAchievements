@@ -3125,8 +3125,32 @@ namespace PlayniteAchievements.Views.Showcase
         {
             if (ShowcaseWidgetSettingsDialog.Show(widget))
             {
-                SaveAndRebuild();
+                SaveAndPublish();
+                EnsureSnapshotCoversLayout();
+                ReprojectWidget(widget.InstanceId);
             }
+        }
+
+        // The settings dialog edits one widget's title, options, and profile, never its kind or
+        // placement, so only that widget's host needs a fresh projection; the rest of the page
+        // and its block containers stay as built.
+        private void ReprojectWidget(string instanceId)
+        {
+            var widget = Layout.WidgetInstances.FirstOrDefault(instance =>
+                string.Equals(instance?.InstanceId, instanceId, StringComparison.OrdinalIgnoreCase));
+            if (widget == null ||
+                !_hostCache.TryGetValue(widget.InstanceId, out var host) ||
+                host == null)
+            {
+                Rebuild();
+                return;
+            }
+
+            host.Apply(ShowcaseWidgetProjectionService.Build(
+                _overview.LatestSnapshot ?? new OverviewDataSnapshot(),
+                Layout,
+                widget,
+                gridOptions: _settings.Persisted?.GridOptions));
         }
 
         // Captures the current page as it renders on screen and saves it as a PNG the user
