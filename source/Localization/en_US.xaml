@@ -93,10 +93,9 @@
     <sys:String x:Key="LOCPlayAch_Common_Validation_DateRangeOrder">The start date must be on or before the end date.</sys:String>
     <sys:String x:Key="LOCPlayAch_Common_View">View</sys:String>
     <sys:String x:Key="LOCPlayAch_Completed">Completed</sys:String>
-    <!-- DateRange: labels of the From/To date pickers; UntilNow is the placeholder of a blank end date -->
+    <!-- DateRange: tooltips of the From/To date pickers -->
     <sys:String x:Key="LOCPlayAch_DateRange_From">From</sys:String>
     <sys:String x:Key="LOCPlayAch_DateRange_To">To</sys:String>
-    <sys:String x:Key="LOCPlayAch_DateRange_UntilNow">Until now</sys:String>
     <sys:String x:Key="LOCPlayAch_Format_Counts">{0}/{1}</sys:String>
     <sys:String x:Key="LOCPlayAch_Format_Pair">{0} &#183; {1}</sys:String>
     <sys:String x:Key="LOCPlayAch_Presets_ApplyConfirm">Apply preset &quot;{0}&quot;? This replaces this tab's appearance for the current selection, including any custom template.</sys:String>
@@ -1292,6 +1291,7 @@
     <sys:String x:Key="LOCPlayAch_TimeRange_1M">1M</sys:String>
     <sys:String x:Key="LOCPlayAch_TimeRange_1Y">1Y</sys:String>
     <sys:String x:Key="LOCPlayAch_TimeRange_3M">3M</sys:String>
+    <sys:String x:Key="LOCPlayAch_TimeRange_6M">6M</sys:String>
     <sys:String x:Key="LOCPlayAch_TimeRange_7D">7D</sys:String>
     <sys:String x:Key="LOCPlayAch_Timeline_NoUnlocksInPeriod">No unlocks in this period</sys:String>
     <sys:String x:Key="LOCPlayAch_Playtime_HoursMinutes">{0}h{1}m</sys:String>
