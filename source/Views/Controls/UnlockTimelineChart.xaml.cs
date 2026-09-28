@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Collections.Specialized;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Data;
@@ -38,7 +37,15 @@ namespace PlayniteAchievements.Views.Controls
             nameof(Series), typeof(SeriesCollection), typeof(UnlockTimelineChart), new PropertyMetadata(null));
 
         public static readonly DependencyProperty LabelsProperty = DependencyProperty.Register(
-            nameof(Labels), typeof(IList<string>), typeof(UnlockTimelineChart), new PropertyMetadata(null, OnLabelsChanged));
+            nameof(Labels), typeof(IList<string>), typeof(UnlockTimelineChart), new PropertyMetadata(null));
+
+        /// <summary>
+        /// Bumped by the view model once a pass is fully applied. The control then forces one
+        /// synchronous LiveCharts redraw: the library otherwise only starts a coalescing timer on
+        /// each value or label edit, and it never re-reads in-place label edits at all.
+        /// </summary>
+        public static readonly DependencyProperty RenderRevisionProperty = DependencyProperty.Register(
+            nameof(RenderRevision), typeof(int), typeof(UnlockTimelineChart), new PropertyMetadata(0, OnRenderRevisionChanged));
 
         public static readonly DependencyProperty TooltipLabelsProperty = DependencyProperty.Register(
             nameof(TooltipLabels), typeof(IList<string>), typeof(UnlockTimelineChart), new PropertyMetadata(null));
@@ -96,7 +103,6 @@ namespace PlayniteAchievements.Views.Controls
         private readonly Axis _axisX;
         private readonly Axis _axisY;
         private readonly CartesianChartTooltip _tooltip;
-        private INotifyCollectionChanged _observedLabels;
 
         public UnlockTimelineChart()
         {
@@ -151,8 +157,6 @@ namespace PlayniteAchievements.Views.Controls
             Chart.DataTooltip = _tooltip;
 
             SizeChanged += OnSizeChanged;
-            Unloaded += (_, __) => ObserveLabels(null);
-            Loaded += (_, __) => ObserveLabels(Labels);
         }
 
         public SeriesCollection Series
@@ -165,6 +169,12 @@ namespace PlayniteAchievements.Views.Controls
         {
             get => (IList<string>)GetValue(LabelsProperty);
             set => SetValue(LabelsProperty, value);
+        }
+
+        public int RenderRevision
+        {
+            get => (int)GetValue(RenderRevisionProperty);
+            set => SetValue(RenderRevisionProperty, value);
         }
 
         public IList<string> TooltipLabels
@@ -259,35 +269,14 @@ namespace PlayniteAchievements.Views.Controls
 
         private Binding Bind(string path) => new Binding(path) { Source = this };
 
-        private static void OnLabelsChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
+        private static void OnRenderRevisionChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
         {
             if (d is UnlockTimelineChart chart && chart.IsLoaded)
             {
-                chart.ObserveLabels(e.NewValue as IList<string>);
+                // force: true runs the updater tick now; the value edits before this only armed
+                // its timer, so without it the new bars appear a beat after the click.
+                chart.Chart.Update(false, true);
             }
-        }
-
-        // LiveCharts only re-reads Labels when the property's instance changes; the view models
-        // update the list in place, so an edit that leaves the values untouched would otherwise
-        // keep stale text on the axis.
-        private void ObserveLabels(IList<string> labels)
-        {
-            if (_observedLabels != null)
-            {
-                _observedLabels.CollectionChanged -= OnLabelsCollectionChanged;
-                _observedLabels = null;
-            }
-
-            if (labels is INotifyCollectionChanged observable)
-            {
-                _observedLabels = observable;
-                observable.CollectionChanged += OnLabelsCollectionChanged;
-            }
-        }
-
-        private void OnLabelsCollectionChanged(object sender, NotifyCollectionChangedEventArgs e)
-        {
-            Chart.Update(false, false);
         }
 
         private void OnSizeChanged(object sender, SizeChangedEventArgs e)

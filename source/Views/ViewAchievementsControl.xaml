@@ -149,7 +149,8 @@
                                                   YLabelFormatter="{Binding Timeline.YAxisFormatter}"
                                                   IsEmpty="{Binding Timeline.IsEmpty}"
                                                   MaxTickCount="{Binding Timeline.MaxTickCount, Mode=OneWayToSource}"
-                                                  MaxBarCount="{Binding Timeline.MaxBarCount, Mode=OneWayToSource}"/>
+                                                  MaxBarCount="{Binding Timeline.MaxBarCount, Mode=OneWayToSource}"
+                                                  RenderRevision="{Binding Timeline.RenderRevision}"/>
                 </StackPanel>
             </StackPanel>
         </Border>

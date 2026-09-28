@@ -99,6 +99,7 @@
                                       IsEmpty="{Binding TimelineViewModel.IsEmpty, RelativeSource={RelativeSource AncestorType=base:ThemeControlBase}}"
                                       MaxTickCount="{Binding TimelineViewModel.MaxTickCount, RelativeSource={RelativeSource AncestorType=base:ThemeControlBase}, Mode=OneWayToSource}"
                                       MaxBarCount="{Binding TimelineViewModel.MaxBarCount, RelativeSource={RelativeSource AncestorType=base:ThemeControlBase}, Mode=OneWayToSource}"
+                                      RenderRevision="{Binding TimelineViewModel.RenderRevision, RelativeSource={RelativeSource AncestorType=base:ThemeControlBase}}"
                                       TooltipSurfaceBrush="{DynamicResource PopupBackgroundBrush}"
                                       TooltipOutlineBrush="{DynamicResource PopupBorderBrush}"
                                       TooltipForeground="{DynamicResource TextBrush}"/>

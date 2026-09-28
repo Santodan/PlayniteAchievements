@@ -47,6 +47,7 @@ namespace PlayniteAchievements.ViewModels
         private bool _isEmpty = true;
         private int _maxTickCount = TimelineAxisTicks.DefaultMaxTicks;
         private int _maxBarCount = TimelineBucketing.MaxOverrideBarCount;
+        private int _renderRevision;
 
         public TimelineViewModel()
         {
@@ -119,7 +120,7 @@ namespace PlayniteAchievements.ViewModels
 
         /// <summary>
         /// Granularity overrides the current window cannot honor within the host's bar cap (Day on
-        /// a multi-year window, say). The picker disables them; the stored choice is left alone.
+        /// a multi-year window, say). The picker disables them; a selected one falls back to Auto.
         /// </summary>
         public IReadOnlyList<TimelineGranularity> UnavailableGranularities
         {
@@ -182,6 +183,16 @@ namespace PlayniteAchievements.ViewModels
                     ReplanTicks();
                 }
             }
+        }
+
+        /// <summary>
+        /// Increments once every property of a pass has been applied. The chart control forces one
+        /// synchronous LiveCharts redraw on it instead of waiting for the library's coalescing timer.
+        /// </summary>
+        public int RenderRevision
+        {
+            get => _renderRevision;
+            private set => SetValue(ref _renderRevision, value);
         }
 
         /// <summary>
@@ -248,10 +259,17 @@ namespace PlayniteAchievements.ViewModels
                                 return;
                             }
 
-                            Apply(plan, labels, scale, earliest);
-                            // The stored choice is kept even when it cannot be honored right now;
-                            // the chart escalates on its own and the picker greys the entry out.
+                            using (PerfScope.Start(_logger, "Timeline.Apply", thresholdMs: 16))
+                            {
+                                Apply(plan, labels, scale, earliest);
+                            }
+
                             UnavailableGranularities = unavailable;
+                            if (unavailable.Contains(Granularity))
+                            {
+                                // The chart already escalated; make the stored choice say so.
+                                Granularity = TimelineGranularity.Auto;
+                            }
                         }
                         catch (Exception ex)
                         {
@@ -296,6 +314,7 @@ namespace PlayniteAchievements.ViewModels
             IsEmpty = plan.Total == 0;
             EffectiveUnit = plan.Unit;
             EarliestDate = earliest;
+            RenderRevision = unchecked(_renderRevision + 1);
         }
 
         private void ReplanTicks()
@@ -311,6 +330,7 @@ namespace PlayniteAchievements.ViewModels
                 var labels = TimelineAxisTicks.Plan(plan.Buckets, plan.Unit, _maxTickCount, FormattingCulture.Current);
                 CollectionHelper.SynchronizeValueCollection(TimelineLabels, labels.AxisLabels.ToList());
                 CollectionHelper.SynchronizeValueCollection(TooltipLabels, labels.TooltipLabels.ToList());
+                RenderRevision = unchecked(_renderRevision + 1);
             }
             catch (Exception ex)
             {
