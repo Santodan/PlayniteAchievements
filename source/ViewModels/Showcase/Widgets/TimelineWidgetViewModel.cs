@@ -1,75 +1,93 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using Playnite.SDK;
-using PlayniteAchievements.Common;
 using PlayniteAchievements.Models;
-using PlayniteAchievements.Models.Settings;
 using PlayniteAchievements.Services.Showcase;
 using PlayniteAchievements.ViewModels;
 using RelayCommand = PlayniteAchievements.Common.RelayCommand;
 
 namespace PlayniteAchievements.ViewModels.Showcase.Widgets
 {
-    /// <summary>A selectable timeline range button.</summary>
-    public sealed class TimelineRangeOptionViewModel
-    {
-        public TimelineRangeOptionViewModel(string label, TimelineRange value)
-        {
-            Label = label;
-            Value = value;
-        }
-
-        public string Label { get; }
-
-        public TimelineRange Value { get; }
-    }
-
     /// <summary>
-    /// Backs the Timeline widget: the reused LiveCharts column chart via TimelineViewModel with
-    /// range buttons, identical at every size.
+    /// Backs the Timeline widget: the shared unlocks-over-time chart via TimelineViewModel plus
+    /// the time window picker. The picker's chips and custom range write the instance's option
+    /// and commit; a compact cell shows chips only and opens the settings dialog for the rest.
     /// </summary>
     public sealed class TimelineWidgetViewModel : ShowcaseWidgetViewModelBase
     {
         private readonly TimelineViewModel _timeline = new TimelineViewModel();
+        private TimeWindow _window = ShowcaseTimelineOptions.DefaultWindow;
+        private bool _isCompactViewport;
+        private bool _refreshing;
 
         public TimelineWidgetViewModel()
         {
-            SetRangeCommand = new RelayCommand(SetRange);
-            Ranges = new[]
-            {
-                Option(TimelineRange.OneMonth, "LOCPlayAch_TimeRange_1M"),
-                Option(TimelineRange.ThreeMonths, "LOCPlayAch_TimeRange_3M"),
-                Option(TimelineRange.OneYear, "LOCPlayAch_TimeRange_1Y"),
-                Option(TimelineRange.All, "LOCPlayAch_Common_All")
-            };
+            OpenSettingsCommand = new RelayCommand(_ => OpenSettings());
         }
 
         public TimelineViewModel Timeline => _timeline;
 
-        public IReadOnlyList<TimelineRangeOptionViewModel> Ranges { get; }
+        public IReadOnlyList<TimelineRange> Presets => TimeWindow.Presets;
 
-        public RelayCommand SetRangeCommand { get; }
-
-        protected override void Refresh()
+        /// <summary>The instance's window; setting it from the picker persists and re-projects.</summary>
+        public TimeWindow Window
         {
-            var counts = Projection?.Timeline ?? new Dictionary<DateTime, int>();
-            _timeline.Window = ShowcaseTimelineOptions.GetWindow(Projection?.Instance);
-            _timeline.Granularity = ShowcaseTimelineOptions.GetGranularity(Projection?.Instance);
-            // The chart itself shows the empty caption when the window holds no unlocks.
-            _timeline.SetCounts(counts.ToDictionary(pair => pair.Key, pair => pair.Value));
-        }
-
-        private void SetRange(object parameter)
-        {
-            if (parameter is TimelineRange range)
+            get => _window;
+            set
             {
-                ShowcaseTimelineOptions.SetWindow(Projection?.Instance, TimeWindow.FromPreset(range));
+                if (value == null || !SetValueAndReturn(ref _window, value))
+                {
+                    return;
+                }
+
+                // Move the chart at once; the commit below re-projects and lands on the same value.
+                _timeline.Window = value;
+                if (_refreshing)
+                {
+                    return;
+                }
+
+                ShowcaseTimelineOptions.SetWindow(Projection?.Instance, value);
                 ShowcaseConfigurationCommit.Commit();
             }
         }
 
-        private static TimelineRangeOptionViewModel Option(TimelineRange value, string labelKey) =>
-            new TimelineRangeOptionViewModel(ResourceProvider.GetString(labelKey), value);
+        public bool IsCompactViewport
+        {
+            get => _isCompactViewport;
+            private set => SetValue(ref _isCompactViewport, value);
+        }
+
+        public RelayCommand OpenSettingsCommand { get; }
+
+        protected override void Refresh()
+        {
+            var instance = Projection?.Instance;
+            var counts = Projection?.Timeline ?? new Dictionary<DateTime, int>();
+            _refreshing = true;
+            try
+            {
+                Window = ShowcaseTimelineOptions.GetWindow(instance);
+                _timeline.Window = Window;
+                _timeline.Granularity = ShowcaseTimelineOptions.GetGranularity(instance);
+                IsCompactViewport = Density == WidgetViewportDensity.Compact;
+            }
+            finally
+            {
+                _refreshing = false;
+            }
+
+            // The chart itself shows the empty caption when the window holds no unlocks.
+            _timeline.SetCounts(counts.ToDictionary(pair => pair.Key, pair => pair.Value));
+        }
+
+        private void OpenSettings()
+        {
+            var instance = Projection?.Instance;
+            if (instance != null && Views.Showcase.ShowcaseWidgetSettingsDialog.Show(instance))
+            {
+                ShowcaseConfigurationCommit.Commit();
+            }
+        }
     }
 }

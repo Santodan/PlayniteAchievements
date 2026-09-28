@@ -584,25 +584,15 @@
                                               YLabelFormatter="{Binding Timeline.YAxisFormatter}"
                                               IsEmpty="{Binding Timeline.IsEmpty}"
                                               MaxTickCount="{Binding Timeline.MaxTickCount, Mode=OneWayToSource}"/>
-                <ItemsControl Grid.Row="1"
-                              ItemsSource="{Binding Ranges}"
-                              HorizontalAlignment="Center"
-                              Margin="0,5,0,0">
-                    <ItemsControl.ItemsPanel>
-                        <ItemsPanelTemplate>
-                            <StackPanel Orientation="Horizontal"/>
-                        </ItemsPanelTemplate>
-                    </ItemsControl.ItemsPanel>
-                    <ItemsControl.ItemTemplate>
-                        <DataTemplate>
-                            <Button Content="{Binding Label}"
-                                    Command="{Binding DataContext.SetRangeCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
-                                    CommandParameter="{Binding Value}"
-                                    Margin="2,0"
-                                    Padding="6,1"/>
-                        </DataTemplate>
-                    </ItemsControl.ItemTemplate>
-                </ItemsControl>
+                <!-- Chips write the instance option; a compact cell keeps chips only and the
+                     Custom chip opens the widget settings dialog. -->
+                <controls:TimeWindowPicker Grid.Row="1"
+                                           Presets="{Binding Presets}"
+                                           Window="{Binding Window, Mode=TwoWay}"
+                                           IsCompact="{Binding IsCompactViewport}"
+                                           MoreCommand="{Binding OpenSettingsCommand}"
+                                           HorizontalAlignment="Center"
+                                           Margin="0,5,0,0"/>
             </Grid>
         </Grid>
     </DataTemplate>
