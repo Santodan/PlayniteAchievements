@@ -133,6 +133,7 @@
                     <!-- Time window: preset chips plus a custom From/To range and the bar granularity -->
                     <controls:TimeWindowPicker Window="{Binding Timeline.Window, Mode=TwoWay}"
                                                Granularity="{Binding Timeline.Granularity, Mode=TwoWay}"
+                                               UnavailableGranularities="{Binding Timeline.UnavailableGranularities}"
                                                ShowGranularity="True"
                                                MinDate="{Binding Timeline.EarliestDate}"
                                                Margin="{StaticResource PlayAch.Thickness.Bottom.Sm}"/>
