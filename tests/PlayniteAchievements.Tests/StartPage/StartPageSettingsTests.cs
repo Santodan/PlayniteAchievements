@@ -610,6 +610,7 @@ namespace PlayniteAchievements.Tests.StartPage
             options.CellAlignments[key] = GridAlignment.Right;
             options.CellVerticalAlignments[key] = GridVerticalAlignment.Bottom;
             options.HeaderAlignments[key] = GridAlignment.Center;
+            options.Locked[key] = seed % 2 == 1;
         }
 
         private static void AssertColumns(GridColumnLayoutOptions options, int seed)
@@ -621,6 +622,7 @@ namespace PlayniteAchievements.Tests.StartPage
             Assert.AreEqual(GridAlignment.Right, options.CellAlignments[key]);
             Assert.AreEqual(GridVerticalAlignment.Bottom, options.CellVerticalAlignments[key]);
             Assert.AreEqual(GridAlignment.Center, options.HeaderAlignments[key]);
+            Assert.AreEqual(seed % 2 == 1, options.Locked[key]);
         }
 
         private static void SetGridOptionsBackingField(PersistedSettings settings, GridOptionsCatalog value)
