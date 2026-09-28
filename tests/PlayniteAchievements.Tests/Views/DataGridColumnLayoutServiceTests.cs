@@ -4,6 +4,8 @@ using System.Reflection;
 using System.Threading;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Documents;
+using System.Windows.Media;
 using System.Windows.Threading;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using PlayniteAchievements.Views.Helpers;
@@ -726,6 +728,94 @@ namespace PlayniteAchievements.Tests.Views
                     window.Close();
                 }
             });
+        }
+
+        [TestMethod]
+        public void LiveResize_ShowsWidthPillsOverBothBoundaryColumnsUntilTheDragEnds()
+        {
+            RunOnStaThread(() =>
+            {
+                var order = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+                var grid = CreateGrid();
+                grid.Width = 360;
+                grid.Height = 160;
+
+                var window = new Window
+                {
+                    Width = 420,
+                    Height = 220,
+                    Content = grid,
+                    ShowActivated = false
+                };
+
+                DataGridColumnLayoutService service = null;
+                try
+                {
+                    window.Show();
+                    grid.UpdateLayout();
+
+                    service = CreateService(grid, order, () => { });
+                    service.Attach();
+                    DrainDispatcher();
+                    grid.UpdateLayout();
+
+                    var layer = AdornerLayer.GetAdornerLayer(grid);
+                    Assert.IsNotNull(layer);
+                    Assert.IsNull(layer.GetAdorners(grid));
+
+                    InvokePrivate(service, "CaptureResizeObservedWidths");
+                    SetPrivateField(service, "_isResizeInProgress", true);
+                    SetPrivateField(service, "_resizeBoundaryLeftColumnKey", "A");
+                    SetPrivateField(service, "_resizeBoundaryRightColumnKey", "B");
+
+                    var resized = ColumnByKey(grid, "A");
+                    resized.Width = new DataGridLength(Math.Round(resized.ActualWidth) + 20, DataGridLengthUnitType.Pixel);
+                    InvokePrivate(service, "OnColumnWidthChanged", resized);
+                    grid.UpdateLayout();
+
+                    var adorners = layer.GetAdorners(grid);
+                    Assert.IsNotNull(adorners);
+                    Assert.AreEqual(1, adorners.Length);
+                    var pills = FindVisualChildren<TextBlock>(adorners[0]);
+                    Assert.AreEqual(2, pills.Count);
+                    Assert.AreEqual(resized.Width.Value.ToString("0") + " px", pills[0].Text);
+                    Assert.IsTrue(pills[1].Text.EndsWith(" px", StringComparison.Ordinal));
+
+                    InvokePrivate(service, "CompleteResizeNormalization");
+                    DrainDispatcher();
+
+                    Assert.IsNull(layer.GetAdorners(grid));
+                }
+                finally
+                {
+                    service?.Detach();
+                    window.Close();
+                }
+            });
+        }
+
+        private static List<T> FindVisualChildren<T>(DependencyObject root)
+            where T : DependencyObject
+        {
+            var result = new List<T>();
+            if (root == null)
+            {
+                return result;
+            }
+
+            var count = VisualTreeHelper.GetChildrenCount(root);
+            for (var i = 0; i < count; i++)
+            {
+                var child = VisualTreeHelper.GetChild(root, i);
+                if (child is T typed)
+                {
+                    result.Add(typed);
+                }
+
+                result.AddRange(FindVisualChildren<T>(child));
+            }
+
+            return result;
         }
 
         /// <summary>
