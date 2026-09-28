@@ -27,6 +27,7 @@ namespace PlayniteAchievements.Views.Controls
         private static readonly double IconSize = 18.0;
         private const double IconCollisionPadding = 4.0;
         private const double SliceHighlightOffset = 5.0;
+        private const double IconShadowPadding = 4.0;
         private const double LiveChartsRotationOffset = 45.0;
         private static readonly Duration SliceAnimationDuration = new Duration(TimeSpan.FromMilliseconds(150));
         private static readonly PropertyInfo PiePointViewSliceProperty =
@@ -70,7 +71,7 @@ namespace PlayniteAchievements.Views.Controls
 
         public static readonly DependencyProperty IconOffsetProperty =
             DependencyProperty.Register(nameof(IconOffset), typeof(double), typeof(PieChartWithRadialIcons),
-                new PropertyMetadata(12.0, OnLayoutPropertyChanged));
+                new PropertyMetadata(12.0, OnIconOffsetChanged));
 
         public static readonly DependencyProperty HighlightedLabelsProperty =
             DependencyProperty.Register(nameof(HighlightedLabels), typeof(ObservableCollection<string>), typeof(PieChartWithRadialIcons),
@@ -195,6 +196,7 @@ namespace PlayniteAchievements.Views.Controls
         public PieChartWithRadialIcons()
         {
             InitializeComponent();
+            UpdateChartMargin();
             Loaded += OnLoaded;
             Unloaded += OnUnloaded;
             SizeChanged += OnSizeChanged;
@@ -308,9 +310,25 @@ namespace PlayniteAchievements.Views.Controls
             control.ScheduleCalculation();
         }
 
-        private static void OnLayoutPropertyChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
+        private static void OnIconOffsetChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
         {
-            ((PieChartWithRadialIcons)d).ScheduleCalculation();
+            var control = (PieChartWithRadialIcons)d;
+            control.UpdateChartMargin();
+            control.ScheduleCalculation();
+        }
+
+        /// <summary>
+        /// Reserves the full radial icon footprint (offset, half icon, highlight push, shadow)
+        /// around the pie so icons stay inside the control's bounds.
+        /// </summary>
+        private void UpdateChartMargin()
+        {
+            if (Chart == null)
+            {
+                return;
+            }
+
+            Chart.Margin = new Thickness(Math.Max(0, IconOffset) + (IconSize / 2.0) + SliceHighlightOffset + IconShadowPadding);
         }
 
         private static void OnHighlightedLabelsChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
