@@ -138,7 +138,7 @@ namespace PlayniteAchievements.Services.Summaries
                 stats.LastUnlockUtc = normalized;
             }
 
-            AchievementGameStats.IncrementBy(stats.UnlockCountsByDate, normalized.Date, 1);
+            AchievementGameStats.IncrementBy(stats.UnlockCountsByDate, Overview.UnlockDayCounts.DayOf(normalized), 1);
         }
 
         private static void AddRarityTotal(AchievementGameStats stats, RarityTier rarity)

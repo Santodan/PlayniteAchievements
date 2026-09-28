@@ -164,8 +164,16 @@ namespace PlayniteAchievements.Views.Showcase
             DashboardGrid.SizeChanged += (_, __) => ScheduleTrackRulerUpdate();
             _overview.SnapshotChanged += Overview_SnapshotChanged;
             ShowcaseConfigurationEvents.Changed += ShowcaseConfigurationEvents_Changed;
+            // Rolling windows (the Timeline, Scores, Activity Calendar and played-within filters)
+            // end at today; re-project after local midnight so they move with the calendar.
+            Common.LocalDayRollover.Subscribe(LocalDayRollover_DayChanged);
             EnsureLayout();
             Rebuild();
+        }
+
+        private void LocalDayRollover_DayChanged(object sender, DateTime today)
+        {
+            QueueSnapshotRefresh();
         }
 
         /// <summary>
@@ -228,6 +236,7 @@ namespace PlayniteAchievements.Views.Showcase
             _hostCache.Clear();
             _overview.SnapshotChanged -= Overview_SnapshotChanged;
             ShowcaseConfigurationEvents.Changed -= ShowcaseConfigurationEvents_Changed;
+            Common.LocalDayRollover.Unsubscribe(LocalDayRollover_DayChanged);
         }
 
         private ShowcaseSettings Layout => _settings.Persisted.Showcase;

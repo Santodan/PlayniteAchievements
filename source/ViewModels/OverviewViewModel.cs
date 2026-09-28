@@ -89,6 +89,7 @@ namespace PlayniteAchievements.ViewModels
         private System.Windows.Threading.DispatcherTimer _refreshDebounceTimer;
         private System.Windows.Threading.DispatcherTimer _deltaBatchTimer;
         private bool _isApplyingTimelineRange;
+        private System.Windows.Threading.DispatcherTimer _timelinePersistTimer;
         private bool _selectedGameLoadInProgress;
         private bool _selectedGameContentReady;
         private CancellationTokenSource _selectedGameLoadCts;
@@ -321,7 +322,7 @@ namespace PlayniteAchievements.ViewModels
 
         private void InitializeTimelineRangePersistence()
         {
-            ApplySavedTimelineRange();
+            ApplySavedTimelineWindow();
             if (GlobalTimeline != null)
             {
                 GlobalTimeline.PropertyChanged += Timeline_PropertyChanged;
@@ -331,6 +332,15 @@ namespace PlayniteAchievements.ViewModels
             {
                 SelectedGameTimeline.PropertyChanged += Timeline_PropertyChanged;
             }
+
+            // A window that ends at "today" moves at local midnight; the counts do not.
+            LocalDayRollover.Subscribe(OnLocalDayChanged);
+        }
+
+        private void OnLocalDayChanged(object sender, DateTime today)
+        {
+            GlobalTimeline?.UpdateTimelineData();
+            SelectedGameTimeline?.UpdateTimelineData();
         }
 
         private void InitializeGridControlBars()
@@ -391,9 +401,14 @@ namespace PlayniteAchievements.ViewModels
 
         private void Timeline_PropertyChanged(object sender, PropertyChangedEventArgs e)
         {
-            if (_isApplyingTimelineRange ||
-                e?.PropertyName != nameof(TimelineViewModel.TimelineRange) ||
-                !(sender is TimelineViewModel timeline))
+            if (_isApplyingTimelineRange || !(sender is TimelineViewModel timeline))
+            {
+                return;
+            }
+
+            var isWindow = e?.PropertyName == nameof(TimelineViewModel.Window);
+            var isGranularity = e?.PropertyName == nameof(TimelineViewModel.Granularity);
+            if (!isWindow && !isGranularity)
             {
                 return;
             }
@@ -401,21 +416,46 @@ namespace PlayniteAchievements.ViewModels
             try
             {
                 _isApplyingTimelineRange = true;
-                if (!ReferenceEquals(timeline, GlobalTimeline) && GlobalTimeline != null)
+                // The global and selected-game charts share one window and one granularity.
+                foreach (var other in new[] { GlobalTimeline, SelectedGameTimeline })
                 {
-                    GlobalTimeline.TimelineRange = timeline.TimelineRange;
+                    if (other == null || ReferenceEquals(other, timeline))
+                    {
+                        continue;
+                    }
+
+                    if (isWindow)
+                    {
+                        other.Window = timeline.Window;
+                    }
+                    else
+                    {
+                        other.Granularity = timeline.Granularity;
+                    }
                 }
 
-                if (!ReferenceEquals(timeline, SelectedGameTimeline) && SelectedGameTimeline != null)
+                var persisted = _settings?.Persisted;
+                if (persisted == null)
                 {
-                    SelectedGameTimeline.TimelineRange = timeline.TimelineRange;
+                    return;
                 }
 
-                if (_settings?.Persisted != null &&
-                    _settings.Persisted.OverviewTimelineRange != timeline.TimelineRange)
+                var changed = false;
+                if (isWindow && !Equals(persisted.OverviewTimeWindow, timeline.Window))
                 {
-                    _settings.Persisted.OverviewTimelineRange = timeline.TimelineRange;
-                    _persistSettingsForUi?.Invoke();
+                    persisted.OverviewTimeWindow = timeline.Window;
+                    changed = true;
+                }
+
+                if (isGranularity && persisted.OverviewTimelineGranularity != timeline.Granularity)
+                {
+                    persisted.OverviewTimelineGranularity = timeline.Granularity;
+                    changed = true;
+                }
+
+                if (changed)
+                {
+                    SchedulePersistTimelineSettings();
                 }
             }
             finally
@@ -424,20 +464,57 @@ namespace PlayniteAchievements.ViewModels
             }
         }
 
-        private void ApplySavedTimelineRange()
+        // A full settings write per chip click is what makes the strip feel laggy (it serializes the
+        // whole tree and notifies every listener), so a burst of clicks collapses into one write.
+        private void SchedulePersistTimelineSettings()
         {
-            var range = _settings?.Persisted?.OverviewTimelineRange ?? TimelineRange.OneYear;
+            if (_timelinePersistTimer == null)
+            {
+                _timelinePersistTimer = new System.Windows.Threading.DispatcherTimer(System.Windows.Threading.DispatcherPriority.Background)
+                {
+                    Interval = TimeSpan.FromMilliseconds(600)
+                };
+                _timelinePersistTimer.Tick += (_, __) => FlushTimelineSettingsPersist();
+            }
+
+            _timelinePersistTimer.Stop();
+            _timelinePersistTimer.Start();
+        }
+
+        private void FlushTimelineSettingsPersist()
+        {
+            if (_timelinePersistTimer == null || !_timelinePersistTimer.IsEnabled)
+            {
+                return;
+            }
+
+            _timelinePersistTimer.Stop();
+            _persistSettingsForUi?.Invoke();
+        }
+
+        private void ApplySavedTimelineWindow()
+        {
+            var window = _settings?.Persisted?.OverviewTimeWindow ?? TimeWindow.FromPreset(TimelineRange.OneYear);
+            var granularity = _settings?.Persisted?.OverviewTimelineGranularity ?? TimelineGranularity.Auto;
             try
             {
                 _isApplyingTimelineRange = true;
-                if (GlobalTimeline != null && GlobalTimeline.TimelineRange != range)
+                foreach (var timeline in new[] { GlobalTimeline, SelectedGameTimeline })
                 {
-                    GlobalTimeline.TimelineRange = range;
-                }
+                    if (timeline == null)
+                    {
+                        continue;
+                    }
 
-                if (SelectedGameTimeline != null && SelectedGameTimeline.TimelineRange != range)
-                {
-                    SelectedGameTimeline.TimelineRange = range;
+                    if (!Equals(timeline.Window, window))
+                    {
+                        timeline.Window = window;
+                    }
+
+                    if (timeline.Granularity != granularity)
+                    {
+                        timeline.Granularity = granularity;
+                    }
                 }
             }
             finally
@@ -2212,34 +2289,11 @@ namespace PlayniteAchievements.ViewModels
                     continue;
                 }
 
-                var date = DateTimeUtilities.AsUtcKind(item.UnlockTimeUtc.Value).Date;
-                if (snapshot.GlobalUnlockCountsByDate.TryGetValue(date, out var existing))
-                {
-                    snapshot.GlobalUnlockCountsByDate[date] = existing + 1;
-                }
-                else
-                {
-                    snapshot.GlobalUnlockCountsByDate[date] = 1;
-                }
-
-                if (item.PlayniteGameId.HasValue)
-                {
-                    var gameId = item.PlayniteGameId.Value;
-                    if (!snapshot.UnlockCountsByDateByGame.TryGetValue(gameId, out var gameCounts))
-                    {
-                        gameCounts = new Dictionary<DateTime, int>();
-                        snapshot.UnlockCountsByDateByGame[gameId] = gameCounts;
-                    }
-
-                    if (gameCounts.TryGetValue(date, out var gameExisting))
-                    {
-                        gameCounts[date] = gameExisting + 1;
-                    }
-                    else
-                    {
-                        gameCounts[date] = 1;
-                    }
-                }
+                Services.Overview.UnlockDayCounts.Add(
+                    snapshot.GlobalUnlockCountsByDate,
+                    snapshot.UnlockCountsByDateByGame,
+                    item.PlayniteGameId,
+                    item.UnlockTimeUtc.Value);
             }
 
             Common.LeakWatch.Track("OverviewSnapshot.delta", snapshot);
@@ -2670,7 +2724,7 @@ namespace PlayniteAchievements.ViewModels
                 OnPropertyChanged(nameof(OverviewSelectedGameGridRowHeight));
                 OnPropertyChanged(nameof(UseUniformRarityBadges));
                 ApplyScoreCards();
-                ApplySavedTimelineRange();
+                ApplySavedTimelineWindow();
                 _ = RefreshViewAsync();
                 ApplyLeftFilters();
                 UpdateAggregatePieCharts();
@@ -2848,9 +2902,10 @@ namespace PlayniteAchievements.ViewModels
                 ApplyOverviewPieIncludeLocked();
                 UpdateAggregatePieCharts();
             }
-            else if (propertyName == nameof(PersistedSettings.OverviewTimelineRange))
+            else if (propertyName == nameof(PersistedSettings.OverviewTimeWindow) ||
+                propertyName == nameof(PersistedSettings.OverviewTimelineGranularity))
             {
-                ApplySavedTimelineRange();
+                ApplySavedTimelineWindow();
             }
             else if (GameSummariesSortHelper.IsConfiguredDefaultSortPropertyName(propertyName))
             {
@@ -4765,6 +4820,9 @@ namespace PlayniteAchievements.ViewModels
             {
                 _gameCustomDataStore.CustomDataChanged -= OnCustomDataChanged;
             }
+            LocalDayRollover.Unsubscribe(OnLocalDayChanged);
+            // The last click in a burst must not be lost when the window closes inside the debounce.
+            FlushTimelineSettingsPersist();
             if (GlobalTimeline != null)
             {
                 GlobalTimeline.PropertyChanged -= Timeline_PropertyChanged;

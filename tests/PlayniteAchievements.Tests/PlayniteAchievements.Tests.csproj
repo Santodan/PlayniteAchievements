@@ -485,6 +485,13 @@
     <Compile Include="..\..\source\Models\AchievementUnlockedEventArgs.cs" Link="Source\Models\AchievementUnlockedEventArgs.cs" />
     <Compile Include="..\..\source\Models\Achievements\UnlockCaptureRarityFilter.cs" Link="Source\Models\Achievements\UnlockCaptureRarityFilter.cs" />
     <Compile Include="..\..\source\Models\TimelineRange.cs" Link="Source\Models\TimelineRange.cs" />
+    <Compile Include="..\..\source\Models\TimeWindow.cs" Link="Source\Models\TimeWindow.cs" />
+    <Compile Include="..\..\source\Models\TimeWindowJsonConverter.cs" Link="Source\Models\TimeWindowJsonConverter.cs" />
+    <Compile Include="..\..\source\Models\TimelineGranularity.cs" Link="Source\Models\TimelineGranularity.cs" />
+    <Compile Include="..\..\source\Services\Achievements\NiceScale.cs" Link="Source\Services\Achievements\NiceScale.cs" />
+    <Compile Include="..\..\source\Services\Achievements\TimelineBucketing.cs" Link="Source\Services\Achievements\TimelineBucketing.cs" />
+    <Compile Include="..\..\source\Services\Achievements\TimelineAxisTicks.cs" Link="Source\Services\Achievements\TimelineAxisTicks.cs" />
+    <Compile Include="..\..\source\Services\Overview\UnlockDayCounts.cs" Link="Source\Services\Overview\UnlockDayCounts.cs" />
     <Compile Include="..\..\source\Services\Overview\OverviewDataSnapshot.cs" Link="Source\Services\Overview\OverviewDataSnapshot.cs" />
     <Compile Include="..\..\source\Services\Overview\UnlockNextCandidateSelector.cs" Link="Source\Services\Overview\UnlockNextCandidateSelector.cs" />
     <Compile Include="..\..\source\Services\StartPage\StartPageDataCoordinator.cs" Link="Source\Services\StartPage\StartPageDataCoordinator.cs" />

@@ -43,6 +43,7 @@ namespace PlayniteAchievements.ViewModels
         private bool _isDisposed;
         private Guid? _activeRefreshOperationId;
         private bool _isApplyingTimelineState;
+        private DispatcherTimer _timelinePersistTimer;
 
         // Standard refresh-progress UI state (mirrors OverviewViewModel). The progress bar stays
         // visible while a refresh runs, lingers at 100% briefly on completion, then auto-hides.
@@ -102,6 +103,7 @@ namespace PlayniteAchievements.ViewModels
             Timeline = new TimelineViewModel();
             ApplySavedTimelineState();
             Timeline.PropertyChanged += Timeline_PropertyChanged;
+            LocalDayRollover.Subscribe(OnLocalDayChanged);
             OnPropertyChanged(nameof(Timeline));
 
             _controlBar.FilterChanged += (_, __) => ApplySearchFilter();
@@ -432,18 +434,25 @@ namespace PlayniteAchievements.ViewModels
         private void Timeline_PropertyChanged(object sender, PropertyChangedEventArgs e)
         {
             if (_isApplyingTimelineState ||
-                e?.PropertyName != nameof(TimelineViewModel.TimelineRange))
+                (e?.PropertyName != nameof(TimelineViewModel.Window) &&
+                 e?.PropertyName != nameof(TimelineViewModel.Granularity)))
             {
                 return;
             }
 
-            PersistTimelineRange();
+            PersistTimelineWindow();
+        }
+
+        private void OnLocalDayChanged(object sender, DateTime today)
+        {
+            Timeline?.UpdateTimelineData();
         }
 
         private void ApplySavedTimelineState()
         {
             var persisted = _settings?.Persisted;
-            var range = persisted?.ViewAchievementsTimelineRange ?? TimelineRange.OneYear;
+            var window = persisted?.ViewAchievementsTimeWindow ?? TimeWindow.FromPreset(TimelineRange.OneYear);
+            var granularity = persisted?.ViewAchievementsTimelineGranularity ?? TimelineGranularity.Auto;
             var isVisible = persisted?.ViewAchievementsTimelineVisible ?? false;
 
             try
@@ -456,9 +465,17 @@ namespace PlayniteAchievements.ViewModels
                     OnPropertyChanged(nameof(IsTimelineVisible));
                 }
 
-                if (Timeline != null && Timeline.TimelineRange != range)
+                if (Timeline != null)
                 {
-                    Timeline.TimelineRange = range;
+                    if (!Equals(Timeline.Window, window))
+                    {
+                        Timeline.Window = window;
+                    }
+
+                    if (Timeline.Granularity != granularity)
+                    {
+                        Timeline.Granularity = granularity;
+                    }
                 }
             }
             finally
@@ -467,19 +484,58 @@ namespace PlayniteAchievements.ViewModels
             }
         }
 
-        private void PersistTimelineRange()
+        private void PersistTimelineWindow()
         {
             if (_isApplyingTimelineState || _settings?.Persisted == null || Timeline == null)
             {
                 return;
             }
 
-            if (_settings.Persisted.ViewAchievementsTimelineRange == Timeline.TimelineRange)
+            var persisted = _settings.Persisted;
+            var changed = false;
+            if (!Equals(persisted.ViewAchievementsTimeWindow, Timeline.Window))
+            {
+                persisted.ViewAchievementsTimeWindow = Timeline.Window;
+                changed = true;
+            }
+
+            if (persisted.ViewAchievementsTimelineGranularity != Timeline.Granularity)
+            {
+                persisted.ViewAchievementsTimelineGranularity = Timeline.Granularity;
+                changed = true;
+            }
+
+            if (changed)
+            {
+                SchedulePersistTimelineSettings();
+            }
+        }
+
+        // A full settings write per chip click makes the strip feel laggy, so a burst collapses
+        // into one write; Dispose flushes a pending one.
+        private void SchedulePersistTimelineSettings()
+        {
+            if (_timelinePersistTimer == null)
+            {
+                _timelinePersistTimer = new DispatcherTimer(DispatcherPriority.Background)
+                {
+                    Interval = TimeSpan.FromMilliseconds(600)
+                };
+                _timelinePersistTimer.Tick += (_, __) => FlushTimelineSettingsPersist();
+            }
+
+            _timelinePersistTimer.Stop();
+            _timelinePersistTimer.Start();
+        }
+
+        private void FlushTimelineSettingsPersist()
+        {
+            if (_timelinePersistTimer == null || !_timelinePersistTimer.IsEnabled)
             {
                 return;
             }
 
-            _settings.Persisted.ViewAchievementsTimelineRange = Timeline.TimelineRange;
+            _timelinePersistTimer.Stop();
             PersistSettingsForUi();
         }
 
@@ -579,7 +635,7 @@ namespace PlayniteAchievements.ViewModels
                 {
                     if (ach.Unlocked && ach.UnlockTimeUtc.HasValue)
                     {
-                        var date = DateTimeUtilities.AsUtcKind(ach.UnlockTimeUtc.Value).Date;
+                        var date = Services.Overview.UnlockDayCounts.DayOf(ach.UnlockTimeUtc.Value);
                         if (unlockCounts.TryGetValue(date, out var existing))
                         {
                             unlockCounts[date] = existing + 1;
@@ -994,7 +1050,8 @@ namespace PlayniteAchievements.ViewModels
                 return;
             }
 
-            if (e?.PropertyName == nameof(PersistedSettings.ViewAchievementsTimelineRange) ||
+            if (e?.PropertyName == nameof(PersistedSettings.ViewAchievementsTimeWindow) ||
+                e?.PropertyName == nameof(PersistedSettings.ViewAchievementsTimelineGranularity) ||
                 e?.PropertyName == nameof(PersistedSettings.ViewAchievementsTimelineVisible))
             {
                 ApplySavedTimelineState();
@@ -1231,6 +1288,8 @@ namespace PlayniteAchievements.ViewModels
                 _progressHideTimer.Tick -= OnProgressHideTimerTick;
                 _progressHideTimer = null;
             }
+            LocalDayRollover.Unsubscribe(OnLocalDayChanged);
+            FlushTimelineSettingsPersist();
             if (Timeline != null)
             {
                 Timeline.PropertyChanged -= Timeline_PropertyChanged;

@@ -1378,6 +1378,16 @@ namespace PlayniteAchievements.Views
                 elements.AddRange(selectedGameElements);
             }
 
+            // The timeline's chips and date pickers sit in the charts band, outside every grid's
+            // control bar, so the controller would never reach them otherwise.
+            foreach (var picker in VisualTreeHelpers.FindVisualChildren<Controls.TimeWindowPicker>(this))
+            {
+                if (picker.IsVisible)
+                {
+                    elements.AddRange(picker.GetControllerElements());
+                }
+            }
+
             elements.AddRange(GetVisibleControllerElements(ClearGameSelectionButton));
             if (elements.Count > 0)
             {

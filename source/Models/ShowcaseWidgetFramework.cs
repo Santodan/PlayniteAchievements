@@ -270,52 +270,63 @@ namespace PlayniteAchievements.Models
         }
     }
 
+    /// <summary>
+    /// The time window shared by the Timeline, Scores, and Activity Calendar widgets, stored under
+    /// one option key as the <see cref="TimeWindow"/> canonical string (a preset name or a custom
+    /// range), plus the Timeline chart's granularity override.
+    /// </summary>
     public static class ShowcaseTimelineOptions
     {
         private const string RangeOption = "TimelineRange";
+        private const string GranularityOption = "TimelineGranularity";
         private const string LegacyRangeDaysOption = "RangeDays";
 
-        public static TimelineRange GetRange(ShowcaseWidgetInstanceSettings instance)
+        public static readonly TimeWindow DefaultWindow = TimeWindow.FromPreset(TimelineRange.ThreeMonths);
+
+        public static TimeWindow GetWindow(ShowcaseWidgetInstanceSettings instance)
         {
             if (instance?.Options != null &&
                 instance.Options.TryGetValue(RangeOption, out var raw) &&
-                Enum.TryParse(raw, true, out TimelineRange parsed) &&
-                Enum.IsDefined(typeof(TimelineRange), parsed))
+                TimeWindow.TryParse(raw, out var window))
             {
-                return parsed;
+                return window;
             }
 
             var legacyDays = instance?.GetOption(LegacyRangeDaysOption, 90) ?? 90;
             if (legacyDays <= 31)
             {
-                return TimelineRange.OneMonth;
+                return TimeWindow.FromPreset(TimelineRange.OneMonth);
             }
 
             if (legacyDays <= 93)
             {
-                return TimelineRange.ThreeMonths;
+                return TimeWindow.FromPreset(TimelineRange.ThreeMonths);
             }
 
             if (legacyDays <= 366)
             {
-                return TimelineRange.OneYear;
+                return TimeWindow.FromPreset(TimelineRange.OneYear);
             }
 
-            return TimelineRange.All;
+            return TimeWindow.All;
         }
 
-        public static void SetRange(
-            ShowcaseWidgetInstanceSettings instance,
-            TimelineRange range)
+        public static void SetWindow(ShowcaseWidgetInstanceSettings instance, TimeWindow window)
         {
             if (instance == null)
             {
                 return;
             }
 
-            instance.SetOption(RangeOption, range);
+            instance.SetOption(RangeOption, (window ?? DefaultWindow).ToKey());
             instance.Options?.Remove(LegacyRangeDaysOption);
         }
+
+        public static TimelineGranularity GetGranularity(ShowcaseWidgetInstanceSettings instance) =>
+            instance?.GetOption(GranularityOption, TimelineGranularity.Auto) ?? TimelineGranularity.Auto;
+
+        public static void SetGranularity(ShowcaseWidgetInstanceSettings instance, TimelineGranularity value) =>
+            instance?.SetOption(GranularityOption, value);
     }
 
     /// <summary>
@@ -710,12 +721,26 @@ namespace PlayniteAchievements.Models
         public static void SetFinishNextIncludeUnplayed(ShowcaseWidgetInstanceSettings settings, bool value) =>
             settings?.SetOption(FinishNextIncludeUnplayed, value);
 
-        public static TimelineRange GetLastPlayedWindow(ShowcaseWidgetInstanceSettings settings) =>
-            GetEnum(settings, LastPlayedWindow, TimelineRange.OneMonth);
+        public static readonly TimeWindow DefaultLastPlayedWindow = TimeWindow.FromPreset(TimelineRange.OneMonth);
 
-        public static void SetLastPlayedWindow(
-            ShowcaseWidgetInstanceSettings settings,
-            TimelineRange value) => settings?.SetOption(LastPlayedWindow, value);
+        /// <summary>
+        /// The "played within" window for Unlock Next and Finish Next: a preset or a custom range
+        /// the game's last-played day must fall inside. Stored as the <see cref="TimeWindow"/> key.
+        /// </summary>
+        public static TimeWindow GetLastPlayedTimeWindow(ShowcaseWidgetInstanceSettings settings)
+        {
+            if (settings?.Options != null &&
+                settings.Options.TryGetValue(LastPlayedWindow, out var raw) &&
+                TimeWindow.TryParse(raw, out var window))
+            {
+                return window;
+            }
+
+            return DefaultLastPlayedWindow;
+        }
+
+        public static void SetLastPlayedTimeWindow(ShowcaseWidgetInstanceSettings settings, TimeWindow window) =>
+            settings?.SetOption(LastPlayedWindow, (window ?? DefaultLastPlayedWindow).ToKey());
 
         /// <summary>
         /// Most rows a single game may contribute to Unlock Next. The pool the overview builder
@@ -909,7 +934,7 @@ namespace PlayniteAchievements.Models
                 case ShowcaseWidgetKind.Scores:
                     ShowcaseWidgetOptions.SetScoreMode(settings, ShowcaseScoreMode.Dual);
                     ShowcaseWidgetOptions.SetScoreHistoryMode(settings, ShowcaseScoreHistoryMode.Dual);
-                    ShowcaseTimelineOptions.SetRange(settings, TimelineRange.ThreeMonths);
+                    ShowcaseTimelineOptions.SetWindow(settings, TimeWindow.FromPreset(TimelineRange.ThreeMonths));
                     break;
                 case ShowcaseWidgetKind.Pie:
                     ShowcaseWidgetOptions.SetPieMode(settings, ShowcasePieMode.CompletedGames);
@@ -927,7 +952,8 @@ namespace PlayniteAchievements.Models
                     ShowcaseWidgetOptions.SetProfileShowLinks(settings, true);
                     break;
                 case ShowcaseWidgetKind.Timeline:
-                    ShowcaseTimelineOptions.SetRange(settings, TimelineRange.ThreeMonths);
+                    ShowcaseTimelineOptions.SetWindow(settings, TimeWindow.FromPreset(TimelineRange.ThreeMonths));
+                    ShowcaseTimelineOptions.SetGranularity(settings, TimelineGranularity.Auto);
                     break;
                 case ShowcaseWidgetKind.NativePoints:
                     ShowcaseWidgetOptions.SetPointsGrouping(settings, ShowcasePointsGrouping.Provider);
@@ -958,7 +984,7 @@ namespace PlayniteAchievements.Models
                     ShowcaseWidgetOptions.SetGameActivityScope(settings, GameActivityScope.All);
                     break;
                 case ShowcaseWidgetKind.ActivityCalendar:
-                    ShowcaseTimelineOptions.SetRange(settings, TimelineRange.OneYear);
+                    ShowcaseTimelineOptions.SetWindow(settings, TimeWindow.FromPreset(TimelineRange.OneYear));
                     break;
             }
 

@@ -1318,7 +1318,7 @@ namespace PlayniteAchievements.Services.Achievements
                     }
 
                     var countedDate = achievement.Unlocked && achievement.UnlockTimeUtc.HasValue
-                        ? Common.DateTimeUtilities.AsUtcKind(achievement.UnlockTimeUtc.Value).Date
+                        ? Overview.UnlockDayCounts.DayOf(achievement.UnlockTimeUtc.Value)
                         : (DateTime?)null;
                     AchievementOverrideApplier.Apply(achievement, userOverride, resolved.HasManualLink);
                     MoveTimelineCount(timeline, achievement, countedDate);
@@ -1355,69 +1355,32 @@ namespace PlayniteAchievements.Services.Achievements
             }
 
             var newDate = achievement.UnlockTimeUtc.HasValue
-                ? Common.DateTimeUtilities.AsUtcKind(achievement.UnlockTimeUtc.Value).Date
+                ? Overview.UnlockDayCounts.DayOf(achievement.UnlockTimeUtc.Value)
                 : (DateTime?)null;
             if (newDate == countedDate)
             {
                 return;
             }
 
-            var gameCounts = achievement.PlayniteGameId.HasValue &&
-                             timeline.UnlockCountsByDateByGame != null &&
-                             timeline.UnlockCountsByDateByGame.TryGetValue(achievement.PlayniteGameId.Value, out var counts)
-                ? counts
-                : null;
             // Only a row SQL actually counted is moved; a date missing from the bucket means it was
             // not (a filtered row, or a read without the timeline), and there is nothing to move.
-            if (!Decrement(timeline.GlobalUnlockCountsByDate, countedDate.Value))
+            if (!Overview.UnlockDayCounts.RemoveDay(
+                    timeline.GlobalUnlockCountsByDate,
+                    timeline.UnlockCountsByDateByGame,
+                    achievement.PlayniteGameId,
+                    countedDate.Value))
             {
                 return;
             }
 
-            Decrement(gameCounts, countedDate.Value);
             if (newDate.HasValue)
             {
-                Increment(timeline.GlobalUnlockCountsByDate, newDate.Value);
-                if (achievement.PlayniteGameId.HasValue && timeline.UnlockCountsByDateByGame != null)
-                {
-                    if (gameCounts == null)
-                    {
-                        gameCounts = new Dictionary<DateTime, int>();
-                        timeline.UnlockCountsByDateByGame[achievement.PlayniteGameId.Value] = gameCounts;
-                    }
-
-                    Increment(gameCounts, newDate.Value);
-                }
+                Overview.UnlockDayCounts.AddDay(
+                    timeline.GlobalUnlockCountsByDate,
+                    timeline.UnlockCountsByDateByGame,
+                    achievement.PlayniteGameId,
+                    newDate.Value);
             }
-        }
-
-        private static bool Decrement(IDictionary<DateTime, int> counts, DateTime date)
-        {
-            if (counts == null || !counts.TryGetValue(date, out var count) || count <= 0)
-            {
-                return false;
-            }
-
-            if (count == 1)
-            {
-                counts.Remove(date);
-            }
-            else
-            {
-                counts[date] = count - 1;
-            }
-
-            return true;
-        }
-
-        private static void Increment(IDictionary<DateTime, int> counts, DateTime date)
-        {
-            if (counts == null)
-            {
-                return;
-            }
-
-            counts[date] = counts.TryGetValue(date, out var count) ? count + 1 : 1;
         }
 
         /// <summary>

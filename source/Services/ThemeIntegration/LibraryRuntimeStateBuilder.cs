@@ -669,13 +669,15 @@ namespace PlayniteAchievements.Services.ThemeIntegration
                 return DateTime.MinValue;
             }
 
-            var latestUtc = counts.Keys
+            // Keys are already local calendar days (see UnlockDayCounts), so the latest key is the
+            // local date itself; converting it again would shift it on some DST boundaries.
+            var latestDay = counts.Keys
                 .Where(date => date != DateTime.MinValue)
                 .DefaultIfEmpty(DateTime.MinValue)
                 .Max();
-            return latestUtc == DateTime.MinValue
+            return latestDay == DateTime.MinValue
                 ? DateTime.MinValue
-                : NormalizeUtc(latestUtc).ToLocalTime();
+                : DateTime.SpecifyKind(latestDay.Date, DateTimeKind.Local);
         }
 
         private static List<AchievementDetail> MaterializeRecentUnlocks(

@@ -193,8 +193,8 @@ namespace PlayniteAchievements.Services.Showcase
             public double CompletionFraction;
         }
 
-        private static string WindowKey(TimelineRange range, DateTime endDate) =>
-            ((int)range).ToString(CultureInfo.InvariantCulture) + "@" + endDate.Ticks.ToString(CultureInfo.InvariantCulture);
+        private static string WindowKey(TimeWindow window, DateTime today) =>
+            (window ?? ShowcaseTimelineOptions.DefaultWindow).ToKey() + "@" + today.Date.Ticks.ToString(CultureInfo.InvariantCulture);
 
         public static ShowcaseWidgetProjection Build(
             OverviewDataSnapshot snapshot,
@@ -283,7 +283,7 @@ namespace PlayniteAchievements.Services.Showcase
                             break;
                         case ShowcaseAchievementGridSource.UnlockNext:
                             // Uncapped here: the grid's MaxRows applies after its search filter.
-                            result.AchievementRows = ResolveUnlockNext(snapshot, instance, int.MaxValue);
+                            result.AchievementRows = ResolveUnlockNext(snapshot, instance, int.MaxValue, now);
                             break;
                         default:
                             result.AchievementRows = ResolveAllAchievements(snapshot);
@@ -309,7 +309,7 @@ namespace PlayniteAchievements.Services.Showcase
                             result.Games = ResolvePlayniteFavorites(snapshot?.GameSummaries);
                             break;
                         case ShowcaseGameGridSource.FinishNext:
-                            result.Games = ResolveFinishNextGames(snapshot?.GameSummaries, instance).ToList();
+                            result.Games = ResolveFinishNextGames(snapshot?.GameSummaries, instance, now).ToList();
                             break;
                         default:
                             result.Games = ResolveGameSummaries(snapshot, instance);
@@ -324,11 +324,10 @@ namespace PlayniteAchievements.Services.Showcase
                     result.ScoreHistory = GetScoreHistory(snapshot, instance, (now ?? DateTime.Now).Date);
                     break;
                 case ShowcaseWidgetKind.Timeline:
-                    var endDate = (now ?? DateTime.Now).Date;
-                    var sourceCounts = NormalizeDailyCounts(snapshot);
-                    var startDate = ResolveWindowStart(instance, endDate, sourceCounts);
-                    result.Timeline = EnumerateDailyWindow(startDate, endDate, sourceCounts)
-                        .ToDictionary(day => day.Date, day => day.Count);
+                    // The chart view model resolves the instance's window itself (the same
+                    // TimeWindow the options hold), so the projection hands over the per-day
+                    // counts unwindowed rather than clipping them a second time here.
+                    result.Timeline = NormalizeDailyCounts(snapshot);
                     break;
             }
 
@@ -358,7 +357,7 @@ namespace PlayniteAchievements.Services.Showcase
             DateTime endDate)
         {
             var cache = DerivedCache.GetOrCreateValue(snapshot);
-            var key = WindowKey(ShowcaseTimelineOptions.GetRange(instance), endDate);
+            var key = WindowKey(ShowcaseTimelineOptions.GetWindow(instance), endDate);
             if (!cache.ScoreHistory.TryGetValue(key, out var history))
             {
                 history = BuildScoreHistory(snapshot, instance, endDate);
@@ -374,7 +373,7 @@ namespace PlayniteAchievements.Services.Showcase
             DateTime endDate)
         {
             var cache = DerivedCache.GetOrCreateValue(snapshot);
-            var key = WindowKey(ShowcaseTimelineOptions.GetRange(instance), endDate);
+            var key = WindowKey(ShowcaseTimelineOptions.GetWindow(instance), endDate);
             if (!cache.ActivityCalendars.TryGetValue(key, out var calendar))
             {
                 calendar = BuildActivityCalendar(snapshot, instance, endDate);
@@ -392,14 +391,17 @@ namespace PlayniteAchievements.Services.Showcase
                 .ToDictionary(group => group.Key, group => group.Sum(pair => Math.Max(0, pair.Value)));
         }
 
-        /// <summary>Start of the instance's configured range, never past the end date.</summary>
-        private static DateTime ResolveWindowStart(
+        /// <summary>
+        /// The instance's window resolved against <paramref name="today"/>: presets roll back from
+        /// today, a custom range keeps its own bounds, and an open start falls back to the earliest
+        /// counted day. This is the one resolver shared with the chart view models.
+        /// </summary>
+        private static DayRange ResolveDayRange(
             ShowcaseWidgetInstanceSettings instance,
-            DateTime endDate,
+            DateTime today,
             IReadOnlyDictionary<DateTime, int> counts)
         {
-            var start = GetTimelineStartDate(ShowcaseTimelineOptions.GetRange(instance), endDate, counts);
-            return start > endDate ? endDate : start;
+            return ShowcaseTimelineOptions.GetWindow(instance).Resolve(today, UnlockDayCounts.Earliest(counts));
         }
 
         /// <summary>Every day from start to end inclusive, with missing days reported as zero.</summary>
@@ -414,32 +416,6 @@ namespace PlayniteAchievements.Services.Showcase
                 var date = start.AddDays(offset);
                 counts.TryGetValue(date, out var count);
                 yield return (date, count);
-            }
-        }
-
-        private static DateTime GetTimelineStartDate(
-            TimelineRange range,
-            DateTime endDate,
-            IReadOnlyDictionary<DateTime, int> counts)
-        {
-            switch (range)
-            {
-                case TimelineRange.SevenDays:
-                    return endDate.AddDays(-6);
-                case TimelineRange.FourteenDays:
-                    return endDate.AddDays(-13);
-                case TimelineRange.OneMonth:
-                    return endDate.AddMonths(-1).AddDays(1);
-                case TimelineRange.ThreeMonths:
-                    return endDate.AddMonths(-3).AddDays(1);
-                case TimelineRange.OneYear:
-                    return endDate.AddYears(-1).AddDays(1);
-                case TimelineRange.All:
-                    return counts != null && counts.Count > 0
-                        ? counts.Keys.Min().Date
-                        : endDate;
-                default:
-                    return endDate.AddMonths(-3).AddDays(1);
             }
         }
 
@@ -739,9 +715,10 @@ namespace PlayniteAchievements.Services.Showcase
         /// </summary>
         public static IEnumerable<GameSummaryItem> ResolveFinishNextGames(
             IEnumerable<GameSummaryItem> summaries,
-            ShowcaseWidgetInstanceSettings instance)
+            ShowcaseWidgetInstanceSettings instance,
+            DateTime? now = null)
         {
-            var cutoff = ResolveLastPlayedCutoff(ShowcaseWidgetOptions.GetLastPlayedWindow(instance));
+            var cutoff = ResolveLastPlayedBounds(instance, now);
             var includeUnplayed = ShowcaseWidgetOptions.GetFinishNextIncludeUnplayed(instance);
             var minimumFraction = ShowcaseWidgetOptions.GetFinishNextMinimumProgress(instance) / 100d;
             var maxRemaining = ShowcaseWidgetOptions.GetFinishNextMaxRemaining(instance);
@@ -893,9 +870,11 @@ namespace PlayniteAchievements.Services.Showcase
             ShowcaseWidgetInstanceSettings instance,
             DateTime endDate)
         {
-            endDate = endDate.Date;
             var counts = NormalizeDailyCounts(snapshot);
-            var start = ResolveWindowStart(instance, endDate, counts);
+            var range = ResolveDayRange(instance, endDate.Date, counts);
+            var start = range.Start;
+            // A custom window with a fixed end stops the calendar there rather than at today.
+            endDate = range.End;
             // Weeks render as Sunday-first columns, so the window starts on a Sunday.
             while (start.DayOfWeek != DayOfWeek.Sunday)
             {
@@ -1025,7 +1004,7 @@ namespace PlayniteAchievements.Services.Showcase
                 deltas.SawUnlocked = true;
                 if (item.UnlockTimeUtc.HasValue)
                 {
-                    var day = item.UnlockTimeUtc.Value.Date;
+                    var day = UnlockDayCounts.DayOf(item.UnlockTimeUtc.Value);
                     deltas.Collection.TryGetValue(day, out var collection);
                     deltas.Collection[day] = collection + item.CollectionScore;
                     deltas.Prestige.TryGetValue(day, out var prestige);
@@ -1061,7 +1040,10 @@ namespace PlayniteAchievements.Services.Showcase
 
             var dailyCollection = deltas.Collection;
             var dailyPrestige = deltas.Prestige;
-            var start = ResolveWindowStart(instance, endDate, dailyCollection);
+            var earliestDay = dailyCollection.Count > 0 ? dailyCollection.Keys.Min() : (DateTime?)null;
+            var range = ShowcaseTimelineOptions.GetWindow(instance).Resolve(endDate, earliestDay);
+            var start = range.Start;
+            endDate = range.End;
 
             // Unlocks before the window still count toward the running totals, so the first
             // point starts from the score already earned rather than from zero.
@@ -1172,7 +1154,8 @@ namespace PlayniteAchievements.Services.Showcase
         public static IReadOnlyList<AchievementDisplayItem> ResolveUnlockNext(
             OverviewDataSnapshot snapshot,
             ShowcaseWidgetInstanceSettings instance,
-            int count)
+            int count,
+            DateTime? now = null)
         {
             var pool = ResolveUnlockNextPool(snapshot);
             if (pool.Count == 0)
@@ -1182,8 +1165,7 @@ namespace PlayniteAchievements.Services.Showcase
 
             var criterion = ShowcaseWidgetOptions.GetUnlockNextCriterion(instance);
             var includeHidden = ShowcaseWidgetOptions.GetIncludeHiddenAchievements(instance);
-            var cutoff = ResolveLastPlayedCutoff(
-                ShowcaseWidgetOptions.GetLastPlayedWindow(instance));
+            var cutoff = ResolveLastPlayedBounds(instance, now);
 
             var eligible = pool.Where(candidate =>
                 (includeHidden || !candidate.Achievement.Hidden) &&
@@ -1343,37 +1325,24 @@ namespace PlayniteAchievements.Services.Showcase
         }
 
         /// <summary>
-        /// The oldest last-played date a game may carry and still contribute, or null for All.
+        /// The local-day bounds a game's last-played day must fall inside to contribute; unbounded
+        /// for All. A custom window bounds both ends.
         /// </summary>
-        private static DateTime? ResolveLastPlayedCutoff(TimelineRange range)
+        private static DayBounds ResolveLastPlayedBounds(ShowcaseWidgetInstanceSettings instance, DateTime? now)
         {
-            var today = DateTime.Now.Date;
-            switch (range)
-            {
-                case TimelineRange.SevenDays:
-                    return today.AddDays(-6);
-                case TimelineRange.FourteenDays:
-                    return today.AddDays(-13);
-                case TimelineRange.OneMonth:
-                    return today.AddMonths(-1).AddDays(1);
-                case TimelineRange.ThreeMonths:
-                    return today.AddMonths(-3).AddDays(1);
-                case TimelineRange.OneYear:
-                    return today.AddYears(-1).AddDays(1);
-                default:
-                    return null;
-            }
+            return ShowcaseWidgetOptions.GetLastPlayedTimeWindow(instance).ResolveBounds((now ?? DateTime.Now).Date);
         }
 
-        private static bool IsWithinWindow(GameSummaryItem game, DateTime? cutoff)
+        private static bool IsWithinWindow(GameSummaryItem game, DayBounds bounds)
         {
-            if (!cutoff.HasValue)
+            if (bounds.IsUnbounded)
             {
                 return true;
             }
 
             // A game that was never played has no date to compare, so a window excludes it.
-            return game?.LastPlayed != null && game.LastPlayed.Value.ToLocalTime().Date >= cutoff.Value;
+            return game?.LastPlayed != null &&
+                bounds.Contains(Common.DateTimeUtilities.ToLocalDay(game.LastPlayed.Value));
         }
 
         private static double CompletionFraction(GameSummaryItem summary)

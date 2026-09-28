@@ -55,6 +55,17 @@ namespace PlayniteAchievements.Views.Controls
                 typeof(CartesianChartTooltip),
                 new PropertyMetadata(null));
 
+        /// <summary>
+        /// Optional per-column header texts indexed by the hovered X value. A label axis that
+        /// blanks the slots between ticks still gets a full date or range in the tooltip.
+        /// </summary>
+        public static readonly DependencyProperty HeaderLabelsProperty =
+            DependencyProperty.Register(
+                nameof(HeaderLabels),
+                typeof(IList<string>),
+                typeof(CartesianChartTooltip),
+                new PropertyMetadata(null));
+
         private TooltipData _data;
         private string _header;
         private IReadOnlyList<CartesianChartTooltipRow> _rows = Array.Empty<CartesianChartTooltipRow>();
@@ -82,6 +93,12 @@ namespace PlayniteAchievements.Views.Controls
         {
             get => (Brush)GetValue(OutlineBrushProperty);
             set => SetValue(OutlineBrushProperty, value);
+        }
+
+        public IList<string> HeaderLabels
+        {
+            get => (IList<string>)GetValue(HeaderLabelsProperty);
+            set => SetValue(HeaderLabelsProperty, value);
         }
 
         public TooltipSelectionMode? SelectionMode { get; set; } = TooltipSelectionMode.SharedXValues;
@@ -128,26 +145,29 @@ namespace PlayniteAchievements.Views.Controls
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
         }
 
-        // The X formatter is the axis's own (its Labels when it has them), so the header reads
-        // exactly like the axis tick under the hovered column.
-        private static string BuildHeader(TooltipData data)
+        // HeaderLabels win when the host supplies them; otherwise the X formatter is the axis's
+        // own (its Labels when it has them), so the header reads like the axis tick under the
+        // hovered column. A label axis returns an empty string past the end of its list.
+        private string BuildHeader(TooltipData data)
         {
             var point = data?.Points?.FirstOrDefault()?.ChartPoint;
             var x = data?.SharedValue ?? point?.X;
-            if (!x.HasValue || data?.XFormatter == null)
+            if (!x.HasValue)
             {
                 return null;
             }
 
-            try
+            var headers = HeaderLabels;
+            if (headers != null)
             {
-                return data.XFormatter(x.Value);
+                var index = (int)Math.Round(x.Value);
+                if (index >= 0 && index < headers.Count && !string.IsNullOrWhiteSpace(headers[index]))
+                {
+                    return headers[index];
+                }
             }
-            catch (ArgumentOutOfRangeException)
-            {
-                // A label axis indexes its Labels list; a hover past its end has no label.
-                return null;
-            }
+
+            return data.XFormatter?.Invoke(x.Value);
         }
 
         private static IReadOnlyList<CartesianChartTooltipRow> BuildRows(TooltipData data)

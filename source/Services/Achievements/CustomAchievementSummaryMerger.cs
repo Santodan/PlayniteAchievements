@@ -102,17 +102,13 @@ namespace PlayniteAchievements.Services.Achievements
                         continue;
                     }
 
-                    var unlockDate = achievement.UnlockTimeUtc?.Date;
-                    if (unlockDate.HasValue)
+                    if (achievement.UnlockTimeUtc.HasValue)
                     {
-                        Increment(summaryData.GlobalUnlockCountsByDate, unlockDate.Value);
-                        if (!summaryData.UnlockCountsByDateByGame.TryGetValue(gameId, out var gameCounts))
-                        {
-                            gameCounts = new Dictionary<DateTime, int>();
-                            summaryData.UnlockCountsByDateByGame[gameId] = gameCounts;
-                        }
-
-                        Increment(gameCounts, unlockDate.Value);
+                        Overview.UnlockDayCounts.Add(
+                            summaryData.GlobalUnlockCountsByDate,
+                            summaryData.UnlockCountsByDateByGame,
+                            gameId,
+                            achievement.UnlockTimeUtc.Value);
                     }
 
                     var recentUnlock = CreateRecentUnlock(game, achievement);
@@ -346,12 +342,6 @@ namespace PlayniteAchievements.Services.Achievements
                 ProgressNum = achievement.ProgressNum,
                 ProgressDenom = achievement.ProgressDenom
             };
-        }
-
-        private static void Increment(IDictionary<DateTime, int> counts, DateTime date)
-        {
-            counts.TryGetValue(date, out var current);
-            counts[date] = AddClamped(current, 1);
         }
 
         private static int AddClamped(int current, int value)

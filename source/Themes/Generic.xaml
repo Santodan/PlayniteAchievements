@@ -96,4 +96,197 @@
         </Style.Triggers>
     </Style>
 
+    <!-- Time window picker: one line of preset chips and a Custom chip. The From and To date
+         pickers live in a popup under the Custom chip, so the strip never grows and the layout
+         below it never shifts; while a custom range is active the chip shows the range itself.
+         The chips are RadioButtons in a per-instance group so the strip can be instantiated twice
+         on one view model. Date pickers take the shared PlayAch DatePicker style explicitly because
+         the fullscreen theme ships none and the start page merges no implicit styles. A blank
+         picker shows a dash marker instead of watermark text. -->
+    <Style TargetType="{x:Type controls:TimeWindowPicker}">
+        <Setter Property="Focusable" Value="False"/>
+        <Setter Property="ChipStyle" Value="{StaticResource PlayAch.TimeRangeChip.Style}"/>
+        <Setter Property="Foreground" Value="{DynamicResource PlayAch.Brush.Text}"/>
+        <Setter Property="FontFamily" Value="{DynamicResource PlayAch.FontFamily.Body}"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="{x:Type controls:TimeWindowPicker}">
+                    <StackPanel>
+                        <DockPanel LastChildFill="True">
+                            <ComboBox x:Name="PART_Granularity"
+                                      DockPanel.Dock="Right"
+                                      MinWidth="96"
+                                      MinHeight="0"
+                                      Height="26"
+                                      Padding="6,0"
+                                      Margin="8,0,0,0"
+                                      VerticalAlignment="Center"
+                                      Style="{StaticResource PlayAch.ComboBox.BaseStyle}"
+                                      FontSize="{DynamicResource PlayAch.FontSize.Caption}"
+                                      ItemsSource="{TemplateBinding GranularityItems}"
+                                      DisplayMemberPath="Label"
+                                      Visibility="{Binding ShowGranularity, RelativeSource={RelativeSource TemplatedParent}, Converter={StaticResource BoolToVis}}">
+                                <!-- Entries the window cannot honor (Day across years, say) are greyed out. -->
+                                <ComboBox.ItemContainerStyle>
+                                    <Style TargetType="ComboBoxItem" BasedOn="{StaticResource PlayAch.ComboBoxItem.BaseStyle}">
+                                        <Setter Property="IsEnabled" Value="{Binding IsEnabled}"/>
+                                    </Style>
+                                </ComboBox.ItemContainerStyle>
+                            </ComboBox>
+                            <WrapPanel VerticalAlignment="Center">
+                                <ItemsControl x:Name="PART_Presets"
+                                              ItemsSource="{TemplateBinding PresetItems}"
+                                              IsTabStop="False"
+                                              Focusable="False">
+                                    <ItemsControl.ItemsPanel>
+                                        <ItemsPanelTemplate>
+                                            <WrapPanel/>
+                                        </ItemsPanelTemplate>
+                                    </ItemsControl.ItemsPanel>
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <RadioButton Content="{Binding Label}"
+                                                         IsChecked="{Binding IsSelected, Mode=TwoWay}"
+                                                         GroupName="{Binding ChipGroupName, RelativeSource={RelativeSource AncestorType={x:Type controls:TimeWindowPicker}}}"
+                                                         Style="{Binding ChipStyle, RelativeSource={RelativeSource AncestorType={x:Type controls:TimeWindowPicker}}}"/>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                                <RadioButton x:Name="PART_CustomChip"
+                                             Content="{TemplateBinding CustomChipText}"
+                                             ToolTip="{TemplateBinding CustomChipToolTip}"
+                                             GroupName="{TemplateBinding ChipGroupName}"
+                                             Style="{TemplateBinding ChipStyle}"/>
+                                <Popup x:Name="PART_CustomPopup"
+                                       PlacementTarget="{Binding ElementName=PART_CustomChip}"
+                                       Placement="Bottom"
+                                       VerticalOffset="4"
+                                       StaysOpen="False"
+                                       AllowsTransparency="True"
+                                       PopupAnimation="Fade">
+                                    <Border Background="{DynamicResource PlayAch.Brush.PopupSurface}"
+                                            BorderBrush="{DynamicResource PlayAch.Brush.PopupBorder}"
+                                            BorderThickness="1"
+                                            CornerRadius="4"
+                                            Padding="8">
+                                        <StackPanel>
+                                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                                <Grid VerticalAlignment="Center">
+                                                    <DatePicker x:Name="PART_From"
+                                                                Style="{StaticResource PlayAch.DatePicker.BaseStyle}"
+                                                                Width="118"
+                                                                ToolTip="{DynamicResource LOCPlayAch_DateRange_From}"/>
+                                                    <TextBlock Text="&#x2014;"
+                                                               IsHitTestVisible="False"
+                                                               VerticalAlignment="Center"
+                                                               Margin="10,0,24,0"
+                                                               Foreground="{DynamicResource PlayAch.Brush.Text}"
+                                                               Opacity="{StaticResource PlayAch.Opacity.Placeholder}"
+                                                               Visibility="{Binding IsFromBlank, RelativeSource={RelativeSource TemplatedParent}, Converter={StaticResource BoolToVis}}"/>
+                                                </Grid>
+                                                <TextBlock Text="&#x2013;"
+                                                           VerticalAlignment="Center"
+                                                           Margin="8,0"
+                                                           Foreground="{DynamicResource PlayAch.Brush.Text}"/>
+                                                <Grid VerticalAlignment="Center">
+                                                    <DatePicker x:Name="PART_To"
+                                                                Style="{StaticResource PlayAch.DatePicker.BaseStyle}"
+                                                                Width="118"
+                                                                ToolTip="{DynamicResource LOCPlayAch_DateRange_To}"/>
+                                                    <TextBlock Text="&#x2014;"
+                                                               IsHitTestVisible="False"
+                                                               VerticalAlignment="Center"
+                                                               Margin="10,0,24,0"
+                                                               Foreground="{DynamicResource PlayAch.Brush.Text}"
+                                                               Opacity="{StaticResource PlayAch.Opacity.Placeholder}"
+                                                               Visibility="{Binding IsToBlank, RelativeSource={RelativeSource TemplatedParent}, Converter={StaticResource BoolToVis}}"/>
+                                                </Grid>
+                                                <Button x:Name="PART_Clear"
+                                                        Content="{DynamicResource LOCPlayAch_Button_Clear}"
+                                                        Style="{StaticResource PlayAch.Button.BaseStyle}"
+                                                        Padding="10,0"
+                                                        Margin="8,0,0,0"
+                                                        VerticalAlignment="Stretch"/>
+                                            </StackPanel>
+                                            <TextBlock x:Name="PART_Error"
+                                                       Text="{TemplateBinding ErrorText}"
+                                                       Foreground="{DynamicResource PlayAch.Brush.ErrorText}"
+                                                       FontSize="{DynamicResource PlayAch.FontSize.Caption}"
+                                                       Margin="0,6,0,0"
+                                                       MaxWidth="320"
+                                                       TextWrapping="Wrap"
+                                                       Visibility="{Binding HasError, RelativeSource={RelativeSource TemplatedParent}, Converter={StaticResource BoolToVis}}"/>
+                                        </StackPanel>
+                                    </Border>
+                                </Popup>
+                            </WrapPanel>
+                        </DockPanel>
+
+                        <!-- Inline editor (InlineCustomEditor=True, the widget settings rows): the
+                             pickers sit on their own line under the chips, always visible, and the
+                             Custom chip is hidden because the dates show the state themselves. -->
+                        <StackPanel x:Name="PART_InlinePanel" Visibility="Collapsed" Margin="0,6,0,0">
+                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                <Grid VerticalAlignment="Center">
+                                    <DatePicker x:Name="PART_InlineFrom"
+                                                Style="{StaticResource PlayAch.DatePicker.BaseStyle}"
+                                                Width="118"
+                                                ToolTip="{DynamicResource LOCPlayAch_DateRange_From}"/>
+                                    <TextBlock Text="&#x2014;"
+                                               IsHitTestVisible="False"
+                                               VerticalAlignment="Center"
+                                               Margin="10,0,24,0"
+                                               Foreground="{DynamicResource PlayAch.Brush.Text}"
+                                               Opacity="{StaticResource PlayAch.Opacity.Placeholder}"
+                                               Visibility="{Binding IsFromBlank, RelativeSource={RelativeSource TemplatedParent}, Converter={StaticResource BoolToVis}}"/>
+                                </Grid>
+                                <TextBlock Text="&#x2013;"
+                                           VerticalAlignment="Center"
+                                           Margin="8,0"
+                                           Foreground="{DynamicResource PlayAch.Brush.Text}"/>
+                                <Grid VerticalAlignment="Center">
+                                    <DatePicker x:Name="PART_InlineTo"
+                                                Style="{StaticResource PlayAch.DatePicker.BaseStyle}"
+                                                Width="118"
+                                                ToolTip="{DynamicResource LOCPlayAch_DateRange_To}"/>
+                                    <TextBlock Text="&#x2014;"
+                                               IsHitTestVisible="False"
+                                               VerticalAlignment="Center"
+                                               Margin="10,0,24,0"
+                                               Foreground="{DynamicResource PlayAch.Brush.Text}"
+                                               Opacity="{StaticResource PlayAch.Opacity.Placeholder}"
+                                               Visibility="{Binding IsToBlank, RelativeSource={RelativeSource TemplatedParent}, Converter={StaticResource BoolToVis}}"/>
+                                </Grid>
+                                <Button x:Name="PART_InlineClear"
+                                        Content="{DynamicResource LOCPlayAch_Button_Clear}"
+                                        Style="{StaticResource PlayAch.Button.BaseStyle}"
+                                        Padding="10,0"
+                                        Margin="8,0,0,0"
+                                        VerticalAlignment="Stretch"/>
+                            </StackPanel>
+                            <TextBlock Text="{TemplateBinding ErrorText}"
+                                       Foreground="{DynamicResource PlayAch.Brush.ErrorText}"
+                                       FontSize="{DynamicResource PlayAch.FontSize.Caption}"
+                                       Margin="0,4,0,0"
+                                       TextWrapping="Wrap"
+                                       Visibility="{Binding HasError, RelativeSource={RelativeSource TemplatedParent}, Converter={StaticResource BoolToVis}}"/>
+                        </StackPanel>
+                    </StackPanel>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="InlineCustomEditor" Value="True">
+                            <Setter TargetName="PART_CustomChip" Property="Visibility" Value="Collapsed"/>
+                            <Setter TargetName="PART_InlinePanel" Property="Visibility" Value="Visible"/>
+                        </Trigger>
+                        <Trigger Property="HasError" Value="True">
+                            <Setter TargetName="PART_From" Property="BorderBrush" Value="{DynamicResource PlayAch.Brush.ErrorText}"/>
+                            <Setter TargetName="PART_To" Property="BorderBrush" Value="{DynamicResource PlayAch.Brush.ErrorText}"/>
+                            <Setter TargetName="PART_InlineFrom" Property="BorderBrush" Value="{DynamicResource PlayAch.Brush.ErrorText}"/>
+                            <Setter TargetName="PART_InlineTo" Property="BorderBrush" Value="{DynamicResource PlayAch.Brush.ErrorText}"/>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
 </ResourceDictionary>

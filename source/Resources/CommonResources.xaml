@@ -8,6 +8,7 @@
 
     <ResourceDictionary.MergedDictionaries>
         <ResourceDictionary Source="pack://application:,,,/PlayniteAchievements;component/Resources/DesignTokens.xaml"/>
+        <ResourceDictionary Source="pack://application:,,,/PlayniteAchievements;component/Resources/DatePickerStyles.xaml"/>
     </ResourceDictionary.MergedDictionaries>
 
     <converters:BooleanConverter x:Key="BoolToVis" Mode="ToVisibility"/>
@@ -1275,6 +1276,69 @@
 
     <Style x:Key="PlayAch.ChartColumnSeriesStyle" TargetType="lvc:ColumnSeries">
         <Setter Property="Fill" Value="{DynamicResource PlayAch.Brush.Accent}"/>
+    </Style>
+
+    <!-- Time-window chip: the preset buttons of the TimeWindowPicker (and the legacy range strips
+         through the TimeRangeButtonStyle alias). Lives here so the Generic.xaml template resolves it. -->
+    <Style x:Key="PlayAch.TimeRangeChip.Style" TargetType="RadioButton">
+        <Setter Property="Background" Value="{DynamicResource PlayAch.Brush.Button.Background}"/>
+        <Setter Property="Foreground" Value="{DynamicResource PlayAch.Brush.Text}"/>
+        <Setter Property="BorderBrush" Value="{DynamicResource PlayAch.Brush.Button.Border}"/>
+        <Setter Property="Padding" Value="8,4"/>
+        <Setter Property="Margin" Value="0,0,4,0"/>
+        <Setter Property="FontSize" Value="{DynamicResource PlayAch.FontSize.Caption}"/>
+        <Setter Property="Cursor" Value="Hand"/>
+        <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="RadioButton">
+                    <Border x:Name="border"
+                            Background="{TemplateBinding Background}"
+                            BorderBrush="{TemplateBinding BorderBrush}"
+                            BorderThickness="{StaticResource PlayAch.Thickness.Border}"
+                            CornerRadius="3"
+                            Padding="{TemplateBinding Padding}">
+                        <ContentPresenter HorizontalAlignment="Center"
+                                          VerticalAlignment="Center"/>
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="border" Property="Background" Value="{DynamicResource PlayAch.Brush.Button.Background.Hover}"/>
+                            <Setter TargetName="border" Property="BorderBrush" Value="{DynamicResource PlayAch.Brush.Accent}"/>
+                        </Trigger>
+                        <Trigger Property="IsKeyboardFocused" Value="True">
+                            <Setter TargetName="border" Property="BorderBrush" Value="{DynamicResource PlayAch.Brush.Selection}"/>
+                            <Setter TargetName="border" Property="Background" Value="{DynamicResource PlayAch.Brush.Button.Background.Hover}"/>
+                        </Trigger>
+                        <Trigger Property="IsChecked" Value="True">
+                            <Setter TargetName="border" Property="Background" Value="{DynamicResource PlayAch.Brush.Button.Background.Selected}"/>
+                            <Setter TargetName="border" Property="BorderBrush" Value="{DynamicResource PlayAch.Brush.Accent}"/>
+                            <Setter Property="Foreground" Value="{DynamicResource PlayAch.Brush.Text}"/>
+                            <Setter Property="FontWeight" Value="SemiBold"/>
+                        </Trigger>
+                        <MultiTrigger>
+                            <MultiTrigger.Conditions>
+                                <Condition Property="IsChecked" Value="True"/>
+                                <Condition Property="IsMouseOver" Value="True"/>
+                            </MultiTrigger.Conditions>
+                            <Setter TargetName="border" Property="Background" Value="{DynamicResource PlayAch.Brush.Button.Background.Selected}"/>
+                            <Setter TargetName="border" Property="BorderBrush" Value="{DynamicResource PlayAch.Brush.Accent}"/>
+                        </MultiTrigger>
+                        <MultiTrigger>
+                            <MultiTrigger.Conditions>
+                                <Condition Property="IsChecked" Value="True"/>
+                                <Condition Property="IsKeyboardFocused" Value="True"/>
+                            </MultiTrigger.Conditions>
+                            <Setter TargetName="border" Property="Background" Value="{DynamicResource PlayAch.Brush.Button.Background.Selected}"/>
+                            <Setter TargetName="border" Property="BorderBrush" Value="{DynamicResource PlayAch.Brush.Accent}"/>
+                        </MultiTrigger>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter Property="Opacity" Value="0.45"/>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
     </Style>
 
     <!-- Category path shown in a host header above the achievement grid. Lives here because this

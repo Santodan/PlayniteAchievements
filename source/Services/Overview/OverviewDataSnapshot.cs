@@ -74,9 +74,15 @@ namespace PlayniteAchievements.Services.Overview
 
             return true;
         }
+
+        /// <summary>
+        /// Unlock counts per local calendar day (keys at 00:00, Kind Unspecified; compare by value),
+        /// produced by <see cref="UnlockDayCounts.DayOf"/>.
+        /// </summary>
         public Dictionary<DateTime, int> GlobalUnlockCountsByDate { get; set; } =
             new Dictionary<DateTime, int>();
 
+        /// <summary>Per-game counts keyed like <see cref="GlobalUnlockCountsByDate"/>.</summary>
         public Dictionary<Guid, Dictionary<DateTime, int>> UnlockCountsByDateByGame { get; set; } =
             new Dictionary<Guid, Dictionary<DateTime, int>>();
 

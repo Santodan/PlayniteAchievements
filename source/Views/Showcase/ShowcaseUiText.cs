@@ -132,8 +132,6 @@ namespace PlayniteAchievements.Views.Showcase
             }
         }
 
-        public static string TimelineRangeName(TimelineRange range) => TimelineRangeText.Describe(range);
-
         private static string EnumValueName<T>(string prefix, T value)
         {
             return Localize(prefix + Convert.ToString(value));

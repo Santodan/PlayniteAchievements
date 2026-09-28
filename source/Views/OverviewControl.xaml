@@ -849,69 +849,26 @@
                                                Opacity="{StaticResource PlayAch.Opacity.Subtle}"
                                                Margin="{StaticResource PlayAch.Thickness.Bottom.Compact}"/>
 
-                                    <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="{StaticResource PlayAch.Thickness.Bottom.Sm}">
-                                        <RadioButton Content="{DynamicResource LOCPlayAch_TimeRange_7D}" GroupName="GlobalTimeRangeDefault"
-                                                     Style="{StaticResource TimeRangeButtonStyle}"
-                                                     IsChecked="{Binding GlobalTimeline.TimelineRange, Converter={StaticResource EnumToBool}, ConverterParameter=SevenDays}"
-                                                     Command="{Binding GlobalTimeline.SetTimeRangeCommand}" CommandParameter="SevenDays"/>
-                                        <RadioButton Content="{DynamicResource LOCPlayAch_TimeRange_14D}" GroupName="GlobalTimeRangeDefault"
-                                                     Style="{StaticResource TimeRangeButtonStyle}"
-                                                     IsChecked="{Binding GlobalTimeline.TimelineRange, Converter={StaticResource EnumToBool}, ConverterParameter=FourteenDays}"
-                                                     Command="{Binding GlobalTimeline.SetTimeRangeCommand}" CommandParameter="FourteenDays"/>
-                                        <RadioButton Content="{DynamicResource LOCPlayAch_TimeRange_1M}" GroupName="GlobalTimeRangeDefault"
-                                                     Style="{StaticResource TimeRangeButtonStyle}"
-                                                     IsChecked="{Binding GlobalTimeline.TimelineRange, Converter={StaticResource EnumToBool}, ConverterParameter=OneMonth}"
-                                                     Command="{Binding GlobalTimeline.SetTimeRangeCommand}" CommandParameter="OneMonth"/>
-                                        <RadioButton Content="{DynamicResource LOCPlayAch_TimeRange_3M}" GroupName="GlobalTimeRangeDefault"
-                                                     Style="{StaticResource TimeRangeButtonStyle}"
-                                                     IsChecked="{Binding GlobalTimeline.TimelineRange, Converter={StaticResource EnumToBool}, ConverterParameter=ThreeMonths}"
-                                                     Command="{Binding GlobalTimeline.SetTimeRangeCommand}" CommandParameter="ThreeMonths"/>
-                                        <RadioButton Content="{DynamicResource LOCPlayAch_TimeRange_1Y}" GroupName="GlobalTimeRangeDefault"
-                                                     Style="{StaticResource TimeRangeButtonStyle}"
-                                                     IsChecked="{Binding GlobalTimeline.TimelineRange, Converter={StaticResource EnumToBool}, ConverterParameter=OneYear}"
-                                                     Command="{Binding GlobalTimeline.SetTimeRangeCommand}" CommandParameter="OneYear"/>
-                                        <RadioButton Content="{DynamicResource LOCPlayAch_Common_All}" GroupName="GlobalTimeRangeDefault"
-                                                     Style="{StaticResource TimeRangeButtonStyle}"
-                                                     IsChecked="{Binding GlobalTimeline.TimelineRange, Converter={StaticResource EnumToBool}, ConverterParameter=All}"
-                                                     Command="{Binding GlobalTimeline.SetTimeRangeCommand}" CommandParameter="All"/>
-                                    </StackPanel>
+                                    <controls:TimeWindowPicker Grid.Row="1"
+                                                               Window="{Binding GlobalTimeline.Window, Mode=TwoWay}"
+                                                               Granularity="{Binding GlobalTimeline.Granularity, Mode=TwoWay}"
+                                                               UnavailableGranularities="{Binding GlobalTimeline.UnavailableGranularities}"
+                                                               ShowGranularity="True"
+                                                               MinDate="{Binding GlobalTimeline.EarliestDate}"
+                                                               Margin="{StaticResource PlayAch.Thickness.Bottom.Sm}"/>
 
-                                    <lvc:CartesianChart Grid.Row="2"
-                                                        Series="{Binding GlobalTimeline.TimelineSeries}"
-                                                        LegendLocation="None"
-                                                        Hoverable="True"
-                                                        TooltipTimeout="0:0:0.1"
-                                                        DisableAnimations="True">
-                                        <lvc:CartesianChart.DataTooltip>
-                                            <controls:CartesianChartTooltip/>
-                                        </lvc:CartesianChart.DataTooltip>
-                                        <lvc:CartesianChart.Resources>
-                                            <Style TargetType="lvc:ColumnSeries">
-                                                <Setter Property="Fill" Value="{DynamicResource PlayAch.Brush.Accent}" />
-                                            </Style>
-                                        </lvc:CartesianChart.Resources>
-                                        <lvc:CartesianChart.AxisX>
-                                            <lvc:Axis Labels="{Binding GlobalTimeline.TimelineLabels}"
-                                                      ShowLabels="True"
-                                                      LabelsRotation="45"
-                                                      FontSize="{DynamicResource PlayAch.FontSize.Caption}"
-                                                      Foreground="{DynamicResource PlayAch.Brush.Text}">
-                                                <lvc:Axis.Separator>
-                                                    <lvc:Separator Step="1" IsEnabled="False"/>
-                                                </lvc:Axis.Separator>
-                                            </lvc:Axis>
-                                        </lvc:CartesianChart.AxisX>
-                                        <lvc:CartesianChart.AxisY>
-                                            <lvc:Axis MinValue="0"
-                                                      LabelFormatter="{Binding GlobalTimeline.YAxisFormatter}"
-                                                      FontSize="{DynamicResource PlayAch.FontSize.Caption}"
-                                                      Foreground="{DynamicResource PlayAch.Brush.Text}">
-                                                <lvc:Axis.Separator>
-                                                    <lvc:Separator Stroke="{DynamicResource PlayAch.Brush.Border}" Opacity="0.2"/>
-                                                </lvc:Axis.Separator>
-                                            </lvc:Axis>
-                                        </lvc:CartesianChart.AxisY>
-                                    </lvc:CartesianChart>
+                                    <controls:UnlockTimelineChart Grid.Row="2"
+                                                                  Series="{Binding GlobalTimeline.TimelineSeries}"
+                                                                  Labels="{Binding GlobalTimeline.TimelineLabels}"
+                                                                  TooltipLabels="{Binding GlobalTimeline.TooltipLabels}"
+                                                                  XAxisMax="{Binding GlobalTimeline.XAxisMax}"
+                                                                  YAxisMax="{Binding GlobalTimeline.YAxisMax}"
+                                                                  YAxisStep="{Binding GlobalTimeline.YAxisStep}"
+                                                                  YLabelFormatter="{Binding GlobalTimeline.YAxisFormatter}"
+                                                                  IsEmpty="{Binding GlobalTimeline.IsEmpty}"
+                                                                  MaxTickCount="{Binding GlobalTimeline.MaxTickCount, Mode=OneWayToSource}"
+                                                                  MaxBarCount="{Binding GlobalTimeline.MaxBarCount, Mode=OneWayToSource}"
+                                                                  RenderRevision="{Binding GlobalTimeline.RenderRevision}"/>
                                 </Grid>
                             </DataTemplate>
                         </Border.Resources>

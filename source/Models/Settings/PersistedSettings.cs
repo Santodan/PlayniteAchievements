@@ -234,8 +234,10 @@ namespace PlayniteAchievements.Models.Settings
         private double _friendsOverviewGameColumnRatio = DefaultFriendsOverviewGameColumnRatio;
         private Dictionary<string, WindowPlacementState> _windowPlacements =
             new Dictionary<string, WindowPlacementState>(StringComparer.OrdinalIgnoreCase);
-        private TimelineRange _overviewTimelineRange = TimelineRange.OneYear;
-        private TimelineRange _viewAchievementsTimelineRange = TimelineRange.OneYear;
+        private TimeWindow _overviewTimeWindow = TimeWindow.FromPreset(TimelineRange.OneYear);
+        private TimelineGranularity _overviewTimelineGranularity = TimelineGranularity.Auto;
+        private TimeWindow _viewAchievementsTimeWindow = TimeWindow.FromPreset(TimelineRange.OneYear);
+        private TimelineGranularity _viewAchievementsTimelineGranularity = TimelineGranularity.Auto;
         private bool _viewAchievementsTimelineVisible = false;
         private bool _firstTimeSetupCompleted = false;
         private bool _seenThemeMigration = false;
@@ -2600,21 +2602,38 @@ namespace PlayniteAchievements.Models.Settings
         }
 
         /// <summary>
-        /// Last selected range for the overview achievements-over-time chart.
+        /// Last selected window for the overview achievements-over-time chart: a rolling preset or
+        /// a custom date range. Legacy integer <c>OverviewTimelineRange</c> values are read by the converter.
         /// </summary>
-        public TimelineRange OverviewTimelineRange
+        [JsonConverter(typeof(TimeWindowJsonConverter))]
+        public TimeWindow OverviewTimeWindow
         {
-            get => _overviewTimelineRange;
-            set => SetValue(ref _overviewTimelineRange, value);
+            get => _overviewTimeWindow;
+            set => SetValue(ref _overviewTimeWindow, value ?? TimeWindow.FromPreset(TimelineRange.OneYear));
+        }
+
+        /// <summary>Bar-width override for the overview achievements-over-time chart.</summary>
+        public TimelineGranularity OverviewTimelineGranularity
+        {
+            get => _overviewTimelineGranularity;
+            set => SetValue(ref _overviewTimelineGranularity, value);
         }
 
         /// <summary>
-        /// Last selected range for the single-game achievements window timeline chart.
+        /// Last selected window for the single-game achievements window timeline chart.
         /// </summary>
-        public TimelineRange ViewAchievementsTimelineRange
+        [JsonConverter(typeof(TimeWindowJsonConverter))]
+        public TimeWindow ViewAchievementsTimeWindow
         {
-            get => _viewAchievementsTimelineRange;
-            set => SetValue(ref _viewAchievementsTimelineRange, value);
+            get => _viewAchievementsTimeWindow;
+            set => SetValue(ref _viewAchievementsTimeWindow, value ?? TimeWindow.FromPreset(TimelineRange.OneYear));
+        }
+
+        /// <summary>Bar-width override for the single-game achievements window timeline chart.</summary>
+        public TimelineGranularity ViewAchievementsTimelineGranularity
+        {
+            get => _viewAchievementsTimelineGranularity;
+            set => SetValue(ref _viewAchievementsTimelineGranularity, value);
         }
 
         /// <summary>
@@ -3125,8 +3144,10 @@ namespace PlayniteAchievements.Models.Settings
                         kvp => kvp.Value?.Clone(),
                         StringComparer.OrdinalIgnoreCase)
                     : new Dictionary<string, WindowPlacementState>(StringComparer.OrdinalIgnoreCase),
-                OverviewTimelineRange = this.OverviewTimelineRange,
-                ViewAchievementsTimelineRange = this.ViewAchievementsTimelineRange,
+                OverviewTimeWindow = this.OverviewTimeWindow,
+                OverviewTimelineGranularity = this.OverviewTimelineGranularity,
+                ViewAchievementsTimeWindow = this.ViewAchievementsTimeWindow,
+                ViewAchievementsTimelineGranularity = this.ViewAchievementsTimelineGranularity,
                 ViewAchievementsTimelineVisible = this.ViewAchievementsTimelineVisible,
 
                 // General Settings
@@ -3278,7 +3299,8 @@ namespace PlayniteAchievements.Models.Settings
             OverviewLeftColumnRatio = defaults.OverviewLeftColumnRatio;
             FriendsOverviewFriendColumnRatio = defaults.FriendsOverviewFriendColumnRatio;
             FriendsOverviewGameColumnRatio = defaults.FriendsOverviewGameColumnRatio;
-            ViewAchievementsTimelineRange = defaults.ViewAchievementsTimelineRange;
+            ViewAchievementsTimeWindow = defaults.ViewAchievementsTimeWindow;
+            ViewAchievementsTimelineGranularity = defaults.ViewAchievementsTimelineGranularity;
             ViewAchievementsTimelineVisible = defaults.ViewAchievementsTimelineVisible;
         }
 
