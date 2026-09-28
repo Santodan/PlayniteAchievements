@@ -1862,6 +1862,9 @@ namespace PlayniteAchievements.Views.Showcase
             {
                 _applyDrainStartedTicks = System.Diagnostics.Stopwatch.GetTimestamp();
                 _applyDrainApplied = 0;
+                // Tracing only: name the dispatcher operations that run between the widget
+                // passes (layout and render ticks, Loaded broadcasts, image completions).
+                DispatcherOperationProbe.Arm(Logger, "showcase-fill", TimeSpan.FromSeconds(3));
             }
 
             _applyQueue.Enqueue(new WidgetApplyRequest
