@@ -418,10 +418,9 @@
                             </lvc:CartesianChart.AxisX>
                             <lvc:CartesianChart.AxisY>
                                 <!-- Floor at the window minimum, ceiling just above the window
-                                     maximum (or at the next level when that is close), so the
-                                     line spans the chart height; the sections mark tiers reached
-                                     in the window, the current level's start, and the next level
-                                     when it is the ceiling. -->
+                                     maximum (or at the next tier when that is close), so the
+                                     line spans the chart height; the sections mark the current
+                                     tier's start and the next tier when it is the ceiling. -->
                                 <lvc:Axis ShowLabels="True"
                                           FontSize="10"
                                           Foreground="{DynamicResource PlayAch.Brush.Text}"
