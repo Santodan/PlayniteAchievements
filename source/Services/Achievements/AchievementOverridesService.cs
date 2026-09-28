@@ -1218,6 +1218,55 @@ namespace PlayniteAchievements.Services.Achievements
         }
 
         /// <summary>
+        /// Merges imported definitions into the game's custom achievements by ID, the same rule
+        /// the editor applies to its rows: a matching ID is replaced in place, anything else is
+        /// appended. For callers with no editor rows to merge into.
+        /// </summary>
+        public void MergeCustomAchievements(
+            Guid gameId,
+            IReadOnlyList<CustomAchievementDefinition> imported,
+            out int added,
+            out int updated)
+        {
+            var addedCount = 0;
+            var updatedCount = 0;
+            if (gameId != Guid.Empty && imported != null && imported.Count > 0)
+            {
+                _gameCustomDataStore.Update(gameId, customData =>
+                {
+                    var merged = (customData.CustomAchievements ?? new List<CustomAchievementDefinition>())
+                        .Where(definition => definition != null)
+                        .ToList();
+                    foreach (var definition in imported.Where(definition => definition != null))
+                    {
+                        var id = CustomAchievementProjectionService.NormalizeId(definition.Id);
+                        var index = string.IsNullOrWhiteSpace(id)
+                            ? -1
+                            : merged.FindIndex(existing => string.Equals(
+                                CustomAchievementProjectionService.NormalizeId(existing.Id),
+                                id,
+                                StringComparison.OrdinalIgnoreCase));
+                        if (index >= 0)
+                        {
+                            merged[index] = definition.Clone();
+                            updatedCount++;
+                        }
+                        else
+                        {
+                            merged.Add(definition.Clone());
+                            addedCount++;
+                        }
+                    }
+
+                    customData.CustomAchievements = merged;
+                });
+            }
+
+            added = addedCount;
+            updated = updatedCount;
+        }
+
+        /// <summary>
         /// Adds an automatically generated auto capstone, files it, and marks the game as handled,
         /// in one store update.
         /// </summary>
