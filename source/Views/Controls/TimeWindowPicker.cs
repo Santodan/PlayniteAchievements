@@ -6,7 +6,6 @@ using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
-using System.Windows.Input;
 using Playnite.SDK;
 using PlayniteAchievements.Models;
 using PlayniteAchievements.Views.Helpers;
@@ -63,11 +62,10 @@ namespace PlayniteAchievements.Views.Controls
     }
 
     /// <summary>
-    /// Picks a <see cref="TimeWindow"/>: preset chips (7D, 1M, 3M, 1Y, All) plus a Custom chip that
-    /// reveals From/To date pickers. A blank To means "until now"; a blank From means from the
-    /// earliest data. Optionally shows the chart granularity override. In compact mode only the
-    /// chips render, and the Custom chip marks a custom window and runs <see cref="MoreCommand"/>
-    /// (the widget settings dialog) instead of expanding inline.
+    /// Picks a <see cref="TimeWindow"/> on one line: preset chips (7D, 1M, 3M, 1Y, All) plus a Custom
+    /// chip that reveals a From and a To date picker beside it. A blank To means "until now"; a
+    /// blank From means from the earliest data; picking a preset collapses the custom pickers again.
+    /// Optionally shows the chart granularity override at the right edge.
     /// </summary>
     /// <remarks>
     /// The template lives in Themes/Generic.xaml. Every gesture assigns a new immutable
@@ -134,20 +132,13 @@ namespace PlayniteAchievements.Views.Controls
             typeof(TimeWindowPicker),
             new PropertyMetadata(null, (d, e) => ((TimeWindowPicker)d).ApplyDateLimits()));
 
-        public static readonly DependencyProperty IsCompactProperty = DependencyProperty.Register(
-            nameof(IsCompact),
-            typeof(bool),
-            typeof(TimeWindowPicker),
-            new PropertyMetadata(false, (d, e) => ((TimeWindowPicker)d).SyncFromWindow()));
-
-        public static readonly DependencyProperty MoreCommandProperty = DependencyProperty.Register(
-            nameof(MoreCommand), typeof(ICommand), typeof(TimeWindowPicker), new PropertyMetadata(null));
-
-        public static readonly DependencyProperty IsCustomExpandedProperty = DependencyProperty.Register(
-            nameof(IsCustomExpanded), typeof(bool), typeof(TimeWindowPicker), new PropertyMetadata(false));
-
         public static readonly DependencyProperty ChipStyleProperty = DependencyProperty.Register(
             nameof(ChipStyle), typeof(Style), typeof(TimeWindowPicker), new PropertyMetadata(null));
+
+        private static readonly DependencyPropertyKey IsCustomExpandedPropertyKey = DependencyProperty.RegisterReadOnly(
+            nameof(IsCustomExpanded), typeof(bool), typeof(TimeWindowPicker), new PropertyMetadata(false));
+
+        public static readonly DependencyProperty IsCustomExpandedProperty = IsCustomExpandedPropertyKey.DependencyProperty;
 
         private static readonly DependencyPropertyKey HasErrorPropertyKey = DependencyProperty.RegisterReadOnly(
             nameof(HasError), typeof(bool), typeof(TimeWindowPicker), new PropertyMetadata(false));
@@ -158,6 +149,11 @@ namespace PlayniteAchievements.Views.Controls
             nameof(ErrorText), typeof(string), typeof(TimeWindowPicker), new PropertyMetadata(null));
 
         public static readonly DependencyProperty ErrorTextProperty = ErrorTextPropertyKey.DependencyProperty;
+
+        private static readonly DependencyPropertyKey IsFromBlankPropertyKey = DependencyProperty.RegisterReadOnly(
+            nameof(IsFromBlank), typeof(bool), typeof(TimeWindowPicker), new PropertyMetadata(true));
+
+        public static readonly DependencyProperty IsFromBlankProperty = IsFromBlankPropertyKey.DependencyProperty;
 
         private static readonly DependencyPropertyKey IsToBlankPropertyKey = DependencyProperty.RegisterReadOnly(
             nameof(IsToBlank), typeof(bool), typeof(TimeWindowPicker), new PropertyMetadata(true));
@@ -185,8 +181,13 @@ namespace PlayniteAchievements.Views.Controls
         private DatePicker _to;
         private Button _clear;
         private ComboBox _granularity;
+        private TextBox _fromTextBox;
         private TextBox _toTextBox;
         private bool _syncing;
+
+        // True between a click on Custom and the first date commit, while the window is still a
+        // preset: the pickers are shown prefilled but nothing has been committed yet.
+        private bool _customArmed;
 
         public TimeWindowPicker()
         {
@@ -249,37 +250,23 @@ namespace PlayniteAchievements.Views.Controls
             set => SetValue(MinDateProperty, value);
         }
 
-        /// <summary>Chips only; the Custom chip indicates a custom window and runs <see cref="MoreCommand"/>.</summary>
-        public bool IsCompact
-        {
-            get => (bool)GetValue(IsCompactProperty);
-            set => SetValue(IsCompactProperty, value);
-        }
-
-        public ICommand MoreCommand
-        {
-            get => (ICommand)GetValue(MoreCommandProperty);
-            set => SetValue(MoreCommandProperty, value);
-        }
-
-        /// <summary>Whether the From/To row is shown; forced on while the window is custom.</summary>
-        public bool IsCustomExpanded
-        {
-            get => (bool)GetValue(IsCustomExpandedProperty);
-            set => SetValue(IsCustomExpandedProperty, value);
-        }
-
         public Style ChipStyle
         {
             get => (Style)GetValue(ChipStyleProperty);
             set => SetValue(ChipStyleProperty, value);
         }
 
+        /// <summary>Whether the From/To pickers are shown: while the window is custom, or right after a click on Custom.</summary>
+        public bool IsCustomExpanded => (bool)GetValue(IsCustomExpandedProperty);
+
         public bool HasError => (bool)GetValue(HasErrorProperty);
 
         public string ErrorText => (string)GetValue(ErrorTextProperty);
 
-        /// <summary>True while the To picker holds neither a date nor typed text (shows "Until now").</summary>
+        /// <summary>True while the From picker holds neither a date nor typed text (shows the blank marker).</summary>
+        public bool IsFromBlank => (bool)GetValue(IsFromBlankProperty);
+
+        /// <summary>True while the To picker holds neither a date nor typed text (shows the blank marker).</summary>
         public bool IsToBlank => (bool)GetValue(IsToBlankProperty);
 
         public ObservableCollection<TimeWindowPresetChip> PresetItems =>
@@ -327,17 +314,16 @@ namespace PlayniteAchievements.Views.Controls
                 _customChip.Click += CustomChip_Click;
             }
 
-            if (_from != null)
+            foreach (var picker in new[] { _from, _to })
             {
-                _from.SelectedDateChanged += DatePicker_SelectedDateChanged;
-                _from.DateValidationError += DatePicker_DateValidationError;
-            }
+                if (picker == null)
+                {
+                    continue;
+                }
 
-            if (_to != null)
-            {
-                _to.SelectedDateChanged += DatePicker_SelectedDateChanged;
-                _to.DateValidationError += DatePicker_DateValidationError;
-                _to.Loaded += ToPicker_Loaded;
+                picker.SelectedDateChanged += DatePicker_SelectedDateChanged;
+                picker.DateValidationError += DatePicker_DateValidationError;
+                picker.Loaded += DatePicker_Loaded;
             }
 
             if (_clear != null)
@@ -362,22 +348,27 @@ namespace PlayniteAchievements.Views.Controls
                 _customChip.Click -= CustomChip_Click;
             }
 
-            if (_from != null)
+            foreach (var picker in new[] { _from, _to })
             {
-                _from.SelectedDateChanged -= DatePicker_SelectedDateChanged;
-                _from.DateValidationError -= DatePicker_DateValidationError;
+                if (picker == null)
+                {
+                    continue;
+                }
+
+                picker.SelectedDateChanged -= DatePicker_SelectedDateChanged;
+                picker.DateValidationError -= DatePicker_DateValidationError;
+                picker.Loaded -= DatePicker_Loaded;
             }
 
-            if (_to != null)
+            if (_fromTextBox != null)
             {
-                _to.SelectedDateChanged -= DatePicker_SelectedDateChanged;
-                _to.DateValidationError -= DatePicker_DateValidationError;
-                _to.Loaded -= ToPicker_Loaded;
+                _fromTextBox.TextChanged -= PickerTextBox_TextChanged;
+                _fromTextBox = null;
             }
 
             if (_toTextBox != null)
             {
-                _toTextBox.TextChanged -= ToTextBox_TextChanged;
+                _toTextBox.TextChanged -= PickerTextBox_TextChanged;
                 _toTextBox = null;
             }
 
@@ -425,13 +416,24 @@ namespace PlayniteAchievements.Views.Controls
 
             if (sender is TimeWindowPresetChip chip && chip.IsSelected)
             {
+                // A preset click ends any custom editing and folds the pickers away.
+                _customArmed = false;
                 ClearError();
-                Window = TimeWindow.FromPreset(chip.Preset);
+                var next = TimeWindow.FromPreset(chip.Preset);
+                if (Equals(next, Window))
+                {
+                    SyncFromWindow();
+                }
+                else
+                {
+                    Window = next;
+                }
             }
         }
 
         private void OnWindowChanged()
         {
+            _customArmed = false;
             SyncFromWindow();
             WindowChanged?.Invoke(this, EventArgs.Empty);
         }
@@ -463,41 +465,28 @@ namespace PlayniteAchievements.Views.Controls
                     }
                 }
 
+                var expanded = window.IsCustom || _customArmed;
                 if (_customChip != null)
                 {
-                    _customChip.IsChecked = window.IsCustom;
-                    _customChip.ToolTip = window.IsCustom && IsCompact
-                        ? TimeWindowText.Describe(window, MinDate)
-                        : null;
+                    _customChip.IsChecked = expanded;
                 }
 
-                if (window.IsCustom)
+                SetValue(IsCustomExpandedPropertyKey, expanded);
+
+                if (!_customArmed)
                 {
-                    IsCustomExpanded = true;
                     if (_from != null)
                     {
-                        _from.SelectedDate = window.From;
+                        _from.SelectedDate = window.IsCustom ? window.From : null;
                     }
 
                     if (_to != null)
                     {
-                        _to.SelectedDate = window.To;
-                    }
-                }
-                else
-                {
-                    if (_from != null)
-                    {
-                        _from.SelectedDate = null;
-                    }
-
-                    if (_to != null)
-                    {
-                        _to.SelectedDate = null;
+                        _to.SelectedDate = window.IsCustom ? window.To : null;
                     }
                 }
 
-                UpdateIsToBlank();
+                UpdateBlankMarkers();
             }
             finally
             {
@@ -525,55 +514,43 @@ namespace PlayniteAchievements.Views.Controls
 
         private void CustomChip_Click(object sender, RoutedEventArgs e)
         {
-            if (IsCompact)
-            {
-                // The chip only indicates; the dialog owns the editing. Restore its checked state.
-                var command = MoreCommand;
-                SyncFromWindow();
-                if (command != null && command.CanExecute(null))
-                {
-                    command.Execute(null);
-                }
-
-                return;
-            }
-
-            IsCustomExpanded = true;
             if (Window?.IsCustom == true)
             {
+                SyncFromWindow();
                 return;
             }
 
             // Prefill From with the preset's resolved start so the first edit freezes what the
             // user was looking at, but commit nothing until a date actually changes: clicking
             // Custom and walking away must not turn a rolling preset into a fixed range.
-            var range = (Window ?? TimeWindow.All).Resolve(DateTime.Today, MinDate);
+            var window = Window ?? TimeWindow.All;
+            var range = window.Resolve(DateTime.Today, MinDate);
+            _customArmed = true;
             _syncing = true;
             try
             {
                 if (_from != null)
                 {
-                    _from.SelectedDate = (Window ?? TimeWindow.All).IsUnbounded ? (DateTime?)null : range.Start;
+                    _from.SelectedDate = window.IsUnbounded ? (DateTime?)null : range.Start;
                 }
 
                 if (_to != null)
                 {
                     _to.SelectedDate = null;
                 }
-
-                UpdateIsToBlank();
             }
             finally
             {
                 _syncing = false;
             }
 
+            SyncFromWindow();
             _from?.Focus();
         }
 
         private void DatePicker_SelectedDateChanged(object sender, SelectionChangedEventArgs e)
         {
-            UpdateIsToBlank();
+            UpdateBlankMarkers();
             if (_syncing)
             {
                 return;
@@ -612,8 +589,16 @@ namespace PlayniteAchievements.Views.Controls
 
         private void Clear_Click(object sender, RoutedEventArgs e)
         {
+            _customArmed = false;
             ClearError();
-            Window = TimeWindow.All;
+            if (Equals(Window, TimeWindow.All))
+            {
+                SyncFromWindow();
+            }
+            else
+            {
+                Window = TimeWindow.All;
+            }
         }
 
         private void Granularity_SelectionChanged(object sender, SelectionChangedEventArgs e)
@@ -626,31 +611,42 @@ namespace PlayniteAchievements.Views.Controls
             Granularity = choice.Value;
         }
 
-        private void ToPicker_Loaded(object sender, RoutedEventArgs e)
+        // The plugin's DatePickerTextBox template has no watermark part, so the blank marker is
+        // our own overlay and must hide while the user types.
+        private void DatePicker_Loaded(object sender, RoutedEventArgs e)
         {
-            // The plugin's DatePickerTextBox template has no watermark part, so the "Until now"
-            // placeholder is our own and must hide while the user types.
-            if (_toTextBox != null || _to == null)
+            if (ReferenceEquals(sender, _from) && _fromTextBox == null)
             {
-                return;
+                _fromTextBox = _from.Template?.FindName("PART_TextBox", _from) as TextBox;
+                if (_fromTextBox != null)
+                {
+                    _fromTextBox.TextChanged += PickerTextBox_TextChanged;
+                }
+            }
+            else if (ReferenceEquals(sender, _to) && _toTextBox == null)
+            {
+                _toTextBox = _to.Template?.FindName("PART_TextBox", _to) as TextBox;
+                if (_toTextBox != null)
+                {
+                    _toTextBox.TextChanged += PickerTextBox_TextChanged;
+                }
             }
 
-            _toTextBox = _to.Template?.FindName("PART_TextBox", _to) as TextBox;
-            if (_toTextBox != null)
-            {
-                _toTextBox.TextChanged += ToTextBox_TextChanged;
-            }
-
-            UpdateIsToBlank();
+            UpdateBlankMarkers();
         }
 
-        private void ToTextBox_TextChanged(object sender, TextChangedEventArgs e) => UpdateIsToBlank();
+        private void PickerTextBox_TextChanged(object sender, TextChangedEventArgs e) => UpdateBlankMarkers();
 
-        private void UpdateIsToBlank()
+        private void UpdateBlankMarkers()
         {
-            var blank = _to == null ||
-                (!_to.SelectedDate.HasValue && string.IsNullOrEmpty(_toTextBox?.Text ?? _to.Text));
-            SetValue(IsToBlankPropertyKey, blank);
+            SetValue(IsFromBlankPropertyKey, IsBlank(_from, _fromTextBox));
+            SetValue(IsToBlankPropertyKey, IsBlank(_to, _toTextBox));
+        }
+
+        private static bool IsBlank(DatePicker picker, TextBox textBox)
+        {
+            return picker == null ||
+                (!picker.SelectedDate.HasValue && string.IsNullOrEmpty(textBox?.Text ?? picker.Text));
         }
 
         private void ApplyDateLimits()
