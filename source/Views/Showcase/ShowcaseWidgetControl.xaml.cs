@@ -215,13 +215,11 @@ namespace PlayniteAchievements.Views.Showcase
             if (string.IsNullOrWhiteSpace(custom))
             {
                 TitleText.Text = string.Empty;
-                GlyphText.Text = string.Empty;
                 HeaderBorder.Visibility = Visibility.Collapsed;
                 return;
             }
 
             TitleText.Text = custom;
-            GlyphText.Text = GetWidgetGlyph(_projection.Instance.Kind);
             HeaderBorder.Visibility = Visibility.Visible;
         }
 
@@ -443,8 +441,5 @@ namespace PlayniteAchievements.Views.Showcase
             block.SetResourceReference(TextBlock.ForegroundProperty, "PlayAch.Brush.Text");
             return block;
         }
-
-        private static string GetWidgetGlyph(ShowcaseWidgetKind kind) =>
-            ShowcaseWidgetCatalog.Get(kind).GlyphKey;
     }
 }
