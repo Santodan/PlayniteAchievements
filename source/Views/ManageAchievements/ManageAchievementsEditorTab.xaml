@@ -376,6 +376,9 @@
                                 Style="{StaticResource ToolbarButtonStyle}">
                             <Button.ContextMenu>
                                 <ContextMenu>
+                                    <MenuItem Header="{DynamicResource LOCPlayAch_ManageAchievements_Overrides_CustomDataHeader}"
+                                              Command="{Binding ExportAllCustomDataCommand}" />
+                                    <Separator />
                                     <MenuItem Header="{DynamicResource LOCPlayAch_ManageAchievements_Custom_ExportAchievements}"
                                               Command="{Binding ExportAchievementsCommand}" />
                                     <MenuItem Header="{DynamicResource LOCPlayAch_ManageAchievements_Custom_ExportTemplate}"
