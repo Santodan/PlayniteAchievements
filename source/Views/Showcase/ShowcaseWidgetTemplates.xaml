@@ -515,6 +515,7 @@
                 ExactUnlockedCount="{Binding Chart.ExactUnlockedCount}"
                 ExactTotalCount="{Binding Chart.ExactTotalCount}"
                 ShowCenterPercentage="{Binding Chart.ShowCenterPercentage}"
+                PieMargin="23"
                 MinHeight="70"/>
             <ItemsControl ItemsSource="{Binding LegendRows}"
                           VerticalAlignment="Center"
