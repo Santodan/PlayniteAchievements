@@ -25,7 +25,6 @@ namespace PlayniteAchievements.Views.Showcase
 
         private readonly ShowcaseWidgetInstanceSettings _sourceWidget;
         private readonly ShowcaseWidgetInstanceSettings _workingWidget;
-        private readonly ShowcaseSettings _layout;
         private readonly ShowcaseProfileSettings _workingProfile;
         private TextBox _titleBox;
         private TextBox _profileNameBox;
@@ -36,14 +35,11 @@ namespace PlayniteAchievements.Views.Showcase
         private IReadOnlyList<KeyValuePair<string, string>> _currentProfileNames = Array.Empty<KeyValuePair<string, string>>();
         private StackPanel _linksPanel;
 
-        private ShowcaseWidgetSettingsDialog(
-            ShowcaseWidgetInstanceSettings widget,
-            ShowcaseSettings layout)
+        private ShowcaseWidgetSettingsDialog(ShowcaseWidgetInstanceSettings widget)
         {
             _sourceWidget = widget ?? throw new ArgumentNullException(nameof(widget));
             _workingWidget = widget.Clone();
-            _layout = layout ?? throw new ArgumentNullException(nameof(layout));
-            _workingProfile = (layout.Profile ?? new ShowcaseProfileSettings()).Clone();
+            _workingProfile = (widget.Profile ?? new ShowcaseProfileSettings()).Clone();
             Resources.MergedDictionaries.Add(new ResourceDictionary
             {
                 Source = new Uri(
@@ -58,16 +54,14 @@ namespace PlayniteAchievements.Views.Showcase
 
         public bool Saved { get; private set; }
 
-        public static bool Show(
-            ShowcaseWidgetInstanceSettings widget,
-            ShowcaseSettings layout)
+        public static bool Show(ShowcaseWidgetInstanceSettings widget)
         {
-            if (widget == null || layout == null)
+            if (widget == null)
             {
                 return false;
             }
 
-            var editor = new ShowcaseWidgetSettingsDialog(widget, layout);
+            var editor = new ShowcaseWidgetSettingsDialog(widget);
             var title = string.Format(
                 FormattingCulture.Current,
                 Localize("LOCPlayAch_Showcase_WidgetSettingsTitle"),
@@ -424,17 +418,12 @@ namespace PlayniteAchievements.Views.Showcase
                 StringComparer.OrdinalIgnoreCase);
             if (_sourceWidget.Kind == ShowcaseWidgetKind.Profile)
             {
-                var profile = _layout.Profile ?? (_layout.Profile = new ShowcaseProfileSettings());
+                // Per widget, so the card on a duplicated page is edited on its own.
+                var profile = _sourceWidget.Profile ?? (_sourceWidget.Profile = new ShowcaseProfileSettings());
                 profile.DisplayName = _profileNameBox.Text?.Trim();
                 profile.Subtitle = _profileSubtitleBox.Text?.Trim();
-                profile.AvatarPath = ResolveManagedImage(
-                    _avatarBox.Text,
-                    _workingProfile.AvatarPath,
-                    "avatar");
-                profile.BackgroundPath = ResolveManagedImage(
-                    _backgroundBox.Text,
-                    _workingProfile.BackgroundPath,
-                    "background");
+                profile.AvatarPath = ResolveManagedImage(_avatarBox.Text, _workingProfile.AvatarPath);
+                profile.BackgroundPath = ResolveManagedImage(_backgroundBox.Text, _workingProfile.BackgroundPath);
                 profile.Links = CollectProfileLinks();
             }
 
@@ -442,7 +431,10 @@ namespace PlayniteAchievements.Views.Showcase
             Window.GetWindow(this)?.Close();
         }
 
-        private string ResolveManagedImage(string selectedPath, string originalPath, string slot)
+        // A newly picked file is copied into the showcase image store (content-addressed, so
+        // the stored name never changes meaning and needs no cache eviction). A copy that fails
+        // keeps the previous image rather than dropping it.
+        private static string ResolveManagedImage(string selectedPath, string originalPath)
         {
             var path = selectedPath?.Trim();
             if (string.IsNullOrWhiteSpace(path))
@@ -455,17 +447,8 @@ namespace PlayniteAchievements.Views.Showcase
                 return originalPath;
             }
 
-            var plugin = PlayniteAchievementsPlugin.Instance;
-            var imported = ManagedShowcaseImageService.Import(
-                path,
-                plugin?.GetPluginUserDataPath(),
-                slot);
-            if (!string.IsNullOrWhiteSpace(imported))
-            {
-                plugin?.ImageService?.EvictByUriSegment(imported);
-            }
-
-            return imported ?? originalPath;
+            var store = PlayniteAchievementsPlugin.Instance?.ShowcaseImageStore;
+            return store?.Import(path) ?? originalPath;
         }
 
         private static TextBox AddTextBox(
