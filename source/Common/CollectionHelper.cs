@@ -161,6 +161,93 @@ namespace PlayniteAchievements.Common
         }
 
         /// <summary>
+        /// The fresh list in its own order, with each row that has a match among
+        /// <paramref name="existing"/> replaced by that existing instance after
+        /// <paramref name="updateExisting"/> has brought it up to date. Rows without a match - new
+        /// items, or items with no key - are taken from the fresh list as they are, and existing
+        /// rows with no fresh counterpart are dropped.
+        /// </summary>
+        /// <remarks>
+        /// The keyed counterpart of <see cref="SynchronizeReferenceCollectionByPosition{T}"/>, for a
+        /// rebuild that should keep each row's identity rather than its slot: handing a grid new
+        /// instances for the same items tears down and re-realizes every container and drops what
+        /// the rows carried for the session. The result is a plain list, so the caller's own
+        /// <see cref="SynchronizeCollection{T}"/> then has only the items that came or went to move.
+        ///
+        /// Keys compare case-insensitively. A key held by several rows pairs them up in order, so
+        /// duplicates neither collapse onto one instance nor lose one.
+        /// </remarks>
+        public static List<T> MergeByKey<T>(
+            IReadOnlyList<T> existing,
+            IReadOnlyList<T> fresh,
+            Func<T, string> keySelector,
+            Action<T, T> updateExisting)
+            where T : class
+        {
+            if (keySelector == null)
+            {
+                throw new ArgumentNullException(nameof(keySelector));
+            }
+
+            if (updateExisting == null)
+            {
+                throw new ArgumentNullException(nameof(updateExisting));
+            }
+
+            var result = new List<T>(fresh?.Count ?? 0);
+            if (fresh == null)
+            {
+                return result;
+            }
+
+            var byKey = new Dictionary<string, Queue<T>>(StringComparer.OrdinalIgnoreCase);
+            if (existing != null)
+            {
+                for (var i = 0; i < existing.Count; i++)
+                {
+                    var row = existing[i];
+                    var key = row == null ? null : keySelector(row);
+                    if (string.IsNullOrWhiteSpace(key))
+                    {
+                        continue;
+                    }
+
+                    if (!byKey.TryGetValue(key, out var queue))
+                    {
+                        queue = new Queue<T>();
+                        byKey[key] = queue;
+                    }
+
+                    queue.Enqueue(row);
+                }
+            }
+
+            for (var i = 0; i < fresh.Count; i++)
+            {
+                var freshRow = fresh[i];
+                if (freshRow == null)
+                {
+                    continue;
+                }
+
+                var key = keySelector(freshRow);
+                if (!string.IsNullOrWhiteSpace(key) &&
+                    byKey.TryGetValue(key, out var queue) &&
+                    queue.Count > 0)
+                {
+                    var kept = queue.Dequeue();
+                    updateExisting(kept, freshRow);
+                    result.Add(kept);
+                    continue;
+                }
+
+                result.Add(freshRow);
+            }
+
+            return result;
+        }
+
+        /// <summary>
         /// Efficiently synchronizes a collection of value types.
         /// </summary>
         public static void SynchronizeValueCollection<T>(IList<T> collection, IList<T> source)
