@@ -856,7 +856,10 @@ namespace PlayniteAchievements.Views.ManageAchievements
                 includeProviderAchievements: true,
                 manualLinkApplier: ApplyManualLinkToCache,
                 showManualLinkDialog: ShowManualLinkDialog,
-                unlinkManualTracking: () => _viewModel.UnlinkManualTrackingCommand?.Execute(null));
+                unlinkManualTracking: () => _viewModel.UnlinkManualTrackingCommand?.Execute(null),
+                exportAllCustomData: _viewModel.ExportCustomCommand,
+                importPortable: (mergeCustomAchievements, beforeReplace) =>
+                    _viewModel.ImportPortable(mergeCustomAchievements, beforeReplace));
             _editorViewModel.CustomAchievementsSaved += CustomViewModel_CustomAchievementsSaved;
             _editorViewModel.AssignmentsChanged += EditorViewModel_CustomizationPersisted;
             _editorViewModel.IconOverridesSaved += EditorViewModel_IconOverridesSaved;
