@@ -57,6 +57,8 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         private readonly Action<Guid> _manualLinkApplier;
         private readonly Func<bool> _showManualLinkDialog;
         private readonly Action _unlinkManualTracking;
+        private readonly System.Windows.Input.ICommand _exportAllCustomData;
+        private readonly Action<Action<CustomAchievementTextImportResult>, Action> _importPortable;
         private bool _isRefreshingAssignments;
 
         private bool _isDetailsPaneExpanded = true;
@@ -135,7 +137,9 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             bool includeProviderAchievements = false,
             Action<Guid> manualLinkApplier = null,
             Func<bool> showManualLinkDialog = null,
-            Action unlinkManualTracking = null)
+            Action unlinkManualTracking = null,
+            System.Windows.Input.ICommand exportAllCustomData = null,
+            Action<Action<CustomAchievementTextImportResult>, Action> importPortable = null)
         {
             _includeProviderAchievements = includeProviderAchievements;
             _gameId = gameId;
@@ -152,6 +156,8 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             _manualLinkApplier = manualLinkApplier;
             _showManualLinkDialog = showManualLinkDialog;
             _unlinkManualTracking = unlinkManualTracking;
+            _exportAllCustomData = exportAllCustomData;
+            _importPortable = importPortable;
             if (_customProviderStore != null)
             {
                 _customProviderStore.Changed += CustomProviderStore_Changed;
@@ -200,9 +206,18 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             UnlinkManualTrackingCommand = new RelayCommand(
                 _ => UnlinkManualTracking(),
                 _ => IsManuallyTrackedGame && _unlinkManualTracking != null && !IsSaving);
-            ImportFileCommand = new RelayCommand(_ => ImportFile(), _ => !IsSaving);
+            ImportFileCommand = new RelayCommand(_ => ImportFile(), _ => _importPortable != null && !IsSaving);
             ExportTemplateCommand = new RelayCommand(_ => ExportTemplate(), _ => !IsSaving);
             ExportAchievementsCommand = new RelayCommand(_ => ExportAchievements(), _ => HasRows && !IsSaving);
+            // The whole-game export is the Overview tab's; its own gate says whether the game has
+            // anything to export, so its changes are relayed here.
+            ExportAllCustomDataCommand = new RelayCommand(
+                _ => _exportAllCustomData?.Execute(null),
+                _ => _exportAllCustomData?.CanExecute(null) == true && !IsSaving);
+            if (_exportAllCustomData != null)
+            {
+                _exportAllCustomData.CanExecuteChanged += ExportAllCustomData_CanExecuteChanged;
+            }
             ResetCommand = new RelayCommand(_ => ResetRows(), _ => HasRows && !IsSaving);
             ResetOrderCommand = new RelayCommand(_ => ResetOrder(), _ => HasCustomOrder && !IsSaving);
             AutoCapstoneCommand = new RelayCommand(_ => _ = ApplyAutoCapstoneAsync(), _ => HasRows && !IsSaving);
@@ -1097,6 +1112,8 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         public RelayCommand ExportTemplateCommand { get; }
 
         public RelayCommand ExportAchievementsCommand { get; }
+
+        public RelayCommand ExportAllCustomDataCommand { get; }
 
         /// <summary>
         /// Drops every customization this game carries -- the authored achievements, the
@@ -2192,6 +2209,12 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             if (_customProviderStore != null)
             {
                 _customProviderStore.Changed -= CustomProviderStore_Changed;
+            }
+
+            // The Overview view model's command outlives this tab when the editor is recreated.
+            if (_exportAllCustomData != null)
+            {
+                _exportAllCustomData.CanExecuteChanged -= ExportAllCustomData_CanExecuteChanged;
             }
 
             // A running DispatcherTimer is rooted by the dispatcher and holds its handler, so it
@@ -3313,29 +3336,18 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             _ = SaveAsync();
         }
 
+        // The game's one Import: a custom-achievements package merges into these rows, and a
+        // whole-game package replaces the custom data, which the history records as one step.
         private void ImportFile()
         {
-            var dialog = new OpenFileDialog
-            {
-                Filter = CustomAchievementsPackageFilter,
-                CheckFileExists = true,
-                Multiselect = false
-            };
+            _importPortable?.Invoke(
+                MergeImportedDefinitions,
+                () => MarkUndoIntent(EditorEditIntent.Atomic("Import", "LOCPlayAch_Common_Import")));
+        }
 
-            if (dialog.ShowDialog() != true)
-            {
-                return;
-            }
-
-            try
-            {
-                MergeImportedDefinitions(_gameCustomDataStore.ImportCustomAchievementsPackage(_gameId, dialog.FileName));
-            }
-            catch (Exception ex)
-            {
-                _logger?.Warn(ex, $"Failed importing custom achievements from '{dialog.FileName}' for gameId={_gameId}.");
-                SetStatus(string.Format(L("LOCPlayAch_Status_Failed", "Error: {0}"), ex.Message), true);
-            }
+        private void ExportAllCustomData_CanExecuteChanged(object sender, EventArgs e)
+        {
+            ExportAllCustomDataCommand?.RaiseCanExecuteChanged();
         }
 
         private void MergeImportedDefinitions(CustomAchievementTextImportResult result)
@@ -3391,12 +3403,12 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             _ = SaveAsync();
         }
 
-        private const string CustomAchievementsPackageFilter =
-            "Playnite Achievements Custom Achievements (*.pacustom)|*.pacustom";
+        private const string PortablePackageFilter =
+            "Playnite Achievements Portable (*.pa)|*.pa";
 
         private void ExportTemplate()
         {
-            ExportPackage("custom-achievements-template.pacustom", Array.Empty<CustomAchievementDefinition>(), "custom achievement template");
+            ExportPackage("custom-achievements-template.pa", Array.Empty<CustomAchievementDefinition>(), "custom achievement template");
         }
 
         private void ExportAchievements()
@@ -3409,7 +3421,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 return;
             }
 
-            ExportPackage("custom-achievements.pacustom", definitions, "custom achievements");
+            ExportPackage("custom-achievements.pa", definitions, "custom achievements");
         }
 
         private void ExportPackage(
@@ -3419,9 +3431,9 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         {
             var dialog = new SaveFileDialog
             {
-                Filter = CustomAchievementsPackageFilter,
+                Filter = PortablePackageFilter,
                 AddExtension = true,
-                DefaultExt = GameCustomDataStore.CustomAchievementsPackageFileExtension,
+                DefaultExt = GameCustomDataStore.PortableFileExtension,
                 FileName = defaultFileName,
                 OverwritePrompt = true
             };
@@ -3434,9 +3446,9 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             try
             {
                 var destinationPath = dialog.FileName;
-                if (!destinationPath.EndsWith(GameCustomDataStore.CustomAchievementsPackageFileExtension, StringComparison.OrdinalIgnoreCase))
+                if (!destinationPath.EndsWith(GameCustomDataStore.PortableFileExtension, StringComparison.OrdinalIgnoreCase))
                 {
-                    destinationPath += GameCustomDataStore.CustomAchievementsPackageFileExtension;
+                    destinationPath += GameCustomDataStore.PortableFileExtension;
                 }
 
                 _gameCustomDataStore.ExportCustomAchievementsPackage(_gameId, definitions, destinationPath);
@@ -6506,6 +6518,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             ImportFileCommand.RaiseCanExecuteChanged();
             ExportTemplateCommand.RaiseCanExecuteChanged();
             ExportAchievementsCommand.RaiseCanExecuteChanged();
+            ExportAllCustomDataCommand.RaiseCanExecuteChanged();
             ResetCommand.RaiseCanExecuteChanged();
             ResetOrderCommand.RaiseCanExecuteChanged();
             AutoCapstoneCommand.RaiseCanExecuteChanged();
