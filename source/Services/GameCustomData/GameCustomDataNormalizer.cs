@@ -8,6 +8,7 @@ using PlayniteAchievements.Services.Achievements;
 using System;
 using System.Collections.Generic;
 using System.Globalization;
+using System.Linq;
 
 namespace PlayniteAchievements.Services.GameCustomData
 {
@@ -97,6 +98,7 @@ namespace PlayniteAchievements.Services.GameCustomData
             normalized.ManualLink = NormalizeManualLink(normalized.ManualLink);
             normalized.CustomAchievements = NormalizeCustomAchievements(normalized.CustomAchievements);
             normalized.CustomProviderId = NormalizeCustomProviderId(normalized.CustomProviderId, normalized.CustomAchievements);
+            PruneOrphanedCustomAchievementReferences(normalized);
             return normalized;
         }
 
@@ -152,6 +154,7 @@ namespace PlayniteAchievements.Services.GameCustomData
             normalized.CustomAchievements = NormalizeCustomAchievements(normalized.CustomAchievements);
             normalized.CustomProviderId = NormalizeCustomProviderId(normalized.CustomProviderId, normalized.CustomAchievements);
             normalized.CustomProvider = NormalizeCustomProviderSnapshot(normalized.CustomProvider, normalized.CustomProviderId);
+            PruneOrphanedCustomAchievementReferences(normalized);
             return normalized;
         }
 
@@ -1327,6 +1330,110 @@ namespace PlayniteAchievements.Services.GameCustomData
             }
 
             return normalized.Count > 0 ? normalized : null;
+        }
+
+        /// <summary>
+        /// Drops every ApiName-keyed reference to an authored achievement the file no longer
+        /// defines: its capstone entry, order slot, goal, filters, and per-achievement overrides.
+        /// </summary>
+        /// <remarks>
+        /// An authored achievement exists only through its definition, so a reference to a
+        /// <c>custom:</c> ApiName without one can never resolve. Deleting an achievement rewrote the
+        /// definition list and left the references behind, where the resolvers hid them until a
+        /// new achievement was generated with the same ID and inherited them, capstone included.
+        /// Provider ApiNames are left alone: a provider achievement can be absent from a refresh
+        /// and come back.
+        /// </remarks>
+        private static void PruneOrphanedCustomAchievementReferences(GameCustomDataFile data)
+        {
+            var live = CollectCustomApiNames(data.CustomAchievements);
+            data.Capstones = PruneCapstones(data.Capstones, live);
+            data.AchievementOrder = PruneApiNameList(data.AchievementOrder, live);
+            data.FilteredAchievementApiNames = PruneApiNameList(data.FilteredAchievementApiNames, live);
+            data.SummaryFilteredAchievementApiNames = PruneApiNameList(data.SummaryFilteredAchievementApiNames, live);
+            data.GoalAchievementApiNames = PruneApiNameList(data.GoalAchievementApiNames, live);
+            data.AchievementOverrides = PruneApiNameMap(data.AchievementOverrides, live);
+            data.AchievementCategoryOverrides = PruneApiNameMap(data.AchievementCategoryOverrides, live);
+            data.AchievementCategoryTypeOverrides = PruneApiNameMap(data.AchievementCategoryTypeOverrides, live);
+            data.AchievementNotes = PruneApiNameMap(data.AchievementNotes, live);
+            data.AchievementUnlockedIconOverrides = PruneApiNameMap(data.AchievementUnlockedIconOverrides, live);
+            data.AchievementLockedIconOverrides = PruneApiNameMap(data.AchievementLockedIconOverrides, live);
+        }
+
+        private static void PruneOrphanedCustomAchievementReferences(GameCustomDataPortableFile data)
+        {
+            var live = CollectCustomApiNames(data.CustomAchievements);
+            data.Capstones = PruneCapstones(data.Capstones, live);
+            data.AchievementOrder = PruneApiNameList(data.AchievementOrder, live);
+            data.FilteredAchievementApiNames = PruneApiNameList(data.FilteredAchievementApiNames, live);
+            data.SummaryFilteredAchievementApiNames = PruneApiNameList(data.SummaryFilteredAchievementApiNames, live);
+            data.GoalAchievementApiNames = PruneApiNameList(data.GoalAchievementApiNames, live);
+            data.AchievementOverrides = PruneApiNameMap(data.AchievementOverrides, live);
+            data.AchievementCategoryOverrides = PruneApiNameMap(data.AchievementCategoryOverrides, live);
+            data.AchievementCategoryTypeOverrides = PruneApiNameMap(data.AchievementCategoryTypeOverrides, live);
+            data.AchievementNotes = PruneApiNameMap(data.AchievementNotes, live);
+            data.AchievementUnlockedIconOverrides = PruneApiNameMap(data.AchievementUnlockedIconOverrides, live);
+            data.AchievementLockedIconOverrides = PruneApiNameMap(data.AchievementLockedIconOverrides, live);
+        }
+
+        private static HashSet<string> CollectCustomApiNames(IEnumerable<CustomAchievementDefinition> definitions)
+        {
+            var live = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var definition in definitions ?? Enumerable.Empty<CustomAchievementDefinition>())
+            {
+                var apiName = CustomAchievementProjectionService.BuildApiName(definition?.Id);
+                if (!string.IsNullOrWhiteSpace(apiName))
+                {
+                    live.Add(apiName);
+                }
+            }
+
+            return live;
+        }
+
+        private static bool IsOrphanedCustomApiName(string apiName, HashSet<string> live)
+        {
+            return CustomAchievementProjectionService.IsCustomApiName(apiName) &&
+                   !live.Contains(apiName.Trim());
+        }
+
+        private static List<CapstoneAssignment> PruneCapstones(List<CapstoneAssignment> assignments, HashSet<string> live)
+        {
+            if (assignments == null)
+            {
+                return null;
+            }
+
+            assignments.RemoveAll(assignment => IsOrphanedCustomApiName(assignment?.ApiName, live));
+            return assignments.Count > 0 ? assignments : null;
+        }
+
+        private static List<string> PruneApiNameList(List<string> apiNames, HashSet<string> live)
+        {
+            if (apiNames == null)
+            {
+                return null;
+            }
+
+            apiNames.RemoveAll(apiName => IsOrphanedCustomApiName(apiName, live));
+            return apiNames.Count > 0 ? apiNames : null;
+        }
+
+        private static Dictionary<string, TValue> PruneApiNameMap<TValue>(
+            Dictionary<string, TValue> map,
+            HashSet<string> live)
+        {
+            if (map == null)
+            {
+                return null;
+            }
+
+            foreach (var key in map.Keys.Where(key => IsOrphanedCustomApiName(key, live)).ToList())
+            {
+                map.Remove(key);
+            }
+
+            return map.Count > 0 ? map : null;
         }
 
         private static List<CustomAchievementDefinition> NormalizeCustomAchievements(
