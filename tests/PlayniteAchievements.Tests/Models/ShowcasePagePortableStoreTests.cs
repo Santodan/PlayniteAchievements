@@ -92,10 +92,22 @@ namespace PlayniteAchievements.Tests.Models
         }
 
         [TestMethod]
-        public void Export_StripsPinsControlBarStateAndProfileData()
+        public void Export_StripsPinsControlBarStateAndProfileIdentity()
         {
             var (settings, grids, page, recent, _) = BuildSource();
-            settings.Profile.DisplayName = "Secret Name";
+            var background = Path.Combine(_tempDirectory, "banner.png");
+            File.WriteAllBytes(background, new byte[] { 1, 2, 3, 4 });
+            var profile = AddProfile(settings, page, new ShowcaseProfileSettings
+            {
+                DisplayName = "Secret Name",
+                Subtitle = "Secret Subtitle",
+                AvatarPath = Path.Combine(_tempDirectory, "avatar.png"),
+                BackgroundPath = background,
+                Links = new List<ShowcaseProfileLink>
+                {
+                    new ShowcaseProfileLink { ProviderKey = "Steam", Value = "secret-user" }
+                }
+            });
             settings.GamePinCollections.Add(new PinnedGameCollection
             {
                 CollectionId = "mine",
@@ -112,8 +124,108 @@ namespace PlayniteAchievements.Tests.Models
             Assert.IsFalse(exportedRecent.Options.Keys.Any(key => key.StartsWith("ControlBar.")));
             Assert.AreEqual("custom-pins", ShowcaseWidgetOptions.GetPinCollectionId(recent), "source untouched");
 
+            var exportedProfile = portable.Widgets.Single(w => w.Kind == ShowcaseWidgetKind.Profile).Profile;
+            Assert.AreEqual("images/banner.png", exportedProfile.BackgroundPath);
+            Assert.IsNull(exportedProfile.DisplayName);
+            Assert.IsNull(exportedProfile.AvatarPath);
+            Assert.IsNull(exportedProfile.Links);
+            Assert.AreEqual(background, portable.BundledImages["images/banner.png"]);
+            Assert.AreEqual(background, profile.Profile.BackgroundPath, "source untouched");
+
             var json = ReadManifest(path);
-            StringAssert.DoesNotMatch(json, new System.Text.RegularExpressions.Regex(@"Secret Name|custom-pins|zelda|ControlBar\.|GameIds|""Profile"""));
+            StringAssert.DoesNotMatch(json, new System.Text.RegularExpressions.Regex(
+                @"Secret Name|Secret Subtitle|secret-user|avatar\.png|custom-pins|zelda|ControlBar\.|GameIds"));
+            StringAssert.Contains(json, "images/banner.png");
+            using (var archive = ZipFile.OpenRead(path))
+            {
+                Assert.IsNotNull(archive.GetEntry("images/banner.png"));
+                Assert.AreEqual(4, archive.GetEntry("images/banner.png").Length);
+            }
+        }
+
+        [TestMethod]
+        public void Export_DropsAProfileBackgroundWhoseFileIsGone()
+        {
+            var (settings, grids, page, _, _) = BuildSource();
+            AddProfile(settings, page, new ShowcaseProfileSettings
+            {
+                BackgroundPath = Path.Combine(_tempDirectory, "missing.png")
+            });
+
+            var portable = ShowcasePagePortableStore.BuildPortable(settings, grids, page.PageId);
+
+            Assert.IsNull(portable.Widgets.Single(w => w.Kind == ShowcaseWidgetKind.Profile).Profile.BackgroundPath);
+            Assert.AreEqual(0, portable.BundledImages.Count);
+        }
+
+        [TestMethod]
+        public void RoundTrip_StoresTheBundledBackgroundThroughTheCallback()
+        {
+            var (settings, grids, page, _, _) = BuildSource();
+            var background = Path.Combine(_tempDirectory, "banner.png");
+            File.WriteAllBytes(background, new byte[] { 9, 8, 7 });
+            AddProfile(settings, page, new ShowcaseProfileSettings { BackgroundPath = background });
+            var path = Path.Combine(_tempDirectory, "page.pashowcase");
+            ShowcasePagePortableStore.Write(
+                path,
+                ShowcasePagePortableStore.BuildPortable(settings, grids, page.PageId));
+
+            var portable = ShowcasePagePortableStore.Read(path);
+            string extracted = portable.BundledImages["images/banner.png"];
+            Assert.IsTrue(File.Exists(extracted));
+            Assert.IsTrue(extracted.StartsWith(portable.ExtractedDirectory, StringComparison.OrdinalIgnoreCase));
+            CollectionAssert.AreEqual(new byte[] { 9, 8, 7 }, File.ReadAllBytes(extracted));
+
+            string handed = null;
+            var imported = ShowcasePagePortableStore.ApplyPortable(
+                settings,
+                grids,
+                portable,
+                page.PageId,
+                file =>
+                {
+                    handed = file;
+                    return @"C:\store\abc.png";
+                });
+            ShowcasePagePortableStore.DeleteExtractedImages(portable);
+
+            Assert.AreEqual(extracted, handed);
+            Assert.AreEqual(@"C:\store\abc.png", WidgetOf(settings, imported, ShowcaseWidgetKind.Profile).Profile.BackgroundPath);
+            Assert.IsFalse(Directory.Exists(Path.GetDirectoryName(extracted)));
+            Assert.IsNull(portable.ExtractedDirectory);
+        }
+
+        [TestMethod]
+        public void Import_DropsABackgroundWithoutAnEntryOrWithoutAStore()
+        {
+            var (settings, grids, page, _, _) = BuildSource();
+            var background = Path.Combine(_tempDirectory, "banner.png");
+            File.WriteAllBytes(background, new byte[] { 1 });
+            AddProfile(settings, page, new ShowcaseProfileSettings { BackgroundPath = background });
+
+            var portable = ShowcasePagePortableStore.BuildPortable(settings, grids, page.PageId);
+            var withoutStore = ShowcasePagePortableStore.ApplyPortable(settings, grids, portable, page.PageId);
+            Assert.IsNull(WidgetOf(settings, withoutStore, ShowcaseWidgetKind.Profile).Profile.BackgroundPath);
+
+            portable = ShowcasePagePortableStore.BuildPortable(settings, grids, page.PageId);
+            portable.BundledImages.Clear();
+            var withoutEntry = ShowcasePagePortableStore.ApplyPortable(
+                settings, grids, portable, page.PageId, file => file);
+            Assert.IsNull(WidgetOf(settings, withoutEntry, ShowcaseWidgetKind.Profile).Profile.BackgroundPath);
+        }
+
+        [TestMethod]
+        public void Read_RejectsABundledImagePathThatEscapesTheImagesFolder()
+        {
+            var (settings, grids, page, _, _) = BuildSource();
+            AddProfile(settings, page, new ShowcaseProfileSettings { BackgroundPath = "x" });
+            var portable = ShowcasePagePortableStore.BuildPortable(settings, grids, page.PageId);
+            portable.Widgets.Single(w => w.Kind == ShowcaseWidgetKind.Profile).Profile.BackgroundPath =
+                "images/../evil.png";
+            var path = Path.Combine(_tempDirectory, "evil.pashowcase");
+            WriteRawManifest(path, Newtonsoft.Json.JsonConvert.SerializeObject(portable));
+
+            Assert.ThrowsException<InvalidOperationException>(() => ShowcasePagePortableStore.Read(path));
         }
 
         [TestMethod]
@@ -252,6 +364,22 @@ namespace PlayniteAchievements.Tests.Models
             // Drop the pages AddPage's default settings may have seeded, keeping only this one.
             settings.Pages.RemoveAll(candidate => candidate != page);
             return (settings, grids, page, recent, games);
+        }
+
+        // Places a profile card with the given data on the page's fourth block.
+        private static ShowcaseWidgetInstanceSettings AddProfile(
+            ShowcaseSettings settings,
+            ShowcasePageSettings page,
+            ShowcaseProfileSettings profile)
+        {
+            var widget = ShowcaseLayoutService.CreateWidget(settings, ShowcaseWidgetKind.Profile);
+            widget.Profile = profile;
+            var block = page.Blocks
+                .OrderBy(candidate => candidate.Row)
+                .ThenBy(candidate => candidate.Column)
+                .First(candidate => candidate.WidgetInstanceId == null);
+            Assert.IsTrue(ShowcaseLayoutService.PlaceWidget(settings, page.PageId, block.BlockId, widget.InstanceId));
+            return widget;
         }
 
         private static ShowcaseWidgetInstanceSettings WidgetOf(
