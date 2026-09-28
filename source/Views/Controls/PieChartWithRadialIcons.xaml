@@ -20,7 +20,7 @@
                       UseLayoutRounding="True"
                       LegendLocation="None"
                       InnerRadius="30"
-                      Margin="14"
+                      Margin="20"
                       DisableAnimations="True"
                       Hoverable="True"
                       HoverPushOut="0"
