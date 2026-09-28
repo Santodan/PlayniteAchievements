@@ -53,6 +53,11 @@ namespace PlayniteAchievements.Services.Achievements
             return string.IsNullOrWhiteSpace(normalized) ? null : normalized;
         }
 
+        /// <summary>
+        /// Folds a note onto one line by collapsing runs of whitespace, line breaks included. The
+        /// inline markup is kept: the editor renders the preview through the same formatter as
+        /// the other grids, so stripping it here showed the note plain there alone.
+        /// </summary>
         public static string GetPreviewText(string value, int maxLength = 180)
         {
             var note = NormalizeNote(value);
@@ -61,10 +66,7 @@ namespace PlayniteAchievements.Services.Achievements
                 return string.Empty;
             }
 
-            var text = note
-                .Replace("**", string.Empty)
-                .Replace("__", string.Empty)
-                .Replace("*", string.Empty);
+            var text = note;
 
             var buffer = new List<char>(text.Length);
             var previousWasWhitespace = false;
