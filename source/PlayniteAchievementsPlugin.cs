@@ -86,6 +86,7 @@ namespace PlayniteAchievements
         private readonly ManagedCustomIconService _managedCustomIconService;
         private readonly NotificationImageStore _notificationImageStore;
         private readonly FallbackIconStore _fallbackIconStore;
+        private readonly ShowcaseImageStore _showcaseImageStore;
         private NotificationStylePortableStore _notificationStylePortableStore;
         private NotificationStylePresetStore _notificationStylePresetStore;
         private readonly NotificationPublisher _notifications;
@@ -186,6 +187,7 @@ namespace PlayniteAchievements
         public ICacheManager CacheManager => _cacheManager;
         public NotificationImageStore NotificationImageStore => _notificationImageStore;
         public FallbackIconStore FallbackIconStore => _fallbackIconStore;
+        public ShowcaseImageStore ShowcaseImageStore => _showcaseImageStore;
         public NotificationStylePortableStore NotificationStylePortableStore =>
             _notificationStylePortableStore ?? (_notificationStylePortableStore =
                 new NotificationStylePortableStore(_notificationImageStore, _logger));
@@ -358,6 +360,25 @@ namespace PlayniteAchievements
             catch (Exception ex)
             {
                 _logger?.Debug(ex, "Applying unlock sound settings failed.");
+            }
+        }
+
+        // Profile widget images picked before the content-addressed store existed (raw paths, or
+        // the old fixed avatar/background slots) are copied in once at startup; the rewritten
+        // paths are saved so the copy never repeats.
+        private void MigrateShowcaseImages()
+        {
+            try
+            {
+                var showcase = _settingsViewModel?.Settings?.Persisted?.Showcase;
+                if (showcase != null && _showcaseImageStore.MigrateAndPrune(showcase))
+                {
+                    SavePluginSettings(_settingsViewModel.Settings);
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger?.Debug(ex, "Migrating showcase images failed.");
             }
         }
 
@@ -587,6 +608,8 @@ namespace PlayniteAchievements
                             .ResolveCategoryArtDisplayPath(storedValue, gameId, displayMode);
                     _notificationImageStore = new NotificationImageStore(_diskImageService, _logger);
                     _fallbackIconStore = new FallbackIconStore(_diskImageService, _logger);
+                    _showcaseImageStore = new ShowcaseImageStore(pluginUserDataPath, _logger);
+                    MigrateShowcaseImages();
                     // Read through Settings.Persisted on every call: the settings dialog mutates the
                     // live instance and CancelEdit replaces it wholesale.
                     AchievementIconResolver.LockedFallbackPathAccessor =
