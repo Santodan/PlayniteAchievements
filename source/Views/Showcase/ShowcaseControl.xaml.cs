@@ -273,7 +273,6 @@ namespace PlayniteAchievements.Views.Showcase
                     new ColumnDefinition { Width = new GridLength(columnWeights[index], GridUnitType.Star) });
             }
 
-            var snapshot = _overview.LatestSnapshot ?? new OverviewDataSnapshot();
             if (EditLayoutButton.IsChecked == true &&
                 !CurrentPage.Blocks.Any(block => string.Equals(
                     block.BlockId,
@@ -285,7 +284,7 @@ namespace PlayniteAchievements.Views.Showcase
 
             foreach (var block in CurrentPage.Blocks)
             {
-                var container = CreateBlockContainer(block, snapshot);
+                var container = CreateBlockContainer(block);
                 Grid.SetRow(container, block.Row);
                 Grid.SetColumn(container, block.Column);
                 Grid.SetRowSpan(container, block.RowSpan);
@@ -1559,9 +1558,7 @@ namespace PlayniteAchievements.Views.Showcase
             }
         }
 
-        private FrameworkElement CreateBlockContainer(
-            ShowcaseBlockSettings block,
-            OverviewDataSnapshot snapshot)
+        private FrameworkElement CreateBlockContainer(ShowcaseBlockSettings block)
         {
             // The container never changes BorderThickness or Padding: edit-mode chrome is drawn
             // by an overlay layer so toggling edit mode cannot shift the widget layout.
@@ -1774,10 +1771,7 @@ namespace PlayniteAchievements.Views.Showcase
                         return;
                     }
 
-                    ApplyWidgetProjection(
-                        host,
-                        widget,
-                        _overview.LatestSnapshot ?? new OverviewDataSnapshot());
+                    ApplyWidgetProjection(host, widget, _overview.LatestSnapshot);
                 }),
                 System.Windows.Threading.DispatcherPriority.Background);
             return host;
@@ -1788,11 +1782,23 @@ namespace PlayniteAchievements.Views.Showcase
         // chart plotting all run in the layout pass that follows, so a scope around Apply alone
         // would under-report. With tracing on, layout is forced here so the per-widget number
         // covers the whole cost; shipped builds leave layout to the dispatcher as before.
+        //
+        // A null snapshot means the overview has not produced one yet (a fresh open, before
+        // RefreshViewAsync lands). Projecting against an empty stand-in would build a "No data"
+        // body per widget only for SnapshotChanged to rebuild every one of them moments later,
+        // so the host shows a loading caption instead and the snapshot pass does the first
+        // real projection.
         private void ApplyWidgetProjection(
             ShowcaseWidgetControl host,
             ShowcaseWidgetInstanceSettings widget,
             OverviewDataSnapshot snapshot)
         {
+            if (snapshot == null)
+            {
+                host.ShowLoadingPlaceholder();
+                return;
+            }
+
             var context = $"kind={widget?.Kind} id={widget?.InstanceId}";
             ShowcaseWidgetProjection projection;
             using (var build = PerfScope.Start(Logger, "Showcase.Widget.Build", thresholdMs: 10, context: context))
@@ -2422,7 +2428,6 @@ namespace PlayniteAchievements.Views.Showcase
                 _selectedBlockId = blocks.FirstOrDefault()?.BlockId;
             }
 
-            var snapshot = _overview.LatestSnapshot ?? new OverviewDataSnapshot();
             foreach (var block in blocks)
             {
                 if (_blockVisuals.TryGetValue(block.BlockId, out var existing))
@@ -2441,8 +2446,7 @@ namespace PlayniteAchievements.Views.Showcase
                             Column = block.Column,
                             RowSpan = block.RowSpan,
                             ColumnSpan = block.ColumnSpan
-                        },
-                        snapshot);
+                        });
                     created.Tag = block;
                     _blockVisuals[block.BlockId].Block = block;
                     // Below the ZIndex'd overlays either way; first keeps child order stable.
@@ -2745,7 +2749,7 @@ namespace PlayniteAchievements.Views.Showcase
                 "Showcase.RefreshWidgetData",
                 thresholdMs: 30,
                 context: $"cached={includeCachedHosts} visible={_blockVisuals.Count} hosts={_hostCache.Count}");
-            var snapshot = _overview.LatestSnapshot ?? new OverviewDataSnapshot();
+            var snapshot = _overview.LatestSnapshot;
             var applied = new HashSet<ShowcaseWidgetControl>();
             foreach (var visual in _blockVisuals.Values)
             {
@@ -3194,11 +3198,7 @@ namespace PlayniteAchievements.Views.Showcase
                 return;
             }
 
-            host.Apply(ShowcaseWidgetProjectionService.Build(
-                _overview.LatestSnapshot ?? new OverviewDataSnapshot(),
-                Layout,
-                widget,
-                gridOptions: _settings.Persisted?.GridOptions));
+            ApplyWidgetProjection(host, widget, _overview.LatestSnapshot);
         }
 
         // Captures the current page as it renders on screen and saves it as a PNG the user
