@@ -114,7 +114,10 @@ namespace PlayniteAchievements.Views
             FriendsOverviewDataCoordinator friendsOverviewDataCoordinator = null,
             Func<Services.Widgets.WidgetDataCoordinator> widgetCoordinatorAccessor = null)
         {
-            InitializeComponent();
+            using (Common.PerfScope.Start(logger, "OverviewControl.InitializeComponent", thresholdMs: 30))
+            {
+                InitializeComponent();
+            }
 
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
             _settings = settings;
@@ -143,19 +146,23 @@ namespace PlayniteAchievements.Views
             };
             _showcaseDatabaseRefreshTimer.Tick += ShowcaseDatabaseRefreshTimer_Tick;
 
-            _viewModel = new OverviewViewModel(
-                refreshRuntime,
-                _persistSettingsForUi,
-                _achievementDataService,
-                _libraryProjectionService,
-                gameCustomDataStore,
-                _refreshEntryPoint,
-                api,
-                logger,
-                settings,
-                launchContext,
-                _friendCache,
-                widgetCoordinatorAccessor);
+            using (Common.PerfScope.Start(logger, "OverviewViewModel.Ctor", thresholdMs: 30))
+            {
+                _viewModel = new OverviewViewModel(
+                    refreshRuntime,
+                    _persistSettingsForUi,
+                    _achievementDataService,
+                    _libraryProjectionService,
+                    gameCustomDataStore,
+                    _refreshEntryPoint,
+                    api,
+                    logger,
+                    settings,
+                    launchContext,
+                    _friendCache,
+                    widgetCoordinatorAccessor);
+            }
+
             DataContext = _viewModel;
             _viewModel.PropertyChanged += ViewModel_PropertyChanged;
             _viewModel.SetActive(false);
@@ -167,7 +174,12 @@ namespace PlayniteAchievements.Views
                 _lastSelectedSubView == OverviewSubView.Friends
                     ? OverviewSubView.Overview
                     : _lastSelectedSubView;
-            ApplyActiveSubView();
+            // Brackets the ShowcaseControl (or friends overview) construction when that sub-view
+            // is the one being restored.
+            using (Common.PerfScope.Start(logger, "OverviewControl.ApplyActiveSubView", thresholdMs: 30, context: ActiveSubView.ToString()))
+            {
+                ApplyActiveSubView();
+            }
             // Open/close is its own memory question, separate from refresh churn: if either of
             // these stays live after Dispose, the window's whole visual tree, view model, and
             // row set are still rooted and closing the overview cannot return memory.
@@ -402,6 +414,7 @@ namespace PlayniteAchievements.Views
         public void Dispose()
         {
             _isDisposed = true;
+            using var perf = Common.PerfScope.Start(_logger, "OverviewControl.Dispose", thresholdMs: 30);
             try
             {
                 Deactivate();
