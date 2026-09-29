@@ -432,8 +432,8 @@
 
     <!-- Header-edge chevron that shows or hides the control bar of the grid beneath a section
          header. Tag carries the grid's current ShowControlBar value: True draws the chevron
-         pointing up (click collapses), False pointing down (click expands). Mouse-only so a
-         click never pulls keyboard focus off the grid. -->
+         pointing down (bar shown, click collapses), False pointing right (bar hidden, click
+         expands). Mouse-only so a click never pulls keyboard focus off the grid. -->
     <Style x:Key="HeaderControlBarToggleStyle" TargetType="Button" BasedOn="{StaticResource ClearGameSelectionButtonStyle}">
         <Setter Property="ToolTip" Value="{DynamicResource LOCPlayAch_Settings_ShowGridControlBar}"/>
         <Setter Property="Focusable" Value="False"/>
@@ -458,7 +458,7 @@
                               VerticalAlignment="Center"
                               RenderTransformOrigin="0.5,0.5">
                             <Path.RenderTransform>
-                                <RotateTransform Angle="0"/>
+                                <RotateTransform Angle="-90"/>
                             </Path.RenderTransform>
                         </Path>
                     </Border>
@@ -466,7 +466,7 @@
                         <DataTrigger Binding="{Binding Tag, RelativeSource={RelativeSource Self}}" Value="True">
                             <Setter TargetName="Arrow" Property="RenderTransform">
                                 <Setter.Value>
-                                    <RotateTransform Angle="180"/>
+                                    <RotateTransform Angle="0"/>
                                 </Setter.Value>
                             </Setter>
                         </DataTrigger>
