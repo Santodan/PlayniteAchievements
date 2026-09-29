@@ -21,7 +21,7 @@ namespace PlayniteAchievements.Services.Showcase
         }
 
         /// <summary>Track weight bounds: no row or column can collapse or dominate the page.</summary>
-        public const double MinTrackWeight = 0.4;
+        public const double MinTrackWeight = 0.05;
         public const double MaxTrackWeight = 3.0;
 
         /// <summary>
