@@ -67,7 +67,7 @@ namespace PlayniteAchievements.Views.Showcase
                 return;
             }
 
-            if (TryResolveAchievement(source, out var item, out _))
+            if (TryResolveAchievement(source, out var item, out _, out _))
             {
                 // Reveal keeps priority only while the tile shows a cover (the hidden or the
                 // locked-icon one): that tile is left for the item control's own preview handler,
@@ -111,10 +111,13 @@ namespace PlayniteAchievements.Views.Showcase
 
             ContextMenu menu = null;
             FrameworkElement target = null;
-            if (TryResolveAchievement(source, out var item, out var itemControl))
+            if (TryResolveAchievement(source, out var item, out var itemControl, out var itemElement))
             {
                 menu = plugin.BuildStartPageRowContextMenu(item, owner, RefreshAfterRowOptionsChanged, itemControl);
-                target = itemControl;
+                // Always the element under the pointer: inside the calendar's day popup, the menu's
+                // placement target is what ties it to that popup, which otherwise closes when the
+                // menu takes mouse capture.
+                target = itemElement;
             }
             else if (TryResolveGameTile(source, out var tile, out var tileElement) && tile.GameId.HasValue)
             {
@@ -170,11 +173,13 @@ namespace PlayniteAchievements.Views.Showcase
         private static bool TryResolveAchievement(
             DependencyObject source,
             out AchievementDisplayItem item,
-            out AchievementCompactItemControl itemControl)
+            out AchievementCompactItemControl itemControl,
+            out FrameworkElement itemElement)
         {
             itemControl = source as AchievementCompactItemControl
                 ?? VisualTreeHelpers.FindVisualParent<AchievementCompactItemControl>(source);
             item = itemControl?.DataContext as AchievementDisplayItem;
+            itemElement = itemControl;
             if (item != null)
             {
                 return true;
@@ -184,6 +189,7 @@ namespace PlayniteAchievements.Views.Showcase
             var container = source as ListBoxItem
                 ?? VisualTreeHelpers.FindVisualParent<ListBoxItem>(source);
             item = container?.DataContext as AchievementDisplayItem;
+            itemElement = item != null ? container : null;
             return item != null;
         }
 
