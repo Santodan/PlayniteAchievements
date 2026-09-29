@@ -83,7 +83,80 @@ namespace PlayniteAchievements.ViewModels
                 _hasCounts = true;
             }
 
+            // A chart that has not drawn yet (one opened while the editor is up) draws now rather
+            // than sitting blank until the editor closes.
+            if (_hasScheduled && OpenEditorRegistry.IsAnyOpen)
+            {
+                DeferUntilEditorsClose();
+                return;
+            }
+
             ScheduleUpdate();
+        }
+
+        // Charts whose counts changed while a Manage editor was open. Every editor save re-feeds
+        // the counts of each chart on screen, and each pass ends in a forced synchronous redraw on
+        // the UI thread the editor is typing on, so the counts are kept and drawn once when the
+        // last editor closes. Weak, so a chart closed meanwhile is not kept alive.
+        private static readonly object DeferredSync = new object();
+        private static readonly List<WeakReference<TimelineViewModel>> Deferred =
+            new List<WeakReference<TimelineViewModel>>();
+        private bool _updateDeferred;
+        private volatile bool _hasScheduled;
+
+        static TimelineViewModel()
+        {
+            OpenEditorRegistry.AllClosed += FlushDeferred;
+        }
+
+        private void DeferUntilEditorsClose()
+        {
+            lock (DeferredSync)
+            {
+                if (!_updateDeferred)
+                {
+                    _updateDeferred = true;
+                    Deferred.Add(new WeakReference<TimelineViewModel>(this));
+                }
+            }
+
+            // The last editor may have closed between the check and the enqueue.
+            if (!OpenEditorRegistry.IsAnyOpen)
+            {
+                FlushDeferred();
+            }
+        }
+
+        private static void FlushDeferred()
+        {
+            List<WeakReference<TimelineViewModel>> pending;
+            lock (DeferredSync)
+            {
+                pending = new List<WeakReference<TimelineViewModel>>(Deferred);
+                Deferred.Clear();
+            }
+
+            foreach (var reference in pending)
+            {
+                if (!reference.TryGetTarget(out var timeline))
+                {
+                    continue;
+                }
+
+                bool stillDeferred;
+                lock (DeferredSync)
+                {
+                    stillDeferred = timeline._updateDeferred;
+                    timeline._updateDeferred = false;
+                }
+
+                // A window or granularity change made while the editor was open already drew
+                // the current counts.
+                if (stillDeferred)
+                {
+                    timeline.ScheduleUpdate();
+                }
+            }
         }
 
         private static bool HasSameCounts(Dictionary<DateTime, int> current, Dictionary<DateTime, int> next)
@@ -252,6 +325,12 @@ namespace PlayniteAchievements.ViewModels
 
         private void ScheduleUpdate()
         {
+            lock (DeferredSync)
+            {
+                _updateDeferred = false;
+            }
+
+            _hasScheduled = true;
             var version = Interlocked.Increment(ref _updateVersion);
 
             Dictionary<DateTime, int> counts;
