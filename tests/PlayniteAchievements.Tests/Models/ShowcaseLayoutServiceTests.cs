@@ -21,7 +21,7 @@ namespace PlayniteAchievements.Tests.Models
                 var page = ShowcaseLayoutService.AddPage(settings, template);
 
                 Assert.IsTrue(
-                    ShowcaseLayoutService.IsValidPartition(page.Blocks, page.GridSize),
+                    ShowcaseLayoutService.IsValidPartition(page.Blocks, page.RowCount, page.ColumnCount),
                     template.ToString());
                 Assert.IsFalse(page.Blocks
                     .Where(block => !string.IsNullOrWhiteSpace(block.WidgetInstanceId))
@@ -60,7 +60,7 @@ namespace PlayniteAchievements.Tests.Models
             Assert.AreEqual(5, collection.Pages.Single().Blocks.Count);
             Assert.IsTrue(ShowcaseLayoutService.IsValidPartition(
                 collection.Pages.Single().Blocks,
-                collection.Pages.Single().GridSize));
+                collection.Pages.Single().RowCount, collection.Pages.Single().ColumnCount));
 
             var none = ShowcaseLayoutService.CreateDefault(false, false);
             var scoreBlock = none.Pages.Single().Blocks.Single(block =>
@@ -79,7 +79,7 @@ namespace PlayniteAchievements.Tests.Models
             // so placing another widget on the right yields two occupied blocks.
             Assert.IsTrue(ShowcaseLayoutService.TrySplit(
                 settings, page.PageId, profileBlock.BlockId, vertical: true, gridLine: 2));
-            Assert.IsTrue(ShowcaseLayoutService.IsValidPartition(page.Blocks, page.GridSize));
+            Assert.IsTrue(ShowcaseLayoutService.IsValidPartition(page.Blocks, page.RowCount, page.ColumnCount));
 
             var left = page.Blocks.Single(block => block.Row == 0 && block.Column == 0);
             var right = page.Blocks.Single(block => block.Row == 0 && block.Column == 2);
@@ -91,7 +91,7 @@ namespace PlayniteAchievements.Tests.Models
             ShowcaseLayoutService.DeleteWidget(settings, extra.InstanceId);
             Assert.IsTrue(ShowcaseLayoutService.TryMerge(
                 settings, page.PageId, left.BlockId, right.BlockId));
-            Assert.IsTrue(ShowcaseLayoutService.IsValidPartition(page.Blocks, page.GridSize));
+            Assert.IsTrue(ShowcaseLayoutService.IsValidPartition(page.Blocks, page.RowCount, page.ColumnCount));
         }
 
         [TestMethod]
@@ -123,7 +123,7 @@ namespace PlayniteAchievements.Tests.Models
                 block.Row == 0 && block.Column == 0).WidgetInstanceId);
             Assert.AreEqual(scoreId, page.Blocks.Single(block =>
                 block.Row == 0 && block.Column == 1).WidgetInstanceId);
-            Assert.IsTrue(ShowcaseLayoutService.IsValidPartition(page.Blocks, page.GridSize));
+            Assert.IsTrue(ShowcaseLayoutService.IsValidPartition(page.Blocks, page.RowCount, page.ColumnCount));
         }
 
         [TestMethod]
@@ -151,7 +151,7 @@ namespace PlayniteAchievements.Tests.Models
 
             Assert.IsTrue(ShowcaseLayoutService.IsValidPartition(
                 settings.Pages.Single().Blocks,
-                settings.Pages.Single().GridSize));
+                settings.Pages.Single().RowCount, settings.Pages.Single().ColumnCount));
             Assert.AreEqual(6, settings.Pages.Single().Blocks.Count);
         }
 
@@ -160,10 +160,10 @@ namespace PlayniteAchievements.Tests.Models
         {
             CollectionAssert.AreEqual(
                 new[] { 1d, 1d, 1d },
-                ShowcaseLayoutService.NormalizeTrackWeights(null));
+                ShowcaseLayoutService.NormalizeTrackWeights(null, 3));
             CollectionAssert.AreEqual(
                 new[] { 1d, 1d, 1d },
-                ShowcaseLayoutService.NormalizeTrackWeights(new double[0]));
+                ShowcaseLayoutService.NormalizeTrackWeights(new double[0], 3));
             CollectionAssert.AreEqual(
                 new[]
                 {
@@ -171,10 +171,10 @@ namespace PlayniteAchievements.Tests.Models
                     ShowcaseLayoutService.MaxTrackWeight,
                     1d
                 },
-                ShowcaseLayoutService.NormalizeTrackWeights(new[] { 0.01, 99d, double.NaN }));
+                ShowcaseLayoutService.NormalizeTrackWeights(new[] { 0.01, 99d, double.NaN }, 3));
             CollectionAssert.AreEqual(
                 new[] { 0.5, 1.5, 1d },
-                ShowcaseLayoutService.NormalizeTrackWeights(new[] { 0.5, 1.5, 1d }));
+                ShowcaseLayoutService.NormalizeTrackWeights(new[] { 0.5, 1.5, 1d }, 3));
         }
 
         [TestMethod]
@@ -245,7 +245,7 @@ namespace PlayniteAchievements.Tests.Models
                 block.Row == 0 && block.Column == 0).WidgetInstanceId);
             Assert.IsFalse(settings.WidgetInstances.Any(widget =>
                 widget.InstanceId == remove.InstanceId));
-            Assert.IsTrue(ShowcaseLayoutService.IsValidPartition(page.Blocks, page.GridSize));
+            Assert.IsTrue(ShowcaseLayoutService.IsValidPartition(page.Blocks, page.RowCount, page.ColumnCount));
         }
 
         [TestMethod]
@@ -293,7 +293,7 @@ namespace PlayniteAchievements.Tests.Models
             Assert.AreEqual(survivor.InstanceId, merged.WidgetInstanceId);
             Assert.IsFalse(settings.WidgetInstances.Any(widget => widget.InstanceId == first.InstanceId));
             Assert.IsFalse(settings.WidgetInstances.Any(widget => widget.InstanceId == second.InstanceId));
-            Assert.IsTrue(ShowcaseLayoutService.IsValidPartition(page.Blocks, page.GridSize));
+            Assert.IsTrue(ShowcaseLayoutService.IsValidPartition(page.Blocks, page.RowCount, page.ColumnCount));
         }
 
         [TestMethod]
@@ -557,7 +557,7 @@ namespace PlayniteAchievements.Tests.Models
                 ShowcasePageTemplate.Collection));
             Assert.IsTrue(ShowcaseLayoutService.IsValidPartition(
                 settings.Pages[0].Blocks,
-                settings.Pages[0].GridSize));
+                settings.Pages[0].RowCount, settings.Pages[0].ColumnCount));
             Assert.IsFalse(settings.Pages[0].Blocks
                 .Where(block => !string.IsNullOrWhiteSpace(block.WidgetInstanceId))
                 .Select(block => settings.WidgetInstances.Single(widget =>
@@ -597,14 +597,14 @@ namespace PlayniteAchievements.Tests.Models
                 page.PageId,
                 topLeft.BlockId,
                 middleLeft.BlockId));
-            Assert.IsTrue(ShowcaseLayoutService.IsValidPartition(page.Blocks, page.GridSize));
+            Assert.IsTrue(ShowcaseLayoutService.IsValidPartition(page.Blocks, page.RowCount, page.ColumnCount));
             Assert.IsTrue(ShowcaseLayoutService.TrySplit(
                 settings,
                 page.PageId,
                 topLeft.BlockId,
                 vertical: false,
                 gridLine: 1));
-            Assert.IsTrue(ShowcaseLayoutService.IsValidPartition(page.Blocks, page.GridSize));
+            Assert.IsTrue(ShowcaseLayoutService.IsValidPartition(page.Blocks, page.RowCount, page.ColumnCount));
         }
 
         [TestMethod]
