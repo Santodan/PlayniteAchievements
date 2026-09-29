@@ -24,6 +24,24 @@ namespace PlayniteAchievements.Services.ThemeMigration
             { "PluginUserStats", "AchievementStats" },
             { "PluginViewItem", "AchievementViewItem" }
         };
+
+        /// <summary>
+        /// Maps LegacyData binding paths to Theme binding paths.
+        /// Keys are the legacy binding path suffixes, values are the modern binding path suffixes.
+        /// Full bindings are in format: {Binding LegacyData.XXX} -> {Binding Theme.YYY}
+        /// </summary>
+        public static readonly Dictionary<string, string> LegacyToModernBindingPaths = new Dictionary<string, string>
+        {
+            { "HasData", "HasAchievements" },
+            { "Total", "AchievementCount" },
+            { "Unlocked", "UnlockedCount" },
+            { "Percent", "ProgressPercentage" },
+            { "Is100Percent", "IsCompleted" },
+            { "Locked", "LockedCount" },
+            { "ListAchievements", "AllAchievements" },
+            { "ListAchUnlockDateAsc", "AchievementsOldestFirst" },
+            { "ListAchUnlockDateDesc", "AchievementsNewestFirst" }
+        };
     }
 }
 
