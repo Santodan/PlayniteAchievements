@@ -71,6 +71,110 @@ namespace PlayniteAchievements.Services.Friends
             return Array.Empty<FriendGameSummaryItem>();
         }
 
+        /// <summary>
+        /// The all-friends games grid restricted to favorite friends: one row per game at least
+        /// one favorite has data for, with the friend columns (count, unlocks, playtime, last
+        /// unlock, last played) computed over the favorites alone. Built on first use; the
+        /// projection is immutable, so the result is kept for its lifetime.
+        /// </summary>
+        public IReadOnlyList<FriendGameSummaryItem> FavoriteAggregateGames =>
+            _favoriteAggregateGames ?? (_favoriteAggregateGames = BuildFavoriteAggregateGames());
+
+        private List<FriendGameSummaryItem> _favoriteAggregateGames;
+
+        private List<FriendGameSummaryItem> BuildFavoriteAggregateGames()
+        {
+            var favoriteKeys = new HashSet<string>(
+                _friends.Where(friend => friend?.IsFavorite == true).Select(GetFriendScopeKey)
+                    .Where(key => !string.IsNullOrWhiteSpace(key)),
+                StringComparer.OrdinalIgnoreCase);
+            var result = new List<FriendGameSummaryItem>();
+            if (favoriteKeys.Count == 0)
+            {
+                return result;
+            }
+
+            var achievementsByGame = new Dictionary<string, List<FriendAchievementDisplayItem>>(StringComparer.OrdinalIgnoreCase);
+            foreach (var achievement in _allAchievements)
+            {
+                if (achievement == null || !favoriteKeys.Contains(GetFriendScopeKey(achievement)))
+                {
+                    continue;
+                }
+
+                var gameKey = BuildGameUnlockKey(achievement.ProviderKey, achievement.ProviderGameKey, achievement.AppId, achievement.PlayniteGameId);
+                if (string.IsNullOrWhiteSpace(gameKey))
+                {
+                    continue;
+                }
+
+                if (!achievementsByGame.TryGetValue(gameKey, out var rows))
+                {
+                    rows = new List<FriendAchievementDisplayItem>();
+                    achievementsByGame[gameKey] = rows;
+                }
+
+                rows.Add(achievement);
+            }
+
+            // One link per friend and game, as the per-friend rows take it.
+            var linksByGame = new Dictionary<string, List<FriendGameLinkItem>>(StringComparer.OrdinalIgnoreCase);
+            var seenFriendGameKeys = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var link in _friendGameLinks)
+            {
+                if (link == null || !favoriteKeys.Contains(GetFriendScopeKey(link)))
+                {
+                    continue;
+                }
+
+                var friendGameKey = BuildFriendGameUnlockKey(
+                    GetFriendProviderKey(link),
+                    GetFriendExternalUserId(link),
+                    link.ProviderGameKey,
+                    link.AppId,
+                    link.PlayniteGameId);
+                var gameKey = BuildGameUnlockKey(link.ProviderKey, link.ProviderGameKey, link.AppId, link.PlayniteGameId);
+                if (string.IsNullOrWhiteSpace(friendGameKey) ||
+                    string.IsNullOrWhiteSpace(gameKey) ||
+                    !seenFriendGameKeys.Add(friendGameKey))
+                {
+                    continue;
+                }
+
+                if (!linksByGame.TryGetValue(gameKey, out var links))
+                {
+                    links = new List<FriendGameLinkItem>();
+                    linksByGame[gameKey] = links;
+                }
+
+                links.Add(link);
+            }
+
+            // Aggregate order, so the favorites view sorts and scrolls like the full one.
+            foreach (var game in _aggregateGames)
+            {
+                var gameKey = BuildGameUnlockKey(game?.ProviderKey, game?.ProviderGameKey, game?.AppId ?? 0, game?.PlayniteGameId);
+                if (string.IsNullOrWhiteSpace(gameKey))
+                {
+                    continue;
+                }
+
+                achievementsByGame.TryGetValue(gameKey, out var achievements);
+                linksByGame.TryGetValue(gameKey, out var links);
+                if (achievements == null && links == null)
+                {
+                    continue;
+                }
+
+                result.Add(BuildFriendGameSummary(
+                    game,
+                    achievements ?? Enumerable.Empty<FriendAchievementDisplayItem>(),
+                    links ?? (IReadOnlyList<FriendGameLinkItem>)Array.Empty<FriendGameLinkItem>()));
+            }
+
+            return result;
+        }
+
         public FriendSummaryItem FindFriend(string friendScopeKey)
         {
             if (IsAllScope(friendScopeKey))
@@ -851,18 +955,57 @@ namespace PlayniteAchievements.Services.Friends
             IEnumerable<FriendAchievementDisplayItem> achievements,
             FriendGameLinkItem link)
         {
+            return BuildFriendGameSummary(
+                source,
+                achievements,
+                link == null ? Array.Empty<FriendGameLinkItem>() : new[] { link });
+        }
+
+        /// <summary>
+        /// One game's row over a set of friends: the per-friend row when the set is one friend,
+        /// the favorites aggregate when it is every favorite. Unique unlocks and the scores are
+        /// counted once per achievement across the set; the friend unlock count once per friend
+        /// and achievement; playtime is the sum of the friends' links.
+        /// </summary>
+        private static FriendGameSummaryItem BuildFriendGameSummary(
+            FriendGameSummaryItem source,
+            IEnumerable<FriendAchievementDisplayItem> achievements,
+            IReadOnlyList<FriendGameLinkItem> links)
+        {
             var allAchievements = (achievements ?? Enumerable.Empty<FriendAchievementDisplayItem>())
                 .Where(achievement => achievement != null)
                 .ToList();
-            var unlocked = allAchievements
+            var unlockedRows = allAchievements
                 .Where(achievement => achievement.Unlocked)
+                .ToList();
+            var unlocked = unlockedRows
                 .GroupBy(achievement => achievement.ApiName ?? string.Empty, StringComparer.OrdinalIgnoreCase)
                 .Select(group => group
                     .OrderByDescending(achievement => achievement.UnlockTimeUtc ?? DateTime.MinValue)
                     .First())
                 .ToList();
+            var friendUnlockCount = unlockedRows
+                .Select(achievement => GetFriendScopeKey(achievement) + "|" + (achievement.ApiName ?? string.Empty))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .Count();
+            var friendsWithUnlocks = unlockedRows
+                .Select(GetFriendScopeKey)
+                .Where(key => !string.IsNullOrWhiteSpace(key))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .Count();
+            var friendCount = unlockedRows
+                .Select(GetFriendScopeKey)
+                .Concat(links.Select(GetFriendScopeKey))
+                .Where(key => !string.IsNullOrWhiteSpace(key))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .Count();
 
-            var playtimeMinutes = Math.Max(0L, link?.PlaytimeForeverMinutes ?? 0L);
+            var playtimeMinutes = links.Sum(link => Math.Max(0L, link?.PlaytimeForeverMinutes ?? 0L));
+            var lastPlayedUtc = links
+                .Select(link => link?.LastPlayedUtc)
+                .Where(lastPlayed => lastPlayed.HasValue)
+                .DefaultIfEmpty()
+                .Max();
             var item = new FriendGameSummaryItem
             {
                 ProviderKey = source.ProviderKey,
@@ -881,7 +1024,7 @@ namespace PlayniteAchievements.Services.Friends
                 Platforms = source.Platforms,
                 RegionText = source.RegionText,
                 PlaytimeSeconds = ToPlaytimeSeconds(playtimeMinutes),
-                LastPlayed = link?.LastPlayedUtc,
+                LastPlayed = lastPlayedUtc,
                 TotalAchievements = source.TotalAchievements > 0
                     ? source.TotalAchievements
                     : allAchievements
@@ -897,9 +1040,9 @@ namespace PlayniteAchievements.Services.Friends
                 TrophyGoldTotal = source.TrophyGoldTotal,
                 TrophySilverTotal = source.TrophySilverTotal,
                 TrophyBronzeTotal = source.TrophyBronzeTotal,
-                FriendCount = 1,
-                FriendsWithUnlocksCount = unlocked.Count > 0 ? 1 : 0,
-                FriendUnlockedAchievementsCount = unlocked.Count,
+                FriendCount = Math.Max(friendCount, links.Count > 0 || unlockedRows.Count > 0 ? 1 : 0),
+                FriendsWithUnlocksCount = Math.Max(friendsWithUnlocks, unlocked.Count > 0 ? 1 : 0),
+                FriendUnlockedAchievementsCount = Math.Max(friendUnlockCount, unlocked.Count),
                 UniqueFriendUnlockedAchievementsCount = unlocked.Count,
                 LastFriendUnlockUtc = unlocked
                     .Select(achievement => achievement.UnlockTimeUtc)
@@ -907,8 +1050,8 @@ namespace PlayniteAchievements.Services.Friends
                     .DefaultIfEmpty()
                     .Max(),
                 TotalFriendPlaytimeMinutes = playtimeMinutes,
-                AverageFriendPlaytimeMinutes = playtimeMinutes,
-                LastFriendPlayedUtc = link?.LastPlayedUtc
+                AverageFriendPlaytimeMinutes = links.Count > 0 ? playtimeMinutes / links.Count : playtimeMinutes,
+                LastFriendPlayedUtc = lastPlayedUtc
             };
 
             var stats = AchievementStatsAccumulator.FromDisplayItems(

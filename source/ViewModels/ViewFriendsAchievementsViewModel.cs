@@ -44,6 +44,8 @@ namespace PlayniteAchievements.ViewModels
                 friend?.ExternalUserId));
         private readonly List<FriendSummaryItem> _allFriends = new List<FriendSummaryItem>();
         private readonly List<FriendAchievementDisplayItem> _allAchievements = new List<FriendAchievementDisplayItem>();
+        // Session-only, like the search text: off each time the window opens.
+        private bool _favoritesOnly;
         // Friend scope keys that have at least one row for this game, so the compare dropdown can
         // offer only friends the comparison can actually resolve without rescanning the rows.
         private readonly HashSet<string> _friendsWithAchievements =
@@ -218,6 +220,30 @@ namespace PlayniteAchievements.ViewModels
                 {
                     ApplyFilters();
                 }
+            }
+        }
+
+        // Restricts the friend list to favorites. A selected friend the filter drops is
+        // deselected, so the achievements pane falls back to the all-friends aggregate rather
+        // than showing a friend the list no longer has.
+        public bool FavoritesOnly
+        {
+            get => _favoritesOnly;
+            set
+            {
+                if (!SetValueAndReturn(ref _favoritesOnly, value))
+                {
+                    return;
+                }
+
+                if (value && SelectedFriend != null && SelectedFriend.IsFavorite != true)
+                {
+                    // The setter runs ApplyFilters itself.
+                    SelectedFriend = null;
+                    return;
+                }
+
+                ApplyFilters();
             }
         }
 
@@ -461,7 +487,7 @@ namespace PlayniteAchievements.ViewModels
 
         private GridControlBarViewModel CreateFriendSummariesControlBar()
         {
-            return new GridControlBarViewModel
+            var controlBar = new GridControlBarViewModel
             {
                 Search = new GridSearchControl(
                     this,
@@ -471,6 +497,14 @@ namespace PlayniteAchievements.ViewModels
                     GridControlBarText.Get("LOCPlayAch_FriendsOverview_SearchFriends", "Search Friends"),
                     ClearFriendSearch)
             };
+            controlBar.Items.Add(new GridToggleFilter(
+                this,
+                nameof(FavoritesOnly),
+                L("LOCPlayAch_RefreshModeShort_Favorites"),
+                () => FavoritesOnly,
+                value => FavoritesOnly = value,
+                GridToggleFilterIcon.Favorite));
+            return controlBar;
         }
 
         private void ApplySnapshot(FriendsOverviewSnapshot snapshot)
@@ -558,6 +592,7 @@ namespace PlayniteAchievements.ViewModels
             var friendQuery = SearchQuery.From(FriendSearchText);
             var friends = _allFriends
                 .Where(friend => _friendSearchIndex.Matches(friend, friendQuery))
+                .Where(friend => !FavoritesOnly || friend?.IsFavorite == true)
                 .ToList();
             Friends.ReplaceAll(friends);
 

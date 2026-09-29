@@ -56,6 +56,7 @@ namespace PlayniteAchievements.Views.Controls
         private const string GameColumnKey = "Game";
         private const string FriendAvatarColumnKey = "Avatar";
         private const string FriendColumnKey = "Friend";
+        private const string CapturesColumnKey = "Captures";
 
         private static readonly IReadOnlyDictionary<string, double> DefaultImageColumnWidthSeeds =
             new Dictionary<string, double>(StringComparer.OrdinalIgnoreCase)
@@ -2697,6 +2698,16 @@ namespace PlayniteAchievements.Views.Controls
             SetForcedColumnCollapsed(_columnPersistence, GameColumnKey, !ShowGameColumn);
             SetForcedColumnCollapsed(_columnPersistence, FriendAvatarColumnKey, !ShowFriendColumn);
             SetForcedColumnCollapsed(_columnPersistence, FriendColumnKey, !ShowFriendColumn);
+            // Captures are the user's own screenshots and clips of their own unlocks; a friend's
+            // row has none to open, so the column is dropped from every friend surface.
+            SetForcedColumnCollapsed(_columnPersistence, CapturesColumnKey, IsFriendSurface(ColumnSettingsKey));
+        }
+
+        private static bool IsFriendSurface(string columnSettingsKey)
+        {
+            return columnSettingsKey != null &&
+                   (columnSettingsKey.StartsWith("FriendsOverview", StringComparison.OrdinalIgnoreCase) ||
+                    columnSettingsKey.StartsWith("ViewFriendsAchievements", StringComparison.OrdinalIgnoreCase));
         }
 
         private static void SetForcedColumnCollapsed(

@@ -412,6 +412,15 @@
                                    TextAlignment="Center"
                                    VerticalAlignment="Center"
                                    Visibility="Collapsed"/>
+                        <!-- Same star the friend grids draw in their favorite gutters. -->
+                        <TextBlock x:Name="FavoriteGlyph"
+                                   Text="&#x2605;"
+                                   Foreground="{DynamicResource PlayAch.Brush.Glyph}"
+                                   FontSize="15"
+                                   HorizontalAlignment="Center"
+                                   TextAlignment="Center"
+                                   VerticalAlignment="Center"
+                                   Visibility="Collapsed"/>
                     </Grid>
                 </ToggleButton>
                 <DataTemplate.Triggers>
@@ -426,6 +435,9 @@
                     </DataTrigger>
                     <DataTrigger Binding="{Binding Icon}" Value="Hidden">
                         <Setter TargetName="HiddenGlyph" Property="Visibility" Value="Visible"/>
+                    </DataTrigger>
+                    <DataTrigger Binding="{Binding Icon}" Value="Favorite">
+                        <Setter TargetName="FavoriteGlyph" Property="Visibility" Value="Visible"/>
                     </DataTrigger>
                 </DataTemplate.Triggers>
             </DataTemplate>
