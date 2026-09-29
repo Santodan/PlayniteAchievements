@@ -468,7 +468,7 @@
                         <Border Style="{StaticResource CardBorderStyle}" Margin="{StaticResource PlayAch.Thickness.Bottom.Md}">
                             <StackPanel>
                                 <TextBlock Text="Nemirtingas Epic achievement schema" Style="{StaticResource SectionHeaderStyle}" />
-                                <TextBlock Text="Select achievements_db.json from the game's nepice_settings folder. It is detected automatically when it is below the Playnite install directory."
+                                <TextBlock Text="Select achievements_db.json from the game's nepice_settings folder. Automatic detection uses the Playnite game's configured Installation Directory and checks &lt;Installation Directory&gt;\nepice_settings\achievements_db.json."
                                            Foreground="{DynamicResource PlayAch.Brush.Text}" Opacity="{StaticResource PlayAch.Opacity.Hint}" TextWrapping="Wrap" Margin="{StaticResource PlayAch.Thickness.Top.Compact}" />
                                 <TextBlock Text="{Binding LocalEpicSchemaPathStatusText}" Foreground="{DynamicResource PlayAch.Brush.Text}" Margin="{StaticResource PlayAch.Thickness.Top.Sm}" TextWrapping="Wrap" />
                                 <Grid Margin="0,10,0,0">
@@ -484,7 +484,7 @@
                         <Border Style="{StaticResource CardBorderStyle}" Margin="{StaticResource PlayAch.Thickness.Bottom.Md}">
                             <StackPanel>
                                 <TextBlock Text="Nemirtingas Epic achievement save" Style="{StaticResource SectionHeaderStyle}" />
-                                <TextBlock Text="Select the emulator's achievements.json. Automatic detection searches %APPDATA%\NemirtingasEpicEmu and matches its AchievementId values to the selected schema."
+                                <TextBlock Text="Select the emulator's achievements.json. Automatic detection searches %APPDATA%\NemirtingasEpicEmu and uses a save only when exactly one file has AchievementId values matching the selected schema."
                                            Foreground="{DynamicResource PlayAch.Brush.Text}" Opacity="{StaticResource PlayAch.Opacity.Hint}" TextWrapping="Wrap" Margin="{StaticResource PlayAch.Thickness.Top.Compact}" />
                                 <TextBlock Text="{Binding LocalEpicSavePathStatusText}" Foreground="{DynamicResource PlayAch.Brush.Text}" Margin="{StaticResource PlayAch.Thickness.Top.Sm}" TextWrapping="Wrap" />
                                 <Grid Margin="0,10,0,0">

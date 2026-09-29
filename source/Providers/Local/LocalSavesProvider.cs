@@ -7025,6 +7025,20 @@ namespace PlayniteAchievements.Providers.Local
                    (!string.IsNullOrWhiteSpace(savePath) && !string.IsNullOrWhiteSpace(ResolveNemirtingasEpicIdentity(game, savePath)));
         }
 
+        internal bool TryGetResolvedNemirtingasInfo(
+            Game game,
+            out string schemaPath,
+            out string savePath,
+            out string identity)
+        {
+            var resolved = TryResolveNemirtingasPaths(game, out schemaPath, out savePath);
+            identity = ResolveNemirtingasEpicIdentity(game, savePath);
+            return resolved ||
+                   !string.IsNullOrWhiteSpace(schemaPath) ||
+                   !string.IsNullOrWhiteSpace(savePath) ||
+                   !string.IsNullOrWhiteSpace(identity);
+        }
+
         private static string FindNemirtingasSaveByIdentity(string identity)
         {
             if (!Regex.IsMatch(identity ?? string.Empty, "^[0-9a-fA-F]{32}$")) return null;

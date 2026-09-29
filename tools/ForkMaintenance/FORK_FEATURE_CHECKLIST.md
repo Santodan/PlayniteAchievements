@@ -76,6 +76,9 @@ Primary fork areas:
 - Epic remains between Steam and LumaPlay. Its sub-tab accepts Nemirtingas
   `achievements_db.json` and `achievements.json` overrides plus an optional
   32-character Epic artifact/namespace ID.
+- Automatically resolved Epic schema, save, and artifact values populate the
+  three text fields and use a `Detected:` status; the fields are not left blank
+  merely because their values came from discovery instead of an override.
 - Nemirtingas Epic progress is correlated by `AchievementId`. Local schema
   names and descriptions are preserved while missing icons are enriched from
   Epic's public achievement schema. The artifact ID is detected from the save

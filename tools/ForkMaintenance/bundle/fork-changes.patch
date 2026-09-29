@@ -19999,7 +19999,7 @@ index ec371baae2264b294840887b7bd1aa07df474d5e..3461366b115f94fbf01f8a9208bfe09b
  
          private void CleanupNotifications()
 diff --git a/source/Views/ManageAchievements/ManageAchievementsOverridesTab.xaml b/source/Views/ManageAchievements/ManageAchievementsOverridesTab.xaml
-index 411e5b6862ca66ef1112ddf64f67ca65f37c47af..b5ecefdee990ee4c7fee8b23a2c365952b9d8213 100644
+index 411e5b6862ca66ef1112ddf64f67ca65f37c47af..f58e118d78d96e6ab589a94e6cd17c6b633d410d 100644
 --- a/source/Views/ManageAchievements/ManageAchievementsOverridesTab.xaml
 +++ b/source/Views/ManageAchievements/ManageAchievementsOverridesTab.xaml
 @@ -3,6 +3,7 @@
@@ -20312,7 +20312,7 @@ index 411e5b6862ca66ef1112ddf64f67ca65f37c47af..b5ecefdee990ee4c7fee8b23a2c36595
 +                        <Border Style="{StaticResource CardBorderStyle}" Margin="{StaticResource PlayAch.Thickness.Bottom.Md}">
 +                            <StackPanel>
 +                                <TextBlock Text="Nemirtingas Epic achievement schema" Style="{StaticResource SectionHeaderStyle}" />
-+                                <TextBlock Text="Select achievements_db.json from the game's nepice_settings folder. It is detected automatically when it is below the Playnite install directory."
++                                <TextBlock Text="Select achievements_db.json from the game's nepice_settings folder. Automatic detection uses the Playnite game's configured Installation Directory and checks &lt;Installation Directory&gt;\nepice_settings\achievements_db.json."
 +                                           Foreground="{DynamicResource PlayAch.Brush.Text}" Opacity="{StaticResource PlayAch.Opacity.Hint}" TextWrapping="Wrap" Margin="{StaticResource PlayAch.Thickness.Top.Compact}" />
 +                                <TextBlock Text="{Binding LocalEpicSchemaPathStatusText}" Foreground="{DynamicResource PlayAch.Brush.Text}" Margin="{StaticResource PlayAch.Thickness.Top.Sm}" TextWrapping="Wrap" />
 +                                <Grid Margin="0,10,0,0">
@@ -20328,7 +20328,7 @@ index 411e5b6862ca66ef1112ddf64f67ca65f37c47af..b5ecefdee990ee4c7fee8b23a2c36595
 +                        <Border Style="{StaticResource CardBorderStyle}" Margin="{StaticResource PlayAch.Thickness.Bottom.Md}">
 +                            <StackPanel>
 +                                <TextBlock Text="Nemirtingas Epic achievement save" Style="{StaticResource SectionHeaderStyle}" />
-+                                <TextBlock Text="Select the emulator's achievements.json. Automatic detection searches %APPDATA%\NemirtingasEpicEmu and matches its AchievementId values to the selected schema."
++                                <TextBlock Text="Select the emulator's achievements.json. Automatic detection searches %APPDATA%\NemirtingasEpicEmu and uses a save only when exactly one file has AchievementId values matching the selected schema."
 +                                           Foreground="{DynamicResource PlayAch.Brush.Text}" Opacity="{StaticResource PlayAch.Opacity.Hint}" TextWrapping="Wrap" Margin="{StaticResource PlayAch.Thickness.Top.Compact}" />
 +                                <TextBlock Text="{Binding LocalEpicSavePathStatusText}" Foreground="{DynamicResource PlayAch.Brush.Text}" Margin="{StaticResource PlayAch.Thickness.Top.Sm}" TextWrapping="Wrap" />
 +                                <Grid Margin="0,10,0,0">
