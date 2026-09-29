@@ -125,7 +125,7 @@
                                 </Image>
 
                                 <!-- Match the main settings tab headers exactly (HeaderIconStyle):
-                                     IcoFont at FontSize 14 with no rendering-mode overrides. -->
+                                     Segoe MDL2 Assets at FontSize 16 with no rendering-mode overrides. -->
                                 <TextBlock Style="{StaticResource HeaderIconStyle}"
                                            Text="{Binding IconGlyph}"
                                            Visibility="{Binding HasIconGlyph, Converter={StaticResource BoolToVis}}"/>

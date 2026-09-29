@@ -139,7 +139,9 @@ namespace PlayniteAchievements.ViewModels
         private OverrideState _screenshotClean;
         private OverrideState _screenshotWithToast;
         private OverrideState _screenshotFramed;
-        private OverrideState _recordings;
+        private OverrideState _recordingClean;
+        private OverrideState _recordingWithToast;
+        private OverrideState _recordingFramed;
 
         public ProviderNotificationRowItem(
             string providerKey,
@@ -157,7 +159,13 @@ namespace PlayniteAchievements.ViewModels
             _screenshotClean = OverrideStates.FromNullable(stored?.ScreenshotClean);
             _screenshotWithToast = OverrideStates.FromNullable(stored?.ScreenshotWithToast);
             _screenshotFramed = OverrideStates.FromNullable(stored?.ScreenshotFramed);
-            _recordings = OverrideStates.FromNullable(stored?.Recordings);
+            // A stored all-clips switch that is off reads as off for each clip variant without a
+            // value of its own, which is how the policy resolves it; saving the row then stores
+            // it per variant.
+            var legacyClipsOff = stored?.Recordings == false ? false : (bool?)null;
+            _recordingClean = OverrideStates.FromNullable(stored?.RecordingClean ?? legacyClipsOff);
+            _recordingWithToast = OverrideStates.FromNullable(stored?.RecordingWithToast ?? legacyClipsOff);
+            _recordingFramed = OverrideStates.FromNullable(stored?.RecordingFramed ?? legacyClipsOff);
 
             // Assigned last so construction never fires the change/persist callback.
             _onChanged = onChanged;
@@ -214,11 +222,31 @@ namespace PlayniteAchievements.ViewModels
             set => SetStateValue(ref _screenshotFramed, value, isScreenshotState: true);
         }
 
-        public OverrideState Recordings
+        public OverrideState RecordingClean
         {
-            get => _recordings;
-            set => SetStateValue(ref _recordings, value);
+            get => _recordingClean;
+            set => SetStateValue(ref _recordingClean, value, isRecordingState: true);
         }
+
+        public OverrideState RecordingWithToast
+        {
+            get => _recordingWithToast;
+            set => SetStateValue(ref _recordingWithToast, value, isRecordingState: true);
+        }
+
+        public OverrideState RecordingFramed
+        {
+            get => _recordingFramed;
+            set => SetStateValue(ref _recordingFramed, value, isRecordingState: true);
+        }
+
+        /// <summary>Label for the Recordings popup toggle, as <see cref="ScreenshotsSummaryText"/>.</summary>
+        public string RecordingsSummaryText =>
+            _recordingClean == OverrideState.Inherit &&
+            _recordingWithToast == OverrideState.Inherit &&
+            _recordingFramed == OverrideState.Inherit
+                ? ResourceProvider.GetString("LOCPlayAch_Common_Default")
+                : ResourceProvider.GetString("LOCPlayAch_Common_Custom");
 
         /// <summary>
         /// Label for the Screenshots popup toggle: "Default" while all three variant cells
@@ -245,7 +273,9 @@ namespace PlayniteAchievements.ViewModels
                 ScreenshotClean = OverrideStates.ToNullable(_screenshotClean),
                 ScreenshotWithToast = OverrideStates.ToNullable(_screenshotWithToast),
                 ScreenshotFramed = OverrideStates.ToNullable(_screenshotFramed),
-                Recordings = OverrideStates.ToNullable(_recordings)
+                RecordingClean = OverrideStates.ToNullable(_recordingClean),
+                RecordingWithToast = OverrideStates.ToNullable(_recordingWithToast),
+                RecordingFramed = OverrideStates.ToNullable(_recordingFramed)
             };
         }
 
@@ -253,6 +283,7 @@ namespace PlayniteAchievements.ViewModels
             ref OverrideState field,
             OverrideState value,
             bool isScreenshotState = false,
+            bool isRecordingState = false,
             [System.Runtime.CompilerServices.CallerMemberName] string propertyName = null)
         {
             if (!SetValueAndReturn(ref field, value, propertyName))
@@ -263,6 +294,11 @@ namespace PlayniteAchievements.ViewModels
             if (isScreenshotState)
             {
                 OnPropertyChanged(nameof(ScreenshotsSummaryText));
+            }
+
+            if (isRecordingState)
+            {
+                OnPropertyChanged(nameof(RecordingsSummaryText));
             }
 
             _onChanged?.Invoke(this);

@@ -28,6 +28,53 @@ namespace PlayniteAchievements.Models.Tests
         }
 
         [TestMethod]
+        public void Constructor_MarksCommonGlowTierAsCleared()
+        {
+            // A config this build writes must never be re-migrated, or a Common tier the user
+            // checked would be cleared on the next launch.
+            var settings = new PersistedSettings();
+
+            Assert.IsTrue(settings.CommonGlowTierCleared);
+            Assert.IsFalse(settings.RarityGlowSoftTiers.Contains(RarityTier.Common));
+        }
+
+        [TestMethod]
+        public void Constructor_MarksCategoryProgressColumnAlignmentAsDefaulted()
+        {
+            // A config this build writes must never be re-migrated, or an override the user
+            // cleared in the first session would be filled back to Right on the next launch.
+            Assert.IsTrue(new PersistedSettings().CategoryProgressColumnAlignmentDefaulted);
+        }
+
+        [TestMethod]
+        public void Constructor_DefaultsCategoryProgressColumnToRightAcrossSurfaces()
+        {
+            // The Right default lives in the catalog's default factory. The deserialization target
+            // itself starts empty so a saved dictionary is taken verbatim on load.
+            Assert.AreEqual(0, new CategorySummaryGridOptions().Columns.CellAlignments.Count);
+
+            var catalog = new PersistedSettings().GridOptions;
+            foreach (var id in new[]
+            {
+                GridOptionKeys.CategorySummaries.ViewAchievements,
+                GridOptionKeys.CategorySummaries.OverviewSelectedGame,
+                GridOptionKeys.CategorySummaries.FriendsOverview,
+                GridOptionKeys.CategorySummaries.ViewFriendsAchievements,
+                GridOptionKeys.CategorySummaries.DesktopTheme
+            })
+            {
+                Assert.AreEqual(
+                    GridAlignment.Right,
+                    catalog.GetCategorySummaries(id).Columns.CellAlignments[PersistedSettings.ProgressColumnKey],
+                    id);
+            }
+
+            Assert.AreEqual(
+                GridAlignment.Right,
+                catalog.GetCategorySummaries("UnknownCategorySurface").Columns.CellAlignments[PersistedSettings.ProgressColumnKey]);
+        }
+
+        [TestMethod]
         public void Constructor_DefaultsCaptureResolutionsToNative()
         {
             var settings = new PersistedSettings();
@@ -63,6 +110,38 @@ namespace PlayniteAchievements.Models.Tests
                 Assert.AreEqual(RaritySelection.UltraRare, copy.UnlockScreenshotFramedRarities);
                 Assert.IsFalse(copy.UnlockScreenshotFramedAlwaysCaptureCompletion);
                 Assert.AreEqual(RaritySelection.Common, copy.UnlockRecordingRarities);
+            }
+        }
+
+        [TestMethod]
+        public void CloneAndCopyFrom_PreserveClipVariants()
+        {
+            var source = new PersistedSettings
+            {
+                UnlockRecordingClean = true,
+                UnlockRecordingWithToast = false,
+                UnlockRecordingFramed = true,
+                UnlockRecordingCleanRarities = RaritySelection.Rare,
+                UnlockRecordingCleanAlwaysCaptureCompletion = false,
+                UnlockRecordingFramedRarities = RaritySelection.UltraRare,
+                UnlockRecordingFramedAlwaysCaptureCompletion = false,
+                UnlockRecordingFramedSeconds = null
+            };
+
+            var clone = source.Clone();
+            var target = new PersistedSettings();
+            target.CopyFrom(source);
+
+            foreach (var copy in new[] { clone, target })
+            {
+                Assert.IsTrue(copy.UnlockRecordingClean);
+                Assert.IsFalse(copy.UnlockRecordingWithToast);
+                Assert.IsTrue(copy.UnlockRecordingFramed);
+                Assert.AreEqual(RaritySelection.Rare, copy.UnlockRecordingCleanRarities);
+                Assert.IsFalse(copy.UnlockRecordingCleanAlwaysCaptureCompletion);
+                Assert.AreEqual(RaritySelection.UltraRare, copy.UnlockRecordingFramedRarities);
+                Assert.IsFalse(copy.UnlockRecordingFramedAlwaysCaptureCompletion);
+                Assert.IsNull(copy.UnlockRecordingFramedSeconds);
             }
         }
 
@@ -351,6 +430,19 @@ namespace PlayniteAchievements.Models.Tests
         }
 
         [TestMethod]
+        public void CloneAndCopyFrom_PreserveCategoryProgressColumnAlignmentDefaultedFlag()
+        {
+            var source = new PersistedSettings { CategoryProgressColumnAlignmentDefaulted = false };
+
+            var clone = source.Clone();
+            Assert.IsFalse(clone.CategoryProgressColumnAlignmentDefaulted);
+
+            var target = new PersistedSettings();
+            target.CopyFrom(source);
+            Assert.IsFalse(target.CategoryProgressColumnAlignmentDefaulted);
+        }
+
+        [TestMethod]
         public void EnableProgressToasts_DefaultsOn()
         {
             Assert.IsTrue(new PersistedSettings().EnableProgressToasts);
@@ -523,7 +615,10 @@ namespace PlayniteAchievements.Models.Tests
         {
             var settings = new PersistedSettings();
 
-            Assert.AreEqual(TimelineRange.OneYear, settings.ViewAchievementsTimelineRange);
+            Assert.AreEqual(TimeWindow.FromPreset(TimelineRange.OneYear), settings.ViewAchievementsTimeWindow);
+            Assert.AreEqual(TimelineGranularity.Auto, settings.ViewAchievementsTimelineGranularity);
+            Assert.AreEqual(TimeWindow.FromPreset(TimelineRange.OneYear), settings.OverviewTimeWindow);
+            Assert.AreEqual(TimelineGranularity.Auto, settings.OverviewTimelineGranularity);
             Assert.IsFalse(settings.ViewAchievementsTimelineVisible);
         }
 
@@ -1000,9 +1095,11 @@ namespace PlayniteAchievements.Models.Tests
         [TestMethod]
         public void CloneAndCopyFrom_PreserveViewAchievementsTimelineState()
         {
+            var custom = TimeWindow.Custom(new DateTime(2024, 1, 1), new DateTime(2024, 6, 30));
             var source = new PersistedSettings
             {
-                ViewAchievementsTimelineRange = TimelineRange.All,
+                ViewAchievementsTimeWindow = custom,
+                ViewAchievementsTimelineGranularity = TimelineGranularity.Week,
                 ViewAchievementsTimelineVisible = true
             };
 
@@ -1010,9 +1107,11 @@ namespace PlayniteAchievements.Models.Tests
             var target = new PersistedSettings();
             target.CopyFrom(source);
 
-            Assert.AreEqual(TimelineRange.All, clone.ViewAchievementsTimelineRange);
+            Assert.AreEqual(custom, clone.ViewAchievementsTimeWindow);
+            Assert.AreEqual(TimelineGranularity.Week, clone.ViewAchievementsTimelineGranularity);
             Assert.IsTrue(clone.ViewAchievementsTimelineVisible);
-            Assert.AreEqual(TimelineRange.All, target.ViewAchievementsTimelineRange);
+            Assert.AreEqual(custom, target.ViewAchievementsTimeWindow);
+            Assert.AreEqual(TimelineGranularity.Week, target.ViewAchievementsTimelineGranularity);
             Assert.IsTrue(target.ViewAchievementsTimelineVisible);
         }
 
@@ -1073,6 +1172,21 @@ namespace PlayniteAchievements.Models.Tests
             Assert.AreEqual("F11", target.OpenSettingsHotkey);
             Assert.AreEqual("Shift+G", target.CategoryModeHotkey);
             Assert.AreEqual("Ctrl+Alt+K", target.TestUnlockHotkey);
+        }
+
+        [TestMethod]
+        public void CloneAndCopyFrom_PreserveHiddenManageSidebarStatGroups()
+        {
+            const ManageSidebarStatGroups hidden = ManageSidebarStatGroups.Rarity | ManageSidebarStatGroups.Notes;
+            var source = new PersistedSettings { HiddenManageSidebarStatGroups = hidden };
+
+            var clone = source.Clone();
+            var target = new PersistedSettings();
+            target.CopyFrom(source);
+
+            Assert.AreEqual(ManageSidebarStatGroups.None, new PersistedSettings().HiddenManageSidebarStatGroups);
+            Assert.AreEqual(hidden, clone.HiddenManageSidebarStatGroups);
+            Assert.AreEqual(hidden, target.HiddenManageSidebarStatGroups);
         }
 
         [TestMethod]
@@ -1460,6 +1574,12 @@ namespace PlayniteAchievements.Models.Tests
                 },
 
                 ShowHiddenIcon = true,
+                ShowLockedTitle = false,
+                ShowLockedDescription = false,
+                ShowHiddenTrophy = false,
+                ShowHiddenPoints = false,
+                ShowLockedTrophy = false,
+                ShowLockedPoints = false,
                 OverviewRecentAchievementsShowRarityGlow = false,
                 OverviewSelectedGameShowRarityGlow = false,
                 ViewAchievementsAchievementGridShowRarityGlow = false,
@@ -1512,7 +1632,8 @@ namespace PlayniteAchievements.Models.Tests
                 OverviewLeftColumnRatio = 0.72d,
                 FriendsOverviewFriendColumnRatio = 0.23d,
                 FriendsOverviewGameColumnRatio = 0.37d,
-                ViewAchievementsTimelineRange = TimelineRange.All,
+                ViewAchievementsTimeWindow = TimeWindow.All,
+                ViewAchievementsTimelineGranularity = TimelineGranularity.Month,
                 ViewAchievementsTimelineVisible = true
             };
 
@@ -1526,8 +1647,6 @@ namespace PlayniteAchievements.Models.Tests
             settings.StartPageRecentUnlocksGrid.ShowControlBar = true;
             settings.StartPageRecentUnlocksGrid.RowHeight = 72d;
             settings.StartPageRecentUnlocksGrid.MaxRows = 4;
-            settings.StartPagePieCharts.ShowCenterPercentage = false;
-            settings.StartPagePieCharts.SmallSliceMode = OverviewPieSmallSliceMode.Hide;
             settings.StartPageActivityScope = GameActivityScope.All;
             settings.StartPageProgressScope = GameProgressScope.NoProgress;
             settings.DataGridColumnVisibility["Title"] = false;
@@ -1564,6 +1683,12 @@ namespace PlayniteAchievements.Models.Tests
             settings.ResetDisplaySettingsToDefaults();
 
             Assert.AreEqual(defaults.ShowHiddenIcon, settings.ShowHiddenIcon);
+            Assert.AreEqual(defaults.ShowLockedTitle, settings.ShowLockedTitle);
+            Assert.AreEqual(defaults.ShowLockedDescription, settings.ShowLockedDescription);
+            Assert.AreEqual(defaults.ShowHiddenTrophy, settings.ShowHiddenTrophy);
+            Assert.AreEqual(defaults.ShowHiddenPoints, settings.ShowHiddenPoints);
+            Assert.AreEqual(defaults.ShowLockedTrophy, settings.ShowLockedTrophy);
+            Assert.AreEqual(defaults.ShowLockedPoints, settings.ShowLockedPoints);
             Assert.AreEqual(defaults.OverviewRecentAchievementsShowRarityGlow, settings.OverviewRecentAchievementsShowRarityGlow);
             Assert.AreEqual(defaults.OverviewSelectedGameShowRarityGlow, settings.OverviewSelectedGameShowRarityGlow);
             Assert.AreEqual(defaults.ViewAchievementsAchievementGridShowRarityGlow, settings.ViewAchievementsAchievementGridShowRarityGlow);
@@ -1625,14 +1750,13 @@ namespace PlayniteAchievements.Models.Tests
             Assert.AreEqual(defaults.StartPageRecentUnlocksGrid.ShowControlBar, settings.StartPageRecentUnlocksGrid.ShowControlBar);
             Assert.AreEqual(defaults.StartPageRecentAchievementsGridRowHeight, settings.StartPageRecentAchievementsGridRowHeight);
             Assert.AreEqual(defaults.StartPageRecentAchievementsGridMaxRows, settings.StartPageRecentAchievementsGridMaxRows);
-            Assert.AreEqual(defaults.StartPagePieCharts.ShowCenterPercentage, settings.StartPagePieCharts.ShowCenterPercentage);
-            Assert.AreEqual(defaults.StartPagePieCharts.SmallSliceMode, settings.StartPagePieCharts.SmallSliceMode);
             Assert.AreEqual(defaults.StartPageActivityScope, settings.StartPageActivityScope);
             Assert.AreEqual(defaults.StartPageProgressScope, settings.StartPageProgressScope);
             Assert.AreEqual(defaults.OverviewLeftColumnRatio, settings.OverviewLeftColumnRatio);
             Assert.AreEqual(defaults.FriendsOverviewFriendColumnRatio, settings.FriendsOverviewFriendColumnRatio);
             Assert.AreEqual(defaults.FriendsOverviewGameColumnRatio, settings.FriendsOverviewGameColumnRatio);
-            Assert.AreEqual(defaults.ViewAchievementsTimelineRange, settings.ViewAchievementsTimelineRange);
+            Assert.AreEqual(defaults.ViewAchievementsTimeWindow, settings.ViewAchievementsTimeWindow);
+            Assert.AreEqual(defaults.ViewAchievementsTimelineGranularity, settings.ViewAchievementsTimelineGranularity);
             Assert.AreEqual(defaults.ViewAchievementsTimelineVisible, settings.ViewAchievementsTimelineVisible);
 
             Assert.AreEqual(0, settings.DataGridColumnVisibility.Count);

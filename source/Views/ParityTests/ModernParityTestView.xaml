@@ -242,6 +242,22 @@
                     </Border>
                 </Grid>
 
+                <!-- AchievementCompactLatest -->
+                <Border Background="{DynamicResource PlayAch.Brush.Surface}"
+                        CornerRadius="{StaticResource PlayAch.Radius.Card}"
+                        Padding="{StaticResource PlayAch.Thickness.CardPadding}"
+                        Margin="0,12,0,0">
+                    <StackPanel>
+                        <TextBlock Text="CompactLatest"
+                                   FontWeight="SemiBold"
+                                   Foreground="{DynamicResource PlayAch.Brush.Text}"
+                                   Margin="{StaticResource PlayAch.Thickness.Bottom.Sm}"/>
+                        <local:GameViewControlHost ControlName="AchievementCompactLatest"
+                                                   Height="72"
+                                                   HorizontalAlignment="Left" />
+                    </StackPanel>
+                </Border>
+
                 <!-- Row 5: Full Achievement List -->
                 <Border Background="{DynamicResource PlayAch.Brush.Surface}"
                         CornerRadius="{StaticResource PlayAch.Radius.Card}"

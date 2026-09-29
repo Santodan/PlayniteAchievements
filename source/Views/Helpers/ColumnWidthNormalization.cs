@@ -156,7 +156,9 @@ namespace PlayniteAchievements.Views.Helpers
                     continue;
                 }
 
-                var resolvedMinWidth = ResolveColumnMinimumWidth(column, minimumColumnWidth);
+                // Whole pixels only: a fractional MinWidth lets a column at its floor sit on a
+                // half pixel that the whole-pixel plan cannot describe.
+                var resolvedMinWidth = Math.Max(1, Math.Floor(ResolveColumnMinimumWidth(column, minimumColumnWidth)));
                 result[column] = resolvedMinWidth;
 
                 if (Math.Abs(column.MinWidth - resolvedMinWidth) > 0.2)
@@ -289,9 +291,10 @@ namespace PlayniteAchievements.Views.Helpers
         public static List<int> BuildAbsorberOrder(
             IReadOnlyList<string> keys,
             string protectedColumnKey,
-            string preferredAbsorberKey = null)
+            string preferredAbsorberKey = null,
+            IReadOnlyCollection<string> excludedAbsorberKeys = null)
         {
-            return ColumnSizingPlanner.BuildAbsorberOrder(keys, protectedColumnKey, preferredAbsorberKey);
+            return ColumnSizingPlanner.BuildAbsorberOrder(keys, protectedColumnKey, preferredAbsorberKey, excludedAbsorberKeys);
         }
 
         public static bool KeysEqual(string a, string b)
@@ -417,96 +420,6 @@ namespace PlayniteAchievements.Views.Helpers
                 out normalized);
         }
 
-        private static Dictionary<string, double> RoundWidthsToTarget(
-            IReadOnlyList<string> keys,
-            IReadOnlyList<double> widths,
-            IReadOnlyList<double> floorWidths,
-            string protectedKey,
-            string preferredAbsorberKey,
-            double targetWidth)
-        {
-            var normalized = new Dictionary<string, double>(StringComparer.OrdinalIgnoreCase);
-            var roundedWidths = new List<double>(keys.Count);
-            var roundedFloors = new List<double>(keys.Count);
-
-            for (var i = 0; i < keys.Count; i++)
-            {
-                var roundedFloor = RoundPixelWidth(floorWidths[i]);
-                roundedFloors.Add(roundedFloor);
-                roundedWidths.Add(Math.Max(roundedFloor, RoundPixelWidth(widths[i])));
-            }
-
-            var roundedTarget = RoundPixelWidth(targetWidth);
-            var delta = roundedTarget - roundedWidths.Sum();
-            if (Math.Abs(delta) > 0.2)
-            {
-                DistributeRoundedDelta(roundedWidths, roundedFloors, keys, protectedKey, preferredAbsorberKey, delta);
-            }
-
-            for (var i = 0; i < keys.Count; i++)
-            {
-                normalized[keys[i]] = Math.Max(roundedFloors[i], roundedWidths[i]);
-            }
-
-            return normalized;
-        }
-
-        private static void DistributeRoundedDelta(
-            IList<double> widths,
-            IReadOnlyList<double> floorWidths,
-            IReadOnlyList<string> keys,
-            string protectedKey,
-            string preferredAbsorberKey,
-            double delta)
-        {
-            var absorberOrder = BuildAbsorberOrder(keys, protectedKey, preferredAbsorberKey);
-            if (absorberOrder.Count == 0)
-            {
-                return;
-            }
-
-            if (delta > 0)
-            {
-                widths[absorberOrder[0]] += delta;
-                return;
-            }
-
-            foreach (var index in absorberOrder)
-            {
-                var capacity = widths[index] - floorWidths[index];
-                if (capacity <= 0)
-                {
-                    continue;
-                }
-
-                var take = Math.Min(capacity, -delta);
-                widths[index] -= take;
-                delta += take;
-                if (delta >= -0.2)
-                {
-                    return;
-                }
-            }
-
-            for (var i = 0; i < widths.Count && delta < -0.2; i++)
-            {
-                if (absorberOrder.Contains(i))
-                {
-                    continue;
-                }
-
-                var capacity = widths[i] - floorWidths[i];
-                if (capacity <= 0)
-                {
-                    continue;
-                }
-
-                var take = Math.Min(capacity, -delta);
-                widths[i] -= take;
-                delta += take;
-            }
-        }
-
         public static bool TryBuildNormalizedWidths(
             DataGrid grid,
             string protectedKey,
@@ -534,6 +447,33 @@ namespace PlayniteAchievements.Views.Helpers
             IReadOnlyDictionary<string, double> preferredWidthsByKey,
             double fallbackAvailableWidth,
             bool useEqualWidthForMissing,
+            out Dictionary<string, double> normalized)
+        {
+            return TryBuildNormalizedWidths(
+                grid,
+                protectedKey,
+                preferredAbsorberKey,
+                rescaleAll,
+                preferredWidthsByKey,
+                fallbackAvailableWidth,
+                useEqualWidthForMissing,
+                excludedAbsorberKeys: null,
+                out normalized);
+        }
+
+        /// <param name="excludedAbsorberKeys">
+        /// Columns that never absorb a neighbour's delta but still rescale with the viewport; see
+        /// <see cref="ColumnSizingPlanner.TryPlan(IReadOnlyList{string}, IReadOnlyList{double}, IReadOnlyList{double}, string, string, bool, double, IReadOnlyCollection{string}, out Dictionary{string, double})"/>.
+        /// </param>
+        public static bool TryBuildNormalizedWidths(
+            DataGrid grid,
+            string protectedKey,
+            string preferredAbsorberKey,
+            bool rescaleAll,
+            IReadOnlyDictionary<string, double> preferredWidthsByKey,
+            double fallbackAvailableWidth,
+            bool useEqualWidthForMissing,
+            IReadOnlyCollection<string> excludedAbsorberKeys,
             out Dictionary<string, double> normalized)
         {
             normalized = null;
@@ -608,7 +548,7 @@ namespace PlayniteAchievements.Views.Helpers
                     useEqualWidthForMissing ? equalWidth : (double?)null))
                 .ToList();
 
-            return TryBuildNormalizedWidths(
+            return ColumnSizingPlanner.TryPlan(
                 keys,
                 seedWidths,
                 floorWidths,
@@ -616,6 +556,7 @@ namespace PlayniteAchievements.Views.Helpers
                 preferredAbsorberKey,
                 rescaleAll,
                 targetWidth,
+                excludedAbsorberKeys,
                 out normalized);
         }
 
@@ -667,7 +608,7 @@ namespace PlayniteAchievements.Views.Helpers
                     continue;
                 }
 
-                var width = Math.Max(EmergencyColumnMinimumWidth, floorWidths[i]);
+                var width = Math.Max(EmergencyColumnMinimumWidth, Math.Floor(floorWidths[i]));
                 if (Math.Abs(column.MinWidth - width) > 0.2d)
                 {
                     column.MinWidth = width;

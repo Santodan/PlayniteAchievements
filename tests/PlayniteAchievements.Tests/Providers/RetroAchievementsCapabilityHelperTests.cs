@@ -46,25 +46,6 @@ namespace PlayniteAchievements.Tests.Providers
         }
 
         [TestMethod]
-        public void EnableAutomaticCapstoneAssignment_DefaultsToFalse_AndRoundTripsThroughJson()
-        {
-            var defaults = new RetroAchievementsSettings();
-            Assert.IsFalse(defaults.EnableAutomaticCapstoneAssignment);
-
-            var enabled = new RetroAchievementsSettings
-            {
-                EnableAutomaticCapstoneAssignment = true
-            };
-
-            var json = enabled.SerializeToJson();
-            Assert.IsTrue(json.Contains(nameof(RetroAchievementsSettings.EnableAutomaticCapstoneAssignment)));
-
-            var reloaded = new RetroAchievementsSettings();
-            reloaded.DeserializeFromJson(json);
-            Assert.IsTrue(reloaded.EnableAutomaticCapstoneAssignment);
-        }
-
-        [TestMethod]
         public void CanSetOverride_NoPlatformMetadata_ReturnsTrue()
         {
             var game = new Game

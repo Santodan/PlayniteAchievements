@@ -277,7 +277,7 @@ namespace PlayniteAchievements.Models.Settings
             var settings = new ShadPS4Settings
             {
                 IsEnabled = persisted["ShadPS4Enabled"]?.Value<bool>() ?? true,
-                GameDataPath = persisted["ShadPS4GameDataPath"]?.ToString()
+                GameDataPaths = ProviderPathList.FromLegacy(persisted["ShadPS4GameDataPath"]?.ToString())
             };
             providerSettings["ShadPS4"] = JObject.Parse(settings.SerializeToJson());
         }
@@ -290,7 +290,7 @@ namespace PlayniteAchievements.Models.Settings
             var settings = new Rpcs3Settings
             {
                 IsEnabled = persisted["Rpcs3Enabled"]?.Value<bool>() ?? true,
-                ExecutablePath = persisted["Rpcs3ExecutablePath"]?.ToString()
+                ExecutablePaths = ProviderPathList.FromLegacy(persisted["Rpcs3ExecutablePath"]?.ToString())
             };
             providerSettings["RPCS3"] = JObject.Parse(settings.SerializeToJson());
         }
@@ -303,7 +303,7 @@ namespace PlayniteAchievements.Models.Settings
             var settings = new XeniaSettings
             {
                 IsEnabled = persisted["XeniaEnabled"]?.Value<bool>() ?? true,
-                AccountPath = persisted["XeniaAccountPath"]?.ToString()
+                AccountPaths = ProviderPathList.FromLegacy(persisted["XeniaAccountPath"]?.ToString())
             };
             providerSettings["Xenia"] = JObject.Parse(settings.SerializeToJson());
         }

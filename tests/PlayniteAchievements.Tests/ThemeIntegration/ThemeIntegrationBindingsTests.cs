@@ -97,6 +97,73 @@ namespace PlayniteAchievements.ThemeIntegration.Tests
         }
 
         [TestMethod]
+        public void SelectedGameBuilder_LatestAchievementIsNewestUnlockNotPinnedGoal()
+        {
+            var gameId = Guid.NewGuid();
+            var goal = Achievement("Pinned Goal", 30.0, unlocked: true, unlockTimeUtc: Utc(2026, 3, 1, 12, 0, 0));
+            goal.IsGoal = true;
+            goal.GoalOrderIndex = 0;
+            var data = new GameAchievementData
+            {
+                PlayniteGameId = gameId,
+                Game = new Game { Id = gameId, Name = "Latest Unlock Game" },
+                HasAchievements = true,
+                Achievements = new List<AchievementDetail>
+                {
+                    goal,
+                    Achievement("Newest", 10.0, unlocked: true, unlockTimeUtc: Utc(2026, 3, 3, 12, 0, 0)),
+                    Achievement("Older", 50.0, unlocked: true, unlockTimeUtc: Utc(2026, 3, 2, 12, 0, 0)),
+                    Achievement("Locked", 5.0, unlocked: false)
+                }
+            };
+
+            var state = SelectedGameRuntimeStateBuilder.Build(gameId, data);
+
+            Assert.AreEqual("Pinned Goal", state.AchievementsNewestFirst.First().ApiName);
+            Assert.AreEqual("Newest", state.LatestAchievementData?.ApiName);
+            Assert.IsTrue(state.AllAchievements.Contains(state.LatestAchievementData));
+        }
+
+        [TestMethod]
+        public void SelectedGameBuilder_LatestAchievementIsNullWithoutUnlocks()
+        {
+            var gameId = Guid.NewGuid();
+            var data = new GameAchievementData
+            {
+                PlayniteGameId = gameId,
+                Game = new Game { Id = gameId, Name = "No Unlocks Game" },
+                HasAchievements = true,
+                Achievements = new List<AchievementDetail>
+                {
+                    Achievement("Locked A", 40.0, unlocked: false),
+                    Achievement("Locked B", 5.0, unlocked: false)
+                }
+            };
+
+            var state = SelectedGameRuntimeStateBuilder.Build(gameId, data);
+
+            Assert.IsNull(state.LatestAchievementData);
+            Assert.IsNull(SelectedGameRuntimeState.Empty.LatestAchievementData);
+        }
+
+        [TestMethod]
+        public void ModernBindings_HasLatestAchievementDataFollowsValue()
+        {
+            var bindings = new ModernThemeBindings();
+            var changed = new List<string>();
+            bindings.PropertyChanged += (_, e) => changed.Add(e.PropertyName);
+
+            bindings.LatestAchievementData = Achievement("Latest", 10.0, unlocked: true);
+            Assert.IsTrue(bindings.HasLatestAchievementData);
+            CollectionAssert.Contains(changed, nameof(ModernThemeBindings.HasLatestAchievementData));
+
+            changed.Clear();
+            bindings.LatestAchievementData = null;
+            Assert.IsFalse(bindings.HasLatestAchievementData);
+            CollectionAssert.Contains(changed, nameof(ModernThemeBindings.HasLatestAchievementData));
+        }
+
+        [TestMethod]
         public void SelectedGameBuilder_CarriesCategoryImagesIntoThemeDisplayItems()
         {
             var gameId = Guid.NewGuid();
@@ -127,13 +194,12 @@ namespace PlayniteAchievements.ThemeIntegration.Tests
                 detail,
                 "Category Image Game",
                 gameId,
-                showHiddenIcon: false,
-                showHiddenTitle: false,
-                showHiddenDescription: false,
-                showHiddenSuffix: true,
-                showLockedIcon: true,
-                useSeparateLockedIconsWhenAvailable: false,
-                showRarityBar: true);
+                new AchievementDisplayItem.AppearanceSettingsSnapshot
+                {
+                    ShowHiddenSuffix = true,
+                    ShowLockedIcon = true,
+                    ShowRarityBar = true
+                });
 
             Assert.AreEqual("category-art.png", displayItem.CategoryArtPath);
         }
@@ -176,13 +242,12 @@ namespace PlayniteAchievements.ThemeIntegration.Tests
                     detail,
                     gameName,
                     gameId,
-                    showHiddenIcon: false,
-                    showHiddenTitle: false,
-                    showHiddenDescription: false,
-                    showHiddenSuffix: true,
-                    showLockedIcon: true,
-                    useSeparateLockedIconsWhenAvailable: false,
-                    showRarityBar: true);
+                    new AchievementDisplayItem.AppearanceSettingsSnapshot
+                    {
+                        ShowHiddenSuffix = true,
+                        ShowLockedIcon = true,
+                        ShowRarityBar = true
+                    });
 
                 Assert.AreEqual(cleanPath, displayItem.CleanCapturePath);
                 Assert.IsNull(displayItem.NotificationCapturePath);
@@ -2673,6 +2738,98 @@ namespace PlayniteAchievements.ThemeIntegration.Tests
 
             Assert.AreEqual(0, capstoneTargets.Count);
             Assert.AreEqual(0, goalTargets.Count);
+        }
+
+        // A window editing one game's custom data in bulk -- the Manage Achievements editor --
+        // raises a change per edit, and each one would otherwise rebuild every game's theme lists
+        // behind it. The hold collapses that burst into one rebuild, issued on close.
+        [TestMethod]
+        public void LibraryRefreshesRequestedWhileHeld_CollapseToOne()
+        {
+            using var context = CreateServiceContext();
+
+            context.Service.SuspendLibraryRefresh();
+            Assert.IsFalse(
+                context.Service.HasDeferredLibraryRefreshForTests,
+                "Taking the hold is not itself a pending rebuild.");
+
+            context.Service.RequestLibraryRefreshForTests(includeHeavyAchievementLists: false);
+            context.Service.RequestLibraryRefreshForTests(includeHeavyAchievementLists: false);
+            context.Service.RequestLibraryRefreshForTests(includeHeavyAchievementLists: false);
+
+            Assert.IsTrue(
+                context.Service.HasDeferredLibraryRefreshForTests,
+                "Three edits must leave one rebuild owed, not three.");
+
+            context.Service.ResumeLibraryRefresh();
+            Assert.IsFalse(
+                context.Service.HasDeferredLibraryRefreshForTests,
+                "Releasing the hold consumes the owed rebuild.");
+        }
+
+        [TestMethod]
+        public void HeldLibraryRefresh_KeepsTheHeaviestRequestedScope()
+        {
+            using var context = CreateServiceContext();
+
+            context.Service.SuspendLibraryRefresh();
+            context.Service.RequestLibraryRefreshForTests(includeHeavyAchievementLists: false);
+            context.Service.RequestLibraryRefreshForTests(includeHeavyAchievementLists: true);
+            context.Service.RequestLibraryRefreshForTests(includeHeavyAchievementLists: false);
+
+            Assert.IsTrue(
+                context.Service.DeferredLibraryRefreshIncludesHeavyListsForTests,
+                "One edit in the burst needed the achievement lists, so the single rebuild " +
+                "standing in for the burst has to carry them.");
+        }
+
+        [TestMethod]
+        public void NestedLibraryRefreshHolds_ReleaseOnlyOnTheLast()
+        {
+            using var context = CreateServiceContext();
+
+            // One Manage window per game can be open at once, so the hold is counted.
+            context.Service.SuspendLibraryRefresh();
+            context.Service.SuspendLibraryRefresh();
+            context.Service.RequestLibraryRefreshForTests(includeHeavyAchievementLists: false);
+
+            context.Service.ResumeLibraryRefresh();
+            Assert.IsTrue(
+                context.Service.HasDeferredLibraryRefreshForTests,
+                "A second window is still open, so the rebuild stays owed.");
+
+            context.Service.ResumeLibraryRefresh();
+            Assert.IsFalse(context.Service.HasDeferredLibraryRefreshForTests);
+        }
+
+        [TestMethod]
+        public void LibraryRefreshHoldReleasedWithNoEdits_OwesNoRebuild()
+        {
+            using var context = CreateServiceContext();
+
+            context.Service.SuspendLibraryRefresh();
+            context.Service.ResumeLibraryRefresh();
+
+            Assert.IsFalse(
+                context.Service.HasDeferredLibraryRefreshForTests,
+                "A window opened to read rather than to edit costs no rebuild on close.");
+        }
+
+        [TestMethod]
+        public void StrayLibraryRefreshRelease_DoesNotUnderflowTheHold()
+        {
+            using var context = CreateServiceContext();
+
+            context.Service.ResumeLibraryRefresh();
+            context.Service.ResumeLibraryRefresh();
+
+            // Had the count gone negative, a later hold would not take.
+            context.Service.SuspendLibraryRefresh();
+            context.Service.RequestLibraryRefreshForTests(includeHeavyAchievementLists: false);
+
+            Assert.IsTrue(
+                context.Service.HasDeferredLibraryRefreshForTests,
+                "The hold must still work after an unbalanced release.");
         }
 
         private static ServiceTestContext CreateServiceContext(

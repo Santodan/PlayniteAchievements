@@ -17,6 +17,15 @@ namespace PlayniteAchievements.Models.Settings
 
         public string ManualCapstoneApiName { get; set; }
 
+        /// <inheritdoc cref="GameCustomDataFile.CapstonesMaterialized"/>
+        public bool CapstonesMaterialized { get; set; }
+
+        /// <inheritdoc cref="GameCustomDataFile.Capstones"/>
+        public List<CapstoneAssignment> Capstones { get; set; }
+
+        /// <inheritdoc cref="GameCustomDataFile.AutoCapstoneGenerated"/>
+        public bool AutoCapstoneGenerated { get; set; }
+
         public List<string> AchievementOrder { get; set; }
 
         public Dictionary<string, string> AchievementCategoryOverrides { get; set; }
@@ -41,6 +50,12 @@ namespace PlayniteAchievements.Models.Settings
 
         public Dictionary<string, string> AchievementNotes { get; set; }
 
+        /// <summary>
+        /// Per-achievement user customization, keyed by ApiName. Schema 8 onward; the legacy
+        /// scalar maps above carry schema-7 exports and are folded in on import.
+        /// </summary>
+        public Dictionary<string, AchievementOverride> AchievementOverrides { get; set; }
+
         public int? RetroAchievementsGameIdOverride { get; set; }
 
         public string XeniaTitleIdOverride { get; set; }
@@ -59,6 +74,17 @@ namespace PlayniteAchievements.Models.Settings
 
         public ManualAchievementLink ManualLink { get; set; }
 
+        public List<CustomAchievementDefinition> CustomAchievements { get; set; }
+
+        public string CustomProviderId { get; set; }
+
+        /// <summary>
+        /// Snapshot of the assigned custom provider (name, color, icon path data) so a package
+        /// imported on another machine can recreate it. A local definition with the same id wins
+        /// on import.
+        /// </summary>
+        public CustomProviderDefinition CustomProvider { get; set; }
+
         public GameCustomDataPortableFile Clone()
         {
             return new GameCustomDataPortableFile
@@ -67,6 +93,11 @@ namespace PlayniteAchievements.Models.Settings
                 PlayniteGameId = PlayniteGameId,
                 UseSeparateLockedIconsOverride = UseSeparateLockedIconsOverride,
                 ManualCapstoneApiName = ManualCapstoneApiName,
+                CapstonesMaterialized = CapstonesMaterialized,
+                AutoCapstoneGenerated = AutoCapstoneGenerated,
+                Capstones = Capstones != null
+                    ? Capstones.ConvertAll(item => item?.Clone()).FindAll(item => item != null)
+                    : null,
                 AchievementOrder = AchievementOrder != null
                     ? new List<string>(AchievementOrder)
                     : null,
@@ -99,6 +130,7 @@ namespace PlayniteAchievements.Models.Settings
                 AchievementNotes = AchievementNotes != null
                     ? new Dictionary<string, string>(AchievementNotes, StringComparer.OrdinalIgnoreCase)
                     : null,
+                AchievementOverrides = GameCustomDataFile.CloneAchievementOverrideMap(AchievementOverrides),
                 RetroAchievementsGameIdOverride = RetroAchievementsGameIdOverride,
                 XeniaTitleIdOverride = XeniaTitleIdOverride,
                 ShadPS4MatchIdOverride = ShadPS4MatchIdOverride,
@@ -107,7 +139,12 @@ namespace PlayniteAchievements.Models.Settings
                 NotificationAppearanceOverride = NotificationAppearanceOverride?.Clone(),
                 ProviderOverride = ProviderOverride?.Clone(),
                 ExophaseEnrichmentSlugOverride = ExophaseEnrichmentSlugOverride,
-                ManualLink = ManualLink?.Clone()
+                ManualLink = ManualLink?.Clone(),
+                CustomAchievements = CustomAchievements != null
+                    ? CustomAchievements.ConvertAll(item => item?.Clone()).FindAll(item => item != null)
+                    : null,
+                CustomProviderId = CustomProviderId,
+                CustomProvider = CustomProvider?.Clone()
             };
         }
     }

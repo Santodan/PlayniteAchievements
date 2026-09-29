@@ -32,7 +32,7 @@ namespace PlayniteAchievements.Services.Tests.Captures
         public PersistedSettings Settings { get; }
 
         public CaptureLibraryService CreateService() =>
-            new CaptureLibraryService(() => Settings, null);
+            new CaptureLibraryService(() => Settings, null, watchForChanges: false);
 
         /// <summary>Drops a capture file into the game's sanitized folder, as the writers do, and returns its path.</summary>
         public string WriteCapture(string gameName, string fileName)

@@ -50,7 +50,7 @@
     </UserControl.Resources>
     <StackPanel>
         <TextBlock Text="{Binding Header, ElementName=EditorRoot}"
-                   Margin="{StaticResource PlayAch.Thickness.Bottom.Md}">
+                   Margin="{StaticResource PlayAch.Thickness.SubSectionHeading}">
             <TextBlock.Style>
                 <Style TargetType="TextBlock" BasedOn="{StaticResource SubSectionHeaderStyle}">
                     <Style.Triggers>
@@ -70,19 +70,19 @@
             <CheckBox Content="{DynamicResource LOCPlayAch_UseCoverImages}"
                       IsChecked="{Binding AchievementOptions.UseCoverImages, ElementName=EditorRoot}"
                       Visibility="{Binding ShowCoverImagesRow, ElementName=EditorRoot, Converter={StaticResource BoolToVis}}"
-                      Margin="{StaticResource PlayAch.Thickness.Bottom.Md}"/>
+                      Margin="{StaticResource PlayAch.Thickness.Bottom.Sm}"/>
             <CheckBox Content="{DynamicResource LOCPlayAch_Settings_ShowRarityGlow}"
                       IsChecked="{Binding AchievementOptions.ShowRarityGlow, ElementName=EditorRoot}"
                       Visibility="{Binding ShowRarityGlowRow, ElementName=EditorRoot, Converter={StaticResource BoolToVis}}"
-                      Margin="{StaticResource PlayAch.Thickness.Bottom.Md}"/>
+                      Margin="{StaticResource PlayAch.Thickness.Bottom.Sm}"/>
             <CheckBox Content="{DynamicResource LOCPlayAch_Settings_ColorNamesByRarity}"
                       IsChecked="{Binding AchievementOptions.ColorNamesByRarity, ElementName=EditorRoot}"
                       Visibility="{Binding ShowColorNamesRow, ElementName=EditorRoot, Converter={StaticResource BoolToVis}}"
-                      Margin="{StaticResource PlayAch.Thickness.Bottom.Md}"/>
+                      Margin="{StaticResource PlayAch.Thickness.Bottom.Sm}"/>
             <CheckBox Content="{DynamicResource LOCPlayAch_Settings_ColorRarityTextByRarity}"
                       IsChecked="{Binding AchievementOptions.ColorRarityColumnsByRarity, ElementName=EditorRoot}"
                       Visibility="{Binding ShowColorNamesRow, ElementName=EditorRoot, Converter={StaticResource BoolToVis}}"
-                      Margin="{StaticResource PlayAch.Thickness.Bottom.Md}"/>
+                      Margin="{StaticResource PlayAch.Thickness.Bottom.Sm}"/>
         </StackPanel>
 
         <!-- Game-summary-specific leading rows -->
@@ -90,37 +90,37 @@
             <CheckBox Content="{DynamicResource LOCPlayAch_UseCoverImages}"
                       IsChecked="{Binding GameSummaryOptions.UseCoverImages, ElementName=EditorRoot}"
                       Visibility="{Binding ShowCoverImagesRow, ElementName=EditorRoot, Converter={StaticResource BoolToVis}}"
-                      Margin="{StaticResource PlayAch.Thickness.Bottom.Md}"/>
+                      Margin="{StaticResource PlayAch.Thickness.Bottom.Sm}"/>
             <StackPanel Visibility="{Binding ShowMetadataRows, ElementName=EditorRoot, Converter={StaticResource BoolToVis}}">
                 <TextBlock Text="{DynamicResource LOCPlayAch_Settings_GameMetadataHeader}"
                            Style="{StaticResource SubSectionHeaderStyle}"
-                           Margin="{StaticResource PlayAch.Thickness.Bottom.Md}"/>
+                           Margin="{StaticResource PlayAch.Thickness.Bottom.Sm}"/>
                 <StackPanel Margin="16,0,0,0">
                     <CheckBox Content="{DynamicResource LOCPlayAch_Common_Label_Platform}"
                               IsChecked="{Binding GameSummaryOptions.ShowMetadataPlatform, ElementName=EditorRoot}"
-                              Margin="{StaticResource PlayAch.Thickness.Bottom.Md}"/>
+                              Margin="{StaticResource PlayAch.Thickness.Bottom.Sm}"/>
                     <CheckBox Content="{DynamicResource LOCPlayAch_Common_Label_Playtime}"
                               IsChecked="{Binding GameSummaryOptions.ShowMetadataPlaytime, ElementName=EditorRoot}"
-                              Margin="{StaticResource PlayAch.Thickness.Bottom.Md}"/>
+                              Margin="{StaticResource PlayAch.Thickness.Bottom.Sm}"/>
                     <CheckBox Content="{DynamicResource LOCPlayAch_Common_Label_Region}"
                               IsChecked="{Binding GameSummaryOptions.ShowMetadataRegion, ElementName=EditorRoot}"
-                              Margin="{StaticResource PlayAch.Thickness.Bottom.Md}"/>
+                              Margin="{StaticResource PlayAch.Thickness.Bottom.Sm}"/>
                 </StackPanel>
             </StackPanel>
             <CheckBox Content="{DynamicResource LOCPlayAch_Settings_ShowCompletionGlow}"
                       IsChecked="{Binding GameSummaryOptions.ShowCompletionGlow, ElementName=EditorRoot}"
                       Visibility="{Binding ShowCompletionGlowRow, ElementName=EditorRoot, Converter={StaticResource BoolToVis}}"
-                      Margin="{StaticResource PlayAch.Thickness.Bottom.Md}"/>
+                      Margin="{StaticResource PlayAch.Thickness.Bottom.Sm}"/>
             <CheckBox Content="{DynamicResource LOCPlayAch_Settings_ColorRarityTextByRarity}"
                       IsChecked="{Binding GameSummaryOptions.ColorRarityColumnsByRarity, ElementName=EditorRoot}"
                       Visibility="{Binding ShowColorNamesRow, ElementName=EditorRoot, Converter={StaticResource BoolToVis}}"
-                      Margin="{StaticResource PlayAch.Thickness.Bottom.Md}"/>
+                      Margin="{StaticResource PlayAch.Thickness.Bottom.Sm}"/>
             <CheckBox Content="{DynamicResource LOCPlayAch_Settings_ShowNameAboveProgress}"
                       IsChecked="{Binding GameSummaryOptions.ShowNameAboveProgress, ElementName=EditorRoot}"
-                      Margin="{StaticResource PlayAch.Thickness.Bottom.Md}"/>
+                      Margin="{StaticResource PlayAch.Thickness.Bottom.Sm}"/>
             <CheckBox Content="{DynamicResource LOCPlayAch_Settings_ShowRarityBadgesBelowProgress}"
                       IsChecked="{Binding GameSummaryOptions.ShowRarityBadgesBelowProgress, ElementName=EditorRoot}"
-                      Margin="{StaticResource PlayAch.Thickness.Bottom.Md}"/>
+                      Margin="{StaticResource PlayAch.Thickness.Bottom.Sm}"/>
         </StackPanel>
 
         <!-- Category-summary rows -->
@@ -128,25 +128,25 @@
             <CheckBox Content="{DynamicResource LOCPlayAch_Settings_CategoryGridUseCoverImages}"
                       IsChecked="{Binding CategorySummaryOptions.UseCoverImages, ElementName=EditorRoot}"
                       Visibility="{Binding ShowCoverImagesRow, ElementName=EditorRoot, Converter={StaticResource BoolToVis}}"
-                      Margin="{StaticResource PlayAch.Thickness.Bottom.Md}"/>
+                      Margin="{StaticResource PlayAch.Thickness.Bottom.Sm}"/>
             <CheckBox Content="{DynamicResource LOCPlayAch_Settings_ShowCategoryGridColumnHeaders}"
                       IsChecked="{Binding CategorySummaryOptions.ShowColumnHeaders, ElementName=EditorRoot}"
                       Visibility="{Binding ShowColumnHeadersRow, ElementName=EditorRoot, Converter={StaticResource BoolToVis}}"
-                      Margin="{StaticResource PlayAch.Thickness.Bottom.Md}"/>
+                      Margin="{StaticResource PlayAch.Thickness.Bottom.Sm}"/>
             <CheckBox Content="{DynamicResource LOCPlayAch_Settings_ShowCompletionGlow}"
                       IsChecked="{Binding CategorySummaryOptions.ShowCompletionGlow, ElementName=EditorRoot}"
                       Visibility="{Binding ShowCompletionGlowRow, ElementName=EditorRoot, Converter={StaticResource BoolToVis}}"
-                      Margin="{StaticResource PlayAch.Thickness.Bottom.Md}"/>
+                      Margin="{StaticResource PlayAch.Thickness.Bottom.Sm}"/>
             <CheckBox Content="{DynamicResource LOCPlayAch_Settings_ColorRarityTextByRarity}"
                       IsChecked="{Binding CategorySummaryOptions.ColorRarityColumnsByRarity, ElementName=EditorRoot}"
                       Visibility="{Binding ShowColorNamesRow, ElementName=EditorRoot, Converter={StaticResource BoolToVis}}"
-                      Margin="{StaticResource PlayAch.Thickness.Bottom.Md}"/>
+                      Margin="{StaticResource PlayAch.Thickness.Bottom.Sm}"/>
             <CheckBox Content="{DynamicResource LOCPlayAch_Settings_ShowNameAboveProgress}"
                       IsChecked="{Binding CategorySummaryOptions.ShowNameAboveProgress, ElementName=EditorRoot}"
-                      Margin="{StaticResource PlayAch.Thickness.Bottom.Md}"/>
+                      Margin="{StaticResource PlayAch.Thickness.Bottom.Sm}"/>
             <CheckBox Content="{DynamicResource LOCPlayAch_Settings_ShowRarityBadgesBelowProgress}"
                       IsChecked="{Binding CategorySummaryOptions.ShowRarityBadgesBelowProgress, ElementName=EditorRoot}"
-                      Margin="{StaticResource PlayAch.Thickness.Bottom.Md}"/>
+                      Margin="{StaticResource PlayAch.Thickness.Bottom.Sm}"/>
             <StackPanel Orientation="Horizontal"
                         Visibility="{Binding ShowRowHeightRow, ElementName=EditorRoot, Converter={StaticResource BoolToVis}}"
                         Margin="{StaticResource PlayAch.Thickness.Bottom.Sm}">
@@ -178,7 +178,7 @@
             <CheckBox Content="{DynamicResource LOCPlayAch_Settings_ShowGridControlBar}"
                       IsChecked="{Binding CommonOptions.ShowControlBar, ElementName=EditorRoot}"
                       Visibility="{Binding ShowControlBarRow, ElementName=EditorRoot, Converter={StaticResource BoolToVis}}"
-                      Margin="{StaticResource PlayAch.Thickness.Bottom.Md}"/>
+                      Margin="{StaticResource PlayAch.Thickness.Bottom.Sm}"/>
         </StackPanel>
 
         <!-- Achievement category mode row -->
@@ -186,7 +186,7 @@
             <StackPanel Visibility="{Binding ShowCategoryModeRow, ElementName=EditorRoot, Converter={StaticResource BoolToVis}}">
                 <CheckBox Content="{DynamicResource LOCPlayAch_Settings_StartInCategoryMode}"
                           IsChecked="{Binding AchievementOptions.StartInCategoryMode, ElementName=EditorRoot}"
-                          Margin="{StaticResource PlayAch.Thickness.Bottom.Md}"/>
+                          Margin="{StaticResource PlayAch.Thickness.Bottom.Sm}"/>
             </StackPanel>
         </StackPanel>
 
@@ -194,7 +194,7 @@
         <StackPanel Style="{StaticResource GameSummaryPanelStyle}">
             <StackPanel Orientation="Horizontal"
                         Visibility="{Binding ShowDateModeRow, ElementName=EditorRoot, Converter={StaticResource BoolToVis}}"
-                        Margin="{StaticResource PlayAch.Thickness.Bottom.Md}">
+                        Margin="{StaticResource PlayAch.Thickness.Bottom.Sm}">
                 <TextBlock Text="{DynamicResource LOCPlayAch_Settings_LastPlayedDateDisplay}"
                            VerticalAlignment="Center"/>
                 <ComboBox SelectedValue="{Binding GameSummaryOptions.LastPlayedDateMode, ElementName=EditorRoot, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
@@ -222,7 +222,7 @@
             </StackPanel>
             <StackPanel Orientation="Horizontal"
                         Visibility="{Binding ShowMaxRowsRow, ElementName=EditorRoot, Converter={StaticResource BoolToVis}}"
-                        Margin="{StaticResource PlayAch.Thickness.Bottom.Md}">
+                        Margin="{StaticResource PlayAch.Thickness.Bottom.Sm}">
                 <TextBlock Text="{DynamicResource LOCPlayAch_Settings_GridMaxRows}"
                            VerticalAlignment="Center"/>
                 <TextBox Text="{Binding CommonOptions.MaxRows, ElementName=EditorRoot, UpdateSourceTrigger=LostFocus, Converter={StaticResource NullableIntTextConverter}, ConverterParameter=1}"
@@ -236,7 +236,7 @@
         <StackPanel Style="{StaticResource AchievementPanelStyle}">
             <StackPanel Orientation="Horizontal"
                         Visibility="{Binding ShowMaxHeightRow, ElementName=EditorRoot, Converter={StaticResource BoolToVis}}"
-                        Margin="{StaticResource PlayAch.Thickness.Bottom.Md}">
+                        Margin="{StaticResource PlayAch.Thickness.Bottom.Sm}">
                 <TextBlock Text="{DynamicResource LOCPlayAch_Settings_AchievementDataGridMaxHeight}"
                            VerticalAlignment="Center"/>
                 <TextBox Text="{Binding AchievementOptions.MaxHeight, ElementName=EditorRoot, UpdateSourceTrigger=LostFocus, Converter={StaticResource NullableDoubleTextConverter}, ConverterParameter=88}"
@@ -291,6 +291,9 @@
                     <ComboBox SelectedValue="{Binding GameSummaryOptions.SortMode, ElementName=EditorRoot, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                               SelectedValuePath="Tag"
                               MinWidth="180">
+                        <ComboBoxItem Content="{DynamicResource LOCPlayAch_Settings_GameSummariesSort_PinOrder}"
+                                      Tag="{x:Static settings:GameSummariesSortMode.PinOrder}"
+                                      Visibility="{Binding ShowGameSortPinOrderChoice, ElementName=EditorRoot, Converter={StaticResource BoolToVis}}"/>
                         <ComboBoxItem Content="{DynamicResource LOCPlayAch_Common_LastUnlock}" Tag="{x:Static settings:GameSummariesSortMode.RecentUnlock}"/>
                         <ComboBoxItem Content="{DynamicResource LOCPlayAch_Column_LastPlayed}" Tag="{x:Static settings:GameSummariesSortMode.LastPlayed}"/>
                         <ComboBoxItem Content="{DynamicResource LOCPlayAch_Column_Total}" Tag="{x:Static settings:GameSummariesSortMode.TotalAchievements}"/>

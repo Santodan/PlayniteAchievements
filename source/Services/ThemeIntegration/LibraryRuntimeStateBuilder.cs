@@ -321,6 +321,8 @@ namespace PlayniteAchievements.Services.ThemeIntegration
             state.PrestigeLevel = GetDisplayLevel(scoreSnapshot.PrestigeLevel);
             state.PrestigeLevelProgress = scoreSnapshot.PrestigeLevel?.LevelProgress ?? 0;
             state.PrestigeRank = scoreSnapshot.PrestigeLevel?.Rank ?? "Bronze5";
+            state.CollectorMastery = scoreSnapshot.CollectorLevel?.Mastery ?? 0;
+            state.PrestigeMastery = scoreSnapshot.PrestigeLevel?.Mastery ?? 0;
         }
 
         private static int GetDisplayLevel(AchievementLevelSnapshot snapshot)
@@ -490,8 +492,18 @@ namespace PlayniteAchievements.Services.ThemeIntegration
             }
 
             var category = CategoryPathHelper.NormalizePath(achievement.Category);
-            achievement.CategoryOrderIndex =
-                AchievementCategoryFilterOrderHelper.ResolveCategoryOrderIndex(category, data?.AchievementCategoryOrder);
+
+            // Built once per game on the shared memo. Resolving against the raw list scans it and
+            // re-normalizes every entry on each probe, once per achievement, so a game with a
+            // custom category order paid categories x achievements normalizations per rebuild.
+            var categoryOrderIndex = categoryArtMemo?.GetCategoryOrderIndex(
+                data?.AchievementCategoryOrder,
+                AchievementCategoryFilterOrderHelper.BuildCategoryOrderIndex);
+            achievement.CategoryOrderIndex = categoryOrderIndex != null
+                ? AchievementCategoryFilterOrderHelper.ResolveCategoryOrderIndex(category, categoryOrderIndex)
+                : AchievementCategoryFilterOrderHelper.ResolveCategoryOrderIndex(
+                    category,
+                    data?.AchievementCategoryOrder);
 
             var gameId = data?.PlayniteGameId;
             if (!gameId.HasValue || gameId.Value == Guid.Empty)
@@ -657,13 +669,15 @@ namespace PlayniteAchievements.Services.ThemeIntegration
                 return DateTime.MinValue;
             }
 
-            var latestUtc = counts.Keys
+            // Keys are already local calendar days (see UnlockDayCounts), so the latest key is the
+            // local date itself; converting it again would shift it on some DST boundaries.
+            var latestDay = counts.Keys
                 .Where(date => date != DateTime.MinValue)
                 .DefaultIfEmpty(DateTime.MinValue)
                 .Max();
-            return latestUtc == DateTime.MinValue
+            return latestDay == DateTime.MinValue
                 ? DateTime.MinValue
-                : NormalizeUtc(latestUtc).ToLocalTime();
+                : DateTime.SpecifyKind(latestDay.Date, DateTimeKind.Local);
         }
 
         private static List<AchievementDetail> MaterializeRecentUnlocks(

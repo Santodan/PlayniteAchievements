@@ -48,7 +48,7 @@ namespace PlayniteAchievements.ViewModels
             {
                 if (p is CaptureVariant variant)
                 {
-                    SelectedVariant = variant;
+                    SelectedVariant = ResolveButtonVariant(variant);
                 }
             });
 
@@ -80,13 +80,15 @@ namespace PlayniteAchievements.ViewModels
 
         public bool IsEmpty => !_set.HasAny;
 
-        public bool HasClean => _availableVariants.Contains(CaptureVariant.Clean);
+        // The Clean / Notification / Framed buttons pick among the screenshots or, with the Video
+        // toggle on, among the clips; each is enabled when the current kind has that variant.
+        public bool HasClean => HasInCurrentKind(CaptureVariant.Clean);
 
-        public bool HasNotification => _availableVariants.Contains(CaptureVariant.Notification);
+        public bool HasNotification => HasInCurrentKind(CaptureVariant.Notification);
 
-        public bool HasFramed => _availableVariants.Contains(CaptureVariant.Framed);
+        public bool HasFramed => HasInCurrentKind(CaptureVariant.Framed);
 
-        public bool HasVideo => _availableVariants.Contains(CaptureVariant.Video);
+        public bool HasVideo => _availableVariants.Any(v => v.IsVideoVariant());
 
         public CaptureVariant SelectedVariant
         {
@@ -106,13 +108,13 @@ namespace PlayniteAchievements.ViewModels
             }
         }
 
-        public bool IsCleanSelected => _selectedVariant == CaptureVariant.Clean;
+        public bool IsCleanSelected => _selectedVariant.ToImage() == CaptureVariant.Clean;
 
-        public bool IsNotificationSelected => _selectedVariant == CaptureVariant.Notification;
+        public bool IsNotificationSelected => _selectedVariant.ToImage() == CaptureVariant.Notification;
 
-        public bool IsFramedSelected => _selectedVariant == CaptureVariant.Framed;
+        public bool IsFramedSelected => _selectedVariant.ToImage() == CaptureVariant.Framed;
 
-        public bool IsVideoSelected => _selectedVariant == CaptureVariant.Video;
+        public bool IsVideoSelected => _selectedVariant.IsVideoVariant();
 
         public ICommand NextCommand => _nextCommand;
 
@@ -263,6 +265,39 @@ namespace PlayniteAchievements.ViewModels
             OnPropertyChanged(nameof(IsNotificationSelected));
             OnPropertyChanged(nameof(IsFramedSelected));
             OnPropertyChanged(nameof(IsVideoSelected));
+            OnPropertyChanged(nameof(HasClean));
+            OnPropertyChanged(nameof(HasNotification));
+            OnPropertyChanged(nameof(HasFramed));
+        }
+
+        private bool HasInCurrentKind(CaptureVariant imageVariant) =>
+            _availableVariants.Contains(_selectedVariant.IsVideoVariant() ? imageVariant.ToVideo() : imageVariant);
+
+        /// <summary>
+        /// What a selector button selects. A variant button keeps the current kind (screenshot or
+        /// clip). The Video button toggles the kind, keeping the variant when the other kind has it
+        /// and otherwise taking that kind's first variant.
+        /// </summary>
+        private CaptureVariant ResolveButtonVariant(CaptureVariant button)
+        {
+            if (button.IsVideoVariant())
+            {
+                var toggled = _selectedVariant.IsVideoVariant()
+                    ? _selectedVariant.ToImage()
+                    : _selectedVariant.ToVideo();
+                if (_availableVariants.Contains(toggled))
+                {
+                    return toggled;
+                }
+
+                var wantVideo = !_selectedVariant.IsVideoVariant();
+                return _availableVariants
+                    .Where(v => v.IsVideoVariant() == wantVideo)
+                    .Cast<CaptureVariant?>()
+                    .FirstOrDefault() ?? _selectedVariant;
+            }
+
+            return _selectedVariant.IsVideoVariant() ? button.ToVideo() : button;
         }
 
         private void RaiseCurrentChanged()

@@ -88,11 +88,13 @@ namespace PlayniteAchievements.Services.ThemeIntegration
                     all,
                     nameof(AchievementDisplayItem.UnlockTime),
                     ListSortDirection.Ascending));
-            var newestFirst = AchievementSortHelper.CreateGoalsFirstDetailList(
-                AchievementSortHelper.CreateSortedDetailList(
-                    all,
-                    nameof(AchievementDisplayItem.UnlockTime),
-                    ListSortDirection.Descending));
+            var unlockDescending = AchievementSortHelper.CreateSortedDetailList(
+                all,
+                nameof(AchievementDisplayItem.UnlockTime),
+                ListSortDirection.Descending);
+            var newestFirst = AchievementSortHelper.CreateGoalsFirstDetailList(unlockDescending);
+            // Taken before the goals-first partition so a pinned goal cannot stand in for the newest unlock.
+            var latestAchievement = unlockDescending.FirstOrDefault(achievement => achievement?.Unlocked == true);
             var rarityAsc = AchievementSortHelper.CreateGoalsFirstDetailList(
                 AchievementSortHelper.CreateSortedDetailList(
                     all,
@@ -132,7 +134,8 @@ namespace PlayniteAchievements.Services.ThemeIntegration
                 rare,
                 ultra,
                 rareAndUltra,
-                selectedGameSummary);
+                selectedGameSummary,
+                latestAchievement);
         }
 
         private static void ApplyAchievementPresentation(
@@ -165,8 +168,18 @@ namespace PlayniteAchievements.Services.ThemeIntegration
             }
 
             var category = CategoryPathHelper.NormalizePath(achievement.Category);
-            achievement.CategoryOrderIndex =
-                AchievementCategoryFilterOrderHelper.ResolveCategoryOrderIndex(category, data?.AchievementCategoryOrder);
+
+            // Built once per game on the shared memo. Resolving against the raw list scans it and
+            // re-normalizes every entry on each probe, once per achievement, so a game with a
+            // custom category order paid categories x achievements normalizations per rebuild.
+            var categoryOrderIndex = categoryArtMemo?.GetCategoryOrderIndex(
+                data?.AchievementCategoryOrder,
+                AchievementCategoryFilterOrderHelper.BuildCategoryOrderIndex);
+            achievement.CategoryOrderIndex = categoryOrderIndex != null
+                ? AchievementCategoryFilterOrderHelper.ResolveCategoryOrderIndex(category, categoryOrderIndex)
+                : AchievementCategoryFilterOrderHelper.ResolveCategoryOrderIndex(
+                    category,
+                    data?.AchievementCategoryOrder);
 
             // One shared chain with the achievement grid: the effective label is probed before
             // the provider label so a merged category resolves the target's art, and a nested

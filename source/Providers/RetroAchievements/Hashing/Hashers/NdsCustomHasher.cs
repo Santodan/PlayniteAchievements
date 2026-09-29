@@ -9,17 +9,27 @@ namespace PlayniteAchievements.Providers.RetroAchievements.Hashing.Hashers
 {
     internal sealed class NdsCustomHasher : IRaHasher
     {
+        private const int ChunkSize = 64 * 1024;
+
         public string Name => "Nintendo DS (header + arm9 + arm7 + icon/title MD5)";
 
-        public async Task<IReadOnlyList<string>> ComputeHashesAsync(string filePath, CancellationToken cancel)
+        // Reads the header, then seeks to the arm9, arm7 and icon regions.
+        public bool SupportsForwardOnlyInput => false;
+
+        public Task<IReadOnlyList<string>> ComputeHashesAsync(RaHashSource source, CancellationToken cancel)
         {
-            using (var stream = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
+            return Task.Run(() => Compute(source, cancel), cancel);
+        }
+
+        private static IReadOnlyList<string> Compute(RaHashSource source, CancellationToken cancel)
+        {
+            using (var stream = source.Open())
             using (var md5 = MD5.Create())
             {
                 var header = new byte[512];
                 long baseOffset = 0;
 
-                if (await HashUtils.ReadExactlyAsync(stream, header, 0, header.Length, cancel).ConfigureAwait(false) != 512)
+                if (HashUtils.ReadFull(stream, header, 0, header.Length) != 512)
                 {
                     return Array.Empty<string>();
                 }
@@ -30,7 +40,7 @@ namespace PlayniteAchievements.Providers.RetroAchievements.Hashing.Hashers
                 {
                     baseOffset = 512;
                     stream.Seek(baseOffset, SeekOrigin.Begin);
-                    if (await HashUtils.ReadExactlyAsync(stream, header, 0, header.Length, cancel).ConfigureAwait(false) != 512)
+                    if (HashUtils.ReadFull(stream, header, 0, header.Length) != 512)
                     {
                         return Array.Empty<string>();
                     }
@@ -50,27 +60,16 @@ namespace PlayniteAchievements.Providers.RetroAchievements.Hashing.Hashers
                 // Hash header (first 0x160 bytes), then arm9, arm7, then 0xA00 bytes icon/title (0-padded if short).
                 md5.TransformBlock(header, 0, 0x160, null, 0);
 
-                var workSize = (int)Math.Max(0xA00u, Math.Max(arm9Size, arm7Size));
-                var buffer = new byte[workSize];
+                var buffer = new byte[Math.Max(ChunkSize, 0xA00)];
 
-                if (arm9Size > 0)
+                if (!HashRange(stream, md5, buffer, baseOffset + arm9Offset, arm9Size, cancel) ||
+                    !HashRange(stream, md5, buffer, baseOffset + arm7Offset, arm7Size, cancel))
                 {
-                    stream.Seek(baseOffset + arm9Offset, SeekOrigin.Begin);
-                    var read = await HashUtils.ReadExactlyAsync(stream, buffer, 0, (int)arm9Size, cancel).ConfigureAwait(false);
-                    if (read != (int)arm9Size) return Array.Empty<string>();
-                    md5.TransformBlock(buffer, 0, (int)arm9Size, null, 0);
-                }
-
-                if (arm7Size > 0)
-                {
-                    stream.Seek(baseOffset + arm7Offset, SeekOrigin.Begin);
-                    var read = await HashUtils.ReadExactlyAsync(stream, buffer, 0, (int)arm7Size, cancel).ConfigureAwait(false);
-                    if (read != (int)arm7Size) return Array.Empty<string>();
-                    md5.TransformBlock(buffer, 0, (int)arm7Size, null, 0);
+                    return Array.Empty<string>();
                 }
 
                 stream.Seek(baseOffset + iconOffset, SeekOrigin.Begin);
-                var iconRead = await HashUtils.ReadExactlyAsync(stream, buffer, 0, 0xA00, cancel).ConfigureAwait(false);
+                var iconRead = HashUtils.ReadFull(stream, buffer, 0, 0xA00);
                 if (iconRead < 0xA00)
                 {
                     Array.Clear(buffer, iconRead, 0xA00 - iconRead);
@@ -81,6 +80,31 @@ namespace PlayniteAchievements.Providers.RetroAchievements.Hashing.Hashers
                 return new[] { HashUtils.ToHexLower(md5.Hash) };
             }
         }
+
+        private static bool HashRange(Stream stream, HashAlgorithm md5, byte[] buffer, long offset, uint size, CancellationToken cancel)
+        {
+            if (size == 0)
+            {
+                return true;
+            }
+
+            stream.Seek(offset, SeekOrigin.Begin);
+            var remaining = (long)size;
+            while (remaining > 0)
+            {
+                cancel.ThrowIfCancellationRequested();
+
+                var toRead = (int)Math.Min(ChunkSize, remaining);
+                if (HashUtils.ReadFull(stream, buffer, 0, toRead) != toRead)
+                {
+                    return false;
+                }
+
+                md5.TransformBlock(buffer, 0, toRead, null, 0);
+                remaining -= toRead;
+            }
+
+            return true;
+        }
     }
 }
-

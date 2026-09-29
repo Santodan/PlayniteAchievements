@@ -1,0 +1,287 @@
+<UserControl x:Class="PlayniteAchievements.Views.Settings.Display.SpoilersSection"
+             x:Name="SpoilersSectionRoot"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:base="clr-namespace:PlayniteAchievements.Views.ThemeIntegration.Base"
+             xmlns:modern="clr-namespace:PlayniteAchievements.Views.ThemeIntegration.Modern"
+             xmlns:helpers="clr-namespace:PlayniteAchievements.Views.Helpers"
+             xmlns:controls="clr-namespace:PlayniteAchievements.Views.Controls"
+             mc:Ignorable="d"
+             d:DesignHeight="600"
+             d:DesignWidth="700">
+    <UserControl.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceDictionary Source="pack://application:,,,/PlayniteAchievements;component/Resources/SettingsScopedControlStyles.xaml"/>
+                <ResourceDictionary Source="pack://application:,,,/PlayniteAchievements;component/Resources/RarityBadges.xaml"/>
+                <ResourceDictionary Source="pack://application:,,,/PlayniteAchievements;component/Resources/CommonResources.xaml"/>
+            </ResourceDictionary.MergedDictionaries>
+            <Style x:Key="PreviewThemeControlStyle"
+                   TargetType="{x:Type base:ThemeControlBase}">
+                <Setter Property="SettingsOverride"
+                        Value="{Binding DataContext, ElementName=SpoilersSectionRoot}"/>
+            </Style>
+            <!-- One cell of the reveal matrix. The row and column headers carry the meaning, so the
+                 box itself is unlabelled and centred under its column. BasedOn is required: a keyed
+                 style without it would drop the plugin's checkbox template for the WPF default. -->
+            <Style x:Key="RevealMatrixCheckBoxStyle"
+                   TargetType="CheckBox"
+                   BasedOn="{StaticResource PlayAch.CheckBox.BaseStyle}">
+                <Setter Property="HorizontalAlignment" Value="Center"/>
+                <Setter Property="VerticalAlignment" Value="Center"/>
+                <Setter Property="Margin" Value="0,0,0,8"/>
+            </Style>
+            <Style x:Key="RevealMatrixRowLabelStyle"
+                   TargetType="TextBlock"
+                   BasedOn="{StaticResource PlayAch.TextBlock.BaseStyle}">
+                <Setter Property="Foreground" Value="{DynamicResource PlayAch.Brush.Text}"/>
+                <Setter Property="VerticalAlignment" Value="Center"/>
+                <Setter Property="Margin" Value="0,0,20,8"/>
+            </Style>
+            <Style x:Key="RevealMatrixColumnHeaderStyle"
+                   TargetType="TextBlock"
+                   BasedOn="{StaticResource SubSectionHeaderStyle}">
+                <Setter Property="HorizontalAlignment" Value="Center"/>
+                <Setter Property="Margin" Value="0,0,0,8"/>
+            </Style>
+            <!-- Spans both columns so the matrix reads "Reveal ... when Hidden / when Locked" and a
+                 ticked box cannot be mistaken for "hide this". -->
+            <Style x:Key="RevealMatrixCaptionStyle"
+                   TargetType="TextBlock"
+                   BasedOn="{StaticResource ContextLabelStyle}">
+                <Setter Property="HorizontalAlignment" Value="Center"/>
+                <Setter Property="Margin" Value="0,0,0,2"/>
+            </Style>
+        </ResourceDictionary>
+    </UserControl.Resources>
+    <ScrollViewer VerticalScrollBarVisibility="Auto"
+                  HorizontalScrollBarVisibility="Disabled">
+        <StackPanel Margin="20">
+            <Border Style="{StaticResource SectionBorderStyle}"
+                    Background="{DynamicResource PlayAch.Brush.Panel}"
+                    BorderBrush="{DynamicResource PlayAch.Brush.Border}">
+                <TextBlock Text="{DynamicResource LOCPlayAch_Settings_Spoilers}"
+                           Style="{StaticResource SectionHeaderStyle}"
+                           Margin="0"/>
+            </Border>
+
+            <Border Style="{StaticResource SectionBorderStyle}">
+                <StackPanel>
+                    <TextBlock Text="{DynamicResource LOCPlayAch_Settings_HiddenAchievements}"
+                               Style="{StaticResource SectionHeaderStyle}"
+                               Margin="{StaticResource PlayAch.Thickness.Bottom.Md}"/>
+                    <Border Style="{StaticResource SectionAccentRuleStyle}"/>
+
+                    <Border Style="{StaticResource SettingGroupCardStyle}" Grid.IsSharedSizeScope="True">
+                        <StackPanel>
+                            <TextBlock Text="{DynamicResource LOCPlayAch_Settings_HiddenAchievements_Description}"
+                                       Style="{StaticResource MutedTextStyle}"
+                                       TextWrapping="Wrap"
+                                       Margin="{StaticResource PlayAch.Thickness.Bottom.Sm}"/>
+                            <TextBlock Text="{DynamicResource LOCPlayAch_Settings_Context_Preview}"
+                                       Style="{StaticResource ContextLabelStyle}"/>
+                            <modern:AchievementDataGridControl
+                                Style="{StaticResource PreviewThemeControlStyle}"
+                                ThemeDataOverride="{Binding AchievementVisibilityPreviewThemeData, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                ColumnSettingsKeyOverride="SpoilersPreview"
+                                PreviewMaxHeightOverride="220"
+                                Margin="{StaticResource PlayAch.Thickness.Bottom.Md}"/>
+                            <TextBlock Text="{DynamicResource LOCPlayAch_Settings_Context_Settings}"
+                                       Style="{StaticResource ContextLabelStyle}"/>
+
+                            <!-- Reveal matrix. A hidden achievement is also locked, so its row uses
+                                 the Hidden column and a merely locked one uses the Locked column;
+                                 unticking a box masks that field until the row is clicked. -->
+                            <Grid HorizontalAlignment="Left"
+                                  Margin="{StaticResource PlayAch.Thickness.Bottom.Sm}">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="Auto" MinWidth="80"/>
+                                    <ColumnDefinition Width="Auto" MinWidth="80"/>
+                                </Grid.ColumnDefinitions>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="Auto"/>
+                                </Grid.RowDefinitions>
+
+                                <TextBlock Grid.Row="0" Grid.Column="1" Grid.ColumnSpan="2"
+                                           Text="{DynamicResource LOCPlayAch_Settings_RevealWhen}"
+                                           Style="{StaticResource RevealMatrixCaptionStyle}"/>
+
+                                <TextBlock Grid.Row="1" Grid.Column="1"
+                                           Text="{DynamicResource LOCPlayAch_Filter_Hidden}"
+                                           Style="{StaticResource RevealMatrixColumnHeaderStyle}"/>
+                                <TextBlock Grid.Row="1" Grid.Column="2"
+                                           Text="{DynamicResource LOCPlayAch_Common_Locked}"
+                                           Style="{StaticResource RevealMatrixColumnHeaderStyle}"/>
+
+                                <TextBlock Grid.Row="2" Grid.Column="0"
+                                           Text="{DynamicResource LOCPlayAch_Column_Icon}"
+                                           Style="{StaticResource RevealMatrixRowLabelStyle}"/>
+                                <CheckBox Grid.Row="2" Grid.Column="1"
+                                          Style="{StaticResource RevealMatrixCheckBoxStyle}"
+                                          IsChecked="{Binding Persisted.ShowHiddenIcon}"/>
+                                <CheckBox Grid.Row="2" Grid.Column="2"
+                                          Style="{StaticResource RevealMatrixCheckBoxStyle}"
+                                          IsChecked="{Binding Persisted.ShowLockedIcon}"/>
+
+                                <TextBlock Grid.Row="3" Grid.Column="0"
+                                           Text="{DynamicResource LOCPlayAch_Column_Name}"
+                                           Style="{StaticResource RevealMatrixRowLabelStyle}"/>
+                                <CheckBox Grid.Row="3" Grid.Column="1"
+                                          Style="{StaticResource RevealMatrixCheckBoxStyle}"
+                                          IsChecked="{Binding Persisted.ShowHiddenTitle}"/>
+                                <CheckBox Grid.Row="3" Grid.Column="2"
+                                          Style="{StaticResource RevealMatrixCheckBoxStyle}"
+                                          IsChecked="{Binding Persisted.ShowLockedTitle}"/>
+
+                                <TextBlock Grid.Row="4" Grid.Column="0"
+                                           Text="{DynamicResource LOCPlayAch_Column_Description}"
+                                           Style="{StaticResource RevealMatrixRowLabelStyle}"/>
+                                <CheckBox Grid.Row="4" Grid.Column="1"
+                                          Style="{StaticResource RevealMatrixCheckBoxStyle}"
+                                          IsChecked="{Binding Persisted.ShowHiddenDescription}"/>
+                                <CheckBox Grid.Row="4" Grid.Column="2"
+                                          Style="{StaticResource RevealMatrixCheckBoxStyle}"
+                                          IsChecked="{Binding Persisted.ShowLockedDescription}"/>
+
+                                <TextBlock Grid.Row="5" Grid.Column="0"
+                                           Text="{DynamicResource LOCPlayAch_Column_Trophy}"
+                                           Style="{StaticResource RevealMatrixRowLabelStyle}"/>
+                                <CheckBox Grid.Row="5" Grid.Column="1"
+                                          Style="{StaticResource RevealMatrixCheckBoxStyle}"
+                                          IsChecked="{Binding Persisted.ShowHiddenTrophy}"/>
+                                <CheckBox Grid.Row="5" Grid.Column="2"
+                                          Style="{StaticResource RevealMatrixCheckBoxStyle}"
+                                          IsChecked="{Binding Persisted.ShowLockedTrophy}"/>
+
+                                <TextBlock Grid.Row="6" Grid.Column="0"
+                                           Text="{DynamicResource LOCPlayAch_Column_Points}"
+                                           Style="{StaticResource RevealMatrixRowLabelStyle}"/>
+                                <CheckBox Grid.Row="6" Grid.Column="1"
+                                          Style="{StaticResource RevealMatrixCheckBoxStyle}"
+                                          IsChecked="{Binding Persisted.ShowHiddenPoints}"/>
+                                <CheckBox Grid.Row="6" Grid.Column="2"
+                                          Style="{StaticResource RevealMatrixCheckBoxStyle}"
+                                          IsChecked="{Binding Persisted.ShowLockedPoints}"/>
+                            </Grid>
+
+                            <controls:SettingRow Label="{DynamicResource LOCPlayAch_Settings_ShowHiddenSuffix}">
+                                <CheckBox IsChecked="{Binding Persisted.ShowHiddenSuffix}"/>
+                            </controls:SettingRow>
+                            <controls:SettingRow Label="{DynamicResource LOCPlayAch_Settings_ShowFriendSpoilers}"
+                                                 Visibility="{Binding Persisted.EnableFriendsFeatures, Converter={StaticResource BoolToVis}}">
+                                <CheckBox IsChecked="{Binding Persisted.ShowFriendSpoilers}"/>
+                            </controls:SettingRow>
+
+                            <!-- Custom cover images for the two masked states previewed above. Each
+                                 covers its icon until the row is revealed; the real artwork below is
+                                 never replaced. -->
+                            <TextBlock Text="{DynamicResource LOCPlayAch_Settings_FallbackIcons}"
+                                       Style="{StaticResource SubSectionHeaderStyle}"
+                                       Margin="{StaticResource PlayAch.Thickness.Top.Md}"/>
+                            <TextBlock Text="{DynamicResource LOCPlayAch_Settings_FallbackIcons_Help}"
+                                       Style="{StaticResource MutedTextStyle}"
+                                       TextWrapping="Wrap"
+                                       Margin="{StaticResource PlayAch.Thickness.Bottom.Sm}"/>
+                            <!-- Stretch so the read-only path keeps filling the row; the thumbnail,
+                                 Clear and Browse stay at their own widths beside it. -->
+                            <controls:SettingRow Label="{DynamicResource LOCPlayAch_Common_Locked}"
+                                                 HorizontalContentAlignment="Stretch">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto"/>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <Border Grid.Column="0"
+                                            Width="48" Height="48"
+                                            Background="{DynamicResource PlayAch.Brush.Surface}"
+                                            BorderBrush="{DynamicResource PlayAch.Brush.Border}"
+                                            BorderThickness="1"
+                                            Margin="0,0,8,0">
+                                        <Image helpers:AsyncImage.Uri="{Binding LockedFallbackThumbnailUri, ElementName=SpoilersSectionRoot}"
+                                               helpers:AsyncImage.DecodePixel="48"
+                                               Stretch="Uniform"
+                                               RenderOptions.BitmapScalingMode="HighQuality"/>
+                                    </Border>
+                                    <TextBox Grid.Column="1"
+                                             Tag="Locked"
+                                             Text="{Binding Persisted.LockedFallbackIconPath, Mode=OneWay}"
+                                             IsReadOnly="True"
+                                             VerticalAlignment="Center"
+                                             AllowDrop="True"
+                                             PreviewDragOver="FallbackIconTextBox_PreviewDragOver"
+                                             PreviewDrop="FallbackIconTextBox_PreviewDrop"/>
+                                    <Button Grid.Column="2"
+                                            Tag="Locked"
+                                            Content="{DynamicResource LOCPlayAch_Button_Clear}"
+                                            Click="FallbackIconClear_Click"
+                                            Margin="8,0,0,0"
+                                            VerticalAlignment="Center"/>
+                                    <Button Grid.Column="3"
+                                            Tag="Locked"
+                                            Content="{DynamicResource LOCPlayAch_Button_Browse}"
+                                            Click="FallbackIconBrowse_Click"
+                                            Margin="8,0,0,0"
+                                            VerticalAlignment="Center"/>
+                                </Grid>
+                            </controls:SettingRow>
+                            <controls:SettingRow Label="{DynamicResource LOCPlayAch_Filter_Hidden}"
+                                                 HorizontalContentAlignment="Stretch"
+                                                 Margin="0">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto"/>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <Border Grid.Column="0"
+                                            Width="48" Height="48"
+                                            Background="{DynamicResource PlayAch.Brush.Surface}"
+                                            BorderBrush="{DynamicResource PlayAch.Brush.Border}"
+                                            BorderThickness="1"
+                                            Margin="0,0,8,0">
+                                        <Image helpers:AsyncImage.Uri="{Binding HiddenFallbackThumbnailUri, ElementName=SpoilersSectionRoot}"
+                                               helpers:AsyncImage.DecodePixel="48"
+                                               Stretch="Uniform"
+                                               RenderOptions.BitmapScalingMode="HighQuality"/>
+                                    </Border>
+                                    <TextBox Grid.Column="1"
+                                             Tag="Hidden"
+                                             Text="{Binding Persisted.HiddenFallbackIconPath, Mode=OneWay}"
+                                             IsReadOnly="True"
+                                             VerticalAlignment="Center"
+                                             AllowDrop="True"
+                                             PreviewDragOver="FallbackIconTextBox_PreviewDragOver"
+                                             PreviewDrop="FallbackIconTextBox_PreviewDrop"/>
+                                    <Button Grid.Column="2"
+                                            Tag="Hidden"
+                                            Content="{DynamicResource LOCPlayAch_Button_Clear}"
+                                            Click="FallbackIconClear_Click"
+                                            Margin="8,0,0,0"
+                                            VerticalAlignment="Center"/>
+                                    <Button Grid.Column="3"
+                                            Tag="Hidden"
+                                            Content="{DynamicResource LOCPlayAch_Button_Browse}"
+                                            Click="FallbackIconBrowse_Click"
+                                            Margin="8,0,0,0"
+                                            VerticalAlignment="Center"/>
+                                </Grid>
+                            </controls:SettingRow>
+                        </StackPanel>
+                    </Border>
+                </StackPanel>
+            </Border>
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

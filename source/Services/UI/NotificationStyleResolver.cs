@@ -29,6 +29,18 @@ namespace PlayniteAchievements.Services.UI
         }
 
         /// <summary>
+        /// Narrows a scope's style to the one a notification of this kind uses: the kind's own
+        /// copy when the user gave it one, otherwise the scope's style unchanged. Applied after
+        /// the game/provider/global chain, so a kind style belongs to the scope that owns it.
+        /// </summary>
+        public static NotificationStyleSettings ApplyKind(
+            NotificationStyleSettings style,
+            NotificationKind kind)
+        {
+            return style?.ResolveKind(kind) ?? style;
+        }
+
+        /// <summary>
         /// Resolves the complete appearance for one notification. A valid per-game snapshot wins;
         /// otherwise the style follows the provider/global chain and the template choices follow
         /// the current global settings.

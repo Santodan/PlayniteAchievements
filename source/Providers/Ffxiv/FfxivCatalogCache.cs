@@ -35,7 +35,7 @@ namespace PlayniteAchievements.Providers.Ffxiv
         /// Returns the catalog, fetching from the API when the on-disk copy is
         /// missing or stale.
         /// </summary>
-        public async Task<List<FfxivAchievement>> GetCatalogAsync(FfxivApiClient api, CancellationToken cancel)
+        public async Task<List<FfxivAchievement>> GetCatalogAsync(FfxivApiClient api, long lodestoneId, CancellationToken cancel)
         {
             await _gate.WaitAsync(cancel).ConfigureAwait(false);
             try
@@ -51,7 +51,7 @@ namespace PlayniteAchievements.Providers.Ffxiv
                     return cached;
                 }
 
-                var fresh = await api.FetchCatalogAsync(cancel).ConfigureAwait(false);
+                var fresh = await api.FetchCatalogAsync(lodestoneId, cancel).ConfigureAwait(false);
                 if (fresh != null && fresh.Count > 0)
                 {
                     _memoryCache = fresh;

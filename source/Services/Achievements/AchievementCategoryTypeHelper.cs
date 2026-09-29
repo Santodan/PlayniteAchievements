@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
@@ -13,7 +13,20 @@ namespace PlayniteAchievements.Services.Achievements
 
         public const string SoftcoreCategoryType = "Softcore";
         public const string HardcoreCategoryType = "Hardcore";
+        public const string MissableCategoryType = "Missable";
 
+        public const string UnobtainableCategoryType = "Unobtainable";
+
+        public static bool IsMissable(string categoryType) =>
+            ParseValues(categoryType).Contains(MissableCategoryType);
+
+        public static bool IsUnobtainable(string categoryType) =>
+            ParseValues(categoryType).Contains(UnobtainableCategoryType);
+
+        // Grouped by what the tag says about an achievement: which set it belongs to, which play
+        // mode it needs, what kind of goal it is, whether it can still be earned, and how it was
+        // earned. Every type menu, the joined Type cell text, and the stored pipe-joined value
+        // follow this order.
         private static readonly string[] CanonicalOrder =
         {
             DefaultCategoryType,
@@ -23,9 +36,14 @@ namespace PlayniteAchievements.Services.Achievements
             "Subset",
             "Singleplayer",
             "Multiplayer",
+            "Progression",
+            "SideProgression",
+            "WinCondition",
             "Collectable",
-            "Missable",
             "Difficulty",
+            "Miscellaneous",
+            "Missable",
+            UnobtainableCategoryType,
             "Stackable",
             SoftcoreCategoryType,
             HardcoreCategoryType
@@ -59,6 +77,12 @@ namespace PlayniteAchievements.Services.Achievements
         private static readonly ConcurrentDictionary<string, string> NormalizeOrDefaultCache =
             new ConcurrentDictionary<string, string>(StringComparer.Ordinal);
 
+        private static readonly ConcurrentDictionary<string, string> NormalizeCache =
+            new ConcurrentDictionary<string, string>(StringComparer.Ordinal);
+
+        private static readonly ConcurrentDictionary<string, IReadOnlyList<string>> ComponentsCache =
+            new ConcurrentDictionary<string, IReadOnlyList<string>>(StringComparer.Ordinal);
+
         private static readonly char[] ValueSeparators = { '|', ',', ';', '/' };
 
         private static readonly Dictionary<string, string> CanonicalByAlias =
@@ -75,12 +99,27 @@ namespace PlayniteAchievements.Services.Achievements
                 ["multiplayer"] = "Multiplayer",
                 ["multi player"] = "Multiplayer",
                 ["mp"] = "Multiplayer",
+                ["progression"] = "Progression",
+                ["story"] = "Progression",
+                ["sideprogression"] = "SideProgression",
+                ["side progression"] = "SideProgression",
+                ["side-progression"] = "SideProgression",
+                ["side_progression"] = "SideProgression",
+                ["sidequest"] = "SideProgression",
+                ["side quest"] = "SideProgression",
+                ["wincondition"] = "WinCondition",
+                ["win_condition"] = "WinCondition",
+                ["win condition"] = "WinCondition",
+                ["win-condition"] = "WinCondition",
                 ["collectable"] = "Collectable",
                 ["collectible"] = "Collectable",
                 ["missable"] = "Missable",
                 ["miss-able"] = "Missable",
+                ["unobtainable"] = UnobtainableCategoryType,
                 ["difficulty"] = "Difficulty",
                 ["diff"] = "Difficulty",
+                ["miscellaneous"] = "Miscellaneous",
+                ["misc"] = "Miscellaneous",
                 ["stackable"] = "Stackable",
                 ["stack"] = "Stackable",
                 ["stacking"] = "Stackable",
@@ -102,8 +141,48 @@ namespace PlayniteAchievements.Services.Achievements
 
         public static string Normalize(string rawValue)
         {
+            // Memoized for the same reason NormalizeOrDefault is: the filters ask this of every
+            // row on every refresh, and the raw values come from a tiny fixed vocabulary.
+            var key = rawValue ?? string.Empty;
+            if (NormalizeCache.TryGetValue(key, out var cached))
+            {
+                return cached;
+            }
+
             var values = ParseValues(rawValue);
-            return values.Count == 0 ? null : string.Join("|", values);
+            var result = values.Count == 0 ? null : string.Join("|", values);
+            if (NormalizeCache.Count < NormalizeCacheCapacity)
+            {
+                NormalizeCache.TryAdd(key, result);
+            }
+
+            return result;
+        }
+
+        /// <summary>
+        /// The canonical tokens of a category type value, as a shared list rather than a fresh
+        /// one per call.
+        /// </summary>
+        /// <remarks>
+        /// For membership tests run per row per refresh -- the grid's type filter. The returned
+        /// list is cached and must not be mutated; callers that need their own copy use
+        /// <see cref="ParseValues"/>.
+        /// </remarks>
+        public static IReadOnlyList<string> GetCanonicalComponents(string rawValue)
+        {
+            var key = rawValue ?? string.Empty;
+            if (ComponentsCache.TryGetValue(key, out var cached))
+            {
+                return cached;
+            }
+
+            IReadOnlyList<string> result = ParseValues(rawValue).AsReadOnly();
+            if (ComponentsCache.Count < NormalizeCacheCapacity)
+            {
+                ComponentsCache.TryAdd(key, result);
+            }
+
+            return result;
         }
 
         public static string NormalizeOrDefault(string rawValue)

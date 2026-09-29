@@ -31,7 +31,6 @@
 
     <Style x:Key="SectionHeaderStyle" TargetType="TextBlock" BasedOn="{StaticResource PlayAch.SectionHeaderTextStyle}"/>
 
-    <Style x:Key="SettingRowStyle" TargetType="Grid" BasedOn="{StaticResource PlayAch.SettingRowStyle}"/>
 
     <Style x:Key="SectionBorderStyle" TargetType="Border" BasedOn="{StaticResource PlayAch.SectionBorderStyle}"/>
 

@@ -1,7 +1,9 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using Playnite.SDK;
 using PlayniteAchievements.Models.Settings;
+using PlayniteAchievements.Providers.Overrides;
 
 namespace PlayniteAchievements.Providers.Manual
 {
@@ -80,5 +82,30 @@ namespace PlayniteAchievements.Providers.Manual
                    .Where(key => !string.IsNullOrWhiteSpace(key))
                    .ToList()
                ?? new List<string>();
+
+        /// <summary>
+        /// The display-platform choices offered for a manual link: a Default entry that falls back to
+        /// the platform derived from the source game id, then every registered provider the override
+        /// may name, by localized name.
+        /// </summary>
+        /// <remarks>
+        /// Shared so the manual-tracking window and the merged editor cannot offer different lists
+        /// for the same setting.
+        /// </remarks>
+        public static IReadOnlyList<ProviderOverrideChoice> BuildDisplayPlatformOptions()
+        {
+            var options = new List<ProviderOverrideChoice>
+            {
+                new ProviderOverrideChoice(
+                    string.Empty,
+                    ResourceProvider.GetString("LOCPlayAch_Common_Default"))
+            };
+
+            options.AddRange(GetSelectablePlatformKeys()
+                .Select(key => new ProviderOverrideChoice(key, ProviderRegistry.GetLocalizedName(key)))
+                .OrderBy(choice => choice.DisplayName, StringComparer.CurrentCultureIgnoreCase));
+
+            return options;
+        }
     }
 }

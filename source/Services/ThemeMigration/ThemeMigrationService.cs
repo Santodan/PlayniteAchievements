@@ -644,7 +644,7 @@ namespace PlayniteAchievements.Services.ThemeMigration
                 foreach (var mapping in ControlMappings.LegacyToModernBindingPaths)
                 {
                     string legacyBinding = $"LegacyData.{mapping.Key}";
-                    string modernBinding = $"Theme.{mapping.Value}";
+                    string modernBinding = $"ModernTheme.{mapping.Value}";
                     int replacements = CountOccurrences(result, legacyBinding);
                     if (replacements > 0)
                     {

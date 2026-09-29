@@ -156,9 +156,47 @@ namespace PlayniteAchievements.Services.Tests
                 },
                 gameId);
 
-            Assert.AreEqual(7, normalized.SchemaVersion);
-            Assert.AreEqual("capstone", normalized.ManualCapstoneApiName);
+            Assert.AreEqual(GameCustomDataNormalizer.CurrentSchemaVersion, normalized.SchemaVersion);
+            // The legacy scalar folds into a materialized single game-wide set, which behaves
+            // the same way it always did: it suppresses every provider capstone.
+            Assert.IsNull(normalized.ManualCapstoneApiName);
+            Assert.IsTrue(normalized.CapstonesMaterialized);
+            Assert.AreEqual(1, normalized.Capstones.Count);
+            Assert.AreEqual("capstone", normalized.Capstones[0].ApiName);
             Assert.IsNull(normalized.NotificationAppearanceOverride);
+        }
+
+        [TestMethod]
+        public void NormalizeInternal_KeepsAutoCapstoneScopeAndGenerationMarker()
+        {
+            // Custom achievements are rebuilt field by field on every save, and a record holding
+            // only the marker must survive, or generation would author a deleted capstone again.
+            var gameId = Guid.NewGuid();
+            var normalized = GameCustomDataNormalizer.NormalizeInternal(
+                new GameCustomDataFile
+                {
+                    PlayniteGameId = gameId,
+                    AutoCapstoneGenerated = true,
+                    CustomAchievements = new List<CustomAchievementDefinition>
+                    {
+                        new CustomAchievementDefinition
+                        {
+                            Id = "auto-capstone",
+                            DisplayName = "Game",
+                            IsAutoCapstone = true,
+                            IsWholeGameAutoCapstone = true
+                        }
+                    }
+                },
+                gameId);
+
+            Assert.IsTrue(normalized.AutoCapstoneGenerated);
+            Assert.IsTrue(normalized.CustomAchievements[0].IsWholeGameAutoCapstone);
+            Assert.IsTrue(GameCustomDataNormalizer.HasInternalData(new GameCustomDataFile
+            {
+                PlayniteGameId = gameId,
+                AutoCapstoneGenerated = true
+            }));
         }
 
         [TestMethod]
@@ -256,7 +294,7 @@ namespace PlayniteAchievements.Services.Tests
                 },
                 gameId);
 
-            Assert.AreEqual(7, normalized.SchemaVersion);
+            Assert.AreEqual(GameCustomDataNormalizer.CurrentSchemaVersion, normalized.SchemaVersion);
             AssertProviderOverride(normalized, "Steam", "480");
             AssertLegacyProviderFieldsCleared(normalized);
         }
@@ -781,6 +819,74 @@ namespace PlayniteAchievements.Services.Tests
         }
 
         [TestMethod]
+        public void NormalizeInternal_DropsReferencesToAuthoredAchievementsNoLongerDefined()
+        {
+            // Deleting an authored achievement rewrote the definition list and left its capstone,
+            // order slot, goal, filter and overrides behind, where a new achievement generated
+            // with the same ID inherited them. Provider references are not this rule's to touch.
+            var gameId = Guid.NewGuid();
+            var normalized = GameCustomDataNormalizer.NormalizeInternal(
+                new GameCustomDataFile
+                {
+                    PlayniteGameId = gameId,
+                    CustomAchievements = new List<CustomAchievementDefinition>
+                    {
+                        new CustomAchievementDefinition { Id = "kept", DisplayName = "Kept" }
+                    },
+                    CapstonesMaterialized = true,
+                    Capstones = new List<CapstoneAssignment>
+                    {
+                        new CapstoneAssignment { ApiName = "custom:gone" },
+                        new CapstoneAssignment { ApiName = "custom:kept" },
+                        new CapstoneAssignment { ApiName = "prov_one" }
+                    },
+                    AchievementOrder = new List<string> { "custom:gone", "prov_one", "custom:kept" },
+                    GoalAchievementApiNames = new List<string> { "custom:gone" },
+                    FilteredAchievementApiNames = new List<string> { "custom:gone", "prov_one" },
+                    SummaryFilteredAchievementApiNames = new List<string> { "custom:gone" },
+                    AchievementOverrides = new Dictionary<string, AchievementOverride>
+                    {
+                        ["custom:gone"] = new AchievementOverride { Category = "Gone", Note = "note" },
+                        ["prov_one"] = new AchievementOverride { Category = "Kept" }
+                    }
+                },
+                gameId);
+
+            CollectionAssert.AreEqual(
+                new[] { "custom:kept", "prov_one" },
+                normalized.Capstones.Select(assignment => assignment.ApiName).ToList());
+            CollectionAssert.AreEqual(new[] { "prov_one", "custom:kept" }, normalized.AchievementOrder);
+            Assert.IsNull(normalized.GoalAchievementApiNames);
+            CollectionAssert.AreEqual(new[] { "prov_one" }, normalized.FilteredAchievementApiNames);
+            Assert.IsNull(normalized.SummaryFilteredAchievementApiNames);
+            CollectionAssert.AreEqual(new[] { "prov_one" }, normalized.AchievementOverrides.Keys.ToList());
+            CollectionAssert.AreEqual(new[] { "prov_one" }, normalized.AchievementCategoryOverrides.Keys.ToList());
+            Assert.IsNull(normalized.AchievementNotes);
+        }
+
+        [TestMethod]
+        public void NormalizeInternal_NoAuthoredAchievements_DropsEveryAuthoredReferenceButKeepsTheSet()
+        {
+            // A whole-game reset nulls the definitions; the materialized flag still means "this
+            // game's capstones are decided", now as an empty set rather than a stale one.
+            var gameId = Guid.NewGuid();
+            var normalized = GameCustomDataNormalizer.NormalizeInternal(
+                new GameCustomDataFile
+                {
+                    PlayniteGameId = gameId,
+                    CapstonesMaterialized = true,
+                    Capstones = new List<CapstoneAssignment>
+                    {
+                        new CapstoneAssignment { ApiName = "custom:gone" }
+                    }
+                },
+                gameId);
+
+            Assert.IsTrue(normalized.CapstonesMaterialized);
+            Assert.IsNull(normalized.Capstones);
+        }
+
+        [TestMethod]
         public void NormalizeInternal_ExophaseProviderOverride_AllowsEmptyValue()
         {
             var gameId = Guid.NewGuid();
@@ -890,5 +996,132 @@ namespace PlayniteAchievements.Services.Tests
             Assert.IsNull(data.ForceUseExophase);
             Assert.IsNull(data.ExophaseSlugOverride);
         }
+
+        [TestMethod]
+        public void CustomProviderId_RoundTripsAndIsClearedWithoutCustomAchievements()
+        {
+            var gameId = Guid.NewGuid();
+            var data = new GameCustomDataFile
+            {
+                PlayniteGameId = gameId,
+                CustomProviderId = " abc ",
+                CustomAchievements = new List<CustomAchievementDefinition>
+                {
+                    new CustomAchievementDefinition { DisplayName = "Solo" }
+                }
+            };
+
+            var normalized = GameCustomDataNormalizer.NormalizeInternal(data, gameId);
+            Assert.AreEqual("abc", normalized.CustomProviderId);
+            Assert.AreEqual("abc", normalized.Clone().CustomProviderId);
+
+            var portable = normalized.ToPortable();
+            Assert.AreEqual("abc", portable.CustomProviderId);
+            Assert.AreEqual("abc", portable.Clone().CustomProviderId);
+            Assert.AreEqual("abc", GameCustomDataFile.FromPortable(portable, gameId, null, null).CustomProviderId);
+            Assert.IsTrue(GameCustomDataNormalizer.HasVisibleCustomization(new GameCustomDataFile { CustomProviderId = "abc" }));
+
+            var orphan = GameCustomDataNormalizer.NormalizeInternal(
+                new GameCustomDataFile { PlayniteGameId = gameId, CustomProviderId = "abc" },
+                gameId);
+            Assert.IsNull(orphan.CustomProviderId, "an assignment without custom achievements is dropped");
+            Assert.IsFalse(GameCustomDataNormalizer.HasInternalData(orphan));
+        }
+
+        [TestMethod]
+        public void NormalizePortable_CustomProviderSnapshot_FollowsTheAssignedId()
+        {
+            var gameId = Guid.NewGuid();
+            var achievements = new List<CustomAchievementDefinition>
+            {
+                new CustomAchievementDefinition { DisplayName = "Solo" }
+            };
+
+            var normalized = GameCustomDataNormalizer.NormalizePortable(
+                new GameCustomDataPortableFile
+                {
+                    CustomProviderId = "abc",
+                    CustomProvider = new CustomProviderDefinition
+                    {
+                        Id = "other",
+                        Name = " Shelf ",
+                        ColorHex = "#123456",
+                        IconPathData = " M0 0h1v1z "
+                    },
+                    CustomAchievements = achievements
+                },
+                gameId);
+
+            Assert.AreEqual("abc", normalized.CustomProvider.Id);
+            Assert.AreEqual("Shelf", normalized.CustomProvider.Name);
+            Assert.AreEqual("#123456", normalized.CustomProvider.ColorHex);
+            Assert.AreEqual("M0 0h1v1z", normalized.CustomProvider.IconPathData);
+
+            var nameless = GameCustomDataNormalizer.NormalizePortable(
+                new GameCustomDataPortableFile
+                {
+                    CustomProviderId = "abc",
+                    CustomProvider = new CustomProviderDefinition { Id = "abc" },
+                    CustomAchievements = achievements
+                },
+                gameId);
+            Assert.IsNull(nameless.CustomProvider);
+            Assert.AreEqual("abc", nameless.CustomProviderId);
+
+            var unassigned = GameCustomDataNormalizer.NormalizePortable(
+                new GameCustomDataPortableFile
+                {
+                    CustomProvider = new CustomProviderDefinition { Id = "abc", Name = "Shelf" },
+                    CustomAchievements = achievements
+                },
+                gameId);
+            Assert.IsNull(unassigned.CustomProvider);
+        }
+        [TestMethod]
+        public void NormalizeInternal_HiddenOnlyOverride_Survives()
+        {
+            var gameId = Guid.NewGuid();
+
+            var normalized = GameCustomDataNormalizer.NormalizeInternal(
+                new GameCustomDataFile
+                {
+                    PlayniteGameId = gameId,
+                    AchievementOverrides = new Dictionary<string, AchievementOverride>
+                    {
+                        ["ach_one"] = new AchievementOverride { Hidden = true },
+                        ["ach_two"] = new AchievementOverride { Hidden = false }
+                    }
+                },
+                gameId);
+
+            // The rebuild used to omit Hidden, so the value was dropped on every save and a
+            // hidden-only record then read as empty and was discarded outright.
+            Assert.IsNotNull(normalized.AchievementOverrides);
+            Assert.AreEqual(true, normalized.AchievementOverrides["ach_one"].Hidden);
+            Assert.AreEqual(false, normalized.AchievementOverrides["ach_two"].Hidden);
+        }
+
+        [TestMethod]
+        public void NormalizeInternal_OverrideWithNoStoredValues_IsDropped()
+        {
+            var gameId = Guid.NewGuid();
+
+            var normalized = GameCustomDataNormalizer.NormalizeInternal(
+                new GameCustomDataFile
+                {
+                    PlayniteGameId = gameId,
+                    AchievementOverrides = new Dictionary<string, AchievementOverride>
+                    {
+                        ["ach_one"] = new AchievementOverride()
+                    }
+                },
+                gameId);
+
+            // Null Hidden is "no opinion", so it must not keep an otherwise empty record alive.
+            Assert.IsTrue(
+                normalized.AchievementOverrides == null ||
+                !normalized.AchievementOverrides.ContainsKey("ach_one"));
+        }
+
     }
 }

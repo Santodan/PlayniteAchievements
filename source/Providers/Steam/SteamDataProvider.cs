@@ -20,7 +20,7 @@ using Playnite.SDK.Models;
 
 namespace PlayniteAchievements.Providers.Steam
 {
-    internal sealed class SteamDataProvider : DataProviderBase<SteamSettings>, IDataProvider, IAchievementPageLinkProvider, IProviderOverride, IRefreshAuthContextReceiver, IInGameProgressSource, IOfflineRefreshFallbackProvider, IDisposable
+    internal sealed class SteamDataProvider : DataProviderBase<SteamSettings>, IDataProvider, IProfileLinkProvider, IAchievementPageLinkProvider, IProviderOverride, IRefreshAuthContextReceiver, IInGameProgressSource, IOfflineRefreshFallbackProvider, IDisposable
     {
         /// <summary>
         /// Resolved once at game start so the fast prong never repeats path discovery. Steam's remote
@@ -100,6 +100,16 @@ namespace PlayniteAchievements.Providers.Steam
         public string ProviderName => ResourceProvider.GetString("LOCPlayAch_Provider_Steam");
         public string ProviderKey => "Steam";
         public string ProviderIconKey => "ProviderIconSteam";
+
+        public string ProfileUrlPattern => "https://steamcommunity.com/id/{0}";
+
+        // A SteamID64 has its own address; anything else is a custom (vanity) profile name.
+        public string BuildProfileUrl(string user) =>
+            !string.IsNullOrWhiteSpace(user) && user.Trim().All(char.IsDigit)
+                ? "https://steamcommunity.com/profiles/" + user.Trim()
+                : ProfileLinkUrls.Format(ProfileUrlPattern, user);
+
+        public string GetCurrentUserProfileName() => ProviderSettings.SteamUserId;
         public string ProviderColorHex => "#B0B0B0";
 
         /// <summary>

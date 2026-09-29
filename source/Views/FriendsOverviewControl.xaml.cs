@@ -10,6 +10,7 @@ using PlayniteAchievements.Services.Achievements;
 using PlayniteAchievements.Services.Cache;
 using PlayniteAchievements.Services.Friends;
 using PlayniteAchievements.Services.Refresh;
+using PlayniteAchievements.Services.Settings;
 using PlayniteAchievements.ViewModels;
 using PlayniteAchievements.ViewModels.Items;
 using PlayniteAchievements.Views.Helpers;
@@ -43,6 +44,8 @@ namespace PlayniteAchievements.Views
         private readonly IFriendCacheManager _friendCache;
         private readonly AchievementOverridesService _achievementOverridesService;
         private readonly Action _persistSettingsForUi;
+        private readonly PlayniteAchievementsSettings _settings;
+        private DebouncedSettingsPersist _controlBarPersist;
         private const double FriendsOverviewColumnRatioChangeThreshold = 0.001d;
         private bool _loaded;
         private DataGridRow _pendingRightClickRow;
@@ -85,6 +88,13 @@ namespace PlayniteAchievements.Views
             _friendCache = friendCache;
             _achievementOverridesService = achievementOverridesService;
             _persistSettingsForUi = persistSettingsForUi;
+            _settings = settings;
+            // Quiet save: the SettingsSaved broadcast that PersistSettingsForUi raises would
+            // force an immediate friends snapshot rebuild on every control bar toggle.
+            _controlBarPersist = new DebouncedSettingsPersist(
+                this,
+                SaveSettings,
+                () => PlayniteAchievementsPlugin.Instance?.IsSettingsEditSessionActive == true);
             _viewModel = new FriendsOverviewViewModel(
                 friendCache,
                 refreshCoordinator,
@@ -136,6 +146,12 @@ namespace PlayniteAchievements.Views
 
         public void Dispose()
         {
+            // The host disposes this control before its Unloaded fires, and Dispose alone drops
+            // a pending save, so flush the last control bar toggle here.
+            _controlBarPersist?.Flush();
+            _controlBarPersist?.Dispose();
+            _controlBarPersist = null;
+
             if (_viewModel != null)
             {
                 _viewModel.PropertyChanged -= ViewModel_PropertyChanged;
@@ -212,6 +228,61 @@ namespace PlayniteAchievements.Views
             _viewModel?.ClearGameSelection();
             ClearGridSelection(FriendGameSummariesGridControl?.InternalDataGrid);
             ClearGridSelection(SelectedFriendGameSummariesGridControl?.InternalDataGrid);
+        }
+
+        private void ToggleFriendSummariesControlBar_Click(object sender, RoutedEventArgs e)
+        {
+            // Read Persisted at click time: a settings window Cancel replaces the instance.
+            var persisted = _settings?.Persisted;
+            if (persisted == null)
+            {
+                return;
+            }
+
+            persisted.ShowFriendsOverviewFriendSummariesGridControlBar = !persisted.ShowFriendsOverviewFriendSummariesGridControlBar;
+            _controlBarPersist?.Schedule();
+        }
+
+        private void ToggleGameSummariesControlBar_Click(object sender, RoutedEventArgs e)
+        {
+            var persisted = _settings?.Persisted;
+            if (persisted == null)
+            {
+                return;
+            }
+
+            persisted.ShowFriendsOverviewGameSummariesGridControlBar = !persisted.ShowFriendsOverviewGameSummariesGridControlBar;
+            _controlBarPersist?.Schedule();
+        }
+
+        private void ToggleAchievementsControlBar_Click(object sender, RoutedEventArgs e)
+        {
+            var persisted = _settings?.Persisted;
+            if (persisted == null)
+            {
+                return;
+            }
+
+            persisted.ShowFriendsOverviewAchievementsGridControlBar = !persisted.ShowFriendsOverviewAchievementsGridControlBar;
+            _controlBarPersist?.Schedule();
+        }
+
+        private void SaveSettings()
+        {
+            var plugin = PlayniteAchievementsPlugin.Instance;
+            if (plugin == null || _settings == null)
+            {
+                return;
+            }
+
+            try
+            {
+                plugin.SavePluginSettings(_settings);
+            }
+            catch (Exception ex)
+            {
+                _logger?.Warn(ex, "Failed to save friends overview settings.");
+            }
         }
 
         private void RefreshModeSelectionButton_Click(object sender, RoutedEventArgs e)
@@ -675,7 +746,7 @@ namespace PlayniteAchievements.Views
                 return false;
             }
 
-            var menu = BuildRowContextMenu(row.DataContext);
+            var menu = BuildRowContextMenu(row.DataContext, row);
             if (menu == null || menu.Items.Count == 0)
             {
                 return false;
@@ -688,22 +759,50 @@ namespace PlayniteAchievements.Views
             return true;
         }
 
-        private ContextMenu BuildRowContextMenu(object data)
+        private ContextMenu BuildRowContextMenu(object data, DependencyObject menuSource = null)
         {
             if (data is FriendGameSummaryItem || data is GameSummaryItem)
             {
-                return BuildGameMenu(data);
+                return BuildGameMenu(data, menuSource);
             }
 
             if (data is FriendSummaryItem friend)
             {
-                return BuildFriendMenu(friend);
+                return BuildFriendMenu(friend, menuSource);
+            }
+
+            if (data is AchievementDisplayItem)
+            {
+                return BuildAchievementMenu(data, menuSource);
             }
 
             return null;
         }
 
-        private ContextMenu BuildGameMenu(object data)
+        /// <summary>
+        /// The achievement options act on the user's own per-game data, so the shared builder only
+        /// offers them for a game the user owns; a friend's unowned game yields none. Either way the
+        /// row still reaches its grid's display settings rather than doing nothing.
+        /// </summary>
+        private ContextMenu BuildAchievementMenu(object data, DependencyObject menuSource)
+        {
+            var menu = new ContextMenu();
+            var appended = AchievementRowOptionsMenuBuilder.AppendAchievementOptions(
+                menu,
+                data,
+                this,
+                () => _ = _viewModel?.LoadAsync(),
+                menuSource);
+
+            if (!appended)
+            {
+                GridDisplaySettingsMenuBuilder.Append(menu, this, menuSource);
+            }
+
+            return menu;
+        }
+
+        private ContextMenu BuildGameMenu(object data, DependencyObject menuSource = null)
         {
             var menu = GameRowContextMenuBuilder.BuildGameMenu(
                 data,
@@ -714,7 +813,8 @@ namespace PlayniteAchievements.Views
                 _playniteApi,
                 _achievementOverridesService,
                 _cacheManager,
-                _logger);
+                _logger,
+                menuSource: menuSource);
 
             // Unowned (provider-only) friend games have no Playnite Guid, so the shared builder
             // offers them only Refresh. Add a Clear Data item that removes the game's cached
@@ -966,7 +1066,7 @@ namespace PlayniteAchievements.Views
             }
         }
 
-        private ContextMenu BuildFriendMenu(FriendSummaryItem friend)
+        private ContextMenu BuildFriendMenu(FriendSummaryItem friend, DependencyObject menuSource = null)
         {
             var menu = new ContextMenu();
             var refreshCommand = _viewModel?.RefreshFriendSelectedGameCommand;
@@ -1010,6 +1110,7 @@ namespace PlayniteAchievements.Views
             };
             ignoreItem.Click += (_, __) => IgnoreFriend(friend);
             menu.Items.Add(ignoreItem);
+            GridDisplaySettingsMenuBuilder.Append(menu, this, menuSource);
             return menu;
         }
 

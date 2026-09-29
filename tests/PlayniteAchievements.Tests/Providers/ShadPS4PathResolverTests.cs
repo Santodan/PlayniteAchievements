@@ -26,7 +26,7 @@ namespace PlayniteAchievements.Providers.Tests
                 Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
                 "shadPS4");
 
-            Assert.AreEqual(expected, settings.GameDataPath);
+            CollectionAssert.AreEqual(new[] { expected }, settings.GameDataPaths);
         }
 
         [TestMethod]
@@ -251,7 +251,7 @@ namespace PlayniteAchievements.Providers.Tests
             var settings = new PlayniteAchievementsSettings();
             var registry = new ProviderRegistry(settings, new[] { "ShadPS4" });
             var providerSettings = registry.GetSettings<ShadPS4Settings>();
-            providerSettings.GameDataPath = configuredPath;
+            providerSettings.GameDataPaths = PlayniteAchievements.Providers.Settings.ProviderPathList.FromLegacy(configuredPath);
             registry.Save(providerSettings);
 
             return new ShadPS4DataProvider(new FakeLogger(), settings, api ?? new FakePlayniteApi(Array.Empty<Emulator>()));

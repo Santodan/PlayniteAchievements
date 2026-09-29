@@ -15,6 +15,13 @@ namespace PlayniteAchievements.Models.Achievements.Scoring
 
         public int MaxDisplayLevel { get; set; }
 
+        /// <summary>
+        /// Mastery: reaching MaxDisplayLevel starts the same ladder again from the first rank
+        /// instead of capping. Each pass costs the same points; the level number keeps counting.
+        /// Only meaningful with a finite MaxDisplayLevel.
+        /// </summary>
+        public bool RepeatsAfterMax { get; set; }
+
         public IReadOnlyList<AchievementRankThreshold> RankThresholds { get; set; }
 
         public static AchievementLevelCurveSettings LegacyCompatible => new AchievementLevelCurveSettings
@@ -34,6 +41,7 @@ namespace PlayniteAchievements.Models.Achievements.Scoring
             TopEndEaseStartLevel = 98,
             TopEndGrowthMultiplier = 0.5d,
             MaxDisplayLevel = 250,
+            RepeatsAfterMax = true,
             RankThresholds = CreateDefaultRankThresholds()
         };
 
@@ -88,6 +96,7 @@ namespace PlayniteAchievements.Models.Achievements.Scoring
                 MaxDisplayLevel = settings.MaxDisplayLevel <= 0
                     ? int.MaxValue
                     : Math.Max(1, settings.MaxDisplayLevel),
+                RepeatsAfterMax = settings.RepeatsAfterMax && settings.MaxDisplayLevel > 0,
                 RankThresholds = settings.RankThresholds ?? CreateDefaultRankThresholds()
             };
         }

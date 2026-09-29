@@ -1,4 +1,4 @@
-using Microsoft.VisualStudio.TestTools.UnitTesting;
+﻿using Microsoft.VisualStudio.TestTools.UnitTesting;
 using PlayniteAchievements.Models;
 using PlayniteAchievements.Models.Achievements;
 using PlayniteAchievements.Models.Settings;
@@ -57,6 +57,188 @@ namespace PlayniteAchievements.Tests.Services
 
             Assert.AreEqual(1, details.Single(d => d.ApiName == "alpha").DefaultOrderIndex);
             Assert.AreEqual(0, details.Single(d => d.ApiName == "beta").DefaultOrderIndex);
+        }
+
+        [TestMethod]
+        public void HydrateAll_FieldOverrides_ReplaceProviderValues()
+        {
+            var details = Details("alpha");
+            details[0].Description = "provider description";
+            details[0].Points = 10;
+            details[0].TrophyType = "bronze";
+
+            Hydrate(details, WithOverride("alpha", new AchievementOverride
+            {
+                DisplayName = "Renamed",
+                Description = "Rewritten",
+                Points = 99,
+                TrophyType = "gold"
+            }));
+
+            var detail = details[0];
+            Assert.AreEqual("Renamed", detail.DisplayName);
+            Assert.AreEqual("Rewritten", detail.Description);
+            Assert.AreEqual(99, detail.Points);
+            Assert.AreEqual("gold", detail.TrophyType);
+        }
+
+        [TestMethod]
+        public void HydrateAll_ClearedFieldOverride_FallsBackToProviderValue()
+        {
+            var details = Details("alpha");
+            details[0].DisplayName = "provider name";
+            details[0].Points = 10;
+
+            // An override row that carries a note but no field values must not blank the provider's.
+            Hydrate(details, WithOverride("alpha", new AchievementOverride { Note = "note" }));
+
+            Assert.AreEqual("provider name", details[0].DisplayName);
+            Assert.AreEqual(10, details[0].Points);
+            Assert.AreEqual("note", details[0].AchievementNote);
+        }
+
+        [TestMethod]
+        public void HydrateAll_UnlockTimeOverride_AppliesOnlyToUnlockedRows()
+        {
+            var overrideTime = new DateTime(2026, 3, 1, 0, 0, 0, DateTimeKind.Utc);
+            var providerTime = new DateTime(2020, 1, 1, 0, 0, 0, DateTimeKind.Utc);
+
+            var unlocked = Details("alpha");
+            unlocked[0].Unlocked = true;
+            unlocked[0].UnlockTimeUtc = providerTime;
+            Hydrate(unlocked, WithOverride("alpha", new AchievementOverride { UnlockTimeUtc = overrideTime }));
+            Assert.AreEqual(overrideTime, unlocked[0].UnlockTimeUtc);
+
+            // A locked row must not gain an unlock time; that would read as unlocked downstream.
+            var locked = Details("alpha");
+            locked[0].Unlocked = false;
+            Hydrate(locked, WithOverride("alpha", new AchievementOverride { UnlockTimeUtc = overrideTime }));
+            Assert.IsNull(locked[0].UnlockTimeUtc);
+        }
+
+        [TestMethod]
+        public void HydrateAll_ClearUnlockTime_RemovesTheProviderTimestampWithoutRelocking()
+        {
+            // Unchecking the unlock-time box stores a cleared state rather than an empty record:
+            // an empty record falls back to the provider's own timestamp, which made the box
+            // reappear after every edit.
+            var details = Details("alpha");
+            details[0].Unlocked = true;
+            details[0].UnlockTimeUtc = new DateTime(2020, 1, 1, 0, 0, 0, DateTimeKind.Utc);
+
+            Hydrate(details, WithOverride("alpha", new AchievementOverride { ClearUnlockTime = true }));
+
+            Assert.IsNull(details[0].UnlockTimeUtc);
+            Assert.IsTrue(details[0].Unlocked, "Clearing the timestamp must not relock the achievement.");
+        }
+
+        [TestMethod]
+        public void HydrateAll_ClearUnlockTime_LosesToAnExplicitTimestamp()
+        {
+            var overrideTime = new DateTime(2026, 3, 1, 0, 0, 0, DateTimeKind.Utc);
+            var details = Details("alpha");
+            details[0].Unlocked = true;
+            details[0].UnlockTimeUtc = new DateTime(2020, 1, 1, 0, 0, 0, DateTimeKind.Utc);
+
+            Hydrate(details, WithOverride("alpha", new AchievementOverride
+            {
+                ClearUnlockTime = true,
+                UnlockTimeUtc = overrideTime
+            }));
+
+            Assert.AreEqual(overrideTime, details[0].UnlockTimeUtc);
+        }
+
+        [TestMethod]
+        public void HydrateAll_Overrides_NeverChangeUnlockStatusOrRarity()
+        {
+            // Unlock status and rarity are provider-owned: an override must not be able to move
+            // unlocked counts, completion, or the rarity a score is computed from.
+            var details = Details("alpha");
+            details[0].Unlocked = false;
+            details[0].Rarity = RarityTier.UltraRare;
+            details[0].GlobalPercentUnlocked = 2.5;
+
+            Hydrate(details, WithOverride("alpha", new AchievementOverride
+            {
+                DisplayName = "Renamed",
+                UnlockTimeUtc = new DateTime(2026, 3, 1, 0, 0, 0, DateTimeKind.Utc),
+                Points = 50
+            }));
+
+            Assert.IsFalse(details[0].Unlocked);
+            Assert.AreEqual(RarityTier.UltraRare, details[0].Rarity);
+            Assert.AreEqual(2.5, details[0].GlobalPercentUnlocked);
+        }
+
+        [TestMethod]
+        public void HydrateAll_HiddenOverride_ReplacesTheProviderFlagInBothDirections()
+        {
+            // Hiding is a presentation choice rather than a provider fact, so either value can be
+            // the customization: revealing what the provider hid has to stick as well as hiding
+            // what it showed.
+            var details = Details("alpha", "beta");
+            details[0].Hidden = false;
+            details[1].Hidden = true;
+
+            Hydrate(details, new ResolvedGameCustomData
+            {
+                AchievementOverrides = new Dictionary<string, AchievementOverride>
+                {
+                    ["alpha"] = new AchievementOverride { Hidden = true },
+                    ["beta"] = new AchievementOverride { Hidden = false }
+                }
+            });
+
+            Assert.IsTrue(details[0].Hidden);
+            Assert.IsFalse(details[1].Hidden);
+        }
+
+        [TestMethod]
+        public void HydrateAll_NoHiddenOverride_KeepsTheProviderFlag()
+        {
+            // A record carrying other customization must not read as "not hidden".
+            var details = Details("alpha");
+            details[0].Hidden = true;
+
+            Hydrate(details, WithOverride("alpha", new AchievementOverride { Note = "note" }));
+
+            Assert.IsTrue(details[0].Hidden);
+        }
+
+        [TestMethod]
+        public void HiddenOverride_AloneKeepsTheRecordStored()
+        {
+            // An override record is pruned when empty, so a hidden mark on its own has to count as
+            // a value or it would be dropped on the next normalize.
+            Assert.IsFalse(new AchievementOverride { Hidden = false }.IsEmpty);
+            Assert.IsFalse(new AchievementOverride { Hidden = true }.IsEmpty);
+            Assert.IsTrue(new AchievementOverride().IsEmpty);
+            Assert.AreEqual(true, new AchievementOverride { Hidden = true }.Clone().Hidden);
+        }
+
+        [TestMethod]
+        public void HydrateAll_LegacyMirrorMapsOnly_StillResolveCustomization()
+        {
+            // A caller that populated only the legacy maps must still resolve its customization
+            // while both shapes are live.
+            var details = Details("alpha");
+            Hydrate(details, new ResolvedGameCustomData
+            {
+                AchievementNotes = new Dictionary<string, string> { ["alpha"] = "legacy note" },
+                AchievementCategoryOverrides = new Dictionary<string, string> { ["alpha"] = "Story" }
+            });
+
+            Assert.AreEqual("legacy note", details[0].AchievementNote);
+            Assert.AreEqual("Story", details[0].Category);
+        }
+
+        private static ResolvedGameCustomData WithOverride(string apiName, AchievementOverride entry)
+        {
+            return new ResolvedGameCustomData
+            {
+                AchievementOverrides = new Dictionary<string, AchievementOverride> { [apiName] = entry }
+            };
         }
 
         private static void Hydrate(List<AchievementDetail> details, ResolvedGameCustomData customData)

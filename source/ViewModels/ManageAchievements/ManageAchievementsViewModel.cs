@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
@@ -6,6 +6,7 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
+using System.Windows.Threading;
 // WinForms dialogs: the WPF Microsoft.Win32 pickers render legacy-style on .NET Framework.
 using DialogResult = System.Windows.Forms.DialogResult;
 using OpenFileDialog = System.Windows.Forms.OpenFileDialog;
@@ -24,6 +25,7 @@ using PlayniteAchievements.Services.Achievements;
 using PlayniteAchievements.Services.GameCustomData;
 using PlayniteAchievements.Services.Refresh;
 using PlayniteAchievements.Services.Summaries;
+using PlayniteAchievements.ViewModels.Items;
 using AsyncCommand = PlayniteAchievements.Common.AsyncCommand;
 using RelayCommand = PlayniteAchievements.Common.RelayCommand;
 
@@ -32,6 +34,26 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
     public sealed class ManageAchievementsViewModel : PlayniteAchievements.Common.ObservableObject
     {
         private const string ProviderOverrideNoneKey = "None";
+
+        public enum GameExclusionMode
+        {
+            None,
+            Refreshes,
+            Summaries
+        }
+
+        public sealed class GameExclusionOption
+        {
+            public GameExclusionOption(GameExclusionMode mode, string displayName)
+            {
+                Mode = mode;
+                DisplayName = displayName;
+            }
+
+            public GameExclusionMode Mode { get; }
+
+            public string DisplayName { get; }
+        }
 
         public sealed class ProviderOverrideOption
         {
@@ -64,6 +86,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         private string _lastUpdatedLocalText;
         private string _lastUpdatedUtcText;
         private int _totalAchievements;
+        private string _sidebarStatWidthReservationText;
         private int _unlockedAchievements;
         private bool _isCompleted;
         private string _currentCapstoneName;
@@ -77,7 +100,6 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         private string _cachedProviderKey;
         private bool _cachedHasAchievements;
         private string _manualTrackingWarningAcceptedForProvider;
-        private bool _showManualTrackingTab = true;
         private bool _useSeparateLockedIconsOverride;
         private bool _isLoadingProviderOverride;
         private string _selectedProviderOverrideKey = ProviderOverrideNoneKey;
@@ -91,15 +113,16 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         private string _exophaseEnrichmentSlugPlaceholder;
         private bool _isExophaseEnrichmentSlugSectionVisible;
         private bool _canExportCustomJson;
+        private const string ManualProviderKey = "Manual";
+
         private bool _canClearCustomData;
         private int _customDataRevision;
+        private ManageOverviewSummary _overviewSummary = ManageOverviewSummary.Empty;
 
         public IReadOnlyList<ProviderOverrideOption> ProviderOverrideOptions { get; }
 
         public RelayCommand OpenAchievementsCommand { get; }
         public AsyncCommand OpenAchievementPageCommand { get; }
-        public RelayCommand ToggleExclusionCommand { get; }
-        public RelayCommand ToggleSummaryExclusionCommand { get; }
         public RelayCommand ApplyProviderOverrideCommand { get; }
         public RelayCommand ClearProviderOverrideCommand { get; }
         public RelayCommand ApplyExophaseEnrichmentSlugCommand { get; }
@@ -139,8 +162,6 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
 
             OpenAchievementsCommand = new RelayCommand(_ => OpenAchievements(), _ => HasGame);
             OpenAchievementPageCommand = new AsyncCommand(_ => OpenAchievementPageAsync(), _ => HasGame && HasAchievementPageLink);
-            ToggleExclusionCommand = new RelayCommand(_ => ToggleExclusion(), _ => HasGame);
-            ToggleSummaryExclusionCommand = new RelayCommand(_ => ToggleSummaryExclusion(), _ => HasGame);
             ApplyProviderOverrideCommand = new RelayCommand(_ => ApplyProviderOverride(), _ => HasGame);
             ClearProviderOverrideCommand = new RelayCommand(_ => ClearProviderOverride(), _ => HasGame && HasProviderOverride);
             ApplyExophaseEnrichmentSlugCommand = new RelayCommand(_ => ApplyExophaseEnrichmentSlug(), _ => HasGame);
@@ -175,47 +196,50 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                     return;
                 }
 
-                if (value == ManageAchievementsTab.ManualTracking && !ShowManualTrackingTab)
-                {
-                    return;
-                }
-
                 if (!HasAchievementData && ManageAchievementsTabs.RequireAchievementData.Contains(value))
                 {
                     return;
-                }
-
-                if (value == ManageAchievementsTab.ManualTracking &&
-                    ShouldWarnAboutManualTrackingOverride(out var existingProviderKey) &&
-                    !string.Equals(_manualTrackingWarningAcceptedForProvider, existingProviderKey, StringComparison.OrdinalIgnoreCase))
-                {
-                    var displayName = ProviderRegistry.GetLocalizedName(existingProviderKey);
-                    var message = string.Format(
-                        L("LOCPlayAch_ManageAchievements_Manual_ReplaceProviderWarning"),
-                        displayName);
-
-                    var result = _playniteApi?.Dialogs?.ShowMessage(
-                        message,
-                        L("LOCPlayAch_Title_PluginName"),
-                        MessageBoxButton.OKCancel,
-                        MessageBoxImage.Warning) ?? MessageBoxResult.None;
-
-                    if (result != MessageBoxResult.OK)
-                    {
-                        return;
-                    }
-
-                    _manualTrackingWarningAcceptedForProvider = existingProviderKey;
                 }
 
                 SetValue(ref _selectedTab, value);
             }
         }
 
-        public bool ShowManualTrackingTab
+        /// <summary>
+        /// Warns, once per provider, that linking manual tracking replaces the data the game
+        /// already has from a provider. Returns false when the user backs out.
+        /// </summary>
+        /// <remarks>
+        /// This used to guard opening the Manual Tracking tab. The editor took the tab's place and
+        /// runs linking from its own header, so the warning moved to that command rather than
+        /// going away with the tab.
+        /// </remarks>
+        public bool ConfirmManualTrackingOverride()
         {
-            get => _showManualTrackingTab;
-            private set => SetValue(ref _showManualTrackingTab, value);
+            if (!ShouldWarnAboutManualTrackingOverride(out var existingProviderKey) ||
+                string.Equals(_manualTrackingWarningAcceptedForProvider, existingProviderKey, StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+
+            var displayName = ProviderRegistry.GetLocalizedName(existingProviderKey);
+            var message = string.Format(
+                L("LOCPlayAch_ManageAchievements_Manual_ReplaceProviderWarning"),
+                displayName);
+
+            var result = _playniteApi?.Dialogs?.ShowMessage(
+                message,
+                L("LOCPlayAch_Title_PluginName"),
+                MessageBoxButton.OKCancel,
+                MessageBoxImage.Warning) ?? MessageBoxResult.None;
+
+            if (result != MessageBoxResult.OK)
+            {
+                return false;
+            }
+
+            _manualTrackingWarningAcceptedForProvider = existingProviderKey;
+            return true;
         }
 
         public bool UseSeparateLockedIconsOverride
@@ -296,7 +320,6 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 if (SetValueAndReturn(ref _hasProviderOverride, value))
                 {
                     OnPropertyChanged(nameof(ProviderOverrideStatusText));
-                    OnPropertyChanged(nameof(ProviderOverrideSummaryText));
                     RaiseCommandStates();
                 }
             }
@@ -310,7 +333,6 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 if (SetValueAndReturn(ref _providerOverrideValue, value ?? string.Empty))
                 {
                     OnPropertyChanged(nameof(ProviderOverrideStatusText));
-                    OnPropertyChanged(nameof(ProviderOverrideSummaryText));
                 }
             }
         }
@@ -373,8 +395,6 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                     valueDisplay);
             }
         }
-
-        public string ProviderOverrideSummaryText => ProviderOverrideStatusText;
 
         public string ExophaseEnrichmentSlugInput
         {
@@ -499,6 +519,18 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             }
         }
 
+        /// <summary>
+        /// "2N / 2N" for the achievement count on the window's first load, at least two digits
+        /// a side. A hidden chip
+        /// measures it so the sidebar reserves that width once; it is never recomputed, so a
+        /// count changing later cannot resize the sidebar and re-lay-out the content beside it.
+        /// </summary>
+        public string SidebarStatWidthReservationText
+        {
+            get => _sidebarStatWidthReservationText;
+            private set => SetValue(ref _sidebarStatWidthReservationText, value);
+        }
+
         public int UnlockedAchievements
         {
             get => _unlockedAchievements;
@@ -547,19 +579,10 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             {
                 if (SetValueAndReturn(ref _isExcluded, value))
                 {
-                    OnPropertyChanged(nameof(ExclusionStatusText));
-                    OnPropertyChanged(nameof(ExclusionActionText));
+                    OnPropertyChanged(nameof(ExclusionMode));
                 }
             }
         }
-
-        public string ExclusionStatusText => IsExcluded
-            ? L("LOCPlayAch_ManageAchievements_Status_ExcludedFromRefreshes")
-            : L("LOCPlayAch_ManageAchievements_Status_IncludedFromRefreshes");
-
-        public string ExclusionActionText => IsExcluded
-            ? L("LOCPlayAch_Menu_IncludeGame")
-            : L("LOCPlayAch_Menu_ExcludeGame");
 
         public bool IsExcludedFromSummaries
         {
@@ -568,19 +591,33 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             {
                 if (SetValueAndReturn(ref _isExcludedFromSummaries, value))
                 {
-                    OnPropertyChanged(nameof(SummaryExclusionStatusText));
-                    OnPropertyChanged(nameof(SummaryExclusionActionText));
+                    OnPropertyChanged(nameof(ExclusionMode));
                 }
             }
         }
 
-        public string SummaryExclusionStatusText => IsExcludedFromSummaries
-            ? L("LOCPlayAch_ManageAchievements_Status_ExcludedFromSummaries")
-            : L("LOCPlayAch_ManageAchievements_Status_IncludedFromSummaries");
+        public IReadOnlyList<GameExclusionOption> ExclusionModeOptions { get; } = new[]
+        {
+            new GameExclusionOption(GameExclusionMode.None, L("LOCPlayAch_Common_None")),
+            new GameExclusionOption(GameExclusionMode.Refreshes, L("LOCPlayAch_ManageAchievements_Status_ExcludedFromRefreshes")),
+            new GameExclusionOption(GameExclusionMode.Summaries, L("LOCPlayAch_ManageAchievements_Status_ExcludedFromSummaries"))
+        };
 
-        public string SummaryExclusionActionText => IsExcludedFromSummaries
-            ? L("LOCPlayAch_Common_Action_IncludeInSummaries")
-            : L("LOCPlayAch_Common_Action_ExcludeFromSummaries");
+        /// <summary>
+        /// The game's two exclusions as one choice. Picking one clears the other; a game that
+        /// already stores both reads as excluded from refreshes.
+        /// </summary>
+        /// <remarks>
+        /// Excluding from refreshes here leaves the cached data in place, unlike the game menu's
+        /// "Exclude and Clear Data": the Overview already has a Clear button beside it.
+        /// </remarks>
+        public GameExclusionMode ExclusionMode
+        {
+            get => IsExcluded
+                ? GameExclusionMode.Refreshes
+                : IsExcludedFromSummaries ? GameExclusionMode.Summaries : GameExclusionMode.None;
+            set => ApplyExclusionMode(value);
+        }
 
         public bool HasManualTrackingLink
         {
@@ -608,7 +645,84 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         public bool HasAchievementData
         {
             get => _hasAchievementData;
-            private set => SetValue(ref _hasAchievementData, value);
+            private set
+            {
+                if (SetValueAndReturn(ref _hasAchievementData, value))
+                {
+                    OnPropertyChanged(nameof(SidebarAnyStatsVisible));
+                }
+            }
+        }
+
+        // Sidebar stat groups: each is on screen when the game has data for it and it is not hidden
+        // through the sidebar's right-click menu, which hides it for every game.
+
+        public bool SidebarCapstonesVisible =>
+            IsSidebarStatGroupShown(ManageSidebarStatGroups.Capstones) && OverviewSummary.Capstones.IsVisible;
+
+        public bool SidebarRarityVisible =>
+            IsSidebarStatGroupShown(ManageSidebarStatGroups.Rarity) && OverviewSummary.HasRarity;
+
+        public bool SidebarTrophiesVisible =>
+            IsSidebarStatGroupShown(ManageSidebarStatGroups.Trophies) && OverviewSummary.HasTrophies;
+
+        public bool SidebarPointsVisible =>
+            IsSidebarStatGroupShown(ManageSidebarStatGroups.Points) && OverviewSummary.Points.IsVisible;
+
+        public bool SidebarGoalsVisible =>
+            IsSidebarStatGroupShown(ManageSidebarStatGroups.Goals) && OverviewSummary.Goals.IsVisible;
+
+        public bool SidebarCategorizedVisible =>
+            IsSidebarStatGroupShown(ManageSidebarStatGroups.Categorized) && OverviewSummary.Categorized.IsVisible;
+
+        public bool SidebarFilteredVisible =>
+            IsSidebarStatGroupShown(ManageSidebarStatGroups.Filtered) && OverviewSummary.Filtered.IsVisible;
+
+        public bool SidebarNotesVisible =>
+            IsSidebarStatGroupShown(ManageSidebarStatGroups.Notes) && OverviewSummary.Notes.IsVisible;
+
+        public bool SidebarOtherStatsVisible =>
+            SidebarPointsVisible || SidebarGoalsVisible || SidebarCategorizedVisible ||
+            SidebarFilteredVisible || SidebarNotesVisible;
+
+        /// <summary>Whether anything shows under the completion bar, which gates its separator.</summary>
+        public bool SidebarAnyStatsVisible =>
+            HasAchievementData &&
+            (SidebarCapstonesVisible || SidebarRarityVisible || SidebarTrophiesVisible || SidebarOtherStatsVisible);
+
+        private void RaiseSidebarStatVisibility()
+        {
+            OnPropertyChanged(nameof(SidebarCapstonesVisible));
+            OnPropertyChanged(nameof(SidebarRarityVisible));
+            OnPropertyChanged(nameof(SidebarTrophiesVisible));
+            OnPropertyChanged(nameof(SidebarPointsVisible));
+            OnPropertyChanged(nameof(SidebarGoalsVisible));
+            OnPropertyChanged(nameof(SidebarCategorizedVisible));
+            OnPropertyChanged(nameof(SidebarFilteredVisible));
+            OnPropertyChanged(nameof(SidebarNotesVisible));
+            OnPropertyChanged(nameof(SidebarOtherStatsVisible));
+            OnPropertyChanged(nameof(SidebarAnyStatsVisible));
+        }
+
+        public bool IsSidebarStatGroupShown(ManageSidebarStatGroups group)
+        {
+            var hidden = _settings?.Persisted?.HiddenManageSidebarStatGroups ?? ManageSidebarStatGroups.None;
+            return (hidden & group) == 0;
+        }
+
+        public void SetSidebarStatGroupShown(ManageSidebarStatGroups group, bool shown)
+        {
+            var persisted = _settings?.Persisted;
+            if (persisted == null || IsSidebarStatGroupShown(group) == shown)
+            {
+                return;
+            }
+
+            persisted.HiddenManageSidebarStatGroups = shown
+                ? persisted.HiddenManageSidebarStatGroups & ~group
+                : persisted.HiddenManageSidebarStatGroups | group;
+            _persistSettingsForUi?.Invoke();
+            RaiseSidebarStatVisibility();
         }
 
         public bool IsRefreshing
@@ -653,16 +767,41 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             private set => SetValue(ref _customDataRevision, value);
         }
 
+        /// <summary>
+        /// The Overview's rarity, trophy and category breakdowns and its per-kind customization
+        /// counts. Replaced as one value on every reload.
+        /// </summary>
+        public ManageOverviewSummary OverviewSummary
+        {
+            get => _overviewSummary;
+            private set
+            {
+                if (SetValueAndReturn(ref _overviewSummary, value ?? ManageOverviewSummary.Empty))
+                {
+                    RaiseSidebarStatVisibility();
+                }
+            }
+        }
+
+        // Both of these are cache hits once the snapshot is warm and a full load when it is not,
+        // and they run on the UI thread. On a game with hundreds of achievements a cold call is
+        // the freeze the user sees, so the scope reports which edits are paying for one.
         private GameAchievementData GetHydratedGameData()
         {
-            return _gameDataSnapshotProvider?.GetHydratedGameData() ??
-                   _plugin?.AchievementDataService?.GetGameAchievementData(_gameId);
+            using (PerfScope.Start(_logger, "Manage.GetHydratedGameData", thresholdMs: 25))
+            {
+                return _gameDataSnapshotProvider?.GetHydratedGameData() ??
+                       _plugin?.AchievementDataService?.GetGameAchievementData(_gameId);
+            }
         }
 
         private GameAchievementData GetRawGameData()
         {
-            return _gameDataSnapshotProvider?.GetRawGameData() ??
-                   _plugin?.AchievementDataService?.GetRawGameAchievementData(_gameId);
+            using (PerfScope.Start(_logger, "Manage.GetRawGameData", thresholdMs: 25))
+            {
+                return _gameDataSnapshotProvider?.GetRawGameData() ??
+                       _plugin?.AchievementDataService?.GetRawGameAchievementData(_gameId);
+            }
         }
 
         /// <summary>
@@ -697,6 +836,14 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
 
         public void Reload()
         {
+            using (PerfScope.Start(_logger, "Manage.Reload", thresholdMs: 25))
+            {
+                ReloadCore();
+            }
+        }
+
+        private void ReloadCore()
+        {
             try
             {
                 var game = _playniteApi?.Database?.Games?.Get(_gameId);
@@ -706,15 +853,20 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 GameImagePath = ResolveGameImagePath(game);
 
                 var gameData = GetHydratedGameData();
-                var rawGameData = GetRawGameData();
+
+                // Only read when the hydrated copy is missing. The single consumer below builds
+                // an AchievementPageLinkContext, whose BestGameData is `GameData ?? RawGameData`,
+                // and no provider reads RawGameData directly -- so when gameData is present the
+                // raw copy can never be observed. Reading it unconditionally made every reload
+                // two cold snapshot loads instead of one, on the UI thread.
+                var rawGameData = gameData != null ? null : GetRawGameData();
+
                 HasCachedData = gameData != null;
                 _cachedProviderKey = gameData?.ProviderKey?.Trim();
                 _cachedHasAchievements = gameData?.HasAchievements ?? false;
-                var allowManualOverride = ManualAchievementsProvider.IsTrackingOverrideEnabled();
                 var isExcluded = _plugin?.IsGameExcluded(_gameId) ?? false;
-                var hasNonManualProviderData = ShouldWarnAboutManualTrackingOverride(out _);
-                ShowManualTrackingTab = allowManualOverride ||
-                    (!isExcluded && (!_cachedHasAchievements || !hasNonManualProviderData));
+                ManualAchievementLink manualLink;
+                var hasManualLink = ManualAchievementsProvider.TryGetManualLink(_gameId, out manualLink);
                 ProviderName = ResolveProviderDisplayName(gameData);
                 LibrarySourceName = ResolveLibrarySourceDisplayName(game, gameData?.LibrarySourceName);
 
@@ -732,6 +884,12 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 var achievements = gameData?.Achievements ?? Enumerable.Empty<AchievementDetail>();
                 var list = achievements.Where(a => a != null).ToList();
                 TotalAchievements = list.Count;
+                if (SidebarStatWidthReservationText == null)
+                {
+                    // At least two digits, so a small or empty game still fits early edits.
+                    var reserve = Math.Max(10, list.Count * 2);
+                    SidebarStatWidthReservationText = FormatProgress(reserve, reserve);
+                }
                 UnlockedAchievements = list.Count(a => a.Unlocked);
                 IsCompleted = gameData?.IsCompleted ?? false;
 
@@ -741,10 +899,10 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                     : !string.IsNullOrWhiteSpace(capstone?.ApiName)
                         ? capstone.ApiName.Trim()
                         : L("LOCPlayAch_Common_None");
-
                 HasAchievementData = (gameData?.HasAchievements ?? false) && list.Count > 0;
 
                 var currentCustomData = TryLoadStoredCustomData(_plugin?.GameCustomDataStore);
+                OverviewSummary = BuildOverviewSummary(list, currentCustomData);
                 IsExcluded = isExcluded;
                 IsExcludedFromSummaries = GameCustomDataLookup.IsExcludedFromSummaries(_gameId, _settings?.Persisted);
                 SetValue(
@@ -754,19 +912,12 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 ReloadProviderOverrideState(currentCustomData);
                 ReloadExophaseEnrichmentSlugState(currentCustomData, game, gameData?.ProviderGameKey);
 
-                ManualAchievementLink manualLink;
-                var hasManualLink = ManualAchievementsProvider.TryGetManualLink(_gameId, out manualLink);
                 HasManualTrackingLink = hasManualLink;
                 ManualTrackingSummary = ManualAchievementsProvider.GetManageAchievementsLinkSummary(manualLink);
                 HasAchievementPageLink = HasGame && _achievementPageLinkResolver.CanResolve(
                     new AchievementPageLinkContext(game, gameData, rawGameData, manualLink));
 
                 RefreshCustomDataState();
-
-                if (!ShowManualTrackingTab && SelectedTab == ManageAchievementsTab.ManualTracking)
-                {
-                    SelectedTab = ManageAchievementsTab.Overview;
-                }
 
                 if (!HasAchievementData && ManageAchievementsTabs.RequireAchievementData.Contains(SelectedTab))
                 {
@@ -781,6 +932,85 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             {
                 RaiseCommandStates();
             }
+        }
+
+        private static ManageOverviewSummary BuildOverviewSummary(
+            IReadOnlyList<AchievementDetail> achievements,
+            GameCustomDataFile customData)
+        {
+            var breakdown = ManageOverviewSummaryBuilder.BuildBreakdown(achievements);
+            var stats = breakdown.Stats;
+
+            return new ManageOverviewSummary
+            {
+                RarityCommon = Stat(stats.CommonCount, stats.TotalCommonPossible),
+                RarityUncommon = Stat(stats.UncommonCount, stats.TotalUncommonPossible),
+                RarityRare = Stat(stats.RareCount, stats.TotalRarePossible),
+                RarityUltraRare = Stat(stats.UltraRareCount, stats.TotalUltraRarePossible),
+                Capstones = breakdown.CapstoneCount > 0
+                    ? new ManageOverviewStat(
+                        FormatProgress(breakdown.UnlockedCapstoneCount, breakdown.CapstoneCount),
+                        true,
+                        BuildCapstoneToolTip(achievements))
+                    : ManageOverviewStat.None,
+                TrophyPlatinum = Stat(stats.TrophyPlatinumCount, stats.TrophyPlatinumTotal),
+                TrophyGold = Stat(stats.TrophyGoldCount, stats.TrophyGoldTotal),
+                TrophySilver = Stat(stats.TrophySilverCount, stats.TrophySilverTotal),
+                TrophyBronze = Stat(stats.TrophyBronzeCount, stats.TrophyBronzeTotal),
+                Points = Stat(breakdown.UnlockedPoints, breakdown.TotalPoints),
+                // Shown only once something is categorized: "0 / 60" says nothing on its own.
+                Categorized = breakdown.CategorizedCount > 0
+                    ? Stat(breakdown.CategorizedCount, stats.TotalAchievements)
+                    : ManageOverviewStat.None,
+                Goals = Stat(breakdown.UnlockedGoalCount, breakdown.GoalCount),
+                // Like Categorized, shown only once there is something to count.
+                Filtered = breakdown.FilteredCount > 0
+                    ? Stat(breakdown.FilteredCount, stats.TotalAchievements)
+                    : ManageOverviewStat.None,
+                Notes = breakdown.NoteCount > 0
+                    ? Stat(breakdown.NoteCount, stats.TotalAchievements)
+                    : ManageOverviewStat.None,
+                Customizations = ManageOverviewSummaryBuilder.BuildCustomizationCounts(customData)
+                    .Select(entry => new ManageOverviewCustomizationChip(
+                        L(entry.LabelKey),
+                        entry.Count.HasValue ? FormatCount(entry.Count.Value) : null,
+                        entry.LabelKey == CapstoneLabelKey ? BuildCapstoneToolTip(achievements) : null))
+                    .ToList()
+            };
+        }
+
+        private static readonly string CapstoneLabelKey =
+            AchievementCustomizationFacetLabels.GetLabelKey(AchievementCustomizationFacet.Capstone);
+
+        /// <summary>
+        /// One capstone per line, prefixed with its category when it stands for a category rather
+        /// than the whole game.
+        /// </summary>
+        private static string BuildCapstoneToolTip(IReadOnlyList<AchievementDetail> achievements)
+        {
+            var lines = ManageOverviewSummaryBuilder.BuildCapstones(achievements)
+                .Select(capstone => capstone.Item1 == null
+                    ? capstone.Item2
+                    : AchievementCategoryTypeHelper.ToCategoryLabelDisplayText(capstone.Item1) + ": " + capstone.Item2)
+                .ToList();
+            return lines.Count > 0 ? string.Join(Environment.NewLine, lines) : null;
+        }
+
+        private static ManageOverviewStat Stat(int value, int total)
+        {
+            return total > 0
+                ? new ManageOverviewStat(FormatProgress(value, total), true)
+                : ManageOverviewStat.None;
+        }
+
+        private static string FormatProgress(int unlocked, int total)
+        {
+            return string.Format(FormattingCulture.Current, "{0:N0} / {1:N0}", unlocked, total);
+        }
+
+        private static string FormatCount(int value)
+        {
+            return value.ToString("N0", FormattingCulture.Current);
         }
 
         private void OpenAchievements()
@@ -828,15 +1058,29 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 MessageBoxImage.Information);
         }
 
-        private void ToggleExclusion()
+        private void ApplyExclusionMode(GameExclusionMode mode)
         {
-            _plugin?.ToggleGameExclusion(_gameId);
-            Reload();
-        }
+            if (!HasGame || _achievementOverridesService == null || mode == ExclusionMode)
+            {
+                return;
+            }
 
-        private void ToggleSummaryExclusion()
-        {
-            _achievementOverridesService?.SetExcludedFromSummaries(_gameId, !IsExcludedFromSummaries);
+            var excludeFromRefreshes = mode == GameExclusionMode.Refreshes;
+            var excludeFromSummaries = mode == GameExclusionMode.Summaries;
+
+            if (IsExcluded != excludeFromRefreshes)
+            {
+                _achievementOverridesService.SetExcludedByUser(
+                    _gameId,
+                    excludeFromRefreshes,
+                    clearCachedDataWhenExcluding: false);
+            }
+
+            if (IsExcludedFromSummaries != excludeFromSummaries)
+            {
+                _achievementOverridesService.SetExcludedFromSummaries(_gameId, excludeFromSummaries);
+            }
+
             Reload();
         }
 
@@ -1000,6 +1244,22 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
 
         private void ImportCustomJson()
         {
+            ImportPortable();
+        }
+
+        /// <summary>
+        /// The one Import for this game's .pa files, shared by the Overview and Editor tabs. A
+        /// whole-game package replaces the game's custom data; a custom-achievements package is
+        /// merged by ID, into <paramref name="mergeCustomAchievements"/> when the caller has rows
+        /// of its own, or into the stored definitions otherwise.
+        /// </summary>
+        /// <param name="mergeCustomAchievements">Receives a custom-achievements package's parsed
+        /// definitions instead of the stored merge.</param>
+        /// <param name="beforeReplace">Runs just before a whole-game package is written.</param>
+        public void ImportPortable(
+            Action<CustomAchievementTextImportResult> mergeCustomAchievements = null,
+            Action beforeReplace = null)
+        {
             if (!HasGame)
             {
                 return;
@@ -1025,32 +1285,23 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                     throw new InvalidOperationException("Game custom data store is not available.");
                 }
 
-                var previousData = TryLoadStoredCustomData(store);
-                var importResult = store.ImportReplacePortable(_gameId, dialog.FileName);
-                var currentData = importResult?.ImportedData;
-                if (currentData == null)
+                if (store.IsCustomAchievementsPackage(dialog.FileName))
                 {
-                    throw new InvalidOperationException("Imported custom game data was empty.");
+                    var parsed = store.ImportCustomAchievementsPackage(_gameId, dialog.FileName);
+                    if (mergeCustomAchievements != null)
+                    {
+                        mergeCustomAchievements(parsed);
+                    }
+                    else
+                    {
+                        MergeCustomAchievementsIntoStore(store, parsed);
+                    }
+
+                    return;
                 }
 
-                var transitionEffects = AnalyzeCustomDataTransition(previousData, currentData);
-                NotifyCustomDataChanged(transitionEffects.RequiresRefresh, transitionEffects.ForceIconRefresh);
-
-                var successMessage = L("LOCPlayAch_Status_Succeeded");
-                if (importResult.HasIgnoredPackageImages)
-                {
-                    successMessage += "\n\n" + string.Format(
-                        L("LOCPlayAch_ManageAchievements_Overrides_ImportIgnoredPackageImages"),
-                        importResult.IgnoredPackageImageCount);
-                }
-
-                _playniteApi?.Dialogs?.ShowMessage(
-                    successMessage,
-                    L("LOCPlayAch_Title_PluginName"),
-                    MessageBoxButton.OK,
-                    importResult.HasIgnoredPackageImages
-                        ? MessageBoxImage.Warning
-                        : MessageBoxImage.Information);
+                beforeReplace?.Invoke();
+                ReplaceFromPortablePackage(store, dialog.FileName);
             }
             catch (Exception ex)
             {
@@ -1061,6 +1312,98 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                     MessageBoxButton.OK,
                     MessageBoxImage.Error);
             }
+        }
+
+        private void MergeCustomAchievementsIntoStore(GameCustomDataStore store, CustomAchievementTextImportResult parsed)
+        {
+            if (parsed == null || parsed.HasErrors)
+            {
+                throw new InvalidOperationException(
+                    string.Join(Environment.NewLine, parsed?.Errors?.Take(8) ?? Enumerable.Empty<string>()));
+            }
+
+            if (parsed.Definitions.Count == 0)
+            {
+                _playniteApi?.Dialogs?.ShowMessage(
+                    L("LOCPlayAch_ManageAchievements_Custom_NoImportRows"),
+                    L("LOCPlayAch_Title_PluginName"),
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Warning);
+                return;
+            }
+
+            if (_achievementOverridesService == null)
+            {
+                throw new InvalidOperationException("Achievement overrides service is not available.");
+            }
+
+            var previousData = TryLoadStoredCustomData(store);
+            _achievementOverridesService.MergeCustomAchievements(_gameId, parsed.Definitions, out var added, out var updated);
+            var transitionEffects = AnalyzeCustomDataTransition(previousData, TryLoadStoredCustomData(store));
+            NotifyCustomDataChanged(transitionEffects.RequiresRefresh, transitionEffects.ForceIconRefresh);
+
+            _playniteApi?.Dialogs?.ShowMessage(
+                string.Format(
+                    L("LOCPlayAch_ManageAchievements_Custom_ImportSummary"),
+                    parsed.Definitions.Count,
+                    added,
+                    updated),
+                L("LOCPlayAch_Title_PluginName"),
+                MessageBoxButton.OK,
+                MessageBoxImage.Information);
+        }
+
+        private void ReplaceFromPortablePackage(GameCustomDataStore store, string path)
+        {
+            var previousData = TryLoadStoredCustomData(store);
+            var importResult = store.ImportReplacePortable(_gameId, path);
+            var currentData = importResult?.ImportedData;
+            if (currentData == null)
+            {
+                throw new InvalidOperationException("Imported custom game data was empty.");
+            }
+
+            var transitionEffects = AnalyzeCustomDataTransition(previousData, currentData);
+            NotifyCustomDataChanged(transitionEffects.RequiresRefresh, transitionEffects.ForceIconRefresh);
+
+            var successMessage = L("LOCPlayAch_Status_Succeeded");
+            if (importResult.HasIgnoredPackageImages)
+            {
+                successMessage += "\n\n" + string.Format(
+                    L("LOCPlayAch_ManageAchievements_Overrides_ImportIgnoredPackageImages"),
+                    importResult.IgnoredPackageImageCount);
+            }
+
+            _playniteApi?.Dialogs?.ShowMessage(
+                successMessage,
+                L("LOCPlayAch_Title_PluginName"),
+                MessageBoxButton.OK,
+                importResult.HasIgnoredPackageImages
+                    ? MessageBoxImage.Warning
+                    : MessageBoxImage.Information);
+        }
+
+        /// <summary>
+        /// Whether clearing this game's custom data would leave the achievements a manual link
+        /// produced behind with nothing owning them.
+        /// </summary>
+        /// <remarks>
+        /// A manual link is where the unlock state of the achievements it produced lives, and the
+        /// Manual provider only services a game while the link exists. Deleting the link on its own
+        /// leaves rows that no provider services, that the editor refuses to let anyone edit, and
+        /// that no refresh will ever update -- a real provider's own refresh returns nothing for
+        /// them and is turned away by the empty-payload guard, so they are frozen for good.
+        /// </remarks>
+        private bool WouldStrandManualAchievements(GameCustomDataFile currentData)
+        {
+            if (currentData?.ManualLink == null)
+            {
+                return false;
+            }
+
+            var rawGameData = GetRawGameData();
+            return rawGameData?.Achievements?.Count > 0 &&
+                   string.Equals(rawGameData.ProviderKey, ManualProviderKey, StringComparison.OrdinalIgnoreCase);
         }
 
         private void ClearCustomData()
@@ -1076,9 +1419,14 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 return;
             }
 
+            // The manual link is not customization but the game's source of achievements, so
+            // dropping it has to take what it produced with it.
+            var strandsManualAchievements = WouldStrandManualAchievements(currentData);
             var result = _playniteApi?.Dialogs?.ShowMessage(
                 string.Format(
-                    L("LOCPlayAch_ManageAchievements_Overrides_ClearCustomDataConfirm"),
+                    L(strandsManualAchievements
+                        ? "LOCPlayAch_ManageAchievements_Overrides_ClearCustomDataConfirmManual"
+                        : "LOCPlayAch_ManageAchievements_Overrides_ClearCustomDataConfirm"),
                     GameName),
                 L("LOCPlayAch_Title_PluginName"),
                 MessageBoxButton.YesNo,
@@ -1091,6 +1439,13 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
 
             try
             {
+                if (strandsManualAchievements)
+                {
+                    // Removes the link from both of its homes and the achievements it produced
+                    // from the cache, so nothing is left that no provider services.
+                    _achievementOverridesService?.ClearGameData(_gameId, GameName);
+                }
+
                 store.Delete(_gameId);
                 var transitionEffects = AnalyzeCustomDataTransition(currentData, null);
                 NotifyCustomDataChanged(transitionEffects.RequiresRefresh, transitionEffects.ForceIconRefresh);
@@ -1320,8 +1675,6 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         {
             OpenAchievementsCommand?.RaiseCanExecuteChanged();
             OpenAchievementPageCommand?.RaiseCanExecuteChanged();
-            ToggleExclusionCommand?.RaiseCanExecuteChanged();
-            ToggleSummaryExclusionCommand?.RaiseCanExecuteChanged();
             ApplyProviderOverrideCommand?.RaiseCanExecuteChanged();
             ClearProviderOverrideCommand?.RaiseCanExecuteChanged();
             ApplyExophaseEnrichmentSlugCommand?.RaiseCanExecuteChanged();
@@ -1350,13 +1703,41 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 ? L("LOCPlayAch_Common_None")
                 : displayName.Trim();
             RefreshCustomDataState();
+            // The sidebar's capstone chip comes from OverviewSummary, which only the shell reload
+            // rebuilds. The caller has already invalidated the game data snapshot, so the
+            // coalesced reload reads the new capstone.
+            ScheduleShellReload();
         }
 
         internal void NotifyCustomDataChanged(
             bool requiresRefresh,
             bool forceIconRefresh = false)
         {
+            // The whole cost of one edit burst reaching the window: the reload below plus every
+            // tab the revision bump marks stale, all of it on the UI thread.
+            using (PerfScope.Start(_logger, "Manage.NotifyCustomDataChanged", thresholdMs: 25))
+            {
+                NotifyCustomDataChangedCore(requiresRefresh, forceIconRefresh);
+            }
+        }
+
+        private void NotifyCustomDataChangedCore(bool requiresRefresh, bool forceIconRefresh)
+        {
             _gameDataSnapshotProvider?.Invalidate();
+
+            // Scoped to this game, and it has to stay. The store already raised CustomDataChanged
+            // for this write, but the consumers that matter honour AffectsSummaryData -- and the
+            // editor's category, category-type, filter and icon writes all pass false, so the
+            // overview drops them: OnCustomDataChanged returns early on that flag so a
+            // reorder-only change cannot rebuild the selected game and discard the user's
+            // filters. Without this invalidation those edits reached the store and nothing on
+            // screen re-read them.
+            //
+            // This was briefly removed as redundant. It is not: it is the only thing that routes
+            // a named game to the overview's per-game fragment path for a write that does not
+            // claim to move a summary. What made it expensive was the projection treating a
+            // scoped invalidation as a full one and rebuilding the whole library eagerly; that is
+            // fixed at the projection instead, where a scoped change now defers its warm.
             _refreshService?.Cache?.NotifyCacheInvalidated(new[] { _gameId });
 
             if (_settings?.SelectedGame?.Id == _gameId)
@@ -1364,13 +1745,72 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 _plugin?.ThemeUpdateService?.RequestUpdate(_gameId, forceRefresh: true);
             }
 
-            Reload();
+            // Deferred, not skipped, and deliberately before the revision bump. The bump below
+            // fires HandleCustomDataRevisionChanged synchronously in this same call stack, and
+            // that rehydrates the snapshot for the visible tab -- so by the time this reload
+            // runs it reads a warm snapshot instead of forcing a second cold load on the UI
+            // thread. Measured at 369ms of UI-thread SQLite per edit before deferring.
+            //
+            // Deferring rather than suppressing on the editor's self-write marker: a self-write
+            // can still move the shell's totals, and ConsumeEditorSelfWrite clears the flag on
+            // read, so the marker cannot be consulted twice.
+            ScheduleShellReload();
             CustomDataRevision = unchecked(CustomDataRevision + 1);
 
             if (requiresRefresh)
             {
                 TriggerRefresh(forceIconRefresh);
             }
+        }
+
+        // Trailing-edge coalescer for the shell reload. A burst of edits -- the editor persists
+        // on every completed field -- collapses into one reload.
+        private static readonly TimeSpan ShellReloadDebounce = TimeSpan.FromMilliseconds(150);
+        private DispatcherTimer _shellReloadTimer;
+
+        internal void ScheduleShellReload()
+        {
+            var dispatcher = System.Windows.Application.Current?.Dispatcher;
+            if (dispatcher == null || !dispatcher.CheckAccess())
+            {
+                // No dispatcher to defer onto (tests, or an off-thread caller): keep the old
+                // synchronous behaviour rather than silently dropping the reload.
+                Reload();
+                return;
+            }
+
+            if (_shellReloadTimer == null)
+            {
+                _shellReloadTimer = new DispatcherTimer(DispatcherPriority.Background, dispatcher)
+                {
+                    Interval = ShellReloadDebounce
+                };
+                _shellReloadTimer.Tick += ShellReloadTimer_Tick;
+            }
+
+            _shellReloadTimer.Stop();
+            _shellReloadTimer.Start();
+        }
+
+        private void ShellReloadTimer_Tick(object sender, EventArgs e)
+        {
+            _shellReloadTimer?.Stop();
+            Reload();
+        }
+
+        /// <summary>
+        /// Runs any pending shell reload now. Called when the window is closing, so a deferred
+        /// reload is never simply dropped.
+        /// </summary>
+        internal void FlushPendingShellReload()
+        {
+            if (_shellReloadTimer?.IsEnabled != true)
+            {
+                return;
+            }
+
+            _shellReloadTimer.Stop();
+            Reload();
         }
 
         internal void NotifyIconOverridesChanged(IReadOnlyCollection<string> changedApiNames)

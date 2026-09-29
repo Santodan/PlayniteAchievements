@@ -40,6 +40,39 @@ namespace PlayniteAchievements.Tests.Views
         }
 
         [TestMethod]
+        public void TiersConvert_ReturnsGlowForSelectedCommonWithRarityData()
+        {
+            var converter = new RarityGlowForTiersConverter();
+
+            var result = converter.Convert(
+                new object[] { RarityTier.Common, RaritySelection.Common, true }, null, "20", null);
+
+            Assert.IsInstanceOfType(result, typeof(DropShadowEffect));
+        }
+
+        [TestMethod]
+        public void TiersConvert_ReturnsNullForSelectedCommonWithoutRarityData()
+        {
+            var converter = new RarityGlowForTiersConverter();
+
+            var result = converter.Convert(
+                new object[] { RarityTier.Common, RaritySelection.Common, false }, null, "20", null);
+
+            Assert.IsNull(result);
+        }
+
+        [TestMethod]
+        public void TiersConvert_ReturnsNullForUnselectedCommon()
+        {
+            var converter = new RarityGlowForTiersConverter();
+
+            var result = converter.Convert(
+                new object[] { RarityTier.Common, RaritySelectionExtensions.DefaultSoftGlowTiers, true }, null, "20", null);
+
+            Assert.IsNull(result);
+        }
+
+        [TestMethod]
         public void ShineConvert_ReturnsBorderBrushForCommonRarityTier()
         {
             var converter = new RarityToShineBrushConverter();

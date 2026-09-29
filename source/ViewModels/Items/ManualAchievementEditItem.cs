@@ -118,7 +118,9 @@ namespace PlayniteAchievements.ViewModels.Items
                     IsLockedIconHidden,
                     IsUnlocked,
                     UnlockedIconUrl,
-                    UseSeparateLockedIconsWhenAvailable ? LockedIconUrl : null);
+                    AchievementIconResolver.ResolveLockedArtPath(
+                        LockedIconUrl,
+                        UseSeparateLockedIconsWhenAvailable));
 
                 return !string.IsNullOrWhiteSpace(candidate) ? candidate : DefaultIcon;
             }

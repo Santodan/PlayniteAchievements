@@ -15,6 +15,7 @@ namespace PlayniteAchievements.Services.Overview
         public List<AchievementDisplayItem> Achievements { get; set; } = new List<AchievementDisplayItem>();
         public List<AchievementDisplayItem> RecentAchievements { get; set; } = new List<AchievementDisplayItem>();
         public GameSummaryItem GameSummary { get; set; }
+        /// <summary>Unlock counts per local calendar day (keys from <see cref="UnlockDayCounts.DayOf"/>).</summary>
         public Dictionary<DateTime, int> UnlockCountsByDate { get; set; } = new Dictionary<DateTime, int>();
 
         public int TotalAchievements { get; set; }

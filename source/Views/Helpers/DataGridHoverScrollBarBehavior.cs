@@ -230,10 +230,19 @@ namespace PlayniteAchievements.Views.Helpers
 
             private void RevealForScrolling()
             {
+                // The timer restart is the debounce and has to happen on every delta -- it is
+                // what keeps the bar revealed while scrolling continues. Re-applying the state
+                // does not: once the reveal is active the computed state is the same every time.
+                // Middle-click autoscroll raises ScrollChanged every frame rather than once per
+                // wheel notch, so this ran per frame for no change.
+                var wasActive = _isScrollRevealActive;
                 _isScrollRevealActive = true;
                 _scrollRevealTimer.Stop();
                 _scrollRevealTimer.Start();
-                ApplyScrollBarState();
+                if (!wasActive)
+                {
+                    ApplyScrollBarState();
+                }
             }
 
             private void OnScrollRevealTimerTick(object sender, EventArgs e)

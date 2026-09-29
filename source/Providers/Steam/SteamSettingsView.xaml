@@ -4,6 +4,7 @@
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:settings="clr-namespace:PlayniteAchievements.Providers.Settings"
+             xmlns:controls="clr-namespace:PlayniteAchievements.Views.Controls"
              mc:Ignorable="d"
              d:DesignHeight="600"
              d:DesignWidth="700">
@@ -29,11 +30,12 @@
             </StackPanel>
 
             <!-- Provider Enable Toggle -->
-            <Border Style="{StaticResource ProviderEnableToggleBorderStyle}">
-                <CheckBox Content="{DynamicResource LOCPlayAch_Settings_ProviderEnabled}"
-                          IsChecked="{Binding Settings.IsEnabled, Mode=TwoWay}"
-                          FontWeight="SemiBold"
-                          FontSize="{DynamicResource PlayAch.FontSize.Body}"/>
+            <Border Style="{StaticResource ProviderEnableToggleBorderStyle}" Grid.IsSharedSizeScope="True">
+                <controls:SettingRow Label="{DynamicResource LOCPlayAch_Settings_ProviderEnabled}"
+                                     FontWeight="SemiBold"
+                                     Margin="0">
+                    <CheckBox IsChecked="{Binding Settings.IsEnabled, Mode=TwoWay}"/>
+                </controls:SettingRow>
             </Border>
 
             <!-- Provider Disabled Message -->
@@ -96,32 +98,25 @@
             </Border>
 
             <Border Style="{StaticResource SectionBorderStyle}"
-                    IsEnabled="{Binding Settings.IsEnabled}">
-                <StackPanel>
-                    <TextBlock Text="{DynamicResource LOCPlayAch_Settings_SteamInstallPathOverride}"
-                               Foreground="{DynamicResource PlayAch.Brush.Text}"
-                               FontWeight="SemiBold"/>
+                    IsEnabled="{Binding Settings.IsEnabled}"
+                    Grid.IsSharedSizeScope="True">
+                <controls:SettingRow Label="{DynamicResource LOCPlayAch_Settings_SteamInstallPathOverride}"
+                                     Hint="{DynamicResource LOCPlayAch_Settings_SteamInstallPathOverride_Help}"
+                                     HorizontalContentAlignment="Stretch"
+                                     Margin="0">
                     <TextBox Text="{Binding Settings.SteamInstallPathOverride, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                             Margin="0,8,0,0"/>
-                    <TextBlock Text="{DynamicResource LOCPlayAch_Settings_SteamInstallPathOverride_Help}"
-                               Style="{StaticResource MutedTextStyle}"
-                               Margin="0,8,0,0"
-                               TextWrapping="Wrap"/>
-                </StackPanel>
+                             VerticalAlignment="Center"/>
+                </controls:SettingRow>
             </Border>
 
             <Border Style="{StaticResource SectionBorderStyle}"
-                    IsEnabled="{Binding Settings.IsEnabled}">
-                <StackPanel>
-                    <CheckBox Content="{DynamicResource LOCPlayAch_Settings_SteamHuntersCategories}"
-                              IsChecked="{Binding Settings.UseSteamHuntersForCategories, Mode=TwoWay}"
-                              FontWeight="SemiBold"
-                              FontSize="{DynamicResource PlayAch.FontSize.Body}"/>
-                    <TextBlock Text="{DynamicResource LOCPlayAch_Settings_SteamHuntersCategories_Help}"
-                               Style="{StaticResource MutedTextStyle}"
-                               Margin="24,8,0,0"
-                               TextWrapping="Wrap"/>
-                </StackPanel>
+                    IsEnabled="{Binding Settings.IsEnabled}"
+                    Grid.IsSharedSizeScope="True">
+                <controls:SettingRow Label="{DynamicResource LOCPlayAch_Settings_SteamHuntersCategories}"
+                                     Hint="{DynamicResource LOCPlayAch_Settings_SteamHuntersCategories_Help}"
+                                     Margin="0">
+                    <CheckBox IsChecked="{Binding Settings.UseSteamHuntersForCategories, Mode=TwoWay}"/>
+                </controls:SettingRow>
             </Border>
 
         </StackPanel>

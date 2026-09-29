@@ -1,3 +1,4 @@
+using Playnite.SDK;
 using Playnite.SDK.Models;
 using System;
 using System.Collections.Generic;
@@ -21,7 +22,9 @@ namespace PlayniteAchievements.Views.Helpers
             string title,
             string initialSearch)
         {
-            Title = string.IsNullOrWhiteSpace(title) ? "Select Playnite Game" : title;
+            Title = string.IsNullOrWhiteSpace(title)
+                ? ResourceProvider.GetString("LOCPlayAch_Menu_MapToPlayniteGame")
+                : title;
             Width = 680;
             Height = 520;
             MinWidth = 460;
@@ -55,7 +58,7 @@ namespace PlayniteAchievements.Views.Helpers
 
             var okButton = new Button
             {
-                Content = "OK",
+                Content = ResourceProvider.GetString("LOCPlayAch_Button_Ok"),
                 MinWidth = 88,
                 Margin = new Thickness(0, 0, 8, 0),
                 IsDefault = true
@@ -64,7 +67,7 @@ namespace PlayniteAchievements.Views.Helpers
 
             var cancelButton = new Button
             {
-                Content = "Cancel",
+                Content = ResourceProvider.GetString("LOCPlayAch_Button_Cancel"),
                 MinWidth = 88,
                 IsCancel = true
             };

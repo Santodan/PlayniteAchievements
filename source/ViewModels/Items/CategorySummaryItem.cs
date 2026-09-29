@@ -58,6 +58,22 @@ namespace PlayniteAchievements.ViewModels.Items
         internal bool SubtreeIsCompleted { get; set; }
 
         /// <summary>
+        /// Capstone counts for each reading, stashed alongside the stats so a collapsed row reports
+        /// the capstones its descendants hold rather than only its own.
+        /// </summary>
+        internal int OwnCapstoneTotal { get; set; }
+
+        internal int OwnCapstoneUnlocked { get; set; }
+
+        internal int SubtreeCapstoneTotal { get; set; }
+
+        internal int SubtreeCapstoneUnlocked { get; set; }
+
+        internal bool OwnCapstonesMatchPlatinums { get; set; }
+
+        internal bool SubtreeCapstonesMatchPlatinums { get; set; }
+
+        /// <summary>
         /// Which snapshot the row's live stat properties currently hold. Defaults to Own because
         /// the builder applies the own-members reading as it emits the row.
         /// </summary>
@@ -82,7 +98,13 @@ namespace PlayniteAchievements.ViewModels.Items
             }
 
             stats.ApplyTo(this);
-            IsCompleted = scope == CategoryStatsScope.Subtree ? SubtreeIsCompleted : OwnIsCompleted;
+            var subtree = scope == CategoryStatsScope.Subtree;
+            IsCompleted = subtree ? SubtreeIsCompleted : OwnIsCompleted;
+            CapstoneTotal = subtree ? SubtreeCapstoneTotal : OwnCapstoneTotal;
+            CapstoneUnlocked = subtree ? SubtreeCapstoneUnlocked : OwnCapstoneUnlocked;
+            CapstonesMatchPlatinums = subtree
+                ? SubtreeCapstonesMatchPlatinums
+                : OwnCapstonesMatchPlatinums;
             AppliedStatsScope = scope;
         }
 
@@ -108,10 +130,11 @@ namespace PlayniteAchievements.ViewModels.Items
                 if (SetValueAndReturn(ref _allowCompletionBadge, value))
                 {
                     OnPropertyChanged(nameof(ShowCompletionBadge));
+                    OnPropertyChanged(nameof(ShowCompletionCount));
                 }
             }
         }
 
-        public override bool ShowCompletionBadge => IsCompleted && AllowCompletionBadge;
+        public override bool ShowCompletionBadge => base.ShowCompletionBadge && AllowCompletionBadge;
     }
 }

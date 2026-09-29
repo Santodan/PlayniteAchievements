@@ -68,6 +68,21 @@ namespace PlayniteAchievements.Services.Search
             }
         }
 
+        /// <summary>
+        /// Entries currently held. GetText fills this lazily and only LoadEntries/Clear empties
+        /// it, and the keys are the display items themselves, so the count is a retention figure
+        /// as much as a cache-occupancy one.
+        /// </summary>
+        /// <remarks>
+        /// Checked and cleared as the retainer behind a reported 790 MB of managed growth: the
+        /// shape is right (unbounded, identity-keyed, strong references to display items) but the
+        /// bookkeeping balances. The only path that fills the overview's indexes is RefreshFilter,
+        /// which filters the library-wide row list, and RemoveGameRows invalidates the entry for
+        /// every row it drops. Selected-game rows -- the ones a reported session rebuilt 276 times
+        /// -- never enter an index at all. The count is reported so this stays a measurement.
+        /// </remarks>
+        public int Count => _textByItem.Count;
+
         public void Clear()
         {
             _textByItem.Clear();

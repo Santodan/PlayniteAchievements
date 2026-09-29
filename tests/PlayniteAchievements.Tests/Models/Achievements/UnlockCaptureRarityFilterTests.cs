@@ -116,5 +116,27 @@ namespace PlayniteAchievements.Models.Tests.Achievements
             Assert.AreEqual(expected, tier.ToFlag());
             Assert.IsTrue(expected.Contains(tier));
         }
+
+        [DataTestMethod]
+        [DataRow(RarityTier.Common, RaritySelection.Common, true, true)]
+        [DataRow(RarityTier.Common, RaritySelection.Common, false, false)]
+        [DataRow(RarityTier.Common, RaritySelection.Rare, true, false)]
+        [DataRow(RarityTier.Rare, RaritySelection.Rare, false, true)]
+        [DataRow(RarityTier.Uncommon, RaritySelection.Rare, true, false)]
+        public void GlowsFor_RequiresRarityDataOnlyForCommon(
+            RarityTier tier,
+            RaritySelection selection,
+            bool hasRarityData,
+            bool expected)
+        {
+            Assert.AreEqual(expected, selection.GlowsFor(tier, hasRarityData));
+        }
+
+        [TestMethod]
+        public void DefaultSoftGlowTiers_ExcludesCommon()
+        {
+            Assert.IsFalse(RaritySelectionExtensions.DefaultSoftGlowTiers.Contains(RarityTier.Common));
+            Assert.IsTrue(RaritySelectionExtensions.DefaultSoftGlowTiers.IncludesCompleted());
+        }
     }
 }

@@ -33,6 +33,7 @@ namespace PlayniteAchievements.Services
             GameSummariesSortMode.TotalAchievements => nameof(GameSummaryItem.TotalAchievements),
             GameSummariesSortMode.Progress => nameof(GameSummaryItem.Progression),
             GameSummariesSortMode.Alphabetical => "SortingName",
+            GameSummariesSortMode.PinOrder => null,
             _ => nameof(GameSummaryItem.LastUnlockUtc)
         };
 

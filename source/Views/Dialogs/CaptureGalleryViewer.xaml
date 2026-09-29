@@ -64,77 +64,6 @@
                 </Style.Triggers>
             </Style>
 
-            <!-- Circular chevron nav buttons that sit beside the media, not over it. -->
-            <Style x:Key="CaptureNavArrowStyle" TargetType="Button">
-                <Setter Property="Width" Value="42"/>
-                <Setter Property="Height" Value="42"/>
-                <Setter Property="VerticalAlignment" Value="Center"/>
-                <Setter Property="FontFamily" Value="Segoe MDL2 Assets"/>
-                <Setter Property="FontSize" Value="15"/>
-                <Setter Property="Foreground" Value="{DynamicResource PlayAch.Brush.Text}"/>
-                <Setter Property="Cursor" Value="Hand"/>
-                <Setter Property="Focusable" Value="False"/>
-                <Setter Property="Template">
-                    <Setter.Value>
-                        <ControlTemplate TargetType="Button">
-                            <Border x:Name="Bd"
-                                    CornerRadius="21"
-                                    Background="{DynamicResource PlayAch.Brush.Panel}"
-                                    BorderBrush="{DynamicResource PlayAch.Brush.Border}"
-                                    BorderThickness="1">
-                                <TextBlock Text="{TemplateBinding Content}"
-                                           FontFamily="{TemplateBinding FontFamily}"
-                                           FontSize="{TemplateBinding FontSize}"
-                                           Foreground="{TemplateBinding Foreground}"
-                                           HorizontalAlignment="Center"
-                                           VerticalAlignment="Center"/>
-                            </Border>
-                            <ControlTemplate.Triggers>
-                                <Trigger Property="IsMouseOver" Value="True">
-                                    <Setter TargetName="Bd" Property="Background" Value="{DynamicResource PlayAch.Brush.Accent}"/>
-                                    <Setter TargetName="Bd" Property="BorderBrush" Value="{DynamicResource PlayAch.Brush.Accent}"/>
-                                </Trigger>
-                                <Trigger Property="IsEnabled" Value="False">
-                                    <Setter TargetName="Bd" Property="Opacity" Value="0.3"/>
-                                </Trigger>
-                            </ControlTemplate.Triggers>
-                        </ControlTemplate>
-                    </Setter.Value>
-                </Setter>
-            </Style>
-
-            <!-- Flat glyph buttons for the media transport (play/pause/stop/mute). -->
-            <Style x:Key="CaptureGlyphButtonStyle" TargetType="Button">
-                <Setter Property="Width" Value="34"/>
-                <Setter Property="Height" Value="30"/>
-                <Setter Property="FontFamily" Value="Segoe MDL2 Assets"/>
-                <Setter Property="FontSize" Value="13"/>
-                <Setter Property="Foreground" Value="{DynamicResource PlayAch.Brush.Text}"/>
-                <Setter Property="Cursor" Value="Hand"/>
-                <Setter Property="Focusable" Value="False"/>
-                <Setter Property="Template">
-                    <Setter.Value>
-                        <ControlTemplate TargetType="Button">
-                            <Border x:Name="Bd" CornerRadius="4" Background="Transparent">
-                                <TextBlock Text="{TemplateBinding Content}"
-                                           FontFamily="{TemplateBinding FontFamily}"
-                                           FontSize="{TemplateBinding FontSize}"
-                                           Foreground="{TemplateBinding Foreground}"
-                                           HorizontalAlignment="Center"
-                                           VerticalAlignment="Center"/>
-                            </Border>
-                            <ControlTemplate.Triggers>
-                                <Trigger Property="IsMouseOver" Value="True">
-                                    <Setter TargetName="Bd" Property="Background" Value="{DynamicResource PlayAch.Brush.Border}"/>
-                                </Trigger>
-                                <Trigger Property="IsEnabled" Value="False">
-                                    <Setter Property="Opacity" Value="0.4"/>
-                                </Trigger>
-                            </ControlTemplate.Triggers>
-                        </ControlTemplate>
-                    </Setter.Value>
-                </Setter>
-            </Style>
         </ResourceDictionary>
     </UserControl.Resources>
 
@@ -195,7 +124,7 @@
                         Content="&#xE740;"
                         ToolTip="{DynamicResource LOCPlayAch_Captures_Fullscreen}"
                         IsEnabled="{Binding HasCurrent}"
-                        Style="{StaticResource CaptureGlyphButtonStyle}"
+                        Style="{StaticResource PlayAch.Capture.GlyphButtonStyle}"
                         Click="FullscreenButton_Click"/>
             </Grid>
 
@@ -210,7 +139,7 @@
                 <Button Grid.Column="0"
                         Margin="0,0,10,0"
                         Content="&#xE76B;"
-                        Style="{StaticResource CaptureNavArrowStyle}"
+                        Style="{StaticResource PlayAch.Capture.NavButtonStyle}"
                         Visibility="{Binding CanNavigate, Converter={StaticResource BoolToVis}}"
                         Command="{Binding PreviousCommand}"/>
 
@@ -290,7 +219,7 @@
                 <Button Grid.Column="2"
                         Margin="10,0,0,0"
                         Content="&#xE76C;"
-                        Style="{StaticResource CaptureNavArrowStyle}"
+                        Style="{StaticResource PlayAch.Capture.NavButtonStyle}"
                         Visibility="{Binding CanNavigate, Converter={StaticResource BoolToVis}}"
                         Command="{Binding NextCommand}"/>
             </Grid>

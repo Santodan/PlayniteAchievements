@@ -1233,7 +1233,8 @@ internal static class CaptureHarness
         trackType.GetProperty("DurationSeconds").SetValue(track, 4.0);
         trackType.GetProperty("AlignRight").SetValue(track, false);
         trackType.GetProperty("AlignBottom").SetValue(track, true);
-        trackType.GetProperty("GapDip").SetValue(track, 24.0);
+        trackType.GetProperty("GapXDip").SetValue(track, 24.0);
+        trackType.GetProperty("GapYDip").SetValue(track, 24.0);
         trackType.GetProperty("MonitorScale").SetValue(track, 1.0);
         trackType.GetProperty("AchievementName").SetValue(track, "Harness");
         trackType.GetProperty("ProviderKey").SetValue(track, "harness");

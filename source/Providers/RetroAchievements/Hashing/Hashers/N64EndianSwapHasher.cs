@@ -11,71 +11,89 @@ namespace PlayniteAchievements.Providers.RetroAchievements.Hashing.Hashers
     {
         public string Name => "Nintendo 64 (endian normalized MD5)";
 
-        public async Task<IReadOnlyList<string>> ComputeHashesAsync(string filePath, CancellationToken cancel)
+        public bool SupportsForwardOnlyInput => true;
+
+        public async Task<IReadOnlyList<string>> ComputeHashesAsync(RaHashSource source, CancellationToken cancel)
         {
-            using (var stream = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
+            using (var stream = source.Open())
             {
+                // Peek the first byte without seeking so forward-only inputs work: it is pushed
+                // back in front of the stream for hashing.
                 var first = new byte[1];
-                var read = await stream.ReadAsync(first, 0, 1, cancel).ConfigureAwait(false);
-                if (read != 1)
+                if (HashUtils.ReadFull(stream, first, 0, 1) != 1)
                 {
                     return Array.Empty<string>();
                 }
 
-                var b0 = first[0];
-                var swap16 = false;
-                var swap32 = false;
-
-                if (b0 == 0x80)
+                Action<byte[], int> transform;
+                switch (first[0])
                 {
-                    // z64 - big endian
-                }
-                else if (b0 == 0x37)
-                {
-                    // v64 - byteswapped (16-bit)
-                    swap16 = true;
-                }
-                else if (b0 == 0x40)
-                {
-                    // n64 - little endian (32-bit words)
-                    swap32 = true;
-                }
-                else if (b0 == 0xE8 || b0 == 0x22)
-                {
-                    // ndd format - don't byteswap
-                }
-                else
-                {
-                    return Array.Empty<string>();
+                    case 0x80: // z64 - big endian
+                    case 0xE8: // ndd - don't byteswap
+                    case 0x22:
+                        transform = null;
+                        break;
+                    case 0x37: // v64 - byteswapped (16-bit)
+                        transform = HashUtils.ByteSwap16;
+                        break;
+                    case 0x40: // n64 - little endian (32-bit words)
+                        transform = HashUtils.ByteSwap32;
+                        break;
+                    default:
+                        return Array.Empty<string>();
                 }
 
-                stream.Seek(0, SeekOrigin.Begin);
-
-                using (var md5 = MD5.Create())
+                using (var joined = new PrefixedStream(first, stream))
                 {
-                    var remaining = Math.Min(stream.Length, (long)HashUtils.MaxHashBytes);
-                    var buffer = new byte[64 * 1024];
-
-                    while (remaining > 0)
-                    {
-                        cancel.ThrowIfCancellationRequested();
-
-                        var toRead = (int)Math.Min(buffer.Length, remaining);
-                        var n = await stream.ReadAsync(buffer, 0, toRead, cancel).ConfigureAwait(false);
-                        if (n <= 0) break;
-
-                        if (swap16) HashUtils.ByteSwap16(buffer, n);
-                        else if (swap32) HashUtils.ByteSwap32(buffer, n);
-
-                        md5.TransformBlock(buffer, 0, n, null, 0);
-                        remaining -= n;
-                    }
-
-                    md5.TransformFinalBlock(Array.Empty<byte>(), 0, 0);
-                    return new[] { HashUtils.ToHexLower(md5.Hash) };
+                    var hash = await HashUtils
+                        .ComputeMd5HexFromStreamAsync(joined, HashUtils.MaxHashBytes, cancel, transform)
+                        .ConfigureAwait(false);
+                    return new[] { hash };
                 }
             }
         }
+
+        /// <summary>Forward-only stream that yields a few already-read bytes before the rest.</summary>
+        private sealed class PrefixedStream : Stream
+        {
+            private readonly byte[] _prefix;
+            private readonly Stream _rest;
+            private int _prefixPos;
+
+            public PrefixedStream(byte[] prefix, Stream rest)
+            {
+                _prefix = prefix;
+                _rest = rest;
+            }
+
+            public override bool CanRead => true;
+            public override bool CanSeek => false;
+            public override bool CanWrite => false;
+            public override long Length => throw new NotSupportedException();
+            public override long Position { get => throw new NotSupportedException(); set => throw new NotSupportedException(); }
+
+            public override int Read(byte[] buffer, int offset, int count)
+            {
+                if (_prefixPos < _prefix.Length)
+                {
+                    var n = Math.Min(count, _prefix.Length - _prefixPos);
+                    Buffer.BlockCopy(_prefix, _prefixPos, buffer, offset, n);
+                    _prefixPos += n;
+                    return n;
+                }
+
+                return _rest.Read(buffer, offset, count);
+            }
+
+            public override void Flush()
+            {
+            }
+
+            public override long Seek(long offset, SeekOrigin origin) => throw new NotSupportedException();
+
+            public override void SetLength(long value) => throw new NotSupportedException();
+
+            public override void Write(byte[] buffer, int offset, int count) => throw new NotSupportedException();
+        }
     }
 }
-

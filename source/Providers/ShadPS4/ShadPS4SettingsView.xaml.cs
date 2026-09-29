@@ -1,6 +1,5 @@
 using System;
-using System.Windows.Controls;
-using System.Windows.Input;
+using System.Linq;
 using System.Windows;
 using System.Threading.Tasks;
 using Playnite.SDK;
@@ -40,60 +39,48 @@ namespace PlayniteAchievements.Providers.ShadPS4
             ConnectionLabel.Text = string.Format(
                 ResourceProvider.GetString("LOCPlayAch_Settings_ProviderConnection"),
                 ResourceProvider.GetString("LOCPlayAch_Provider_ShadPS4"));
+            GameDataPathsEditor.Configure(
+                ShadPS4PathResolver.ValidateConfiguredPath,
+                () => _playniteApi?.Dialogs?.SelectFolder());
+            GameDataPathsEditor.PathsChanged += GameDataPathsEditor_PathsChanged;
         }
 
         public override void Initialize(IProviderSettings settings)
         {
             _shadps4Settings = settings as ShadPS4Settings;
             base.Initialize(settings);
+            GameDataPathsEditor.SetPaths(_shadps4Settings?.GameDataPaths);
             CheckShadPS4Auth();
         }
 
         public Task RefreshAuthStatusAsync()
         {
+            GameDataPathsEditor.Revalidate();
             CheckShadPS4Auth();
             return Task.CompletedTask;
         }
 
-        private void ShadPS4GameDataPath_KeyDown(object sender, KeyEventArgs e)
+        private void GameDataPathsEditor_PathsChanged(object sender, EventArgs e)
         {
-            if (e.Key == Key.Enter)
+            if (_shadps4Settings != null)
             {
-                e.Handled = true;
-                (sender as TextBox)?.GetBindingExpression(TextBox.TextProperty)?.UpdateSource();
-                CheckShadPS4Auth();
-                MoveFocusFrom((TextBox)sender);
+                _shadps4Settings.GameDataPaths = GameDataPathsEditor.GetPaths();
             }
-        }
 
-        private void ShadPS4GameDataPath_LostFocus(object sender, RoutedEventArgs e)
-        {
-            (sender as TextBox)?.GetBindingExpression(TextBox.TextProperty)?.UpdateSource();
             CheckShadPS4Auth();
-        }
-
-        private void ShadPS4_Browse_Click(object sender, RoutedEventArgs e)
-        {
-            var selectedPath = _playniteApi?.Dialogs?.SelectFolder();
-            if (!string.IsNullOrWhiteSpace(selectedPath))
-            {
-                _shadps4Settings.GameDataPath = selectedPath;
-                CheckShadPS4Auth();
-            }
         }
 
         private void CheckShadPS4Auth()
         {
-            var configuredPath = _shadps4Settings?.GameDataPath;
-            if (!string.IsNullOrWhiteSpace(ShadPS4PathResolver.ResolveConfiguredLegacyGameDataPath(configuredPath)) ||
-                ShadPS4PathResolver.HasConfiguredAppDataTrophyData(configuredPath))
+            var paths = ProviderPathList.Normalize(_shadps4Settings?.GameDataPaths);
+            if (paths.Any(path => ShadPS4PathResolver.ValidateConfiguredPath(path).IsValid))
             {
                 SetAuthenticated(true);
                 SetAuthStatusByKey("LOCPlayAch_Status_Succeeded");
                 return;
             }
 
-            if (string.IsNullOrWhiteSpace(configuredPath))
+            if (paths.Count == 0)
             {
                 SetAuthenticated(false);
                 SetAuthStatus(string.Format(ResourceProvider.GetString("LOCPlayAch_Settings_NotConfigured"), ResourceProvider.GetString("LOCPlayAch_Provider_ShadPS4")));
@@ -138,10 +125,5 @@ namespace PlayniteAchievements.Providers.ShadPS4
             }
         }
 
-        private static void MoveFocusFrom(TextBox textBox)
-        {
-            var parent = textBox?.Parent as FrameworkElement;
-            parent?.MoveFocus(new TraversalRequest(FocusNavigationDirection.Next));
-        }
     }
 }

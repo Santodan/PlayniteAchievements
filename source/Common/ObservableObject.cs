@@ -34,6 +34,18 @@ namespace PlayniteAchievements.Common
             }
         }
 
+        /// <summary>
+        /// Called just before a value is replaced, with the value it is replacing.
+        /// </summary>
+        /// <remarks>
+        /// The setter is the only place the old value still exists, so a derived type that needs
+        /// to remember what a value was - an undo history - observes it here. Does nothing by
+        /// default, so nothing changes for the types that do not.
+        /// </remarks>
+        protected virtual void OnValueChanging(string propertyName, object oldValue, object newValue)
+        {
+        }
+
         protected void SetValue<T>(ref T property, T value, [CallerMemberName] string propertyName = null)
         {
             if (EqualityComparer<T>.Default.Equals(property, value))
@@ -41,6 +53,7 @@ namespace PlayniteAchievements.Common
                 return;
             }
 
+            OnValueChanging(propertyName, property, value);
             property = value;
             OnPropertyChanged(propertyName);
         }
@@ -52,6 +65,7 @@ namespace PlayniteAchievements.Common
                 return false;
             }
 
+            OnValueChanging(propertyName, property, value);
             property = value;
             OnPropertyChanged(propertyName);
             return true;

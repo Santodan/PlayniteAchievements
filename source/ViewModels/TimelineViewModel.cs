@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.Globalization;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -9,126 +10,355 @@ using LiveCharts;
 using LiveCharts.Wpf;
 using PlayniteAchievements.Common;
 using PlayniteAchievements.Models;
+using PlayniteAchievements.Services.Achievements;
 using PlayniteAchievements.Services.Logging;
+using PlayniteAchievements.Services.Overview;
 using Playnite.SDK;
 using ObservableObject = PlayniteAchievements.Common.ObservableObject;
 using RelayCommand = PlayniteAchievements.Common.RelayCommand;
 
 namespace PlayniteAchievements.ViewModels
 {
+    /// <summary>
+    /// The unlocks-over-time column chart shared by the overview, the single-game window, the
+    /// Showcase Timeline widget, and the Modern theme bar chart. Counts arrive keyed by local day;
+    /// the window, the bar unit, the axis ticks, and the Y scale come from the pure timeline engine.
+    /// </summary>
     public class TimelineViewModel : ObservableObject
     {
         private readonly ILogger _logger = PluginLogger.GetLogger(nameof(TimelineViewModel));
 
         private readonly object _sync = new object();
         private Dictionary<DateTime, int> _countsByDate = new Dictionary<DateTime, int>();
+        private bool _hasCounts;
         private int _updateVersion;
+
+        // UI-thread state of the last applied pass, kept so a tick-count change re-plans labels
+        // without another background pass.
+        private TimelineBucketPlan _plan;
+
+        private TimeWindow _window = TimeWindow.FromPreset(TimelineRange.OneYear);
+        private TimelineGranularity _granularity = TimelineGranularity.Auto;
+        private TimelineBucketUnit _effectiveUnit = TimelineBucketUnit.Day;
+        private IReadOnlyList<TimelineGranularity> _unavailableGranularities = new TimelineGranularity[0];
+        private DateTime? _earliestDate;
+        private double _xAxisMax = 1;
+        private double _yAxisMax = 1;
+        private double _yAxisStep = 1;
+        private bool _isEmpty = true;
+        private int _maxTickCount = TimelineAxisTicks.DefaultMaxTicks;
+        private int _maxBarCount = TimelineBucketing.MaxOverrideBarCount;
+        private int _renderRevision;
 
         public TimelineViewModel()
         {
             SetTimeRangeCommand = new RelayCommand(param =>
             {
-                if (Enum.TryParse<TimelineRange>(param?.ToString(), out var range))
-                    TimelineRange = range;
+                if (TimeWindow.TryParse(param?.ToString(), out var window))
+                {
+                    Window = window;
+                }
             });
         }
 
+        /// <summary>Replaces the per-day counts (keys are local calendar days) and recomputes.</summary>
+        /// <remarks>
+        /// Counts equal to the ones already shown are dropped. Hosts re-feed the counts on every
+        /// custom-data change, most of which move no unlock, and each pass ends in a forced
+        /// synchronous chart redraw on the UI thread.
+        /// </remarks>
         public void SetCounts(IDictionary<DateTime, int> countsByDate)
         {
+            var next = countsByDate != null
+                ? new Dictionary<DateTime, int>(countsByDate)
+                : new Dictionary<DateTime, int>();
             lock (_sync)
             {
-                _countsByDate = countsByDate != null
-                    ? new Dictionary<DateTime, int>(countsByDate)
-                    : new Dictionary<DateTime, int>();
+                if (_hasCounts && HasSameCounts(_countsByDate, next))
+                {
+                    return;
+                }
+
+                _countsByDate = next;
+                _hasCounts = true;
             }
 
-            UpdateTimelineData();
+            // A chart that has not drawn yet (one opened while the editor is up) draws now rather
+            // than sitting blank until the editor closes.
+            if (_hasScheduled && OpenEditorRegistry.IsAnyOpen)
+            {
+                DeferUntilEditorsClose();
+                return;
+            }
+
+            ScheduleUpdate();
         }
 
-        private TimelineRange _timelineRange = TimelineRange.OneYear;
-        public TimelineRange TimelineRange
+        // Charts whose counts changed while a Manage editor was open. Every editor save re-feeds
+        // the counts of each chart on screen, and each pass ends in a forced synchronous redraw on
+        // the UI thread the editor is typing on, so the counts are kept and drawn once when the
+        // last editor closes. Weak, so a chart closed meanwhile is not kept alive.
+        private static readonly object DeferredSync = new object();
+        private static readonly List<WeakReference<TimelineViewModel>> Deferred =
+            new List<WeakReference<TimelineViewModel>>();
+        private bool _updateDeferred;
+        private volatile bool _hasScheduled;
+
+        static TimelineViewModel()
         {
-            get => _timelineRange;
-            set
+            OpenEditorRegistry.AllClosed += FlushDeferred;
+        }
+
+        private void DeferUntilEditorsClose()
+        {
+            lock (DeferredSync)
             {
-                if (SetValueAndReturn(ref _timelineRange, value))
+                if (!_updateDeferred)
                 {
-                    UpdateTimelineData();
+                    _updateDeferred = true;
+                    Deferred.Add(new WeakReference<TimelineViewModel>(this));
+                }
+            }
+
+            // The last editor may have closed between the check and the enqueue.
+            if (!OpenEditorRegistry.IsAnyOpen)
+            {
+                FlushDeferred();
+            }
+        }
+
+        private static void FlushDeferred()
+        {
+            List<WeakReference<TimelineViewModel>> pending;
+            lock (DeferredSync)
+            {
+                pending = new List<WeakReference<TimelineViewModel>>(Deferred);
+                Deferred.Clear();
+            }
+
+            foreach (var reference in pending)
+            {
+                if (!reference.TryGetTarget(out var timeline))
+                {
+                    continue;
+                }
+
+                bool stillDeferred;
+                lock (DeferredSync)
+                {
+                    stillDeferred = timeline._updateDeferred;
+                    timeline._updateDeferred = false;
+                }
+
+                // A window or granularity change made while the editor was open already drew
+                // the current counts.
+                if (stillDeferred)
+                {
+                    timeline.ScheduleUpdate();
                 }
             }
         }
 
+        private static bool HasSameCounts(Dictionary<DateTime, int> current, Dictionary<DateTime, int> next)
+        {
+            if (current.Count != next.Count)
+            {
+                return false;
+            }
+
+            foreach (var pair in next)
+            {
+                if (!current.TryGetValue(pair.Key, out var count) || count != pair.Value)
+                {
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        /// <summary>The window shown: a rolling preset or a custom range.</summary>
+        public TimeWindow Window
+        {
+            get => _window;
+            set
+            {
+                var next = value ?? TimeWindow.FromPreset(TimelineRange.OneYear);
+                if (SetValueAndReturn(ref _window, next))
+                {
+                    OnPropertyChanged(nameof(TimelineRange));
+                    ScheduleUpdate();
+                }
+            }
+        }
+
+        /// <summary>
+        /// Preset view of <see cref="Window"/> for hosts that bind range buttons to the enum
+        /// (the Modern theme control). A custom window reports the default preset.
+        /// </summary>
+        public TimelineRange TimelineRange
+        {
+            get => _window.Preset ?? TimelineRange.ThreeMonths;
+            set => Window = TimeWindow.FromPreset(value);
+        }
+
+        /// <summary>Bar-width override; Auto picks the unit from the window span.</summary>
+        public TimelineGranularity Granularity
+        {
+            get => _granularity;
+            set
+            {
+                if (SetValueAndReturn(ref _granularity, value))
+                {
+                    ScheduleUpdate();
+                }
+            }
+        }
+
+        /// <summary>The unit the bars were built with after automatic selection or escalation.</summary>
+        public TimelineBucketUnit EffectiveUnit
+        {
+            get => _effectiveUnit;
+            private set => SetValue(ref _effectiveUnit, value);
+        }
+
+        /// <summary>
+        /// Granularity overrides the current window cannot honor within the host's bar cap (Day on
+        /// a multi-year window, say). The picker disables them; a selected one falls back to Auto.
+        /// </summary>
+        public IReadOnlyList<TimelineGranularity> UnavailableGranularities
+        {
+            get => _unavailableGranularities;
+            private set => SetValue(ref _unavailableGranularities, value);
+        }
+
+        /// <summary>Earliest local day with an unlock, or null; the lower bound an open custom range uses.</summary>
+        public DateTime? EarliestDate
+        {
+            get => _earliestDate;
+            private set => SetValue(ref _earliestDate, value);
+        }
+
         public SeriesCollection TimelineSeries { get; } = new SeriesCollection();
+
+        /// <summary>Axis labels, one per bar; blank where no tick is drawn.</summary>
         public ObservableCollection<string> TimelineLabels { get; } = new ObservableCollection<string>();
+
+        /// <summary>Tooltip headers, one per bar; always the bar's full date or range.</summary>
+        public ObservableCollection<string> TooltipLabels { get; } = new ObservableCollection<string>();
+
+        /// <summary>Bar count; bars occupy [i, i + 1) so this closes the X axis without a trailing gap.</summary>
+        public double XAxisMax
+        {
+            get => _xAxisMax;
+            private set => SetValue(ref _xAxisMax, value);
+        }
+
+        /// <summary>Nice integer ceiling of the Y axis, at least 1.</summary>
+        public double YAxisMax
+        {
+            get => _yAxisMax;
+            private set => SetValue(ref _yAxisMax, value);
+        }
+
+        /// <summary>Y gridline step matching <see cref="YAxisMax"/>.</summary>
+        public double YAxisStep
+        {
+            get => _yAxisStep;
+            private set => SetValue(ref _yAxisStep, value);
+        }
+
+        /// <summary>True when no unlock falls inside the window.</summary>
+        public bool IsEmpty
+        {
+            get => _isEmpty;
+            private set => SetValue(ref _isEmpty, value);
+        }
+
+        /// <summary>Most axis labels the host has room for; the chart control sets it from its width.</summary>
+        public int MaxTickCount
+        {
+            get => _maxTickCount;
+            set
+            {
+                var clamped = Math.Max(1, value);
+                if (SetValueAndReturn(ref _maxTickCount, clamped))
+                {
+                    ReplanTicks();
+                }
+            }
+        }
+
+        /// <summary>
+        /// Increments once every property of a pass has been applied. The chart control forces one
+        /// synchronous LiveCharts redraw on it instead of waiting for the library's coalescing timer.
+        /// </summary>
+        public int RenderRevision
+        {
+            get => _renderRevision;
+            private set => SetValue(ref _renderRevision, value);
+        }
+
+        /// <summary>
+        /// Most bars the host can draw; the chart control sets it from its width. A finer unit
+        /// than fits (Day on a year, say) escalates to the next one rather than rendering nothing.
+        /// </summary>
+        public int MaxBarCount
+        {
+            get => _maxBarCount;
+            set
+            {
+                var clamped = Math.Max(1, value);
+                if (SetValueAndReturn(ref _maxBarCount, clamped))
+                {
+                    ScheduleUpdate();
+                }
+            }
+        }
+
         public Func<double, string> YAxisFormatter { get; } = value => value.ToString("N0", FormattingCulture.Current);
+
         public ICommand SetTimeRangeCommand { get; }
 
-        public void UpdateTimelineData()
+        /// <summary>Recomputes against the current local day; used at day rollover.</summary>
+        public void UpdateTimelineData() => ScheduleUpdate();
+
+        private void ScheduleUpdate()
         {
+            lock (DeferredSync)
+            {
+                _updateDeferred = false;
+            }
+
+            _hasScheduled = true;
             var version = Interlocked.Increment(ref _updateVersion);
+
+            Dictionary<DateTime, int> counts;
+            lock (_sync)
+            {
+                counts = _countsByDate;
+            }
+
+            // Snapshot every input on the calling thread; the pass below never reads the properties.
+            var window = _window;
+            var granularity = _granularity;
+            var maxTicks = _maxTickCount;
+            var maxBars = _maxBarCount;
+            var culture = FormattingCulture.Current;
 
             _ = Task.Run(() =>
             {
                 try
                 {
-                    Dictionary<DateTime, int> localCounts;
-                    lock (_sync)
-                    {
-                        localCounts = _countsByDate;
-                    }
-
-                    var endDate = DateTime.UtcNow.Date;
-                    localCounts = NormalizeCounts(localCounts, endDate);
-                    var startDate = GetStartDateForRange(TimelineRange, localCounts);
-
-                    var values = new List<int>();
-                    var labels = new List<string>();
-
-                    if (TimelineRange == TimelineRange.OneYear)
-                    {
-                        AddMonthlyBuckets(localCounts, startDate, endDate, values, labels);
-                    }
-                    else if (TimelineRange == TimelineRange.All)
-                    {
-                        AddAllTimeBuckets(localCounts, endDate, values, labels);
-                    }
-                    else if (TimelineRange == TimelineRange.ThreeMonths)
-                    {
-                        // Daily bars, axis ticks every 2 weeks
-                        var currentDate = startDate.Date;
-                        var nextLabelDate = currentDate;
-                        while (currentDate <= endDate.Date)
-                        {
-                            values.Add(localCounts.TryGetValue(currentDate, out var count) ? count : 0);
-                            if (currentDate >= nextLabelDate)
-                            {
-                                labels.Add(currentDate.ToString("M/d"));
-                                nextLabelDate = currentDate.AddDays(14);
-                            }
-                            else
-                            {
-                                labels.Add(string.Empty);
-                            }
-                            currentDate = currentDate.AddDays(1);
-                        }
-                    }
-                    else
-                    {
-                        // Daily bars and labels for other short ranges
-                        var currentDate = startDate.Date;
-                        while (currentDate <= endDate.Date)
-                        {
-                            values.Add(localCounts.TryGetValue(currentDate, out var count) ? count : 0);
-                            labels.Add(currentDate.ToString("M/d"));
-                            currentDate = currentDate.AddDays(1);
-                        }
-                    }
-
-                    if (values.Count == 0)
-                    {
-                        values.Add(0);
-                        labels.Add(string.Empty);
-                    }
+                    var today = DateTime.Now.Date;
+                    var earliest = UnlockDayCounts.Earliest(counts);
+                    var range = window.Resolve(today, earliest);
+                    var plan = TimelineBucketing.Build(range.Start, range.End, counts, granularity, maxBars);
+                    var labels = TimelineAxisTicks.Plan(plan.Buckets, plan.Unit, maxTicks, culture);
+                    var scale = NiceScale.ForMax(plan.Max);
+                    var unavailable = new[] { TimelineGranularity.Day, TimelineGranularity.Week, TimelineGranularity.Month }
+                        .Where(candidate => !TimelineBucketing.Fits(candidate, range.Start, range.End, maxBars))
+                        .ToList();
 
                     System.Windows.Application.Current?.Dispatcher?.InvokeIfNeeded(() =>
                     {
@@ -139,25 +369,17 @@ namespace PlayniteAchievements.ViewModels
                                 return;
                             }
 
-                            if (TimelineSeries.Count == 0)
+                            using (PerfScope.Start(_logger, "Timeline.Apply", thresholdMs: 16))
                             {
-                                TimelineSeries.Add(new ColumnSeries
-                                {
-                                    Title = ResourceProvider.GetString("LOCPlayAch_Achievements"),
-                                    Values = new ChartValues<int>()
-                                });
+                                Apply(plan, labels, scale, earliest);
                             }
 
-                            if (TimelineSeries[0].Values is ChartValues<int> chartValues)
+                            UnavailableGranularities = unavailable;
+                            if (unavailable.Contains(Granularity))
                             {
-                                CollectionHelper.SynchronizeValueCollection(chartValues, values);
+                                // The chart already escalated; make the stored choice say so.
+                                Granularity = TimelineGranularity.Auto;
                             }
-                            else
-                            {
-                                TimelineSeries[0].Values = new ChartValues<int>(values);
-                            }
-
-                            CollectionHelper.SynchronizeValueCollection(TimelineLabels, labels);
                         }
                         catch (Exception ex)
                         {
@@ -172,174 +394,58 @@ namespace PlayniteAchievements.ViewModels
             });
         }
 
-        private static DateTime GetStartDateForRange(TimelineRange range, IDictionary<DateTime, int> counts)
+        private void Apply(TimelineBucketPlan plan, TimelineAxisLabels labels, NiceScaleResult scale, DateTime? earliest)
         {
-            var now = DateTime.UtcNow.Date;
-            return range switch
+            if (TimelineSeries.Count == 0)
             {
-                TimelineRange.SevenDays => now.AddDays(-7),
-                TimelineRange.FourteenDays => now.AddDays(-14),
-                TimelineRange.OneMonth => now.AddMonths(-1),
-                TimelineRange.ThreeMonths => now.AddMonths(-3),
-                TimelineRange.OneYear => now.AddYears(-1),
-                TimelineRange.All =>
-                    counts != null && counts.Count > 0
-                        ? counts.Keys.Min().Date
-                        : now.Date,
-                _ => now.AddDays(-14)
-            };
-        }
-
-        private static void AddMonthlyBuckets(
-            IDictionary<DateTime, int> counts,
-            DateTime startDate,
-            DateTime endDate,
-            IList<int> values,
-            IList<string> labels)
-        {
-            var monthlyData = new Dictionary<string, int>(StringComparer.Ordinal);
-            foreach (var kvp in counts)
-            {
-                var monthKey = kvp.Key.ToString("yyyy-MM");
-                monthlyData[monthKey] = monthlyData.TryGetValue(monthKey, out var existing)
-                    ? existing + kvp.Value
-                    : kvp.Value;
-            }
-
-            var currentMonth = new DateTime(startDate.Year, startDate.Month, 1);
-            while (currentMonth <= endDate)
-            {
-                var monthKey = currentMonth.ToString("yyyy-MM");
-                values.Add(monthlyData.TryGetValue(monthKey, out var count) ? count : 0);
-                labels.Add(currentMonth.ToString("MMM yy"));
-                currentMonth = currentMonth.AddMonths(1);
-            }
-        }
-
-        private static void AddAllTimeBuckets(
-            IDictionary<DateTime, int> counts,
-            DateTime endDate,
-            IList<int> values,
-            IList<string> labels)
-        {
-            if (counts == null || counts.Count == 0)
-            {
-                return;
-            }
-
-            var firstDate = counts.Keys.Min().Date;
-            var totalMonths = GetInclusiveMonthCount(firstDate, endDate);
-            if (totalMonths <= 36)
-            {
-                AddMonthlyBuckets(counts, firstDate, endDate, values, labels);
-                return;
-            }
-
-            if (totalMonths <= 96)
-            {
-                AddQuarterlyBuckets(counts, firstDate, endDate, values, labels);
-                return;
-            }
-
-            AddYearlyBuckets(counts, firstDate, endDate, values, labels);
-        }
-
-        private static void AddQuarterlyBuckets(
-            IDictionary<DateTime, int> counts,
-            DateTime startDate,
-            DateTime endDate,
-            IList<int> values,
-            IList<string> labels)
-        {
-            var quarterlyData = new Dictionary<string, int>(StringComparer.Ordinal);
-            foreach (var kvp in counts)
-            {
-                var quarterKey = GetQuarterKey(kvp.Key);
-                quarterlyData[quarterKey] = quarterlyData.TryGetValue(quarterKey, out var existing)
-                    ? existing + kvp.Value
-                    : kvp.Value;
-            }
-
-            var currentQuarter = GetQuarterStart(startDate);
-            var endQuarter = GetQuarterStart(endDate);
-            while (currentQuarter <= endQuarter)
-            {
-                var quarterKey = GetQuarterKey(currentQuarter);
-                values.Add(quarterlyData.TryGetValue(quarterKey, out var count) ? count : 0);
-                labels.Add($"Q{GetQuarter(currentQuarter)} {currentQuarter:yy}");
-                currentQuarter = currentQuarter.AddMonths(3);
-            }
-        }
-
-        private static void AddYearlyBuckets(
-            IDictionary<DateTime, int> counts,
-            DateTime startDate,
-            DateTime endDate,
-            IList<int> values,
-            IList<string> labels)
-        {
-            var yearlyData = new Dictionary<int, int>();
-            foreach (var kvp in counts)
-            {
-                var year = kvp.Key.Year;
-                yearlyData[year] = yearlyData.TryGetValue(year, out var existing)
-                    ? existing + kvp.Value
-                    : kvp.Value;
-            }
-
-            for (var year = startDate.Year; year <= endDate.Year; year++)
-            {
-                values.Add(yearlyData.TryGetValue(year, out var count) ? count : 0);
-                labels.Add(year.ToString());
-            }
-        }
-
-        private static int GetInclusiveMonthCount(DateTime startDate, DateTime endDate)
-        {
-            return ((endDate.Year - startDate.Year) * 12) + endDate.Month - startDate.Month + 1;
-        }
-
-        private static DateTime GetQuarterStart(DateTime date)
-        {
-            var firstMonth = ((date.Month - 1) / 3 * 3) + 1;
-            return new DateTime(date.Year, firstMonth, 1);
-        }
-
-        private static int GetQuarter(DateTime date)
-        {
-            return ((date.Month - 1) / 3) + 1;
-        }
-
-        private static string GetQuarterKey(DateTime date)
-        {
-            return $"{date.Year}-Q{GetQuarter(date)}";
-        }
-
-        private static Dictionary<DateTime, int> NormalizeCounts(
-            IDictionary<DateTime, int> counts,
-            DateTime endDate)
-        {
-            var normalized = new Dictionary<DateTime, int>();
-            if (counts == null)
-            {
-                return normalized;
-            }
-
-            var earliestSupportedDate = new DateTime(1970, 1, 1);
-            foreach (var kvp in counts)
-            {
-                var date = kvp.Key.Date;
-                if (date < earliestSupportedDate || date > endDate || kvp.Value <= 0)
+                TimelineSeries.Add(new ColumnSeries
                 {
-                    continue;
-                }
-
-                normalized[date] = normalized.TryGetValue(date, out var existing)
-                    ? existing + kvp.Value
-                    : kvp.Value;
+                    Title = ResourceProvider.GetString("LOCPlayAch_Achievements"),
+                    Values = new ChartValues<int>()
+                });
             }
 
-            return normalized;
+            var values = plan.Buckets.Select(bucket => bucket.Count).ToList();
+            if (TimelineSeries[0].Values is ChartValues<int> chartValues)
+            {
+                CollectionHelper.SynchronizeValueCollection(chartValues, values);
+            }
+            else
+            {
+                TimelineSeries[0].Values = new ChartValues<int>(values);
+            }
+
+            _plan = plan;
+            CollectionHelper.SynchronizeValueCollection(TimelineLabels, labels.AxisLabels.ToList());
+            CollectionHelper.SynchronizeValueCollection(TooltipLabels, labels.TooltipLabels.ToList());
+            XAxisMax = Math.Max(1, plan.Buckets.Count);
+            YAxisMax = scale.Max;
+            YAxisStep = scale.Step;
+            IsEmpty = plan.Total == 0;
+            EffectiveUnit = plan.Unit;
+            EarliestDate = earliest;
+            RenderRevision = unchecked(_renderRevision + 1);
+        }
+
+        private void ReplanTicks()
+        {
+            var plan = _plan;
+            if (plan == null)
+            {
+                return;
+            }
+
+            try
+            {
+                var labels = TimelineAxisTicks.Plan(plan.Buckets, plan.Unit, _maxTickCount, FormattingCulture.Current);
+                CollectionHelper.SynchronizeValueCollection(TimelineLabels, labels.AxisLabels.ToList());
+                CollectionHelper.SynchronizeValueCollection(TooltipLabels, labels.TooltipLabels.ToList());
+                RenderRevision = unchecked(_renderRevision + 1);
+            }
+            catch (Exception ex)
+            {
+                _logger?.Warn(ex, "Timeline tick replan failed.");
+            }
         }
     }
 }

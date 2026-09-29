@@ -163,8 +163,6 @@ namespace PlayniteAchievements.Tests.StartPage
             source.StartPageFriendsRecentUnlocksGrid.SortMode = CompactListSortMode.None;
             source.StartPageFriendsRecentUnlocksGrid.SortDescending = false;
 
-            source.StartPagePieCharts.ShowCenterPercentage = false;
-            source.StartPagePieCharts.SmallSliceMode = OverviewPieSmallSliceMode.Hide;
             source.StartPageActivityScope = GameActivityScope.All;
             source.StartPageProgressScope = GameProgressScope.NoProgress;
 
@@ -211,10 +209,6 @@ namespace PlayniteAchievements.Tests.StartPage
             Assert.IsFalse(copy.StartPageFriendsRecentUnlocksGrid.SortDescending);
             Assert.IsTrue(clone.StartPageFriendsRecentUnlocksGrid.ShowControlBar);
 
-            Assert.IsFalse(clone.StartPagePieCharts.ShowCenterPercentage);
-            Assert.AreEqual(OverviewPieSmallSliceMode.Hide, clone.StartPagePieCharts.SmallSliceMode);
-            Assert.IsFalse(copy.StartPagePieCharts.ShowCenterPercentage);
-            Assert.AreEqual(OverviewPieSmallSliceMode.Hide, copy.StartPagePieCharts.SmallSliceMode);
             Assert.AreEqual(GameActivityScope.All, clone.StartPageActivityScope);
             Assert.AreEqual(GameProgressScope.NoProgress, clone.StartPageProgressScope);
             Assert.AreEqual(GameActivityScope.All, copy.StartPageActivityScope);
@@ -223,8 +217,6 @@ namespace PlayniteAchievements.Tests.StartPage
             Assert.AreNotSame(source.StartPageGameSummariesGrid, clone.StartPageGameSummariesGrid);
             Assert.AreNotSame(source.StartPageRecentUnlocksGrid, copy.StartPageRecentUnlocksGrid);
             Assert.AreNotSame(source.StartPageFriendsRecentUnlocksGrid, copy.StartPageFriendsRecentUnlocksGrid);
-            Assert.AreNotSame(source.StartPagePieCharts, clone.StartPagePieCharts);
-            Assert.AreNotSame(source.StartPagePieCharts, copy.StartPagePieCharts);
         }
 
         [TestMethod]
@@ -312,6 +304,33 @@ namespace PlayniteAchievements.Tests.StartPage
 
             Assert.AreEqual(11, settings.GridOptions.GetGameSummaries(GridOptionKeys.GameSummaries.StartPage).MaxRows);
             Assert.AreEqual(12, settings.GridOptions.GetAchievement(GridOptionKeys.Achievement.StartPageRecent).MaxRows);
+        }
+
+        [TestMethod]
+        public void JsonRoundTrip_KeepsClearedCategoryProgressAlignmentCleared()
+        {
+            // Clearing the override removes the key. The load must take the saved dictionary
+            // verbatim rather than populating a seeded Right back into it.
+            var settings = new PersistedSettings();
+            var alignments = settings.GridOptions
+                .GetCategorySummaries(GridOptionKeys.CategorySummaries.ViewAchievements)
+                .Columns.CellAlignments;
+            Assert.AreEqual(GridAlignment.Right, alignments[PersistedSettings.ProgressColumnKey]);
+            alignments.Remove(PersistedSettings.ProgressColumnKey);
+
+            var roundTrip = JsonConvert.DeserializeObject<PersistedSettings>(
+                JsonConvert.SerializeObject(settings));
+
+            Assert.IsFalse(roundTrip.GridOptions
+                .GetCategorySummaries(GridOptionKeys.CategorySummaries.ViewAchievements)
+                .Columns.CellAlignments.ContainsKey(PersistedSettings.ProgressColumnKey));
+
+            // An untouched surface keeps its seeded default through the same round trip.
+            Assert.AreEqual(
+                GridAlignment.Right,
+                roundTrip.GridOptions
+                    .GetCategorySummaries(GridOptionKeys.CategorySummaries.OverviewSelectedGame)
+                    .Columns.CellAlignments[PersistedSettings.ProgressColumnKey]);
         }
 
         [TestMethod]
@@ -618,6 +637,7 @@ namespace PlayniteAchievements.Tests.StartPage
             options.CellAlignments[key] = GridAlignment.Right;
             options.CellVerticalAlignments[key] = GridVerticalAlignment.Bottom;
             options.HeaderAlignments[key] = GridAlignment.Center;
+            options.Locked[key] = seed % 2 == 1;
         }
 
         private static void AssertColumns(GridColumnLayoutOptions options, int seed)
@@ -629,6 +649,7 @@ namespace PlayniteAchievements.Tests.StartPage
             Assert.AreEqual(GridAlignment.Right, options.CellAlignments[key]);
             Assert.AreEqual(GridVerticalAlignment.Bottom, options.CellVerticalAlignments[key]);
             Assert.AreEqual(GridAlignment.Center, options.HeaderAlignments[key]);
+            Assert.AreEqual(seed % 2 == 1, options.Locked[key]);
         }
 
         private static void SetGridOptionsBackingField(PersistedSettings settings, GridOptionsCatalog value)

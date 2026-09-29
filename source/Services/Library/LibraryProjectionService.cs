@@ -23,6 +23,16 @@ namespace PlayniteAchievements.Services.Library
         private const int WarmDebounceMs = 1500;
         private static readonly TimeSpan MinEagerWarmInterval = TimeSpan.FromSeconds(30);
 
+        // A scoped change waits for the library to actually go quiet before precomputing. A
+        // single-game refresh or edit arrives far more often than a whole-library rebuild takes,
+        // so warming after each one is work that the next change throws away. Longer than any
+        // routine cadence (the in-game refresh runs ~15s apart), and _warmGeneration collapses a
+        // burst to its last member, so a steady stream never fires this while a genuine idle
+        // period does.
+        private static readonly TimeSpan ScopedWarmIdleDelay = TimeSpan.FromSeconds(20);
+
+        private const string OverviewCacheKey = "overview";
+
         private readonly object _sync = new object();
         private readonly AchievementDataService _achievementDataService;
         private readonly IReadOnlyList<IDataProvider> _providers;
@@ -32,7 +42,9 @@ namespace PlayniteAchievements.Services.Library
         private readonly PlayniteAchievementsSettings _settings;
         private PersistedSettingsSubscription _persistedSubscription;
         private readonly Func<bool> _isRefreshActive;
+        private readonly Func<bool> _hasActiveSnapshotPublisher;
         private readonly ILogger _logger;
+        private readonly Func<List<Models.Friends.FriendIdentity>> _currentUserIdentityLoader;
         private readonly Dictionary<string, LibraryProjectionSnapshot> _cache =
             new Dictionary<string, LibraryProjectionSnapshot>(StringComparer.Ordinal);
         private readonly Dictionary<string, InFlightBuild> _inFlight =
@@ -51,7 +63,9 @@ namespace PlayniteAchievements.Services.Library
             ICacheManager cacheManager,
             GameCustomDataStore customDataStore,
             ILogger logger,
-            Func<bool> isRefreshActive = null)
+            Func<bool> isRefreshActive = null,
+            Func<List<Models.Friends.FriendIdentity>> currentUserIdentityLoader = null,
+            Func<bool> hasActiveSnapshotPublisher = null)
         {
             _achievementDataService = achievementDataService ?? throw new ArgumentNullException(nameof(achievementDataService));
             _providers = providers ?? new List<IDataProvider>();
@@ -60,12 +74,14 @@ namespace PlayniteAchievements.Services.Library
             _customDataStore = customDataStore;
             _settings = settings;
             _isRefreshActive = isRefreshActive;
+            _hasActiveSnapshotPublisher = hasActiveSnapshotPublisher;
             _logger = logger;
+            _currentUserIdentityLoader = currentUserIdentityLoader;
 
             if (_cacheManager != null)
             {
-                _cacheManager.CacheInvalidated += OnProjectionSourceChanged;
-                _cacheManager.CacheDeltaUpdated += OnProjectionSourceChanged;
+                _cacheManager.CacheInvalidated += OnCacheInvalidatedForProjection;
+                _cacheManager.CacheDeltaUpdated += OnCacheDeltaForProjection;
             }
 
             if (_customDataStore != null)
@@ -90,7 +106,7 @@ namespace PlayniteAchievements.Services.Library
             CancellationToken token)
         {
             var snapshot = GetOrBuild(
-                "overview",
+                OverviewCacheKey,
                 useCache: true,
                 build: () => BuildOverview(settings ?? _settings, token));
             return snapshot?.OverviewSnapshot ?? new OverviewDataSnapshot();
@@ -126,7 +142,49 @@ namespace PlayniteAchievements.Services.Library
             return snapshot?.LibraryState ?? new LibraryRuntimeState();
         }
 
+        /// <summary>
+        /// Whether the overview projection that consumers would be served next predates an
+        /// achievement pin, so its locked pinned rows are incomplete. A build still in flight
+        /// read the pins when it started and cannot be checked, so it counts as stale.
+        /// </summary>
+        public bool OverviewMissesAchievementPins(ShowcaseSettings showcase)
+        {
+            lock (_sync)
+            {
+                if (_inFlight.ContainsKey(OverviewCacheKey))
+                {
+                    return true;
+                }
+
+                return _cache.TryGetValue(OverviewCacheKey, out var cached) &&
+                       cached?.OverviewSnapshot != null &&
+                       !cached.OverviewSnapshot.HasSeenAchievementPins(showcase);
+            }
+        }
+
         public void Invalidate()
+        {
+            InvalidateCore(scopedChange: false);
+        }
+
+        /// <summary>
+        /// Invalidates for a change that belongs to one game. The cache is dropped exactly as a
+        /// full invalidation drops it -- nothing stale is ever served -- but the rebuild waits
+        /// for the library to go quiet instead of running immediately.
+        /// </summary>
+        /// <remarks>
+        /// A whole-library rebuild takes hundreds of milliseconds to two seconds and holds the
+        /// store's read connection for all of it, so an eager one blocks every UI-thread read
+        /// behind it. A capture of a single editing session showed 46 of these rebuilds and not
+        /// one provider refresh: every one was a per-game edit or a Playnite field change, and
+        /// the 34 seconds they cost bought nothing, because the next edit invalidated the result.
+        /// </remarks>
+        public void InvalidateForGame()
+        {
+            InvalidateCore(scopedChange: true);
+        }
+
+        private void InvalidateCore(bool scopedChange)
         {
             lock (_sync)
             {
@@ -134,7 +192,18 @@ namespace PlayniteAchievements.Services.Library
                 _cache.Clear();
             }
 
-            ScheduleWarm();
+            // The cache is cleared either way, so no consumer can be served a projection built
+            // before this change. What a scoped change changes is only when the precompute runs.
+            ScheduleWarm(scopedChange ? ScopedWarmIdleDelay : TimeSpan.Zero);
+        }
+
+        /// <summary>Cached projection keys retained right now, for memory diagnostics.</summary>
+        public string DescribeCachedProjections()
+        {
+            lock (_sync)
+            {
+                return _cache.Count == 0 ? "none" : string.Join("+", _cache.Keys);
+            }
         }
 
         // Triggers the first background warm. Called once Playnite has finished starting so the
@@ -142,7 +211,7 @@ namespace PlayniteAchievements.Services.Library
         // a populated game database rather than baking in blank values during early startup.
         public void Warm()
         {
-            ScheduleWarm();
+            ScheduleWarm(TimeSpan.Zero);
         }
 
         // While a game session is active the background warm is skipped: the in-game poller's
@@ -171,8 +240,8 @@ namespace PlayniteAchievements.Services.Library
 
             if (_cacheManager != null)
             {
-                _cacheManager.CacheInvalidated -= OnProjectionSourceChanged;
-                _cacheManager.CacheDeltaUpdated -= OnProjectionSourceChanged;
+                _cacheManager.CacheInvalidated -= OnCacheInvalidatedForProjection;
+                _cacheManager.CacheDeltaUpdated -= OnCacheDeltaForProjection;
             }
 
             if (_customDataStore != null)
@@ -285,12 +354,27 @@ namespace PlayniteAchievements.Services.Library
                 _achievementDataService,
                 _providers,
                 _api,
-                _logger);
+                _logger,
+                _currentUserIdentityLoader);
 
-            return new LibraryProjectionSnapshot
+            var overview = builder.Build(settings, token);
+            var projection = new LibraryProjectionSnapshot
             {
-                OverviewSnapshot = builder.Build(settings, token)
+                OverviewSnapshot = overview
             };
+
+            // Canaries on what one warm produces. The snapshot object itself is already tracked
+            // by the builder and reads zero alive, yet each warm was measured to retain ~2.7 MB
+            // that survives a forced full collection -- so the retainer is holding something the
+            // snapshot points at rather than the snapshot. These name the row containers
+            // separately from the envelope: a rooted list keeps every row in it alive, so
+            // whichever of these climbs says which collection to chase.
+            Common.LeakWatch.Track("Warm.ProjectionEnvelope", projection);
+            Common.LeakWatch.Track("Warm.OverviewRows", overview?.Achievements);
+            Common.LeakWatch.Track("Warm.GameSummaryRows", overview?.GameSummaries);
+            Common.LeakWatch.Track("Warm.RecentRows", overview?.RecentAchievements);
+
+            return projection;
         }
 
         private LibraryProjectionSnapshot BuildThemeLight(int recentUnlockLimit, CancellationToken token)
@@ -343,9 +427,24 @@ namespace PlayniteAchievements.Services.Library
             };
         }
 
-        private void OnProjectionSourceChanged(object sender, EventArgs e)
+        // Both of these were one handler typed (object, EventArgs), which bound to either event
+        // precisely because it took the base class -- and so could not read the scope either one
+        // carries. Every single-game change therefore scheduled a whole-library rebuild.
+        //
+        // A scoped change still clears the cache, so nothing stale can be served; only the
+        // precompute is skipped, and an on-demand consumer rebuilds from fresh data exactly as
+        // before. Both handlers have to do this: one refresh write raises the delta as well as
+        // the invalidation, so leaving either on the unconditional path would keep warming.
+        private void OnCacheInvalidatedForProjection(object sender, CacheInvalidatedEventArgs e)
         {
-            Invalidate();
+            var scoped = e != null && !e.IsFull && e.ChangedGameIds != null && e.ChangedGameIds.Count > 0;
+            InvalidateCore(scoped);
+        }
+
+        private void OnCacheDeltaForProjection(object sender, CacheDeltaEventArgs e)
+        {
+            var scoped = e != null && !e.IsFullReset && !string.IsNullOrEmpty(e.Key);
+            InvalidateCore(scoped);
         }
 
         // A reorder-only change (goals) cannot move anything the library projection derives, so
@@ -357,7 +456,10 @@ namespace PlayniteAchievements.Services.Library
                 return;
             }
 
-            Invalidate();
+            // This event names one game, so the rebuild waits for quiet. Editing is a burst of
+            // these, and warming after each one meant a run of whole-library rebuilds that each
+            // held the read connection while the user was still typing in the editor.
+            InvalidateForGame();
         }
 
         private void OnPersistedSettingsChanged(object sender, PropertyChangedEventArgs e)
@@ -365,7 +467,7 @@ namespace PlayniteAchievements.Services.Library
             Invalidate();
         }
 
-        private void ScheduleWarm()
+        private void ScheduleWarm(TimeSpan minimumDelay)
         {
             lock (_sync)
             {
@@ -388,11 +490,20 @@ namespace PlayniteAchievements.Services.Library
                 return;
             }
 
+            // While an overview is open it publishes its own snapshots to the widget
+            // coordinator, so the warmed "overview" cache entry would never be consumed;
+            // the warm would just build and retain a second full-library snapshot.
+            // Invalidate() has already cleared the cache, so on-demand consumers stay fresh.
+            if (_hasActiveSnapshotPublisher?.Invoke() == true)
+            {
+                return;
+            }
+
             var generation = Interlocked.Increment(ref _warmGeneration);
-            _ = WarmAfterDelayAsync(generation);
+            _ = WarmAfterDelayAsync(generation, minimumDelay);
         }
 
-        private async Task WarmAfterDelayAsync(int generation)
+        private async Task WarmAfterDelayAsync(int generation, TimeSpan minimumDelay)
         {
             try
             {
@@ -405,6 +516,11 @@ namespace PlayniteAchievements.Services.Library
                 // the precompute is deferred until the interval elapses, and the trailing
                 // warm still runs after the last invalidation.
                 var delay = TimeSpan.FromMilliseconds(WarmDebounceMs);
+                if (minimumDelay > delay)
+                {
+                    delay = minimumDelay;
+                }
+
                 lock (_sync)
                 {
                     var untilNextWarm = MinEagerWarmInterval - (DateTime.UtcNow - _lastWarmStartedUtc);

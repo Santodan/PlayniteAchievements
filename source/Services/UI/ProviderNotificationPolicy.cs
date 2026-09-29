@@ -19,8 +19,14 @@ namespace PlayniteAchievements.Services.UI
                 bool screenshotWithToast,
                 bool screenshotFramed,
                 bool recordings,
-                bool progressToasts = false)
+                bool progressToasts = false,
+                bool recordingClean = false,
+                bool recordingWithToast = false,
+                bool recordingFramed = false)
             {
+                RecordingClean = recordingClean;
+                RecordingWithToast = recordingWithToast;
+                RecordingFramed = recordingFramed;
                 UnlockToasts = unlockToasts;
                 FriendUnlockToasts = friendUnlockToasts;
                 ScreenshotClean = screenshotClean;
@@ -44,6 +50,14 @@ namespace PlayniteAchievements.Services.UI
             public bool ScreenshotFramed { get; }
 
             public bool Recordings { get; }
+
+            // The clip variants resolve without the EnableUnlockRecordings master switch, like
+            // Recordings: the recording service ANDs that in itself.
+            public bool RecordingClean { get; }
+
+            public bool RecordingWithToast { get; }
+
+            public bool RecordingFramed { get; }
 
             public bool AnyScreenshot => ScreenshotClean || ScreenshotWithToast || ScreenshotFramed;
         }
@@ -74,7 +88,24 @@ namespace PlayniteAchievements.Services.UI
                 // recording service ANDs its own EnableUnlockRecordings master enable, which is
                 // introduced together with that service.
                 recordings: overrides?.Recordings ?? true,
-                progressToasts: toastsOn && (overrides?.ProgressToasts ?? settings.EnableProgressToasts));
+                progressToasts: toastsOn && (overrides?.ProgressToasts ?? settings.EnableProgressToasts),
+                recordingClean: ResolveClipVariant(overrides, overrides?.RecordingClean, settings.UnlockRecordingClean),
+                recordingWithToast: ResolveClipVariant(overrides, overrides?.RecordingWithToast, settings.UnlockRecordingWithToast),
+                recordingFramed: ResolveClipVariant(overrides, overrides?.RecordingFramed, settings.UnlockRecordingFramed));
+        }
+
+        /// <summary>
+        /// A clip variant's own override, else off when the provider's stored all-clips switch is
+        /// off, else the global variant setting.
+        /// </summary>
+        private static bool ResolveClipVariant(ProviderNotificationOverride overrides, bool? own, bool global)
+        {
+            if (own.HasValue)
+            {
+                return own.Value;
+            }
+
+            return overrides?.Recordings != false && global;
         }
     }
 }

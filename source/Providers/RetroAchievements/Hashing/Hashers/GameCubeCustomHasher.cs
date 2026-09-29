@@ -21,9 +21,10 @@ namespace PlayniteAchievements.Providers.RetroAchievements.Hashing.Hashers
 
         public override string Name => "GameCube (apploader + DOL segments MD5)";
 
-        protected override async Task<IReadOnlyList<string>> ComputeHashesInternalAsync(string filePath, CancellationToken cancel)
+        protected override async Task<IReadOnlyList<string>> ComputeHashesInternalAsync(RaHashSource source, CancellationToken cancel)
         {
-            using (var stream = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
+            var filePath = source.Path;
+            using (var stream = source.Open())
             {
                 var magic = new byte[4];
                 stream.Seek(0x1c, SeekOrigin.Begin);
@@ -34,7 +35,7 @@ namespace PlayniteAchievements.Providers.RetroAchievements.Hashing.Hashers
 
                 if (magic[0] != 0xC2 || magic[1] != 0x33 || magic[2] != 0x9F || magic[3] != 0x3D)
                 {
-                    Logger?.Warn($"[RA] {Name}: Not a GameCube image: {filePath}");
+                    WarnOnce($"[RA] {Name}: Not a GameCube image: {filePath}");
                     return Array.Empty<string>();
                 }
 

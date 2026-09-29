@@ -166,6 +166,14 @@ namespace PlayniteAchievements.Models.Tests
                 return true;
             }
 
+            if (underlying == typeof(TimeWindow))
+            {
+                value = current is TimeWindow window && window.IsCustom
+                    ? TimeWindow.All
+                    : TimeWindow.Custom(new DateTime(2024, 1, 1), new DateTime(2024, 2, 1));
+                return true;
+            }
+
             if (underlying.IsEnum)
             {
                 foreach (var member in Enum.GetValues(underlying))

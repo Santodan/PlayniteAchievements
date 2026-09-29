@@ -5,6 +5,7 @@
                    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
                    xmlns:controls="clr-namespace:Playnite.SDK.Controls;assembly=Playnite.SDK"
                    xmlns:lvc="clr-namespace:LiveCharts.Wpf;assembly=LiveCharts.Wpf"
+                   xmlns:pacontrols="clr-namespace:PlayniteAchievements.Views.Controls"
                    xmlns:converters="clr-namespace:PlayniteAchievements.Views.Converters"
                    xmlns:local="clr-namespace:PlayniteAchievements.Views.ThemeIntegration.Base"
                    xmlns:ach="clr-namespace:PlayniteAchievements"
@@ -71,7 +72,15 @@
                                 Height="{Binding ElementName=PART_GridContener, Path=ActualHeight}"
                                 Width="{Binding ElementName=PART_GridContener, Path=ActualWidth}"
                                 Series="{Binding Series}"
+                                TooltipTimeout="0:0:0.1"
                                 DisableAnimations="{Binding DisableAnimations}">
+
+                <!-- Theme-facing: Playnite's own popup and text keys, which themes restyle. -->
+                <lvc:CartesianChart.DataTooltip>
+                    <pacontrols:CartesianChartTooltip SurfaceBrush="{DynamicResource PopupBackgroundBrush}"
+                                                    OutlineBrush="{DynamicResource PopupBorderBrush}"
+                                                    Foreground="{DynamicResource TextBrush}"/>
+                </lvc:CartesianChart.DataTooltip>
 
                 <lvc:CartesianChart.ChartLegend>
                     <lvc:DefaultLegend Height="2" Visibility="Hidden" />

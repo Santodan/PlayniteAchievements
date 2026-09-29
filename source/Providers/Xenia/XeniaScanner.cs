@@ -7,6 +7,7 @@ using PlayniteAchievements.Models;
 using PlayniteAchievements.Models.Achievements;
 using PlayniteAchievements.Providers.EmuLibrary;
 using PlayniteAchievements.Providers.Exophase;
+using PlayniteAchievements.Providers.Settings;
 using PlayniteAchievements.Providers.Xenia.Models;
 using PlayniteAchievements.Services;
 using PlayniteAchievements.Services.GameCustomData;
@@ -53,9 +54,9 @@ namespace PlayniteAchievements.Providers.Xenia
             Func<Game, GameAchievementData, Task> onGameCompleted,
             CancellationToken cancel)
         {
-            if (string.IsNullOrWhiteSpace(_providerSettings.AccountPath))
+            if (ProviderPathList.Normalize(_providerSettings.AccountPaths).Count == 0)
             {
-                _logger?.Warn("[Xenia] Missing path to account - cannot scan achievements.");
+                _logger?.Warn("[Xenia] No account paths configured - cannot scan achievements.");
                 return new RebuildPayload { Summary = new RebuildSummary(), AuthRequired = true };
             }
 
@@ -98,18 +99,20 @@ namespace PlayniteAchievements.Providers.Xenia
 
         private GameAchievementData GetAchievementData(Game game)
         {
-            if (!ResolveTitleID(game, out var titleID))
+            var accountDirectories = XeniaAccountResolver.ResolveAccountDirectories(game, _providerSettings, _playniteApi);
+            if (!ResolveTitleID(game, accountDirectories, out var titleID))
             {
                 _playniteApi.Notifications.Add(new NotificationMessage("PA_Xenia", string.Format(ResourceProvider.GetString("LOCPlayAch_Xenia_NotFoundWarning"), "TitleID", game.Name), NotificationType.Error));
                 return null;
             }
 
             GameAchievementData data = null;
+            var gpdPaths = GetGpdPaths(accountDirectories, titleID);
 
-            if (!File.Exists($"{_providerSettings.AccountPath}\\{titleID}.gpd"))
+            if (gpdPaths.Count == 0)
             {
                 _playniteApi.Notifications.Add(new NotificationMessage("PA_Xenia", string.Format(ResourceProvider.GetString("LOCPlayAch_Xenia_NotFoundWarning"), $"{titleID}.gpd", game.Name), NotificationType.Info));
-                _logger.Warn($"[Xenia] {titleID}.gpd file in {_providerSettings.AccountPath} not found for {game.Name}!");
+                _logger.Warn($"[Xenia] {titleID}.gpd file not found for {game.Name} in [{string.Join(", ", accountDirectories)}]!");
                 data = new GameAchievementData
                 {
                     AppId = int.Parse(titleID, System.Globalization.NumberStyles.HexNumber),
@@ -123,24 +126,48 @@ namespace PlayniteAchievements.Providers.Xenia
             }
             else
             {
-                GPDResolver resolver = new GPDResolver();
-                var gpdpath = $"{_providerSettings.AccountPath}\\{titleID}.gpd";
-                var gpdFile = resolver.LoadGPD(gpdpath);
+                var gpdFiles = gpdPaths.Select(path => new GPDResolver().LoadGPD(path)).ToList();
 
-                // Write icon data to icon cache
+                // Write icon data to icon cache; the first file carrying an icon id wins
                 var iconDirectory = $"{_pluginUserDataPath}\\icon_cache\\{game.Id}\\";
                 Directory.CreateDirectory(iconDirectory);
-                foreach (var icon in gpdFile.IconData)
+                var writtenIconIds = new HashSet<int>();
+                foreach (var icon in gpdFiles.SelectMany(file => file.IconData))
                 {
+                    if (!writtenIconIds.Add(icon.Key))
+                    {
+                        continue;
+                    }
+
                     using (var fs = new FileStream($"{iconDirectory}{icon.Key}.png", FileMode.Create, FileAccess.Write))
                     {
                         fs.Write(icon.Value, 0, icon.Value.Length);
                     }
                 }
 
-                List<AchievementDetail> achievements = new List<AchievementDetail>();
-                foreach (var achievement in gpdFile.Achievements)
+                // Definitions come from the first file listing each id; unlock state is merged
+                // across every build's copy.
+                var definitions = new Dictionary<uint, XdbfAchievement>();
+                foreach (var achievement in gpdFiles.SelectMany(file => file.Achievements))
                 {
+                    if (!definitions.ContainsKey(achievement.id))
+                    {
+                        definitions[achievement.id] = achievement;
+                    }
+                }
+
+                var progress = XeniaAccountResolver.MergeProgress(gpdFiles.Select(file => file.Achievements.Select(achievement =>
+                    new XeniaAchievementProgress
+                    {
+                        Id = achievement.id,
+                        Unlocked = achievement.earned,
+                        UnlockTime = achievement.unlock_time
+                    })));
+
+                List<AchievementDetail> achievements = new List<AchievementDetail>();
+                foreach (var merged in progress)
+                {
+                    var achievement = definitions[merged.Id];
                     var iconPath = $"{iconDirectory}{achievement.icon_id}.png";
                     if (!File.Exists(iconPath))
                     {
@@ -151,15 +178,15 @@ namespace PlayniteAchievements.Providers.Xenia
                     {
                         ApiName = achievement.id.ToString(),
                         DisplayName = achievement.title,
-                        Description = achievement.unlock_time == 0 ? achievement.description : achievement.unlockDescription,
+                        Description = merged.UnlockTime == 0 ? achievement.description : achievement.unlockDescription,
                         Category = ((XdbfAchievementTypes)(achievement.flags & 7)).ToString(),
                         UnlockedIconPath = iconPath,
                         LockedIconPath = iconPath,
                         Points = (int?)achievement.gamerscore,
                         Rarity = GetRarityFromXboxPoints((int?)achievement.gamerscore),
-                        Unlocked = achievement.earned,
-                        UnlockTimeUtc = achievement.unlock_time != 0
-                            ? DateTime.FromFileTimeUtc((Int64)achievement.unlock_time)
+                        Unlocked = merged.Unlocked,
+                        UnlockTimeUtc = merged.UnlockTime != 0
+                            ? DateTime.FromFileTimeUtc((Int64)merged.UnlockTime)
                             : (DateTime?)null,
                         Hidden = ((achievement.flags & 8) == 0)
                     });
@@ -209,7 +236,26 @@ namespace PlayniteAchievements.Providers.Xenia
             await rarityEnricher.EnrichAsync(game, data.Achievements, "xbox-360", "Xbox", cancel).ConfigureAwait(false);
         }
 
+        /// <summary>
+        /// Existing {titleID}.gpd files across the account folders, in folder order.
+        /// </summary>
+        internal static List<string> GetGpdPaths(IEnumerable<string> accountDirectories, string titleID)
+        {
+            return (accountDirectories ?? Enumerable.Empty<string>())
+                .Select(directory => Path.Combine(directory, $"{titleID}.gpd"))
+                .Where(File.Exists)
+                .ToList();
+        }
+
         internal bool ResolveTitleID(Game game, out string titleID)
+        {
+            return ResolveTitleID(
+                game,
+                XeniaAccountResolver.ResolveAccountDirectories(game, _providerSettings, _playniteApi),
+                out titleID);
+        }
+
+        private bool ResolveTitleID(Game game, IReadOnlyList<string> accountDirectories, out string titleID)
         {
             if (game == null)
             {
@@ -232,71 +278,28 @@ namespace PlayniteAchievements.Providers.Xenia
 
             var candidatePaths = GetCandidateRomPaths(game);
 
-            // Try to find game in recent.toml
+            // Read the TitleID from the executable's XEX header
             foreach (var path in candidatePaths)
             {
-                var xeniapath = _providerSettings.AccountPath + "\\..\\..\\..\\..\\..\\";
-                if (File.Exists($"{xeniapath}recent.toml"))
+                if (TryReadTitleIdFromXexHeader(path, out var headerTitleId))
                 {
-                    bool foundROM = false;
-                    string ROMTitle = "";
+                    titleID = headerTitleId;
+                    CacheTitleId(game.Id, headerTitleId);
+                    return true;
+                }
+            }
 
-                    // Read all lines in toml file
-                    foreach (string line in File.ReadLines($"{xeniapath}recent.toml"))
+            // Try to find game in each build's recent.toml
+            foreach (var path in candidatePaths)
+            {
+                foreach (var accountDirectory in accountDirectories ?? Array.Empty<string>())
+                {
+                    if (TryResolveTitleIdFromRecent(path, accountDirectory, out titleID))
                     {
-                        if (foundROM)
-                        {
-                            var quoteMarks = line.IndexOf('"');
-                            if (quoteMarks == -1)
-                            {
-                                quoteMarks = line.IndexOf('\'');
-                            }
-
-                            if (quoteMarks >= 0)
-                            {
-                                quoteMarks++;
-
-                                ROMTitle = line.Substring(quoteMarks, (line.Length - quoteMarks) - 1);
-                                break;
-                            }
-                        }
-
-                        if (line.StartsWith("path", StringComparison.OrdinalIgnoreCase))
-                        {
-                            var linepath = line.Replace("\\\\", "\\");
-                            if (linepath.Contains(path))
-                            {
-                                foundROM = true;
-                                continue;
-                            }
-                        }
-                    }
-
-                    if (foundROM)
-                    {
-                        // Read all gpd files
-                        foreach (var gpdFilePath in Directory.EnumerateFiles(_providerSettings.AccountPath, "*.gpd"))
-                        {
-                            // Skip base account data
-                            if (gpdFilePath.EndsWith("FFFE07D1.gpd"))
-                                continue;
-
-                            if (!GPDResolver.TryReadTitleString(gpdFilePath, out var stringData))
-                                continue;
-
-                            var gameName = stringData.Replace("\0", "");
-                            gameName = gameName.Replace("\"", "");
-
-                            if (gameName == ROMTitle)
-                            {
-                                titleID = Path.GetFileNameWithoutExtension(gpdFilePath);
-                                CacheTitleId(game.Id, titleID);
-                                return true;
-                            }
-                        }
+                        CacheTitleId(game.Id, titleID);
+                        return true;
                     }
                 }
-
             }
 
             // Try to find TitleID in file
@@ -308,7 +311,9 @@ namespace PlayniteAchievements.Providers.Xenia
                     continue;
                 }
 
-                if (path.EndsWith(".iso") || path.EndsWith(".xex") || string.IsNullOrEmpty(Path.GetExtension(path)))
+                if (path.EndsWith(".iso", StringComparison.OrdinalIgnoreCase) ||
+                    path.EndsWith(".xex", StringComparison.OrdinalIgnoreCase) ||
+                    string.IsNullOrEmpty(Path.GetExtension(path)))
                 {
                     var chunksize = 8 * 1024; // 8 KB buffer
                     var buffer = new byte[chunksize];
@@ -372,6 +377,122 @@ namespace PlayniteAchievements.Providers.Xenia
             }
 
             titleID = "";
+            return false;
+        }
+
+        /// <summary>
+        /// Reads the TitleID from the execution info header of a .xex, or of default.xex inside
+        /// an .iso. False for other files and for any file the header read cannot parse, which
+        /// leaves the later lookups to try it.
+        /// </summary>
+        private bool TryReadTitleIdFromXexHeader(string path, out string titleID)
+        {
+            titleID = null;
+            if (!File.Exists(path))
+            {
+                return false;
+            }
+
+            var isIso = path.EndsWith(".iso", StringComparison.OrdinalIgnoreCase);
+            if (!isIso && !path.EndsWith(".xex", StringComparison.OrdinalIgnoreCase))
+            {
+                return false;
+            }
+
+            try
+            {
+                var executionInfo = isIso
+                    ? XeniaTitleIDExtractor.GetFromIsoFile(path)
+                    : XeniaTitleIDExtractor.GetFromXexFile(path);
+                if (executionInfo == null ||
+                    executionInfo.TitleId == 0 ||
+                    !XeniaTitleIdHelper.TryNormalize(executionInfo.TitleIdHex, out titleID))
+                {
+                    titleID = null;
+                    return false;
+                }
+
+                return true;
+            }
+            catch (Exception ex) when (ex is IOException || ex is InvalidDataException || ex is UnauthorizedAccessException)
+            {
+                _logger?.Debug($"[Xenia] XEX header read failed for '{path}': {ex.Message}");
+                return false;
+            }
+        }
+
+        /// <summary>
+        /// Looks the rom up in recent.toml at the account folder's Xenia root, then finds the
+        /// account's .gpd whose title string matches the recorded title.
+        /// </summary>
+        private static bool TryResolveTitleIdFromRecent(string romPath, string accountDirectory, out string titleID)
+        {
+            titleID = null;
+            var recentPath = Path.Combine(XeniaAccountResolver.GetXeniaRoot(accountDirectory) ?? string.Empty, "recent.toml");
+            if (!File.Exists(recentPath))
+            {
+                return false;
+            }
+
+            bool foundROM = false;
+            string ROMTitle = "";
+
+            // Read all lines in toml file
+            foreach (string line in File.ReadLines(recentPath))
+            {
+                if (foundROM)
+                {
+                    var quoteMarks = line.IndexOf('"');
+                    if (quoteMarks == -1)
+                    {
+                        quoteMarks = line.IndexOf('\'');
+                    }
+
+                    if (quoteMarks >= 0)
+                    {
+                        quoteMarks++;
+
+                        ROMTitle = line.Substring(quoteMarks, (line.Length - quoteMarks) - 1);
+                        break;
+                    }
+                }
+
+                if (line.StartsWith("path", StringComparison.OrdinalIgnoreCase))
+                {
+                    var linepath = line.Replace("\\\\", "\\");
+                    if (linepath.Contains(romPath))
+                    {
+                        foundROM = true;
+                        continue;
+                    }
+                }
+            }
+
+            if (!foundROM)
+            {
+                return false;
+            }
+
+            // Read all gpd files
+            foreach (var gpdFilePath in Directory.EnumerateFiles(accountDirectory, "*.gpd"))
+            {
+                // Skip base account data
+                if (gpdFilePath.EndsWith("FFFE07D1.gpd"))
+                    continue;
+
+                if (!GPDResolver.TryReadTitleString(gpdFilePath, out var stringData))
+                    continue;
+
+                var gameName = stringData.Replace("\0", "");
+                gameName = gameName.Replace("\"", "");
+
+                if (gameName == ROMTitle)
+                {
+                    titleID = Path.GetFileNameWithoutExtension(gpdFilePath);
+                    return true;
+                }
+            }
+
             return false;
         }
 

@@ -13,6 +13,7 @@ using PlayniteAchievements.Models.Achievements;
 using PlayniteAchievements.Models.Friends;
 using PlayniteAchievements.Models.Tagging;
 using PlayniteAchievements.Services.Achievements;
+using PlayniteAchievements.Services.Showcase;
 
 using ObservableObject = PlayniteAchievements.Common.ObservableObject;
 
@@ -66,6 +67,7 @@ namespace PlayniteAchievements.Models.Settings
         private bool _enableFriendsPeriodicUpdates = false;
         private int _friendsPeriodicUpdateHours = 24;
         private bool _enableInGamePolling = true;
+        private bool _enableAutoCapstoneGeneration = false;
         private int _inGamePollIntervalSeconds = 15;
         private bool _inGamePollRefreshFriends = false;
         private int _inGameFriendRefreshMultiplier = 4;
@@ -117,6 +119,14 @@ namespace PlayniteAchievements.Models.Settings
         private bool _recordingIncludeMicrophone = false;
         private RaritySelection _unlockRecordingRarities = RaritySelection.All;
         private bool _unlockRecordingAlwaysCaptureCompletion = true;
+        private bool _unlockRecordingClean = false;
+        private bool _unlockRecordingWithToast = true;
+        private bool _unlockRecordingFramed = false;
+        private RaritySelection _unlockRecordingCleanRarities = RaritySelection.All;
+        private bool _unlockRecordingCleanAlwaysCaptureCompletion = true;
+        private RaritySelection _unlockRecordingFramedRarities = RaritySelection.All;
+        private bool _unlockRecordingFramedAlwaysCaptureCompletion = true;
+        private int? _unlockRecordingFramedSeconds = 5;
         private Dictionary<string, ProviderNotificationOverride> _providerNotificationOverrides =
             new Dictionary<string, ProviderNotificationOverride>(StringComparer.OrdinalIgnoreCase);
         private ToastScreenCorner _toastPosition = ToastScreenCorner.BottomRight;
@@ -142,6 +152,12 @@ namespace PlayniteAchievements.Models.Settings
         private bool _showHiddenDescription = false;
         private bool _showHiddenSuffix = true;
         private bool _showLockedIcon = true;
+        private bool _showLockedTitle = true;
+        private bool _showLockedDescription = true;
+        private bool _showHiddenTrophy = true;
+        private bool _showHiddenPoints = true;
+        private bool _showLockedTrophy = true;
+        private bool _showLockedPoints = true;
         private bool _useSeparateLockedIconsWhenAvailable = false;
         private HashSet<Guid> _separateLockedIconEnabledGameIds = new HashSet<Guid>();
         private string _lockedFallbackIconPath = null;
@@ -151,7 +167,7 @@ namespace PlayniteAchievements.Models.Settings
         private bool _animateRarityGlows = true;
         // Completion is included by default because the completed-game glow shipped on; the rays stay
         // opt-in for everything.
-        private RaritySelection _rarityGlowSoftTiers = RaritySelection.All | RaritySelection.Completed;
+        private RaritySelection _rarityGlowSoftTiers = RaritySelectionExtensions.DefaultSoftGlowTiers;
         private RaritySelection _rarityGlowRayTiers = RaritySelection.None;
         private bool _showHardcoreBorder = true;
         private double _rarityGlowPulseMinOpacity = 0.6;
@@ -175,13 +191,17 @@ namespace PlayniteAchievements.Models.Settings
         private bool _showFriendSpoilers;
         private int _friendsOverviewRecentUnlockLimit = 200;
         private OverviewPieSmallSliceMode _overviewPieSmallSliceMode = OverviewPieSmallSliceMode.Round;
+        private bool _overviewPieIncludeLocked = true;
         private bool _overviewPieChartVisibilityInitializedFromIndividualSettings;
         private bool _showOverviewBarCharts = true;
         private bool _showTopMenuBarButton = true;
         private bool _showCompletedProgressColoring = true;
+        private bool _tintMissableLocks = true;
         private bool _showCompactListRarityBar = true;
         private bool _progressColumnAlignmentDefaulted = false;
         private bool _inlineSurfaceTransparencySeeded = true;
+        private bool _commonGlowTierCleared = true;
+        private bool _categoryProgressColumnAlignmentDefaulted = true;
 
         private GridAlignment _gridColumnHeaderAlignment = GridAlignment.Center;
         private GridAlignment _gridCellAlignment = GridAlignment.Left;
@@ -189,6 +209,7 @@ namespace PlayniteAchievements.Models.Settings
         private DateDisplayMode _unlockDateDisplayMode = DateDisplayMode.DateAndTime;
         private PlaytimeDisplayMode _playtimeDisplayMode = PlaytimeDisplayMode.HoursAndMinutes;
         private CategoryCompletionBadgeMode _categoryCompletionBadgeMode = CategoryCompletionBadgeMode.All;
+        private ProgressBadgeSource _progressBadgeSource = ProgressBadgeSource.TrophyWhenAvailable;
         private FriendNameDisplayMode _friendNameDisplayMode = FriendNameDisplayMode.PersonaAndNickname;
         private bool _enableAchievementCompactListControl = true;
         private bool _enableAchievementDataGridControl = true;
@@ -203,8 +224,7 @@ namespace PlayniteAchievements.Models.Settings
         private StartPageGameSummariesGridSettings _startPageGameSummariesGrid;
         private StartPageRecentUnlocksGridSettings _startPageRecentUnlocksGrid;
         private StartPageFriendsRecentUnlocksGridSettings _startPageFriendsRecentUnlocksGrid;
-        private StartPagePieWidgetSettings _startPagePieCharts =
-            new StartPagePieWidgetSettings();
+        private ShowcaseSettings _showcase;
         private GridOptionsCatalog _gridOptions = new GridOptionsCatalog();
         private GameActivityScope _startPageActivityScope = DefaultStartPageActivityScope;
         private GameProgressScope _startPageProgressScope = DefaultStartPageProgressScope;
@@ -223,8 +243,10 @@ namespace PlayniteAchievements.Models.Settings
         private double _friendsOverviewGameColumnRatio = DefaultFriendsOverviewGameColumnRatio;
         private Dictionary<string, WindowPlacementState> _windowPlacements =
             new Dictionary<string, WindowPlacementState>(StringComparer.OrdinalIgnoreCase);
-        private TimelineRange _overviewTimelineRange = TimelineRange.OneYear;
-        private TimelineRange _viewAchievementsTimelineRange = TimelineRange.OneYear;
+        private TimeWindow _overviewTimeWindow = TimeWindow.FromPreset(TimelineRange.OneYear);
+        private TimelineGranularity _overviewTimelineGranularity = TimelineGranularity.Auto;
+        private TimeWindow _viewAchievementsTimeWindow = TimeWindow.FromPreset(TimelineRange.OneYear);
+        private TimelineGranularity _viewAchievementsTimelineGranularity = TimelineGranularity.Auto;
         private bool _viewAchievementsTimelineVisible = false;
         private bool _firstTimeSetupCompleted = false;
         private bool _seenThemeMigration = false;
@@ -854,6 +876,15 @@ namespace PlayniteAchievements.Models.Settings
             set => SetValue(ref _enableInGamePolling, value);
         }
 
+        /// <summary>
+        /// Gives each game an auto capstone after it refreshes, once per game. Turning it off only
+        /// stops new ones; capstones already generated stay.
+        /// </summary>
+        public bool EnableAutoCapstoneGeneration
+        {
+            get => _enableAutoCapstoneGeneration;
+            set => SetValue(ref _enableAutoCapstoneGeneration, value);
+        }
         public int InGamePollIntervalSeconds
         {
             get => _inGamePollIntervalSeconds;
@@ -1504,7 +1535,7 @@ namespace PlayniteAchievements.Models.Settings
         }
 
         /// <summary>
-        /// The set of achievement rarity tiers that produce unlock recording clips.
+        /// The set of achievement rarity tiers that produce with-notification unlock clips.
         /// </summary>
         public RaritySelection UnlockRecordingRarities
         {
@@ -1514,12 +1545,81 @@ namespace PlayniteAchievements.Models.Settings
 
         /// <summary>
         /// When true, completing achievements, capstones, and standalone game-complete events
-        /// bypass the recording rarity threshold.
+        /// bypass the with-notification clip rarity threshold.
         /// </summary>
         public bool UnlockRecordingAlwaysCaptureCompletion
         {
             get => _unlockRecordingAlwaysCaptureCompletion;
             set => SetValue(ref _unlockRecordingAlwaysCaptureCompletion, value);
+        }
+
+        /// <summary>Save the unlock clip with no notification composited in.</summary>
+        public bool UnlockRecordingClean
+        {
+            get => _unlockRecordingClean;
+            set => SetValue(ref _unlockRecordingClean, value);
+        }
+
+        /// <summary>Save the unlock clip with this unlock's notification card composited in.</summary>
+        public bool UnlockRecordingWithToast
+        {
+            get => _unlockRecordingWithToast;
+            set => SetValue(ref _unlockRecordingWithToast, value);
+        }
+
+        /// <summary>
+        /// Save the unlock clip with the theme frame composited over its opening
+        /// <see cref="UnlockRecordingFramedSeconds"/>, fading out at the end of that span.
+        /// </summary>
+        public bool UnlockRecordingFramed
+        {
+            get => _unlockRecordingFramed;
+            set => SetValue(ref _unlockRecordingFramed, value);
+        }
+
+        /// <summary>The set of achievement rarity tiers that produce clean unlock clips.</summary>
+        public RaritySelection UnlockRecordingCleanRarities
+        {
+            get => _unlockRecordingCleanRarities;
+            set => SetValue(ref _unlockRecordingCleanRarities, value);
+        }
+
+        /// <summary>
+        /// When true, completing achievements, capstones, and standalone game-complete events
+        /// bypass the clean clip rarity threshold.
+        /// </summary>
+        public bool UnlockRecordingCleanAlwaysCaptureCompletion
+        {
+            get => _unlockRecordingCleanAlwaysCaptureCompletion;
+            set => SetValue(ref _unlockRecordingCleanAlwaysCaptureCompletion, value);
+        }
+
+        /// <summary>The set of achievement rarity tiers that produce framed unlock clips.</summary>
+        public RaritySelection UnlockRecordingFramedRarities
+        {
+            get => _unlockRecordingFramedRarities;
+            set => SetValue(ref _unlockRecordingFramedRarities, value);
+        }
+
+        /// <summary>
+        /// When true, completing achievements, capstones, and standalone game-complete events
+        /// bypass the framed clip rarity threshold.
+        /// </summary>
+        public bool UnlockRecordingFramedAlwaysCaptureCompletion
+        {
+            get => _unlockRecordingFramedAlwaysCaptureCompletion;
+            set => SetValue(ref _unlockRecordingFramedAlwaysCaptureCompletion, value);
+        }
+
+        /// <summary>
+        /// How long the frame shows from the start of a framed clip before it fades out. Null
+        /// keeps the frame over the whole clip. The notification is left out of a framed clip
+        /// whenever the frame is still showing when it would appear.
+        /// </summary>
+        public int? UnlockRecordingFramedSeconds
+        {
+            get => _unlockRecordingFramedSeconds;
+            set => SetValue(ref _unlockRecordingFramedSeconds, value.HasValue && value.Value > 0 ? value : null);
         }
 
         /// <summary>
@@ -1688,6 +1788,60 @@ namespace PlayniteAchievements.Models.Settings
         }
 
         /// <summary>
+        /// When true, locked achievement titles are shown before reveal.
+        /// </summary>
+        public bool ShowLockedTitle
+        {
+            get => _showLockedTitle;
+            set => SetValue(ref _showLockedTitle, value);
+        }
+
+        /// <summary>
+        /// When true, locked achievement descriptions are shown before reveal.
+        /// </summary>
+        public bool ShowLockedDescription
+        {
+            get => _showLockedDescription;
+            set => SetValue(ref _showLockedDescription, value);
+        }
+
+        /// <summary>
+        /// When true, the trophy grade of a hidden achievement is shown before reveal.
+        /// </summary>
+        public bool ShowHiddenTrophy
+        {
+            get => _showHiddenTrophy;
+            set => SetValue(ref _showHiddenTrophy, value);
+        }
+
+        /// <summary>
+        /// When true, the point value of a hidden achievement is shown before reveal.
+        /// </summary>
+        public bool ShowHiddenPoints
+        {
+            get => _showHiddenPoints;
+            set => SetValue(ref _showHiddenPoints, value);
+        }
+
+        /// <summary>
+        /// When true, the trophy grade of a locked achievement is shown before reveal.
+        /// </summary>
+        public bool ShowLockedTrophy
+        {
+            get => _showLockedTrophy;
+            set => SetValue(ref _showLockedTrophy, value);
+        }
+
+        /// <summary>
+        /// When true, the point value of a locked achievement is shown before reveal.
+        /// </summary>
+        public bool ShowLockedPoints
+        {
+            get => _showLockedPoints;
+            set => SetValue(ref _showLockedPoints, value);
+        }
+
+        /// <summary>
         /// When true, providers with distinct locked icons will cache and use them instead of grayscaling the unlocked icon.
         /// Changes apply on the next refresh for newly cached icons.
         /// </summary>
@@ -1779,8 +1933,8 @@ namespace PlayniteAchievements.Models.Settings
 
         /// <summary>
         /// Which rarity tiers get the soft halo around unlocked icons. Membership is exact, so a tier
-        /// with its bit clear shows no halo at all. Defaults to every tier, which is the original
-        /// behavior.
+        /// with its bit clear shows no halo at all. Defaults to every tier except Common, plus
+        /// completion.
         /// </summary>
         public RaritySelection RarityGlowSoftTiers
         {
@@ -2015,6 +2169,18 @@ namespace PlayniteAchievements.Models.Settings
         }
 
         /// <summary>
+        /// When true, the overview rarity, provider and trophy pies draw a trailing locked
+        /// slice. The completions pie is unaffected: its trailing slice counts unfinished games,
+        /// not locked achievements. Hiding the locked slice also hides the centre percentage,
+        /// which measures unlocked against a total the pie would no longer show.
+        /// </summary>
+        public bool OverviewPieIncludeLocked
+        {
+            get => _overviewPieIncludeLocked;
+            set => SetValue(ref _overviewPieIncludeLocked, value);
+        }
+
+        /// <summary>
         /// When true, shows the timeline bar chart at the bottom of the right overview.
         /// When false, the achievements list takes the full space.
         /// </summary>
@@ -2041,6 +2207,16 @@ namespace PlayniteAchievements.Models.Settings
         {
             get => _showCompletedProgressColoring;
             set => SetValue(ref _showCompletedProgressColoring, value);
+        }
+
+        /// <summary>
+        /// When true, the status column draws the lock of a locked Missable achievement in red
+        /// instead of the glyph color.
+        /// </summary>
+        public bool TintMissableLocks
+        {
+            get => _tintMissableLocks;
+            set => SetValue(ref _tintMissableLocks, value);
         }
 
         /// <summary>
@@ -2102,6 +2278,35 @@ namespace PlayniteAchievements.Models.Settings
         }
 
         /// <summary>
+        /// True when this config's glow tier selections use the current meaning of the Common bit.
+        /// Before Common could glow, the soft-glow default was every tier, so configs saved by
+        /// earlier builds carry a Common bit the user never chose; the migration clears that bit
+        /// once, for configs whose JSON lacks this flag. Defaults true because every config this
+        /// build writes already uses the current meaning, so a Common tier the user checks is never
+        /// cleared on a later launch, including one checked in the very first session.
+        /// </summary>
+        public bool CommonGlowTierCleared
+        {
+            get => _commonGlowTierCleared;
+            set => SetValue(ref _commonGlowTierCleared, value);
+        }
+
+        /// <summary>
+        /// True when the category summary Progress column alignment in this config is either the
+        /// seeded Right default or the user's own choice, including a cleared override. The
+        /// category options used to seed Right on the deserialization target, so earlier builds
+        /// re-applied it on every load; the migration fills Right once where a category entry
+        /// lacks the key, for configs whose JSON lacks this flag. Defaults true because every
+        /// config this build writes already carries the seed or the user's choice, so an override
+        /// cleared in the very first session is never re-filled on a later launch.
+        /// </summary>
+        public bool CategoryProgressColumnAlignmentDefaulted
+        {
+            get => _categoryProgressColumnAlignmentDefaulted;
+            set => SetValue(ref _categoryProgressColumnAlignmentDefaulted, value);
+        }
+
+        /// <summary>
         /// Horizontal alignment for text shown in DataGrid column headers.
         /// </summary>
         public GridAlignment GridColumnHeaderAlignment
@@ -2153,6 +2358,21 @@ namespace PlayniteAchievements.Models.Settings
         {
             get => _categoryCompletionBadgeMode;
             set => SetValue(ref _categoryCompletionBadgeMode, value);
+        }
+
+        /// <summary>
+        /// Which badges the progress column footer shows: a game's trophies when it has them, or
+        /// its rarity spread regardless.
+        /// </summary>
+        /// <remarks>
+        /// Written out even at its zero value, so choosing Rarity cannot round-trip as unset and
+        /// silently revert to the default.
+        /// </remarks>
+        [JsonProperty(DefaultValueHandling = DefaultValueHandling.Include)]
+        public ProgressBadgeSource ProgressBadgeSource
+        {
+            get => _progressBadgeSource;
+            set => SetValue(ref _progressBadgeSource, value);
         }
 
         /// <summary>
@@ -2312,11 +2532,34 @@ namespace PlayniteAchievements.Models.Settings
             set => SetValue(ref _compactLockedListSortDescending, value);
         }
 
-        public StartPagePieWidgetSettings StartPagePieCharts
+        /// <summary>
+        /// Replace (not populate) on load: the getter lazily seeds a default dashboard, and the
+        /// default object-creation handling would populate that seeded instance - appending the
+        /// saved pages and widgets to the seeded ones, so the dashboard grew a page on every load.
+        /// </summary>
+        [JsonProperty(ObjectCreationHandling = ObjectCreationHandling.Replace)]
+        public ShowcaseSettings Showcase
         {
-            get => _startPagePieCharts ?? (_startPagePieCharts = AttachStartPageSettings(
-                new StartPagePieWidgetSettings()));
-            set => SetStartPagePieSettings(ref _startPagePieCharts, value, nameof(StartPagePieCharts));
+            get
+            {
+                if (_showcase == null)
+                {
+                    _showcase = ShowcaseLayoutService.CreateDefault(
+                        ShowOverviewCollectionScoreCard,
+                        ShowOverviewPrestigeScoreCard);
+                    ShowcaseLayoutService.Normalize(_showcase);
+                }
+
+                return _showcase;
+            }
+            set
+            {
+                var normalized = value?.Clone() ?? ShowcaseLayoutService.CreateDefault(
+                    ShowOverviewCollectionScoreCard,
+                    ShowOverviewPrestigeScoreCard);
+                ShowcaseLayoutService.Normalize(normalized);
+                SetValue(ref _showcase, normalized);
+            }
         }
 
         public GridOptionsCatalog GridOptions
@@ -2452,21 +2695,38 @@ namespace PlayniteAchievements.Models.Settings
         }
 
         /// <summary>
-        /// Last selected range for the overview achievements-over-time chart.
+        /// Last selected window for the overview achievements-over-time chart: a rolling preset or
+        /// a custom date range. Legacy integer <c>OverviewTimelineRange</c> values are read by the converter.
         /// </summary>
-        public TimelineRange OverviewTimelineRange
+        [JsonConverter(typeof(TimeWindowJsonConverter))]
+        public TimeWindow OverviewTimeWindow
         {
-            get => _overviewTimelineRange;
-            set => SetValue(ref _overviewTimelineRange, value);
+            get => _overviewTimeWindow;
+            set => SetValue(ref _overviewTimeWindow, value ?? TimeWindow.FromPreset(TimelineRange.OneYear));
+        }
+
+        /// <summary>Bar-width override for the overview achievements-over-time chart.</summary>
+        public TimelineGranularity OverviewTimelineGranularity
+        {
+            get => _overviewTimelineGranularity;
+            set => SetValue(ref _overviewTimelineGranularity, value);
         }
 
         /// <summary>
-        /// Last selected range for the single-game achievements window timeline chart.
+        /// Last selected window for the single-game achievements window timeline chart.
         /// </summary>
-        public TimelineRange ViewAchievementsTimelineRange
+        [JsonConverter(typeof(TimeWindowJsonConverter))]
+        public TimeWindow ViewAchievementsTimeWindow
         {
-            get => _viewAchievementsTimelineRange;
-            set => SetValue(ref _viewAchievementsTimelineRange, value);
+            get => _viewAchievementsTimeWindow;
+            set => SetValue(ref _viewAchievementsTimeWindow, value ?? TimeWindow.FromPreset(TimelineRange.OneYear));
+        }
+
+        /// <summary>Bar-width override for the single-game achievements window timeline chart.</summary>
+        public TimelineGranularity ViewAchievementsTimelineGranularity
+        {
+            get => _viewAchievementsTimelineGranularity;
+            set => SetValue(ref _viewAchievementsTimelineGranularity, value);
         }
 
         /// <summary>
@@ -2616,22 +2876,6 @@ namespace PlayniteAchievements.Models.Settings
 
         #region StartPage Settings Helpers
 
-        private void SetStartPagePieSettings(
-            ref StartPagePieWidgetSettings field,
-            StartPagePieWidgetSettings value,
-            string propertyName)
-        {
-            var normalized = value ?? new StartPagePieWidgetSettings();
-            if (ReferenceEquals(field, normalized))
-            {
-                return;
-            }
-
-            DetachStartPageSettings(field);
-            field = AttachStartPageSettings(normalized);
-            OnPropertyChanged(propertyName);
-        }
-
         private void AttachStartPageSettingsHandlers()
         {
             _startPageGameSummariesGrid = AttachStartPageSettings(
@@ -2640,8 +2884,6 @@ namespace PlayniteAchievements.Models.Settings
                 _startPageRecentUnlocksGrid ?? new StartPageRecentUnlocksGridSettings(AchievementStartPageRecent));
             _startPageFriendsRecentUnlocksGrid = AttachStartPageSettings(
                 _startPageFriendsRecentUnlocksGrid ?? new StartPageFriendsRecentUnlocksGridSettings(AchievementStartPageFriendRecent));
-            _startPagePieCharts = AttachStartPageSettings(
-                _startPagePieCharts ?? new StartPagePieWidgetSettings());
         }
 
         private void RebindStartPageGridSettings()
@@ -2710,11 +2952,6 @@ namespace PlayniteAchievements.Models.Settings
                     nameof(StartPageFriendsRecentAchievementsGridMaxRows));
                 return;
             }
-
-            if (ReferenceEquals(sender, _startPagePieCharts))
-            {
-                RaiseStartPageSettingsChanged(nameof(StartPagePieCharts), childPropertyName);
-            }
         }
 
         private void RaiseStartPageSettingsChanged(string parentPropertyName, string childPropertyName)
@@ -2747,6 +2984,17 @@ namespace PlayniteAchievements.Models.Settings
         }
 
         #endregion
+
+        private ManageSidebarStatGroups _hiddenManageSidebarStatGroups = ManageSidebarStatGroups.None;
+
+        /// <summary>
+        /// Stat chip groups hidden from the Manage Achievements sidebar, for every game.
+        /// </summary>
+        public ManageSidebarStatGroups HiddenManageSidebarStatGroups
+        {
+            get => _hiddenManageSidebarStatGroups;
+            set => SetValue(ref _hiddenManageSidebarStatGroups, value);
+        }
 
         #region Clone Method
 
@@ -2794,6 +3042,7 @@ namespace PlayniteAchievements.Models.Settings
                 EnableFriendsPeriodicUpdates = this.EnableFriendsPeriodicUpdates,
                 FriendsPeriodicUpdateHours = this.FriendsPeriodicUpdateHours,
                 EnableInGamePolling = this.EnableInGamePolling,
+                EnableAutoCapstoneGeneration = this.EnableAutoCapstoneGeneration,
                 InGamePollIntervalSeconds = this.InGamePollIntervalSeconds,
                 InGamePollRefreshFriends = this.InGamePollRefreshFriends,
                 InGameFriendRefreshMultiplier = this.InGameFriendRefreshMultiplier,
@@ -2820,6 +3069,8 @@ namespace PlayniteAchievements.Models.Settings
                 CategoryModeHotkey = this.CategoryModeHotkey,
                 TestUnlockHotkey = this.TestUnlockHotkey,
                 EnableCaptureTestFolder = this.EnableCaptureTestFolder,
+
+                HiddenManageSidebarStatGroups = this.HiddenManageSidebarStatGroups,
 
                 // Notification Settings
                 EnableNotifications = this.EnableNotifications,
@@ -2875,6 +3126,14 @@ namespace PlayniteAchievements.Models.Settings
                 RecordingIncludeMicrophone = this.RecordingIncludeMicrophone,
                 UnlockRecordingRarities = this.UnlockRecordingRarities,
                 UnlockRecordingAlwaysCaptureCompletion = this.UnlockRecordingAlwaysCaptureCompletion,
+                UnlockRecordingClean = this.UnlockRecordingClean,
+                UnlockRecordingWithToast = this.UnlockRecordingWithToast,
+                UnlockRecordingFramed = this.UnlockRecordingFramed,
+                UnlockRecordingCleanRarities = this.UnlockRecordingCleanRarities,
+                UnlockRecordingCleanAlwaysCaptureCompletion = this.UnlockRecordingCleanAlwaysCaptureCompletion,
+                UnlockRecordingFramedRarities = this.UnlockRecordingFramedRarities,
+                UnlockRecordingFramedAlwaysCaptureCompletion = this.UnlockRecordingFramedAlwaysCaptureCompletion,
+                UnlockRecordingFramedSeconds = this.UnlockRecordingFramedSeconds,
                 ProviderNotificationOverrides = this.ProviderNotificationOverrides != null
                     ? this.ProviderNotificationOverrides.ToDictionary(
                         kvp => kvp.Key,
@@ -2888,6 +3147,12 @@ namespace PlayniteAchievements.Models.Settings
                 ShowHiddenDescription = this.ShowHiddenDescription,
                 ShowHiddenSuffix = this.ShowHiddenSuffix,
                 ShowLockedIcon = this.ShowLockedIcon,
+                ShowLockedTitle = this.ShowLockedTitle,
+                ShowLockedDescription = this.ShowLockedDescription,
+                ShowHiddenTrophy = this.ShowHiddenTrophy,
+                ShowHiddenPoints = this.ShowHiddenPoints,
+                ShowLockedTrophy = this.ShowLockedTrophy,
+                ShowLockedPoints = this.ShowLockedPoints,
                 UseSeparateLockedIconsWhenAvailable = this.UseSeparateLockedIconsWhenAvailable,
                 LockedFallbackIconPath = this.LockedFallbackIconPath,
                 HiddenFallbackIconPath = this.HiddenFallbackIconPath,
@@ -2919,20 +3184,25 @@ namespace PlayniteAchievements.Models.Settings
                 ShowOverviewTrophyPieChart = this.ShowOverviewTrophyPieChart,
                 ShowOverviewPiePercentages = this.ShowOverviewPiePercentages,
                 OverviewPieSmallSliceMode = this.OverviewPieSmallSliceMode,
+                OverviewPieIncludeLocked = this.OverviewPieIncludeLocked,
                 ShowOverviewBarCharts = this.ShowOverviewBarCharts,
                 ShowTopMenuBarButton = this.ShowTopMenuBarButton,
                 ShowCompletedProgressColoring = this.ShowCompletedProgressColoring,
+                TintMissableLocks = this.TintMissableLocks,
                 ShowFriendSpoilers = this.ShowFriendSpoilers,
                 FriendsOverviewRecentUnlockLimit = this.FriendsOverviewRecentUnlockLimit,
                 ShowCompactListRarityBar = this.ShowCompactListRarityBar,
                 ProgressColumnAlignmentDefaulted = this.ProgressColumnAlignmentDefaulted,
                 InlineSurfaceTransparencySeeded = this.InlineSurfaceTransparencySeeded,
+                CommonGlowTierCleared = this.CommonGlowTierCleared,
+                CategoryProgressColumnAlignmentDefaulted = this.CategoryProgressColumnAlignmentDefaulted,
                 GridColumnHeaderAlignment = this.GridColumnHeaderAlignment,
                 GridCellAlignment = this.GridCellAlignment,
                 GridCellVerticalAlignment = this.GridCellVerticalAlignment,
                 UnlockDateDisplayMode = this.UnlockDateDisplayMode,
                 PlaytimeDisplayMode = this.PlaytimeDisplayMode,
                 CategoryCompletionBadgeMode = this.CategoryCompletionBadgeMode,
+                ProgressBadgeSource = this.ProgressBadgeSource,
                 FriendNameDisplayMode = this.FriendNameDisplayMode,
                 EnableAchievementCompactListControl = this.EnableAchievementCompactListControl,
                 EnableAchievementDataGridControl = this.EnableAchievementDataGridControl,
@@ -2950,8 +3220,9 @@ namespace PlayniteAchievements.Models.Settings
                 CompactUnlockedListSortDescending = this.CompactUnlockedListSortDescending,
                 CompactLockedListSortMode = this.CompactLockedListSortMode,
                 CompactLockedListSortDescending = this.CompactLockedListSortDescending,
-                StartPagePieCharts = this.StartPagePieCharts?.Clone() ??
-                    new StartPagePieWidgetSettings(),
+                Showcase = this.Showcase?.Clone() ?? ShowcaseLayoutService.CreateDefault(
+                    this.ShowOverviewCollectionScoreCard,
+                    this.ShowOverviewPrestigeScoreCard),
                 GridOptions = this.GridOptions?.Clone() ?? new GridOptionsCatalog(),
                 StartPageActivityScope = this.StartPageActivityScope,
                 StartPageProgressScope = this.StartPageProgressScope,
@@ -2975,8 +3246,10 @@ namespace PlayniteAchievements.Models.Settings
                         kvp => kvp.Value?.Clone(),
                         StringComparer.OrdinalIgnoreCase)
                     : new Dictionary<string, WindowPlacementState>(StringComparer.OrdinalIgnoreCase),
-                OverviewTimelineRange = this.OverviewTimelineRange,
-                ViewAchievementsTimelineRange = this.ViewAchievementsTimelineRange,
+                OverviewTimeWindow = this.OverviewTimeWindow,
+                OverviewTimelineGranularity = this.OverviewTimelineGranularity,
+                ViewAchievementsTimeWindow = this.ViewAchievementsTimeWindow,
+                ViewAchievementsTimelineGranularity = this.ViewAchievementsTimelineGranularity,
                 ViewAchievementsTimelineVisible = this.ViewAchievementsTimelineVisible,
 
                 // General Settings
@@ -3046,6 +3319,12 @@ namespace PlayniteAchievements.Models.Settings
             ShowHiddenDescription = defaults.ShowHiddenDescription;
             ShowHiddenSuffix = defaults.ShowHiddenSuffix;
             ShowLockedIcon = defaults.ShowLockedIcon;
+            ShowLockedTitle = defaults.ShowLockedTitle;
+            ShowLockedDescription = defaults.ShowLockedDescription;
+            ShowHiddenTrophy = defaults.ShowHiddenTrophy;
+            ShowHiddenPoints = defaults.ShowHiddenPoints;
+            ShowLockedTrophy = defaults.ShowLockedTrophy;
+            ShowLockedPoints = defaults.ShowLockedPoints;
             ShowFriendSpoilers = defaults.ShowFriendSpoilers;
             UseSeparateLockedIconsWhenAvailable = defaults.UseSeparateLockedIconsWhenAvailable;
             SeparateLockedIconEnabledGameIds = new HashSet<Guid>();
@@ -3076,9 +3355,11 @@ namespace PlayniteAchievements.Models.Settings
             ShowOverviewTrophyPieChart = defaults.ShowOverviewTrophyPieChart;
             ShowOverviewPiePercentages = defaults.ShowOverviewPiePercentages;
             OverviewPieSmallSliceMode = defaults.OverviewPieSmallSliceMode;
+            OverviewPieIncludeLocked = defaults.OverviewPieIncludeLocked;
             ShowOverviewBarCharts = defaults.ShowOverviewBarCharts;
             ShowTopMenuBarButton = defaults.ShowTopMenuBarButton;
             ShowCompletedProgressColoring = defaults.ShowCompletedProgressColoring;
+            TintMissableLocks = defaults.TintMissableLocks;
             ShowCompactListRarityBar = defaults.ShowCompactListRarityBar;
 
             GridColumnHeaderAlignment = defaults.GridColumnHeaderAlignment;
@@ -3087,6 +3368,7 @@ namespace PlayniteAchievements.Models.Settings
             UnlockDateDisplayMode = defaults.UnlockDateDisplayMode;
             PlaytimeDisplayMode = defaults.PlaytimeDisplayMode;
             CategoryCompletionBadgeMode = defaults.CategoryCompletionBadgeMode;
+            ProgressBadgeSource = defaults.ProgressBadgeSource;
             FriendNameDisplayMode = defaults.FriendNameDisplayMode;
 
             EnableAchievementCompactListControl = defaults.EnableAchievementCompactListControl;
@@ -3108,7 +3390,9 @@ namespace PlayniteAchievements.Models.Settings
             CompactLockedListSortDescending = defaults.CompactLockedListSortDescending;
 
 
-            StartPagePieCharts = new StartPagePieWidgetSettings();
+            Showcase = ShowcaseLayoutService.CreateDefault(
+                defaults.ShowOverviewCollectionScoreCard,
+                defaults.ShowOverviewPrestigeScoreCard);
             GridOptions = new GridOptionsCatalog();
             StartPageActivityScope = defaults.StartPageActivityScope;
             StartPageProgressScope = defaults.StartPageProgressScope;
@@ -3117,7 +3401,8 @@ namespace PlayniteAchievements.Models.Settings
             OverviewLeftColumnRatio = defaults.OverviewLeftColumnRatio;
             FriendsOverviewFriendColumnRatio = defaults.FriendsOverviewFriendColumnRatio;
             FriendsOverviewGameColumnRatio = defaults.FriendsOverviewGameColumnRatio;
-            ViewAchievementsTimelineRange = defaults.ViewAchievementsTimelineRange;
+            ViewAchievementsTimeWindow = defaults.ViewAchievementsTimeWindow;
+            ViewAchievementsTimelineGranularity = defaults.ViewAchievementsTimelineGranularity;
             ViewAchievementsTimelineVisible = defaults.ViewAchievementsTimelineVisible;
         }
 

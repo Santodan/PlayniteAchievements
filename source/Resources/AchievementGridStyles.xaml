@@ -153,7 +153,8 @@
         reveals and exposes both edges from that column. WPF's SetLeftGripperVisibility
         auto-collapses the first column's left gripper (no resizable column to its left), and
         DataGridColumnGripperBehavior collapses the last visible column's right gripper so there
-        is no orphan gripper at the grid's trailing edge.
+        is no orphan gripper at the grid's trailing edge, plus every gripper on either side of a
+        column locked from the header menu (DataGridColumnGripperBehavior.IsLocked).
     -->
     <Style x:Key="AchievementColumnHeaderLeftGripperStyle"
            TargetType="Thumb"
@@ -370,18 +371,33 @@
         <Setter Property="HorizontalContentAlignment" Value="Center"/>
     </Style>
 
+    <!-- The Manage Achievements header, plus the hint that right-clicking it shows the column
+         list. A separate style rather than a setter on the one above, because eight grids share
+         that one and only the editor has a column menu. -->
+    <Style x:Key="ManageAchievementsColumnHeaderWithMenuStyle"
+        TargetType="{x:Type DataGridColumnHeader}"
+        BasedOn="{StaticResource ManageAchievementsColumnHeaderStyle}">
+        <Setter Property="ToolTip" Value="{DynamicResource LOCPlayAch_Tooltip_RightClickShowHide}"/>
+    </Style>
+
     <Style x:Key="ManageAchievementsControllerCellStyle"
            TargetType="DataGridCell"
            BasedOn="{StaticResource PlayAch.StretchDataGridCellStyle}">
+        <!-- Plain property conditions, not bindings. The fullscreen check used to bind
+             RelativeSource AncestorType=Window to read the window's Tag, which gave every cell of
+             every realized row a visual-tree walk up to the window, re-resolved each time
+             recycling reattached the container, and in desktop mode it could never be true,
+             because only the fullscreen window path sets the marker. IsFullscreenHost inherits
+             down from that window, so this is a property lookup on the cell itself. -->
         <Style.Triggers>
-            <MultiDataTrigger>
-                <MultiDataTrigger.Conditions>
-                    <Condition Binding="{Binding RelativeSource={RelativeSource Self}, Path=IsKeyboardFocusWithin}" Value="True"/>
-                    <Condition Binding="{Binding RelativeSource={RelativeSource AncestorType=Window}, Path=Tag}" Value="PlayniteAchievementsFullscreen"/>
-                </MultiDataTrigger.Conditions>
+            <MultiTrigger>
+                <MultiTrigger.Conditions>
+                    <Condition Property="IsKeyboardFocusWithin" Value="True"/>
+                    <Condition Property="helpers:PlayniteUiProvider.IsFullscreenHost" Value="True"/>
+                </MultiTrigger.Conditions>
                 <Setter Property="BorderBrush" Value="{DynamicResource PlayAch.Brush.Selection}"/>
                 <Setter Property="BorderThickness" Value="2"/>
-            </MultiDataTrigger>
+            </MultiTrigger>
         </Style.Triggers>
     </Style>
 

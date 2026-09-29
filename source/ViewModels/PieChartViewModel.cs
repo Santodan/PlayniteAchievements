@@ -59,6 +59,8 @@ namespace PlayniteAchievements.ViewModels
 
         private ObservableCollection<string> _highlightedLabels = new ObservableCollection<string>();
         private OverviewPieSmallSliceMode _smallSliceMode = OverviewPieSmallSliceMode.Round;
+        private bool _includeLocked = true;
+        private bool _showCenterPercentageRequested = true;
         private int _exactUnlockedCount;
         private int _exactTotalCount;
         private bool _alwaysShowSmallSliceIcons;
@@ -78,6 +80,36 @@ namespace PlayniteAchievements.ViewModels
             get => _smallSliceMode;
             set => SetValue(ref _smallSliceMode, value);
         }
+
+        /// <summary>
+        /// Whether the trailing locked slice is drawn. Like <see cref="SmallSliceMode"/> this is
+        /// applied by each Set*Data call, so it must be assigned before the data. The completed
+        /// games pie ignores it: its trailing slice counts unfinished games rather than locked
+        /// achievements, and without it that pie would be a single slice saying nothing.
+        /// </summary>
+        public bool IncludeLocked
+        {
+            get => _includeLocked;
+            set => SetValue(ref _includeLocked, value, nameof(IncludeLocked), nameof(ShowCenterPercentage));
+        }
+
+        /// <summary>
+        /// What the host asked for. Hiding the locked slice also hides the centre percentage,
+        /// because the percentage is unlocked-of-total and the pie no longer shows the total.
+        /// Kept separate from <see cref="ShowCenterPercentage"/> so toggling locked back on
+        /// restores the host's own choice.
+        /// </summary>
+        public bool ShowCenterPercentageRequested
+        {
+            get => _showCenterPercentageRequested;
+            set => SetValue(
+                ref _showCenterPercentageRequested,
+                value,
+                nameof(ShowCenterPercentageRequested),
+                nameof(ShowCenterPercentage));
+        }
+
+        public bool ShowCenterPercentage => _showCenterPercentageRequested && _includeLocked;
 
         public int ExactUnlockedCount
         {
@@ -117,9 +149,43 @@ namespace PlayniteAchievements.ViewModels
                 : LockedFallbackColor;
         }
 
+        private bool _appearanceHooked;
+
         public PieChartViewModel()
         {
+            AttachAppearance();
+            Common.LeakWatch.Track("PieChartViewModel", this);
+        }
+
+        /// <summary>
+        /// Subscribes to the process-lifetime appearance event. Idempotent, so a control that
+        /// re-attaches on a repeated Loaded cannot stack handlers.
+        /// </summary>
+        public void AttachAppearance()
+        {
+            if (_appearanceHooked)
+            {
+                return;
+            }
+
+            _appearanceHooked = true;
             RarityAppearanceHelper.AppearanceChanged += RarityAppearanceHelper_AppearanceChanged;
+        }
+
+        /// <summary>
+        /// Detaches from the process-lifetime appearance event. Mandatory for every instance
+        /// that is replaced rather than kept for the owner's lifetime: the static event roots
+        /// the view model, and with it its series, slice data, and legend rows.
+        /// </summary>
+        public void Dispose()
+        {
+            if (!_appearanceHooked)
+            {
+                return;
+            }
+
+            _appearanceHooked = false;
+            RarityAppearanceHelper.AppearanceChanged -= RarityAppearanceHelper_AppearanceChanged;
         }
 
         private void RarityAppearanceHelper_AppearanceChanged(object sender, System.EventArgs e)
@@ -203,11 +269,16 @@ namespace PlayniteAchievements.ViewModels
         /// <summary>
         /// Sets the pie chart data for Rarity distribution (Ultra Rare, Rare, Uncommon, Common, Locked).
         /// </summary>
+        /// <remarks>
+        /// Slices and legend entries carry the <c>BadgeRarity*</c> alias rather than a resolved
+        /// shape key, so the global uniform-badge and trophy settings apply to every surface's
+        /// rarity pie without a caller having to pass them. Resolution happens once, where
+        /// <see cref="RarityAppearanceHelper.ApplyBadgeResources"/> repoints the aliases.
+        /// </remarks>
         public void SetRarityData(
             int commonUnlocked, int uncommonUnlocked, int rareUnlocked, int ultraRareUnlocked, int locked,
             int commonTotal, int uncommonTotal, int rareTotal, int ultraRareTotal,
-            string commonLabel, string uncommonLabel, string rareLabel, string ultraRareLabel, string lockedLabel,
-            bool useUniformRarityBadges = false)
+            string commonLabel, string uncommonLabel, string rareLabel, string ultraRareLabel, string lockedLabel)
         {
             var dataPoints = new List<PieSliceInputData>();
 
@@ -217,7 +288,7 @@ namespace PlayniteAchievements.ViewModels
                 {
                     Label = ultraRareLabel,
                     Count = ultraRareUnlocked,
-                    IconKey = RarityTier.UltraRare.ToIconKey(useUniformRarityBadges),
+                    IconKey = RarityTier.UltraRare.ToDynamicIconKey(),
                     Color = RarityAppearanceHelper.GetPieColor(RarityTier.UltraRare),
                     OriginalColorHex = string.Empty,
                     UnlockedCount = ultraRareUnlocked,
@@ -232,7 +303,7 @@ namespace PlayniteAchievements.ViewModels
                 {
                     Label = rareLabel,
                     Count = rareUnlocked,
-                    IconKey = RarityTier.Rare.ToIconKey(useUniformRarityBadges),
+                    IconKey = RarityTier.Rare.ToDynamicIconKey(),
                     Color = RarityAppearanceHelper.GetPieColor(RarityTier.Rare),
                     OriginalColorHex = string.Empty,
                     UnlockedCount = rareUnlocked,
@@ -247,7 +318,7 @@ namespace PlayniteAchievements.ViewModels
                 {
                     Label = uncommonLabel,
                     Count = uncommonUnlocked,
-                    IconKey = RarityTier.Uncommon.ToIconKey(useUniformRarityBadges),
+                    IconKey = RarityTier.Uncommon.ToDynamicIconKey(),
                     Color = RarityAppearanceHelper.GetPieColor(RarityTier.Uncommon),
                     OriginalColorHex = string.Empty,
                     UnlockedCount = uncommonUnlocked,
@@ -262,7 +333,7 @@ namespace PlayniteAchievements.ViewModels
                 {
                     Label = commonLabel,
                     Count = commonUnlocked,
-                    IconKey = RarityTier.Common.ToIconKey(useUniformRarityBadges),
+                    IconKey = RarityTier.Common.ToDynamicIconKey(),
                     Color = RarityAppearanceHelper.GetPieColor(RarityTier.Common),
                     OriginalColorHex = string.Empty,
                     UnlockedCount = commonUnlocked,
@@ -271,17 +342,20 @@ namespace PlayniteAchievements.ViewModels
                 });
             }
 
-            dataPoints.Add(new PieSliceInputData
+            if (_includeLocked)
             {
-                Label = lockedLabel,
-                Count = locked,
-                IconKey = "BadgeLocked",
-                Color = GetLockedColor(),
-                OriginalColorHex = string.Empty,
-                UnlockedCount = locked,
-                TotalCount = locked,
-                IsLocked = true
-            });
+                dataPoints.Add(new PieSliceInputData
+                {
+                    Label = lockedLabel,
+                    Count = locked,
+                    IconKey = "BadgeLocked",
+                    Color = GetLockedColor(),
+                    OriginalColorHex = string.Empty,
+                    UnlockedCount = locked,
+                    TotalCount = locked,
+                    IsLocked = true
+                });
+            }
 
             ApplySmallSliceMode(dataPoints);
         }
@@ -364,17 +438,20 @@ namespace PlayniteAchievements.ViewModels
                 });
             }
 
-            dataPoints.Add(new PieSliceInputData
+            if (_includeLocked)
             {
-                Label = lockedLabel,
-                Count = totalLocked,
-                IconKey = "BadgeLocked",
-                Color = GetLockedColor(),
-                OriginalColorHex = string.Empty,
-                UnlockedCount = totalLocked,
-                TotalCount = totalLocked,
-                IsLocked = true
-            });
+                dataPoints.Add(new PieSliceInputData
+                {
+                    Label = lockedLabel,
+                    Count = totalLocked,
+                    IconKey = "BadgeLocked",
+                    Color = GetLockedColor(),
+                    OriginalColorHex = string.Empty,
+                    UnlockedCount = totalLocked,
+                    TotalCount = totalLocked,
+                    IsLocked = true
+                });
+            }
 
             ApplySmallSliceMode(dataPoints);
         }
@@ -468,17 +545,20 @@ namespace PlayniteAchievements.ViewModels
                 });
             }
 
-            dataPoints.Add(new PieSliceInputData
+            if (_includeLocked)
             {
-                Label = lockedLabel,
-                Count = locked,
-                IconKey = "BadgeLocked",
-                Color = GetLockedColor(),
-                OriginalColorHex = string.Empty,
-                UnlockedCount = locked,
-                TotalCount = locked,
-                IsLocked = true
-            });
+                dataPoints.Add(new PieSliceInputData
+                {
+                    Label = lockedLabel,
+                    Count = locked,
+                    IconKey = "BadgeLocked",
+                    Color = GetLockedColor(),
+                    OriginalColorHex = string.Empty,
+                    UnlockedCount = locked,
+                    TotalCount = locked,
+                    IsLocked = true
+                });
+            }
 
             ApplySmallSliceMode(dataPoints);
         }

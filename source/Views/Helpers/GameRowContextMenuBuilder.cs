@@ -6,6 +6,7 @@ using Playnite.SDK;
 using PlayniteAchievements.Services;
 using PlayniteAchievements.Services.Achievements;
 using PlayniteAchievements.Services.Cache;
+using PlayniteAchievements.Services.Showcase;
 using PlayniteAchievements.ViewModels;
 using PlayniteAchievements.ViewModels.Items;
 
@@ -33,6 +34,7 @@ namespace PlayniteAchievements.Views.Helpers
             AchievementOverridesService overridesService,
             ICacheManager cacheManager,
             ILogger logger,
+            DependencyObject menuSource,
             bool includeViewCaptures = false)
         {
             var menu = new ContextMenu();
@@ -71,40 +73,74 @@ namespace PlayniteAchievements.Views.Helpers
                     menu.Items.Add(captureItem);
                 }
 
+                if (!(data is FriendGameSummaryItem) &&
+                    TryGetGameId(data, out var showcaseGameId))
+                {
+                    ShowcasePinMenuBuilder.AppendGameMenu(
+                        menu,
+                        resourceOwner,
+                        showcaseGameId);
+                }
+
                 menu.Items.Add(new Separator());
 
                 var excludedFromSummaries = overridesService?.IsExcludedFromSummaries(menuGameId) == true;
                 var excludedFromRefreshes = overridesService?.IsExcludedFromRefreshes(menuGameId) == true;
 
-                // Group the destructive / rarely-used data actions under a Maintenance submenu.
-                var maintenance = new MenuItem
-                {
-                    Header = ResolveHeader(resourceOwner, "LOCPlayAch_Settings_Maintenance_Title")
-                };
-                maintenance.Items.Add(CreateMenuItem(resourceOwner, "LOCPlayAch_Menu_ClearData",
-                    () => ClearGameData(data, playniteApi, overridesService, cacheManager, logger)));
-                maintenance.Items.Add(CreateMenuItem(resourceOwner,
-                    excludedFromSummaries
-                        ? "LOCPlayAch_Common_Action_IncludeInSummaries"
-                        : "LOCPlayAch_Common_Action_ExcludeFromSummaries",
-                    () => SetExcludedFromSummaries(data, overridesService, excluded: !excludedFromSummaries)));
-                maintenance.Items.Add(CreateMenuItem(resourceOwner,
-                    excludedFromRefreshes
-                        ? "LOCPlayAch_Menu_IncludeInRefreshes"
-                        : "LOCPlayAch_Menu_ExcludeFromRefreshes",
+                menu.Items.Add(CreateMaintenanceMenu(
+                    resourceOwner,
+                    excludedFromSummaries,
+                    excludedFromRefreshes,
+                    () => ClearGameData(data, playniteApi, overridesService, cacheManager, logger),
+                    () => SetExcludedFromSummaries(data, overridesService, excluded: !excludedFromSummaries),
                     () => SetExcludedFromRefreshes(data, playniteApi, overridesService,
-                        excluded: !excludedFromRefreshes, clearDataWhenExcluding: false, refreshGameCommand: null)));
-                maintenance.Items.Add(CreateMenuItem(resourceOwner,
-                    excludedFromRefreshes
-                        ? "LOCPlayAch_Menu_IncludeInRefreshesAndRefresh"
-                        : "LOCPlayAch_Menu_ExcludeFromRefreshesAndClearData",
+                        excluded: !excludedFromRefreshes, clearDataWhenExcluding: false, refreshGameCommand: null),
                     () => SetExcludedFromRefreshes(data, playniteApi, overridesService,
                         excluded: !excludedFromRefreshes, clearDataWhenExcluding: true,
                         refreshGameCommand: refreshGameCommand)));
-                menu.Items.Add(maintenance);
             }
 
+            // Required rather than optional: a call site that forgets the row would lose the
+            // display settings entry silently, so the compiler asks for it.
+            GridDisplaySettingsMenuBuilder.Append(menu, resourceOwner, menuSource);
             return menu;
+        }
+
+        /// <summary>
+        /// The Maintenance submenu shared by every game row menu, grouping the destructive and
+        /// rarely-used data actions. Each host supplies its own actions; the grouping, order and
+        /// toggle labels live only here.
+        /// </summary>
+        public static MenuItem CreateMaintenanceMenu(
+            FrameworkElement resourceOwner,
+            bool excludedFromSummaries,
+            bool excludedFromRefreshes,
+            Action clearData,
+            Action toggleExcludedFromSummaries,
+            Action toggleExcludedFromRefreshes,
+            Action toggleExcludedFromRefreshesWithData)
+        {
+            var maintenance = new MenuItem
+            {
+                Header = ResolveHeader(resourceOwner, "LOCPlayAch_Settings_Maintenance_Title")
+            };
+            maintenance.Items.Add(CreateMenuItem(resourceOwner, "LOCPlayAch_Menu_ClearData", clearData));
+            maintenance.Items.Add(CreateMenuItem(resourceOwner,
+                excludedFromSummaries
+                    ? "LOCPlayAch_Common_Action_IncludeInSummaries"
+                    : "LOCPlayAch_Common_Action_ExcludeFromSummaries",
+                toggleExcludedFromSummaries));
+            maintenance.Items.Add(CreateMenuItem(resourceOwner,
+                excludedFromRefreshes
+                    ? "LOCPlayAch_Menu_IncludeInRefreshes"
+                    : "LOCPlayAch_Menu_ExcludeFromRefreshes",
+                toggleExcludedFromRefreshes));
+            maintenance.Items.Add(CreateMenuItem(resourceOwner,
+                excludedFromRefreshes
+                    ? "LOCPlayAch_Menu_IncludeInRefreshesAndRefresh"
+                    : "LOCPlayAch_Menu_ExcludeFromRefreshesAndClearData",
+                toggleExcludedFromRefreshesWithData));
+            return maintenance;
         }
 
         /// <summary>

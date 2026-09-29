@@ -206,7 +206,8 @@ namespace PlayniteAchievements.Views
                 _playniteApi,
                 _achievementOverridesService,
                 _cacheManager,
-                _logger);
+                _logger,
+                menuSource: row);
             if (menu == null || menu.Items.Count == 0)
             {
                 return;

@@ -20,7 +20,7 @@
     <UserControl.Resources>
         <ResourceDictionary>
             <ResourceDictionary.MergedDictionaries>
-                <ResourceDictionary Source="pack://application:,,,/PlayniteAchievements;component/Resources/OverviewScopedControlStyles.xaml"/>
+                <helpers:SharedResourceDictionary Source="pack://application:,,,/PlayniteAchievements;component/Resources/OverviewScopedControlStyles.xaml"/>
             </ResourceDictionary.MergedDictionaries>
 
             <!-- Shared LegendItem DataTemplate for all pie charts -->
@@ -288,6 +288,20 @@
                 </Style.Triggers>
             </Style>
 
+            <!-- Header score cards. Code-behind reads the width to decide when the header is too
+                 narrow for full cards and collapses them to badges. -->
+            <sys:Double x:Key="OverviewScoreCardWidth">360</sys:Double>
+            <Style x:Key="OverviewScoreCardStyle" TargetType="controls:ScoreCardControl">
+                <Setter Property="Width" Value="{StaticResource OverviewScoreCardWidth}"/>
+                <Setter Property="Compact" Value="True"/>
+                <Style.Triggers>
+                    <DataTrigger Binding="{Binding ScoreCardsBadgeOnly, ElementName=OverviewControlRoot}" Value="True">
+                        <Setter Property="Width" Value="NaN"/>
+                        <Setter Property="BadgeOnly" Value="True"/>
+                    </DataTrigger>
+                </Style.Triggers>
+            </Style>
+
         </ResourceDictionary>
     </UserControl.Resources>
 
@@ -299,12 +313,14 @@
             <RowDefinition Height="*"/>
         </Grid.RowDefinitions>
 
-        <!-- ROW 0: Header with Title, Scores, and Refresh Buttons -->
+        <!-- ROW 0: Header with Title, Scores, and Refresh Buttons. In the sidebar the view sits
+             under the main window's 25px caption; the empty first row keeps the controls below it
+             so the strip stays draggable. Popouts have their own title strip and collapse it. -->
+
         <Border Grid.Row="0"
                 Background="Transparent"
                 BorderBrush="{DynamicResource PlayAch.Brush.ControlBorder}"
-                Padding="8,0,8,4"
-                WindowChrome.IsHitTestVisibleInChrome="True">
+                Padding="8,0,8,4">
             <Border.Style>
                 <Style TargetType="Border">
                     <Setter Property="BorderThickness" Value="0,0,0,1"/>
@@ -312,12 +328,16 @@
                         <DataTrigger Binding="{Binding ActiveRefreshHeader.ShowProgress, ElementName=OverviewControlRoot}" Value="True">
                             <Setter Property="BorderThickness" Value="0"/>
                         </DataTrigger>
+                        <!-- The showcase hides the progress strip, so the header keeps its own rule. -->
+                        <DataTrigger Binding="{Binding ActiveSubView, ElementName=OverviewControlRoot}" Value="{x:Static rootModels:OverviewSubView.Showcase}">
+                            <Setter Property="BorderThickness" Value="0,0,0,1"/>
+                        </DataTrigger>
                     </Style.Triggers>
                 </Style>
             </Border.Style>
             <Grid>
                 <Grid.RowDefinitions>
-                    <RowDefinition Height="24"/>
+                    <RowDefinition x:Name="HeaderCaptionSpacerRow" Height="24"/>
                     <RowDefinition Height="Auto"/>
                 </Grid.RowDefinitions>
                 <Grid.ColumnDefinitions>
@@ -357,18 +377,6 @@
                     <StackPanel Orientation="Horizontal"
                                 VerticalAlignment="Center"
                                 Margin="18,0,0,0">
-                        <StackPanel.Style>
-                            <Style TargetType="StackPanel">
-                                <Setter Property="Visibility" Value="{Binding EnableFriendsFeatures, Converter={StaticResource BoolToVis}}"/>
-                                <Style.Triggers>
-                                    <!-- Keep the subview switch reachable while the friends view is
-                                         active so disabling the feature never traps the user there. -->
-                                    <DataTrigger Binding="{Binding ActiveSubView, ElementName=OverviewControlRoot}" Value="{x:Static rootModels:OverviewSubView.Friends}">
-                                        <Setter Property="Visibility" Value="Visible"/>
-                                    </DataTrigger>
-                                </Style.Triggers>
-                            </Style>
-                        </StackPanel.Style>
                         <Button x:Name="OverviewSubViewButton"
                                 Content="{DynamicResource LOCPlayAch_ManageAchievements_Tab_Overview}"
                                 Click="OverviewSubViewButton_Click">
@@ -386,11 +394,27 @@
                         <Button x:Name="FriendsSubViewButton"
                                 Content="{DynamicResource LOCPlayAch_Settings_Friends}"
                                 Click="FriendsSubViewButton_Click"
-                                Margin="18,0,0,0">
+                                Margin="18,0,0,0"
+                                Visibility="{Binding EnableFriendsFeatures, Converter={StaticResource BoolToVis}}">
                             <Button.Style>
                                 <Style TargetType="Button" BasedOn="{StaticResource OverviewSubViewSwitchButtonStyle}">
                                     <Style.Triggers>
                                         <DataTrigger Binding="{Binding ActiveSubView, ElementName=OverviewControlRoot}" Value="{x:Static rootModels:OverviewSubView.Friends}">
+                                            <Setter Property="Tag" Value="active"/>
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </Button.Style>
+                        </Button>
+
+                        <Button x:Name="ShowcaseSubViewButton"
+                                Content="{DynamicResource LOCPlayAch_Showcase_Title}"
+                                Click="ShowcaseSubViewButton_Click"
+                                Margin="18,0,0,0">
+                            <Button.Style>
+                                <Style TargetType="Button" BasedOn="{StaticResource OverviewSubViewSwitchButtonStyle}">
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding ActiveSubView, ElementName=OverviewControlRoot}" Value="{x:Static rootModels:OverviewSubView.Showcase}">
                                             <Setter Property="Tag" Value="active"/>
                                         </DataTrigger>
                                     </Style.Triggers>
@@ -403,6 +427,17 @@
                                 VerticalAlignment="Center"
                                 HorizontalAlignment="Left"
                                 Margin="18,0,0,0">
+                        <StackPanel.Style>
+                            <Style TargetType="StackPanel">
+                                <Style.Triggers>
+                                    <!-- The showcase renders cached data only; refresh controls
+                                         apply to the overview and friends views. -->
+                                    <DataTrigger Binding="{Binding ActiveSubView, ElementName=OverviewControlRoot}" Value="{x:Static rootModels:OverviewSubView.Showcase}">
+                                        <Setter Property="Visibility" Value="Collapsed"/>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </StackPanel.Style>
                         <Button x:Name="RefreshModeSelectionButton"
                                 Style="{StaticResource AchievementSelectorButtonStyle}"
                                 Content="{Binding ActiveRefreshHeader.RefreshModeSelectionText, ElementName=OverviewControlRoot}"
@@ -435,14 +470,23 @@
                     </StackPanel>
                 </StackPanel>
 
-                <!-- Right: Collection and Prestige scores -->
-                <StackPanel Grid.Row="1"
-                             Grid.Column="1"
-                             Orientation="Horizontal"
-                             HorizontalAlignment="Right"
-                             VerticalAlignment="Center"
-                             MaxWidth="740"
-                             Margin="18,0,0,0">
+                <!-- Measures the width the header leaves for the score cards; the star column's
+                     width does not depend on the cards, so collapsing them cannot feed back. -->
+                <Border x:Name="ScoreCardsSlot"
+                        Grid.Row="1"
+                        Grid.Column="1"
+                        IsHitTestVisible="False"
+                        SizeChanged="ScoreCardsSlot_SizeChanged"/>
+
+                <!-- Right: Collection and Prestige score cards, Overview subview only. -->
+                <StackPanel x:Name="ScoreCardsPanel"
+                            Grid.Row="1"
+                            Grid.Column="1"
+                            Orientation="Horizontal"
+                            HorizontalAlignment="Right"
+                            VerticalAlignment="Center"
+                            MaxWidth="780"
+                            Margin="18,0,0,0">
                     <StackPanel.Style>
                         <Style TargetType="StackPanel">
                             <Setter Property="Visibility" Value="Collapsed"/>
@@ -458,12 +502,12 @@
                         </Style>
                     </StackPanel.Style>
 
-                    <controls:ScoreCardControl Width="300"
+                    <controls:ScoreCardControl Style="{StaticResource OverviewScoreCardStyle}"
                                                ScoreCard="{Binding CollectionScoreCard}"
-                                               InfoRequested="ScoreCard_InfoRequested"
                                                Visibility="{Binding ShowOverviewCollectionScoreCard, Converter={StaticResource BoolToVis}}"/>
 
-                    <Border Background="{DynamicResource PlayAch.Brush.ControlBorder}"
+                    <Border x:Name="ScoreCardsDivider"
+                            Background="{DynamicResource PlayAch.Brush.ControlBorder}"
                             Opacity="{StaticResource PlayAch.Opacity.Disabled}"
                             VerticalAlignment="Center"
                             Width="1"
@@ -471,11 +515,30 @@
                             Margin="12,2"
                             Visibility="{Binding ShowOverviewScoreCardDivider, Converter={StaticResource BoolToVis}}"/>
 
-                    <controls:ScoreCardControl Width="300"
+                    <controls:ScoreCardControl Style="{StaticResource OverviewScoreCardStyle}"
                                                ScoreCard="{Binding PrestigeScoreCard}"
-                                               InfoRequested="ScoreCard_InfoRequested"
                                                Visibility="{Binding ShowOverviewPrestigeScoreCard, Converter={StaticResource BoolToVis}}"/>
                 </StackPanel>
+
+                <!-- Right: showcase page/edit controls, re-hosted from ShowcaseControl so the
+                     dashboard below keeps the full tab-content height. -->
+                <ContentControl x:Name="ShowcaseHeaderHost"
+                                Grid.Row="1"
+                                Grid.Column="1"
+                                HorizontalAlignment="Right"
+                                VerticalAlignment="Center"
+                                Focusable="False">
+                    <ContentControl.Style>
+                        <Style TargetType="ContentControl">
+                            <Setter Property="Visibility" Value="Collapsed"/>
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding ActiveSubView, ElementName=OverviewControlRoot}" Value="{x:Static rootModels:OverviewSubView.Showcase}">
+                                    <Setter Property="Visibility" Value="Visible"/>
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </ContentControl.Style>
+                </ContentControl>
 
                 <Button x:Name="FriendsClearSelectionButton"
                         Grid.Row="1"
@@ -505,8 +568,19 @@
                 Background="Transparent"
                 BorderBrush="{DynamicResource PlayAch.Brush.ControlBorder}"
                 BorderThickness="0,0,0,1"
-                Padding="8,8"
-                Visibility="{Binding ActiveRefreshHeader.ShowProgress, ElementName=OverviewControlRoot, Converter={StaticResource BoolToVis}}">
+                Padding="8,8">
+            <Border.Style>
+                <Style TargetType="Border">
+                    <Setter Property="Visibility" Value="{Binding ActiveRefreshHeader.ShowProgress, ElementName=OverviewControlRoot, Converter={StaticResource BoolToVis}}"/>
+                    <Style.Triggers>
+                        <!-- Like the refresh controls, refresh progress belongs to the overview and
+                             friends views, not the showcase. -->
+                        <DataTrigger Binding="{Binding ActiveSubView, ElementName=OverviewControlRoot}" Value="{x:Static rootModels:OverviewSubView.Showcase}">
+                            <Setter Property="Visibility" Value="Collapsed"/>
+                        </DataTrigger>
+                    </Style.Triggers>
+                </Style>
+            </Border.Style>
             <StackPanel VerticalAlignment="Center">
                 <TextBlock Text="{Binding ActiveRefreshHeader.ProgressMessage, ElementName=OverviewControlRoot}"
                            Style="{DynamicResource PlayAch.TextBlock.BaseStyle}"
@@ -555,12 +629,22 @@
                             BorderBrush="{DynamicResource PlayAch.Brush.ControlBorder}"
                             BorderThickness="0,0,0,1">
                         <Grid>
-                            <TextBlock Text="{DynamicResource LOCPlayAch_Overview_GameSummaries}"
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Grid.Column="0"
+                                       Text="{DynamicResource LOCPlayAch_Overview_GameSummaries}"
                                        Style="{DynamicResource PlayAch.TextBlock.BaseStyle}"
                                        FontWeight="Bold"
                                        Foreground="{DynamicResource PlayAch.Brush.Text}"
                                        VerticalAlignment="Center"
                                        TextTrimming="CharacterEllipsis"/>
+                            <Button Grid.Column="1"
+                                    Style="{StaticResource HeaderControlBarToggleStyle}"
+                                    Tag="{Binding ShowOverviewGameSummariesGridControlBar}"
+                                    Click="ToggleGameSummariesControlBar_Click"
+                                    Margin="{StaticResource PlayAch.Thickness.Left.Sm}"/>
                         </Grid>
                     </Border>
 
@@ -605,11 +689,24 @@
                                 Height="{StaticResource PlayAch.Size.Header.Height}"
                                 Padding="8,0"
                                 Visibility="{Binding ShowRecentAchievementsPanel, Converter={StaticResource BoolToVis}}">
-                            <TextBlock Text="{DynamicResource LOCPlayAch_RecentAchievements}"
-                                       Style="{DynamicResource PlayAch.TextBlock.BaseStyle}"
-                                       FontWeight="Bold"
-                                       Foreground="{DynamicResource PlayAch.Brush.Text}"
-                                       VerticalAlignment="Center"/>
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Grid.Column="0"
+                                           Text="{DynamicResource LOCPlayAch_RecentAchievements}"
+                                           Style="{DynamicResource PlayAch.TextBlock.BaseStyle}"
+                                           FontWeight="Bold"
+                                           Foreground="{DynamicResource PlayAch.Brush.Text}"
+                                           VerticalAlignment="Center"
+                                           TextTrimming="CharacterEllipsis"/>
+                                <Button Grid.Column="1"
+                                        Style="{StaticResource HeaderControlBarToggleStyle}"
+                                        Tag="{Binding ShowOverviewRecentAchievementsGridControlBar}"
+                                        Click="ToggleRecentAchievementsControlBar_Click"
+                                        Margin="{StaticResource PlayAch.Thickness.Left.Sm}"/>
+                            </Grid>
                         </Border>
 
                         <!-- Header for when a game IS selected -->
@@ -620,7 +717,14 @@
                                 Padding="8,0"
                                 Visibility="{Binding IsSelectedGameContentReady, Converter={StaticResource BoolToVis}}">
 
-                            <StackPanel Orientation="Horizontal"
+                            <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+
+                            <StackPanel Grid.Column="0"
+                                        Orientation="Horizontal"
                                         VerticalAlignment="Center">
 
                                 <TextBlock Text="{Binding DisplayedSelectedGame.GameName}"
@@ -675,6 +779,13 @@
                                         Margin="10,0,0,0"/>
 
                             </StackPanel>
+
+                            <Button Grid.Column="1"
+                                    Style="{StaticResource HeaderControlBarToggleStyle}"
+                                    Tag="{Binding ShowOverviewSelectedGameGridControlBar}"
+                                    Click="ToggleSelectedGameControlBar_Click"
+                                    Margin="{StaticResource PlayAch.Thickness.Left.Sm}"/>
+                            </Grid>
                         </Border>
                     </Grid>
 
@@ -790,65 +901,26 @@
                                                Opacity="{StaticResource PlayAch.Opacity.Subtle}"
                                                Margin="{StaticResource PlayAch.Thickness.Bottom.Compact}"/>
 
-                                    <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="{StaticResource PlayAch.Thickness.Bottom.Sm}">
-                                        <RadioButton Content="{DynamicResource LOCPlayAch_TimeRange_7D}" GroupName="GlobalTimeRangeDefault"
-                                                     Style="{StaticResource TimeRangeButtonStyle}"
-                                                     IsChecked="{Binding GlobalTimeline.TimelineRange, Converter={StaticResource EnumToBool}, ConverterParameter=SevenDays}"
-                                                     Command="{Binding GlobalTimeline.SetTimeRangeCommand}" CommandParameter="SevenDays"/>
-                                        <RadioButton Content="{DynamicResource LOCPlayAch_TimeRange_14D}" GroupName="GlobalTimeRangeDefault"
-                                                     Style="{StaticResource TimeRangeButtonStyle}"
-                                                     IsChecked="{Binding GlobalTimeline.TimelineRange, Converter={StaticResource EnumToBool}, ConverterParameter=FourteenDays}"
-                                                     Command="{Binding GlobalTimeline.SetTimeRangeCommand}" CommandParameter="FourteenDays"/>
-                                        <RadioButton Content="{DynamicResource LOCPlayAch_TimeRange_1M}" GroupName="GlobalTimeRangeDefault"
-                                                     Style="{StaticResource TimeRangeButtonStyle}"
-                                                     IsChecked="{Binding GlobalTimeline.TimelineRange, Converter={StaticResource EnumToBool}, ConverterParameter=OneMonth}"
-                                                     Command="{Binding GlobalTimeline.SetTimeRangeCommand}" CommandParameter="OneMonth"/>
-                                        <RadioButton Content="{DynamicResource LOCPlayAch_TimeRange_3M}" GroupName="GlobalTimeRangeDefault"
-                                                     Style="{StaticResource TimeRangeButtonStyle}"
-                                                     IsChecked="{Binding GlobalTimeline.TimelineRange, Converter={StaticResource EnumToBool}, ConverterParameter=ThreeMonths}"
-                                                     Command="{Binding GlobalTimeline.SetTimeRangeCommand}" CommandParameter="ThreeMonths"/>
-                                        <RadioButton Content="{DynamicResource LOCPlayAch_TimeRange_1Y}" GroupName="GlobalTimeRangeDefault"
-                                                     Style="{StaticResource TimeRangeButtonStyle}"
-                                                     IsChecked="{Binding GlobalTimeline.TimelineRange, Converter={StaticResource EnumToBool}, ConverterParameter=OneYear}"
-                                                     Command="{Binding GlobalTimeline.SetTimeRangeCommand}" CommandParameter="OneYear"/>
-                                        <RadioButton Content="{DynamicResource LOCPlayAch_Common_All}" GroupName="GlobalTimeRangeDefault"
-                                                     Style="{StaticResource TimeRangeButtonStyle}"
-                                                     IsChecked="{Binding GlobalTimeline.TimelineRange, Converter={StaticResource EnumToBool}, ConverterParameter=All}"
-                                                     Command="{Binding GlobalTimeline.SetTimeRangeCommand}" CommandParameter="All"/>
-                                    </StackPanel>
+                                    <controls:TimeWindowPicker Grid.Row="1"
+                                                               Window="{Binding GlobalTimeline.Window, Mode=TwoWay}"
+                                                               Granularity="{Binding GlobalTimeline.Granularity, Mode=TwoWay}"
+                                                               UnavailableGranularities="{Binding GlobalTimeline.UnavailableGranularities}"
+                                                               ShowGranularity="True"
+                                                               MinDate="{Binding GlobalTimeline.EarliestDate}"
+                                                               Margin="{StaticResource PlayAch.Thickness.Bottom.Sm}"/>
 
-                                    <lvc:CartesianChart Grid.Row="2"
-                                                        Series="{Binding GlobalTimeline.TimelineSeries}"
-                                                        LegendLocation="None"
-                                                        Hoverable="True"
-                                                        DisableAnimations="True">
-                                        <lvc:CartesianChart.Resources>
-                                            <Style TargetType="lvc:ColumnSeries">
-                                                <Setter Property="Fill" Value="{DynamicResource PlayAch.Brush.Accent}" />
-                                            </Style>
-                                        </lvc:CartesianChart.Resources>
-                                        <lvc:CartesianChart.AxisX>
-                                            <lvc:Axis Labels="{Binding GlobalTimeline.TimelineLabels}"
-                                                      ShowLabels="True"
-                                                      LabelsRotation="45"
-                                                      FontSize="{DynamicResource PlayAch.FontSize.Caption}"
-                                                      Foreground="{DynamicResource PlayAch.Brush.Text}">
-                                                <lvc:Axis.Separator>
-                                                    <lvc:Separator Step="1" IsEnabled="False"/>
-                                                </lvc:Axis.Separator>
-                                            </lvc:Axis>
-                                        </lvc:CartesianChart.AxisX>
-                                        <lvc:CartesianChart.AxisY>
-                                            <lvc:Axis MinValue="0"
-                                                      LabelFormatter="{Binding GlobalTimeline.YAxisFormatter}"
-                                                      FontSize="{DynamicResource PlayAch.FontSize.Caption}"
-                                                      Foreground="{DynamicResource PlayAch.Brush.Text}">
-                                                <lvc:Axis.Separator>
-                                                    <lvc:Separator Stroke="{DynamicResource PlayAch.Brush.Border}" Opacity="0.2"/>
-                                                </lvc:Axis.Separator>
-                                            </lvc:Axis>
-                                        </lvc:CartesianChart.AxisY>
-                                    </lvc:CartesianChart>
+                                    <controls:UnlockTimelineChart Grid.Row="2"
+                                                                  Series="{Binding GlobalTimeline.TimelineSeries}"
+                                                                  Labels="{Binding GlobalTimeline.TimelineLabels}"
+                                                                  TooltipLabels="{Binding GlobalTimeline.TooltipLabels}"
+                                                                  XAxisMax="{Binding GlobalTimeline.XAxisMax}"
+                                                                  YAxisMax="{Binding GlobalTimeline.YAxisMax}"
+                                                                  YAxisStep="{Binding GlobalTimeline.YAxisStep}"
+                                                                  YLabelFormatter="{Binding GlobalTimeline.YAxisFormatter}"
+                                                                  IsEmpty="{Binding GlobalTimeline.IsEmpty}"
+                                                                  MaxTickCount="{Binding GlobalTimeline.MaxTickCount, Mode=OneWayToSource}"
+                                                                  MaxBarCount="{Binding GlobalTimeline.MaxBarCount, Mode=OneWayToSource}"
+                                                                  RenderRevision="{Binding GlobalTimeline.RenderRevision}"/>
                                 </Grid>
                             </DataTemplate>
                         </Border.Resources>
@@ -922,7 +994,7 @@
                                                                       HighlightedLabels="{Binding GamesPieChart.HighlightedLabels}"
                                                                       ExactUnlockedCount="{Binding GamesPieChart.ExactUnlockedCount}"
                                                                       ExactTotalCount="{Binding GamesPieChart.ExactTotalCount}"
-                                                                      ShowCenterPercentage="{Binding ShowOverviewPiePercentages}"
+                                                                      ShowCenterPercentage="{Binding GamesPieChart.ShowCenterPercentage}"
                                                                       IconOffset="12"
                                                                       SliceClick="OnGamesPieChartSliceClick"/>
                                 </Grid>
@@ -950,7 +1022,7 @@
                                                                       HighlightedLabels="{Binding ProviderPieChart.HighlightedLabels}"
                                                                       ExactUnlockedCount="{Binding ProviderPieChart.ExactUnlockedCount}"
                                                                       ExactTotalCount="{Binding ProviderPieChart.ExactTotalCount}"
-                                                                      ShowCenterPercentage="{Binding ShowOverviewPiePercentages}"
+                                                                      ShowCenterPercentage="{Binding ProviderPieChart.ShowCenterPercentage}"
                                                                       IconOffset="12"
                                                                       SliceClick="OnProviderPieChartSliceClick"/>
                                 </Grid>
@@ -977,7 +1049,7 @@
                                                                       HighlightedLabels="{Binding RarityPieChart.HighlightedLabels}"
                                                                       ExactUnlockedCount="{Binding RarityPieChart.ExactUnlockedCount}"
                                                                       ExactTotalCount="{Binding RarityPieChart.ExactTotalCount}"
-                                                                      ShowCenterPercentage="{Binding ShowOverviewPiePercentages}"
+                                                                      ShowCenterPercentage="{Binding RarityPieChart.ShowCenterPercentage}"
                                                                       IconOffset="12"/>
                                 </Grid>
 
@@ -1003,7 +1075,7 @@
                                                                       HighlightedLabels="{Binding TrophyPieChart.HighlightedLabels}"
                                                                       ExactUnlockedCount="{Binding TrophyPieChart.ExactUnlockedCount}"
                                                                       ExactTotalCount="{Binding TrophyPieChart.ExactTotalCount}"
-                                                                      ShowCenterPercentage="{Binding ShowOverviewPiePercentages}"
+                                                                      ShowCenterPercentage="{Binding TrophyPieChart.ShowCenterPercentage}"
                                                                       IconOffset="12"/>
                                 </Grid>
                                 </Grid>
@@ -1071,6 +1143,19 @@
                         <Setter Property="Visibility" Value="Collapsed"/>
                         <Style.Triggers>
                             <DataTrigger Binding="{Binding ActiveSubView, ElementName=OverviewControlRoot}" Value="{x:Static rootModels:OverviewSubView.Friends}">
+                                <Setter Property="Visibility" Value="Visible"/>
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </ContentControl.Style>
+            </ContentControl>
+
+            <ContentControl x:Name="ShowcaseContentHost">
+                <ContentControl.Style>
+                    <Style TargetType="ContentControl">
+                        <Setter Property="Visibility" Value="Collapsed"/>
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding ActiveSubView, ElementName=OverviewControlRoot}" Value="{x:Static rootModels:OverviewSubView.Showcase}">
                                 <Setter Property="Visibility" Value="Visible"/>
                             </DataTrigger>
                         </Style.Triggers>

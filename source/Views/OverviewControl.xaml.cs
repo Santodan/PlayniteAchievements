@@ -19,11 +19,12 @@ using PlayniteAchievements.Services.Friends;
 using PlayniteAchievements.Services.GameCustomData;
 using PlayniteAchievements.Services.Library;
 using PlayniteAchievements.Services.Refresh;
+using PlayniteAchievements.Services.Settings;
 using PlayniteAchievements.Services.UI;
 using PlayniteAchievements.ViewModels;
 using PlayniteAchievements.ViewModels.Items;
-using PlayniteAchievements.Views.Dialogs;
 using PlayniteAchievements.Views.Helpers;
+using PlayniteAchievements.Views.Showcase;
 
 namespace PlayniteAchievements.Views
 {
@@ -50,12 +51,20 @@ namespace PlayniteAchievements.Views
                 typeof(OverviewControl),
                 new PropertyMetadata(false));
 
+        public static readonly DependencyProperty ScoreCardsBadgeOnlyProperty =
+            DependencyProperty.Register(
+                nameof(ScoreCardsBadgeOnly),
+                typeof(bool),
+                typeof(OverviewControl),
+                new PropertyMetadata(false));
+
         private static OverviewSubView _lastSelectedSubView = OverviewSubView.Overview;
 
         private readonly OverviewViewModel _viewModel;
         private readonly ILogger _logger;
         private readonly PlayniteAchievementsSettings _settings;
         private PersistedSettingsSubscription _persistedSubscription;
+        private DebouncedSettingsPersist _controlBarPersist;
         private readonly RefreshRuntime _refreshService;
         private readonly ICacheManager _cacheManager;
         private readonly IFriendCacheManager _friendCache;
@@ -73,11 +82,22 @@ namespace PlayniteAchievements.Views
         private DataGridRow _pendingRightClickRow;
         private bool _committingOverviewSelection;
         private FriendsOverviewControl _friendsOverview;
+        private ShowcaseControl _showcase;
+        private readonly DispatcherTimer _showcaseDatabaseRefreshTimer;
+        private bool _showcaseDatabaseRefreshPending;
+        private volatile bool _isDisposed;
         private DataGrid GameSummariesGrid => GameSummariesGridControl?.InternalDataGrid;
 
         public OverviewControl()
         {
             InitializeComponent();
+        }
+
+        /// <summary>True when the header is too narrow for full score cards.</summary>
+        public bool ScoreCardsBadgeOnly
+        {
+            get => (bool)GetValue(ScoreCardsBadgeOnlyProperty);
+            set => SetValue(ScoreCardsBadgeOnlyProperty, value);
         }
 
         internal OverviewControl(
@@ -93,12 +113,20 @@ namespace PlayniteAchievements.Views
             RefreshEntryPoint refreshEntryPoint,
             PlayniteAchievementsSettings settings,
             OverviewLaunchContext launchContext = OverviewLaunchContext.Sidebar,
-            FriendsOverviewDataCoordinator friendsOverviewDataCoordinator = null)
+            FriendsOverviewDataCoordinator friendsOverviewDataCoordinator = null,
+            Func<Services.Widgets.WidgetDataCoordinator> widgetCoordinatorAccessor = null)
         {
-            InitializeComponent();
+            using (Common.PerfScope.Start(logger, "OverviewControl.InitializeComponent", thresholdMs: 30))
+            {
+                InitializeComponent();
+            }
 
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
             _settings = settings;
+            _controlBarPersist = new DebouncedSettingsPersist(
+                this,
+                SaveSettings,
+                () => PlayniteAchievementsPlugin.Instance?.IsSettingsEditSessionActive == true);
             _refreshService = refreshRuntime ?? throw new ArgumentNullException(nameof(refreshRuntime));
             _cacheManager = cacheManager ?? throw new ArgumentNullException(nameof(cacheManager));
             _friendCache = cacheManager as IFriendCacheManager;
@@ -110,29 +138,60 @@ namespace PlayniteAchievements.Views
             _refreshEntryPoint = refreshEntryPoint ?? throw new ArgumentNullException(nameof(refreshEntryPoint));
             _friendsOverviewDataCoordinator = friendsOverviewDataCoordinator;
             _launchContext = launchContext;
+            if (launchContext == OverviewLaunchContext.Popout)
+            {
+                HeaderCaptionSpacerRow.Height = new GridLength(0);
+            }
+            // Playnite raises ItemUpdated for every game property change - playtime ticks while a
+            // game runs, install state, metadata edits - and a library sync fires them in bursts.
+            // Each refresh rebuilds the whole projection, so the window is long enough that a
+            // burst collapses into one rebuild rather than one every few hundred milliseconds.
+            _showcaseDatabaseRefreshTimer = new DispatcherTimer
+            {
+                Interval = TimeSpan.FromMilliseconds(2000)
+            };
+            _showcaseDatabaseRefreshTimer.Tick += ShowcaseDatabaseRefreshTimer_Tick;
 
-            _viewModel = new OverviewViewModel(
-                refreshRuntime,
-                _persistSettingsForUi,
-                _achievementDataService,
-                _libraryProjectionService,
-                gameCustomDataStore,
-                _refreshEntryPoint,
-                api,
-                logger,
-                settings,
-                launchContext,
-                _friendCache);
+            using (Common.PerfScope.Start(logger, "OverviewViewModel.Ctor", thresholdMs: 30))
+            {
+                _viewModel = new OverviewViewModel(
+                    refreshRuntime,
+                    _persistSettingsForUi,
+                    _achievementDataService,
+                    _libraryProjectionService,
+                    gameCustomDataStore,
+                    _refreshEntryPoint,
+                    api,
+                    logger,
+                    settings,
+                    launchContext,
+                    _friendCache,
+                    widgetCoordinatorAccessor);
+            }
+
             DataContext = _viewModel;
             _viewModel.PropertyChanged += ViewModel_PropertyChanged;
             _viewModel.SetActive(false);
             ActiveRefreshHeader = _viewModel;
             // Never restore the Friends subview when the feature is disabled; the subview
             // switch is hidden in that state, which would trap the user in the friends view.
-            ActiveSubView = _settings?.Persisted?.EnableFriendsFeatures == false
-                ? OverviewSubView.Overview
-                : _lastSelectedSubView;
-            ApplyActiveSubView();
+            ActiveSubView =
+                _settings?.Persisted?.EnableFriendsFeatures == false &&
+                _lastSelectedSubView == OverviewSubView.Friends
+                    ? OverviewSubView.Overview
+                    : _lastSelectedSubView;
+            // Brackets the ShowcaseControl (or friends overview) construction when that sub-view
+            // is the one being restored.
+            using (Common.PerfScope.Start(logger, "OverviewControl.ApplyActiveSubView", thresholdMs: 30, context: ActiveSubView.ToString()))
+            {
+                ApplyActiveSubView();
+            }
+            // Open/close is its own memory question, separate from refresh churn: if either of
+            // these stays live after Dispose, the window's whole visual tree, view model, and
+            // row set are still rooted and closing the overview cannot return memory.
+            Common.LeakWatch.Track("OverviewControl", this);
+            Common.LeakWatch.Track("OverviewViewModel", _viewModel);
+            Common.MemoryDiagnostics.Log(_logger, "overview.opened", $"context={launchContext}");
             PlayniteAchievementsPlugin.SettingsSaved += Plugin_SettingsSaved;
             if (_settings != null)
             {
@@ -142,6 +201,13 @@ namespace PlayniteAchievements.Views
                     _settings,
                     Persisted_PropertyChanged,
                     LeaveFriendsSubViewIfDisabled);
+            }
+
+            if (_playniteApi?.Database?.Games != null)
+            {
+                _playniteApi.Database.Games.ItemUpdated += ShowcaseGames_ItemUpdated;
+                _playniteApi.Database.Games.ItemCollectionChanged += ShowcaseGames_ItemCollectionChanged;
+                IsVisibleChanged += Showcase_IsVisibleChanged;
             }
         }
 
@@ -180,12 +246,37 @@ namespace PlayniteAchievements.Views
                 EnsureFriendsOverviewCreated();
                 ActiveRefreshHeader = _friendsOverview?.RefreshHeader ?? _viewModel;
             }
+            else if (ActiveSubView == OverviewSubView.Showcase)
+            {
+                EnsureShowcaseCreated();
+                ActiveRefreshHeader = _viewModel;
+                if (_showcaseDatabaseRefreshPending)
+                {
+                    QueueShowcaseDatabaseRefresh();
+                }
+            }
             else
             {
                 ActiveRefreshHeader = _viewModel;
             }
 
             UpdateFriendsClearSelectionState();
+        }
+
+        private void EnsureShowcaseCreated()
+        {
+            if (_showcase != null)
+            {
+                return;
+            }
+
+            _showcase = new ShowcaseControl(
+                _viewModel,
+                _settings,
+                _persistSettingsForUi,
+                _playniteApi);
+            ShowcaseHeaderHost.Content = _showcase.DetachHeaderBar();
+            ShowcaseContentHost.Content = _showcase;
         }
 
         private void EnsureFriendsOverviewCreated()
@@ -266,12 +357,6 @@ namespace PlayniteAchievements.Views
             }
         }
 
-        private void ScoreCard_InfoRequested(object sender, RoutedEventArgs e)
-        {
-            e.Handled = true;
-            ScoreInfoDialogPresenter.Show();
-        }
-
         public void Activate()
         {
             if (_isActive) return;
@@ -289,29 +374,59 @@ namespace PlayniteAchievements.Views
                     return;
                 }
 
-                Dispatcher.BeginInvoke(new Action(() =>
-                {
-                    if (!_isActive || !IsVisible)
-                    {
-                        return;
-                    }
-
-                    if (ActiveSubView == OverviewSubView.Friends)
-                    {
-                        FriendsSubViewButton?.Focus();
-                        return;
-                    }
-
-                    if (!FocusLeftFilterArea())
-                    {
-                        FocusOverviewGrid();
-                    }
-                }), DispatcherPriority.Input);
+                FocusActiveSubViewControllerTarget();
             }
             catch
             {
                 // Focus seeding is best-effort; activation should not fail if Playnite state is unavailable.
             }
+        }
+
+        private void FocusActiveSubViewControllerTarget()
+        {
+            Dispatcher.BeginInvoke(new Action(() =>
+            {
+                if (!_isActive || !IsVisible)
+                {
+                    return;
+                }
+
+                if (ActiveSubView == OverviewSubView.Friends)
+                {
+                    FriendsSubViewButton?.Focus();
+                    return;
+                }
+
+                if (ActiveSubView == OverviewSubView.Showcase)
+                {
+                    _showcase?.FocusInitialTarget();
+                    return;
+                }
+
+                if (!FocusLeftFilterArea())
+                {
+                    FocusOverviewGrid();
+                }
+            }), DispatcherPriority.Input);
+        }
+
+        // Steps through the sub-views in switch-button order, skipping Friends when its button is hidden.
+        // Stops at either end rather than wrapping.
+        private void MoveSubView(int direction)
+        {
+            var order = _settings?.Persisted?.EnableFriendsFeatures == false
+                ? new[] { OverviewSubView.Overview, OverviewSubView.Showcase }
+                : new[] { OverviewSubView.Overview, OverviewSubView.Friends, OverviewSubView.Showcase };
+
+            var index = Array.IndexOf(order, ActiveSubView);
+            var target = index < 0 ? 0 : index + direction;
+            if (target < 0 || target >= order.Length || order[target] == ActiveSubView)
+            {
+                return;
+            }
+
+            ActiveSubView = order[target];
+            FocusActiveSubViewControllerTarget();
         }
 
         public void Deactivate()
@@ -328,6 +443,8 @@ namespace PlayniteAchievements.Views
 
         public void Dispose()
         {
+            _isDisposed = true;
+            using var perf = Common.PerfScope.Start(_logger, "OverviewControl.Dispose", thresholdMs: 30);
             try
             {
                 Deactivate();
@@ -336,6 +453,11 @@ namespace PlayniteAchievements.Views
                     _viewModel.PropertyChanged -= ViewModel_PropertyChanged;
                 }
                 PlayniteAchievementsPlugin.SettingsSaved -= Plugin_SettingsSaved;
+                // The host disposes this control before its Unloaded fires, and Dispose alone
+                // drops a pending save, so flush the last control bar toggle here.
+                _controlBarPersist?.Flush();
+                _controlBarPersist?.Dispose();
+                _controlBarPersist = null;
                 _persistedSubscription?.Dispose();
                 _persistedSubscription = null;
                 if (_friendsOverview?.ViewModel != null)
@@ -346,7 +468,23 @@ namespace PlayniteAchievements.Views
                 RecentAchievementsDataGrid?.Dispose();
                 GameAchievementsGrid?.Dispose();
                 _friendsOverview?.Dispose();
+                _showcase?.Dispose();
+                _showcaseDatabaseRefreshTimer?.Stop();
+                if (_playniteApi?.Database?.Games != null)
+                {
+                    _playniteApi.Database.Games.ItemUpdated -= ShowcaseGames_ItemUpdated;
+                    _playniteApi.Database.Games.ItemCollectionChanged -= ShowcaseGames_ItemCollectionChanged;
+                }
+
+                IsVisibleChanged -= Showcase_IsVisibleChanged;
                 _viewModel?.Dispose();
+
+                // Reported after a delay and a forced collection: the OverviewControl /
+                // OverviewViewModel live counts in this line are the direct answer to whether
+                // closing the overview actually releases it.
+                PlayniteAchievementsPlugin.Instance?.ScheduleRetentionDiagnostics(
+                    "overview.closed",
+                    delaySeconds: 8);
             }
             catch (Exception ex)
             {
@@ -374,6 +512,42 @@ namespace PlayniteAchievements.Views
             LeaveFriendsSubViewIfDisabled();
         }
 
+        private void ScoreCardsSlot_SizeChanged(object sender, SizeChangedEventArgs e)
+        {
+            if (e.WidthChanged)
+            {
+                UpdateScoreCardsBadgeOnly();
+            }
+        }
+
+        /// <summary>
+        /// Collapses the header score cards to their badges when the space the header leaves them
+        /// is narrower than the full cards need.
+        /// </summary>
+        private void UpdateScoreCardsBadgeOnly()
+        {
+            if (_viewModel == null || ScoreCardsSlot == null || ScoreCardsSlot.ActualWidth <= 0)
+            {
+                return;
+            }
+
+            var count = (_viewModel.ShowOverviewCollectionScoreCard ? 1 : 0) +
+                        (_viewModel.ShowOverviewPrestigeScoreCard ? 1 : 0);
+            if (count == 0)
+            {
+                return;
+            }
+
+            var cardWidth = TryFindResource("OverviewScoreCardWidth") is double width ? width : 360d;
+            var needed = ScoreCardsPanel.Margin.Left + (count * cardWidth);
+            if (count > 1)
+            {
+                needed += ScoreCardsDivider.Width + ScoreCardsDivider.Margin.Left + ScoreCardsDivider.Margin.Right;
+            }
+
+            ScoreCardsBadgeOnly = ScoreCardsSlot.ActualWidth < needed;
+        }
+
         private void ViewModel_PropertyChanged(object sender, PropertyChangedEventArgs e)
         {
             if (_viewModel == null || e == null) return;
@@ -399,6 +573,13 @@ namespace PlayniteAchievements.Views
                 || e.PropertyName == nameof(OverviewViewModel.ShowOverviewBarCharts))
             {
                 UpdatePieChartLayout();
+            }
+
+            if (string.IsNullOrEmpty(e.PropertyName)
+                || e.PropertyName == nameof(OverviewViewModel.ShowOverviewCollectionScoreCard)
+                || e.PropertyName == nameof(OverviewViewModel.ShowOverviewPrestigeScoreCard))
+            {
+                UpdateScoreCardsBadgeOnly();
             }
 
             if (e.PropertyName != nameof(OverviewViewModel.IsGameSelected) &&
@@ -429,6 +610,89 @@ namespace PlayniteAchievements.Views
         private void FriendsSubViewButton_Click(object sender, RoutedEventArgs e)
         {
             ActiveSubView = OverviewSubView.Friends;
+        }
+
+        private void ShowcaseSubViewButton_Click(object sender, RoutedEventArgs e)
+        {
+            ActiveSubView = OverviewSubView.Showcase;
+        }
+
+        private void ShowcaseGames_ItemUpdated(
+            object sender,
+            ItemUpdatedEventArgs<Playnite.SDK.Models.Game> e) =>
+            QueueShowcaseDatabaseRefresh();
+
+        private void ShowcaseGames_ItemCollectionChanged(
+            object sender,
+            ItemCollectionChangedEventArgs<Playnite.SDK.Models.Game> e) =>
+            QueueShowcaseDatabaseRefresh();
+
+        // Picks up work deferred while the dashboard was hidden.
+        private void Showcase_IsVisibleChanged(object sender, DependencyPropertyChangedEventArgs e)
+        {
+            if (IsVisible && _showcaseDatabaseRefreshPending)
+            {
+                QueueShowcaseDatabaseRefresh();
+            }
+        }
+
+        private void QueueShowcaseDatabaseRefresh()
+        {
+            if (_isDisposed)
+            {
+                return;
+            }
+
+            // Playnite may raise database collection events from a library-update worker.
+            // Marshal before touching dependency properties or the DispatcherTimer, both of
+            // which belong to this control's UI dispatcher.
+            if (!Dispatcher.CheckAccess())
+            {
+                _ = Dispatcher.BeginInvoke(
+                    new Action(QueueShowcaseDatabaseRefresh),
+                    DispatcherPriority.Background);
+                return;
+            }
+
+            if (_isDisposed)
+            {
+                return;
+            }
+
+            _showcaseDatabaseRefreshPending = true;
+
+            // Only rebuild for a dashboard the user is actually looking at. A hidden control
+            // (another Playnite view, a minimized window) keeps the pending flag and refreshes
+            // when it comes back, so background library activity costs nothing until then.
+            if (ActiveSubView != OverviewSubView.Showcase || !IsVisible)
+            {
+                return;
+            }
+
+            _showcaseDatabaseRefreshTimer.Stop();
+            _showcaseDatabaseRefreshTimer.Start();
+        }
+
+        private void ShowcaseDatabaseRefreshTimer_Tick(object sender, EventArgs e)
+        {
+            _showcaseDatabaseRefreshTimer.Stop();
+            if (!_showcaseDatabaseRefreshPending || ActiveSubView != OverviewSubView.Showcase || !IsVisible)
+            {
+                return;
+            }
+
+            // A running refresh already reconciles the view model through its own delta
+            // path, and its tag-sync writes raise ItemUpdated per game - a full rebuild per
+            // burst would stack whole-library projection builds on top of the run. Keep the
+            // pending flag and re-arm so one rebuild lands after the run ends.
+            if (_refreshService?.IsRebuilding == true)
+            {
+                _showcaseDatabaseRefreshTimer.Start();
+                return;
+            }
+
+            _showcaseDatabaseRefreshPending = false;
+            _ = _viewModel?.RefreshViewAsync();
         }
 
         private void FriendsClearSelectionButton_Click(object sender, RoutedEventArgs e)
@@ -538,6 +802,43 @@ namespace PlayniteAchievements.Views
             _lastSelectedOverviewGameId = null;
         }
 
+        private void ToggleGameSummariesControlBar_Click(object sender, RoutedEventArgs e)
+        {
+            // Read Persisted at click time: a settings window Cancel replaces the instance.
+            var persisted = _settings?.Persisted;
+            if (persisted == null)
+            {
+                return;
+            }
+
+            persisted.ShowOverviewGameSummariesGridControlBar = !persisted.ShowOverviewGameSummariesGridControlBar;
+            _controlBarPersist?.Schedule();
+        }
+
+        private void ToggleRecentAchievementsControlBar_Click(object sender, RoutedEventArgs e)
+        {
+            var persisted = _settings?.Persisted;
+            if (persisted == null)
+            {
+                return;
+            }
+
+            persisted.ShowOverviewRecentAchievementsGridControlBar = !persisted.ShowOverviewRecentAchievementsGridControlBar;
+            _controlBarPersist?.Schedule();
+        }
+
+        private void ToggleSelectedGameControlBar_Click(object sender, RoutedEventArgs e)
+        {
+            var persisted = _settings?.Persisted;
+            if (persisted == null)
+            {
+                return;
+            }
+
+            persisted.ShowOverviewSelectedGameGridControlBar = !persisted.ShowOverviewSelectedGameGridControlBar;
+            _controlBarPersist?.Schedule();
+        }
+
         private void GameNameBreadcrumb_Click(object sender, MouseButtonEventArgs e)
         {
             if (_viewModel?.IsSelectedGameDrilledIntoCategory == true)
@@ -553,9 +854,46 @@ namespace PlayniteAchievements.Views
                 return false;
             }
 
+            if (FullscreenControllerNavigationService.IsLeftTriggerInput(input))
+            {
+                MoveSubView(-1);
+                return true;
+            }
+
+            if (FullscreenControllerNavigationService.IsRightTriggerInput(input))
+            {
+                MoveSubView(1);
+                return true;
+            }
+
             if (ActiveSubView == OverviewSubView.Friends)
             {
                 return HandleFriendsControllerInput(input);
+            }
+
+            if (ActiveSubView == OverviewSubView.Showcase)
+            {
+                if (FullscreenControllerNavigationService.IsLeftShoulderInput(input))
+                {
+                    return _showcase?.MovePage(-1) == true;
+                }
+
+                if (FullscreenControllerNavigationService.IsRightShoulderInput(input))
+                {
+                    return _showcase?.MovePage(1) == true;
+                }
+
+                if (FullscreenControllerNavigationService.IsBackInput(input))
+                {
+                    return TryHandleControllerBack();
+                }
+
+                if (FullscreenControllerNavigationService.IsAcceptInput(input))
+                {
+                    return FullscreenControllerNavigationService.ActivateFocusedElement();
+                }
+
+                return false;
             }
 
             if (FullscreenControllerNavigationService.IsBackInput(input))
@@ -1016,6 +1354,7 @@ namespace PlayniteAchievements.Views
             return CloseViewButton?.IsKeyboardFocusWithin == true ||
                    OverviewSubViewButton?.IsKeyboardFocusWithin == true ||
                    FriendsSubViewButton?.IsKeyboardFocusWithin == true ||
+                   ShowcaseSubViewButton?.IsKeyboardFocusWithin == true ||
                    RefreshModeSelectionButton?.IsKeyboardFocusWithin == true ||
                    RefreshActionButton?.IsKeyboardFocusWithin == true ||
                    FriendsClearSelectionButton?.IsKeyboardFocusWithin == true;
@@ -1121,6 +1460,16 @@ namespace PlayniteAchievements.Views
             if (selectedGameElements != null)
             {
                 elements.AddRange(selectedGameElements);
+            }
+
+            // The timeline's chips and date pickers sit in the charts band, outside every grid's
+            // control bar, so the controller would never reach them otherwise.
+            foreach (var picker in VisualTreeHelpers.FindVisualChildren<Controls.TimeWindowPicker>(this))
+            {
+                if (picker.IsVisible)
+                {
+                    elements.AddRange(picker.GetControllerElements());
+                }
             }
 
             elements.AddRange(GetVisibleControllerElements(ClearGameSelectionButton));
@@ -1525,7 +1874,7 @@ namespace PlayniteAchievements.Views
         {
             if (row == null || !row.IsLoaded || row.DataContext == null) return false;
 
-            var menu = BuildRowContextMenu(row.DataContext);
+            var menu = BuildRowContextMenu(row.DataContext, row);
             if (menu == null || menu.Items.Count == 0) return false;
 
             ContextMenuStyleHelper.ApplyAchievementContextMenuStyle(this, menu);
@@ -1540,14 +1889,14 @@ namespace PlayniteAchievements.Views
             return true;
         }
 
-        private ContextMenu BuildRowContextMenu(object data)
+        private ContextMenu BuildRowContextMenu(object data, DependencyObject menuSource = null)
         {
-            if (data is GameSummaryItem) return BuildGameMenu(data);
-            if (data is AchievementDisplayItem || data is RecentAchievementItem) return BuildAchievementMenu(data);
+            if (data is GameSummaryItem) return BuildGameMenu(data, menuSource);
+            if (data is AchievementDisplayItem || data is RecentAchievementItem) return BuildAchievementMenu(data, menuSource);
             return null;
         }
 
-        private ContextMenu BuildGameMenu(object data)
+        private ContextMenu BuildGameMenu(object data, DependencyObject menuSource = null)
         {
             return GameRowContextMenuBuilder.BuildGameMenu(
                 data,
@@ -1559,10 +1908,11 @@ namespace PlayniteAchievements.Views
                 _achievementOverridesService,
                 _cacheManager,
                 _logger,
-                includeViewCaptures: true);
+                includeViewCaptures: true,
+                menuSource: menuSource);
         }
 
-        private ContextMenu BuildAchievementMenu(object data)
+        private ContextMenu BuildAchievementMenu(object data, DependencyObject menuSource = null)
         {
             var menu = new ContextMenu();
             if (data is RecentAchievementItem)
@@ -1589,7 +1939,8 @@ namespace PlayniteAchievements.Views
                 RefreshView,
                 includeViewCaptures: true,
                 onGoalChanged: () => _viewModel?.ReapplyGoalOrder() == true,
-                onCapstoneChanged: apiName => _viewModel?.ApplyCapstone(apiName) == true);
+                onCapstoneChanged: apiName => _viewModel?.ApplyCapstone(apiName) == true,
+                menuSource: menuSource);
             return menu;
         }
 
@@ -1702,7 +2053,7 @@ namespace PlayniteAchievements.Views
             }
             catch (Exception ex)
             {
-                _logger?.Warn(ex, "Failed to save overview column settings.");
+                _logger?.Warn(ex, "Failed to save overview settings.");
             }
         }
     }

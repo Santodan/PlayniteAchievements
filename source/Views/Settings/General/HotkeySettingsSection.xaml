@@ -4,6 +4,7 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:controls="clr-namespace:PlayniteAchievements.Views.Controls"
              mc:Ignorable="d"
              d:DesignHeight="600"
              d:DesignWidth="700">
@@ -20,234 +21,150 @@
 
             <!-- ================== HOTKEYS ================== -->
             <Border Style="{StaticResource SectionBorderStyle}">
-                <StackPanel>
+                <StackPanel Grid.IsSharedSizeScope="True">
                     <TextBlock Text="{DynamicResource LOCPlayAch_Hotkeys_Title}"
                                Style="{StaticResource SectionHeaderStyle}"/>
 
                     <TextBlock Text="{DynamicResource LOCPlayAch_Hotkeys_Description}"
                                Style="{StaticResource MutedTextStyle}"
-                               Margin="0,0,0,14"
+                               Margin="{StaticResource PlayAch.Thickness.Bottom.SettingRow}"
                                TextWrapping="Wrap"/>
 
-                    <CheckBox Content="{DynamicResource LOCPlayAch_Hotkeys_Enable}"
-                              IsChecked="{Binding Persisted.EnableAchievementHotkeys}"
-                              Margin="{StaticResource PlayAch.Thickness.Bottom.Sm}"/>
+                    <controls:SettingRow Label="{DynamicResource LOCPlayAch_Hotkeys_Enable}">
+                        <CheckBox IsChecked="{Binding Persisted.EnableAchievementHotkeys}"/>
+                    </controls:SettingRow>
 
-                    <CheckBox Content="{DynamicResource LOCPlayAch_Hotkeys_EnableGlobal}"
-                              IsChecked="{Binding Persisted.EnableGlobalAchievementHotkeys}"
-                              IsEnabled="{Binding Persisted.EnableAchievementHotkeys}"
-                              Margin="18,0,0,8"/>
-
-                    <TextBlock Text="{DynamicResource LOCPlayAch_Hotkeys_GlobalHelp}"
-                               Style="{StaticResource MutedTextStyle}"
-                               Margin="18,0,0,14"
-                               TextWrapping="Wrap"/>
-
-                    <Grid Style="{StaticResource SettingRowStyle}">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*"/>
-                            <ColumnDefinition Width="150"/>
-                            <ColumnDefinition Width="Auto"/>
-                        </Grid.ColumnDefinitions>
-
-                        <CheckBox Grid.Column="0"
-                                  VerticalAlignment="Center"
-                                  FontWeight="SemiBold"
-                                  Content="{DynamicResource LOCPlayAch_Menu_ViewAchievements}"
-                                  IsChecked="{Binding Persisted.EnableViewAchievementsHotkey}"
-                                  IsEnabled="{Binding Persisted.EnableAchievementHotkeys}"/>
-
-                        <Button x:Name="ViewAchievementsHotkeyCaptureButton"
-                                Grid.Column="1"
-                                Content="{Binding ViewAchievementsHotkeyButtonText, ElementName=HotkeySettingsSectionRoot}"
-                                Click="HotkeyCapture_Click"
-                                CommandParameter="ViewAchievements"
-                                PreviewKeyDown="HotkeyCapture_PreviewKeyDown"
+                    <!-- Every hotkey row only applies while the master toggle is on, so the whole
+                         group carries the IsEnabled rather than each row. -->
+                    <StackPanel Margin="{StaticResource PlayAch.Thickness.SettingRow.Indent}"
                                 IsEnabled="{Binding Persisted.EnableAchievementHotkeys}"
-                                Margin="12,0,8,0"/>
+                                Grid.IsSharedSizeScope="True">
+                        <controls:SettingRow Label="{DynamicResource LOCPlayAch_Hotkeys_EnableGlobal}"
+                                             Hint="{DynamicResource LOCPlayAch_Hotkeys_GlobalHelp}">
+                            <CheckBox IsChecked="{Binding Persisted.EnableGlobalAchievementHotkeys}"/>
+                        </controls:SettingRow>
 
-                        <Button Grid.Column="2"
-                                Content="{DynamicResource LOCPlayAch_Button_Reset}"
-                                Click="ResetHotkey_Click"
-                                CommandParameter="ViewAchievements"
-                                IsEnabled="{Binding Persisted.EnableAchievementHotkeys}"
-                                MinWidth="{StaticResource PlayAch.Size.Button.ResetMinWidth}"/>
-                    </Grid>
+                        <controls:SettingRow Label="{DynamicResource LOCPlayAch_Menu_ViewAchievements}">
+                            <StackPanel Orientation="Horizontal">
+                                <CheckBox IsChecked="{Binding Persisted.EnableViewAchievementsHotkey}"
+                                          VerticalAlignment="Center"
+                                          Margin="{StaticResource PlayAch.Thickness.Right.Sm}"/>
+                                <Button x:Name="ViewAchievementsHotkeyCaptureButton"
+                                        Content="{Binding ViewAchievementsHotkeyButtonText, ElementName=HotkeySettingsSectionRoot}"
+                                        Click="HotkeyCapture_Click"
+                                        CommandParameter="ViewAchievements"
+                                        PreviewKeyDown="HotkeyCapture_PreviewKeyDown"
+                                        Width="150"
+                                        Margin="{StaticResource PlayAch.Thickness.Right.Sm}"/>
+                                <Button Content="{DynamicResource LOCPlayAch_Button_Reset}"
+                                        Click="ResetHotkey_Click"
+                                        CommandParameter="ViewAchievements"
+                                        MinWidth="{StaticResource PlayAch.Size.Button.ResetMinWidth}"/>
+                            </StackPanel>
+                        </controls:SettingRow>
 
-                    <Grid Style="{StaticResource SettingRowStyle}">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*"/>
-                            <ColumnDefinition Width="150"/>
-                            <ColumnDefinition Width="Auto"/>
-                        </Grid.ColumnDefinitions>
+                        <controls:SettingRow Label="{DynamicResource LOCPlayAch_Menu_ManageAchievements}">
+                            <StackPanel Orientation="Horizontal">
+                                <CheckBox IsChecked="{Binding Persisted.EnableManageAchievementsHotkey}"
+                                          VerticalAlignment="Center"
+                                          Margin="{StaticResource PlayAch.Thickness.Right.Sm}"/>
+                                <Button x:Name="ManageAchievementsHotkeyCaptureButton"
+                                        Content="{Binding ManageAchievementsHotkeyButtonText, ElementName=HotkeySettingsSectionRoot}"
+                                        Click="HotkeyCapture_Click"
+                                        CommandParameter="ManageAchievements"
+                                        PreviewKeyDown="HotkeyCapture_PreviewKeyDown"
+                                        Width="150"
+                                        Margin="{StaticResource PlayAch.Thickness.Right.Sm}"/>
+                                <Button Content="{DynamicResource LOCPlayAch_Button_Reset}"
+                                        Click="ResetHotkey_Click"
+                                        CommandParameter="ManageAchievements"
+                                        MinWidth="{StaticResource PlayAch.Size.Button.ResetMinWidth}"/>
+                            </StackPanel>
+                        </controls:SettingRow>
 
-                        <CheckBox Grid.Column="0"
-                                  VerticalAlignment="Center"
-                                  FontWeight="SemiBold"
-                                  Content="{DynamicResource LOCPlayAch_Menu_ManageAchievements}"
-                                  IsChecked="{Binding Persisted.EnableManageAchievementsHotkey}"
-                                  IsEnabled="{Binding Persisted.EnableAchievementHotkeys}"/>
+                        <controls:SettingRow Label="{DynamicResource LOCPlayAch_Menu_OpenOverview}">
+                            <StackPanel Orientation="Horizontal">
+                                <CheckBox IsChecked="{Binding Persisted.EnableOverviewHotkey}"
+                                          VerticalAlignment="Center"
+                                          Margin="{StaticResource PlayAch.Thickness.Right.Sm}"/>
+                                <Button x:Name="OverviewHotkeyCaptureButton"
+                                        Content="{Binding OverviewHotkeyButtonText, ElementName=HotkeySettingsSectionRoot}"
+                                        Click="HotkeyCapture_Click"
+                                        CommandParameter="Overview"
+                                        PreviewKeyDown="HotkeyCapture_PreviewKeyDown"
+                                        Width="150"
+                                        Margin="{StaticResource PlayAch.Thickness.Right.Sm}"/>
+                                <Button Content="{DynamicResource LOCPlayAch_Button_Reset}"
+                                        Click="ResetHotkey_Click"
+                                        CommandParameter="Overview"
+                                        MinWidth="{StaticResource PlayAch.Size.Button.ResetMinWidth}"/>
+                            </StackPanel>
+                        </controls:SettingRow>
 
-                        <Button x:Name="ManageAchievementsHotkeyCaptureButton"
-                                Grid.Column="1"
-                                Content="{Binding ManageAchievementsHotkeyButtonText, ElementName=HotkeySettingsSectionRoot}"
-                                Click="HotkeyCapture_Click"
-                                CommandParameter="ManageAchievements"
-                                PreviewKeyDown="HotkeyCapture_PreviewKeyDown"
-                                IsEnabled="{Binding Persisted.EnableAchievementHotkeys}"
-                                Margin="12,0,8,0"/>
+                        <controls:SettingRow Label="{DynamicResource LOCPlayAch_Landing_OpenSettings}">
+                            <StackPanel Orientation="Horizontal">
+                                <CheckBox IsChecked="{Binding Persisted.EnableOpenSettingsHotkey}"
+                                          VerticalAlignment="Center"
+                                          Margin="{StaticResource PlayAch.Thickness.Right.Sm}"/>
+                                <Button x:Name="OpenSettingsHotkeyCaptureButton"
+                                        Content="{Binding OpenSettingsHotkeyButtonText, ElementName=HotkeySettingsSectionRoot}"
+                                        Click="HotkeyCapture_Click"
+                                        CommandParameter="OpenSettings"
+                                        PreviewKeyDown="HotkeyCapture_PreviewKeyDown"
+                                        Width="150"
+                                        Margin="{StaticResource PlayAch.Thickness.Right.Sm}"/>
+                                <Button Content="{DynamicResource LOCPlayAch_Button_Reset}"
+                                        Click="ResetHotkey_Click"
+                                        CommandParameter="OpenSettings"
+                                        MinWidth="{StaticResource PlayAch.Size.Button.ResetMinWidth}"/>
+                            </StackPanel>
+                        </controls:SettingRow>
 
-                        <Button Grid.Column="2"
-                                Content="{DynamicResource LOCPlayAch_Button_Reset}"
-                                Click="ResetHotkey_Click"
-                                CommandParameter="ManageAchievements"
-                                IsEnabled="{Binding Persisted.EnableAchievementHotkeys}"
-                                MinWidth="{StaticResource PlayAch.Size.Button.ResetMinWidth}"/>
-                    </Grid>
+                        <controls:SettingRow Label="{DynamicResource LOCPlayAch_CategorySummaries_ToggleToolTip}"
+                                             Hint="{DynamicResource LOCPlayAch_Hotkeys_CategoryModeHelp}">
+                            <StackPanel Orientation="Horizontal">
+                                <CheckBox IsChecked="{Binding Persisted.EnableCategoryModeHotkey}"
+                                          VerticalAlignment="Center"
+                                          Margin="{StaticResource PlayAch.Thickness.Right.Sm}"/>
+                                <Button x:Name="CategoryModeHotkeyCaptureButton"
+                                        Content="{Binding CategoryModeHotkeyButtonText, ElementName=HotkeySettingsSectionRoot}"
+                                        Click="HotkeyCapture_Click"
+                                        CommandParameter="CategoryMode"
+                                        PreviewKeyDown="HotkeyCapture_PreviewKeyDown"
+                                        Width="150"
+                                        Margin="{StaticResource PlayAch.Thickness.Right.Sm}"/>
+                                <Button Content="{DynamicResource LOCPlayAch_Button_Reset}"
+                                        Click="ResetHotkey_Click"
+                                        CommandParameter="CategoryMode"
+                                        MinWidth="{StaticResource PlayAch.Size.Button.ResetMinWidth}"/>
+                            </StackPanel>
+                        </controls:SettingRow>
 
-                    <Grid Style="{StaticResource SettingRowStyle}">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*"/>
-                            <ColumnDefinition Width="150"/>
-                            <ColumnDefinition Width="Auto"/>
-                        </Grid.ColumnDefinitions>
+                        <controls:SettingRow Label="{DynamicResource LOCPlayAch_Hotkeys_FireTestNotification}"
+                                             Hint="{DynamicResource LOCPlayAch_Hotkeys_FireTestNotificationHelp}">
+                            <StackPanel Orientation="Horizontal">
+                                <CheckBox IsChecked="{Binding Persisted.EnableTestUnlockHotkey}"
+                                          VerticalAlignment="Center"
+                                          Margin="{StaticResource PlayAch.Thickness.Right.Sm}"/>
+                                <Button x:Name="TestUnlockHotkeyCaptureButton"
+                                        Content="{Binding TestUnlockHotkeyButtonText, ElementName=HotkeySettingsSectionRoot}"
+                                        Click="HotkeyCapture_Click"
+                                        CommandParameter="TestUnlock"
+                                        PreviewKeyDown="HotkeyCapture_PreviewKeyDown"
+                                        Width="150"
+                                        Margin="{StaticResource PlayAch.Thickness.Right.Sm}"/>
+                                <Button Content="{DynamicResource LOCPlayAch_Button_Reset}"
+                                        Click="ResetHotkey_Click"
+                                        CommandParameter="TestUnlock"
+                                        MinWidth="{StaticResource PlayAch.Size.Button.ResetMinWidth}"/>
+                            </StackPanel>
+                        </controls:SettingRow>
 
-                        <CheckBox Grid.Column="0"
-                                  VerticalAlignment="Center"
-                                  FontWeight="SemiBold"
-                                  Content="{DynamicResource LOCPlayAch_Menu_OpenOverview}"
-                                  IsChecked="{Binding Persisted.EnableOverviewHotkey}"
-                                  IsEnabled="{Binding Persisted.EnableAchievementHotkeys}"/>
-
-                        <Button x:Name="OverviewHotkeyCaptureButton"
-                                Grid.Column="1"
-                                Content="{Binding OverviewHotkeyButtonText, ElementName=HotkeySettingsSectionRoot}"
-                                Click="HotkeyCapture_Click"
-                                CommandParameter="Overview"
-                                PreviewKeyDown="HotkeyCapture_PreviewKeyDown"
-                                IsEnabled="{Binding Persisted.EnableAchievementHotkeys}"
-                                Margin="12,0,8,0"/>
-
-                        <Button Grid.Column="2"
-                                Content="{DynamicResource LOCPlayAch_Button_Reset}"
-                                Click="ResetHotkey_Click"
-                                CommandParameter="Overview"
-                                IsEnabled="{Binding Persisted.EnableAchievementHotkeys}"
-                                MinWidth="{StaticResource PlayAch.Size.Button.ResetMinWidth}"/>
-                    </Grid>
-
-                    <Grid Style="{StaticResource SettingRowStyle}">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*"/>
-                            <ColumnDefinition Width="150"/>
-                            <ColumnDefinition Width="Auto"/>
-                        </Grid.ColumnDefinitions>
-
-                        <CheckBox Grid.Column="0"
-                                  VerticalAlignment="Center"
-                                  FontWeight="SemiBold"
-                                  Content="{DynamicResource LOCPlayAch_Landing_OpenSettings}"
-                                  IsChecked="{Binding Persisted.EnableOpenSettingsHotkey}"
-                                  IsEnabled="{Binding Persisted.EnableAchievementHotkeys}"/>
-
-                        <Button x:Name="OpenSettingsHotkeyCaptureButton"
-                                Grid.Column="1"
-                                Content="{Binding OpenSettingsHotkeyButtonText, ElementName=HotkeySettingsSectionRoot}"
-                                Click="HotkeyCapture_Click"
-                                CommandParameter="OpenSettings"
-                                PreviewKeyDown="HotkeyCapture_PreviewKeyDown"
-                                IsEnabled="{Binding Persisted.EnableAchievementHotkeys}"
-                                Margin="12,0,8,0"/>
-
-                        <Button Grid.Column="2"
-                                Content="{DynamicResource LOCPlayAch_Button_Reset}"
-                                Click="ResetHotkey_Click"
-                                CommandParameter="OpenSettings"
-                                IsEnabled="{Binding Persisted.EnableAchievementHotkeys}"
-                                MinWidth="{StaticResource PlayAch.Size.Button.ResetMinWidth}"/>
-                    </Grid>
-
-                    <Grid Style="{StaticResource SettingRowStyle}">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*"/>
-                            <ColumnDefinition Width="150"/>
-                            <ColumnDefinition Width="Auto"/>
-                        </Grid.ColumnDefinitions>
-
-                        <CheckBox Grid.Column="0"
-                                  VerticalAlignment="Center"
-                                  FontWeight="SemiBold"
-                                  Content="{DynamicResource LOCPlayAch_CategorySummaries_ToggleToolTip}"
-                                  IsChecked="{Binding Persisted.EnableCategoryModeHotkey}"
-                                  IsEnabled="{Binding Persisted.EnableAchievementHotkeys}"/>
-
-                        <Button x:Name="CategoryModeHotkeyCaptureButton"
-                                Grid.Column="1"
-                                Content="{Binding CategoryModeHotkeyButtonText, ElementName=HotkeySettingsSectionRoot}"
-                                Click="HotkeyCapture_Click"
-                                CommandParameter="CategoryMode"
-                                PreviewKeyDown="HotkeyCapture_PreviewKeyDown"
-                                IsEnabled="{Binding Persisted.EnableAchievementHotkeys}"
-                                Margin="12,0,8,0"/>
-
-                        <Button Grid.Column="2"
-                                Content="{DynamicResource LOCPlayAch_Button_Reset}"
-                                Click="ResetHotkey_Click"
-                                CommandParameter="CategoryMode"
-                                IsEnabled="{Binding Persisted.EnableAchievementHotkeys}"
-                                MinWidth="{StaticResource PlayAch.Size.Button.ResetMinWidth}"/>
-                    </Grid>
-
-                    <TextBlock Text="{DynamicResource LOCPlayAch_Hotkeys_CategoryModeHelp}"
-                               Style="{StaticResource MutedTextStyle}"
-                               Margin="0,0,0,14"
-                               TextWrapping="Wrap"/>
-
-                    <Grid Style="{StaticResource SettingRowStyle}">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*"/>
-                            <ColumnDefinition Width="150"/>
-                            <ColumnDefinition Width="Auto"/>
-                        </Grid.ColumnDefinitions>
-
-                        <CheckBox Grid.Column="0"
-                                  VerticalAlignment="Center"
-                                  FontWeight="SemiBold"
-                                  Content="{DynamicResource LOCPlayAch_Hotkeys_FireTestNotification}"
-                                  IsChecked="{Binding Persisted.EnableTestUnlockHotkey}"
-                                  IsEnabled="{Binding Persisted.EnableAchievementHotkeys}"/>
-
-                        <Button x:Name="TestUnlockHotkeyCaptureButton"
-                                Grid.Column="1"
-                                Content="{Binding TestUnlockHotkeyButtonText, ElementName=HotkeySettingsSectionRoot}"
-                                Click="HotkeyCapture_Click"
-                                CommandParameter="TestUnlock"
-                                PreviewKeyDown="HotkeyCapture_PreviewKeyDown"
-                                IsEnabled="{Binding Persisted.EnableAchievementHotkeys}"
-                                Margin="12,0,8,0"/>
-
-                        <Button Grid.Column="2"
-                                Content="{DynamicResource LOCPlayAch_Button_Reset}"
-                                Click="ResetHotkey_Click"
-                                CommandParameter="TestUnlock"
-                                IsEnabled="{Binding Persisted.EnableAchievementHotkeys}"
-                                MinWidth="{StaticResource PlayAch.Size.Button.ResetMinWidth}"/>
-                    </Grid>
-
-                    <TextBlock Text="{DynamicResource LOCPlayAch_Hotkeys_FireTestNotificationHelp}"
-                               Style="{StaticResource MutedTextStyle}"
-                               Margin="0,0,0,6"
-                               TextWrapping="Wrap"/>
-
-                    <CheckBox Content="{DynamicResource LOCPlayAch_Settings_EnableCaptureTestFolder}"
-                              IsChecked="{Binding Persisted.EnableCaptureTestFolder}"
-                              IsEnabled="{Binding Persisted.EnableAchievementHotkeys}"
-                              Margin="18,0,0,4"/>
-
-                    <TextBlock Text="{DynamicResource LOCPlayAch_Settings_EnableCaptureTestFolderHelp}"
-                               Style="{StaticResource MutedTextStyle}"
-                               Margin="18,0,0,14"
-                               TextWrapping="Wrap"/>
+                        <controls:SettingRow Label="{DynamicResource LOCPlayAch_Settings_EnableCaptureTestFolder}"
+                                             Hint="{DynamicResource LOCPlayAch_Settings_EnableCaptureTestFolderHelp}">
+                            <CheckBox IsChecked="{Binding Persisted.EnableCaptureTestFolder}"/>
+                        </controls:SettingRow>
+                    </StackPanel>
 
                     <TextBlock Text="{Binding HotkeyCaptureStatusText, ElementName=HotkeySettingsSectionRoot}"
                                Style="{StaticResource MutedTextStyle}"

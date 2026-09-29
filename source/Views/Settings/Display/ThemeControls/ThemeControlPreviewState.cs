@@ -48,12 +48,9 @@ namespace PlayniteAchievements.Views.Settings.Display.ThemeControls
         /// </summary>
         public void RefreshMockPreviews()
         {
-            var settings = _settings?.Persisted;
-            if (settings == null) return;
+            if (_settings?.Persisted == null) return;
 
-            _previewThemeData?.RefreshDisplayItems(
-                settings.ShowHiddenIcon, settings.ShowHiddenTitle, settings.ShowHiddenDescription,
-                settings.ShowHiddenSuffix, settings.ShowLockedIcon, settings.UseSeparateLockedIconsWhenAvailable, settings.ShowCompactListRarityBar);
+            _previewThemeData?.RefreshDisplayItems(_settings);
         }
 
         private void OnPersistedPropertyChanged(object sender, PropertyChangedEventArgs e)

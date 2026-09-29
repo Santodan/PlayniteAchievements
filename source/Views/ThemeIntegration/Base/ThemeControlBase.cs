@@ -16,6 +16,7 @@ using PlayniteAchievements.Services.Logging;
 using PlayniteAchievements.Services.UI;
 using PlayniteAchievements.ViewModels;
 using PlayniteAchievements.ViewModels.Items;
+using PlayniteAchievements.Views.Helpers;
 
 namespace PlayniteAchievements.Views.ThemeIntegration.Base
 {
@@ -392,6 +393,8 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Base
 
         private void ThemeControlBase_Loaded(object sender, RoutedEventArgs e)
         {
+            AttachWheelScrollClaim();
+
             if (RequiresLibraryThemeData || RequiresHeavyLibraryThemeData)
             {
                 Plugin?.ThemeIntegrationService?.EnsureAllGamesThemeDataLoaded(
@@ -409,12 +412,46 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Base
 
         private void ThemeControlBase_Unloaded(object sender, RoutedEventArgs e)
         {
+            _wheelScrollClaim?.Detach();
+
             if (!EnableAutomaticThemeDataUpdates)
             {
                 return;
             }
 
             UnsubscribeFromThemeDataUpdates();
+        }
+
+        private WindowWheelScrollClaim _wheelScrollClaim;
+
+        /// <summary>
+        /// The axis this control keeps the wheel on while the pointer is over one of its own
+        /// scrolling surfaces, or null to leave the wheel to normal routing.
+        /// </summary>
+        /// <remarks>
+        /// The theme's page handles the tunnelling wheel to scroll its details view, so a control
+        /// hosted in it does not see the wheel at all: the page moves and the control stands still.
+        /// Overriding this opts a control into claiming the wheel at the window instead. See
+        /// <see cref="WindowWheelScrollClaim"/>. Handled here rather than per control so that the
+        /// claim is always detached again -- a hook left on the main window cannot be removed once
+        /// its owner has dropped the reference.
+        /// </remarks>
+        protected virtual WheelScrollAxis? WheelClaimAxis => null;
+
+        private void AttachWheelScrollClaim()
+        {
+            var axis = WheelClaimAxis;
+            if (axis == null)
+            {
+                return;
+            }
+
+            if (_wheelScrollClaim == null)
+            {
+                _wheelScrollClaim = new WindowWheelScrollClaim(this, axis.Value);
+            }
+
+            _wheelScrollClaim.Attach();
         }
 
         private void SubscribeToThemeDataUpdates()
@@ -851,6 +888,8 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Base
                 [nameof(ModernThemeBindings.AchievementsOldestFirst)] = nameof(AchievementsOldestFirst),
                 [nameof(ModernThemeBindings.AchievementsRarityAsc)] = nameof(AchievementsRarityAsc),
                 [nameof(ModernThemeBindings.AchievementsRarityDesc)] = nameof(AchievementsRarityDesc),
+                [nameof(ModernThemeBindings.LatestAchievementData)] = nameof(LatestAchievementData),
+                [nameof(ModernThemeBindings.HasLatestAchievementData)] = nameof(HasLatestAchievementData),
                 [nameof(ModernThemeBindings.DynamicAchievements)] = nameof(DynamicAchievements),
                 [nameof(ModernThemeBindings.DynamicAchievementsGameKey)] = nameof(DynamicAchievementsGameKey),
                 [nameof(ModernThemeBindings.DynamicAchievementsGameLabel)] = nameof(DynamicAchievementsGameLabel),
@@ -1005,6 +1044,8 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Base
             nameof(AchievementsOldestFirst),
             nameof(AchievementsRarityAsc),
             nameof(AchievementsRarityDesc),
+            nameof(LatestAchievementData),
+            nameof(HasLatestAchievementData),
             nameof(DynamicAchievements),
             nameof(DynamicAchievementsGameKey),
             nameof(DynamicAchievementsGameLabel),
@@ -1325,6 +1366,13 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Base
         public List<AchievementDetail> AchievementsRarityAsc => _modernThemeOverride?.AchievementsRarityAsc ?? _settings?.AchievementsRarityAsc ?? EmptyAchievementList;
 
         public List<AchievementDetail> AchievementsRarityDesc => _modernThemeOverride?.AchievementsRarityDesc ?? _settings?.AchievementsRarityDesc ?? EmptyAchievementList;
+
+        // Null means "no unlocks", so an override answers even when its value is null.
+        public AchievementDetail LatestAchievementData => _modernThemeOverride != null
+            ? _modernThemeOverride.LatestAchievementData
+            : _settings?.LatestAchievementData;
+
+        public bool HasLatestAchievementData => LatestAchievementData != null;
 
         public List<AchievementDetail> DynamicAchievements => _modernThemeOverride?.DynamicAchievements ?? _settings?.DynamicAchievements ?? EmptyAchievementList;
 

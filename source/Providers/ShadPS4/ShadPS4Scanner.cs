@@ -2,6 +2,7 @@ using PlayniteAchievements.Models;
 using PlayniteAchievements.Models.Achievements;
 using PlayniteAchievements.Providers.EmuLibrary;
 using PlayniteAchievements.Providers.Exophase;
+using PlayniteAchievements.Providers.Settings;
 using PlayniteAchievements.Services;
 using PlayniteAchievements.Services.GameCustomData;
 using PlayniteAchievements.Services.Refresh;
@@ -140,36 +141,36 @@ namespace PlayniteAchievements.Providers.ShadPS4
         private async Task<Dictionary<string, string>> BuildTitleIdCacheAsync(CancellationToken cancel)
         {
             var cache = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-            var gameDataPath = ShadPS4PathResolver.ResolveConfiguredLegacyGameDataPath(_providerSettings?.GameDataPath);
+            var gameDataPaths = ProviderPathList.Normalize(ProviderPathList.Normalize(_providerSettings?.GameDataPaths)
+                .Select(ShadPS4PathResolver.ResolveConfiguredLegacyGameDataPath));
 
-            if (string.IsNullOrWhiteSpace(gameDataPath))
+            if (gameDataPaths.Count == 0)
             {
                 _logger?.Warn("[ShadPS4] No valid legacy game_data path configured in settings");
                 return cache;
             }
 
-            if (!Directory.Exists(gameDataPath))
+            // A title present under several installs resolves to the first configured one.
+            foreach (var gameDataPath in gameDataPaths)
             {
-                _logger?.Warn($"[ShadPS4] game_data folder not found at {gameDataPath}");
-                return cache;
-            }
-
-            try
-            {
-                foreach (var titleDir in Directory.GetDirectories(gameDataPath))
+                try
                 {
-                    cancel.ThrowIfCancellationRequested();
-                    var titleId = Path.GetFileName(titleDir);
-                    if (string.IsNullOrWhiteSpace(titleId)) continue;
+                    foreach (var titleDir in Directory.GetDirectories(gameDataPath))
+                    {
+                        cancel.ThrowIfCancellationRequested();
+                        var titleId = Path.GetFileName(titleDir);
+                        if (string.IsNullOrWhiteSpace(titleId)) continue;
 
-                    var xmlPath = Path.Combine(titleDir, "trophyfiles", "trophy00", "Xml", "TROP.XML");
-                    if (File.Exists(xmlPath))
-                        cache[titleId.ToUpperInvariant()] = titleDir;
+                        var key = titleId.ToUpperInvariant();
+                        var xmlPath = Path.Combine(titleDir, "trophyfiles", "trophy00", "Xml", "TROP.XML");
+                        if (!cache.ContainsKey(key) && File.Exists(xmlPath))
+                            cache[key] = titleDir;
+                    }
                 }
-            }
-            catch (Exception ex)
-            {
-                _logger?.Error(ex, "[ShadPS4] Failed to enumerate title directories.");
+                catch (Exception ex)
+                {
+                    _logger?.Error(ex, $"[ShadPS4] Failed to enumerate title directories in '{gameDataPath}'.");
+                }
             }
 
             return await Task.FromResult(cache).ConfigureAwait(false);
@@ -287,7 +288,7 @@ namespace PlayniteAchievements.Providers.ShadPS4
                 string localizedXmlFolder;
                 if (format == TrophyFormat.New)
                 {
-                    metadataDoc = TryLoadSharedMetadataDocument(npcommid, cancel, out localizedXmlFolder);
+                    metadataDoc = TryLoadSharedMetadataDocument(npcommid, xmlPath, cancel, out localizedXmlFolder);
                 }
                 else
                 {
@@ -411,11 +412,21 @@ namespace PlayniteAchievements.Providers.ShadPS4
             }
         }
 
+        /// <summary>
+        /// The AppData root holding a new-format title: the install its per-user trophy file lives
+        /// under, so a title from a second install reads that install's metadata and icons.
+        /// </summary>
+        private string ResolveAppDataPathForUserTrophyXml(string userTrophyXmlPath)
+        {
+            return ShadPS4PathResolver.GetAppDataRootFromUserTrophyXml(userTrophyXmlPath) ??
+                   _provider?.GetAppDataPath();
+        }
+
         private string ResolveIconsFolder(TrophyFormat format, string npcommid, string xmlPath)
         {
             if (format == TrophyFormat.New && !string.IsNullOrWhiteSpace(npcommid))
             {
-                var appDataPath = _provider?.GetAppDataPath();
+                var appDataPath = ResolveAppDataPathForUserTrophyXml(xmlPath);
                 return !string.IsNullOrWhiteSpace(appDataPath)
                     ? Path.Combine(_provider.GetTrophyBasePath(appDataPath), npcommid, "Icons")
                     : null;
@@ -491,7 +502,7 @@ namespace PlayniteAchievements.Providers.ShadPS4
         /// Xml folder it came from, so localized siblings are read from the same
         /// folder that satisfied the npcommid check.
         /// </summary>
-        private XDocument TryLoadSharedMetadataDocument(string npcommid, CancellationToken cancel, out string xmlFolder)
+        private XDocument TryLoadSharedMetadataDocument(string npcommid, string userTrophyXmlPath, CancellationToken cancel, out string xmlFolder)
         {
             xmlFolder = null;
 
@@ -500,7 +511,7 @@ namespace PlayniteAchievements.Providers.ShadPS4
                 return null;
             }
 
-            var appDataPath = _provider.GetAppDataPath();
+            var appDataPath = ResolveAppDataPathForUserTrophyXml(userTrophyXmlPath);
             if (string.IsNullOrWhiteSpace(appDataPath))
             {
                 return null;

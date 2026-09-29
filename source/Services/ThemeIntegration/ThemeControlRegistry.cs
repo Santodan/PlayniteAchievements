@@ -29,6 +29,7 @@ namespace PlayniteAchievements.Services.ThemeIntegration
                 { "AchievementCompactList", () => new Views.ThemeIntegration.Modern.AchievementCompactListControl() },
                 { "AchievementCompactLockedList", () => new Views.ThemeIntegration.Modern.AchievementCompactLockedListControl() },
                 { "AchievementCompactUnlockedList", () => new Views.ThemeIntegration.Modern.AchievementCompactUnlockedListControl() },
+                { "AchievementCompactLatest", () => new Views.ThemeIntegration.Modern.AchievementCompactLatestControl() },
                 { "AchievementChart", () => new Views.ThemeIntegration.Modern.AchievementBarChartControl() },
                 { "AchievementBarChart", () => new Views.ThemeIntegration.Modern.AchievementBarChartControl() },
                 { "AchievementPieChart", () => new Views.ThemeIntegration.Modern.AchievementPieChartControl() },
@@ -60,6 +61,8 @@ namespace PlayniteAchievements.Services.ThemeIntegration
             "AchievementCompactList",
             "AchievementCompactLockedList",
             "AchievementCompactUnlockedList",
+            "AchievementCompactLatest",
+            "AchievementChart", // alias of AchievementBarChart
             "AchievementBarChart",
             "AchievementPieChart",
             "AchievementStats",

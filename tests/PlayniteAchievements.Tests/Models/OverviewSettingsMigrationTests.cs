@@ -50,7 +50,9 @@ namespace PlayniteAchievements.Models.Tests
             Assert.AreEqual("None", persisted["OverviewSelectedGameGridSortMode"].Value<string>());
             Assert.AreEqual(false, persisted["OverviewSelectedGameGridSortDescending"].Value<bool>());
             Assert.AreEqual(0.64, persisted["OverviewLeftColumnRatio"].Value<double>());
-            Assert.AreEqual("SixMonths", persisted["OverviewTimelineRange"].Value<string>());
+            // The rename chain lands on the TimeWindow property in one pass.
+            Assert.AreEqual("SixMonths", persisted["OverviewTimeWindow"].Value<string>());
+            Assert.IsNull(persisted["OverviewTimelineRange"]);
             Assert.AreEqual(false, persisted["ShowOverviewGameSummariesGridColumnHeaders"].Value<bool>());
             Assert.IsNotNull(persisted["StartPageGameSummariesGrid"]);
             Assert.IsNull(persisted["ShowSidebarCollectionScoreCard"]);

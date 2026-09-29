@@ -91,6 +91,8 @@ namespace PlayniteAchievements.ViewModels
         private FriendGameSummaryItem _comparePairGame;
         private readonly HashSet<string> _selectedOwnershipFilters = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         private readonly HashSet<string> _selectedFriendProviderFilters = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        // Session-only, like every other filter on these bars: off each time the window opens.
+        private bool _favoritesOnly;
         private ObservableCollection<ProviderFilterGroup> _gamePlatformFilterGroups =
             new ObservableCollection<ProviderFilterGroup>();
         private FriendSummaryItem _gameFilterOptionsFriend;
@@ -592,7 +594,7 @@ namespace PlayniteAchievements.ViewModels
                 if (SelectedGame != null)
                 {
                     return string.Format(
-                        ResourceProvider.GetString("LOCPlayAch_FriendsOverview_SelectedGameAchievements"),
+                        ResourceProvider.GetString("LOCPlayAch_FriendsOverview_SelectedFriendAchievements"),
                         SelectedGame.GameName);
                 }
 
@@ -637,6 +639,13 @@ namespace PlayniteAchievements.ViewModels
                     GridControlBarText.Get("LOCPlayAch_FriendsOverview_SearchFriends", "Search Friends"),
                     ClearFriendSearch)
             };
+            controlBar.Items.Add(new GridToggleFilter(
+                this,
+                nameof(FavoritesOnly),
+                ResourceProvider.GetString("LOCPlayAch_RefreshModeShort_Favorites"),
+                () => FavoritesOnly,
+                value => FavoritesOnly = value,
+                GridToggleFilterIcon.Favorite));
             controlBar.Items.Add(new GridMultiSelectFilter(
                 this,
                 nameof(SelectedFriendProviderFilterText),
@@ -729,6 +738,20 @@ namespace PlayniteAchievements.ViewModels
 
             OnPropertyChanged(nameof(SelectedFriendProviderFilterText));
             ApplyFilters();
+        }
+
+        // Restricts the friends grid to favorites and, with no friend selected, scopes the games
+        // and achievements grids to those favorites too. A selected friend already scopes both.
+        public bool FavoritesOnly
+        {
+            get => _favoritesOnly;
+            set
+            {
+                if (SetValueAndReturn(ref _favoritesOnly, value))
+                {
+                    ApplyFilters();
+                }
+            }
         }
 
         public bool IsOwnershipFilterSelected(string value)
@@ -1532,10 +1555,10 @@ namespace PlayniteAchievements.ViewModels
                     _allUnlockedAchievements = new List<FriendAchievementDisplayItem>();
                     ResetPairAchievements();
                     _projection = new FriendOverviewProjection(null);
-                    FilteredFriends.ReplaceAll(Array.Empty<FriendSummaryItem>());
-                    FilteredGames.ReplaceAll(Array.Empty<FriendGameSummaryItem>());
-                    SelectedFriendGameAllAchievements.ReplaceAll(Array.Empty<FriendAchievementDisplayItem>());
-                    DisplayedAchievements.ReplaceAll(Array.Empty<FriendAchievementDisplayItem>());
+                    CollectionHelper.Replace(FilteredFriends, Array.Empty<FriendSummaryItem>());
+                    CollectionHelper.Replace(FilteredGames, Array.Empty<FriendGameSummaryItem>());
+                    CollectionHelper.Replace(SelectedFriendGameAllAchievements, Array.Empty<FriendAchievementDisplayItem>());
+                    CollectionHelper.Replace(DisplayedAchievements, Array.Empty<FriendAchievementDisplayItem>());
                     StatusText = ResourceProvider.GetString("LOCPlayAch_FriendsOverview_LoadFailed");
                     OnPropertyChanged(nameof(HasData));
                 }
@@ -1586,6 +1609,10 @@ namespace PlayniteAchievements.ViewModels
                     friends = friends.Where(friend =>
                         GetProviderFilterKeys(friend).Any(_selectedFriendProviderFilters.Contains));
                 }
+                if (FavoritesOnly)
+                {
+                    friends = friends.Where(friend => friend?.IsFavorite == true);
+                }
                 if (SelectedGame != null)
                 {
                     friends = friends.Where(friend => HasFriendGamePairData(friend, SelectedGame));
@@ -1598,9 +1625,13 @@ namespace PlayniteAchievements.ViewModels
                 // open dropdown menu keeps its live groups.
                 UpdateGameFilterOptions(force: false);
 
+                // With no friend selected the favorites view is its own aggregate: the games at
+                // least one favorite has data for, with the friend columns computed over them.
                 var gameSource = SelectedFriend != null
                     ? GetSelectedFriendGames(SelectedFriend)
-                    : _allGames;
+                    : FavoritesOnly
+                        ? _projection?.FavoriteAggregateGames ?? (IReadOnlyList<FriendGameSummaryItem>)Array.Empty<FriendGameSummaryItem>()
+                        : _allGames;
 
                 // No unlock gating here: the games list is ownership-driven and the cache only holds
                 // ownership rows that should display (owned games unconditionally; provider-only games
@@ -1696,6 +1727,18 @@ namespace PlayniteAchievements.ViewModels
                 if (SelectedFriend != null)
                 {
                     scoped = scoped.Where(achievement => IsSameFriend(achievement, SelectedFriend));
+                }
+                else if (FavoritesOnly)
+                {
+                    // Matched through the friend rows rather than the achievement's own favorite
+                    // flag, so the three grids agree on who counts as a favorite.
+                    var favoriteKeys = new HashSet<string>(
+                        _allFriends.Where(friend => friend?.IsFavorite == true)
+                            .Select(FriendOverviewProjection.GetFriendScopeKey)
+                            .Where(key => !string.IsNullOrWhiteSpace(key)),
+                        StringComparer.OrdinalIgnoreCase);
+                    scoped = scoped.Where(achievement =>
+                        favoriteKeys.Contains(FriendOverviewProjection.GetFriendScopeKey(achievement)));
                 }
 
                 if (SelectedGame != null)
@@ -1796,22 +1839,22 @@ namespace PlayniteAchievements.ViewModels
                 }
 
                 var persisted = _settings?.Persisted;
-                FilteredFriends.ReplaceAll(DisplayGridRowLimitHelper.Limit(
+                CollectionHelper.Replace(FilteredFriends, DisplayGridRowLimitHelper.Limit(
                     _filteredFriendsList,
                     persisted?.FriendsOverviewFriendSummariesGridMaxRows));
-                FilteredGames.ReplaceAll(DisplayGridRowLimitHelper.Limit(
+                CollectionHelper.Replace(FilteredGames, DisplayGridRowLimitHelper.Limit(
                     _filteredGamesList,
                     persisted?.FriendsOverviewGameSummariesGridMaxRows));
                 // Keep the unfiltered category-summary source current; achievement filters and grid
                 // sorts never touch it, so the category fallback order stays the definition-ordered
                 // snapshot loaded from the cache. Replaced before DisplayedAchievements so the grid's
                 // items-source reset rebuilds category rollups from the new selection's rows.
-                SelectedFriendGameAllAchievements.ReplaceAll(HasFriendGameSelection
+                CollectionHelper.Replace(SelectedFriendGameAllAchievements, HasFriendGameSelection
                     ? achievementSource.Where(achievement =>
                         IsSameFriend(achievement, SelectedFriend) &&
                         IsSameGame(achievement, SelectedGame))
                     : Enumerable.Empty<FriendAchievementDisplayItem>());
-                DisplayedAchievements.ReplaceAll(DisplayGridRowLimitHelper.Limit(
+                CollectionHelper.Replace(DisplayedAchievements, DisplayGridRowLimitHelper.Limit(
                     _filteredAchievementsList,
                     persisted?.FriendsOverviewAchievementsGridMaxRows));
                 UpdateCompareState(achievementSource);
@@ -2033,21 +2076,21 @@ namespace PlayniteAchievements.ViewModels
 
         private void SyncFriendsDisplay()
         {
-            FilteredFriends.ReplaceAll(DisplayGridRowLimitHelper.Limit(
+            CollectionHelper.Replace(FilteredFriends, DisplayGridRowLimitHelper.Limit(
                 _filteredFriendsList,
                 _settings?.Persisted?.FriendsOverviewFriendSummariesGridMaxRows));
         }
 
         private void SyncGamesDisplay()
         {
-            FilteredGames.ReplaceAll(DisplayGridRowLimitHelper.Limit(
+            CollectionHelper.Replace(FilteredGames, DisplayGridRowLimitHelper.Limit(
                 _filteredGamesList,
                 _settings?.Persisted?.FriendsOverviewGameSummariesGridMaxRows));
         }
 
         private void SyncAchievementsDisplay()
         {
-            DisplayedAchievements.ReplaceAll(DisplayGridRowLimitHelper.Limit(
+            CollectionHelper.Replace(DisplayedAchievements, DisplayGridRowLimitHelper.Limit(
                 _filteredAchievementsList,
                 _settings?.Persisted?.FriendsOverviewAchievementsGridMaxRows));
         }

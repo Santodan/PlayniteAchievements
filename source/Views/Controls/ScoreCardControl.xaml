@@ -1,7 +1,7 @@
 <UserControl x:Class="PlayniteAchievements.Views.Controls.ScoreCardControl"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             xmlns:converters="clr-namespace:PlayniteAchievements.Views.Converters"
+             xmlns:helpers="clr-namespace:PlayniteAchievements.Views.Helpers"
              x:Name="Root"
              FontFamily="{DynamicResource CommonFont}"
              FontSize="{DynamicResource PlayAch.FontSize.Body}"
@@ -10,121 +10,290 @@
     <UserControl.Resources>
         <ResourceDictionary>
             <ResourceDictionary.MergedDictionaries>
-                <ResourceDictionary Source="pack://application:,,,/PlayniteAchievements;component/Resources/AchievementResources.xaml"/>
+                <helpers:SharedResourceDictionary Source="pack://application:,,,/PlayniteAchievements;component/Resources/AchievementResources.xaml"/>
             </ResourceDictionary.MergedDictionaries>
-            <Style x:Key="ScoreInfoButtonStyle" TargetType="Button">
-                <Setter Property="Background" Value="Transparent"/>
-                <Setter Property="Foreground" Value="{DynamicResource PlayAch.Brush.Text}"/>
+
+            <Style x:Key="ScoreCardPanelStyle" TargetType="Border">
+                <Setter Property="CornerRadius" Value="7"/>
                 <Setter Property="BorderThickness" Value="0"/>
-                <Setter Property="Padding" Value="0"/>
-                <Setter Property="Width" Value="18"/>
-                <Setter Property="Height" Value="18"/>
-                <Setter Property="FontFamily" Value="Segoe MDL2 Assets"/>
-                <Setter Property="FontSize" Value="{DynamicResource PlayAch.FontSize.Caption}"/>
-                <Setter Property="Opacity" Value="0.72"/>
-                <Setter Property="Cursor" Value="Hand"/>
-                <Setter Property="ToolTip" Value="{DynamicResource LOCPlayAch_Score_Info_ButtonTooltip}"/>
-                <Setter Property="Template">
-                    <Setter.Value>
-                        <ControlTemplate TargetType="Button">
-                            <Border x:Name="border"
-                                    Width="{TemplateBinding Width}"
-                                    Height="{TemplateBinding Height}"
-                                    CornerRadius="9"
-                                    Background="{TemplateBinding Background}">
-                                <TextBlock Text="{TemplateBinding Content}"
-                                           Foreground="{TemplateBinding Foreground}"
-                                           FontFamily="{TemplateBinding FontFamily}"
-                                           FontSize="{TemplateBinding FontSize}"
-                                           HorizontalAlignment="Center"
-                                           VerticalAlignment="Center"/>
-                            </Border>
-                            <ControlTemplate.Triggers>
-                                <Trigger Property="IsMouseOver" Value="True">
-                                    <Setter TargetName="border" Property="Background" Value="{StaticResource PlayAch.Brush.Overlay.Tint.22}"/>
-                                    <Setter Property="Opacity" Value="1"/>
-                                </Trigger>
-                                <Trigger Property="IsKeyboardFocused" Value="True">
-                                    <Setter TargetName="border" Property="Background" Value="{StaticResource PlayAch.Brush.Overlay.Tint.22}"/>
-                                    <Setter Property="Opacity" Value="1"/>
-                                </Trigger>
-                            </ControlTemplate.Triggers>
-                        </ControlTemplate>
-                    </Setter.Value>
-                </Setter>
+                <Setter Property="Padding" Value="9,7"/>
+                <Setter Property="VerticalAlignment" Value="Center"/>
+                <Setter Property="SnapsToDevicePixels" Value="True"/>
+                <!-- Background and border live in the style (not local values) so the Flat
+                     trigger below can strip them for hosts that provide their own chrome. -->
+                <Setter Property="Background" Value="{Binding AccentBackgroundBrush}"/>
+                <Setter Property="BorderBrush" Value="{Binding AccentBrush}"/>
+                <Style.Triggers>
+                    <DataTrigger Binding="{Binding IsFeatured, ElementName=Root}" Value="True">
+                        <Setter Property="CornerRadius" Value="10"/>
+                        <Setter Property="BorderThickness" Value="1"/>
+                        <Setter Property="Padding" Value="15,13"/>
+                        <Setter Property="MinHeight" Value="96"/>
+                    </DataTrigger>
+                    <!-- The showcase block's surface, so the Overview header matches the showcase
+                         Scores widget instead of tinting by tier. -->
+                    <DataTrigger Binding="{Binding Compact, ElementName=Root}" Value="True">
+                        <Setter Property="Background" Value="{DynamicResource PlayAch.Brush.GridSurface}"/>
+                        <Setter Property="CornerRadius" Value="{DynamicResource PlayAch.Radius.Section}"/>
+                    </DataTrigger>
+                    <DataTrigger Binding="{Binding Flat, ElementName=Root}" Value="True">
+                        <Setter Property="Background" Value="Transparent"/>
+                        <Setter Property="BorderThickness" Value="0"/>
+                        <Setter Property="Padding" Value="6,4"/>
+                        <Setter Property="MinHeight" Value="0"/>
+                    </DataTrigger>
+                </Style.Triggers>
             </Style>
 
+            <!-- Badge column: spans the text column's height, the tier badge centered in what the
+                 mastery line (docked to the bottom, level with the caption) leaves over. -->
+            <Style x:Key="ScoreCardBadgeColumnStyle" TargetType="DockPanel">
+                <Setter Property="LastChildFill" Value="True"/>
+                <Setter Property="VerticalAlignment" Value="Stretch"/>
+                <Setter Property="Margin" Value="0,0,10,0"/>
+                <Style.Triggers>
+                    <DataTrigger Binding="{Binding IsFeatured, ElementName=Root}" Value="True">
+                        <Setter Property="Margin" Value="0,0,14,0"/>
+                    </DataTrigger>
+                    <DataTrigger Binding="{Binding BadgeOnly, ElementName=Root}" Value="True">
+                        <Setter Property="Margin" Value="0"/>
+                    </DataTrigger>
+                </Style.Triggers>
+            </Style>
+
+            <Style x:Key="ScoreCardBadgeStyle" TargetType="Image" BasedOn="{StaticResource RarityIcon}">
+                <Setter Property="Width" Value="38"/>
+                <Setter Property="Height" Value="43"/>
+                <Setter Property="HorizontalAlignment" Value="Center"/>
+                <Setter Property="VerticalAlignment" Value="Center"/>
+                <Setter Property="Effect" Value="{StaticResource BadgeShadow}"/>
+                <Style.Triggers>
+                    <DataTrigger Binding="{Binding IsFeatured, ElementName=Root}" Value="True">
+                        <Setter Property="Width" Value="54"/>
+                        <Setter Property="Height" Value="61"/>
+                    </DataTrigger>
+                    <!-- Sized to the compact card's two rows (tier line and bar). -->
+                    <DataTrigger Binding="{Binding Compact, ElementName=Root}" Value="True">
+                        <Setter Property="Width" Value="28"/>
+                        <Setter Property="Height" Value="32"/>
+                    </DataTrigger>
+                </Style.Triggers>
+            </Style>
+
+            <Style x:Key="ScoreCardMasteryLineStyle" TargetType="StackPanel">
+                <Setter Property="Orientation" Value="Horizontal"/>
+                <Setter Property="HorizontalAlignment" Value="Center"/>
+                <Setter Property="Margin" Value="0,3,0,0"/>
+                <Setter Property="Visibility" Value="Collapsed"/>
+                <Style.Triggers>
+                    <DataTrigger Binding="{Binding HasMastery}" Value="True">
+                        <Setter Property="Visibility" Value="Visible"/>
+                    </DataTrigger>
+                    <DataTrigger Binding="{Binding IsFeatured, ElementName=Root}" Value="True">
+                        <Setter Property="Margin" Value="0,5,0,0"/>
+                    </DataTrigger>
+                </Style.Triggers>
+            </Style>
+
+            <Style x:Key="ScoreCardMasteryIconStyle" TargetType="Image" BasedOn="{StaticResource RarityIcon}">
+                <Setter Property="Width" Value="11"/>
+                <Setter Property="Height" Value="12"/>
+                <Setter Property="Margin" Value="0,0,3,0"/>
+                <Setter Property="VerticalAlignment" Value="Center"/>
+                <Style.Triggers>
+                    <DataTrigger Binding="{Binding IsFeatured, ElementName=Root}" Value="True">
+                        <Setter Property="Width" Value="14"/>
+                        <Setter Property="Height" Value="16"/>
+                        <Setter Property="Margin" Value="0,0,4,0"/>
+                    </DataTrigger>
+                </Style.Triggers>
+            </Style>
+
+            <Style x:Key="ScoreCardMasteryTextStyle" TargetType="TextBlock" BasedOn="{StaticResource PlayAch.TextBlock.BaseStyle}">
+                <Setter Property="FontSize" Value="{DynamicResource PlayAch.FontSize.Caption}"/>
+                <Setter Property="FontWeight" Value="Bold"/>
+                <Setter Property="Foreground" Value="{DynamicResource PlayAch.Brush.Text}"/>
+                <Setter Property="VerticalAlignment" Value="Center"/>
+                <Setter Property="TextWrapping" Value="NoWrap"/>
+                <Style.Triggers>
+                    <DataTrigger Binding="{Binding IsFeatured, ElementName=Root}" Value="True">
+                        <Setter Property="FontSize" Value="{DynamicResource PlayAch.FontSize.Body}"/>
+                    </DataTrigger>
+                </Style.Triggers>
+            </Style>
+
+            <!-- The label is the only thing separating the Collection card from the Prestige
+                 card when both are on screen, so it is tracked and heavier than the old caption. -->
             <Style x:Key="ScoreCardLabelTextStyle" TargetType="TextBlock" BasedOn="{StaticResource PlayAch.TextBlock.BaseStyle}">
                 <Setter Property="FontSize" Value="{DynamicResource PlayAch.FontSize.Caption}"/>
                 <Setter Property="FontWeight" Value="Bold"/>
                 <Setter Property="Foreground" Value="{DynamicResource PlayAch.Brush.Text}"/>
-                <Setter Property="Opacity" Value="0.86"/>
+                <Setter Property="Opacity" Value="{StaticResource PlayAch.Opacity.Emphasis}"/>
                 <Setter Property="TextTrimming" Value="CharacterEllipsis"/>
+                <Setter Property="VerticalAlignment" Value="Center"/>
+                <Style.Triggers>
+                    <DataTrigger Binding="{Binding Compact, ElementName=Root}" Value="True">
+                        <Setter Property="Visibility" Value="Collapsed"/>
+                    </DataTrigger>
+                </Style.Triggers>
             </Style>
 
+            <!-- Text lives in the style so the Compact trigger can fold the label into the tier. -->
             <Style x:Key="ScoreCardTierTextStyle" TargetType="TextBlock" BasedOn="{StaticResource PlayAch.TextBlock.BaseStyle}">
-                <Setter Property="FontSize" Value="{DynamicResource PlayAch.FontSize.Body}"/>
-                <Setter Property="FontWeight" Value="ExtraBold"/>
-                <Setter Property="TextTrimming" Value="CharacterEllipsis"/>
-                <Setter Property="VerticalAlignment" Value="Center"/>
-            </Style>
-
-            <Style x:Key="ScoreCardMetricTextStyle" TargetType="TextBlock" BasedOn="{StaticResource PlayAch.TextBlock.BaseStyle}">
-                <Setter Property="FontSize" Value="{DynamicResource PlayAch.FontSize.Caption}"/>
+                <Setter Property="Text" Value="{Binding TierText}"/>
+                <Setter Property="FontSize" Value="15"/>
                 <Setter Property="FontWeight" Value="Bold"/>
-                <Setter Property="Foreground" Value="{DynamicResource PlayAch.Brush.Text}"/>
                 <Setter Property="TextTrimming" Value="CharacterEllipsis"/>
-                <Setter Property="VerticalAlignment" Value="Center"/>
+                <Setter Property="VerticalAlignment" Value="Bottom"/>
+                <Setter Property="Margin" Value="0,2,0,0"/>
+                <Style.Triggers>
+                    <DataTrigger Binding="{Binding IsFeatured, ElementName=Root}" Value="True">
+                        <Setter Property="FontSize" Value="22"/>
+                        <Setter Property="Margin" Value="0,3,0,0"/>
+                    </DataTrigger>
+                    <DataTrigger Binding="{Binding Compact, ElementName=Root}" Value="True">
+                        <Setter Property="Text" Value="{Binding CompactTierText}"/>
+                        <Setter Property="Margin" Value="0"/>
+                    </DataTrigger>
+                </Style.Triggers>
             </Style>
 
-            <Style x:Key="ScoreCardPanelStyle" TargetType="Border">
-                <Setter Property="CornerRadius" Value="6"/>
-                <Setter Property="BorderThickness" Value="0"/>
-                <Setter Property="Padding" Value="8,5"/>
-                <Setter Property="VerticalAlignment" Value="Center"/>
-                <Setter Property="SnapsToDevicePixels" Value="True"/>
+            <Style x:Key="ScoreCardPointsTextStyle" TargetType="TextBlock" BasedOn="{StaticResource PlayAch.TextBlock.BaseStyle}">
+                <Setter Property="FontSize" Value="12"/>
+                <Setter Property="FontWeight" Value="SemiBold"/>
+                <Setter Property="Foreground" Value="{DynamicResource PlayAch.Brush.Text}"/>
+                <Setter Property="Opacity" Value="{StaticResource PlayAch.Opacity.Emphasis}"/>
+                <Setter Property="TextTrimming" Value="CharacterEllipsis"/>
+                <Setter Property="VerticalAlignment" Value="Bottom"/>
+                <Setter Property="Margin" Value="8,0,0,1"/>
+                <Style.Triggers>
+                    <DataTrigger Binding="{Binding IsFeatured, ElementName=Root}" Value="True">
+                        <Setter Property="FontSize" Value="14"/>
+                        <Setter Property="Margin" Value="10,0,0,2"/>
+                    </DataTrigger>
+                </Style.Triggers>
             </Style>
 
-            <Style x:Key="ScoreCardProgressBarStyle" TargetType="ProgressBar" BasedOn="{StaticResource GameProgressBar}">
+            <!-- One cell per level of the current rank. The negative right margin cancels the
+                 trailing gap of the last segment so the bar ends flush with the text above it. -->
+            <Style x:Key="ScoreCardSegmentBarStyle" TargetType="ItemsControl">
                 <Setter Property="Height" Value="6"/>
-                <Setter Property="BorderThickness" Value="1"/>
+                <Setter Property="Margin" Value="0,6,-3,0"/>
+                <Setter Property="IsTabStop" Value="False"/>
+                <Setter Property="Focusable" Value="False"/>
+                <Style.Triggers>
+                    <DataTrigger Binding="{Binding IsFeatured, ElementName=Root}" Value="True">
+                        <Setter Property="Height" Value="8"/>
+                        <Setter Property="Margin" Value="0,9,-3,0"/>
+                    </DataTrigger>
+                </Style.Triggers>
+            </Style>
+
+            <Style x:Key="ScoreCardCaptionTextStyle" TargetType="TextBlock" BasedOn="{StaticResource PlayAch.TextBlock.BaseStyle}">
+                <Setter Property="FontSize" Value="{DynamicResource PlayAch.FontSize.Caption}"/>
+                <Setter Property="Foreground" Value="{DynamicResource PlayAch.Brush.Text}"/>
+                <Setter Property="Opacity" Value="{StaticResource PlayAch.Opacity.Muted}"/>
+                <Setter Property="TextTrimming" Value="CharacterEllipsis"/>
+                <Setter Property="Margin" Value="0,5,0,0"/>
+                <Style.Triggers>
+                    <DataTrigger Binding="{Binding IsFeatured, ElementName=Root}" Value="True">
+                        <Setter Property="Margin" Value="0,7,0,0"/>
+                    </DataTrigger>
+                    <DataTrigger Binding="{Binding Compact, ElementName=Root}" Value="True">
+                        <Setter Property="Visibility" Value="Collapsed"/>
+                    </DataTrigger>
+                </Style.Triggers>
             </Style>
 
             <Style x:Key="ScoreCardTooltipBorderStyle" TargetType="Border">
                 <Setter Property="Background" Value="{DynamicResource PlayAch.Brush.PopupSurface}"/>
                 <Setter Property="BorderThickness" Value="1"/>
                 <Setter Property="CornerRadius" Value="8"/>
-                <Setter Property="Padding" Value="12"/>
+                <Setter Property="Padding" Value="12,10"/>
                 <Setter Property="Width" Value="300"/>
                 <Setter Property="MaxWidth" Value="300"/>
                 <Setter Property="SnapsToDevicePixels" Value="True"/>
             </Style>
 
-            <Style x:Key="ScoreCardTooltipLineBorderStyle" TargetType="Border">
-                <Setter Property="Background" Value="{StaticResource PlayAch.Brush.Overlay.Tint.14}"/>
-                <Setter Property="CornerRadius" Value="4"/>
-                <Setter Property="Padding" Value="8,5"/>
-                <Setter Property="Margin" Value="0,4,0,0"/>
-                <Setter Property="HorizontalAlignment" Value="Stretch"/>
+            <Style x:Key="ScoreCardTooltipTitleTextStyle" TargetType="TextBlock" BasedOn="{StaticResource PlayAch.TextBlock.BaseStyle}">
+                <Setter Property="FontSize" Value="{DynamicResource PlayAch.FontSize.Body}"/>
+                <Setter Property="FontWeight" Value="Bold"/>
+                <Setter Property="Margin" Value="0,0,0,6"/>
+                <Setter Property="TextTrimming" Value="CharacterEllipsis"/>
             </Style>
 
-            <Style x:Key="ScoreCardTooltipLineTextStyle" TargetType="TextBlock" BasedOn="{StaticResource PlayAch.TextBlock.BaseStyle}">
+            <Style x:Key="ScoreCardTooltipRowStyle" TargetType="Grid">
+                <Setter Property="Margin" Value="0,5,0,0"/>
+            </Style>
+
+            <Style x:Key="ScoreCardTooltipLabelTextStyle" TargetType="TextBlock" BasedOn="{StaticResource PlayAch.TextBlock.BaseStyle}">
+                <Setter Property="FontSize" Value="{DynamicResource PlayAch.FontSize.Caption}"/>
                 <Setter Property="Foreground" Value="{DynamicResource PlayAch.Brush.Text}"/>
-                <Setter Property="FontSize" Value="{DynamicResource PlayAch.FontSize.Title}"/>
+                <Setter Property="Opacity" Value="{StaticResource PlayAch.Opacity.Muted}"/>
+                <Setter Property="TextTrimming" Value="CharacterEllipsis"/>
+                <Setter Property="Margin" Value="0,0,12,0"/>
+            </Style>
+
+            <Style x:Key="ScoreCardTooltipValueTextStyle" TargetType="TextBlock" BasedOn="{StaticResource PlayAch.TextBlock.BaseStyle}">
+                <Setter Property="FontSize" Value="{DynamicResource PlayAch.FontSize.Caption}"/>
                 <Setter Property="FontWeight" Value="SemiBold"/>
-                <Setter Property="HorizontalAlignment" Value="Center"/>
-                <Setter Property="TextAlignment" Value="Center"/>
-                <Setter Property="TextWrapping" Value="Wrap"/>
+                <Setter Property="Foreground" Value="{DynamicResource PlayAch.Brush.Text}"/>
+                <Setter Property="HorizontalAlignment" Value="Right"/>
+                <Setter Property="TextTrimming" Value="CharacterEllipsis"/>
+            </Style>
+
+            <!-- The tooltip sits outside the control's namescope, so the control reaches it as the
+                 ToolTip's Tag. Only compact cards drop the caption, so only their tooltip needs
+                 the next level; badge-only cards also drop the tier and points, so the title
+                 names the score and carries the points. -->
+            <Style x:Key="ScoreCardTooltipTitleStyle" TargetType="TextBlock" BasedOn="{StaticResource ScoreCardTooltipTitleTextStyle}">
+                <Setter Property="Text" Value="{Binding TooltipTitleText}"/>
+                <Style.Triggers>
+                    <DataTrigger Binding="{Binding Tag.Compact, RelativeSource={RelativeSource AncestorType=ToolTip}}" Value="True">
+                        <Setter Property="Text" Value="{Binding CompactTooltipTitleText}"/>
+                    </DataTrigger>
+                </Style.Triggers>
+            </Style>
+
+            <Style x:Key="ScoreCardTooltipPointsStyle" TargetType="TextBlock" BasedOn="{StaticResource ScoreCardTooltipValueTextStyle}">
+                <Setter Property="Margin" Value="12,0,0,6"/>
+                <Setter Property="VerticalAlignment" Value="Center"/>
+                <Setter Property="Visibility" Value="Collapsed"/>
+                <Style.Triggers>
+                    <DataTrigger Binding="{Binding Tag.BadgeOnly, RelativeSource={RelativeSource AncestorType=ToolTip}}" Value="True">
+                        <Setter Property="Visibility" Value="Visible"/>
+                    </DataTrigger>
+                </Style.Triggers>
+            </Style>
+
+            <Style x:Key="ScoreCardTooltipNextLevelStyle" TargetType="StackPanel">
+                <Setter Property="Visibility" Value="Collapsed"/>
+                <Style.Triggers>
+                    <MultiDataTrigger>
+                        <MultiDataTrigger.Conditions>
+                            <Condition Binding="{Binding Tag.Compact, RelativeSource={RelativeSource AncestorType=ToolTip}}" Value="True"/>
+                            <Condition Binding="{Binding HasNextLevel}" Value="True"/>
+                        </MultiDataTrigger.Conditions>
+                        <Setter Property="Visibility" Value="Visible"/>
+                    </MultiDataTrigger>
+                </Style.Triggers>
+            </Style>
+
+            <Style x:Key="ScoreCardTooltipSeparatorStyle" TargetType="Border">
+                <Setter Property="Height" Value="1"/>
+                <Setter Property="Margin" Value="0,5,0,0"/>
+                <Setter Property="Background" Value="{DynamicResource PlayAch.Brush.Border}"/>
+                <Setter Property="Opacity" Value="{StaticResource PlayAch.Opacity.Disabled}"/>
             </Style>
         </ResourceDictionary>
     </UserControl.Resources>
 
     <Grid DataContext="{Binding ScoreCard, ElementName=Root}">
         <Border Style="{StaticResource ScoreCardPanelStyle}"
-                Background="{Binding AccentBackgroundBrush}"
-                BorderBrush="{Binding AccentBrush}">
+                Tag="{Binding ElementName=Root}">
             <Border.ToolTip>
                 <ToolTip DataContext="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource Self}}"
+                         Tag="{Binding PlacementTarget.Tag, RelativeSource={RelativeSource Self}}"
                          Placement="Bottom"
                          HorizontalOffset="0"
                          VerticalOffset="4"
@@ -134,103 +303,164 @@
                          Background="{DynamicResource PlayAch.Brush.PopupSurface}"
                          HorizontalContentAlignment="Stretch"
                          HasDropShadow="True">
+                    <!-- The card face states where you are; the tooltip states the ladder it sits
+                         on, so no line here repeats one on the card. -->
                     <Border Style="{StaticResource ScoreCardTooltipBorderStyle}"
                             BorderBrush="{Binding AccentBrush}">
                         <StackPanel>
-                            <Border Style="{StaticResource ScoreCardTooltipLineBorderStyle}">
-                                <TextBlock Text="{Binding CurrentLevelPointsText}"
-                                           Style="{StaticResource ScoreCardTooltipLineTextStyle}"/>
-                            </Border>
-                            <Border Style="{StaticResource ScoreCardTooltipLineBorderStyle}">
-                                <TextBlock Text="{Binding PointsUntilNextLevelText}"
-                                           Style="{StaticResource ScoreCardTooltipLineTextStyle}"/>
-                            </Border>
-                            <Border Style="{StaticResource ScoreCardTooltipLineBorderStyle}">
-                                <TextBlock Text="{Binding NextTierThresholdText}"
-                                           Style="{StaticResource ScoreCardTooltipLineTextStyle}"
-                                           Foreground="{Binding NextTierAccentBrush}"/>
-                            </Border>
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Style="{StaticResource ScoreCardTooltipTitleStyle}"
+                                           Foreground="{Binding AccentBrush}"/>
+                                <TextBlock Grid.Column="1"
+                                           Text="{Binding PointsText}"
+                                           Style="{StaticResource ScoreCardTooltipPointsStyle}"/>
+                            </Grid>
+
+                            <Border Style="{StaticResource ScoreCardTooltipSeparatorStyle}"/>
+                            <Grid Style="{StaticResource ScoreCardTooltipRowStyle}">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Text="{Binding TooltipLevelLabel}"
+                                           Style="{StaticResource ScoreCardTooltipLabelTextStyle}"/>
+                                <TextBlock Grid.Column="1"
+                                           Text="{Binding TooltipLevelValueText}"
+                                           Style="{StaticResource ScoreCardTooltipValueTextStyle}"/>
+                            </Grid>
+
+                            <Border Style="{StaticResource ScoreCardTooltipSeparatorStyle}"/>
+                            <Grid Style="{StaticResource ScoreCardTooltipRowStyle}">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Text="{Binding TooltipRankPositionLabel}"
+                                           Style="{StaticResource ScoreCardTooltipLabelTextStyle}"/>
+                                <TextBlock Grid.Column="1"
+                                           Text="{Binding TooltipRankPositionValueText}"
+                                           Style="{StaticResource ScoreCardTooltipValueTextStyle}"/>
+                            </Grid>
+
+                            <StackPanel Style="{StaticResource ScoreCardTooltipNextLevelStyle}">
+                                <Border Style="{StaticResource ScoreCardTooltipSeparatorStyle}"/>
+                                <Grid Style="{StaticResource ScoreCardTooltipRowStyle}">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Text="{Binding TooltipNextLevelLabel}"
+                                               Style="{StaticResource ScoreCardTooltipLabelTextStyle}"/>
+                                    <TextBlock Grid.Column="1"
+                                               Text="{Binding TooltipNextLevelValueText}"
+                                               Style="{StaticResource ScoreCardTooltipValueTextStyle}"/>
+                                </Grid>
+                            </StackPanel>
+
+                            <Border Style="{StaticResource ScoreCardTooltipSeparatorStyle}"/>
+                            <Grid Style="{StaticResource ScoreCardTooltipRowStyle}">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Text="{Binding TooltipNextRankLabel}"
+                                           Style="{StaticResource ScoreCardTooltipLabelTextStyle}"
+                                           Foreground="{Binding NextTierAccentBrush}"
+                                           Opacity="{StaticResource PlayAch.Opacity.Full}"/>
+                                <TextBlock Grid.Column="1"
+                                           Text="{Binding TooltipNextRankValueText}"
+                                           Style="{StaticResource ScoreCardTooltipValueTextStyle}"/>
+                            </Grid>
                         </StackPanel>
                     </Border>
                 </ToolTip>
             </Border.ToolTip>
+
             <Grid>
-                <Grid.RowDefinitions>
-                    <RowDefinition Height="18"/>
-                    <RowDefinition Height="8"/>
-                    <RowDefinition Height="18"/>
-                </Grid.RowDefinitions>
                 <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="44"/>
+                    <ColumnDefinition Width="Auto"/>
                     <ColumnDefinition Width="*"/>
                 </Grid.ColumnDefinitions>
-                <Image Grid.Row="0"
-                       Grid.RowSpan="3"
-                       Grid.Column="0"
-                       Width="30"
-                       Height="{StaticResource PlayAch.Size.Control.Height}"
-                       Margin="0,0,10,0"
-                       VerticalAlignment="Center"
-                       Source="{Binding BadgeIconKey, Converter={StaticResource ResourceKeyToImage}}"
-                       Effect="{StaticResource BadgeShadow}"
-                       Style="{StaticResource RarityIcon}"/>
-                <Grid Grid.Row="0"
-                      Grid.Column="1"
-                      Margin="0,-3,0,0">
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="Auto"/>
-                        <ColumnDefinition Width="Auto"/>
-                        <ColumnDefinition Width="*"/>
-                        <ColumnDefinition Width="Auto"/>
-                    </Grid.ColumnDefinitions>
-                    <TextBlock Grid.Column="0"
+                <DockPanel Grid.Column="0" Style="{StaticResource ScoreCardBadgeColumnStyle}">
+                    <!-- The completed-game badge marks mastery, as it marks the Master tier. -->
+                    <StackPanel DockPanel.Dock="Bottom" Style="{StaticResource ScoreCardMasteryLineStyle}">
+                        <Image Source="{DynamicResource ScoreBadgeCompletedGame}"
+                               Style="{StaticResource ScoreCardMasteryIconStyle}"/>
+                        <TextBlock Text="{Binding MasteryText}"
+                                   Style="{StaticResource ScoreCardMasteryTextStyle}"/>
+                    </StackPanel>
+
+                    <Image Source="{Binding BadgeIconKey, Converter={StaticResource ResourceKeyToImage}}"
+                           Style="{StaticResource ScoreCardBadgeStyle}"/>
+                </DockPanel>
+
+                <Grid Grid.Column="1">
+                    <!-- Compact cards are only two rows high; center them against the badge column
+                         so any extra height from the badge or mastery line is not left below the bar. -->
+                    <Grid.Style>
+                        <Style TargetType="Grid">
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding Compact, ElementName=Root}" Value="True">
+                                    <Setter Property="VerticalAlignment" Value="Center"/>
+                                </DataTrigger>
+                                <DataTrigger Binding="{Binding BadgeOnly, ElementName=Root}" Value="True">
+                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </Grid.Style>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+
+                    <TextBlock Grid.Row="0"
                                Text="{Binding Label}"
-                               Style="{StaticResource ScoreCardLabelTextStyle}"
-                               TextAlignment="Left"
-                               TextTrimming="CharacterEllipsis"
-                               MaxWidth="132"
-                               VerticalAlignment="Center"/>
-                    <Button Grid.Column="1"
-                            Content="&#xE946;"
-                            Style="{StaticResource ScoreInfoButtonStyle}"
-                            Click="ScoreInfoButton_Click"
-                            Margin="5,0,0,0"
-                            VerticalAlignment="Center"/>
-                    <TextBlock Grid.Column="3"
-                               Text="{Binding PointsText}"
-                               Style="{StaticResource ScoreCardMetricTextStyle}"
-                               TextAlignment="Right"
-                               HorizontalAlignment="Right"/>
-                </Grid>
-                <ProgressBar Grid.Row="1"
-                             Grid.Column="1"
-                             Value="{Binding LevelProgress, Mode=OneWay}"
-                             Style="{StaticResource ScoreCardProgressBarStyle}"
-                             BorderBrush="{Binding AccentBrush}"
-                             Foreground="{Binding AccentBrush}"
-                             VerticalAlignment="Center"
-                             Margin="0"/>
-                <Grid Grid.Row="2"
-                      Grid.Column="1"
-                      Margin="0"
-                      ClipToBounds="True">
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="*"/>
-                        <ColumnDefinition Width="Auto"/>
-                    </Grid.ColumnDefinitions>
-                    <TextBlock Grid.Column="0"
-                               Text="{Binding TierText}"
-                               Style="{StaticResource ScoreCardTierTextStyle}"
-                               Foreground="{Binding AccentBrush}"
-                               TextAlignment="Left"
-                               HorizontalAlignment="Stretch"/>
-                    <TextBlock Grid.Column="1"
-                               Text="{Binding LevelText}"
-                               Style="{StaticResource ScoreCardTierTextStyle}"
-                               Foreground="{Binding AccentBrush}"
-                               TextAlignment="Left"
-                               MaxWidth="150"
-                               Margin="10,0,0,0"/>
+                               Style="{StaticResource ScoreCardLabelTextStyle}"/>
+
+                    <!-- Rank is the card's identity; the score rides alongside it rather than
+                         above it, so the bar below reads as the rank's own progress. -->
+                    <Grid Grid.Row="1">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Grid.Column="0"
+                                   Style="{StaticResource ScoreCardTierTextStyle}"
+                                   Foreground="{Binding AccentBrush}"/>
+                        <TextBlock Grid.Column="1"
+                                   Text="{Binding PointsText}"
+                                   Style="{StaticResource ScoreCardPointsTextStyle}"
+                                   HorizontalAlignment="Right"/>
+                    </Grid>
+
+                    <ItemsControl Grid.Row="2"
+                                  ItemsSource="{Binding Segments}"
+                                  Style="{StaticResource ScoreCardSegmentBarStyle}">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <UniformGrid Rows="1"/>
+                            </ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Border Background="{Binding Fill}"
+                                        CornerRadius="2"
+                                        Margin="0,0,3,0"
+                                        SnapsToDevicePixels="True"/>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+
+                    <TextBlock Grid.Row="3"
+                               Text="{Binding CaptionText}"
+                               Style="{StaticResource ScoreCardCaptionTextStyle}"/>
                 </Grid>
             </Grid>
         </Border>

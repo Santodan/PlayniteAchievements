@@ -61,9 +61,9 @@ namespace PlayniteAchievements.Services.UI
         private const int HoldPollIntervalMs = 1000;
         private const int MinHoldPollDelayMs = 15;
         // Target gap (DIP) from the screen/game-window corner to the visible card body, held
-        // constant regardless of the card's ToastGlowMargin: the window margin is derived as
-        // CornerGapDip - glow so the body sits here whether or not the border glow is on (with the
-        // glow on, the glow itself may reach the screen edge). Tunable.
+        // constant regardless of the room the card reserves around itself: the window margin is
+        // derived as CornerGapDip less that room, so the body sits here whether or not the border
+        // glow is on (with the glow on, the glow itself may reach the screen edge). Tunable.
         private const double CornerGapDip = 24d;
         // Gap between asking the sound host for the sound and the toast slide-in / controller
         // pulse, so the audible onset and the reveal land together. Derived from the host's path:
@@ -87,9 +87,13 @@ namespace PlayniteAchievements.Services.UI
         // The corner the current wave uses, resolved once per wave (theme override or plugin
         // setting). Read by the per-frame positioning path so it isn't re-resolved every frame.
         private ToastScreenCorner _activePosition = ToastScreenCorner.BottomRight;
-        // The wave cards' uniform ToastGlowMargin, resolved once per wave. Positioning subtracts it
-        // from CornerGapDip so the visible card body sits a constant distance from the corner.
-        private double _activeCardGlow;
+        // The transparent room the wave's stack reserves outside its card bodies, measured from
+        // the laid-out cards once per wave (ToastSurfaceFactory.ApplyMeasuredCardGaps).
+        // Positioning subtracts the two edges the active corner uses from CornerGapDip, so the
+        // visible body sits a constant distance from the corner whatever the template reserves.
+        // The two axes differ for a template whose root margin is not uniform, so the gap is
+        // carried per axis rather than as one number.
+        private Thickness _activeCardInset;
         private bool _activeToastThemeStylingEnabled = true;
         // The game the current wave belongs to, resolved once per wave. Screenshot capture and
         // toast placement key window resolution off this game so a wave from one running game
@@ -259,9 +263,12 @@ namespace PlayniteAchievements.Services.UI
 
         /// <summary>
         /// Drains the wave's track recorder (compression worker) off the UI thread and raises
-        /// <see cref="TracksCompleted"/>. Fire-and-forget from the wave's cleanup.
+        /// <see cref="TracksCompleted"/>. Fire-and-forget from the wave's cleanup. Tracks of
+        /// <paramref name="framedVms"/> get their frame chrome first, so a track reaches the
+        /// recording service complete.
         /// </summary>
-        private async Task CompleteAndRaiseTracksAsync(ToastOverlayTrackRecorder recorder)
+        private async Task CompleteAndRaiseTracksAsync(
+            ToastOverlayTrackRecorder recorder, IReadOnlyList<AchievementToastViewModel> framedVms)
         {
             if (recorder == null)
             {
@@ -277,6 +284,15 @@ namespace PlayniteAchievements.Services.UI
                         "[Recording] Toast overlay recorder completed without card samples; " +
                         "unlock videos for this wave cannot composite the notification.");
                     return;
+                }
+
+                try
+                {
+                    await AttachFramedClipChromeAsync(tracks, framedVms).ConfigureAwait(false);
+                }
+                catch (Exception ex)
+                {
+                    _logger?.Debug(ex, "Frame chrome rendering for framed clips failed.");
                 }
 
                 TracksCompleted?.Invoke(this, new ToastTracksCompletedEventArgs(tracks));
@@ -463,6 +479,8 @@ namespace PlayniteAchievements.Services.UI
                 gameCustomDataStore: _gameCustomDataStore)
             {
                 NeedsOverlayTrack = needsOverlayTrack,
+                NeedsFramedClip = needsOverlayTrack &&
+                    (UnlockClipVariantPolicy.Resolve(args, _settings?.Persisted) & ScreenshotVariants.Framed) != 0,
                 NotifyReadyAtUtc = notifyReadyAtUtc,
             });
             if (!_processing)
@@ -758,7 +776,8 @@ namespace PlayniteAchievements.Services.UI
                         {
                             ToastWindowPlacer.ComputeCorner(
                                 anchorPhys, physSize.Width, physSize.Height, _activeMonitorScale,
-                                AlignRight(), AlignBottom(), EffectiveGapDip(), out var ix, out var iy);
+                                AlignRight(), AlignBottom(), EffectiveGapDipX(), EffectiveGapDipY(),
+                                out var ix, out var iy);
                             rect = new System.Drawing.Rectangle(ix, iy, physSize.Width, physSize.Height);
                         }
                     }
@@ -1077,8 +1096,10 @@ namespace PlayniteAchievements.Services.UI
                 var ph = Math.Max(1, (int)Math.Ceiling(cardHPhys * scale));
 
                 // Opacity animated on the slide host (a theme may fade the notification in or out
-                // instead of sliding it) lives above the card, so rendering the card alone would miss
-                // it and the clip would show an opaque card while the screen showed a fade.
+                // instead of sliding it) lives above the card, so rendering the card alone misses
+                // it. Only the still-image composites bake it in here; the clip track records it
+                // per sample instead and replays it at export, because its pixels are held frozen
+                // for a slide storyboard's whole span — which is exactly when a fade runs.
                 var hostOpacity = applyHostOpacity ? _activeSlideHost?.Opacity ?? 1d : 1d;
 
                 // The container's offset within its parent panel: zero for a single-card wave and
@@ -1381,13 +1402,13 @@ namespace PlayniteAchievements.Services.UI
                 // A frame primed before the slide substitutes for the first tick's rasterization:
                 // submitting it is only an enqueue, so the slide-in's early frames carry no render
                 // cost. Deliberately ahead of the stagger — no rasterization happens either way.
-                // A fade theme's first tick must not submit opacity-1 pixels primed before the
-                // fade began, so mid-fade the buffer goes back and the live path runs instead.
+                // Valid at any point in a fade, because no render on this path carries the host's
+                // opacity: it is recorded per sample and replayed at export.
                 if (scratch.PrimedPixels != null)
                 {
                     var primed = scratch.PrimedPixels;
                     scratch.PrimedPixels = null;
-                    if (hostOpacity >= 0.999 && recorder.CanAcceptFrame(vm))
+                    if (recorder.CanAcceptFrame(vm))
                     {
                         recorder.Sample(
                             vm, primed, scratch.PrimedW, scratch.PrimedH,
@@ -1452,7 +1473,7 @@ namespace PlayniteAchievements.Services.UI
                 {
                     rendered = TryRenderToastItemBytes(
                         window, container, scratch, len => recorder.RentBuffer(vm, len),
-                        applyHostOpacity: true, captureScale, probeCase: null,
+                        applyHostOpacity: false, captureScale, probeCase: null,
                         out pixels, out pw, out ph, out cardWPhys, out cardHPhys);
                 }
                 finally
@@ -1485,14 +1506,14 @@ namespace PlayniteAchievements.Services.UI
                 // Ray layers refresh on a time budget: rays drift slowly and the export
                 // crossfades adjacent layers, so a modest capture rate plays back smoothly while
                 // each capture's full with-rays render stays rare enough to keep the tick healthy.
-                // Skipped mid-fade — the layer must carry no host opacity of its own, since the
-                // export scales it by the sample's. Computed before the Sample call (which passes
-                // the bare buffer's ownership to the worker), attached after it (the item's time
-                // epoch must exist first).
+                // Both renders the delta comes from exclude host opacity, so a mid-fade capture is
+                // as valid as any other. Computed before the Sample call (which passes the bare
+                // buffer's ownership to the worker), attached after it (the item's time epoch must
+                // exist first).
                 byte[] rayDelta = null;
                 var rayW = 0;
                 var rayH = 0;
-                if (rayBursts.Count > 0 && hostOpacity >= 0.999 &&
+                if (rayBursts.Count > 0 &&
                     _runningSlideStoryboard == null &&
                     elapsedMs - scratch.LastRayCaptureMs >= RayLayerBaseIntervalMs * toastItems.Count)
                 {
@@ -1539,7 +1560,7 @@ namespace PlayniteAchievements.Services.UI
             {
                 rendered = TryRenderToastItemBytes(
                     window, container, scratch: null, len => recorder.RentBuffer(vm, len),
-                    applyHostOpacity: true, captureScale, probeCase: "rays",
+                    applyHostOpacity: false, captureScale, probeCase: "rays",
                     out withRays, out rw, out rh, out _, out _);
             }
             finally
@@ -1603,8 +1624,9 @@ namespace PlayniteAchievements.Services.UI
 
         /// <summary>
         /// The shadow-layer multiplier for this tick: the glow effect's current animated opacity
-        /// relative to the opacity the layer was captured at, times the slide host's opacity (the
-        /// halo must fade with a fade theme even though the card pixels carry that fade already).
+        /// relative to the opacity the layer was captured at, times the slide host's opacity, so
+        /// the halo fades with a fade theme the way the card pixels do (export scales those by the
+        /// sample's host opacity; no render bakes it in).
         /// </summary>
         private static double ComputeGlowScale(CardRenderScratch scratch, double hostOpacity)
         {
@@ -1713,7 +1735,7 @@ namespace PlayniteAchievements.Services.UI
                 {
                     rendered = TryRenderToastItemBytes(
                         window, container, scratch, len => recorder.RentBuffer(vm, len),
-                        applyHostOpacity: true, captureScale, probeCase: null,
+                        applyHostOpacity: false, captureScale, probeCase: null,
                         out pixels, out pw, out ph, out cardWPhys, out cardHPhys);
                 }
                 finally
@@ -1866,7 +1888,8 @@ namespace PlayniteAchievements.Services.UI
 
             ToastWindowPlacer.ComputeCorner(
                 clientPhys, physW, physH, _activeMonitorScale,
-                AlignRight(), AlignBottom(), EffectiveGapDip(), out var cornerX, out var cornerY);
+                AlignRight(), AlignBottom(), EffectiveGapDipX(), EffectiveGapDipY(),
+                out var cornerX, out var cornerY);
             WarnOnSettledCardDrift(toastItems.Count, cornerX - clientPhys.X, cornerY - clientPhys.Y,
                 settledRelX, settledRelY);
         }
@@ -2268,7 +2291,9 @@ namespace PlayniteAchievements.Services.UI
             // previous wave's. Only the storyboards' shape is resolved here; each is bound to this
             // wave's slide host at the slide itself, since the window does not exist yet.
             ResolveWaveSlideTiming();
-            _activeCardGlow = wave[0].ToastGlowMargin.Top;
+            // Zero until the cards are laid out and measured; the pre-show placement pass has no
+            // card to measure either, so the two agree.
+            _activeCardInset = default(Thickness);
             // Placement state is per-wave: the correction is measured on this wave's first settled
             // placement, and the anomaly warning is emitted at most once for it.
             _placementCorrection = default(ToastWindowPlacer.PlacementCorrection);
@@ -2608,6 +2633,15 @@ namespace PlayniteAchievements.Services.UI
                 // actual render scale, snap to the corner, and (for a visible wave) reveal.
                 ApplyDpiCompensation(window, items, fitScale);
 
+                // Collapse the room between stacked cards, and learn the stack's outer inset, from
+                // the cards as they actually laid out. Both are properties of the active template,
+                // so they cannot be known before this point and must not be guessed from the view
+                // model: only the bundled template reserves ToastGlowMargin, and deriving the
+                // layout from it pulled a theme card into the one above it and sat the stack too
+                // close to the corner. Before ReserveSlideTravel, whose travel distance is the
+                // card surface's laid-out height.
+                _activeCardInset = ToastSurfaceFactory.ApplyMeasuredCardGaps(items);
+
                 // Reserve the slide's travel now that the card has its final laid-out size, so the
                 // window is large enough to hold the card at both ends of the slide. Placed between the
                 // compensation and the settled placement because it changes the window's size, and the
@@ -2657,7 +2691,8 @@ namespace PlayniteAchievements.Services.UI
                 {
                     trackRecorder = new ToastOverlayTrackRecorder(
                         _logger, TrackSampleIntervalMs(),
-                        AlignRight(), AlignBottom(), EffectiveGapDip(), _activeMonitorScale);
+                        AlignRight(), AlignBottom(), EffectiveGapDipX(), EffectiveGapDipY(),
+                        _activeMonitorScale);
                     _trackRenderScratch = new Dictionary<AchievementToastViewModel, CardRenderScratch>();
                     trackSampleCount = 0;
                     _waveShadowCaptureCount = 0;
@@ -2940,7 +2975,9 @@ namespace PlayniteAchievements.Services.UI
 
                 // Finalize and hand the recorded card tracks to the recording service. The raw
                 // pixels are already captured, so this safely outlives window.Close() below.
-                _ = CompleteAndRaiseTracksAsync(trackRecorder);
+                _ = CompleteAndRaiseTracksAsync(
+                    trackRecorder,
+                    trackRecorder != null ? cardItems.Where(vm => vm.NeedsFramedClip).ToList() : null);
 
                 StopActiveSlide();
                 _activeCardSurface = null;
@@ -3152,6 +3189,93 @@ namespace PlayniteAchievements.Services.UI
         }
 
         /// <summary>
+        /// The frame template for one item, scoped to its game/provider (game > provider > global)
+        /// so a per-game or per-platform custom frame applies. Null when none resolves.
+        /// </summary>
+        private DataTemplate ResolveFrameTemplate(AchievementToastViewModel vm)
+        {
+            return _templateResolver.ResolveFrameTemplate(
+                vm.FrameUseThemeStyling,
+                vm.ProviderKey,
+                vm.PlayniteGameId);
+        }
+
+        /// <summary>
+        /// Readies everything the frame renders for one item. UI thread; returns false once the
+        /// service is disposed.
+        /// </summary>
+        private async Task<bool> PrepareFrameVisualsAsync(AchievementToastViewModel vm)
+        {
+            // The frame renders synchronously into a bitmap, so the ray burst inside it can only
+            // read a track that is already cached. Warm it here, at the one seam in this path that
+            // can await, and cap the wait so a slow fetch costs the burst its silhouette rather
+            // than costing the capture its frame.
+            await WarmRayTrackAsync(vm.IconPath);
+            if (_disposed)
+            {
+                return false;
+            }
+
+            // The artwork itself is the same story with no graceful degradation: a missing ray
+            // track leaves the burst a rounded rectangle, while a missing icon leaves a hole in the
+            // saved capture. So this one is uncapped. It is also the only thing that resolves the
+            // icon for a windowless wave, which saves screenshots without ever priming a visual.
+            await vm.PrepareImagesAsync();
+            return !_disposed;
+        }
+
+        /// <summary>
+        /// Renders the frame chrome onto each track whose achievement asked for a framed clip, at
+        /// the size the clip is encoded at: the track's client size under the recording
+        /// resolution cap, which is how the recorder sizes its own frames. Runs at Background
+        /// priority on the UI thread, after the wave has left the screen. A track left without
+        /// chrome has its framed clip skipped.
+        /// </summary>
+        private async Task AttachFramedClipChromeAsync(
+            IReadOnlyList<ToastOverlayTrack> tracks, IReadOnlyList<AchievementToastViewModel> framedVms)
+        {
+            if (tracks == null || framedVms == null || framedVms.Count == 0)
+            {
+                return;
+            }
+
+            var dispatcher = GetDispatcher();
+            if (dispatcher == null)
+            {
+                return;
+            }
+
+            var capHeight = ResolutionCapMath.CapHeightFor(
+                _settings?.Persisted?.RecordingResolution ?? RecordingResolution.Native);
+            var render = await dispatcher.InvokeAsync(async () =>
+            {
+                foreach (var track in tracks)
+                {
+                    var vm = framedVms.FirstOrDefault(v => v.CaptureCorrelationId == track.CaptureCorrelationId);
+                    var client = track.Samples.FirstOrDefault(s => s.ClientW > 0 && s.ClientH > 0);
+                    if (vm == null || client.ClientW <= 0)
+                    {
+                        continue;
+                    }
+
+                    var template = ResolveFrameTemplate(vm);
+                    if (template == null || !await PrepareFrameVisualsAsync(vm))
+                    {
+                        continue;
+                    }
+
+                    var size = ResolutionCapMath.Apply(client.ClientW, client.ClientH, capHeight, evenDimensions: true);
+                    var timer = System.Diagnostics.Stopwatch.StartNew();
+                    track.FrameChrome = _frameCompositor.RenderChrome(template, vm, size.Width, size.Height);
+                    _logger?.Debug(
+                        $"[Recording] Frame chrome for '{track.AchievementName}' at {size.Width}x{size.Height}: " +
+                        $"{(track.FrameChrome != null ? "rendered" : "failed")} in {timer.ElapsedMilliseconds}ms.");
+                }
+            }, DispatcherPriority.Background);
+            await render.ConfigureAwait(false);
+        }
+
+        /// <summary>
         /// Saves all requested screenshot variants for a wave. Starts on the UI thread
         /// (fire-and-forget from the toast pipeline): framed composites render on the dispatcher
         /// at Background priority so the toast animation stays smooth, and all PNG/file I/O is
@@ -3218,12 +3342,7 @@ namespace PlayniteAchievements.Services.UI
                             break;
                         }
 
-                        // Scope the frame template to each item's game/provider (game >
-                        // provider > global) so a per-game or per-platform custom frame applies.
-                        var frameTemplate = _templateResolver.ResolveFrameTemplate(
-                            item.Vm.FrameUseThemeStyling,
-                            item.Vm.ProviderKey,
-                            item.Vm.PlayniteGameId);
+                        var frameTemplate = ResolveFrameTemplate(item.Vm);
                         if (frameTemplate == null)
                         {
                             continue;
@@ -3242,23 +3361,7 @@ namespace PlayniteAchievements.Services.UI
                             continue;
                         }
 
-                        // The frame renders synchronously into a bitmap, so the ray burst inside it
-                        // can only read a track that is already cached. Warm it here, at the one
-                        // seam in this path that can await, and cap the wait so a slow fetch costs
-                        // the burst its silhouette rather than costing the capture its frame.
-                        await WarmRayTrackAsync(item.Vm.IconPath);
-                        if (_disposed)
-                        {
-                            break;
-                        }
-
-                        // The artwork itself is the same story with no graceful degradation: a
-                        // missing ray track leaves the burst a rounded rectangle, while a missing
-                        // icon leaves a hole in the saved screenshot. So this one is uncapped.
-                        // It is also the only thing that resolves the icon for a windowless wave,
-                        // which saves screenshots without ever priming a visual.
-                        await item.Vm.PrepareImagesAsync();
-                        if (_disposed)
+                        if (!await PrepareFrameVisualsAsync(item.Vm))
                         {
                             break;
                         }
@@ -3543,11 +3646,17 @@ namespace PlayniteAchievements.Services.UI
             return _activePosition == ToastScreenCorner.BottomLeft || _activePosition == ToastScreenCorner.BottomRight;
         }
 
-        // The window-edge gap in DIPs: the visible-body gap (CornerGapDip) less the card's own glow
-        // margin, so the body sits a constant distance from the corner whether or not the glow is on.
-        private double EffectiveGapDip()
+        // The window-edge gap in DIPs on each axis: the visible-body gap (CornerGapDip) less the
+        // room the stack reserves on the edge the active corner sits against, so the body sits a
+        // constant distance from the corner whatever the template reserves there.
+        private double EffectiveGapDipX()
         {
-            return CornerGapDip - _activeCardGlow;
+            return CornerGapDip - (AlignRight() ? _activeCardInset.Right : _activeCardInset.Left);
+        }
+
+        private double EffectiveGapDipY()
+        {
+            return CornerGapDip - (AlignBottom() ? _activeCardInset.Bottom : _activeCardInset.Top);
         }
 
         /// <summary>
@@ -3594,7 +3703,8 @@ namespace PlayniteAchievements.Services.UI
             var renderScale = ToastWindowPlacer.RenderScale(window);
             var placed = ToastWindowPlacer.PositionPhysical(
                 window, _activeCardSurface, SlideOffsetDipX(), SlideOffsetDipY(),
-                anchorPhys, renderScale, _activeMonitorScale, AlignRight(), AlignBottom(), EffectiveGapDip(),
+                anchorPhys, renderScale, _activeMonitorScale, AlignRight(), AlignBottom(),
+                EffectiveGapDipX(), EffectiveGapDipY(),
                 measure, ref _placementCorrection, out outcome);
             LogPlacementAnomaly(window, anchorPhys, renderScale, outcome);
 

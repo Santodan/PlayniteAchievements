@@ -115,8 +115,17 @@ namespace PlayniteAchievements.Services.Capture
                 _shadowLayer.Height == overlayFrame.Height &&
                 _shadowPixels.Length == _inflated.Length;
 
+            // The recorded card pixels carry no host opacity. A theme that fades the notification
+            // animates the slide host, and baking that into the capture would freeze along with the
+            // pixels for a slide's whole span (the recorder holds one frame while a slide storyboard
+            // runs), so a fade reached the clip as a single held opacity and then a cut. Replaying it
+            // here makes it interpolated metadata like the slide offset and the glow pulse, playing
+            // at the clip's full frame rate. The difference layers below already carry it in their
+            // own factors, so only the card pixels are scaled.
+            var hostOpacity = ToastOverlayExportMath.GetHostOpacity(_track, sampleIndex, secondsIntoTrack);
+
             var overlayPixels = _inflated;
-            if (composeRays || composeShadow)
+            if (composeRays || composeShadow || hostOpacity < 1.0)
             {
                 if (_glowScratch == null || _glowScratch.Length != _inflated.Length)
                 {
@@ -124,9 +133,9 @@ namespace PlayniteAchievements.Services.Capture
                 }
 
                 Buffer.BlockCopy(_inflated, 0, _glowScratch, 0, _inflated.Length);
+                OverlayBlitMath.ScaleAll(_glowScratch, hostOpacity);
                 if (composeRays)
                 {
-                    var hostOpacity = ToastOverlayExportMath.GetHostOpacity(_track, sampleIndex, secondsIntoTrack);
                     var blend = ToastOverlayExportMath.GetRayLayerBlend(_track, _rayCursor, secondsIntoTrack);
                     var blendNext = blend > 0 && followIndex >= 0 && _rayNextPixels != null &&
                         LayerMatchesFrame(_track.RayLayers[followIndex].Layer, overlayFrame) &&

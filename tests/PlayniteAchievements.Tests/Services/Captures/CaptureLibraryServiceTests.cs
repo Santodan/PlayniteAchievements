@@ -1,6 +1,7 @@
 using System;
 using System.IO;
 using System.Linq;
+using System.Threading;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using PlayniteAchievements.Models.Settings;
 using PlayniteAchievements.Services.Captures;
@@ -60,6 +61,10 @@ namespace PlayniteAchievements.Services.Tests.Captures
 
             service.Invalidate();
 
+            // The library-wide signal is debounced, so the raise lands off the calling thread.
+            Assert.IsTrue(
+                SpinWait.SpinUntil(() => raised > 0, TimeSpan.FromSeconds(5)),
+                "Writers rely on the debounced signal reaching open grids.");
             Assert.AreEqual(1, raised);
             Assert.IsNull(seen.GameName);
             Assert.IsNull(seen.FolderName);
@@ -104,6 +109,9 @@ namespace PlayniteAchievements.Services.Tests.Captures
 
             // Delete Braid's captures behind the service's back. A targeted invalidate of Portal
             // must not re-enumerate (and therefore must not notice) the untouched game.
+            // Only observable because the test service does not watch the directory: with a
+            // watcher running this races it, and the deletion is noticed under load but not when
+            // the test runs alone.
             Directory.Delete(
                 Path.Combine(_root, UnlockScreenshotService.SanitizeCaptureGameName("Braid")),
                 recursive: true);

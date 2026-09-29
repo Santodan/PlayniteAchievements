@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Reflection;
 using System.Threading;
 using System.Threading.Tasks;
@@ -24,11 +25,11 @@ namespace PlayniteAchievements.Providers.Tests
             var context = CreateRegistryContext("old-path");
 
             var edited = (XeniaSettings)context.Registry.GetSettingsForEdit("Xenia");
-            edited.AccountPath = "new-path";
+            edited.AccountPaths = new List<string> { "new-path" };
 
             Assert.IsNotNull(edited);
             Assert.AreNotSame(context.LiveSettings, edited);
-            Assert.AreEqual("old-path", context.LiveSettings.AccountPath);
+            Assert.AreEqual("old-path", PathOf(context.LiveSettings));
             Assert.AreEqual("old-path", GetPersistedAccountPath(context.Settings));
         }
 
@@ -38,15 +39,15 @@ namespace PlayniteAchievements.Providers.Tests
             var context = CreateRegistryContext("old-path");
 
             var edited = (XeniaSettings)context.Registry.GetSettingsForEdit("Xenia");
-            edited.AccountPath = "new-path";
+            edited.AccountPaths = new List<string> { "new-path" };
 
             context.Registry.BeginEditSession();
 
             var resumed = (XeniaSettings)context.Registry.GetSettingsForEdit("Xenia");
 
             Assert.AreSame(edited, resumed);
-            Assert.AreEqual("new-path", resumed.AccountPath);
-            Assert.AreEqual("old-path", context.LiveSettings.AccountPath);
+            Assert.AreEqual("new-path", PathOf(resumed));
+            Assert.AreEqual("old-path", PathOf(context.LiveSettings));
         }
 
         [TestMethod]
@@ -55,14 +56,14 @@ namespace PlayniteAchievements.Providers.Tests
             var context = CreateRegistryContext("old-path");
 
             var edited = (XeniaSettings)context.Registry.GetSettingsForEdit("Xenia");
-            edited.AccountPath = "new-path";
+            edited.AccountPaths = new List<string> { "new-path" };
 
             context.Registry.BeginEditSession();
             context.Registry.CommitEditSession(false);
             context.Registry.PersistAllProviderSettings(false);
 
-            Assert.AreEqual("new-path", context.LiveSettings.AccountPath);
-            Assert.AreEqual("new-path", context.Provider.Settings.AccountPath);
+            Assert.AreEqual("new-path", PathOf(context.LiveSettings));
+            Assert.AreEqual("new-path", PathOf(context.Provider.Settings));
             Assert.AreEqual("new-path", GetPersistedAccountPath(context.Settings));
         }
 
@@ -72,16 +73,16 @@ namespace PlayniteAchievements.Providers.Tests
             var context = CreateRegistryContext("old-path");
 
             var edited = (XeniaSettings)context.Registry.GetSettingsForEdit("Xenia");
-            edited.AccountPath = "new-path";
+            edited.AccountPaths = new List<string> { "new-path" };
 
             context.Registry.BeginEditSession();
             context.Registry.CancelEditSession();
 
             var reopened = (XeniaSettings)context.Registry.GetSettingsForEdit("Xenia");
 
-            Assert.AreEqual("old-path", context.LiveSettings.AccountPath);
-            Assert.AreEqual("old-path", context.Provider.Settings.AccountPath);
-            Assert.AreEqual("old-path", reopened.AccountPath);
+            Assert.AreEqual("old-path", PathOf(context.LiveSettings));
+            Assert.AreEqual("old-path", PathOf(context.Provider.Settings));
+            Assert.AreEqual("old-path", PathOf(reopened));
             Assert.AreEqual("old-path", GetPersistedAccountPath(context.Settings));
         }
 
@@ -193,7 +194,7 @@ namespace PlayniteAchievements.Providers.Tests
             var settings = new PlayniteAchievementsSettings();
             var liveSettings = new XeniaSettings
             {
-                AccountPath = initialAccountPath,
+                AccountPaths = new List<string> { initialAccountPath },
                 IsEnabled = true
             };
 
@@ -215,9 +216,14 @@ namespace PlayniteAchievements.Providers.Tests
             registerMethod.Invoke(registry, new object[] { provider });
         }
 
+        private static string PathOf(XeniaSettings settings)
+        {
+            return settings.AccountPaths.Single();
+        }
+
         private static string GetPersistedAccountPath(PlayniteAchievementsSettings settings)
         {
-            return settings?.Persisted?.ProviderSettings?["Xenia"]?["AccountPath"]?.ToString();
+            return settings?.Persisted?.ProviderSettings?["Xenia"]?["AccountPaths"]?[0]?.ToString();
         }
 
         private sealed class RegistryContext

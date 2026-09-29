@@ -1,3 +1,4 @@
+using PlayniteAchievements.Common;
 using PlayniteAchievements.Models;
 using PlayniteAchievements.Models.Achievements;
 using PlayniteAchievements.Models.Settings;
@@ -20,7 +21,7 @@ using System.Threading.Tasks;
 
 namespace PlayniteAchievements.Providers.RetroAchievements
 {
-    internal sealed class RetroAchievementsDataProvider : DataProviderBase<RetroAchievementsSettings>, IDataProvider, IAchievementPageLinkProvider, IProviderOverride, IInGameProgressSource, IDisposable
+    internal sealed class RetroAchievementsDataProvider : DataProviderBase<RetroAchievementsSettings>, IDataProvider, IProfileLinkProvider, IAchievementPageLinkProvider, IProviderOverride, IInGameProgressSource, IDisposable
     {
         public ProviderOverrideDescriptor OverrideDescriptor { get; } = ProviderOverrideDescriptor.Text(
             "LOCPlayAch_ManageAchievements_Overrides_ProviderValueLabel_RetroAchievements",
@@ -42,6 +43,14 @@ namespace PlayniteAchievements.Providers.RetroAchievements
         private readonly RetroAchievementsPathResolver _pathResolver;
 
         private readonly object _initLock = new object();
+
+        /// <summary>
+        /// Correlation between RetroAchievements' clock and the capture timeline. Owned here rather
+        /// than by the API client so it outlives the client being rebuilt on a credential change,
+        /// and so a registration can reference it before the first call.
+        /// </summary>
+        private readonly ServerClockOffset _serverClock = new ServerClockOffset();
+
         private RetroAchievementsApiClient _apiClient;
         private RetroAchievementsHashIndexStore _hashIndexStore;
         private RetroAchievementsHashCacheStore _hashCacheStore;
@@ -79,6 +88,12 @@ namespace PlayniteAchievements.Providers.RetroAchievements
         public string ProviderName => ResourceProvider.GetString("LOCPlayAch_Provider_RetroAchievements");
         public string ProviderKey => "RetroAchievements";
         public string ProviderIconKey => "ProviderIconRetroAchievements";
+
+        public string ProfileUrlPattern => "https://retroachievements.org/user/{0}";
+
+        public string BuildProfileUrl(string user) => ProfileLinkUrls.Format(ProfileUrlPattern, user);
+
+        public string GetCurrentUserProfileName() => ProviderSettings.RaUsername;
         public string ProviderColorHex => "#FFD700";
         public ISessionManager AuthSession => null;
 
@@ -155,9 +170,10 @@ namespace PlayniteAchievements.Providers.RetroAchievements
                 return false;
             }
 
-            if (CueTrackReader.IsCuePath(path))
+            // Any existing track counts: Atari Jaguar CD cues hold only audio tracks.
+            if (CueTrackReader.IsCuePath(path) || DiscImage.IsGdiPath(path))
             {
-                return CueTrackReader.HasReadableDataTrack(path);
+                return DiscImage.GetImageFiles(path).Count > 1;
             }
 
             return File.Exists(path) || ArchiveUtils.IsArchivePath(path);
@@ -264,7 +280,16 @@ namespace PlayniteAchievements.Providers.RetroAchievements
             {
                 ProviderKey = ProviderKey,
                 IsRemote = true,
-                PollInterval = RecentFeedInterval
+                PollInterval = RecentFeedInterval,
+
+                // Declared even though this source is remote, which Auto would resolve to
+                // SourceObservation: the feed's stamps are converted from RetroAchievements' clock
+                // onto the capture timeline before they leave the mapper, so they place the
+                // notification on the unlock itself rather than up to a poll interval after it.
+                // Until the first clock sample the mapper reports a stamp it could not convert,
+                // and ReportedClock makes the selector anchor on the observation instead.
+                UnlockAnchorPolicy = InGameUnlockAnchorPolicy.ProviderReported,
+                ReportedClock = _serverClock
             };
         }
 
@@ -319,6 +344,14 @@ namespace PlayniteAchievements.Providers.RetroAchievements
                 ProviderKey = ProviderKey,
                 WatchTargets = new[] { logPath },
                 PollInterval = InGameProgressRegistration.FileWatchSafetyPollInterval,
+
+                // The log line carries no timestamp, so its unlock stamp is the read time, already
+                // on the capture timeline. QueryAsync also merges the remote feed's observations
+                // into log-tracked games once baselined, and those are converted onto the same
+                // timeline by the mapper -- so both stamp sources anchor directly. ReportedClock
+                // keeps the merged feed stamps from anchoring before that clock is correlated.
+                UnlockAnchorPolicy = InGameUnlockAnchorPolicy.ProviderReported,
+                ReportedClock = _serverClock,
                 State = new RaEmulatorLogSession(logPath, entry.Profile, achievementIds)
             };
         }
@@ -394,7 +427,8 @@ namespace PlayniteAchievements.Providers.RetroAchievements
                     foreach (var mapped in RetroAchievementsRecentProgressMapper.Map(
                         recent,
                         feedContexts,
-                        MarkRecentSeen))
+                        MarkRecentSeen,
+                        _serverClock.ToCaptureTimeline))
                     {
                         if (observationsByGame.TryGetValue(mapped.GameId, out var merged))
                         {
@@ -468,7 +502,7 @@ namespace PlayniteAchievements.Providers.RetroAchievements
                 }
 
                 _apiClient?.Dispose();
-                _apiClient = new RetroAchievementsApiClient(_logger, username, apiKey, language);
+                _apiClient = new RetroAchievementsApiClient(_logger, username, apiKey, language, _serverClock);
                 _hashIndexStore = new RetroAchievementsHashIndexStore(_logger, _settings, _apiClient, _pluginUserDataPath);
                 _hashCacheStore = new RetroAchievementsHashCacheStore(_logger, _pluginUserDataPath);
                 _scanner = new RetroAchievementsScanner(

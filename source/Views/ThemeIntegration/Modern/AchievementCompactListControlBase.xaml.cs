@@ -5,6 +5,9 @@ using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
+using System.Windows.Media;
+using Playnite.SDK;
+using PlayniteAchievements.Services.Logging;
 using Playnite.SDK.Models;
 using PlayniteAchievements.Common;
 using PlayniteAchievements.Models.Achievements;
@@ -91,7 +94,7 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Modern
         /// </summary>
         public static readonly DependencyProperty SoftGlowTiersProperty =
             DependencyProperty.Register(nameof(SoftGlowTiers), typeof(RaritySelection),
-                typeof(AchievementCompactListControlBase), new PropertyMetadata(RaritySelection.All));
+                typeof(AchievementCompactListControlBase), new PropertyMetadata(RaritySelectionExtensions.DefaultSoftGlowTiers));
 
         /// <summary>
         /// Gets or sets which rarity tiers show the soft halo in this list.
@@ -241,18 +244,61 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Modern
             Unloaded += OnUnloaded;
         }
 
+        /// <summary>
+        /// Keeps the wheel on this strip while the pointer is over it, scrolling it sideways.
+        /// Shared with the theme's grids, which meet the same page-level wheel handling.
+        /// </summary>
+        protected override WheelScrollAxis? WheelClaimAxis => WheelScrollAxis.PreferHorizontal;
+
+        /// <summary>
+        /// Whether the wheel hooks are registered. Loaded can fire again without an intervening
+        /// Unloaded, and RemoveHandler drops one registration per call, so an unguarded attach
+        /// leaves a copy on the window that nothing can take off again.
+        /// </summary>
+        private bool _wheelHooksAttached;
+
         private void OnLoaded(object sender, RoutedEventArgs e)
         {
             _isLoaded = true;
             LoadData();
-            // Attach mouse wheel handler for horizontal scrolling
-            PreviewMouseWheel += OnPreviewMouseWheel;
+            AttachWheelHooks();
         }
 
         private void OnUnloaded(object sender, RoutedEventArgs e)
         {
             _isLoaded = false;
-            PreviewMouseWheel -= OnPreviewMouseWheel;
+            DetachWheelHooks();
+        }
+
+        private void AttachWheelHooks()
+        {
+            if (_wheelHooksAttached)
+            {
+                return;
+            }
+
+            // handledEventsToo: PreviewMouseWheel tunnels from the root, so an ancestor that marks
+            // it handled -- a host ScrollViewer, or the theme's own chrome -- stops it before this
+            // control is reached and the wheel silently does nothing here. Registering this way is
+            // what lets the list scroll its own viewport regardless of what sits above it.
+            AddHandler(PreviewMouseWheelEvent, new MouseWheelEventHandler(OnPreviewMouseWheel), true);
+            _wheelHooksAttached = true;
+            if (Common.PerfScope.PerfTracingEnabled)
+            {
+                PluginLogger.GetLogger(nameof(AchievementCompactListControlBase))
+                    ?.Debug("[CompactWheel] handlers attached.");
+            }
+        }
+
+        private void DetachWheelHooks()
+        {
+            if (!_wheelHooksAttached)
+            {
+                return;
+            }
+
+            RemoveHandler(PreviewMouseWheelEvent, new MouseWheelEventHandler(OnPreviewMouseWheel));
+            _wheelHooksAttached = false;
         }
 
         /// <summary>
@@ -477,43 +523,148 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Modern
         }
 
         /// <summary>
-        /// Handles mouse wheel scrolling, preferring horizontal movement for compact list hosts.
+        /// Scrolls this strip's own viewport when nothing above it has claimed the wheel. The
+        /// window-level claim normally gets there first; this is the fallback for a host where
+        /// there is no window to hook.
         /// </summary>
         private void OnPreviewMouseWheel(object sender, MouseWheelEventArgs e)
         {
-            if (e.Delta != 0)
+            if (e.Delta == 0 || e.Handled)
             {
-                var scrollViewer = FindScrollViewer(this);
-                if (scrollViewer != null)
-                {
-                    if (scrollViewer.ScrollableWidth > 0)
-                    {
-                        e.Handled = true;
-                        scrollViewer.ScrollToHorizontalOffset(scrollViewer.HorizontalOffset - (e.Delta / 3.0));
-                    }
-                    else if (scrollViewer.ScrollableHeight > 0)
-                    {
-                        e.Handled = true;
-                        scrollViewer.ScrollToVerticalOffset(scrollViewer.VerticalOffset - (e.Delta / 3.0));
-                    }
-                }
+                // The window hook runs first and has already scrolled this notch; scrolling here
+                // as well moves the strip twice for one turn of the wheel.
+                return;
             }
+
+            var scrollViewer = FindScrollViewer(this);
+            if (scrollViewer == null)
+            {
+                LogWheelDiagnostics(null, "preview", e.Handled);
+                return;
+            }
+
+            LogWheelDiagnostics(scrollViewer, "preview", e.Handled);
+
+            if (scrollViewer.ScrollableWidth > 0)
+            {
+                e.Handled = true;
+                scrollViewer.ScrollToHorizontalOffset(scrollViewer.HorizontalOffset - (e.Delta / 3.0));
+                return;
+            }
+
+            if (scrollViewer.ScrollableHeight > 0)
+            {
+                e.Handled = true;
+                scrollViewer.ScrollToVerticalOffset(scrollViewer.VerticalOffset - (e.Delta / 3.0));
+            }
+
+            // Neither axis can move: left unhandled on purpose so the wheel still reaches whatever
+            // the control is hosted in, rather than being swallowed here.
         }
 
+        /// <summary>
+        /// Reports what the wheel handler found, so a list that will not scroll can be told apart
+        /// from one whose viewport already fits its content. Silent unless perf tracing is on.
+        /// </summary>
+        private void LogWheelDiagnostics(ScrollViewer scrollViewer, string pass, bool arrivedHandled)
+        {
+            if (!Common.PerfScope.PerfTracingEnabled)
+            {
+                return;
+            }
+
+            var logger = PluginLogger.GetLogger(nameof(AchievementCompactListControlBase));
+            if (scrollViewer == null)
+            {
+                logger?.Debug($"[CompactWheel] {pass} arrivedHandled={arrivedHandled}: no ScrollViewer found.");
+                return;
+            }
+
+            logger?.Debug(
+                $"[CompactWheel] {pass} arrivedHandled={arrivedHandled} extent={scrollViewer.ExtentWidth:F0}x{scrollViewer.ExtentHeight:F0} " +
+                $"viewport={scrollViewer.ViewportWidth:F0}x{scrollViewer.ViewportHeight:F0} " +
+                $"scrollable={scrollViewer.ScrollableWidth:F0}x{scrollViewer.ScrollableHeight:F0} " +
+                $"canContentScroll={scrollViewer.CanContentScroll}");
+        }
+
+        /// <summary>
+        /// The ScrollViewer this control's own items sit in. Taken from the items host upward rather
+        /// than by searching downward: a depth-first walk returns whichever ScrollViewer appears
+        /// first in the tree, which need not be the one that scrolls these items. The walk stops at
+        /// this control, so a host ScrollViewer outside it (the theme's page) is never returned.
+        /// </summary>
         private static ScrollViewer FindScrollViewer(DependencyObject parent)
         {
-            if (parent == null) return null;
-
-            for (int i = 0; i < System.Windows.Media.VisualTreeHelper.GetChildrenCount(parent); i++)
+            if (parent == null)
             {
-                var child = System.Windows.Media.VisualTreeHelper.GetChild(parent, i);
+                return null;
+            }
+
+            var itemsHost = FindItemsHost(parent);
+            if (itemsHost != null)
+            {
+                var ancestor = VisualTreeHelper.GetParent(itemsHost);
+                while (ancestor != null && !ReferenceEquals(ancestor, parent))
+                {
+                    if (ancestor is ScrollViewer hostScroller)
+                    {
+                        return hostScroller;
+                    }
+
+                    ancestor = VisualTreeHelper.GetParent(ancestor);
+                }
+            }
+
+            return FindFirstScrollViewer(parent);
+        }
+
+        private static Panel FindItemsHost(DependencyObject parent)
+        {
+            if (parent == null)
+            {
+                return null;
+            }
+
+            for (var i = 0; i < VisualTreeHelper.GetChildrenCount(parent); i++)
+            {
+                var child = VisualTreeHelper.GetChild(parent, i);
+                if (child is Panel panel && panel.IsItemsHost)
+                {
+                    return panel;
+                }
+
+                var result = FindItemsHost(child);
+                if (result != null)
+                {
+                    return result;
+                }
+            }
+
+            return null;
+        }
+
+        private static ScrollViewer FindFirstScrollViewer(DependencyObject parent)
+        {
+            if (parent == null)
+            {
+                return null;
+            }
+
+            for (var i = 0; i < VisualTreeHelper.GetChildrenCount(parent); i++)
+            {
+                var child = VisualTreeHelper.GetChild(parent, i);
                 if (child is ScrollViewer scrollViewer)
                 {
                     return scrollViewer;
                 }
-                var result = FindScrollViewer(child);
-                if (result != null) return result;
+
+                var result = FindFirstScrollViewer(child);
+                if (result != null)
+                {
+                    return result;
+                }
             }
+
             return null;
         }
 

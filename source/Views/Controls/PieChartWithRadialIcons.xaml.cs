@@ -72,6 +72,14 @@ namespace PlayniteAchievements.Views.Controls
             DependencyProperty.Register(nameof(IconOffset), typeof(double), typeof(PieChartWithRadialIcons),
                 new PropertyMetadata(12.0, OnLayoutPropertyChanged));
 
+        /// <summary>
+        /// Space between the control edge and the pie. Hosts that clip to their bounds need enough
+        /// here to hold the radial icons, including their hover push.
+        /// </summary>
+        public static readonly DependencyProperty PieMarginProperty =
+            DependencyProperty.Register(nameof(PieMargin), typeof(Thickness), typeof(PieChartWithRadialIcons),
+                new PropertyMetadata(new Thickness(10), OnLayoutPropertyChanged));
+
         public static readonly DependencyProperty HighlightedLabelsProperty =
             DependencyProperty.Register(nameof(HighlightedLabels), typeof(ObservableCollection<string>), typeof(PieChartWithRadialIcons),
                 new PropertyMetadata(null, OnHighlightedLabelsChanged));
@@ -134,6 +142,12 @@ namespace PlayniteAchievements.Views.Controls
         {
             get => (double)GetValue(IconOffsetProperty);
             set => SetValue(IconOffsetProperty, value);
+        }
+
+        public Thickness PieMargin
+        {
+            get => (Thickness)GetValue(PieMarginProperty);
+            set => SetValue(PieMarginProperty, value);
         }
 
         public ObservableCollection<string> HighlightedLabels

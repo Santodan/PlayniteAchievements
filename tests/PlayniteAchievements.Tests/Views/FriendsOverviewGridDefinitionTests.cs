@@ -270,21 +270,21 @@ namespace PlayniteAchievements.Tests.Views
             var xaml = File.ReadAllText(FindRepoFile("source", "Views", "OverviewControl.xaml"));
             var code = File.ReadAllText(FindRepoFile("source", "Views", "OverviewControl.xaml.cs"));
 
-            // The subview switch stays reachable while the friends subview is active even when
-            // the feature toggle is off.
+            // Friends remains conditional while the always-available Showcase switch stays visible.
             AssertContainsAll(
                 xaml,
-                "<Setter Property=\"Visibility\" Value=\"{Binding EnableFriendsFeatures, Converter={StaticResource BoolToVis}}\"/>",
-                "<DataTrigger Binding=\"{Binding ActiveSubView, ElementName=OverviewControlRoot}\" Value=\"{x:Static rootModels:OverviewSubView.Friends}\">");
+                "x:Name=\"FriendsSubViewButton\"",
+                "Visibility=\"{Binding EnableFriendsFeatures, Converter={StaticResource BoolToVis}}\"",
+                "x:Name=\"ShowcaseSubViewButton\"");
 
-            // The friends subview is left on construction and on settings save when the feature
-            // is disabled.
+            // Construction only redirects a disabled Friends restore; a remembered Showcase page
+            // remains selected. Settings changes still leave Friends immediately.
             AssertContainsAll(
                 code,
-                "ActiveSubView = _settings?.Persisted?.EnableFriendsFeatures == false",
+                "_settings?.Persisted?.EnableFriendsFeatures == false &&",
+                "_lastSelectedSubView == OverviewSubView.Friends",
                 "? OverviewSubView.Overview",
                 ": _lastSelectedSubView;",
-                "if (_settings?.Persisted?.EnableFriendsFeatures == false &&",
                 "ActiveSubView == OverviewSubView.Friends)");
         }
 

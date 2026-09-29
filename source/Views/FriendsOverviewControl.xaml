@@ -251,21 +251,33 @@
                     Padding="8,0"
                     BorderBrush="{DynamicResource PlayAch.Brush.ControlBorder}"
                     BorderThickness="0,0,0,1">
-                <StackPanel Orientation="Horizontal"
-                            VerticalAlignment="Center">
-                    <TextBlock Text="{Binding FriendSectionTitle}"
-                               Style="{DynamicResource PlayAch.TextBlock.BaseStyle}"
-                               FontWeight="Bold"
-                               Foreground="{DynamicResource PlayAch.Brush.Text}"
-                               VerticalAlignment="Center"
-                               TextTrimming="CharacterEllipsis"/>
-                    <Button Content="&#x2715;"
-                            ToolTip="{DynamicResource LOCPlayAch_FriendsOverview_ClearSelection}"
-                            Click="ClearGameSelection_Click"
-                            Style="{StaticResource ClearGameSelectionButtonStyle}"
-                            Margin="10,0,0,0"
-                            Visibility="{Binding HasGameSelection, Converter={StaticResource BoolToVis}}"/>
-                </StackPanel>
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+                    <StackPanel Grid.Column="0"
+                                Orientation="Horizontal"
+                                VerticalAlignment="Center">
+                        <TextBlock Text="{Binding FriendSectionTitle}"
+                                   Style="{DynamicResource PlayAch.TextBlock.BaseStyle}"
+                                   FontWeight="Bold"
+                                   Foreground="{DynamicResource PlayAch.Brush.Text}"
+                                   VerticalAlignment="Center"
+                                   TextTrimming="CharacterEllipsis"/>
+                        <Button Content="&#x2715;"
+                                ToolTip="{DynamicResource LOCPlayAch_FriendsOverview_ClearSelection}"
+                                Click="ClearGameSelection_Click"
+                                Style="{StaticResource ClearGameSelectionButtonStyle}"
+                                Margin="10,0,0,0"
+                                Visibility="{Binding HasGameSelection, Converter={StaticResource BoolToVis}}"/>
+                    </StackPanel>
+                    <Button Grid.Column="1"
+                            Style="{StaticResource HeaderControlBarToggleStyle}"
+                            Tag="{Binding Settings.Persisted.ShowFriendsOverviewFriendSummariesGridControlBar}"
+                            Click="ToggleFriendSummariesControlBar_Click"
+                            Margin="{StaticResource PlayAch.Thickness.Left.Sm}"/>
+                </Grid>
             </Border>
 
             <!-- Game header/filter -->
@@ -275,21 +287,34 @@
                     Padding="8,0"
                     BorderBrush="{DynamicResource PlayAch.Brush.ControlBorder}"
                     BorderThickness="0,0,0,1">
-                <StackPanel Orientation="Horizontal"
-                            VerticalAlignment="Center">
-                    <TextBlock Text="{Binding GameSectionTitle}"
-                               Style="{DynamicResource PlayAch.TextBlock.BaseStyle}"
-                               FontWeight="Bold"
-                               Foreground="{DynamicResource PlayAch.Brush.Text}"
-                               VerticalAlignment="Center"
-                               TextTrimming="CharacterEllipsis"/>
-                    <Button Content="&#x2715;"
-                            ToolTip="{DynamicResource LOCPlayAch_FriendsOverview_ClearSelection}"
-                            Click="ClearFriendSelection_Click"
-                            Style="{StaticResource ClearGameSelectionButtonStyle}"
-                            Margin="10,0,0,0"
-                            Visibility="{Binding HasFriendSelection, Converter={StaticResource BoolToVis}}"/>
-                </StackPanel>
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+                    <StackPanel Grid.Column="0"
+                                Orientation="Horizontal"
+                                VerticalAlignment="Center">
+                        <TextBlock Text="{Binding GameSectionTitle}"
+                                   Style="{DynamicResource PlayAch.TextBlock.BaseStyle}"
+                                   FontWeight="Bold"
+                                   Foreground="{DynamicResource PlayAch.Brush.Text}"
+                                   VerticalAlignment="Center"
+                                   TextTrimming="CharacterEllipsis"/>
+                        <Button Content="&#x2715;"
+                                ToolTip="{DynamicResource LOCPlayAch_FriendsOverview_ClearSelection}"
+                                Click="ClearFriendSelection_Click"
+                                Style="{StaticResource ClearGameSelectionButtonStyle}"
+                                Margin="10,0,0,0"
+                                Visibility="{Binding HasFriendSelection, Converter={StaticResource BoolToVis}}"/>
+                    </StackPanel>
+                    <!-- One chevron for both visibility-swapped game grids: they bind the same flag. -->
+                    <Button Grid.Column="1"
+                            Style="{StaticResource HeaderControlBarToggleStyle}"
+                            Tag="{Binding Settings.Persisted.ShowFriendsOverviewGameSummariesGridControlBar}"
+                            Click="ToggleGameSummariesControlBar_Click"
+                            Margin="{StaticResource PlayAch.Thickness.Left.Sm}"/>
+                </Grid>
             </Border>
 
             <!-- Achievement header/filter -->
@@ -299,7 +324,13 @@
                     Padding="8,0"
                     BorderBrush="{DynamicResource PlayAch.Brush.ControlBorder}"
                     BorderThickness="0,0,0,1">
-                <StackPanel Orientation="Horizontal"
+                <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+                <StackPanel Grid.Column="0"
+                            Orientation="Horizontal"
                             VerticalAlignment="Center">
                     <TextBlock Text="{Binding AchievementSectionTitle}"
                                FontSize="{DynamicResource PlayAch.FontSize.Body}"
@@ -350,6 +381,12 @@
                             Margin="10,0,0,0"
                             Visibility="{Binding HasAnySelection, Converter={StaticResource BoolToVis}}"/>
                 </StackPanel>
+                <Button Grid.Column="1"
+                        Style="{StaticResource HeaderControlBarToggleStyle}"
+                        Tag="{Binding Settings.Persisted.ShowFriendsOverviewAchievementsGridControlBar}"
+                        Click="ToggleAchievementsControlBar_Click"
+                        Margin="{StaticResource PlayAch.Thickness.Left.Sm}"/>
+                </Grid>
             </Border>
 
             <GridSplitter Grid.Row="0" Grid.RowSpan="2" Grid.Column="1"
@@ -431,6 +468,8 @@
             <!-- Achievements -->
             <Grid Grid.Row="1" Grid.Column="4">
                 <controls:AchievementDataGridControl x:Name="FriendsAchievementsGrid"
+                                                     RowPreviewMouseRightButtonDown="DataGridRow_PreviewMouseRightButtonDown"
+                                                     RowPreviewMouseRightButtonUp="DataGridRow_PreviewMouseRightButtonUp"
                                                      Margin="8,8,8,0"
                                                      ControlBar="{Binding AchievementsControlBar}"
                                                      ShowControlBar="{Binding Settings.Persisted.ShowFriendsOverviewAchievementsGridControlBar}"

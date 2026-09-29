@@ -25,13 +25,28 @@ namespace PlayniteAchievements.Services.GameCustomData
 
     public sealed class GameCustomDataChangedEventArgs : EventArgs
     {
-        public GameCustomDataChangedEventArgs(Guid playniteGameId, bool affectsSummaryData = true)
+        public GameCustomDataChangedEventArgs(
+            Guid playniteGameId,
+            bool affectsSummaryData = true,
+            bool affectsOverrideMirror = true)
         {
             PlayniteGameId = playniteGameId;
             AffectsSummaryData = affectsSummaryData;
+            AffectsOverrideMirror = affectsOverrideMirror;
         }
 
         public Guid PlayniteGameId { get; }
+
+        /// <summary>
+        /// False when the change cannot have moved the per-achievement override mirror -- the
+        /// filtered ApiNames and the user-editable points and trophy type. A capstone edit is the
+        /// case that matters: it is summary-visible but touches nothing the mirror carries, and
+        /// resyncing it costs a record clone and a write-connection query on the click.
+        ///
+        /// Defaults to true so every existing caller keeps resyncing, and only a writer that
+        /// knows better opts out.
+        /// </summary>
+        public bool AffectsOverrideMirror { get; }
 
         /// <summary>
         /// False when the change only reorders or re-presents achievements the user already had,
@@ -43,9 +58,54 @@ namespace PlayniteAchievements.Services.GameCustomData
     }
 
     /// <summary>
+    /// A completed write, carrying the record as it stood before and after.
+    /// </summary>
+    /// <remarks>
+    /// Raised alongside <see cref="GameCustomDataChangedEventArgs"/> but for a different purpose:
+    /// that one says something changed, this one says what it was. Every writer already produces
+    /// both images on its way through the save, so a subscriber that wants to reverse a write -
+    /// the achievement editor's undo - can record them without loading anything itself.
+    ///
+    /// <see cref="Previous"/> is null when the write came through the overload that does not
+    /// compute a pre-image, which means the state before it is unknown rather than empty.
+    /// </remarks>
+    public sealed class GameCustomDataWrittenEventArgs : EventArgs
+    {
+        public GameCustomDataWrittenEventArgs(
+            Guid playniteGameId,
+            GameCustomDataFile previous,
+            GameCustomDataFile persisted,
+            bool affectsSummaryData,
+            bool affectsOverrideMirror)
+        {
+            PlayniteGameId = playniteGameId;
+            Previous = previous;
+            Persisted = persisted;
+            AffectsSummaryData = affectsSummaryData;
+            AffectsOverrideMirror = affectsOverrideMirror;
+        }
+
+        public Guid PlayniteGameId { get; }
+
+        /// <summary>The normalized record before the write, or null when it was not computed.</summary>
+        public GameCustomDataFile Previous { get; }
+
+        /// <summary>The record as it was stored.</summary>
+        public GameCustomDataFile Persisted { get; }
+
+        /// <summary>
+        /// The flags this write reported. A reversal has to repeat them, or the mirrors that key
+        /// off them resync for the original change and not for the one that undid it.
+        /// </summary>
+        public bool AffectsSummaryData { get; }
+
+        public bool AffectsOverrideMirror { get; }
+    }
+
+    /// <summary>
     /// Orchestrates per-game custom data persistence and migration.
     /// </summary>
-    public sealed class GameCustomDataStore
+    public sealed partial class GameCustomDataStore
     {
         private const string DatabaseFileName = "game_custom_data.db";
 
@@ -77,9 +137,23 @@ namespace PlayniteAchievements.Services.GameCustomData
             };
 
         private readonly ILogger _logger;
+        // Indented, for the portable .pa manifest a user can open and read.
         private readonly JsonSerializerSettings _writeSettings = new JsonSerializerSettings
         {
             Formatting = Formatting.Indented,
+            NullValueHandling = NullValueHandling.Ignore,
+            DefaultValueHandling = DefaultValueHandling.Ignore
+        };
+
+        // Compact, for the stored blob. The payload is a SQLite TEXT column that is only ever
+        // round-tripped through JsonConvert -- never diffed as text, hashed, or shown to anyone --
+        // so its indentation was whitespace written on every per-game save and carried into the
+        // WAL. The serialize scales with the game's override count, which is exactly the profile
+        // that made editing a heavily customized game slow. Anything that ever wants to compare
+        // payload text must normalize first.
+        private readonly JsonSerializerSettings _storeWriteSettings = new JsonSerializerSettings
+        {
+            Formatting = Formatting.None,
             NullValueHandling = NullValueHandling.Ignore,
             DefaultValueHandling = DefaultValueHandling.Ignore
         };
@@ -90,16 +164,25 @@ namespace PlayniteAchievements.Services.GameCustomData
         private ManagedCustomIconService _managedCustomIconService;
         private NotificationImageStore _notificationImageStore;
         private AchievementDataService _achievementDataService;
+        private Func<string, CustomProviderDefinition> _tryGetCustomProvider;
+        private Func<CustomProviderDefinition, bool> _importCustomProviderIfMissing;
         private Dictionary<Guid, GameCustomDataFile> _cacheByGameId;
         private HashSet<Guid> _missingGameIds;
 
         public event EventHandler<GameCustomDataChangedEventArgs> CustomDataChanged;
 
+        /// <summary>
+        /// Raised for a write that reached the repository, with the record before and after it.
+        /// Raised just before <see cref="CustomDataChanged"/>, so a subscriber has recorded the
+        /// write before anything reacts to it.
+        /// </summary>
+        public event EventHandler<GameCustomDataWrittenEventArgs> CustomDataWritten;
+
         public GameCustomDataStore(string pluginUserDataPath, ILogger logger = null)
         {
             _logger = logger;
             var databasePath = Path.Combine(pluginUserDataPath ?? string.Empty, DatabaseFileName);
-            _repository = new GameCustomDataRepository(databasePath, _writeSettings, logger);
+            _repository = new GameCustomDataRepository(databasePath, _storeWriteSettings, logger);
         }
 
         public string DatabasePath => _repository.DatabasePath;
@@ -124,6 +207,19 @@ namespace PlayniteAchievements.Services.GameCustomData
             _ = settings;
         }
 
+        /// <summary>
+        /// Connects the custom provider catalog so portable exports embed the assigned provider's
+        /// definition and imports recreate a missing one. Delegates keep this store free of the
+        /// catalog type.
+        /// </summary>
+        public void AttachCustomProviderCatalog(
+            Func<string, CustomProviderDefinition> tryGetCustomProvider,
+            Func<CustomProviderDefinition, bool> importCustomProviderIfMissing)
+        {
+            _tryGetCustomProvider = tryGetCustomProvider;
+            _importCustomProviderIfMissing = importCustomProviderIfMissing;
+        }
+
         public bool TryLoad(Guid playniteGameId, out GameCustomDataFile data)
         {
             data = null;
@@ -142,7 +238,10 @@ namespace PlayniteAchievements.Services.GameCustomData
                         return data != null;
                     }
 
-                    if (_missingGameIds != null && _missingGameIds.Contains(playniteGameId))
+                    // A complete cache answers a miss on its own. Otherwise every game without
+                    // custom data - most of a library - cost a repository read to learn that.
+                    if (_cacheHoldsEveryStoredRow ||
+                        (_missingGameIds != null && _missingGameIds.Contains(playniteGameId)))
                     {
                         return false;
                     }
@@ -167,9 +266,17 @@ namespace PlayniteAchievements.Services.GameCustomData
             }
         }
 
+        /// <summary>
+        /// Reads through the same cache TryLoad uses, rather than going straight to the
+        /// repository: every write path either seeds the cache (Save), removes the entry (Delete)
+        /// or invalidates it wholesale (the legacy migration's SaveMany), so the cache is
+        /// authoritative and the extra SELECT plus full-blob deserialize bought nothing.
+        /// </summary>
         public GameCustomDataFile LoadOrDefault(Guid playniteGameId)
         {
-            return _repository.LoadOrDefault(playniteGameId);
+            return TryLoad(playniteGameId, out var data)
+                ? data
+                : GameCustomDataNormalizer.CreateDefault(playniteGameId);
         }
 
         /// <param name="affectsSummaryData">
@@ -179,7 +286,8 @@ namespace PlayniteAchievements.Services.GameCustomData
         public void Update(
             Guid playniteGameId,
             Action<GameCustomDataFile> mutate,
-            bool affectsSummaryData = true)
+            bool affectsSummaryData = true,
+            bool affectsOverrideMirror = true)
         {
             if (playniteGameId == Guid.Empty)
             {
@@ -191,10 +299,24 @@ namespace PlayniteAchievements.Services.GameCustomData
                 throw new ArgumentNullException(nameof(mutate));
             }
 
-            var data = _repository.LoadOrDefault(playniteGameId);
-            var previous = GameCustomDataNormalizer.NormalizeInternal(data, playniteGameId);
+            // The mutation runs on the normalized record, not the record as stored.
+            //
+            // Normalization is what folds the legacy per-field maps into AchievementOverrides,
+            // and writers treat that record as authoritative: AchievementOverridesService rebuilds
+            // it and drops the mirrors, on the grounds that the fold already happened. Mutating
+            // the stored shape instead left that only true for a record whose mirrors were
+            // already projections of it -- for one carrying a value the record did not, from an
+            // older schema or an import, the write read past it and then dropped it.
+            GameCustomDataFile data;
+            GameCustomDataFile previous;
+            using (PerfScope.Start(_logger, "GameCustomData.Update.NormalizePrevious", thresholdMs: 10))
+            {
+                data = GameCustomDataNormalizer.NormalizeInternal(LoadOrDefault(playniteGameId), playniteGameId);
+                previous = data.Clone();
+            }
+
             mutate(data);
-            Save(playniteGameId, data, previous, affectsSummaryData);
+            Save(playniteGameId, data, previous, affectsSummaryData, affectsOverrideMirror);
         }
 
         // Rewrites every ApiName-keyed field after achievement definitions were renamed in place
@@ -240,6 +362,15 @@ namespace PlayniteAchievements.Services.GameCustomData
                 changed = true;
             }
 
+            foreach (var capstone in data.Capstones ?? Enumerable.Empty<CapstoneAssignment>())
+            {
+                if (TryResolveRenamedApiName(renamedApiNames, capstone?.ApiName, out var renamedEntry))
+                {
+                    capstone.ApiName = renamedEntry;
+                    changed = true;
+                }
+            }
+
             changed |= RenameListEntries(data.AchievementOrder, renamedApiNames);
             changed |= RenameListEntries(data.FilteredAchievementApiNames, renamedApiNames);
             changed |= RenameListEntries(data.SummaryFilteredAchievementApiNames, renamedApiNames);
@@ -249,6 +380,7 @@ namespace PlayniteAchievements.Services.GameCustomData
             changed |= RenameDictionaryKeys(data.AchievementUnlockedIconOverrides, renamedApiNames);
             changed |= RenameDictionaryKeys(data.AchievementLockedIconOverrides, renamedApiNames);
             changed |= RenameDictionaryKeys(data.AchievementNotes, renamedApiNames);
+            changed |= RenameDictionaryKeys(data.AchievementOverrides, renamedApiNames);
 
             return changed;
         }
@@ -297,8 +429,68 @@ namespace PlayniteAchievements.Services.GameCustomData
             return changed;
         }
 
-        private static bool RenameDictionaryKeys(
-            IDictionary<string, string> map,
+        /// <summary>
+        /// Republishes the icon paths from the legacy mirror maps onto the per-achievement record.
+        /// Existing record paths are cleared first, so an icon dropped from the package (its source
+        /// file was missing) does not survive as a stale absolute path.
+        /// </summary>
+        private static void SyncPortableOverrideIconsFromLegacyMaps(GameCustomDataPortableFile portable)
+        {
+            if (portable.AchievementOverrides != null)
+            {
+                foreach (var entry in portable.AchievementOverrides.Values)
+                {
+                    if (entry != null)
+                    {
+                        entry.UnlockedIconPath = null;
+                        entry.LockedIconPath = null;
+                    }
+                }
+            }
+
+            if (portable.AchievementUnlockedIconOverrides != null)
+            {
+                foreach (var pair in portable.AchievementUnlockedIconOverrides)
+                {
+                    ResolvePortableOverride(portable, pair.Key).UnlockedIconPath = pair.Value;
+                }
+            }
+
+            if (portable.AchievementLockedIconOverrides != null)
+            {
+                foreach (var pair in portable.AchievementLockedIconOverrides)
+                {
+                    ResolvePortableOverride(portable, pair.Key).LockedIconPath = pair.Value;
+                }
+            }
+        }
+
+        /// <summary>
+        /// Gets or creates the per-achievement override record on a portable package. The record is
+        /// the authoritative shape, so a writer that only updated the legacy mirror map would have
+        /// its value overwritten when normalization re-projects the record.
+        /// </summary>
+        private static AchievementOverride ResolvePortableOverride(
+            GameCustomDataPortableFile portable,
+            string apiName)
+        {
+            if (portable.AchievementOverrides == null)
+            {
+                portable.AchievementOverrides =
+                    new Dictionary<string, AchievementOverride>(StringComparer.OrdinalIgnoreCase);
+            }
+
+            if (!portable.AchievementOverrides.TryGetValue(apiName, out var entry) || entry == null)
+            {
+                entry = new AchievementOverride();
+                portable.AchievementOverrides[apiName] = entry;
+            }
+
+            return entry;
+        }
+
+        private static bool RenameDictionaryKeys<TValue>(
+            IDictionary<string, TValue> map,
             IReadOnlyDictionary<string, string> renamedApiNames)
         {
             if (map == null || map.Count == 0)
@@ -336,13 +528,31 @@ namespace PlayniteAchievements.Services.GameCustomData
             Guid playniteGameId,
             GameCustomDataFile data,
             GameCustomDataFile previousData,
-            bool affectsSummaryData = true)
+            bool affectsSummaryData = true,
+            bool affectsOverrideMirror = true)
         {
-            using (PerfScope.Start(_logger, "GameCustomData.Save", thresholdMs: 50))
+            // Names the caller. A bulk rename across 641 rows produced 215 store writes over 42
+            // seconds with a 5.8s UI freeze inside it, and the log could not say which path
+            // emitted them -- every candidate batches correctly when read on its own.
+            using (var saveScope = PerfScope.Start(_logger, "GameCustomData.Save", thresholdMs: 10))
             {
-                var normalized = GameCustomDataNormalizer.NormalizeInternal(data, playniteGameId);
-                _repository.Save(playniteGameId, normalized);
-                RefreshCachedEntry(playniteGameId);
+                saveScope?.SetContext(DescribeSaveCaller());
+
+                GameCustomDataFile normalized;
+                using (PerfScope.Start(_logger, "GameCustomData.Save.Normalize", thresholdMs: 10))
+                {
+                    normalized = GameCustomDataNormalizer.NormalizeInternal(data, playniteGameId);
+                }
+
+                GameCustomDataFile persisted;
+                using (PerfScope.Start(_logger, "GameCustomData.Save.Repository", thresholdMs: 10))
+                {
+                    // Normalized immediately above and untouched since, so the repository does
+                    // not repeat it.
+                    persisted = _repository.Save(playniteGameId, normalized, alreadyNormalized: true);
+                }
+
+                SetCachedEntry(playniteGameId, persisted);
                 if (ShouldSyncManagedCustomIconCache(previousData, normalized))
                 {
                     SyncManagedCustomIconCache(playniteGameId, normalized);
@@ -351,7 +561,29 @@ namespace PlayniteAchievements.Services.GameCustomData
                 _notificationImageStore?.PruneGameImages(
                     playniteGameId,
                     normalized.NotificationAppearanceOverride?.Style);
-                RaiseCustomDataChanged(playniteGameId, affectsSummaryData);
+                // Before the change event, so a recorder has the write in hand before the
+                // subscribers that rebuild from it run. In its own guard because this is
+                // bookkeeping: a listener that throws must not fail a write that already landed.
+                try
+                {
+                    CustomDataWritten?.Invoke(
+                        this,
+                        new GameCustomDataWrittenEventArgs(
+                            playniteGameId,
+                            previousData,
+                            persisted,
+                            affectsSummaryData,
+                            affectsOverrideMirror));
+                }
+                catch (Exception ex)
+                {
+                    _logger?.Warn(ex, $"A custom-data write subscriber failed for game {playniteGameId}.");
+                }
+
+                using (PerfScope.Start(_logger, "GameCustomData.Save.RaiseChanged", thresholdMs: 10))
+                {
+                    RaiseCustomDataChanged(playniteGameId, affectsSummaryData, affectsOverrideMirror);
+                }
             }
         }
 
@@ -370,32 +602,123 @@ namespace PlayniteAchievements.Services.GameCustomData
             RaiseCustomDataChanged(playniteGameId);
         }
 
-        public IReadOnlyList<GameCustomDataFile> LoadAll()
+        /// <summary>
+        /// Persists the schema upgrade that reads have been performing and discarding. Run once at
+        /// startup, before the cache is warmed, so the warm reads the upgraded rows.
+        /// </summary>
+        /// <remarks>
+        /// Raises no change event. Every record this rewrites already presented itself to callers
+        /// in exactly this shape, so nothing downstream has anything to recompute.
+        /// </remarks>
+        public int UpgradeStoredRecordsToCurrentSchema()
         {
-            lock (_cacheSync)
+            var upgraded = _repository.UpgradeStoredRecordsToCurrentSchema();
+            if (upgraded > 0)
             {
-                if (_cacheByGameId != null && _missingGameIds != null)
-                {
-                    return _cacheByGameId.Values
-                        .Select(data => data?.Clone())
-                        .Where(data => data != null)
-                        .ToList();
-                }
+                InvalidateCache();
             }
 
-            var rows = _repository.EnumerateAllNormalized().ToList();
+            return upgraded;
+        }
+
+        /// <summary>
+        /// Every stored record, deep-cloned so a caller cannot mutate the cache through what it
+        /// is handed. Prefer <see cref="QueryAll{TResult}"/> when the answer is a projection:
+        /// the copies here cost a library's worth of overrides, notes and maps.
+        /// </summary>
+        public IReadOnlyList<GameCustomDataFile> LoadAll()
+        {
+            EnsureCacheLoaded();
             lock (_cacheSync)
             {
-                _cacheByGameId = rows
-                    .Where(data => data?.PlayniteGameId != Guid.Empty)
-                    .ToDictionary(
-                        data => data.PlayniteGameId,
-                        data => data.Clone());
-                _missingGameIds = new HashSet<Guid>();
                 return _cacheByGameId.Values
                     .Select(data => data?.Clone())
                     .Where(data => data != null)
                     .ToList();
+            }
+        }
+
+        /// <summary>
+        /// Answers a read-only question over every stored record without copying any of them.
+        /// </summary>
+        /// <remarks>
+        /// <see cref="LoadAll"/> deep-clones every record it returns, because a caller that
+        /// holds one must not be able to mutate the cache through it. For a caller that only
+        /// reads - counting the games on a custom provider, asking whether any game has an
+        /// authored achievement - that copied a library's worth of overrides, notes, category
+        /// maps and icon maps to produce a number or a bool, and the cost grew with how many
+        /// games the user has customized.
+        ///
+        /// The records handed to <paramref name="query"/> are the live cached instances and are
+        /// valid only for the duration of the call: read them, do not store them, and do not
+        /// mutate them. The cache lock is held throughout, so <paramref name="query"/> must not
+        /// call back into the store.
+        /// </remarks>
+        /// <summary>
+        /// Reads a projection of one game's record without copying it. Returns
+        /// <paramref name="missing"/> when the game has no stored custom data.
+        /// </summary>
+        /// <remarks>
+        /// <see cref="TryLoad"/> hands back a deep clone, which is right for a caller that keeps
+        /// the record but wrong for one that reads a field or two off it. The whole-library
+        /// overview build did the latter once per game, so it deep-copied every customized
+        /// game's overrides, notes, category maps and icon maps to resolve summary art.
+        ///
+        /// What <paramref name="query"/> receives is the live cached instance, valid only for
+        /// the duration of the call: read it, do not store it, do not mutate it, and return a
+        /// copy of anything that outlives the call. The cache lock is held throughout, so
+        /// <paramref name="query"/> must not call back into the store.
+        /// </remarks>
+        public TResult QueryGame<TResult>(
+            Guid playniteGameId,
+            Func<GameCustomDataFile, TResult> query,
+            TResult missing = default(TResult))
+        {
+            if (query == null)
+            {
+                throw new ArgumentNullException(nameof(query));
+            }
+
+            if (playniteGameId == Guid.Empty)
+            {
+                return missing;
+            }
+
+            lock (_cacheSync)
+            {
+                if (_cacheByGameId != null)
+                {
+                    if (_cacheByGameId.TryGetValue(playniteGameId, out var cached))
+                    {
+                        return cached != null ? query(cached) : missing;
+                    }
+
+                    if (_cacheHoldsEveryStoredRow ||
+                        (_missingGameIds != null && _missingGameIds.Contains(playniteGameId)))
+                    {
+                        return missing;
+                    }
+                }
+            }
+
+            // Not cached yet: fall back to the cloning load, which also populates the cache, so
+            // the next read of this game takes the path above.
+            return TryLoad(playniteGameId, out var loaded) && loaded != null
+                ? query(loaded)
+                : missing;
+        }
+
+        public TResult QueryAll<TResult>(Func<IEnumerable<GameCustomDataFile>, TResult> query)
+        {
+            if (query == null)
+            {
+                throw new ArgumentNullException(nameof(query));
+            }
+
+            EnsureCacheLoaded();
+            lock (_cacheSync)
+            {
+                return query(_cacheByGameId.Values);
             }
         }
 
@@ -432,6 +755,11 @@ namespace PlayniteAchievements.Services.GameCustomData
                 fileStems,
                 AchievementIconVariant.Locked,
                 imageSources);
+            RewritePortableCustomAchievementIconsForPackage(
+                playniteGameId,
+                portable.CustomAchievements,
+                fileStems,
+                imageSources);
             RewritePortableCategoryImagesForPackage(
                 playniteGameId,
                 portable.AchievementCategoryImageOverrides,
@@ -441,6 +769,10 @@ namespace PlayniteAchievements.Services.GameCustomData
                 playniteGameId,
                 portable.NotificationAppearanceOverride?.Style,
                 imageSources);
+            // The rewrites above retarget the legacy mirror maps at package-relative paths. Mirror
+            // them back onto the record, or the manifest ships two disagreeing copies and the
+            // record's absolute local paths win when the package is normalized on import.
+            SyncPortableOverrideIconsFromLegacyMaps(portable);
 
             EnsureDestinationDirectory(destinationPath);
             if (File.Exists(destinationPath))
@@ -545,7 +877,7 @@ namespace PlayniteAchievements.Services.GameCustomData
 
         public bool HasPortableData(Guid playniteGameId)
         {
-            return GameCustomDataNormalizer.HasPortableData(_repository.LoadOrDefault(playniteGameId));
+            return GameCustomDataNormalizer.HasPortableData(LoadOrDefault(playniteGameId));
         }
 
         public void SyncRuntimeCaches()
@@ -560,7 +892,7 @@ namespace PlayniteAchievements.Services.GameCustomData
                 throw new ArgumentException("Game ID is required.", nameof(playniteGameId));
             }
 
-            var internalData = _repository.LoadOrDefault(playniteGameId);
+            var internalData = LoadOrDefault(playniteGameId);
             var normalized = GameCustomDataNormalizer.NormalizeInternal(internalData, playniteGameId);
             if (!GameCustomDataNormalizer.HasPortableData(normalized))
             {
@@ -573,7 +905,38 @@ namespace PlayniteAchievements.Services.GameCustomData
                 throw new InvalidOperationException("No exportable custom data exists for this game.");
             }
 
+            portable.CustomProvider = string.IsNullOrWhiteSpace(portable.CustomProviderId)
+                ? null
+                : _tryGetCustomProvider?.Invoke(portable.CustomProviderId)?.Clone();
             return portable;
+        }
+
+        /// <summary>
+        /// Keeps an imported assignment only when the id resolves locally, or when the package's
+        /// embedded definition could be recreated under that id. A local definition wins.
+        /// </summary>
+        private string ResolveImportedCustomProviderId(GameCustomDataPortableFile portable)
+        {
+            var id = portable?.CustomProviderId;
+            if (string.IsNullOrWhiteSpace(id))
+            {
+                return null;
+            }
+
+            if (_tryGetCustomProvider?.Invoke(id) != null)
+            {
+                return id;
+            }
+
+            var snapshot = portable.CustomProvider;
+            if (snapshot == null || _importCustomProviderIfMissing == null)
+            {
+                return null;
+            }
+
+            var definition = snapshot.Clone();
+            definition.Id = id;
+            return _importCustomProviderIfMissing(definition) ? id : null;
         }
 
         private PortableGameCustomDataImportResult ImportReplacePortablePackage(Guid playniteGameId, string sourcePath)
@@ -603,6 +966,15 @@ namespace PlayniteAchievements.Services.GameCustomData
 
                     RewritePackageImageOverrides(playniteGameId, entriesByName, portable?.AchievementUnlockedIconOverrides, AchievementIconVariant.Unlocked);
                     RewritePackageImageOverrides(playniteGameId, entriesByName, portable?.AchievementLockedIconOverrides, AchievementIconVariant.Locked);
+                    if (portable != null)
+                    {
+                        // The rewrites above only see the legacy mirror maps. Republish them onto
+                        // the record, which normalization treats as authoritative, so the imported
+                        // icons point at the extracted files rather than the exporter's paths.
+                        SyncPortableOverrideIconsFromLegacyMaps(portable);
+                    }
+
+                    RewritePackageCustomAchievementImages(playniteGameId, entriesByName, portable?.CustomAchievements);
                     RewritePackageCategoryImageOverrides(playniteGameId, entriesByName, portable?.AchievementCategoryImageOverrides);
                     RewritePackageNotificationImages(
                         playniteGameId,
@@ -616,6 +988,14 @@ namespace PlayniteAchievements.Services.GameCustomData
                             portable,
                             "Imported .PA.ZIP does not contain any portable custom data.")
                     };
+                }
+
+                // A custom-achievements package is merged by ID (ImportCustomAchievementsPackage);
+                // replacing the game's custom data with it would drop everything else the game has.
+                if (IsCustomAchievementsPackage(entriesByName.Keys))
+                {
+                    throw new InvalidOperationException(
+                        "This .PA file contains custom achievements only and cannot replace the game's custom data.");
                 }
 
                 return ImportReplacePortableImageOnlyPackage(playniteGameId, entriesByName);
@@ -664,6 +1044,7 @@ namespace PlayniteAchievements.Services.GameCustomData
                     }
 
                     portable.AchievementLockedIconOverrides[apiName] = managedPath;
+                    ResolvePortableOverride(portable, apiName).LockedIconPath = managedPath;
                 }
                 else
                 {
@@ -673,6 +1054,7 @@ namespace PlayniteAchievements.Services.GameCustomData
                     }
 
                     portable.AchievementUnlockedIconOverrides[apiName] = managedPath;
+                    ResolvePortableOverride(portable, apiName).UnlockedIconPath = managedPath;
                 }
             }
 
@@ -782,6 +1164,136 @@ namespace PlayniteAchievements.Services.GameCustomData
 
                 overrides[apiName] = targetPath;
             }
+        }
+
+        private void RewritePortableCustomAchievementIconsForPackage(
+            Guid playniteGameId,
+            IReadOnlyList<CustomAchievementDefinition> customAchievements,
+            IReadOnlyDictionary<string, string> fileStems,
+            IDictionary<string, string> imageSources)
+        {
+            if (customAchievements == null || customAchievements.Count == 0)
+            {
+                return;
+            }
+
+            foreach (var definition in customAchievements)
+            {
+                var apiName = CustomAchievementProjectionService.BuildApiName(definition?.Id);
+                if (definition == null || string.IsNullOrWhiteSpace(apiName))
+                {
+                    continue;
+                }
+
+                definition.UnlockedIconPath = RewritePortableCustomAchievementIconForPackage(
+                    playniteGameId,
+                    apiName,
+                    definition.UnlockedIconPath,
+                    fileStems,
+                    AchievementIconVariant.Unlocked,
+                    imageSources);
+                definition.LockedIconPath = RewritePortableCustomAchievementIconForPackage(
+                    playniteGameId,
+                    apiName,
+                    definition.LockedIconPath,
+                    fileStems,
+                    AchievementIconVariant.Locked,
+                    imageSources);
+            }
+        }
+
+        private string RewritePortableCustomAchievementIconForPackage(
+            Guid playniteGameId,
+            string apiName,
+            string value,
+            IReadOnlyDictionary<string, string> fileStems,
+            AchievementIconVariant variant,
+            IDictionary<string, string> imageSources)
+        {
+            var normalizedValue = NormalizeText(value);
+            if (string.IsNullOrWhiteSpace(normalizedValue))
+            {
+                return null;
+            }
+
+            if (!fileStems.TryGetValue(apiName, out var fileStem) || string.IsNullOrWhiteSpace(fileStem))
+            {
+                throw new InvalidOperationException($"Could not determine a bundled icon name for '{apiName}'.");
+            }
+
+            var bundledSource = ResolveBundledIconSourcePath(playniteGameId, normalizedValue, fileStem, variant);
+            var relativeEntryName = BuildPackageImageEntryName(fileStem, variant);
+            imageSources[relativeEntryName] = bundledSource;
+            return relativeEntryName;
+        }
+
+        private void RewritePackageCustomAchievementImages(
+            Guid playniteGameId,
+            IReadOnlyDictionary<string, ZipArchiveEntry> entriesByName,
+            IReadOnlyList<CustomAchievementDefinition> customAchievements)
+        {
+            if (customAchievements == null || customAchievements.Count == 0)
+            {
+                return;
+            }
+
+            var apiNames = customAchievements
+                .Select(definition => CustomAchievementProjectionService.BuildApiName(definition?.Id))
+                .Where(apiName => !string.IsNullOrWhiteSpace(apiName))
+                .ToList();
+            var fileStems = AchievementIconCachePathBuilder.BuildFileStems(apiNames);
+
+            foreach (var definition in customAchievements)
+            {
+                var apiName = CustomAchievementProjectionService.BuildApiName(definition?.Id);
+                if (definition == null || string.IsNullOrWhiteSpace(apiName))
+                {
+                    continue;
+                }
+
+                definition.UnlockedIconPath = RewritePackageCustomAchievementImage(
+                    playniteGameId,
+                    entriesByName,
+                    fileStems,
+                    apiName,
+                    definition.UnlockedIconPath,
+                    AchievementIconVariant.Unlocked);
+                definition.LockedIconPath = RewritePackageCustomAchievementImage(
+                    playniteGameId,
+                    entriesByName,
+                    fileStems,
+                    apiName,
+                    definition.LockedIconPath,
+                    AchievementIconVariant.Locked);
+            }
+        }
+
+        private string RewritePackageCustomAchievementImage(
+            Guid playniteGameId,
+            IReadOnlyDictionary<string, ZipArchiveEntry> entriesByName,
+            IReadOnlyDictionary<string, string> fileStems,
+            string apiName,
+            string value,
+            AchievementIconVariant variant)
+        {
+            var normalizedValue = NormalizeText(value);
+            if (string.IsNullOrWhiteSpace(normalizedValue) || IsHttpUrl(normalizedValue))
+            {
+                return normalizedValue;
+            }
+
+            var normalizedEntryName = NormalizePackageImagePathOrThrow(normalizedValue);
+            if (!entriesByName.TryGetValue(normalizedEntryName, out var imageEntry))
+            {
+                throw new InvalidOperationException($"Package is missing bundled icon entry '{normalizedValue}'.");
+            }
+
+            if (!fileStems.TryGetValue(apiName, out var fileStem) || string.IsNullOrWhiteSpace(fileStem))
+            {
+                throw new InvalidOperationException($"Could not determine a managed custom icon path for '{apiName}'.");
+            }
+
+            return ImportPackageImageToManagedPath(playniteGameId, imageEntry, fileStem, variant);
         }
 
         private void RewritePortableCategoryImagesForPackage(
@@ -1244,7 +1756,9 @@ namespace PlayniteAchievements.Services.GameCustomData
                 throw new InvalidOperationException(invalidDataMessage);
             }
 
-            var current = _repository.LoadOrDefault(playniteGameId);
+            normalizedPortable.CustomProviderId = ResolveImportedCustomProviderId(normalizedPortable);
+
+            var current = LoadOrDefault(playniteGameId);
             var merged = GameCustomDataFile.FromPortable(
                 normalizedPortable,
                 playniteGameId,
@@ -1389,6 +1903,14 @@ namespace PlayniteAchievements.Services.GameCustomData
                 yield return retainedPath;
             }
 
+            foreach (var retainedPath in EnumerateManagedCustomAchievementIconPaths(
+                gameIdText,
+                data.CustomAchievements,
+                fileStems))
+            {
+                yield return retainedPath;
+            }
+
             var categoryFileStems = AchievementIconCachePathBuilder.BuildCategoryFileStems(
                 EnumeratePortableCategoryLabels(data.ToPortable()));
             foreach (var retainedPath in EnumerateManagedCategoryImagePaths(
@@ -1454,8 +1976,98 @@ namespace PlayniteAchievements.Services.GameCustomData
         {
             return (portable?.AchievementUnlockedIconOverrides?.Keys ?? Enumerable.Empty<string>())
                 .Concat(portable?.AchievementLockedIconOverrides?.Keys ?? Enumerable.Empty<string>())
+                .Concat(EnumerateCustomAchievementIconApiNames(portable?.CustomAchievements))
                 .Where(key => !string.IsNullOrWhiteSpace(key))
                 .Distinct(StringComparer.OrdinalIgnoreCase);
+        }
+
+        private IEnumerable<string> EnumerateManagedCustomAchievementIconPaths(
+            string gameIdText,
+            IReadOnlyList<CustomAchievementDefinition> customAchievements,
+            IReadOnlyDictionary<string, string> fileStems)
+        {
+            if (customAchievements == null || customAchievements.Count == 0)
+            {
+                yield break;
+            }
+
+            foreach (var definition in customAchievements)
+            {
+                var apiName = CustomAchievementProjectionService.BuildApiName(definition?.Id);
+                if (string.IsNullOrWhiteSpace(apiName) ||
+                    !fileStems.TryGetValue(apiName, out var fileStem) ||
+                    string.IsNullOrWhiteSpace(fileStem))
+                {
+                    continue;
+                }
+
+                foreach (var retainedPath in EnumerateManagedCustomIconPath(
+                    gameIdText,
+                    fileStem,
+                    definition.UnlockedIconPath,
+                    AchievementIconVariant.Unlocked))
+                {
+                    yield return retainedPath;
+                }
+
+                foreach (var retainedPath in EnumerateManagedCustomIconPath(
+                    gameIdText,
+                    fileStem,
+                    definition.LockedIconPath,
+                    AchievementIconVariant.Locked))
+                {
+                    yield return retainedPath;
+                }
+            }
+        }
+
+        private IEnumerable<string> EnumerateManagedCustomIconPath(
+            string gameIdText,
+            string fileStem,
+            string value,
+            AchievementIconVariant variant)
+        {
+            var normalized = NormalizeText(value);
+            if (string.IsNullOrWhiteSpace(normalized))
+            {
+                yield break;
+            }
+
+            if (_managedCustomIconService.IsManagedCustomIconPath(normalized, gameIdText))
+            {
+                yield return normalized;
+                yield break;
+            }
+
+            if (IsHttpUrl(normalized))
+            {
+                yield return _managedCustomIconService.GetAchievementCustomIconPath(gameIdText, fileStem, variant);
+            }
+        }
+
+        private static IEnumerable<string> EnumerateCustomAchievementIconApiNames(
+            IReadOnlyList<CustomAchievementDefinition> customAchievements)
+        {
+            if (customAchievements == null)
+            {
+                yield break;
+            }
+
+            foreach (var definition in customAchievements)
+            {
+                if (definition == null ||
+                    (string.IsNullOrWhiteSpace(definition.UnlockedIconPath) &&
+                     string.IsNullOrWhiteSpace(definition.LockedIconPath)))
+                {
+                    continue;
+                }
+
+                var apiName = CustomAchievementProjectionService.BuildApiName(definition.Id);
+                if (!string.IsNullOrWhiteSpace(apiName))
+                {
+                    yield return apiName;
+                }
+            }
         }
 
         private IEnumerable<string> EnumerateManagedCategoryImagePaths(
@@ -1679,20 +2291,25 @@ namespace PlayniteAchievements.Services.GameCustomData
             return string.IsNullOrWhiteSpace(normalized) ? null : normalized;
         }
 
-        private void RefreshCachedEntry(Guid playniteGameId)
+        /// <summary>
+        /// Seeds the cache with the instance the repository just persisted, so a write does not
+        /// pay a second SELECT and full-blob deserialize to read back what it wrote. A null
+        /// <paramref name="persisted"/> means the data normalized to nothing and the row was
+        /// deleted, which is the same outcome a failed read-back produced.
+        /// </summary>
+        private void SetCachedEntry(Guid playniteGameId, GameCustomDataFile persisted)
         {
             if (playniteGameId == Guid.Empty)
             {
                 return;
             }
 
-            var found = _repository.TryLoad(playniteGameId, out var loaded);
             lock (_cacheSync)
             {
                 EnsureCacheCollections();
-                if (found && loaded != null)
+                if (persisted != null)
                 {
-                    _cacheByGameId[playniteGameId] = loaded.Clone();
+                    _cacheByGameId[playniteGameId] = persisted.Clone();
                     _missingGameIds.Remove(playniteGameId);
                     return;
                 }
@@ -1708,6 +2325,7 @@ namespace PlayniteAchievements.Services.GameCustomData
             {
                 _cacheByGameId = null;
                 _missingGameIds = null;
+                _cacheHoldsEveryStoredRow = false;
             }
         }
 
@@ -1723,6 +2341,22 @@ namespace PlayniteAchievements.Services.GameCustomData
                 _missingGameIds = new HashSet<Guid>();
             }
         }
+
+        /// <summary>
+        /// True once <see cref="EnsureCacheLoaded"/> has read every stored row, so a game id the
+        /// cache does not hold definitively has no custom data.
+        /// </summary>
+        /// <remarks>
+        /// Without this, a miss fell through to a repository read - one SQLite query per game -
+        /// and games with no custom data are most of a library. The whole-library overview build
+        /// resolves summary art per game, so its first run after startup issued a query for
+        /// every uncustomized game: measured at 1528ms of a 1719ms build for 500 games, against
+        /// ~122ms for the second build once the lazy miss set had filled in.
+        ///
+        /// Writes keep the cache complete (a save adds its row, a delete removes one), so only
+        /// <see cref="InvalidateCache"/> clears the flag.
+        /// </remarks>
+        private bool _cacheHoldsEveryStoredRow;
 
         private HashSet<Guid> GetExcludedGameIds(
             ISet<Guid> fallbackIds,
@@ -1757,6 +2391,18 @@ namespace PlayniteAchievements.Services.GameCustomData
             }
         }
 
+        /// <summary>
+        /// Populates the in-memory cache from the repository when it has not been read yet.
+        /// </summary>
+        /// <remarks>
+        /// The repository read runs outside the cache lock, because it opens the database. A
+        /// second caller that wins the race re-checks before installing, so the work is repeated
+        /// at worst once and the cache is never replaced after it exists.
+        ///
+        /// This used to warm by calling <see cref="LoadAll"/> and discarding the result, which
+        /// deep-cloned every stored record twice - once into the cache, once into the copy that
+        /// was thrown away.
+        /// </remarks>
         private void EnsureCacheLoaded()
         {
             lock (_cacheSync)
@@ -1767,10 +2413,91 @@ namespace PlayniteAchievements.Services.GameCustomData
                 }
             }
 
-            _ = LoadAll();
+            var rows = _repository.EnumerateAllNormalized().ToList();
+            lock (_cacheSync)
+            {
+                if (_cacheByGameId != null && _missingGameIds != null)
+                {
+                    return;
+                }
+
+                _cacheByGameId = rows
+                    .Where(data => data?.PlayniteGameId != Guid.Empty)
+                    .ToDictionary(
+                        data => data.PlayniteGameId,
+                        data => data);
+                _missingGameIds = new HashSet<Guid>();
+                _cacheHoldsEveryStoredRow = true;
+            }
         }
 
-        private void RaiseCustomDataChanged(Guid playniteGameId, bool affectsSummaryData = true)
+        /// <summary>
+        /// Raises <see cref="CustomDataChanged"/> without writing, for changes that alter how a
+        /// game's stored custom data resolves (such as an edited custom provider definition).
+        /// </summary>
+        public void NotifyChanged(
+            Guid playniteGameId,
+            bool affectsSummaryData = true,
+            bool affectsOverrideMirror = true)
+        {
+            RaiseCustomDataChanged(playniteGameId, affectsSummaryData, affectsOverrideMirror);
+        }
+
+        /// <summary>
+        /// The plugin frames on the current stack, nearest first, so a burst of writes says which
+        /// path produced it. Diagnostic only: walking the stack is far too expensive to do on a
+        /// hot path, so it is gated on tracing and bounded to a handful of frames.
+        /// </summary>
+        private static string DescribeSaveCaller()
+        {
+            if (!PerfScope.PerfTracingEnabled)
+            {
+                return string.Empty;
+            }
+
+            try
+            {
+                var frames = new System.Diagnostics.StackTrace(2, false).GetFrames();
+                if (frames == null)
+                {
+                    return string.Empty;
+                }
+
+                var names = new List<string>();
+                foreach (var frame in frames)
+                {
+                    var method = frame?.GetMethod();
+                    var type = method?.DeclaringType;
+                    if (type == null || type.Namespace?.StartsWith("PlayniteAchievements", StringComparison.Ordinal) != true)
+                    {
+                        continue;
+                    }
+
+                    // The store's own frames say nothing about who asked.
+                    if (type == typeof(GameCustomDataStore))
+                    {
+                        continue;
+                    }
+
+                    names.Add(type.Name + "." + method.Name);
+                    if (names.Count >= 4)
+                    {
+                        break;
+                    }
+                }
+
+                return names.Count == 0 ? string.Empty : "via=" + string.Join("<-", names);
+            }
+            catch
+            {
+                return string.Empty;
+            }
+        }
+
+        private void RaiseCustomDataChanged(
+            Guid playniteGameId,
+            bool affectsSummaryData = true,
+            bool affectsOverrideMirror = true)
         {
             if (playniteGameId == Guid.Empty)
             {
@@ -1779,7 +2506,10 @@ namespace PlayniteAchievements.Services.GameCustomData
 
             CustomDataChanged?.Invoke(
                 this,
-                new GameCustomDataChangedEventArgs(playniteGameId, affectsSummaryData));
+                new GameCustomDataChangedEventArgs(
+                    playniteGameId,
+                    affectsSummaryData,
+                    affectsOverrideMirror));
         }
 
     }

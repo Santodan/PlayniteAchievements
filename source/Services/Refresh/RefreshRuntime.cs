@@ -276,7 +276,19 @@ namespace PlayniteAchievements.Services.Refresh
                 _logger);
             _progressReportingService = new ProgressReportingService(_logger, PostToUi);
             _refreshStateManager = new RefreshStateManager();
-            _targetSelectionResolver = new TargetSelectionResolver(_api, _settings, _cacheService, _logger, refreshOrder);
+            _targetSelectionResolver = new TargetSelectionResolver(
+                _api,
+                _settings,
+                _cacheService,
+                _logger,
+                refreshOrder,
+                // Resolved here, where the cache's read-optimization seam is reachable, so a
+                // bulk refresh gets the whole no-achievement set in one query instead of
+                // loading each candidate game's payload to read the flag.
+                (_cacheService as ICacheReadOptimizations) != null
+                    ? (Func<HashSet<Guid>>)(() =>
+                        ((ICacheReadOptimizations)_cacheService).GetNoAchievementGameIds())
+                    : null);
             _refreshRequestPlanner = new RefreshRequestPlanner(
                 _api,
                 _settings,
@@ -1056,6 +1068,9 @@ namespace PlayniteAchievements.Services.Refresh
             }
 
             var timer = Stopwatch.StartNew();
+            // Memory is sampled per provider so a residual after the run can be attributed to
+            // the provider that produced it instead of to the run as a whole.
+            var providerMemBaseline = MemoryDiagnostics.Capture();
             try
             {
                 return await plan.Provider.RefreshAsync(
@@ -1075,7 +1090,8 @@ namespace PlayniteAchievements.Services.Refresh
             {
                 timer.Stop();
                 _logger?.Debug(
-                    $"[RefreshPerf] phase=current.provider provider={plan.Provider.ProviderKey} ms={timer.ElapsedMilliseconds} games={plan.Games.Count}");
+                    $"[RefreshPerf] phase=current.provider provider={plan.Provider.ProviderKey} ms={timer.ElapsedMilliseconds} games={plan.Games.Count}" +
+                    MemoryDiagnostics.FormatInlineSuffix(providerMemBaseline));
             }
         }
 
@@ -1642,6 +1658,11 @@ namespace PlayniteAchievements.Services.Refresh
                 // Persist provider payload as-is. Runtime overlays (capstone/category/order/game reference)
                 // are applied on read and are not written back to cache.
 
+                // Canary on the provider payload: once saved, only the bounded in-memory game
+                // cache should hold it. A live count that climbs with each run means the
+                // refresh pipeline (or a provider) is retaining per-game payloads.
+                Common.LeakWatch.Track("ProviderPayload", data);
+
                 var writeResult = _cacheService.SaveGameData(key, data);
                 if (writeResult == null || !writeResult.Success)
                 {
@@ -1714,11 +1735,23 @@ namespace PlayniteAchievements.Services.Refresh
                     return;
                 }
 
-                var summaryCategory = GameCustomDataLookup.GetGameSummaryCategory(gameId);
+                // Two targeted reads, not three whole-record resolves. This runs per refreshed
+                // game, and Plan abandons immediately when the game holds no category metadata
+                // at all -- which is almost every game -- so the resolves were paid up front to
+                // be thrown away. Plan treats null order and null images as empty.
+                GameCustomDataLookup.TryGetGameSummaryCategory(
+                    gameId,
+                    out var summaryCategory,
+                    out _);
+                GameCustomDataLookup.GetCategoryMetadata(
+                    gameId,
+                    out var categoryOrder,
+                    out var categoryImageOverrides);
+
                 var plan = ProviderCategoryPathMigration.Plan(
                     data.Achievements.Select(achievement => achievement?.Category),
-                    GameCustomDataLookup.GetAchievementCategoryOrder(gameId),
-                    GameCustomDataLookup.GetAchievementCategoryImageOverrides(gameId),
+                    categoryOrder,
+                    categoryImageOverrides,
                     summaryCategory);
 
                 if (plan == null)

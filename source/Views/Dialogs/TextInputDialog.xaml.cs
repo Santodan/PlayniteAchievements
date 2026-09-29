@@ -33,6 +33,29 @@ namespace PlayniteAchievements.Views.Dialogs
         {
             InitializeComponent();
             DataContext = this;
+            Loaded += TextInputDialog_Loaded;
+        }
+
+        /// <summary>
+        /// Puts the caret in the box, so the dialog can be typed into as soon as it appears.
+        /// </summary>
+        /// <remarks>
+        /// The declared FocusManager.FocusedElement sets logical focus, which is not the same as
+        /// keyboard focus: the content is loaded before the window that hosts it is shown, and
+        /// showing it takes focus back. Asking again at input priority runs after that, which is
+        /// what makes it stick. Any default text is selected, so typing replaces it rather than
+        /// appending to it.
+        /// </remarks>
+        private void TextInputDialog_Loaded(object sender, RoutedEventArgs e)
+        {
+            Dispatcher.BeginInvoke(
+                new Action(() =>
+                {
+                    InputTextBox.Focus();
+                    Keyboard.Focus(InputTextBox);
+                    InputTextBox.SelectAll();
+                }),
+                System.Windows.Threading.DispatcherPriority.Input);
         }
 
         public TextInputDialog(string hint, string defaultText = "") : this()

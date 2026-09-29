@@ -31,6 +31,24 @@ namespace PlayniteAchievements.Services.Overview
             _settings = settings;
         }
 
+        /// <summary>
+        /// Games cached and the total rows across them, for the retention report. Bounded by
+        /// MaxCachedGames, but each entry holds one game's display items, so the row total is
+        /// what actually tracks the footprint.
+        /// </summary>
+        public void GetRetentionStats(out int games, out int rows)
+        {
+            lock (_cacheSync)
+            {
+                games = _cache.Count;
+                rows = 0;
+                foreach (var entry in _cache.Values)
+                {
+                    rows += entry.Items?.Count ?? 0;
+                }
+            }
+        }
+
         public void InvalidateAll()
         {
             lock (_cacheSync)

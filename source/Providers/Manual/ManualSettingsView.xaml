@@ -4,6 +4,7 @@
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:settings="clr-namespace:PlayniteAchievements.Providers.Settings"
+             xmlns:controls="clr-namespace:PlayniteAchievements.Views.Controls"
              mc:Ignorable="d" d:DesignHeight="600" d:DesignWidth="700">
 
     <UserControl.Resources>
@@ -25,35 +26,34 @@
                 <TextBlock Text="{DynamicResource LOCPlayAch_Provider_Manual}" Style="{StaticResource ProviderTitleTextStyle}"/>
             </StackPanel>
 
-            <Border Style="{StaticResource ProviderEnableToggleBorderStyle}">
-                <CheckBox Content="{DynamicResource LOCPlayAch_Settings_ProviderEnabled}"
-                          IsChecked="{Binding Settings.IsEnabled, Mode=TwoWay}"
-                          FontWeight="SemiBold" FontSize="{DynamicResource PlayAch.FontSize.Body}"/>
+            <Border Style="{StaticResource ProviderEnableToggleBorderStyle}" Grid.IsSharedSizeScope="True">
+                <controls:SettingRow Label="{DynamicResource LOCPlayAch_Settings_ProviderEnabled}"
+                                     FontWeight="SemiBold"
+                                     Margin="0">
+                    <CheckBox IsChecked="{Binding Settings.IsEnabled, Mode=TwoWay}"/>
+                </controls:SettingRow>
             </Border>
 
             <TextBlock Text="{DynamicResource LOCPlayAch_Settings_ProviderDisabledMessage}" Style="{StaticResource ProviderDisabledMessageStyle}"/>
 
-            <Border Style="{StaticResource SectionBorderStyle}" IsEnabled="{Binding Settings.IsEnabled}" Margin="{StaticResource PlayAch.Thickness.Bottom.Lg}">
+            <Border Style="{StaticResource SectionBorderStyle}" IsEnabled="{Binding Settings.IsEnabled}" Margin="{StaticResource PlayAch.Thickness.Bottom.Lg}"
+                    Grid.IsSharedSizeScope="True">
                 <StackPanel>
-                    <CheckBox Content="{DynamicResource LOCPlayAch_Settings_Manual_Override_Enable}"
-                              IsChecked="{Binding Settings.ManualTrackingOverrideEnabled, Mode=TwoWay}"
-                              Margin="{StaticResource PlayAch.Thickness.Bottom.Md}"/>
+                    <controls:SettingRow Label="{DynamicResource LOCPlayAch_Settings_Manual_Override_Enable}"
+                                         Hint="{DynamicResource LOCPlayAch_Settings_Manual_Override_Description}">
+                        <CheckBox IsChecked="{Binding Settings.ManualTrackingOverrideEnabled, Mode=TwoWay}"/>
+                    </controls:SettingRow>
 
-                    <CheckBox Content="{DynamicResource LOCPlayAch_Settings_Manual_RequireExophaseAuth}"
-                              IsChecked="{Binding Settings.RequireExophaseAuthentication, Mode=TwoWay}"
-                              Margin="{StaticResource PlayAch.Thickness.Bottom.Md}"/>
-
-                    <TextBlock Text="{DynamicResource LOCPlayAch_Settings_Manual_RequireExophaseAuth_Description}"
-                               Style="{StaticResource MutedTextStyle}"
-                               TextWrapping="Wrap"
-                               Margin="{StaticResource PlayAch.Thickness.Bottom.Md}"/>
-
-                    <TextBlock Text="{DynamicResource LOCPlayAch_Settings_Manual_Override_Description}"
-                               Style="{StaticResource MutedTextStyle}" TextWrapping="Wrap"/>
+                    <controls:SettingRow Label="{DynamicResource LOCPlayAch_Settings_Manual_RequireExophaseAuth}"
+                                         Hint="{DynamicResource LOCPlayAch_Settings_Manual_RequireExophaseAuth_Description}"
+                                         Margin="0">
+                        <CheckBox IsChecked="{Binding Settings.RequireExophaseAuthentication, Mode=TwoWay}"/>
+                    </controls:SettingRow>
                 </StackPanel>
             </Border>
 
-            <Border Style="{StaticResource SectionBorderStyle}" IsEnabled="{Binding Settings.IsEnabled}">
+            <Border Style="{StaticResource SectionBorderStyle}" IsEnabled="{Binding Settings.IsEnabled}"
+                    Grid.IsSharedSizeScope="True">
                 <StackPanel>
                     <TextBlock Text="{DynamicResource LOCPlayAch_Settings_Manual_Legacy_Header}"
                                Style="{StaticResource SectionHeaderStyle}"
@@ -64,31 +64,26 @@
                                TextWrapping="Wrap"
                                Margin="{StaticResource PlayAch.Thickness.Bottom.Md}"/>
 
-                    <TextBlock Text="{DynamicResource LOCPlayAch_Settings_Manual_Legacy_PathLabel}"
-                               Foreground="{DynamicResource PlayAch.Brush.Text}"
-                               Margin="{StaticResource PlayAch.Thickness.Bottom.Xs}"/>
+                    <controls:SettingRow Label="{DynamicResource LOCPlayAch_Settings_Manual_Legacy_PathLabel}"
+                                         Hint="{DynamicResource LOCPlayAch_Settings_Manual_Legacy_PathHint}"
+                                         HorizontalContentAlignment="Stretch">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
 
-                    <TextBlock Text="{DynamicResource LOCPlayAch_Settings_Manual_Legacy_PathHint}"
-                               Style="{StaticResource MutedTextStyle}"
-                               TextWrapping="Wrap"
-                               Margin="{StaticResource PlayAch.Thickness.Bottom.Md}"/>
+                            <TextBox Grid.Column="0"
+                                     Text="{Binding LegacyImportPath, RelativeSource={RelativeSource AncestorType=UserControl}, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                     Padding="6,4"
+                                     Margin="{StaticResource PlayAch.Thickness.Right.Sm}"/>
 
-                    <Grid Margin="{StaticResource PlayAch.Thickness.Bottom.Md}">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*"/>
-                            <ColumnDefinition Width="Auto"/>
-                        </Grid.ColumnDefinitions>
-
-                        <TextBox Grid.Column="0"
-                                 Text="{Binding LegacyImportPath, RelativeSource={RelativeSource AncestorType=UserControl}, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                 Padding="6,4"
-                                 Margin="{StaticResource PlayAch.Thickness.Right.Sm}"/>
-
-                        <Button Grid.Column="1"
-                            Content="{DynamicResource LOCPlayAch_Button_Browse}"
-                                Click="ManualLegacyBrowse_Click"
-                                Padding="{StaticResource PlayAch.Thickness.ButtonPadding.Compact}"/>
-                    </Grid>
+                            <Button Grid.Column="1"
+                                Content="{DynamicResource LOCPlayAch_Button_Browse}"
+                                    Click="ManualLegacyBrowse_Click"
+                                    Padding="{StaticResource PlayAch.Thickness.ButtonPadding.Compact}"/>
+                        </Grid>
+                    </controls:SettingRow>
 
                     <Button Content="{DynamicResource LOCPlayAch_Settings_Manual_Legacy_ImportButton}"
                             Click="ManualLegacyImport_Click"

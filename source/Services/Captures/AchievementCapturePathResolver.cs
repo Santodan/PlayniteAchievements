@@ -101,7 +101,11 @@ namespace PlayniteAchievements.Services.Captures
                 Clean = SelectPath(group, CaptureVariant.Clean),
                 Notification = SelectPath(group, CaptureVariant.Notification),
                 Framed = SelectPath(group, CaptureVariant.Framed),
-                Video = SelectPath(group, CaptureVariant.Video),
+                // One clip path for themes: the with-notification clip, else the framed one, else
+                // the clean one.
+                Video = SelectPath(group, CaptureVariant.Video) ??
+                    SelectPath(group, CaptureVariant.FramedVideo) ??
+                    SelectPath(group, CaptureVariant.CleanVideo),
             };
         }
 

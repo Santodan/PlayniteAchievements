@@ -1,11 +1,13 @@
 using System;
 using System.Collections.Generic;
 using System.ComponentModel;
+using System.Diagnostics;
 using System.Linq;
 using System.Windows;
 using System.Windows.Automation;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
+using System.Windows.Documents;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Threading;
@@ -22,6 +24,14 @@ namespace PlayniteAchievements.Views.Helpers
     {
         private const int InitialNormalizationMaxAttempts = 8;
         private const double LayoutWidthChangeThreshold = 0.2d;
+
+        /// <summary>
+        /// Minimum gap between two viewport-driven column refits. A window drag raises a size
+        /// change per frame, and each refit writes every column width and forces another layout
+        /// pass, so refitting on every frame stutters. The first change in a burst still applies
+        /// at once; the rest collapse into one trailing refit this long after the last one.
+        /// </summary>
+        private const int ViewportRescaleThrottleMilliseconds = 60;
 
         private readonly DataGrid _grid;
         private readonly ILogger _logger;
@@ -48,7 +58,15 @@ namespace PlayniteAchievements.Views.Helpers
         private readonly Func<GridAlignment> _getDefaultHeaderHorizontalAlignment;
         private readonly Action _applyCellAlignments;
         private readonly Func<string, double, bool> _isRuntimeDefaultWidth;
+        private readonly Func<Dictionary<string, bool>> _getLocks;
+        private readonly Action<Dictionary<string, bool>> _setLocks;
+        private readonly HashSet<DataGridColumn> _lockedColumns = new HashSet<DataGridColumn>();
+        private ColumnResizeWidthAdorner _resizeWidthAdorner;
+        private AdornerLayer _resizeWidthAdornerLayer;
         private DispatcherTimer _saveTimer;
+        private DispatcherTimer _viewportRescaleTimer;
+        private readonly Stopwatch _viewportRescaleClock = Stopwatch.StartNew();
+        private long _lastViewportRescaleMilliseconds = long.MinValue / 2;
         private bool _isApplyingWidths;
         private bool _isApplyingOrder;
         private bool _isResizeInProgress;
@@ -89,6 +107,15 @@ namespace PlayniteAchievements.Views.Helpers
         public ISet<string> ExcludedHeaderAlignmentKeys { get; set; } = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
         /// <summary>
+        /// Column keys locked to the leading display indexes, in this order. They are never moved
+        /// by a persisted order map, and a column dropped to their left is put back.
+        /// Set before calling Attach(). Pair with CanUserReorder="False" on the columns themselves
+        /// so the common case is prevented rather than corrected, and with
+        /// <see cref="ExcludedVisibilityKeys"/> when they should not be hideable either.
+        /// </summary>
+        public IList<string> PinnedLeadingKeys { get; set; } = new List<string>();
+
+        /// <summary>
         /// Column keys that should be forced to collapsed visibility.
         /// These columns will be collapsed during ApplyPersistedVisibility to prevent flicker.
         /// </summary>
@@ -112,6 +139,8 @@ namespace PlayniteAchievements.Views.Helpers
         /// <param name="saveSettings">Action to save settings to disk.</param>
         /// <param name="defaultWidthSeeds">Default column widths for new installations.</param>
         /// <param name="isRuntimeDefaultWidth">Optional predicate for legacy seed widths that should not count as user customization.</param>
+        /// <param name="getLocks">Function to get the persisted per-column lock map; null hides the lock control.</param>
+        /// <param name="setLocks">Action to set the persisted per-column lock map.</param>
         public DataGridColumnLayoutService(
             DataGrid grid,
             ILogger logger,
@@ -133,7 +162,9 @@ namespace PlayniteAchievements.Views.Helpers
             Action<Dictionary<string, GridAlignment>> setHeaderHorizontalAlignments = null,
             Func<GridAlignment> getDefaultHeaderHorizontalAlignment = null,
             Action applyCellAlignments = null,
-            Func<string, double, bool> isRuntimeDefaultWidth = null)
+            Func<string, double, bool> isRuntimeDefaultWidth = null,
+            Func<Dictionary<string, bool>> getLocks = null,
+            Action<Dictionary<string, bool>> setLocks = null)
         {
             _grid = grid ?? throw new ArgumentNullException(nameof(grid));
             _logger = logger;
@@ -156,6 +187,8 @@ namespace PlayniteAchievements.Views.Helpers
             _getDefaultHeaderHorizontalAlignment = getDefaultHeaderHorizontalAlignment;
             _applyCellAlignments = applyCellAlignments;
             _isRuntimeDefaultWidth = isRuntimeDefaultWidth;
+            _getLocks = getLocks;
+            _setLocks = setLocks;
         }
 
         /// <summary>
@@ -169,6 +202,11 @@ namespace PlayniteAchievements.Views.Helpers
             }
 
             _isAttached = true;
+            using var perf = Common.PerfScope.Start(
+                _logger,
+                "ColumnLayout.Attach",
+                thresholdMs: 10,
+                context: $"columns={_grid.Columns.Count}");
             BeginInitialRenderSuppression();
             InitializeTimer();
             AttachWidthChangeHandlers();
@@ -177,6 +215,36 @@ namespace PlayniteAchievements.Views.Helpers
             ApplyPersistedOrder();
             ApplyPersistedVisibility();
             ApplyPersistedWidths();
+            ApplyPersistedLocks();
+        }
+
+        /// <summary>
+        /// Applies the persisted order, visibility, and pixel widths to the columns without
+        /// attaching handlers or normalizing. Safe before the grid is loaded, and idempotent.
+        /// </summary>
+        /// <remarks>
+        /// Attach runs from Loaded, which WPF raises after the first layout pass. Until then the
+        /// grid measured its first rows with every XAML column visible and every star column
+        /// clamped to its MinWidth, so wrapping text broke per glyph and the rows were rebuilt
+        /// once Attach collapsed the hidden columns. Calling this as soon as the settings key is
+        /// known lets the first measure lay out the columns the user will actually see; Attach
+        /// then re-applies the same values (no-ops) and normalizes against the real width.
+        /// </remarks>
+        public void PrepareColumns()
+        {
+            if (_grid == null || _isAttached)
+            {
+                return;
+            }
+
+            using var perf = Common.PerfScope.Start(
+                _logger,
+                "ColumnLayout.Prepare",
+                thresholdMs: 5,
+                context: $"columns={_grid.Columns.Count}");
+            ApplyPersistedOrder();
+            ApplyPersistedVisibility();
+            WritePersistedPixelWidths(BuildEffectivePreferredWidths(includePending: false));
         }
 
         /// <summary>
@@ -190,6 +258,8 @@ namespace PlayniteAchievements.Views.Helpers
             }
 
             FlushPendingUpdates();
+            HideResizeWidthPills();
+            ReleaseRuntimeLocks();
 
             foreach (var pair in _columnWidthChangedHandlers.ToList())
             {
@@ -203,6 +273,7 @@ namespace PlayniteAchievements.Views.Helpers
             DetachNormalizationHandlers();
             DetachScrollViewerHandlers();
             CancelQueuedNormalization();
+            StopViewportRescaleTimer();
 
             if (_saveTimer != null)
             {
@@ -240,6 +311,7 @@ namespace PlayniteAchievements.Views.Helpers
             ApplyPersistedVisibility();
             ApplyPersistedOrder();
             ApplyPersistedWidths();
+            ApplyPersistedLocks();
         }
 
         /// <summary>
@@ -612,6 +684,7 @@ namespace PlayniteAchievements.Views.Helpers
             }
 
             _isResizeInProgress = false;
+            HideResizeWidthPills();
             _grid?.Dispatcher.BeginInvoke(new Action(PersistPendingResizeWidths), DispatcherPriority.Background);
         }
 
@@ -647,6 +720,97 @@ namespace PlayniteAchievements.Views.Helpers
             {
                 ApplyLiveNeighborResize(key, delta);
             }
+
+            // First real movement of the drag: the pills wait for it so a plain click on a gripper
+            // does not flash them.
+            ShowResizeWidthPills(key);
+            RefreshResizeWidthPills();
+        }
+
+        /// <summary>
+        /// Puts a width pill over each column sharing the dragged boundary: the two columns the
+        /// gripper sits between, or the resized column and its absorber when the boundary is not
+        /// known. Removed again by <see cref="HideResizeWidthPills"/> when the drag ends.
+        /// </summary>
+        private void ShowResizeWidthPills(string resizedColumnKey)
+        {
+            if (_grid == null || _resizeWidthAdorner != null)
+            {
+                return;
+            }
+
+            var layer = AdornerLayer.GetAdornerLayer(_grid);
+            if (layer == null)
+            {
+                return;
+            }
+
+            var keys = new List<string>();
+            if (!string.IsNullOrWhiteSpace(_resizeBoundaryLeftColumnKey) && !string.IsNullOrWhiteSpace(_resizeBoundaryRightColumnKey))
+            {
+                keys.Add(_resizeBoundaryLeftColumnKey);
+                keys.Add(_resizeBoundaryRightColumnKey);
+            }
+            else
+            {
+                keys.Add(resizedColumnKey);
+                keys.Add(_lastResizeAbsorberColumnKey);
+            }
+
+            var columns = keys
+                .Where(k => !string.IsNullOrWhiteSpace(k))
+                .Select(FindColumnByKey)
+                .Where(c => c != null && c.Visibility == Visibility.Visible)
+                .ToList();
+            if (columns.Count == 0)
+            {
+                return;
+            }
+
+            var adorner = new ColumnResizeWidthAdorner(_grid);
+            adorner.SetColumns(columns);
+            layer.Add(adorner);
+            _resizeWidthAdorner = adorner;
+            _resizeWidthAdornerLayer = layer;
+            _grid.LayoutUpdated += Grid_LayoutUpdatedDuringResize;
+        }
+
+        private void HideResizeWidthPills()
+        {
+            if (_resizeWidthAdorner == null)
+            {
+                return;
+            }
+
+            if (_grid != null)
+            {
+                _grid.LayoutUpdated -= Grid_LayoutUpdatedDuringResize;
+            }
+
+            _resizeWidthAdornerLayer?.Remove(_resizeWidthAdorner);
+            _resizeWidthAdorner = null;
+            _resizeWidthAdornerLayer = null;
+        }
+
+        private void Grid_LayoutUpdatedDuringResize(object sender, EventArgs e)
+        {
+            // Header positions settle a layout pass after each width write, so re-centre then.
+            RefreshResizeWidthPills();
+        }
+
+        private void RefreshResizeWidthPills()
+        {
+            _resizeWidthAdorner?.Refresh(column => FormatWidthLabel(column, GetInteractiveColumnWidth(column)));
+        }
+
+        private DataGridColumn FindColumnByKey(string key)
+        {
+            if (_grid == null || string.IsNullOrWhiteSpace(key))
+            {
+                return null;
+            }
+
+            return _grid.Columns.FirstOrDefault(c => c != null && ColumnWidthNormalization.KeysEqual(GetColumnKey(c), key));
         }
 
         private void Grid_ColumnReordered(object sender, DataGridColumnEventArgs e)
@@ -656,6 +820,9 @@ namespace PlayniteAchievements.Views.Helpers
                 return;
             }
 
+            // Before the save, so the persisted map records the clamped layout rather than the
+            // one the drop briefly produced.
+            ApplyPinnedLeadingClamp();
             QueueColumnOrderSave();
         }
 
@@ -825,7 +992,11 @@ namespace PlayniteAchievements.Views.Helpers
         private void ApplyPersistedOrder()
         {
             var map = _getOrder?.Invoke();
-            if (_grid == null || map == null || map.Count == 0)
+
+            // With pinned columns the pass still has work to do on a fresh install and against a
+            // map that says nothing about them: the clamp is what holds them at the left edge.
+            var hasPinned = PinnedLeadingKeys != null && PinnedLeadingKeys.Count > 0;
+            if (_grid == null || (!hasPinned && (map == null || map.Count == 0)))
             {
                 return;
             }
@@ -842,9 +1013,10 @@ namespace PlayniteAchievements.Views.Helpers
                 {
                     entry.Column,
                     entry.OriginalDisplayIndex,
-                    SavedDisplayIndex = !string.IsNullOrWhiteSpace(entry.Key) && map.TryGetValue(entry.Key, out var displayIndex)
-                        ? Math.Max(0, displayIndex)
-                        : int.MaxValue
+                    // A pinned column scores its slot in the pinned list and ignores any saved
+                    // index, so a stale or hostile map cannot move it. Everyone else is offset
+                    // past the pinned block, which is what keeps them from landing to its left.
+                    SavedDisplayIndex = ResolveOrderScore(entry.Key, map, hasPinned)
                 })
                 .OrderBy(entry => entry.SavedDisplayIndex)
                 .ThenBy(entry => entry.OriginalDisplayIndex)
@@ -877,6 +1049,119 @@ namespace PlayniteAchievements.Views.Helpers
             }
         }
 
+        /// <summary>
+        /// Where a column sorts when the persisted order is applied. Pinned keys take their slot
+        /// in <see cref="PinnedLeadingKeys"/>; everything else is offset past the pinned block so
+        /// no saved index can place it to their left. An unknown key sorts last and falls back to
+        /// declaration order through the caller's tiebreak.
+        /// </summary>
+        private int ResolveOrderScore(string key, Dictionary<string, int> map, bool hasPinned)
+        {
+            if (hasPinned && !string.IsNullOrWhiteSpace(key))
+            {
+                var pinnedSlot = IndexOfPinnedKey(key);
+                if (pinnedSlot >= 0)
+                {
+                    return pinnedSlot;
+                }
+            }
+
+            var offset = hasPinned ? PinnedLeadingKeys.Count : 0;
+            if (!string.IsNullOrWhiteSpace(key) && map != null && map.TryGetValue(key, out var displayIndex))
+            {
+                return offset + Math.Max(0, displayIndex);
+            }
+
+            return int.MaxValue;
+        }
+
+        private int IndexOfPinnedKey(string key)
+        {
+            if (PinnedLeadingKeys == null || string.IsNullOrWhiteSpace(key))
+            {
+                return -1;
+            }
+
+            for (var index = 0; index < PinnedLeadingKeys.Count; index++)
+            {
+                if (string.Equals(PinnedLeadingKeys[index], key, StringComparison.OrdinalIgnoreCase))
+                {
+                    return index;
+                }
+            }
+
+            return -1;
+        }
+
+        /// <summary>
+        /// Puts the pinned columns back at the left edge after a user reorder.
+        ///
+        /// Marking a pinned column CanUserReorder="False" stops it being dragged but does not stop
+        /// another column being dropped to its left, so the drop is allowed and then corrected.
+        /// Runs before the order is persisted, so the stored map never describes a layout the grid
+        /// is not showing. Reassigning a DisplayIndex shifts the rest along, which is why the
+        /// pinned columns are assigned in order.
+        /// </summary>
+        private void ApplyPinnedLeadingClamp()
+        {
+            if (_grid == null || PinnedLeadingKeys == null || PinnedLeadingKeys.Count == 0)
+            {
+                return;
+            }
+
+            var pinnedColumns = new List<DataGridColumn>();
+            foreach (var pinnedKey in PinnedLeadingKeys)
+            {
+                var match = _grid.Columns.FirstOrDefault(
+                    column => column != null &&
+                        string.Equals(GetColumnKey(column), pinnedKey, StringComparison.OrdinalIgnoreCase));
+                if (match != null)
+                {
+                    pinnedColumns.Add(match);
+                }
+            }
+
+            if (pinnedColumns.Count == 0)
+            {
+                return;
+            }
+
+            var alreadySeated = true;
+            for (var index = 0; index < pinnedColumns.Count; index++)
+            {
+                if (pinnedColumns[index].DisplayIndex != index)
+                {
+                    alreadySeated = false;
+                    break;
+                }
+            }
+
+            if (alreadySeated)
+            {
+                return;
+            }
+
+            _isApplyingOrder = true;
+            try
+            {
+                for (var index = 0; index < pinnedColumns.Count; index++)
+                {
+                    if (pinnedColumns[index].DisplayIndex != index)
+                    {
+                        pinnedColumns[index].DisplayIndex = index;
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger?.Warn(ex, "Failed to clamp pinned columns to the leading display indexes.");
+            }
+            finally
+            {
+                _isApplyingOrder = false;
+            }
+        }
+
         private void ApplyPersistedWidths()
         {
             if (_grid == null)
@@ -889,6 +1174,19 @@ namespace PlayniteAchievements.Views.Helpers
             if (preferredWidths.Count == 0)
             {
                 ApplyDefaultWidthsOrQueue();
+                return;
+            }
+
+            WritePersistedPixelWidths(preferredWidths);
+            NormalizeOrQueue(true);
+        }
+
+        // Writes the given pixel widths onto the resizable columns that have one. Shared by the
+        // pre-load PrepareColumns pass and the Attach-time ApplyPersistedWidths pass.
+        private void WritePersistedPixelWidths(Dictionary<string, double> preferredWidths)
+        {
+            if (_grid == null || preferredWidths == null || preferredWidths.Count == 0)
+            {
                 return;
             }
 
@@ -918,8 +1216,6 @@ namespace PlayniteAchievements.Views.Helpers
             {
                 _isApplyingWidths = false;
             }
-
-            NormalizeOrQueue(true);
         }
 
         private bool NormalizeColumnsToContainer(bool rescaleAll = false)
@@ -987,15 +1283,34 @@ namespace PlayniteAchievements.Views.Helpers
             var effectiveProtectedKey = protectedKey;
             var effectiveAbsorberKey = _lastResizeAbsorberColumnKey;
 
+            // A proportional rescale is seeded from the saved widths, not from the previous pass's
+            // rounded output. Re-rounding rounded output on every pass is lossy and path dependent:
+            // a window dragged one pixel at a time poured all growth into one column, while the
+            // same width reached in one jump spread it evenly. From the saved widths the plan is a
+            // pure function of the layout and the current width. Protected-column passes (a drag or
+            // typed width landing) still start from what is on screen.
             return ColumnWidthNormalization.TryBuildNormalizedWidths(
                 _grid,
                 effectiveProtectedKey,
                 effectiveAbsorberKey,
                 rescaleAll,
-                BuildNormalizationPreferredWidths(includePending: true),
+                BuildNormalizationPreferredWidths(includePending: true, includeNormalizedOverrides: !rescaleAll),
                 fallbackAvailableWidth: 0,
                 useEqualWidthForMissing: true,
+                GetLockedColumnKeys(),
                 out normalized);
+        }
+
+        /// <summary>
+        /// Keys of the columns locked from the header menu. They are handed to the planner as
+        /// columns that never absorb a drag or typed width, while still rescaling with the grid.
+        /// </summary>
+        private List<string> GetLockedColumnKeys()
+        {
+            return _lockedColumns
+                .Select(GetColumnKey)
+                .Where(key => !string.IsNullOrWhiteSpace(key))
+                .ToList();
         }
 
         private string ResolveDefaultProtectedColumnKey(out string absorberKey)
@@ -1092,7 +1407,8 @@ namespace PlayniteAchievements.Views.Helpers
             var absorberOrder = ColumnWidthNormalization.BuildAbsorberOrder(
                 keys,
                 resizedColumnKey,
-                _lastResizeAbsorberColumnKey);
+                _lastResizeAbsorberColumnKey,
+                GetLockedColumnKeys());
             if (absorberOrder.Count == 0)
             {
                 return;
@@ -1203,10 +1519,18 @@ namespace PlayniteAchievements.Views.Helpers
                 return null;
             }
 
-            var nextIndex = index + Math.Sign(direction);
-            return nextIndex >= 0 && nextIndex < columns.Count
-                ? GetColumnKey(columns[nextIndex])
-                : null;
+            // A locked neighbour cannot absorb, so the boundary's partner is the next unlocked
+            // column in that direction.
+            var step = Math.Sign(direction);
+            for (var nextIndex = index + step; nextIndex >= 0 && nextIndex < columns.Count; nextIndex += step)
+            {
+                if (!IsColumnLocked(columns[nextIndex]))
+                {
+                    return GetColumnKey(columns[nextIndex]);
+                }
+            }
+
+            return null;
         }
 
         private List<DataGridColumn> GetVisibleResizableColumns()
@@ -1272,7 +1596,65 @@ namespace PlayniteAchievements.Views.Helpers
                 return;
             }
 
-            QueueNormalization(rescaleAll: true, DispatcherPriority.Background);
+            ThrottleViewportRescale();
+        }
+
+        /// <summary>
+        /// Leading-edge throttle for viewport refits: run now if the last one is at least
+        /// <see cref="ViewportRescaleThrottleMilliseconds"/> old, otherwise (re)arm one trailing
+        /// refit for when that gap has passed. The trailing refit reads the grid's width when it
+        /// runs, so it always fits the final size of the burst.
+        /// </summary>
+        private void ThrottleViewportRescale()
+        {
+            var elapsed = _viewportRescaleClock.ElapsedMilliseconds - _lastViewportRescaleMilliseconds;
+            if (elapsed >= ViewportRescaleThrottleMilliseconds)
+            {
+                _viewportRescaleTimer?.Stop();
+                RunViewportRescale();
+                return;
+            }
+
+            if (_viewportRescaleTimer == null)
+            {
+                _viewportRescaleTimer = new DispatcherTimer(DispatcherPriority.Loaded, _grid.Dispatcher);
+                _viewportRescaleTimer.Tick += ViewportRescaleTimer_Tick;
+            }
+
+            _viewportRescaleTimer.Stop();
+            _viewportRescaleTimer.Interval = TimeSpan.FromMilliseconds(Math.Max(1, ViewportRescaleThrottleMilliseconds - elapsed));
+            _viewportRescaleTimer.Start();
+        }
+
+        private void ViewportRescaleTimer_Tick(object sender, EventArgs e)
+        {
+            _viewportRescaleTimer?.Stop();
+            if (!_isAttached || _grid == null || (_grid.IsLoaded && !_grid.IsVisible))
+            {
+                return;
+            }
+
+            RunViewportRescale();
+        }
+
+        private void RunViewportRescale()
+        {
+            _lastViewportRescaleMilliseconds = _viewportRescaleClock.ElapsedMilliseconds;
+            // Loaded, not Background: a window drag floods the dispatcher with input, which
+            // starves Background work, so the columns would visibly lag the new width.
+            QueueNormalization(rescaleAll: true, DispatcherPriority.Loaded);
+        }
+
+        private void StopViewportRescaleTimer()
+        {
+            if (_viewportRescaleTimer == null)
+            {
+                return;
+            }
+
+            _viewportRescaleTimer.Stop();
+            _viewportRescaleTimer.Tick -= ViewportRescaleTimer_Tick;
+            _viewportRescaleTimer = null;
         }
 
         private bool ShouldRescaleAll(bool requestedRescaleAll)
@@ -1373,15 +1755,18 @@ namespace PlayniteAchievements.Views.Helpers
             return BuildPreferredWidths(includePending, includeDefaultSeeds: false);
         }
 
-        private Dictionary<string, double> BuildNormalizationPreferredWidths(bool includePending)
+        private Dictionary<string, double> BuildNormalizationPreferredWidths(bool includePending, bool includeNormalizedOverrides = true)
         {
             var result = BuildPreferredWidths(includePending: false, includeDefaultSeeds: true);
 
-            foreach (var pair in _normalizedWidthOverrides)
+            if (includeNormalizedOverrides)
             {
-                if (!string.IsNullOrWhiteSpace(pair.Key) && IsValidWidth(pair.Value))
+                foreach (var pair in _normalizedWidthOverrides)
                 {
-                    result[pair.Key] = ColumnWidthNormalization.RoundPixelWidth(pair.Value);
+                    if (!string.IsNullOrWhiteSpace(pair.Key) && IsValidWidth(pair.Value))
+                    {
+                        result[pair.Key] = ColumnWidthNormalization.RoundPixelWidth(pair.Value);
+                    }
                 }
             }
 
@@ -1555,6 +1940,183 @@ namespace PlayniteAchievements.Views.Helpers
         }
 
         /// <summary>
+        /// Whether the user has locked this column from the header menu. A locked column keeps
+        /// resizing with the grid like every other column, but no drag or typed width on another
+        /// column can take space from it, and the grippers on both of its edges are hidden.
+        /// A column declared CanUserResize="False" in XAML is fixed for a different reason and
+        /// is never reported here.
+        /// </summary>
+        public bool IsColumnLocked(DataGridColumn column)
+        {
+            return column != null && _lockedColumns.Contains(column);
+        }
+
+        /// <summary>
+        /// Whether the column may be locked now: it must be resizable and visible, and at least
+        /// one other visible unlocked column must remain to absorb drags.
+        /// </summary>
+        public bool CanLockColumn(DataGridColumn column)
+        {
+            if (column == null ||
+                _getLocks == null ||
+                _setLocks == null ||
+                column.Visibility != Visibility.Visible ||
+                !column.CanUserResize ||
+                IsColumnLocked(column) ||
+                string.IsNullOrWhiteSpace(GetColumnKey(column)))
+            {
+                return false;
+            }
+
+            return GetVisibleResizableColumns().Count(c => !IsColumnLocked(c)) >= 2;
+        }
+
+        /// <summary>
+        /// Locks or unlocks a column's width from the header menu and persists the choice.
+        /// </summary>
+        public void SetColumnLocked(DataGridColumn column, bool locked)
+        {
+            var key = GetColumnKey(column);
+            if (string.IsNullOrWhiteSpace(key) || _getLocks == null || _setLocks == null)
+            {
+                return;
+            }
+
+            if (locked)
+            {
+                if (!CanLockColumn(column))
+                {
+                    return;
+                }
+
+                LockColumn(column);
+
+                // Save the whole visible layout, not just the locked column, as a finished drag
+                // does. Viewport rescales are seeded from the saved widths, so a map holding only
+                // the locked column would rescale its neighbours as equal shares instead of from
+                // where they sit on screen.
+                var widths = _getWidths?.Invoke() ?? new Dictionary<string, double>(StringComparer.OrdinalIgnoreCase);
+                foreach (var visible in GetVisibleResizableColumns())
+                {
+                    var visibleKey = GetColumnKey(visible);
+                    var width = ColumnWidthNormalization.RoundPixelWidth(ColumnWidthNormalization.GetCurrentWidth(visible));
+                    if (!string.IsNullOrWhiteSpace(visibleKey) && IsValidWidth(width))
+                    {
+                        widths[visibleKey] = width;
+                    }
+                }
+
+                _setWidths?.Invoke(widths);
+            }
+            else
+            {
+                if (!IsColumnLocked(column))
+                {
+                    return;
+                }
+
+                UnlockColumn(column);
+            }
+
+            var locks = _getLocks.Invoke() ?? new Dictionary<string, bool>(StringComparer.OrdinalIgnoreCase);
+            if (locked)
+            {
+                locks[key] = true;
+            }
+            else
+            {
+                locks.Remove(key);
+            }
+
+            _setLocks.Invoke(locks);
+            _saveSettings?.Invoke();
+        }
+
+        /// <summary>
+        /// Sets a column's width from a typed pixel value through the same protected-column
+        /// normalization a drag uses, so an unlocked neighbour absorbs the difference. Works for a
+        /// locked column too: the lock stops other columns taking from it, not the user setting it.
+        /// </summary>
+        public void SetColumnWidthFromInput(DataGridColumn column, double width)
+        {
+            var key = GetColumnKey(column);
+            if (string.IsNullOrWhiteSpace(key) ||
+                !IsValidWidth(width) ||
+                column.Visibility != Visibility.Visible ||
+                !column.CanUserResize)
+            {
+                return;
+            }
+
+            _lastResizedColumnKey = key;
+            _lastResizeAbsorberColumnKey = ResolveResizeAbsorberColumnKey(key);
+            QueueWidthUpdate(key, ColumnWidthNormalization.RoundPixelWidth(width));
+            PersistPendingResizeWidths();
+        }
+
+        private void ApplyPersistedLocks()
+        {
+            if (_grid == null || _getLocks == null)
+            {
+                return;
+            }
+
+            var map = _getLocks.Invoke();
+            foreach (var column in _grid.Columns)
+            {
+                var key = GetColumnKey(column);
+                if (string.IsNullOrWhiteSpace(key))
+                {
+                    continue;
+                }
+
+                var shouldLock = map != null && map.TryGetValue(key, out var isLocked) && isLocked;
+                if (shouldLock && !IsColumnLocked(column) && column.CanUserResize)
+                {
+                    LockColumn(column);
+                }
+                else if (!shouldLock && IsColumnLocked(column))
+                {
+                    UnlockColumn(column);
+                }
+            }
+        }
+
+        private void ReleaseRuntimeLocks()
+        {
+            foreach (var column in _lockedColumns.ToList())
+            {
+                UnlockColumn(column);
+            }
+        }
+
+        /// <summary>
+        /// Marks the column locked. The column stays a normal, resizable planner participant so a
+        /// viewport change rescales it with the rest; the lock only removes it from the absorber
+        /// order (see <see cref="GetLockedColumnKeys"/>) and, through the attached property, has
+        /// the gripper behavior hide the grippers on both of its edges.
+        /// </summary>
+        private void LockColumn(DataGridColumn column)
+        {
+            if (column == null || !_lockedColumns.Add(column))
+            {
+                return;
+            }
+
+            DataGridColumnGripperBehavior.SetIsLocked(column, true);
+        }
+
+        private void UnlockColumn(DataGridColumn column)
+        {
+            if (column == null || !_lockedColumns.Remove(column))
+            {
+                return;
+            }
+
+            DataGridColumnGripperBehavior.SetIsLocked(column, false);
+        }
+
+        /// <summary>
         /// Builds a column menu for the grid.
         /// Columns in ExcludedVisibilityKeys are not included in the visibility section.
         /// </summary>
@@ -1566,15 +2128,15 @@ namespace PlayniteAchievements.Views.Helpers
             }
 
             var menu = new ContextMenu();
-            var hasAlignmentSection = AddAlignmentSection(menu, contextColumn);
+            var hasColumnSection = AddColumnSection(menu, contextColumn);
             var separatorIndex = menu.Items.Count;
             var hasVisibilitySection = AddVisibilitySection(menu);
-            if (hasAlignmentSection && hasVisibilitySection)
+            if (hasColumnSection && hasVisibilitySection)
             {
                 menu.Items.Insert(separatorIndex, new Separator { Margin = new Thickness(8, 8, 8, 0) });
             }
 
-            if (!hasAlignmentSection && !hasVisibilitySection)
+            if (!hasColumnSection && !hasVisibilitySection)
             {
                 return null;
             }
@@ -1583,9 +2145,46 @@ namespace PlayniteAchievements.Views.Helpers
             return menu;
         }
 
-        private bool AddAlignmentSection(ContextMenu menu, DataGridColumn contextColumn)
+        /// <summary>
+        /// Places an open column menu under a header, anchored so that hiding a column from it
+        /// does not move the menu.
+        /// </summary>
+        /// <remarks>
+        /// Anchoring to the header itself looks right until the first toggle: unticking a column
+        /// collapses it, its header leaves the visual tree, and the menu loses the element it was
+        /// positioned against and jumps. The anchor is therefore the grid, which outlives every
+        /// column, with the header's position baked into the offsets at open time - so the menu
+        /// stays exactly where it was opened however many columns are switched off.
+        /// </remarks>
+        public void PlaceColumnVisibilityMenu(ContextMenu menu, FrameworkElement header)
         {
-            if (menu == null || !CanShowAlignmentSection(contextColumn))
+            if (menu == null || _grid == null)
+            {
+                return;
+            }
+
+            if (header == null || !header.IsDescendantOf(_grid))
+            {
+                menu.PlacementTarget = _grid;
+                menu.Placement = PlacementMode.MousePoint;
+                return;
+            }
+
+            var anchor = header.TranslatePoint(new Point(0, header.ActualHeight), _grid);
+            menu.PlacementTarget = _grid;
+            menu.Placement = PlacementMode.RelativePoint;
+            menu.HorizontalOffset = anchor.X;
+            menu.VerticalOffset = anchor.Y;
+        }
+
+        /// <summary>
+        /// The clicked column's own section: its name, then the width row (pixel box and lock),
+        /// then the alignment buttons. Present whenever at least one row applies, so a grid with
+        /// no alignment delegates still names the column above its width row.
+        /// </summary>
+        private bool AddColumnSection(ContextMenu menu, DataGridColumn contextColumn)
+        {
+            if (menu == null || contextColumn == null)
             {
                 return false;
             }
@@ -1596,15 +2195,279 @@ namespace PlayniteAchievements.Views.Helpers
                 return false;
             }
 
-            var rowItem = CreateAlignmentButtonRowItem(contextColumn);
-            if (rowItem == null)
+            var widthItem = CanShowWidthRow(contextColumn) ? CreateWidthRowItem(contextColumn) : null;
+            var alignmentItem = CanShowAlignmentSection(contextColumn) ? CreateAlignmentButtonRowItem(contextColumn) : null;
+            if (widthItem == null && alignmentItem == null)
             {
                 return false;
             }
 
             menu.Items.Add(CreateSectionHeader(headerText));
-            menu.Items.Add(rowItem);
+            if (widthItem != null)
+            {
+                menu.Items.Add(widthItem);
+            }
+
+            if (alignmentItem != null)
+            {
+                menu.Items.Add(alignmentItem);
+            }
+
             return true;
+        }
+
+        private bool CanShowWidthRow(DataGridColumn column)
+        {
+            return column != null &&
+                   _getWidths != null &&
+                   _setWidths != null &&
+                   column.Visibility == Visibility.Visible &&
+                   !string.IsNullOrWhiteSpace(GetColumnKey(column)) &&
+                   (column.CanUserResize || IsColumnLocked(column));
+        }
+
+        private MenuItem CreateWidthRowItem(DataGridColumn contextColumn)
+        {
+            MenuItem item = null;
+            Action refreshRow = null;
+
+            refreshRow = () =>
+            {
+                if (item != null)
+                {
+                    item.Header = CreateWidthRow(contextColumn, refreshRow);
+                }
+            };
+
+            item = new MenuItem
+            {
+                StaysOpenOnClick = true,
+                Focusable = false,
+                Cursor = Cursors.Arrow,
+                Style = CreateCenteredCompactMenuItemStyle(new Thickness(8, 0, 8, 4))
+            };
+
+            item.Header = CreateWidthRow(contextColumn, refreshRow);
+            KeyboardNavigation.SetIsTabStop(item, false);
+            return item.Header == null ? null : item;
+        }
+
+        /// <summary>
+        /// A pixel box showing the column's current width ("120 px" at rest, the bare number while
+        /// editing, as the showcase track rulers do) and a lock button beside it.
+        /// </summary>
+        private FrameworkElement CreateWidthRow(DataGridColumn contextColumn, Action refreshRow)
+        {
+            if (contextColumn == null || string.IsNullOrWhiteSpace(GetColumnKey(contextColumn)))
+            {
+                return null;
+            }
+
+            var row = new StackPanel
+            {
+                Orientation = Orientation.Horizontal,
+                HorizontalAlignment = HorizontalAlignment.Center,
+                VerticalAlignment = VerticalAlignment.Center,
+                Margin = new Thickness(0)
+            };
+
+            var isLocked = IsColumnLocked(contextColumn);
+            var editor = new TextBox
+            {
+                Width = 72,
+                Height = 28,
+                MinWidth = 72,
+                Margin = new Thickness(0, 0, 4, 0),
+                Padding = new Thickness(4, 0, 4, 0),
+                TextAlignment = TextAlignment.Center,
+                VerticalContentAlignment = VerticalAlignment.Center,
+                AcceptsReturn = false,
+                ToolTip = ResourceProvider.GetString("LOCPlayAch_Settings_Style_CardWidth")
+            };
+            AutomationProperties.SetName(editor, ResourceProvider.GetString("LOCPlayAch_Settings_Style_CardWidth"));
+            editor.Text = FormatWidthLabel(contextColumn);
+
+            var editHandled = new object();
+            editor.GotKeyboardFocus += (_, __) =>
+            {
+                editor.Text = FormatWidthNumber(contextColumn);
+                editor.SelectAll();
+            };
+            editor.PreviewMouseLeftButtonDown += (_, args) =>
+            {
+                if (!editor.IsKeyboardFocusWithin)
+                {
+                    editor.Focus();
+                    args.Handled = true;
+                }
+            };
+            editor.KeyDown += (_, args) =>
+            {
+                if (args.Key == Key.Enter)
+                {
+                    CommitWidthEdit(contextColumn, editor.Text);
+                    // Losing focus below must not commit again: the layout has not caught up yet,
+                    // so a second pass would apply the change twice.
+                    editor.Tag = editHandled;
+                    args.Handled = true;
+                    MoveFocusOffEditor(editor);
+                    ScheduleWidthRowRefresh(refreshRow);
+                }
+                else if (args.Key == Key.Escape)
+                {
+                    // Not marked handled: the menu closes on Escape, and the Tag stops the
+                    // focus loss from committing the abandoned text.
+                    editor.Tag = editHandled;
+                    editor.Text = FormatWidthLabel(contextColumn);
+                }
+            };
+            editor.LostKeyboardFocus += (_, __) =>
+            {
+                if (ReferenceEquals(editor.Tag, editHandled))
+                {
+                    editor.Tag = null;
+                    editor.Text = FormatWidthLabel(contextColumn);
+                    return;
+                }
+
+                CommitWidthEdit(contextColumn, editor.Text);
+                editor.Text = FormatWidthLabel(contextColumn);
+                ScheduleWidthRowRefresh(refreshRow);
+            };
+            row.Children.Add(editor);
+
+            if (_getLocks != null && _setLocks != null)
+            {
+                var description = ResourceProvider.GetString(isLocked ? "LOCPlayAch_Common_Locked" : "LOCPlayAch_Common_Unlocked");
+                var lockButton = CreateAlignmentButton(
+                    CreateLockIcon(isLocked),
+                    description,
+                    !isLocked,
+                    () =>
+                    {
+                        SetColumnLocked(contextColumn, !IsColumnLocked(contextColumn));
+                        refreshRow?.Invoke();
+                    });
+                lockButton.IsEnabled = isLocked || CanLockColumn(contextColumn);
+                lockButton.Margin = new Thickness(0);
+                row.Children.Add(lockButton);
+            }
+            else
+            {
+                editor.Margin = new Thickness(0);
+            }
+
+            return row;
+        }
+
+        private void CommitWidthEdit(DataGridColumn column, string text)
+        {
+            var digits = new string((text ?? string.Empty).Where(char.IsDigit).ToArray());
+            if (!int.TryParse(digits, out var target) || target <= 0)
+            {
+                return;
+            }
+
+            SetColumnWidthFromInput(column, target);
+        }
+
+        private void ScheduleWidthRowRefresh(Action refreshRow)
+        {
+            if (refreshRow == null || _grid == null)
+            {
+                return;
+            }
+
+            // Once the layout has settled, so the box reads the width the column actually landed on.
+            _grid.Dispatcher.BeginInvoke(refreshRow, DispatcherPriority.ContextIdle);
+        }
+
+        private static void MoveFocusOffEditor(TextBox editor)
+        {
+            if (editor == null)
+            {
+                return;
+            }
+
+            if (!editor.MoveFocus(new TraversalRequest(FocusNavigationDirection.Next)))
+            {
+                Keyboard.ClearFocus();
+            }
+        }
+
+        private static string FormatWidthNumber(DataGridColumn column)
+        {
+            return FormatWidthNumber(ColumnWidthNormalization.GetCurrentWidth(column));
+        }
+
+        private static string FormatWidthNumber(double width)
+        {
+            return ColumnWidthNormalization.RoundPixelWidth(width).ToString("0", System.Globalization.CultureInfo.CurrentCulture);
+        }
+
+        private static string FormatWidthLabel(DataGridColumn column)
+        {
+            return FormatWidthNumber(column) + " px";
+        }
+
+        private static string FormatWidthLabel(DataGridColumn column, double width)
+        {
+            return FormatWidthNumber(IsValidWidth(width) ? width : ColumnWidthNormalization.GetCurrentWidth(column)) + " px";
+        }
+
+        private FrameworkElement CreateLockIcon(bool isLocked)
+        {
+            var geometry = _grid?.TryFindResource("GeoLock") as Geometry ??
+                           Application.Current?.TryFindResource("GeoLock") as Geometry;
+            var icon = new Grid
+            {
+                Width = 20,
+                Height = 14,
+                Opacity = isLocked ? 1 : 0.62,
+                HorizontalAlignment = HorizontalAlignment.Center,
+                VerticalAlignment = VerticalAlignment.Center
+            };
+
+            if (geometry != null)
+            {
+                var path = new System.Windows.Shapes.Path
+                {
+                    Data = geometry,
+                    Stretch = Stretch.Uniform,
+                    Width = 12,
+                    Height = 14,
+                    HorizontalAlignment = HorizontalAlignment.Center,
+                    VerticalAlignment = VerticalAlignment.Center
+                };
+                SetTextBrushOpacity(path, System.Windows.Shapes.Shape.FillProperty, 0.88);
+                icon.Children.Add(path);
+                return icon;
+            }
+
+            // No geometry resource in this tree: a body and a shackle drawn from borders.
+            var body = new Border
+            {
+                Width = 10,
+                Height = 7,
+                CornerRadius = new CornerRadius(1),
+                HorizontalAlignment = HorizontalAlignment.Center,
+                VerticalAlignment = VerticalAlignment.Bottom
+            };
+            SetTextBrushOpacity(body, Border.BackgroundProperty, 0.88);
+            var shackle = new Border
+            {
+                Width = 6,
+                Height = 6,
+                BorderThickness = new Thickness(1.4, 1.4, 1.4, 0),
+                CornerRadius = new CornerRadius(3, 3, 0, 0),
+                HorizontalAlignment = HorizontalAlignment.Center,
+                VerticalAlignment = VerticalAlignment.Top,
+                Margin = new Thickness(0, 1, 0, 0)
+            };
+            SetTextBrushOpacity(shackle, Border.BorderBrushProperty, 0.88);
+            icon.Children.Add(body);
+            icon.Children.Add(shackle);
+            return icon;
         }
 
         private MenuItem CreateAlignmentButtonRowItem(DataGridColumn contextColumn)
@@ -2486,6 +3349,14 @@ namespace PlayniteAchievements.Views.Helpers
 
         private static string ResolveColumnDisplayName(DataGridColumn column)
         {
+            // A declared name wins: resolving a Header that is a control falls through to
+            // ToString(), which reads as the control's type name.
+            var declaredName = ColumnVisibilityHelper.GetColumnDisplayName(column);
+            if (!string.IsNullOrWhiteSpace(declaredName))
+            {
+                return declaredName;
+            }
+
             var headerText = ResolveHeaderText(column?.Header);
             if (!string.IsNullOrWhiteSpace(headerText))
             {

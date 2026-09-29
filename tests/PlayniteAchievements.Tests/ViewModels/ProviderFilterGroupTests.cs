@@ -128,6 +128,65 @@ namespace PlayniteAchievements.Tests.ViewModels
                 group.SelectedPlatformNames.ToList());
         }
 
+        [TestMethod]
+        public void HasSameFilterOptions_NewInstancesOfTheSameGames_IsTrue()
+        {
+            Assert.IsTrue(ProviderFilterGroupBuilder.HasSameFilterOptions(Library(), Library()));
+        }
+
+        [TestMethod]
+        public void HasSameFilterOptions_ChangedPlatformProviderOrOrder_IsFalse()
+        {
+            var changedPlatform = Library();
+            changedPlatform[1].Platforms = new[] { "PC" };
+            var changedProvider = Library();
+            changedProvider[2].ProviderKey = "PSN";
+            var reordered = Enumerable.Reverse(Library()).ToArray();
+            var shorter = Library().Take(2).ToArray();
+
+            Assert.IsFalse(ProviderFilterGroupBuilder.HasSameFilterOptions(Library(), changedPlatform));
+            Assert.IsFalse(ProviderFilterGroupBuilder.HasSameFilterOptions(Library(), changedProvider));
+            Assert.IsFalse(ProviderFilterGroupBuilder.HasSameFilterOptions(Library(), reordered));
+            Assert.IsFalse(ProviderFilterGroupBuilder.HasSameFilterOptions(Library(), shorter));
+            Assert.IsFalse(ProviderFilterGroupBuilder.HasSameFilterOptions(null, Library()));
+        }
+
+        [TestMethod]
+        public void GameSummaryAdapter_NewSnapshotOfTheSameLibrary_KeepsTheGroups()
+        {
+            var adapter = new GameSummaryGridControlBarAdapter();
+            adapter.UpdateOptions(Library());
+            var groups = adapter.ProviderFilterGroups;
+
+            adapter.UpdateOptions(Library());
+
+            Assert.AreSame(groups, adapter.ProviderFilterGroups);
+        }
+
+        [TestMethod]
+        public void GameSummaryAdapter_NewPlatformInTheLibrary_RebuildsTheGroups()
+        {
+            var adapter = new GameSummaryGridControlBarAdapter();
+            adapter.UpdateOptions(Library());
+            var groups = adapter.ProviderFilterGroups;
+
+            var changed = Library();
+            changed[0].Platforms = new[] { "PC", "Linux" };
+            adapter.UpdateOptions(changed);
+
+            Assert.AreNotSame(groups, adapter.ProviderFilterGroups);
+            CollectionAssert.Contains(
+                adapter.ProviderFilterGroups.SelectMany(group => group.Platforms.Select(p => p.PlatformName)).ToList(),
+                "Linux");
+        }
+
+        private static GameSummaryItem[] Library() => new[]
+        {
+            new GameSummaryItem { GameName = "Portal", ProviderKey = "Steam", Provider = "Steam", Platforms = new[] { "PC" } },
+            new GameSummaryItem { GameName = "Celeste", ProviderKey = "Steam", Provider = "Steam", Platforms = new[] { "Steam Deck" } },
+            new GameSummaryItem { GameName = "Halo", ProviderKey = "Xbox", Provider = "Xbox", Platforms = new[] { "Xbox" } }
+        };
+
         private static ProviderFilterGroup CreateGroup(string providerKey, params string[] platforms)
         {
             return new ProviderFilterGroup(

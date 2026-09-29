@@ -24,7 +24,7 @@ namespace PlayniteAchievements.Providers.GOG
     /// IDataProvider implementation for GOG achievements.
     /// Uses WebView-based authentication and GOG gameplay API.
     /// </summary>
-    public sealed class GogDataProvider : DataProviderBase<GogSettings>, IDataProvider, IAchievementPageLinkProvider, IProviderOverride, IRefreshAuthContextReceiver, IInGameProgressSource, IDisposable
+    public sealed class GogDataProvider : DataProviderBase<GogSettings>, IDataProvider, IProfileLinkProvider, IAchievementPageLinkProvider, IProviderOverride, IRefreshAuthContextReceiver, IInGameProgressSource, IDisposable
     {
         /// <summary>
         /// Resolved once at game start so the fast prong never repeats product/user discovery.
@@ -87,6 +87,13 @@ namespace PlayniteAchievements.Providers.GOG
         public string ProviderKey => "GOG";
 
         public string ProviderIconKey => "ProviderIconGOG";
+
+        public string ProfileUrlPattern => "https://www.gog.com/u/{0}";
+
+        public string BuildProfileUrl(string user) => ProfileLinkUrls.Format(ProfileUrlPattern, user);
+
+        // The stored settings carry no public profile name; the user enters it.
+        public string GetCurrentUserProfileName() => null;
 
         public string ProviderColorHex => "#A855F7";
 

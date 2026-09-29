@@ -78,7 +78,7 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Legacy.Controls
             nameof(SoftGlowTiers),
             typeof(RaritySelection),
             typeof(AchievementImage),
-            new FrameworkPropertyMetadata(RaritySelection.All)
+            new FrameworkPropertyMetadata(RaritySelectionExtensions.DefaultSoftGlowTiers)
         );
         public RaritySelection SoftGlowTiers
         {

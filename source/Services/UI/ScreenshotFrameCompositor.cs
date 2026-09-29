@@ -5,6 +5,7 @@ using System.Windows.Controls;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using Playnite.SDK;
+using PlayniteAchievements.Services.Capture;
 
 namespace PlayniteAchievements.Services.UI
 {
@@ -58,16 +59,7 @@ namespace PlayniteAchievements.Services.UI
                 }
 
                 var (canvasWidth, canvasHeight, scale) = ComputeCanvas(pixelWidth, pixelHeight);
-                var canvasSize = new Size(canvasWidth, canvasHeight);
-
-                var host = new ContentControl
-                {
-                    Content = viewModel,
-                    ContentTemplate = frameTemplate,
-                };
-                host.Measure(canvasSize);
-                host.Arrange(new Rect(canvasSize));
-                host.UpdateLayout();
+                var host = CreateFrameHost(frameTemplate, viewModel, canvasWidth, canvasHeight);
 
                 var target = new RenderTargetBitmap(
                     pixelWidth,
@@ -99,6 +91,58 @@ namespace PlayniteAchievements.Services.UI
                 _logger?.Debug(ex, "Screenshot frame compositing failed.");
                 return null;
             }
+        }
+
+        /// <summary>
+        /// Renders the frame template alone over transparency at
+        /// <paramref name="pixelWidth"/> x <paramref name="pixelHeight"/>, laid out exactly as
+        /// <see cref="ComposeFramed"/> lays it out over a screenshot of that size. The pixels are
+        /// premultiplied BGRA, ready to composite over video frames. Null on failure.
+        /// </summary>
+        public FrameChromeImage RenderChrome(DataTemplate frameTemplate, object viewModel, int pixelWidth, int pixelHeight)
+        {
+            if (frameTemplate == null || viewModel == null || pixelWidth <= 0 || pixelHeight <= 0)
+            {
+                return null;
+            }
+
+            try
+            {
+                var (canvasWidth, canvasHeight, scale) = ComputeCanvas(pixelWidth, pixelHeight);
+                var host = CreateFrameHost(frameTemplate, viewModel, canvasWidth, canvasHeight);
+                var target = new RenderTargetBitmap(
+                    pixelWidth,
+                    pixelHeight,
+                    96 * scale,
+                    96 * scale,
+                    PixelFormats.Pbgra32);
+                target.Render(host);
+
+                var stride = pixelWidth * 4;
+                var pixels = new byte[stride * pixelHeight];
+                target.CopyPixels(pixels, stride, 0);
+                return new FrameChromeImage(pixels, pixelWidth, pixelHeight);
+            }
+            catch (Exception ex)
+            {
+                _logger?.Debug(ex, "Frame chrome rendering failed.");
+                return null;
+            }
+        }
+
+        private static ContentControl CreateFrameHost(
+            DataTemplate frameTemplate, object viewModel, double canvasWidth, double canvasHeight)
+        {
+            var canvasSize = new Size(canvasWidth, canvasHeight);
+            var host = new ContentControl
+            {
+                Content = viewModel,
+                ContentTemplate = frameTemplate,
+            };
+            host.Measure(canvasSize);
+            host.Arrange(new Rect(canvasSize));
+            host.UpdateLayout();
+            return host;
         }
 
         /// <summary>

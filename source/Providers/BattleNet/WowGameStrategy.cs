@@ -423,7 +423,7 @@ namespace PlayniteAchievements.Providers.BattleNet
                     // parent_category that WowOfficialAchievementCategory does not model, so a
                     // catalog-only achievement lands at the root next to the nested catalog ones.
                     Category = CategoryPathHelper.JoinRaw(definition?.Category?.Name),
-                    CategoryType = IsOfficiallyUnobtainable(definition) ? "Missable" : null,
+                    CategoryType = IsOfficiallyUnobtainable(definition) ? "Unobtainable" : null,
                     Hidden = definition?.IsHidden == true,
                     ProviderKey = "BattleNet",
                     Unlocked = false
@@ -470,7 +470,7 @@ namespace PlayniteAchievements.Providers.BattleNet
 
             if (IsOfficiallyUnobtainable(definition))
             {
-                detail.CategoryType = "Missable";
+                detail.CategoryType = "Unobtainable";
             }
 
             if (definition.IsHidden)
@@ -803,7 +803,7 @@ namespace PlayniteAchievements.Providers.BattleNet
                 UnlockedIconPath = iconUrl,
                 Points = definition != null && definition.Points > 0 ? definition.Points : (int?)null,
                 Category = definition?.Category?.Name,
-                CategoryType = IsOfficiallyUnobtainable(definition) ? "Missable" : null,
+                CategoryType = IsOfficiallyUnobtainable(definition) ? "Unobtainable" : null,
                 Hidden = definition?.IsHidden == true,
                 ProviderKey = "BattleNet",
                 Unlocked = false

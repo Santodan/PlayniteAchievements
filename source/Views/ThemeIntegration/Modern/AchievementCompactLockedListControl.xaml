@@ -77,6 +77,8 @@
                 <!-- Use shared compact item control -->
                 <controls:AchievementCompactItemControl
                     IconSize="{Binding IconSize, RelativeSource={RelativeSource AncestorType=modern:AchievementCompactListControlBase}}"
+                    ShowRarityGlow="{Binding ShowRarityGlow, RelativeSource={RelativeSource AncestorType=modern:AchievementCompactListControlBase}}"
+                    AnimateRarityGlows="{Binding AnimateRarityGlows, RelativeSource={RelativeSource AncestorType=modern:AchievementCompactListControlBase}}"
                     Margin="4"/>
             </DataTemplate>
         </ItemsControl.ItemTemplate>

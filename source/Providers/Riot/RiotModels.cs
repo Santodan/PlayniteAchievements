@@ -106,6 +106,13 @@ namespace PlayniteAchievements.Providers.Riot
         [JsonProperty("queueIds")]
         public List<int> QueueIds { get; set; }
 
+        /// <summary>
+        /// Game seasons a seasonal challenge belongs to (e.g. [13, 14] for the 2023 set); empty
+        /// for challenges that are not tied to a season.
+        /// </summary>
+        [JsonProperty("seasons")]
+        public List<int> Seasons { get; set; }
+
         /// <summary>Epoch milliseconds after which the challenge can no longer be progressed; 0 when open-ended.</summary>
         [JsonProperty("endTimestamp")]
         public long EndTimestamp { get; set; }
@@ -144,5 +151,22 @@ namespace PlayniteAchievements.Providers.Riot
 
         /// <summary>challengeId to level name to percentile. Empty when the source cannot supply it.</summary>
         public IReadOnlyDictionary<long, IReadOnlyDictionary<string, double>> LevelPercentiles { get; set; }
+
+        /// <summary>
+        /// Challenges Riot's config reports as ARCHIVED (visible, but no longer calculated).
+        /// Empty when the source cannot supply it.
+        /// </summary>
+        public IReadOnlyCollection<long> ArchivedChallengeIds { get; set; }
+    }
+
+    /// <summary>One entry of the web API's <c>challenges/config</c> list; only the fields used.</summary>
+    internal sealed class RiotChallengeConfigDto
+    {
+        [JsonProperty("id")]
+        public long Id { get; set; }
+
+        /// <summary>DISABLED, HIDDEN, ENABLED or ARCHIVED.</summary>
+        [JsonProperty("state")]
+        public string State { get; set; }
     }
 }

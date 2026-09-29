@@ -42,12 +42,17 @@ namespace PlayniteAchievements.Services.Capture
         public bool AlignBottom { get; set; }
 
         /// <summary>
-        /// The corner inset in DIPs (the visible-body gap less the card's glow margin), as the live
-        /// placer uses it; scaled by <see cref="MonitorScale"/> in the corner math.
+        /// The horizontal corner inset in DIPs (the visible-body gap less the room the card
+        /// reserves on the edge it sits against), as the live placer uses it; scaled by
+        /// <see cref="MonitorScale"/> in the corner math. Separate from
+        /// <see cref="GapYDip"/> because a template's root margin need not be uniform.
         /// </summary>
-        public double GapDip { get; set; }
+        public double GapXDip { get; set; }
 
-        /// <summary>The anchor monitor's scale, for turning <see cref="GapDip"/> physical.</summary>
+        /// <summary>See <see cref="GapXDip"/>.</summary>
+        public double GapYDip { get; set; }
+
+        /// <summary>The anchor monitor's scale, for turning the gaps physical.</summary>
         public double MonitorScale { get; set; }
 
         /// <summary>
@@ -72,6 +77,13 @@ namespace PlayniteAchievements.Services.Capture
         /// the card.
         /// </summary>
         public List<TimedLayer> RayLayers { get; } = new List<TimedLayer>();
+
+        /// <summary>
+        /// The screenshot frame's chrome for this achievement, rendered at the clip's frame size
+        /// when the unlock asked for a framed clip. Null otherwise, or when it could not be
+        /// rendered, which leaves the framed clip out.
+        /// </summary>
+        public FrameChromeImage FrameChrome { get; set; }
 
         /// <summary>One captured difference layer and the track time it was captured at.</summary>
         public struct TimedLayer
@@ -126,9 +138,14 @@ namespace PlayniteAchievements.Services.Capture
             public int CardHPhys;
 
             /// <summary>
-            /// The slide host's opacity at this tick. Scales the ray layers at export (a fade
-            /// theme's fade must reach them; the card pixels carry it already, and the shadow
-            /// layer's <see cref="GlowScale"/> folds it in with the pulse).
+            /// The slide host's opacity at this tick. A fade theme animates the host rather than
+            /// the card, and the recorded pixels are captured without it, so export scales the card
+            /// pixels by this and the ray layers by it too; the shadow layer's
+            /// <see cref="GlowScale"/> folds it in with the pulse.
+            ///
+            /// Deliberately metadata rather than baked into the pixels: the recorder holds one
+            /// frame for a slide storyboard's whole span, which is exactly when a fade runs, so a
+            /// baked fade froze at whatever opacity the first live render caught.
             /// </summary>
             public double HostOpacity;
 

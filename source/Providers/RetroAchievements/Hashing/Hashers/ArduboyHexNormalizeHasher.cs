@@ -10,13 +10,17 @@ namespace PlayniteAchievements.Providers.RetroAchievements.Hashing.Hashers
     {
         public string Name => "Arduboy (.hex normalized MD5)";
 
-        public async Task<IReadOnlyList<string>> ComputeHashesAsync(string filePath, CancellationToken cancel)
+        public bool SupportsForwardOnlyInput => true;
+
+        public async Task<IReadOnlyList<string>> ComputeHashesAsync(RaHashSource source, CancellationToken cancel)
         {
             // RetroAchievements uses normalized line endings and always appends a final \n.
             // This matches rcheevos' rc_hash_text behavior.
-            var hash = await HashUtils.ComputeMd5HexForNormalizedTextAsync(filePath, cancel).ConfigureAwait(false);
-            return new[] { hash };
+            using (var stream = source.Open())
+            {
+                var hash = await HashUtils.ComputeMd5HexForNormalizedTextAsync(stream, cancel).ConfigureAwait(false);
+                return new[] { hash };
+            }
         }
     }
 }
-

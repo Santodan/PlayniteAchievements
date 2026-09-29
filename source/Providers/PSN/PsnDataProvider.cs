@@ -14,7 +14,7 @@ using System.Threading.Tasks;
 
 namespace PlayniteAchievements.Providers.PSN
 {
-    internal sealed class PsnDataProvider : DataProviderBase<PsnSettings>, IDataProvider, IProviderOverride
+    internal sealed class PsnDataProvider : DataProviderBase<PsnSettings>, IDataProvider, IProfileLinkProvider, IProviderOverride
     {
         // Accepts a single NP Communication ID, or several joined with '+' or ',' so a
         // compilation's trophy sets can be supplied manually when lookup cannot resolve them.
@@ -61,6 +61,13 @@ namespace PlayniteAchievements.Providers.PSN
         public string ProviderKey => "PSN";
 
         public string ProviderIconKey => "ProviderIconPSN";
+
+        public string ProfileUrlPattern => "https://psnprofiles.com/{0}";
+
+        public string BuildProfileUrl(string user) => ProfileLinkUrls.Format(ProfileUrlPattern, user);
+
+        // The stored settings carry no public profile name; the user enters it.
+        public string GetCurrentUserProfileName() => null;
 
         public string ProviderColorHex => "#0070D1";
 

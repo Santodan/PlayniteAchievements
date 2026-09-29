@@ -5,6 +5,7 @@
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:settings="clr-namespace:PlayniteAchievements.Providers.Settings"
              xmlns:helpers="clr-namespace:PlayniteAchievements.Views.Helpers"
+             xmlns:controls="clr-namespace:PlayniteAchievements.Views.Controls"
              mc:Ignorable="d"
              d:DesignHeight="600"
              d:DesignWidth="700">
@@ -30,11 +31,12 @@
             </StackPanel>
 
             <!-- Provider Enable Toggle -->
-            <Border Style="{StaticResource ProviderEnableToggleBorderStyle}">
-                <CheckBox Content="{DynamicResource LOCPlayAch_Settings_ProviderEnabled}"
-                          IsChecked="{Binding Settings.IsEnabled, Mode=TwoWay}"
-                          FontWeight="SemiBold"
-                          FontSize="{DynamicResource PlayAch.FontSize.Body}"/>
+            <Border Style="{StaticResource ProviderEnableToggleBorderStyle}" Grid.IsSharedSizeScope="True">
+                <controls:SettingRow Label="{DynamicResource LOCPlayAch_Settings_ProviderEnabled}"
+                                     FontWeight="SemiBold"
+                                     Margin="0">
+                    <CheckBox IsChecked="{Binding Settings.IsEnabled, Mode=TwoWay}"/>
+                </controls:SettingRow>
             </Border>
 
             <!-- Provider Disabled Message -->
@@ -154,7 +156,7 @@
                                                   SelectedValue="{Binding Settings.PlatformRegion, Mode=TwoWay}"
                                                   Padding="4"/>
 
-                                        <TextBlock Text="{DynamicResource LOCPlayAch_Settings_RiotApiKey}"
+                                        <TextBlock Text="{DynamicResource LOCPlayAch_Common_Label_ApiKey}"
                                                    Margin="0,12,0,8"/>
                                         <TextBox Text="{Binding Settings.RiotApiKey, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                                  Padding="4"/>

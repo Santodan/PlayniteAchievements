@@ -1,5 +1,6 @@
 using System;
 using System.IO;
+using PlayniteAchievements.Services.Images;
 
 namespace PlayniteAchievements.Models.Achievements
 {
@@ -149,6 +150,58 @@ namespace PlayniteAchievements.Models.Achievements
             return string.IsNullOrWhiteSpace(candidate) ? DefaultIconPackUri : candidate;
         }
 
+        /// <summary>
+        /// The locked slot's art to draw, or null when the locked look should be derived from the
+        /// unlocked icon instead.
+        /// </summary>
+        /// <remarks>
+        /// "Use separate locked icons" is about the provider's second image, so turning it off
+        /// derives the locked look from the unlocked icon. A locked icon the user chose is not
+        /// that image and survives the toggle either way.
+        ///
+        /// So only the provider's own cached locked file is dropped, rather than keeping what sits
+        /// in the custom folder: a locked override can also be a URL, or the path just picked and
+        /// not yet copied in, and the setting has no business discarding either.
+        ///
+        /// Applied where the icon is drawn rather than only where the cache is written, so the
+        /// toggle takes effect immediately instead of waiting for the next refresh to re-resolve
+        /// every path.
+        /// </remarks>
+        public static string ResolveLockedArtPath(string lockedIconPath, bool useSeparateLockedIcons)
+        {
+            if (useSeparateLockedIcons || string.IsNullOrWhiteSpace(lockedIconPath))
+            {
+                return lockedIconPath;
+            }
+
+            var normalized = NormalizeDisplaySource(lockedIconPath);
+            var isProviderCachedLockedArt =
+                AchievementIconCachePathBuilder.IsCachedIconPath(normalized) &&
+                !AchievementIconCachePathBuilder.IsCustomIconPath(normalized);
+
+            return isProviderCachedLockedArt ? null : lockedIconPath;
+        }
+
+        /// <summary>
+        /// Whether the locked slot holds a locked icon of its own, as opposed to a copy of the
+        /// unlocked one that the locked look should be derived from instead.
+        /// </summary>
+        /// <remarks>
+        /// Answered from the file name, because that is where the answer is kept: every locked
+        /// icon is stored under the locked name, the provider's own art and a custom one alike,
+        /// and nothing else is. Comparing the two paths instead gets both of the cases that matter
+        /// wrong.
+        ///
+        /// One image chosen for both slots is one image in two files, so comparing the paths reads
+        /// it as no locked icon and grays an icon somebody picked. And a game with separate locked
+        /// icons off stores the unlocked path in both slots, so a custom unlocked icon leaves that
+        /// copy behind pointing at the art it replaced -- which compares as different, and showed
+        /// the provider's original back in full colour for everything still locked.
+        ///
+        /// The comparison is kept for a path from outside the icon cache, which carries no name of
+        /// ours to read: a locked path typed by hand counts while it differs from the unlocked one,
+        /// as it always has.
+        /// </remarks>
         public static bool HasExplicitLockedIcon(string lockedIconPath, string unlockedIconPath)
         {
             var normalizedLockedIconPath = NormalizeDisplaySource(lockedIconPath);
@@ -160,6 +213,11 @@ namespace PlayniteAchievements.Models.Achievements
             if (!IsUsableDisplayPath(normalizedLockedIconPath))
             {
                 return false;
+            }
+
+            if (AchievementIconCachePathBuilder.IsCachedIconPath(normalizedLockedIconPath))
+            {
+                return AchievementIconCachePathBuilder.IsLockedVariantPath(normalizedLockedIconPath);
             }
 
             var normalizedUnlockedIconPath = NormalizeDisplaySource(unlockedIconPath);
@@ -268,10 +326,14 @@ namespace PlayniteAchievements.Models.Achievements
                 : string.Concat(CacheBustPrefix, cacheBustToken, "|", candidate);
         }
 
+        // One stat, not two. This runs on the UI thread for every DisplayIcon read, which means
+        // once per row the editor's grid realizes, and File.Exists followed by a fresh FileInfo
+        // asked the filesystem for the same entry twice. FileInfo caches its metadata on first
+        // access, so Exists, LastWriteTimeUtc and Length all come from the one lookup.
         private static string TryGetCacheBustToken(string value)
         {
             var normalized = NormalizeDisplaySource(value);
-            if (string.IsNullOrWhiteSpace(normalized) || !Path.IsPathRooted(normalized) || !File.Exists(normalized))
+            if (string.IsNullOrWhiteSpace(normalized) || !Path.IsPathRooted(normalized))
             {
                 return null;
             }
@@ -279,6 +341,11 @@ namespace PlayniteAchievements.Models.Achievements
             try
             {
                 var fileInfo = new FileInfo(normalized);
+                if (!fileInfo.Exists)
+                {
+                    return null;
+                }
+
                 return string.Concat(fileInfo.LastWriteTimeUtc.Ticks.ToString(), ":", fileInfo.Length.ToString());
             }
             catch
