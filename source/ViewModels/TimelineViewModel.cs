@@ -30,6 +30,7 @@ namespace PlayniteAchievements.ViewModels
 
         private readonly object _sync = new object();
         private Dictionary<DateTime, int> _countsByDate = new Dictionary<DateTime, int>();
+        private bool _hasCounts;
         private int _updateVersion;
 
         // UI-thread state of the last applied pass, kept so a tick-count change re-plans labels
@@ -61,16 +62,46 @@ namespace PlayniteAchievements.ViewModels
         }
 
         /// <summary>Replaces the per-day counts (keys are local calendar days) and recomputes.</summary>
+        /// <remarks>
+        /// Counts equal to the ones already shown are dropped. Hosts re-feed the counts on every
+        /// custom-data change, most of which move no unlock, and each pass ends in a forced
+        /// synchronous chart redraw on the UI thread.
+        /// </remarks>
         public void SetCounts(IDictionary<DateTime, int> countsByDate)
         {
+            var next = countsByDate != null
+                ? new Dictionary<DateTime, int>(countsByDate)
+                : new Dictionary<DateTime, int>();
             lock (_sync)
             {
-                _countsByDate = countsByDate != null
-                    ? new Dictionary<DateTime, int>(countsByDate)
-                    : new Dictionary<DateTime, int>();
+                if (_hasCounts && HasSameCounts(_countsByDate, next))
+                {
+                    return;
+                }
+
+                _countsByDate = next;
+                _hasCounts = true;
             }
 
             ScheduleUpdate();
+        }
+
+        private static bool HasSameCounts(Dictionary<DateTime, int> current, Dictionary<DateTime, int> next)
+        {
+            if (current.Count != next.Count)
+            {
+                return false;
+            }
+
+            foreach (var pair in next)
+            {
+                if (!current.TryGetValue(pair.Key, out var count) || count != pair.Value)
+                {
+                    return false;
+                }
+            }
+
+            return true;
         }
 
         /// <summary>The window shown: a rolling preset or a custom range.</summary>
