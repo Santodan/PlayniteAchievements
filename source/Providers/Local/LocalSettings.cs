@@ -196,6 +196,10 @@ namespace PlayniteAchievements.Providers.Local
         public double SecondaryIconSize { get; set; } = 58;
         public double IconCornerRadius { get; set; } = 10;
         public double SecondaryIconCornerRadius { get; set; } = 10;
+        public bool ShowIconBackground { get; set; } = true;
+        public bool ShowSecondaryIconBackground { get; set; } = true;
+        public string IconBackgroundColor { get; set; } = "#24FFFFFF";
+        public string SecondaryIconBackgroundColor { get; set; } = "#18FFFFFF";
         public double Width { get; set; } = 460;
         public double Height { get; set; } = 128;
         public double CornerRadius { get; set; } = 18;
@@ -434,6 +438,10 @@ namespace PlayniteAchievements.Providers.Local
         private double _overlayCustomSecondaryIconSize = 58;
         private double _overlayCustomIconCornerRadius = 10;
         private double _overlayCustomSecondaryIconCornerRadius = 10;
+        private bool _overlayCustomShowIconBackground = true;
+        private bool _overlayCustomShowSecondaryIconBackground = true;
+        private string _overlayCustomIconBackgroundColor = "#24FFFFFF";
+        private string _overlayCustomSecondaryIconBackgroundColor = "#18FFFFFF";
         private double _overlayCustomWidth = 460;
         private double _overlayCustomHeight = 128;
         private double _overlayCustomCornerRadius = 18;
@@ -1917,6 +1925,30 @@ namespace PlayniteAchievements.Providers.Local
             set => SetValue(ref _overlayCustomSecondaryIconCornerRadius, Math.Max(0, Math.Min(110, value)));
         }
 
+        public bool OverlayCustomShowIconBackground
+        {
+            get => _overlayCustomShowIconBackground;
+            set => SetValue(ref _overlayCustomShowIconBackground, value);
+        }
+
+        public bool OverlayCustomShowSecondaryIconBackground
+        {
+            get => _overlayCustomShowSecondaryIconBackground;
+            set => SetValue(ref _overlayCustomShowSecondaryIconBackground, value);
+        }
+
+        public string OverlayCustomIconBackgroundColor
+        {
+            get => _overlayCustomIconBackgroundColor;
+            set => SetValue(ref _overlayCustomIconBackgroundColor, string.IsNullOrWhiteSpace(value) ? "#24FFFFFF" : value.Trim());
+        }
+
+        public string OverlayCustomSecondaryIconBackgroundColor
+        {
+            get => _overlayCustomSecondaryIconBackgroundColor;
+            set => SetValue(ref _overlayCustomSecondaryIconBackgroundColor, string.IsNullOrWhiteSpace(value) ? "#18FFFFFF" : value.Trim());
+        }
+
         public ScoreProgressNotificationSettings CollectionProgressNotifications
         {
             get => _collectionProgressNotifications ?? (_collectionProgressNotifications = new ScoreProgressNotificationSettings());
@@ -2522,6 +2554,10 @@ namespace PlayniteAchievements.Providers.Local
                     SecondaryIconSize = Math.Max(24, Math.Min(220, slot.SecondaryIconSize <= 0 ? (slot.IconSize <= 0 ? 58 : slot.IconSize) : slot.SecondaryIconSize)),
                     IconCornerRadius = Math.Max(0, Math.Min(110, slot.IconCornerRadius)),
                     SecondaryIconCornerRadius = Math.Max(0, Math.Min(110, slot.SecondaryIconCornerRadius)),
+                    ShowIconBackground = slot.ShowIconBackground,
+                    ShowSecondaryIconBackground = slot.ShowSecondaryIconBackground,
+                    IconBackgroundColor = NormalizeColorSetting(slot.IconBackgroundColor, "#24FFFFFF"),
+                    SecondaryIconBackgroundColor = NormalizeColorSetting(slot.SecondaryIconBackgroundColor, "#18FFFFFF"),
                     Width = Math.Max(280, Math.Min(900, slot.Width)),
                     Height = Math.Max(MinCustomOverlayHeight, Math.Min(320, slot.Height)),
                     CornerRadius = Math.Max(0, Math.Min(180, slot.CornerRadius)),

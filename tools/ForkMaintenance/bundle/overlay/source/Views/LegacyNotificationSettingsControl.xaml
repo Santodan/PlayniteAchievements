@@ -3086,6 +3086,18 @@
                                                                       Text="{Binding UnlockOverlayFadeOutMilliseconds, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"/>
                                                          </Grid>
 
+                                                         <StackPanel Orientation="Horizontal" Margin="0,6,0,0">
+                                                             <CheckBox Content="Primary icon background"
+                                                                       IsChecked="{Binding OverlayCustomShowIconBackground, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                                       VerticalAlignment="Center"/>
+                                                             <Button Content="Pick color" Tag="PrimaryIconBackground"
+                                                                     Click="NotificationsPickCustomColor_Click" Margin="14,0,6,0"
+                                                                     IsEnabled="{Binding OverlayCustomShowIconBackground}"/>
+                                                             <TextBox Width="92"
+                                                                      Text="{Binding OverlayCustomIconBackgroundColor, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                                      IsEnabled="{Binding OverlayCustomShowIconBackground}"/>
+                                                         </StackPanel>
+
                                                          <Grid Margin="0,8,0,0">
                                                              <Grid.ColumnDefinitions>
                                                                  <ColumnDefinition Width="Auto"/>
@@ -3184,6 +3196,19 @@
                                                                        IsEnabled="{Binding OverlayCustomShowSecondaryIcon}"
                                                                        VerticalAlignment="Center"/>
                                                          </Grid>
+
+                                                         <StackPanel Orientation="Horizontal" Margin="0,6,0,0">
+                                                             <CheckBox Content="Secondary icon background"
+                                                                       IsChecked="{Binding OverlayCustomShowSecondaryIconBackground, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                                       IsEnabled="{Binding OverlayCustomShowSecondaryIcon}"
+                                                                       VerticalAlignment="Center"/>
+                                                             <Button Content="Pick color" Tag="SecondaryIconBackground"
+                                                                     Click="NotificationsPickCustomColor_Click" Margin="14,0,6,0"
+                                                                     IsEnabled="{Binding OverlayCustomShowSecondaryIconBackground}"/>
+                                                             <TextBox Width="92"
+                                                                      Text="{Binding OverlayCustomSecondaryIconBackgroundColor, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                                      IsEnabled="{Binding OverlayCustomShowSecondaryIconBackground}"/>
+                                                         </StackPanel>
 
                                                          <DockPanel Margin="0,8,0,0" LastChildFill="False">
                                                              <Button Content="Custom Icons"

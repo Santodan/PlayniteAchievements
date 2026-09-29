@@ -16,6 +16,10 @@ must still be verified in Playnite.
   Exophase.
 - Custom templates, custom sounds, screenshots, recordings, and test
   notifications still work.
+- Custom notification primary and secondary icon backgrounds can each be
+  enabled or disabled and assigned an independent color. The settings survive
+  style-slot save/load and JSON template export/import, and the HTML builder
+  previews and serializes the same values.
 - Upstream v3 live polling is the single unlock detector for the custom
   Achievement Notification; own-player events use the fork renderer without
   also displaying the upstream toast.

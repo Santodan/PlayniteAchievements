@@ -1370,6 +1370,10 @@ namespace PlayniteAchievements.Views
                 case nameof(Providers.Local.LocalSettings.OverlayCustomSecondaryIconSize):
                 case nameof(Providers.Local.LocalSettings.OverlayCustomIconCornerRadius):
                 case nameof(Providers.Local.LocalSettings.OverlayCustomSecondaryIconCornerRadius):
+                case nameof(Providers.Local.LocalSettings.OverlayCustomShowIconBackground):
+                case nameof(Providers.Local.LocalSettings.OverlayCustomShowSecondaryIconBackground):
+                case nameof(Providers.Local.LocalSettings.OverlayCustomIconBackgroundColor):
+                case nameof(Providers.Local.LocalSettings.OverlayCustomSecondaryIconBackgroundColor):
                 case nameof(Providers.Local.LocalSettings.OverlayCustomTitleFontSize):
                 case nameof(Providers.Local.LocalSettings.OverlayCustomDetailFontSize):
                 case nameof(Providers.Local.LocalSettings.OverlayCustomMetaFontSize):
@@ -4296,6 +4300,10 @@ namespace PlayniteAchievements.Views
                 SecondaryIconSize = localSettings.OverlayCustomSecondaryIconSize,
                 IconCornerRadius = localSettings.OverlayCustomIconCornerRadius,
                 SecondaryIconCornerRadius = localSettings.OverlayCustomSecondaryIconCornerRadius,
+                ShowIconBackground = localSettings.OverlayCustomShowIconBackground,
+                ShowSecondaryIconBackground = localSettings.OverlayCustomShowSecondaryIconBackground,
+                IconBackgroundColor = localSettings.OverlayCustomIconBackgroundColor,
+                SecondaryIconBackgroundColor = localSettings.OverlayCustomSecondaryIconBackgroundColor,
                 Width = localSettings.OverlayCustomWidth,
                 Height = localSettings.OverlayCustomHeight,
                 CornerRadius = localSettings.OverlayCustomCornerRadius,
@@ -4497,6 +4505,10 @@ namespace PlayniteAchievements.Views
                         SecondaryIconSize = localSettings.OverlayCustomSecondaryIconSize,
                         IconCornerRadius = localSettings.OverlayCustomIconCornerRadius,
                         SecondaryIconCornerRadius = localSettings.OverlayCustomSecondaryIconCornerRadius,
+                        ShowIconBackground = localSettings.OverlayCustomShowIconBackground,
+                        ShowSecondaryIconBackground = localSettings.OverlayCustomShowSecondaryIconBackground,
+                        IconBackgroundColor = localSettings.OverlayCustomIconBackgroundColor,
+                        SecondaryIconBackgroundColor = localSettings.OverlayCustomSecondaryIconBackgroundColor,
                         Width = localSettings.OverlayCustomWidth,
                         Height = localSettings.OverlayCustomHeight,
                         CornerRadius = localSettings.OverlayCustomCornerRadius,
@@ -4661,6 +4673,10 @@ namespace PlayniteAchievements.Views
                         SecondaryIconSize = localSettings.OverlayCustomSecondaryIconSize,
                         IconCornerRadius = localSettings.OverlayCustomIconCornerRadius,
                         SecondaryIconCornerRadius = localSettings.OverlayCustomSecondaryIconCornerRadius,
+                        ShowIconBackground = localSettings.OverlayCustomShowIconBackground,
+                        ShowSecondaryIconBackground = localSettings.OverlayCustomShowSecondaryIconBackground,
+                        IconBackgroundColor = localSettings.OverlayCustomIconBackgroundColor,
+                        SecondaryIconBackgroundColor = localSettings.OverlayCustomSecondaryIconBackgroundColor,
                         IconSource = localSettings.OverlayCustomIconSource.ToString(),
                         SecondaryIconSource = localSettings.OverlayCustomSecondaryIconSource.ToString(),
                         EnableGameCoverInOverlay = localSettings.EnableGameCoverInOverlay,
@@ -4883,6 +4899,10 @@ namespace PlayniteAchievements.Views
                 localSettings.OverlayCustomSecondaryIconSize = imported.Transition.SecondaryIconSize;
             }
             localSettings.OverlayCustomSecondaryIconCornerRadius = imported.Transition.SecondaryIconCornerRadius;
+            localSettings.OverlayCustomShowIconBackground = imported.Transition.ShowIconBackground;
+            localSettings.OverlayCustomShowSecondaryIconBackground = imported.Transition.ShowSecondaryIconBackground;
+            localSettings.OverlayCustomIconBackgroundColor = imported.Transition.IconBackgroundColor;
+            localSettings.OverlayCustomSecondaryIconBackgroundColor = imported.Transition.SecondaryIconBackgroundColor;
 
             localSettings.OverlayCustomShowIconRarityGlow = imported.Transition.ShowIconRarityGlow;
             localSettings.OverlayCustomShowSecondaryIconRarityGlow = imported.Transition.ShowSecondaryIconRarityGlow;
@@ -5823,6 +5843,10 @@ namespace PlayniteAchievements.Views
             localSettings.OverlayCustomSecondaryIconSize = slot.SecondaryIconSize <= 0 ? slot.IconSize : slot.SecondaryIconSize;
             localSettings.OverlayCustomIconCornerRadius = slot.IconCornerRadius;
             localSettings.OverlayCustomSecondaryIconCornerRadius = slot.SecondaryIconCornerRadius;
+            localSettings.OverlayCustomShowIconBackground = slot.ShowIconBackground;
+            localSettings.OverlayCustomShowSecondaryIconBackground = slot.ShowSecondaryIconBackground;
+            localSettings.OverlayCustomIconBackgroundColor = slot.IconBackgroundColor;
+            localSettings.OverlayCustomSecondaryIconBackgroundColor = slot.SecondaryIconBackgroundColor;
             localSettings.OverlayCustomTitleFontSize = slot.TitleFontSize;
             localSettings.OverlayCustomDetailFontSize = slot.DetailFontSize;
             localSettings.OverlayCustomMetaFontSize = slot.MetaFontSize;
@@ -6270,6 +6294,10 @@ namespace PlayniteAchievements.Views
                     return localSettings.OverlayCustomBorderColor;
                 case "Accent":
                     return localSettings.OverlayCustomAccentColor;
+                case "PrimaryIconBackground":
+                    return localSettings.OverlayCustomIconBackgroundColor;
+                case "SecondaryIconBackground":
+                    return localSettings.OverlayCustomSecondaryIconBackgroundColor;
                 case "Title":
                     return localSettings.OverlayCustomTitleColor;
                 case "Detail":
@@ -6323,6 +6351,12 @@ namespace PlayniteAchievements.Views
                     break;
                 case "Accent":
                     localSettings.OverlayCustomAccentColor = colorHex;
+                    break;
+                case "PrimaryIconBackground":
+                    localSettings.OverlayCustomIconBackgroundColor = colorHex;
+                    break;
+                case "SecondaryIconBackground":
+                    localSettings.OverlayCustomSecondaryIconBackgroundColor = colorHex;
                     break;
                 case "Title":
                     localSettings.OverlayCustomTitleColor = colorHex;

@@ -50,6 +50,14 @@ namespace PlayniteAchievements.Models.Settings
 
         public double SecondaryIconCornerRadius { get; set; } = 10;
 
+        public bool ShowIconBackground { get; set; } = true;
+
+        public bool ShowSecondaryIconBackground { get; set; } = true;
+
+        public string IconBackgroundColor { get; set; } = "#24FFFFFF";
+
+        public string SecondaryIconBackgroundColor { get; set; } = "#18FFFFFF";
+
         public string IconSource { get; set; } = LocalOverlayIconSource.AchievementIcon.ToString();
 
         public string SecondaryIconSource { get; set; } = LocalOverlayIconSource.None.ToString();

@@ -2718,6 +2718,8 @@ steamImage +
             variables.AppendLine($"  --san-secondary-icon-size: {Math.Max(1, settings?.OverlayCustomSecondaryIconSize ?? settings?.OverlayCustomIconSize ?? 58).ToString("0.###", CultureInfo.InvariantCulture)}px;");
             variables.AppendLine($"  --san-icon-corner-radius: {Math.Max(0, settings?.OverlayCustomIconCornerRadius ?? 10).ToString("0.###", CultureInfo.InvariantCulture)}px;");
             variables.AppendLine($"  --san-secondary-icon-corner-radius: {Math.Max(0, settings?.OverlayCustomSecondaryIconCornerRadius ?? 10).ToString("0.###", CultureInfo.InvariantCulture)}px;");
+            variables.AppendLine($"  --san-icon-background: {(settings?.OverlayCustomShowIconBackground != false ? CssBrushColor(settings?.OverlayCustomIconBackgroundColor, "#24ffffff") : "transparent")};");
+            variables.AppendLine($"  --san-secondary-icon-background: {(settings?.OverlayCustomShowSecondaryIconBackground != false ? CssBrushColor(settings?.OverlayCustomSecondaryIconBackgroundColor, "#18ffffff") : "transparent")};");
             variables.AppendLine($"  --iconsize: var(--san-icon-size);");
             variables.AppendLine($"  --icon-size: var(--san-icon-size);");
             variables.AppendLine($"  --achicon-size: var(--san-icon-size);");
@@ -2817,6 +2819,8 @@ steamImage +
             variables.AppendLine(".san-line-inner { display: inline-block; line-height: 1.15; vertical-align: middle; max-width: 100%; }");
             variables.AppendLine(".san-line-inner, .san-line-inner * { font-weight: inherit !important; font-style: inherit !important; text-decoration: inherit !important; }");
             variables.AppendLine(".wrapper#achiconwrapper { width: var(--san-icon-size) !important; height: var(--san-icon-size) !important; min-width: var(--san-icon-size) !important; min-height: var(--san-icon-size) !important; max-width: var(--san-icon-size) !important; max-height: var(--san-icon-size) !important; }");
+            variables.AppendLine("#iconbg { background-color: var(--san-icon-background) !important; }");
+            variables.AppendLine(".wrapper#logo { background-color: var(--san-secondary-icon-background) !important; border-radius: var(--san-secondary-icon-corner-radius) !important; }");
             variables.AppendLine(".wrapper#logo { width: var(--san-secondary-icon-size) !important; height: var(--san-secondary-icon-size) !important; min-width: var(--san-secondary-icon-size) !important; min-height: var(--san-secondary-icon-size) !important; max-width: var(--san-secondary-icon-size) !important; max-height: var(--san-secondary-icon-size) !important; }");
             variables.AppendLine(".wrapper#achiconwrapper, .wrapper#achiconinnerwrapper, #achicon, #iconbg { border-radius: var(--san-icon-corner-radius) !important; }");
             variables.AppendLine(".wrapper#achiconinnerwrapper, #achicon, #iconbg { overflow: hidden !important; }");
@@ -4414,6 +4418,17 @@ if ({JsBool(settings?.OverlayCustomAutoResizeToContent == true)}) {{
             return string.IsNullOrWhiteSpace(value) ? fallback : value.Trim();
         }
 
+        private static string CssBrushColor(string value, string fallback)
+        {
+            var color = string.IsNullOrWhiteSpace(value) ? fallback : value.Trim();
+            if (color.Length == 9 && color[0] == '#')
+            {
+                return $"#{color.Substring(3, 6)}{color.Substring(1, 2)}";
+            }
+
+            return color;
+        }
+
         private static string CssOptionalColor(string value)
         {
             var color = value?.Trim();
@@ -5215,9 +5230,9 @@ if ({JsBool(settings?.OverlayCustomAutoResizeToContent == true)}) {{
                 }
             }
 
-            var iconBackground = isCompactSanCard && settings?.OverlayCustomIconSource == LocalOverlayIconSource.TrophyIcon
-                ? accentBrush
-                : new SolidColorBrush(Color.FromArgb(36, 255, 255, 255));
+            var iconBackground = settings?.OverlayCustomShowIconBackground != false
+                ? ParseBrushOrDefault(settings?.OverlayCustomIconBackgroundColor, Color.FromArgb(36, 255, 255, 255))
+                : Brushes.Transparent;
 
             var icon = new Border
             {
@@ -5253,7 +5268,9 @@ if ({JsBool(settings?.OverlayCustomAutoResizeToContent == true)}) {{
                 {
                     Width = secondaryIconSize,
                     Height = secondaryIconSize,
-                    Background = new SolidColorBrush(Color.FromArgb(24, 255, 255, 255)),
+                    Background = settings?.OverlayCustomShowSecondaryIconBackground != false
+                        ? ParseBrushOrDefault(settings?.OverlayCustomSecondaryIconBackgroundColor, Color.FromArgb(24, 255, 255, 255))
+                        : Brushes.Transparent,
                     CornerRadius = new CornerRadius(secondaryIconCornerRadius),
                     Margin = new Thickness(0, 0, isCompactSanCard ? Math.Max(6, 8 * overlayScale) : 14, 0),
                     Child = CreateCustomOverlayIconContent(settings, rawIconPath, providerKey, titleBrush, secondaryIconSize, titleSize, rarityKey, settings?.OverlayCustomSecondaryIconSource ?? LocalOverlayIconSource.AchievementIcon, secondaryIconCornerRadius)
@@ -5446,7 +5463,9 @@ if ({JsBool(settings?.OverlayCustomAutoResizeToContent == true)}) {{
                 {
                     Width = secondaryIconSize,
                     Height = secondaryIconSize,
-                    Background = new SolidColorBrush(Color.FromArgb(24, 255, 255, 255)),
+                    Background = settings?.OverlayCustomShowSecondaryIconBackground != false
+                        ? ParseBrushOrDefault(settings?.OverlayCustomSecondaryIconBackgroundColor, Color.FromArgb(24, 255, 255, 255))
+                        : Brushes.Transparent,
                     CornerRadius = new CornerRadius(secondaryIconCornerRadius),
                     Margin = new Thickness(isCompactSanCard ? Math.Max(6, 8 * overlayScale) : 14, 0, 0, 0),
                     Child = CreateCustomOverlayIconContent(settings, rawIconPath, providerKey, titleBrush, secondaryIconSize, titleSize, rarityKey, settings?.OverlayCustomSecondaryIconSource ?? LocalOverlayIconSource.AchievementIcon, secondaryIconCornerRadius)
