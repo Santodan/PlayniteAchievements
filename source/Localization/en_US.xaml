@@ -1393,6 +1393,13 @@
     <sys:String x:Key="LOCPlayAch_Showcase_MovePageLeft">Move page left</sys:String>
     <sys:String x:Key="LOCPlayAch_Showcase_MovePageRight">Move page right</sys:String>
     <sys:String x:Key="LOCPlayAch_Showcase_ResetTrackSizes">Reset row and column sizes</sys:String>
+    <sys:String x:Key="LOCPlayAch_Showcase_InsertColumnLeft">Insert column left</sys:String>
+    <sys:String x:Key="LOCPlayAch_Showcase_InsertColumnRight">Insert column right</sys:String>
+    <sys:String x:Key="LOCPlayAch_Showcase_DeleteColumn">Delete column</sys:String>
+    <sys:String x:Key="LOCPlayAch_Showcase_InsertRowAbove">Insert row above</sys:String>
+    <sys:String x:Key="LOCPlayAch_Showcase_InsertRowBelow">Insert row below</sys:String>
+    <sys:String x:Key="LOCPlayAch_Showcase_DeleteRow">Delete row</sys:String>
+    <sys:String x:Key="LOCPlayAch_Showcase_DeleteTrackConfirm">These widgets have no empty cells to move into and will be deleted:&#10;&#10;{0}&#10;&#10;Continue?</sys:String>
     <sys:String x:Key="LOCPlayAch_Showcase_ResetPage">Reset page</sys:String>
     <sys:String x:Key="LOCPlayAch_Showcase_ResetPageConfirm">Reset this page? Its current widgets and layout will be deleted.</sys:String>
     <sys:String x:Key="LOCPlayAch_Showcase_DeletePage">Delete page</sys:String>
