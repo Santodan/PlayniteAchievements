@@ -171,7 +171,7 @@ namespace PlayniteAchievements.Tests.Models
                     ShowcaseLayoutService.MaxTrackWeight,
                     1d
                 },
-                ShowcaseLayoutService.NormalizeTrackWeights(new[] { 0.1, 99d, double.NaN }));
+                ShowcaseLayoutService.NormalizeTrackWeights(new[] { 0.01, 99d, double.NaN }));
             CollectionAssert.AreEqual(
                 new[] { 0.5, 1.5, 1d },
                 ShowcaseLayoutService.NormalizeTrackWeights(new[] { 0.5, 1.5, 1d }));
@@ -182,7 +182,7 @@ namespace PlayniteAchievements.Tests.Models
         {
             var settings = ShowcaseLayoutService.CreateDefault();
             var page = settings.Pages.Single();
-            page.RowWeights = new System.Collections.Generic.List<double> { 0.1, 2d };
+            page.RowWeights = new System.Collections.Generic.List<double> { 0.01, 2d };
             Assert.IsNull(page.ColumnWeights);
 
             ShowcaseLayoutService.Normalize(settings);
