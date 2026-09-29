@@ -84,6 +84,26 @@ namespace PlayniteAchievements.Views.Settings.Notifications
             set => SetValue(RecordingRaritiesTextProperty, value);
         }
 
+        public static readonly DependencyProperty RecordingCleanRaritiesTextProperty =
+            DependencyProperty.Register(nameof(RecordingCleanRaritiesText), typeof(string), typeof(NotificationCapturesSection),
+                new PropertyMetadata(string.Empty));
+
+        public string RecordingCleanRaritiesText
+        {
+            get => (string)GetValue(RecordingCleanRaritiesTextProperty);
+            set => SetValue(RecordingCleanRaritiesTextProperty, value);
+        }
+
+        public static readonly DependencyProperty RecordingFramedRaritiesTextProperty =
+            DependencyProperty.Register(nameof(RecordingFramedRaritiesText), typeof(string), typeof(NotificationCapturesSection),
+                new PropertyMetadata(string.Empty));
+
+        public string RecordingFramedRaritiesText
+        {
+            get => (string)GetValue(RecordingFramedRaritiesTextProperty);
+            set => SetValue(RecordingFramedRaritiesTextProperty, value);
+        }
+
         private void OnPersistedPropertyChanged(object sender, PropertyChangedEventArgs e)
         {
             switch (e?.PropertyName)
@@ -92,6 +112,8 @@ namespace PlayniteAchievements.Views.Settings.Notifications
                 case nameof(PersistedSettings.UnlockScreenshotWithToastRarities):
                 case nameof(PersistedSettings.UnlockScreenshotFramedRarities):
                 case nameof(PersistedSettings.UnlockRecordingRarities):
+                case nameof(PersistedSettings.UnlockRecordingCleanRarities):
+                case nameof(PersistedSettings.UnlockRecordingFramedRarities):
                     UpdateRarityTexts();
                     break;
             }
@@ -129,6 +151,22 @@ namespace PlayniteAchievements.Views.Settings.Notifications
                 value => { if (_settings?.Persisted != null) { _settings.Persisted.UnlockRecordingRarities = value; } });
         }
 
+        private void RecordingCleanRaritiesButton_Click(object sender, RoutedEventArgs e)
+        {
+            OpenRaritySelector(
+                sender as Button,
+                () => _settings?.Persisted?.UnlockRecordingCleanRarities ?? RaritySelection.All,
+                value => { if (_settings?.Persisted != null) { _settings.Persisted.UnlockRecordingCleanRarities = value; } });
+        }
+
+        private void RecordingFramedRaritiesButton_Click(object sender, RoutedEventArgs e)
+        {
+            OpenRaritySelector(
+                sender as Button,
+                () => _settings?.Persisted?.UnlockRecordingFramedRarities ?? RaritySelection.All,
+                value => { if (_settings?.Persisted != null) { _settings.Persisted.UnlockRecordingFramedRarities = value; } });
+        }
+
         private void OpenRaritySelector(Button button, Func<RaritySelection> get, Action<RaritySelection> set)
         {
             RaritySelectorMenu.Open(button, get, set, UpdateRarityTexts);
@@ -141,6 +179,8 @@ namespace PlayniteAchievements.Views.Settings.Notifications
             WithToastRaritiesText = FormatRarities(persisted?.UnlockScreenshotWithToastRarities ?? RaritySelection.All);
             FramedRaritiesText = FormatRarities(persisted?.UnlockScreenshotFramedRarities ?? RaritySelection.All);
             RecordingRaritiesText = FormatRarities(persisted?.UnlockRecordingRarities ?? RaritySelection.All);
+            RecordingCleanRaritiesText = FormatRarities(persisted?.UnlockRecordingCleanRarities ?? RaritySelection.All);
+            RecordingFramedRaritiesText = FormatRarities(persisted?.UnlockRecordingFramedRarities ?? RaritySelection.All);
         }
 
         private static string FormatRarities(RaritySelection selection)
