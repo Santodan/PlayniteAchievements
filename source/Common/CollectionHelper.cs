@@ -8,25 +8,85 @@ namespace PlayniteAchievements.Common
     public static class CollectionHelper
     {
         /// <summary>
-        /// Brings a collection to the given contents in place, raising one notification per item
-        /// that actually moved rather than a single Reset.
+        /// The most per-row notifications <see cref="Replace{T}"/> raises before it gives up on
+        /// patching a <see cref="BulkObservableCollection{T}"/> in place and resets it instead.
         /// </summary>
         /// <remarks>
-        /// This used to call <see cref="BulkObservableCollection{T}.ReplaceAll"/> when it could,
-        /// which raises one Reset. A bound grid answers a Reset by re-realizing its viewport, and
-        /// that render lands on a later dispatcher pass -- invisible to any scope around this
-        /// call, and visible only as a UI stall. The overview rebuilds one game's row per edit
-        /// and leaves every other row the same instance, so a Reset paid a full viewport rebuild
-        /// to move one row.
+        /// A bound DataGrid handles each notification with work proportional to the rows it
+        /// holds: on the friends overview's 65k-row recent-unlocks grid one Remove or Add cost
+        /// about 1.5 ms (2026-09-28 log, 64 to 128 s stalls per click). This many notifications
+        /// therefore costs under 200 ms there before the Reset takes over, while a delta of a
+        /// hundred rows on a grid of a few thousand still goes through incrementally.
+        /// </remarks>
+        private const int MaxIncrementalNotifications = 128;
+
+        /// <summary>
+        /// Brings a collection to the given contents. Items that are already present are moved
+        /// into place rather than re-added, so a change that keeps most row instances raises one
+        /// notification per row that actually moved. A change that replaces most rows resets a
+        /// <see cref="BulkObservableCollection{T}"/> in one event instead.
+        /// </summary>
+        /// <remarks>
+        /// A bound grid answers a Reset by re-realizing its viewport, and that render lands on a
+        /// later dispatcher pass -- invisible to any scope around this call, and visible only as a
+        /// UI stall. The overview rebuilds one game's row per edit and leaves every other row the
+        /// same instance, so a Reset paid a full viewport rebuild to move one row; that is the
+        /// case the in-place sync exists for.
         ///
-        /// The trade runs the other way for a wholesale replacement, where every item differs:
-        /// there the Reset is one event and this is one per row. <see cref="SynchronizeCollection"/>
-        /// is linear in the number of items that moved, so it stays proportional to the real
-        /// change either way, but a full turnover is still a notification per row.
+        /// The trade runs the other way when the rows turn over. The friends overview swaps its
+        /// achievements grid between the whole recent-unlocks feed and one friend's or game's
+        /// subset on every click, and its games grid to a different friend's rows, all new
+        /// instances. Patching that in place is one Remove or Add per row, each handled by the
+        /// grid on the UI thread, and on a 65k-row feed it froze Playnite for one to two minutes
+        /// per click. So the decision is made from the diff itself before anything is mutated:
+        /// when more rows come or go than survive, the one Reset is the cheaper event.
+        ///
+        /// A sort flip keeps every instance and moves nearly all of them, which the count above
+        /// cannot see, so the in-place pass is also bounded by
+        /// <see cref="MaxIncrementalNotifications"/> and finishes with a Reset past it. Both
+        /// fallbacks need <see cref="BulkObservableCollection{T}.ReplaceAll"/>; a plain
+        /// <see cref="ObservableCollection{T}"/> is always synchronized in full.
         /// </remarks>
         public static void Replace<T>(ObservableCollection<T> target, IEnumerable<T> items)
         {
-            SynchronizeCollection(target, items);
+            if (target == null)
+            {
+                return;
+            }
+
+            var sourceList = items as IList<T> ?? (items ?? Enumerable.Empty<T>()).ToList();
+            if (!(target is BulkObservableCollection<T> bulk))
+            {
+                Synchronize(target, sourceList, int.MaxValue);
+                return;
+            }
+
+            if (IsTurnover(target, sourceList) ||
+                !Synchronize(target, sourceList, MaxIncrementalNotifications))
+            {
+                bulk.ReplaceAll(sourceList);
+            }
+        }
+
+        /// <summary>
+        /// True when more items would be removed or added than are kept, which is the shape of a
+        /// wholesale replacement rather than an edit.
+        /// </summary>
+        private static bool IsTurnover<T>(ObservableCollection<T> collection, IList<T> sourceList)
+        {
+            var wanted = new HashSet<T>(sourceList);
+            var survivors = 0;
+            for (var i = 0; i < collection.Count; i++)
+            {
+                if (wanted.Contains(collection[i]))
+                {
+                    survivors++;
+                }
+            }
+
+            var removed = collection.Count - survivors;
+            var added = sourceList.Count - survivors;
+            return removed + added > survivors;
         }
 
         /// <summary>
@@ -53,7 +113,19 @@ namespace PlayniteAchievements.Common
             }
 
             var sourceList = source as IList<T> ?? (source ?? Enumerable.Empty<T>()).ToList();
+            Synchronize(collection, sourceList, int.MaxValue);
+        }
+
+        /// <summary>
+        /// The in-place pass behind <see cref="SynchronizeCollection{T}"/> and
+        /// <see cref="Replace{T}"/>. Returns false once it has raised more than
+        /// <paramref name="maxNotifications"/> collection changes, leaving the collection
+        /// partially synchronized for the caller to finish with a Reset.
+        /// </summary>
+        private static bool Synchronize<T>(ObservableCollection<T> collection, IList<T> sourceList, int maxNotifications)
+        {
             var comparer = EqualityComparer<T>.Default;
+            var notifications = 0;
 
             // Anything the source does not want, back to front so indices stay valid.
             if (collection.Count > 0)
@@ -63,6 +135,11 @@ namespace PlayniteAchievements.Common
                 {
                     if (!wanted.Contains(collection[i]))
                     {
+                        if (++notifications > maxNotifications)
+                        {
+                            return false;
+                        }
+
                         collection.RemoveAt(i);
                     }
                 }
@@ -91,6 +168,11 @@ namespace PlayniteAchievements.Common
                         continue;
                     }
 
+                    if (++notifications > maxNotifications)
+                    {
+                        return false;
+                    }
+
                     collection.Move(from, target);
 
                     // A move only shifts the span it passed over.
@@ -102,6 +184,11 @@ namespace PlayniteAchievements.Common
                     }
 
                     continue;
+                }
+
+                if (++notifications > maxNotifications)
+                {
+                    return false;
                 }
 
                 // Appending is the cheap case and needs no repair; an insert shifts the tail.
@@ -118,6 +205,8 @@ namespace PlayniteAchievements.Common
                     positions[collection[i]] = i;
                 }
             }
+
+            return true;
         }
 
         /// <summary>
