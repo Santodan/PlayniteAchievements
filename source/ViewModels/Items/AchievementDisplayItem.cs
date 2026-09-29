@@ -478,6 +478,7 @@ namespace PlayniteAchievements.ViewModels.Items
                     nameof(UnlockTimeUtc)))
                 {
                     OnPropertyChanged(nameof(UnlockTimeText));
+                    OnPropertyChanged(nameof(UnlockTimeOfDayText));
                     OnPropertyChanged(nameof(UnlockTimeLocal));
                     OnPropertyChanged(nameof(DateUnlocked));
                     OnPropertyChanged(nameof(UnlockTime));
@@ -1481,6 +1482,14 @@ namespace PlayniteAchievements.ViewModels.Items
         public string UnlockTimeText =>
             UnlockTimeUtc.HasValue ? $"{DateTimeUtilities.AsLocalFromUtc(UnlockTimeUtc.Value):g}" : string.Empty;
 
+        // Time of day only, for lists that already sit under a date heading (the activity
+        // calendar's day popup). Formatted here rather than by a StringFormat binding because a
+        // Popup is its own visual root and does not inherit the plugin's FormattingCulture language.
+        public string UnlockTimeOfDayText =>
+            UnlockTimeUtc.HasValue
+                ? DateTimeUtilities.AsLocalFromUtc(UnlockTimeUtc.Value).ToString("t", FormattingCulture.Current)
+                : string.Empty;
+
         // Local-time projection for grid display; formatting is applied by DateDisplayModeConverter.
         public DateTime? UnlockTimeLocal =>
             UnlockTimeUtc.HasValue ? DateTimeUtilities.AsLocalFromUtc(UnlockTimeUtc.Value) : (DateTime?)null;
@@ -1888,6 +1897,7 @@ namespace PlayniteAchievements.ViewModels.Items
             OnPropertyChanged(nameof(IconPath));
             OnPropertyChanged(nameof(UnlockTimeUtc));
             OnPropertyChanged(nameof(UnlockTimeText));
+            OnPropertyChanged(nameof(UnlockTimeOfDayText));
             OnPropertyChanged(nameof(DateUnlocked));
             OnPropertyChanged(nameof(UnlockTime));
             OnPropertyChanged(nameof(ShowUnlockDate));
