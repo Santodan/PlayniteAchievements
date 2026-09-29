@@ -193,6 +193,7 @@ namespace PlayniteAchievements.Models.Settings
         private bool _progressColumnAlignmentDefaulted = false;
         private bool _inlineSurfaceTransparencySeeded = true;
         private bool _commonGlowTierCleared = true;
+        private bool _categoryProgressColumnAlignmentDefaulted = true;
 
         private GridAlignment _gridColumnHeaderAlignment = GridAlignment.Center;
         private GridAlignment _gridCellAlignment = GridAlignment.Left;
@@ -2214,6 +2215,21 @@ namespace PlayniteAchievements.Models.Settings
         }
 
         /// <summary>
+        /// True when the category summary Progress column alignment in this config is either the
+        /// seeded Right default or the user's own choice, including a cleared override. The
+        /// category options used to seed Right on the deserialization target, so earlier builds
+        /// re-applied it on every load; the migration fills Right once where a category entry
+        /// lacks the key, for configs whose JSON lacks this flag. Defaults true because every
+        /// config this build writes already carries the seed or the user's choice, so an override
+        /// cleared in the very first session is never re-filled on a later launch.
+        /// </summary>
+        public bool CategoryProgressColumnAlignmentDefaulted
+        {
+            get => _categoryProgressColumnAlignmentDefaulted;
+            set => SetValue(ref _categoryProgressColumnAlignmentDefaulted, value);
+        }
+
+        /// <summary>
         /// Horizontal alignment for text shown in DataGrid column headers.
         /// </summary>
         public GridAlignment GridColumnHeaderAlignment
@@ -3094,6 +3110,7 @@ namespace PlayniteAchievements.Models.Settings
                 ProgressColumnAlignmentDefaulted = this.ProgressColumnAlignmentDefaulted,
                 InlineSurfaceTransparencySeeded = this.InlineSurfaceTransparencySeeded,
                 CommonGlowTierCleared = this.CommonGlowTierCleared,
+                CategoryProgressColumnAlignmentDefaulted = this.CategoryProgressColumnAlignmentDefaulted,
                 GridColumnHeaderAlignment = this.GridColumnHeaderAlignment,
                 GridCellAlignment = this.GridCellAlignment,
                 GridCellVerticalAlignment = this.GridCellVerticalAlignment,
