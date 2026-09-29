@@ -6,7 +6,7 @@ Name: Playnite Achievements
 Author: Justin Delano
 SourceUrl: https://github.com/justin-delano/PlayniteAchievements
 IconUrl: https://raw.githubusercontent.com/justin-delano/PlayniteAchievements/main/source/icon.png
-Description: Playnite Achievements is a modern, performant, and fully customizable achievement extension for Playnite. It tracks achievements for you and your friends from Steam, GOG, Epic Games Store, Battle.net, EA app, PlayStation Network, Xbox Live, RetroAchievements, RPCS3, ShadPS4, Xenia, Final Fantasy XIV, HoYoverse, and Exophase, with manual tracking for everything else. Includes achievement unlock notifications with screenshots and recordings, per-game customization (capstones, categories, notes, ordering, custom icons), flexible overview visualizations, tag sync, hotkeys, and migration for SuccessStory themes.
+Description: Playnite Achievements is a modern, performant, and fully customizable achievement extension for Playnite. It tracks achievements for you and your friends from Steam, GOG, Epic Games Store, Battle.net, EA app, PlayStation Network, Xbox Live, RetroAchievements, RPCS3, ShadPS4, Xenia, Final Fantasy XIV, HoYoverse, GameJolt, Riot Games, Guild Wars 2, and Exophase, with manual tracking and custom achievements for everything else. Includes achievement unlock notifications with screenshots and recordings, a full achievement editor (capstones, categories, notes, ordering, custom icons, and more), customizable Showcase dashboards, flexible overview visualizations, tag sync, hotkeys, and migration for SuccessStory themes.
 Links:
   GitHub: https://github.com/justin-delano/PlayniteAchievements
   Issues Tracker: https://github.com/justin-delano/PlayniteAchievements/issues
