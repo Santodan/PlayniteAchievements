@@ -6,18 +6,21 @@ using PlayniteAchievements.Models.Settings;
 
 namespace PlayniteAchievements.Services.Showcase
 {
-    public static class ShowcaseLayoutService
+    public static partial class ShowcaseLayoutService
     {
-        /// <summary>The default (and minimum) page grid dimension; pages are always created 3x3.</summary>
-        public const int GridSize = 3;
+        /// <summary>The fewest rows or columns a page can have.</summary>
+        public const int MinTrackCount = 1;
 
-        /// <summary>The finest page grid the editor offers.</summary>
-        public const int MaxGridSize = 5;
+        /// <summary>The most rows or columns a page can have.</summary>
+        public const int MaxTrackCount = 10;
 
-        /// <summary>Clamps a persisted page grid dimension into [GridSize, MaxGridSize].</summary>
-        public static int NormalizeGridSize(int gridSize)
+        /// <summary>Rows and columns of a new page, and of a persisted page that records neither.</summary>
+        public const int DefaultTrackCount = 5;
+
+        /// <summary>Clamps a persisted row or column count into [MinTrackCount, MaxTrackCount].</summary>
+        public static int NormalizeTrackCount(int count)
         {
-            return Math.Max(GridSize, Math.Min(MaxGridSize, gridSize));
+            return Math.Max(MinTrackCount, Math.Min(MaxTrackCount, count));
         }
 
         /// <summary>Track weight bounds: no row or column can collapse or dominate the page.</summary>
@@ -31,11 +34,11 @@ namespace PlayniteAchievements.Services.Showcase
         /// </summary>
         public static double[] NormalizeTrackWeights(
             IReadOnlyList<double> weights,
-            int gridSize = GridSize)
+            int count)
         {
-            gridSize = NormalizeGridSize(gridSize);
-            var result = new double[gridSize];
-            for (var index = 0; index < gridSize; index++)
+            count = NormalizeTrackCount(count);
+            var result = new double[count];
+            for (var index = 0; index < count; index++)
             {
                 var value = weights != null && index < weights.Count ? weights[index] : 1d;
                 if (double.IsNaN(value) || double.IsInfinity(value) || value <= 0)
@@ -50,9 +53,9 @@ namespace PlayniteAchievements.Services.Showcase
         }
 
         /// <summary>Normalized copy of a persisted weight list; null stays null (equal shares).</summary>
-        private static List<double> NormalizeTrackWeightList(List<double> weights, int gridSize)
+        private static List<double> NormalizeTrackWeightList(List<double> weights, int count)
         {
-            return weights == null ? null : new List<double>(NormalizeTrackWeights(weights, gridSize));
+            return weights == null ? null : new List<double>(NormalizeTrackWeights(weights, count));
         }
 
         public static ShowcaseSettings CreateDefault(
@@ -554,7 +557,7 @@ namespace PlayniteAchievements.Services.Showcase
             }
 
             SortBlocks(page);
-            return IsValidPartition(page.Blocks, page.GridSize);
+            return IsValidPartition(page.Blocks, page.RowCount, page.ColumnCount);
         }
 
         public static bool PlaceWidget(
@@ -766,10 +769,10 @@ namespace PlayniteAchievements.Services.Showcase
                 page.Name = string.IsNullOrWhiteSpace(page.Name)
                     ? $"Page {pageIndex + 1}"
                     : page.Name.Trim();
-                page.GridSize = NormalizeGridSize(page.GridSize);
-                page.Blocks = NormalizeBlocks(page.Blocks, blockIds, page.GridSize);
-                page.RowWeights = NormalizeTrackWeightList(page.RowWeights, page.GridSize);
-                page.ColumnWeights = NormalizeTrackWeightList(page.ColumnWeights, page.GridSize);
+                NormalizeTrackCounts(page);
+                page.Blocks = NormalizeBlocks(page.Blocks, blockIds, page.RowCount, page.ColumnCount);
+                page.RowWeights = NormalizeTrackWeightList(page.RowWeights, page.RowCount);
+                page.ColumnWeights = NormalizeTrackWeightList(page.ColumnWeights, page.ColumnCount);
 
                 var singletonKinds = new HashSet<ShowcaseWidgetKind>();
                 foreach (var block in page.Blocks)
@@ -841,6 +844,17 @@ namespace PlayniteAchievements.Services.Showcase
             settings.Profile = null;
         }
 
+        // Pages used to be square, recording one GridSize for both axes. An unset count takes
+        // that legacy value (or the default when the page records neither), and the legacy
+        // field then goes away so it can never override a count the user has since changed.
+        private static void NormalizeTrackCounts(ShowcasePageSettings page)
+        {
+            var legacy = page.GridSize ?? DefaultTrackCount;
+            page.RowCount = NormalizeTrackCount(page.RowCount > 0 ? page.RowCount : legacy);
+            page.ColumnCount = NormalizeTrackCount(page.ColumnCount > 0 ? page.ColumnCount : legacy);
+            page.GridSize = null;
+        }
+
         // A profile widget always carries a profile object; no other kind carries one.
         private static void NormalizeProfile(ShowcaseWidgetInstanceSettings widget)
         {
@@ -851,10 +865,12 @@ namespace PlayniteAchievements.Services.Showcase
 
         public static bool IsValidPartition(
             IEnumerable<ShowcaseBlockSettings> blocks,
-            int gridSize = GridSize)
+            int rows,
+            int columns)
         {
-            gridSize = NormalizeGridSize(gridSize);
-            var cells = new bool[gridSize, gridSize];
+            rows = NormalizeTrackCount(rows);
+            columns = NormalizeTrackCount(columns);
+            var cells = new bool[rows, columns];
             if (blocks == null)
             {
                 return false;
@@ -862,7 +878,7 @@ namespace PlayniteAchievements.Services.Showcase
 
             foreach (var block in blocks)
             {
-                if (!IsValidBlock(block, gridSize))
+                if (!IsValidBlock(block, rows, columns))
                 {
                     return false;
                 }
@@ -881,9 +897,9 @@ namespace PlayniteAchievements.Services.Showcase
                 }
             }
 
-            for (var row = 0; row < gridSize; row++)
+            for (var row = 0; row < rows; row++)
             {
-                for (var column = 0; column < gridSize; column++)
+                for (var column = 0; column < columns; column++)
                 {
                     if (!cells[row, column])
                     {
@@ -907,7 +923,8 @@ namespace PlayniteAchievements.Services.Showcase
                 Name = MakeUniquePageName(
                     settings,
                     string.IsNullOrWhiteSpace(name) ? GetDefaultPageName(template) : name.Trim()),
-                GridSize = MaxGridSize
+                RowCount = DefaultTrackCount,
+                ColumnCount = DefaultTrackCount
             };
 
             // Templates are authored directly on the 5x5 lattice with equal tracks (null
@@ -983,9 +1000,9 @@ namespace PlayniteAchievements.Services.Showcase
                             ShowcaseMosaicContent.Games));
                     break;
                 default:
-                    for (var row = 0; row < MaxGridSize; row++)
+                    for (var row = 0; row < page.RowCount; row++)
                     {
-                        for (var column = 0; column < MaxGridSize; column++)
+                        for (var column = 0; column < page.ColumnCount; column++)
                         {
                             page.Blocks.Add(NewBlock(row, column, 1, 1, null));
                         }
@@ -1117,14 +1134,16 @@ namespace PlayniteAchievements.Services.Showcase
         private static List<ShowcaseBlockSettings> NormalizeBlocks(
             IEnumerable<ShowcaseBlockSettings> blocks,
             HashSet<string> blockIds,
-            int gridSize = GridSize)
+            int rows,
+            int columns)
         {
-            gridSize = NormalizeGridSize(gridSize);
+            rows = NormalizeTrackCount(rows);
+            columns = NormalizeTrackCount(columns);
             var result = new List<ShowcaseBlockSettings>();
-            var occupied = new bool[gridSize, gridSize];
+            var occupied = new bool[rows, columns];
             foreach (var block in blocks ?? Array.Empty<ShowcaseBlockSettings>())
             {
-                if (!IsValidBlock(block, gridSize) || Overlaps(occupied, block))
+                if (!IsValidBlock(block, rows, columns) || Overlaps(occupied, block))
                 {
                     continue;
                 }
@@ -1134,9 +1153,9 @@ namespace PlayniteAchievements.Services.Showcase
                 result.Add(block);
             }
 
-            for (var row = 0; row < gridSize; row++)
+            for (var row = 0; row < rows; row++)
             {
-                for (var column = 0; column < gridSize; column++)
+                for (var column = 0; column < columns; column++)
                 {
                     if (occupied[row, column])
                     {
@@ -1330,15 +1349,15 @@ namespace PlayniteAchievements.Services.Showcase
             return result;
         }
 
-        private static bool IsValidBlock(ShowcaseBlockSettings block, int gridSize = GridSize)
+        private static bool IsValidBlock(ShowcaseBlockSettings block, int rows, int columns)
         {
             return block != null &&
                    block.Row >= 0 &&
                    block.Column >= 0 &&
                    block.RowSpan > 0 &&
                    block.ColumnSpan > 0 &&
-                   block.Row + block.RowSpan <= gridSize &&
-                   block.Column + block.ColumnSpan <= gridSize;
+                   block.Row + block.RowSpan <= rows &&
+                   block.Column + block.ColumnSpan <= columns;
         }
 
         private static IReadOnlyList<ShowcaseBlockSettings> GetMergeClosureCore(
