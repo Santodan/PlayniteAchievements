@@ -1,6 +1,6 @@
 {
     "schemaVersion":  1,
-    "generatedUtc":  "2026-09-29T12:08:41.6248642Z",
+    "generatedUtc":  "2026-09-29T13:43:33.7836991Z",
     "baselineRef":  "upstream/main",
     "baselineCommit":  "653a310fed521206672d0aec9383fd7ec3bb94a3",
     "protectedPaths":  [
@@ -10,7 +10,7 @@
                        ],
     "patch":  {
                   "path":  "fork-changes.patch",
-                  "sha256":  "08C5166390E98DEBE814ECA608D467DB6A24BFAE39FD36E1EA6CA571722A30DD"
+                  "sha256":  "46338C801B1502C5740CA807A3493FD587843DB1ECCBEE24BB149B6D3DBBC3F1"
               },
     "localizationRecipes":  {
                                 "path":  "localization-recipes.json",
@@ -357,7 +357,7 @@
                          },
                          {
                              "path":  "tools/notification-template-builder.html",
-                             "sha256":  "59BDAABFC28F98B3A43468CDA39771A1456C828258AF7EDC91491E94135EC864"
+                             "sha256":  "A6DB97F869ED714E0C730D802A0CC0D61A350444895C216D34C8BC27CFB32FEE"
                          },
                          {
                              "path":  "tools/NotificationTemplates/README.md",

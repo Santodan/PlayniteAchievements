@@ -20,6 +20,11 @@ must still be verified in Playnite.
   enabled or disabled and assigned an independent color. The settings survive
   style-slot save/load and JSON template export/import, and the HTML builder
   previews and serializes the same values.
+- Manually resized and positioned notification elements retain matching
+  geometry between the HTML builder and the extension after template import.
+  The no-achievement placeholder uses the configured primary-icon footprint,
+  and game covers preserve their full aspect ratio inside the cover element
+  instead of being cropped when its width or height is changed.
 - Upstream v3 live polling is the single unlock detector for the custom
   Achievement Notification; own-player events use the fork renderer without
   also displaying the upstream toast.

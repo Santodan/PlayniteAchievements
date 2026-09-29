@@ -111,6 +111,7 @@ The entries below are fork-side changes, grouped by date. When a date includes a
 - Added a color picker for the primary and secondary icon
 - Builder will now populate all the element details under the `Manual Element CSS`
 - Fixed the Builder not changing the preview to the correct `Position` when no `SAN` element / transition are present
+- Fixed the `Cover` size after changing it size through the builder
 
 ## 2026-09-14 - v3.2.1.1
 

@@ -633,7 +633,7 @@
       display: block;
       width: 100%;
       height: 100%;
-      object-fit: cover;
+      object-fit: contain;
     }
 
     .json-pane {
@@ -4201,6 +4201,14 @@
     ids.forEach(id => {
       const element = $(id);
       if (!element) return;
+      if (id === 'ManualElementCss') {
+        // The standard preview uses this parsed model for absolute positioning.
+        // Keep it synchronized when CSS is pasted or edited directly so icon and
+        // cover geometry matches what the extension will import.
+        element.addEventListener('input', () => {
+          manualElementOffsets = parseManualCssToOffsets(element.value);
+        });
+      }
       element.addEventListener('input', render);
       element.addEventListener('change', render);
     });

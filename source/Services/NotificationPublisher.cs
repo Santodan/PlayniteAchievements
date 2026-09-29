@@ -2846,7 +2846,7 @@ steamImage +
             variables.AppendLine("body.san-webview-force-visible #achicon { opacity: 1 !important; scale: 1 !important; animation: none !important; display: grid !important; }");
             variables.AppendLine("body.san-webview-force-visible .wrapper#achiconwrapper { opacity: 1 !important; scale: 1 !important; animation: none !important; }");
             variables.AppendLine("body.san-webview-no-secondary-icon .wrapper#logo, body.san-webview-no-secondary-icon #logo { display: none !important; opacity: 0 !important; animation: none !important; }");
-            variables.AppendLine(".san-game-cover { position: absolute; top: 0; bottom: 0; width: var(--san-cover-width); background: center / cover no-repeat var(--san-cover-image); opacity: 1; pointer-events: none; z-index: 2; }");
+            variables.AppendLine(".san-game-cover { position: absolute; top: 0; bottom: 0; width: var(--san-cover-width); background: center / contain no-repeat var(--san-cover-image); opacity: 1; pointer-events: none; z-index: 2; }");
             variables.AppendLine(".san-game-cover.left { left: 0; }");
             variables.AppendLine(".san-game-cover.right { right: 0; }");
             variables.AppendLine("body.san-webview-has-cover .wrapper#achcont { overflow: hidden; }");
@@ -7658,14 +7658,21 @@ if ({JsBool(settings?.OverlayCustomAutoResizeToContent == true)}) {{
                 }
             }
 
+            // Keep the placeholder in the same visual footprint as a resolved
+            // achievement image. Otherwise selecting a preview achievement makes
+            // the icon appear to jump from a title-sized glyph to the full box.
             return new TextBlock
             {
                 Text = "🏆",
                 Foreground = fallbackIconBrush,
-                FontSize = Math.Max(14, titleSize + 2),
+                FontSize = Math.Max(14, iconSize * 0.72),
                 FontWeight = FontWeights.Bold,
+                Width = iconSize,
+                Height = iconSize,
                 HorizontalAlignment = HorizontalAlignment.Center,
-                VerticalAlignment = VerticalAlignment.Center
+                VerticalAlignment = VerticalAlignment.Center,
+                TextAlignment = TextAlignment.Center,
+                LineHeight = iconSize
             };
         }
 
@@ -8145,7 +8152,7 @@ if ({JsBool(settings?.OverlayCustomAutoResizeToContent == true)}) {{
                 Child = new Image
                 {
                     Source = coverSource,
-                    Stretch = Stretch.UniformToFill,
+                    Stretch = Stretch.Uniform,
                     Width = width,
                     Height = height
                 }
