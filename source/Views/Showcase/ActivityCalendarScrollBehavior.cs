@@ -65,8 +65,12 @@ namespace PlayniteAchievements.Views.Showcase
         {
             // The calendar ends at today, so any extent width change (first layout, a new range,
             // a font size change) re-pins the view to the most recent weeks. User scrolling only
-            // changes the offset, never the extent, so it is left alone.
-            if (e.ExtentWidthChange != 0 && sender is ScrollViewer viewer)
+            // changes the offset, never the extent, so it is left alone. ScrollChanged bubbles, and
+            // the heatmap's day popup routes its list's own scroll changes through this viewer;
+            // only the viewer's own changes count.
+            if (e.ExtentWidthChange != 0 &&
+                sender is ScrollViewer viewer &&
+                ReferenceEquals(e.OriginalSource, viewer))
             {
                 viewer.ScrollToRightEnd();
             }
