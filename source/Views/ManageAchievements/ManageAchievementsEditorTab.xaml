@@ -705,7 +705,6 @@
                     <DataGridTemplateColumn Width="58"
                                             MinWidth="32"
                                             MaxWidth="180"
-                                            CellStyle="{StaticResource ManageAchievementsIconCellStyle}"
                                             helpers:ColumnVisibilityHelper.ColumnKey="EditorIcon"
                                             helpers:ColumnVisibilityHelper.ColumnDisplayName="{DynamicResource LOCPlayAch_Column_Icon}">
                         <!-- The column's own toggle, reaching every masked icon on screen at once
@@ -741,6 +740,15 @@
                                     </Grid>
                             </Button>
                         </DataGridTemplateColumn.Header>
+                        <!-- Stretched rather than centered so the square below spans the cell. The
+                             grid has no fixed row height, so a centered, unsized image measured
+                             empty until its bitmap arrived and then grew the row: one row relayout
+                             per icon on every scroll, and two per dropped image. -->
+                        <DataGridTemplateColumn.CellStyle>
+                            <Style TargetType="DataGridCell" BasedOn="{StaticResource ManageAchievementsIconCellStyle}">
+                                <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+                            </Style>
+                        </DataGridTemplateColumn.CellStyle>
                         <DataGridTemplateColumn.CellTemplate>
                             <DataTemplate>
                                 <!-- The cell takes a dropped image in its own right, so artwork
@@ -751,7 +759,10 @@
                                      whole cell should accept it. The grid's own drag handler has
                                      already moved the selection onto this row by then, so the
                                      pane shows the icon that changed. -->
+                                <!-- Square from the column width, so the row height is settled in
+                                     the first layout pass and never waits on the bitmap. -->
                                 <Grid Background="Transparent"
+                                      Height="{Binding ActualWidth, RelativeSource={RelativeSource Self}}"
                                       AllowDrop="True"
                                       PreviewDragOver="IconDropTarget_PreviewDragOver"
                                       PreviewDrop="IconDropTarget_Drop">
