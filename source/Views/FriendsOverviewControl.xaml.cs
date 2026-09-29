@@ -10,6 +10,7 @@ using PlayniteAchievements.Services.Achievements;
 using PlayniteAchievements.Services.Cache;
 using PlayniteAchievements.Services.Friends;
 using PlayniteAchievements.Services.Refresh;
+using PlayniteAchievements.Services.Settings;
 using PlayniteAchievements.ViewModels;
 using PlayniteAchievements.ViewModels.Items;
 using PlayniteAchievements.Views.Helpers;
@@ -43,6 +44,8 @@ namespace PlayniteAchievements.Views
         private readonly IFriendCacheManager _friendCache;
         private readonly AchievementOverridesService _achievementOverridesService;
         private readonly Action _persistSettingsForUi;
+        private readonly PlayniteAchievementsSettings _settings;
+        private DebouncedSettingsPersist _controlBarPersist;
         private const double FriendsOverviewColumnRatioChangeThreshold = 0.001d;
         private bool _loaded;
         private DataGridRow _pendingRightClickRow;
@@ -85,6 +88,13 @@ namespace PlayniteAchievements.Views
             _friendCache = friendCache;
             _achievementOverridesService = achievementOverridesService;
             _persistSettingsForUi = persistSettingsForUi;
+            _settings = settings;
+            // Quiet save: the SettingsSaved broadcast that PersistSettingsForUi raises would
+            // force an immediate friends snapshot rebuild on every control bar toggle.
+            _controlBarPersist = new DebouncedSettingsPersist(
+                this,
+                SaveSettings,
+                () => PlayniteAchievementsPlugin.Instance?.IsSettingsEditSessionActive == true);
             _viewModel = new FriendsOverviewViewModel(
                 friendCache,
                 refreshCoordinator,
@@ -136,6 +146,12 @@ namespace PlayniteAchievements.Views
 
         public void Dispose()
         {
+            // The host disposes this control before its Unloaded fires, and Dispose alone drops
+            // a pending save, so flush the last control bar toggle here.
+            _controlBarPersist?.Flush();
+            _controlBarPersist?.Dispose();
+            _controlBarPersist = null;
+
             if (_viewModel != null)
             {
                 _viewModel.PropertyChanged -= ViewModel_PropertyChanged;
@@ -212,6 +228,61 @@ namespace PlayniteAchievements.Views
             _viewModel?.ClearGameSelection();
             ClearGridSelection(FriendGameSummariesGridControl?.InternalDataGrid);
             ClearGridSelection(SelectedFriendGameSummariesGridControl?.InternalDataGrid);
+        }
+
+        private void ToggleFriendSummariesControlBar_Click(object sender, RoutedEventArgs e)
+        {
+            // Read Persisted at click time: a settings window Cancel replaces the instance.
+            var persisted = _settings?.Persisted;
+            if (persisted == null)
+            {
+                return;
+            }
+
+            persisted.ShowFriendsOverviewFriendSummariesGridControlBar = !persisted.ShowFriendsOverviewFriendSummariesGridControlBar;
+            _controlBarPersist?.Schedule();
+        }
+
+        private void ToggleGameSummariesControlBar_Click(object sender, RoutedEventArgs e)
+        {
+            var persisted = _settings?.Persisted;
+            if (persisted == null)
+            {
+                return;
+            }
+
+            persisted.ShowFriendsOverviewGameSummariesGridControlBar = !persisted.ShowFriendsOverviewGameSummariesGridControlBar;
+            _controlBarPersist?.Schedule();
+        }
+
+        private void ToggleAchievementsControlBar_Click(object sender, RoutedEventArgs e)
+        {
+            var persisted = _settings?.Persisted;
+            if (persisted == null)
+            {
+                return;
+            }
+
+            persisted.ShowFriendsOverviewAchievementsGridControlBar = !persisted.ShowFriendsOverviewAchievementsGridControlBar;
+            _controlBarPersist?.Schedule();
+        }
+
+        private void SaveSettings()
+        {
+            var plugin = PlayniteAchievementsPlugin.Instance;
+            if (plugin == null || _settings == null)
+            {
+                return;
+            }
+
+            try
+            {
+                plugin.SavePluginSettings(_settings);
+            }
+            catch (Exception ex)
+            {
+                _logger?.Warn(ex, "Failed to save friends overview settings.");
+            }
         }
 
         private void RefreshModeSelectionButton_Click(object sender, RoutedEventArgs e)

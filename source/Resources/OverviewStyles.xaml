@@ -430,6 +430,57 @@
         </Setter>
     </Style>
 
+    <!-- Header-edge chevron that shows or hides the control bar of the grid beneath a section
+         header. Tag carries the grid's current ShowControlBar value: True draws the chevron
+         pointing up (click collapses), False pointing down (click expands). Mouse-only so a
+         click never pulls keyboard focus off the grid. -->
+    <Style x:Key="HeaderControlBarToggleStyle" TargetType="Button" BasedOn="{StaticResource ClearGameSelectionButtonStyle}">
+        <Setter Property="ToolTip" Value="{DynamicResource LOCPlayAch_Settings_ShowGridControlBar}"/>
+        <Setter Property="Focusable" Value="False"/>
+        <Setter Property="IsTabStop" Value="False"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Button">
+                    <Border x:Name="Chrome"
+                            Background="{TemplateBinding Background}"
+                            CornerRadius="{StaticResource PlayAch.Radius.Small}"
+                            SnapsToDevicePixels="True">
+                        <Path x:Name="Arrow"
+                              Width="8"
+                              Height="5"
+                              Data="M 0,0 L 4,4 L 8,0"
+                              Stroke="{TemplateBinding Foreground}"
+                              StrokeThickness="1.5"
+                              StrokeStartLineCap="Round"
+                              StrokeEndLineCap="Round"
+                              StrokeLineJoin="Round"
+                              HorizontalAlignment="Center"
+                              VerticalAlignment="Center"
+                              RenderTransformOrigin="0.5,0.5">
+                            <Path.RenderTransform>
+                                <RotateTransform Angle="0"/>
+                            </Path.RenderTransform>
+                        </Path>
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <DataTrigger Binding="{Binding Tag, RelativeSource={RelativeSource Self}}" Value="True">
+                            <Setter TargetName="Arrow" Property="RenderTransform">
+                                <Setter.Value>
+                                    <RotateTransform Angle="180"/>
+                                </Setter.Value>
+                            </Setter>
+                        </DataTrigger>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Chrome" Property="Background" Value="{DynamicResource PlayAch.Brush.Button.Background.Hover}"/>
+                            <Setter Property="Foreground" Value="{DynamicResource PlayAch.Brush.Accent}"/>
+                            <Setter Property="Opacity" Value="1"/>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
     <!-- Draggable center divider used to split the Overview/Friends columns. Draws its own themed
          vertical line so a single element serves as both the visible seam and the resize handle. -->
     <Style x:Key="CenterLineSplitterStyle" TargetType="GridSplitter">
