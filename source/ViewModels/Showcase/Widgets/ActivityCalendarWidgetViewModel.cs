@@ -5,30 +5,36 @@ using Playnite.SDK;
 using PlayniteAchievements.Common;
 using PlayniteAchievements.Models;
 using PlayniteAchievements.Services.Showcase;
+using PlayniteAchievements.ViewModels.Items;
 
 namespace PlayniteAchievements.ViewModels.Showcase.Widgets
 {
     /// <summary>
     /// A single heatmap cell. Intensity -1 marks a placeholder that pads a partial week.
-    /// The tooltip is formatted on demand (only the hovered cell needs one), so a year of
-    /// cells costs no string work.
+    /// The tooltip and the popup header are formatted on demand (only the hovered or clicked
+    /// cell needs one), so a year of cells costs no string work.
     /// </summary>
     public sealed class ActivityCalendarDayViewModel
     {
         private static readonly ActivityCalendarDayViewModel PlaceholderCell =
             new ActivityCalendarDayViewModel(-1, default(DateTime), 0);
 
-        private ActivityCalendarDayViewModel(int intensity, DateTime date, int count)
+        private ActivityCalendarDayViewModel(
+            int intensity,
+            DateTime date,
+            int count,
+            IReadOnlyList<AchievementDisplayItem> unlocks = null)
         {
             Intensity = intensity;
             Date = date;
             Count = count;
+            Unlocks = unlocks;
         }
 
         public static ActivityCalendarDayViewModel Placeholder => PlaceholderCell;
 
         public static ActivityCalendarDayViewModel ForDay(ShowcaseActivityDay day) =>
-            new ActivityCalendarDayViewModel(day.Intensity, day.Date, day.Count);
+            new ActivityCalendarDayViewModel(day.Intensity, day.Date, day.Count, day.Unlocks);
 
         public static ActivityCalendarDayViewModel ForLegend(int intensity) =>
             new ActivityCalendarDayViewModel(intensity, default(DateTime), 0);
@@ -39,22 +45,32 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
 
         public int Count { get; }
 
-        public string Tooltip
-        {
-            get
-            {
-                if (Intensity < 0 || Date == default(DateTime))
-                {
-                    return null;
-                }
+        /// <summary>The day's unlocks in unlock order, or null; shown by the day popup.</summary>
+        public IReadOnlyList<AchievementDisplayItem> Unlocks { get; }
 
-                var culture = FormattingCulture.Current;
-                return string.Format(
-                    culture,
-                    ResourceProvider.GetString("LOCPlayAch_Showcase_ActivityTooltipFormat"),
-                    Date.ToString("d", culture),
-                    Count);
+        public bool HasUnlocks => Unlocks != null && Unlocks.Count > 0;
+
+        /// <summary>False for the placeholder and legend cells, which have no date.</summary>
+        public bool IsDay => Intensity >= 0 && Date != default(DateTime);
+
+        public string Tooltip => FormatSummary("d");
+
+        /// <summary>The popup header: the same summary as the tooltip with the full date.</summary>
+        public string Header => FormatSummary("D");
+
+        private string FormatSummary(string dateFormat)
+        {
+            if (!IsDay)
+            {
+                return null;
             }
+
+            var culture = FormattingCulture.Current;
+            return string.Format(
+                culture,
+                ResourceProvider.GetString("LOCPlayAch_Showcase_ActivityTooltipFormat"),
+                Date.ToString(dateFormat, culture),
+                Count);
         }
     }
 

@@ -2,6 +2,7 @@ using System;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
+using System.Windows.Media;
 using System.Windows.Threading;
 
 namespace PlayniteAchievements.Views.Showcase
@@ -74,6 +75,13 @@ namespace PlayniteAchievements.Views.Showcase
         private static void OnPreviewMouseWheel(object sender, MouseWheelEventArgs e)
         {
             if (!(sender is ScrollViewer viewer) || viewer.ScrollableWidth <= 0)
+            {
+                return;
+            }
+
+            // The heatmap's day popup routes its events through the heatmap and so through this
+            // viewer; a wheel over the popup's list belongs to that list, not the calendar.
+            if (!(e.OriginalSource is Visual source) || !viewer.IsAncestorOf(source))
             {
                 return;
             }

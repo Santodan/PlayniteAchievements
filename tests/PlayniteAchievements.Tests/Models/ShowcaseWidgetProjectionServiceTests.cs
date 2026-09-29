@@ -800,6 +800,65 @@ namespace PlayniteAchievements.Tests.Models
         }
 
         [TestMethod]
+        public void ActivityCalendar_DaysCarryTheirUnlocksInChronologicalOrder()
+        {
+            var today = new DateTime(2026, 7, 31);
+            var dayOneUtc = new DateTime(2026, 7, 29, 12, 0, 0, DateTimeKind.Utc);
+            var dayTwoUtc = new DateTime(2026, 7, 30, 12, 0, 0, DateTimeKind.Utc);
+            var dayOne = UnlockDayCounts.DayOf(dayOneUtc);
+            var dayTwo = UnlockDayCounts.DayOf(dayTwoUtc);
+            var early = new AchievementDisplayItem { Unlocked = true, UnlockTimeUtc = dayOneUtc };
+            var late = new AchievementDisplayItem { Unlocked = true, UnlockTimeUtc = dayOneUtc.AddHours(2) };
+            var next = new AchievementDisplayItem { Unlocked = true, UnlockTimeUtc = dayTwoUtc };
+            var locked = new AchievementDisplayItem { Unlocked = false, UnlockTimeUtc = dayOneUtc.AddHours(1) };
+            var undated = new AchievementDisplayItem { Unlocked = true };
+            var snapshot = new OverviewDataSnapshot
+            {
+                GlobalUnlockCountsByDate = new Dictionary<DateTime, int> { [dayOne] = 2, [dayTwo] = 1 },
+                Achievements = new List<AchievementDisplayItem> { late, next, locked, undated, early }
+            };
+            var instance = new ShowcaseWidgetInstanceSettings { Kind = ShowcaseWidgetKind.ActivityCalendar };
+
+            var calendar = ShowcaseWidgetProjectionService.BuildActivityCalendar(snapshot, instance, today);
+
+            var first = calendar.Days.Single(day => day.Date == dayOne);
+            CollectionAssert.AreEqual(new[] { early, late }, first.Unlocks.ToList(), "unlock order within the day");
+            var second = calendar.Days.Single(day => day.Date == dayTwo);
+            CollectionAssert.AreEqual(new[] { next }, second.Unlocks.ToList());
+            Assert.IsTrue(
+                calendar.Days.Where(day => day.Count == 0).All(day => day.Unlocks == null),
+                "days without unlocks carry no list");
+        }
+
+        [TestMethod]
+        public void ActivityCalendar_DifferentWindows_ShareTheDayIndex()
+        {
+            var today = new DateTime(2026, 7, 31);
+            var unlockUtc = new DateTime(2026, 7, 28, 12, 0, 0, DateTimeKind.Utc);
+            var day = UnlockDayCounts.DayOf(unlockUtc);
+            var snapshot = new OverviewDataSnapshot
+            {
+                GlobalUnlockCountsByDate = new Dictionary<DateTime, int> { [day] = 1 },
+                Achievements = new List<AchievementDisplayItem>
+                {
+                    new AchievementDisplayItem { Unlocked = true, UnlockTimeUtc = unlockUtc }
+                }
+            };
+            var week = new ShowcaseWidgetInstanceSettings { Kind = ShowcaseWidgetKind.ActivityCalendar };
+            ShowcaseTimelineOptions.SetWindow(week, TimeWindow.Custom(new DateTime(2026, 7, 25), today));
+            var month = new ShowcaseWidgetInstanceSettings { Kind = ShowcaseWidgetKind.ActivityCalendar };
+            ShowcaseTimelineOptions.SetWindow(month, TimeWindow.Custom(new DateTime(2026, 7, 1), today));
+
+            var first = ShowcaseWidgetProjectionService.BuildActivityCalendar(snapshot, week, today);
+            var second = ShowcaseWidgetProjectionService.BuildActivityCalendar(snapshot, month, today);
+
+            Assert.AreSame(
+                first.Days.Single(item => item.Date == day).Unlocks,
+                second.Days.Single(item => item.Date == day).Unlocks,
+                "the per-day index is folded once per snapshot and shared by every window");
+        }
+
+        [TestMethod]
         public void Build_Timeline_HandsOverUnwindowedDayCounts()
         {
             var today = new DateTime(2026, 7, 31);

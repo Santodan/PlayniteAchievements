@@ -44,6 +44,10 @@ namespace PlayniteAchievements.Services.Showcase
         /// <summary>0 = no unlocks; 1..4 = percentile bucket among the window's active days,
         /// with the busiest day always 4.</summary>
         public int Intensity { get; set; }
+
+        /// <summary>The achievements unlocked on this local day in unlock order, or null when
+        /// none; the rows are the snapshot's own instances, shared across windows.</summary>
+        public IReadOnlyList<AchievementDisplayItem> Unlocks { get; set; }
     }
 
     public sealed class ShowcaseActivityCalendar
@@ -170,6 +174,9 @@ namespace PlayniteAchievements.Services.Showcase
             public DateTime StatisticsDay;
 
             public DailyScoreDeltas ScoreDeltas;
+
+            /// <summary>Unlocked rows grouped by local unlock day, each day in unlock order.</summary>
+            public Dictionary<DateTime, IReadOnlyList<AchievementDisplayItem>> UnlocksByDay;
 
             public IReadOnlyList<AchievementDisplayItem> AllAchievementRows;
 
@@ -885,16 +892,19 @@ namespace PlayniteAchievements.Services.Showcase
             var max = 0;
             var total = 0;
             var activeDays = 0;
+            var unlocksByDay = GetUnlocksByDay(snapshot);
             foreach (var day in EnumerateDailyWindow(start, endDate, counts))
             {
                 max = Math.Max(max, day.Count);
                 total += day.Count;
+                IReadOnlyList<AchievementDisplayItem> unlocks = null;
                 if (day.Count > 0)
                 {
                     activeDays++;
+                    unlocksByDay.TryGetValue(day.Date, out unlocks);
                 }
 
-                days.Add(new ShowcaseActivityDay { Date = day.Date, Count = day.Count });
+                days.Add(new ShowcaseActivityDay { Date = day.Date, Count = day.Count, Unlocks = unlocks });
             }
 
             var activeCounts = days
@@ -924,6 +934,56 @@ namespace PlayniteAchievements.Services.Showcase
                 TotalCount = total,
                 ActiveDayCount = activeDays
             };
+        }
+
+        /// <summary>
+        /// The snapshot's unlocked rows grouped by local unlock day, folded once per snapshot the
+        /// way the score deltas are. A calendar cell hands its day's list to the day popup, so the
+        /// lists hold the snapshot's own row instances and die with the snapshot; undated unlocks
+        /// have no day and are left out, matching the day counts.
+        /// </summary>
+        private static Dictionary<DateTime, IReadOnlyList<AchievementDisplayItem>> GetUnlocksByDay(
+            OverviewDataSnapshot snapshot)
+        {
+            if (snapshot == null)
+            {
+                return new Dictionary<DateTime, IReadOnlyList<AchievementDisplayItem>>();
+            }
+
+            var cache = DerivedCache.GetOrCreateValue(snapshot);
+            if (cache.UnlocksByDay != null)
+            {
+                return cache.UnlocksByDay;
+            }
+
+            var grouped = new Dictionary<DateTime, List<AchievementDisplayItem>>();
+            foreach (var item in snapshot.Achievements ?? new List<AchievementDisplayItem>())
+            {
+                if (item?.Unlocked != true || !item.UnlockTimeUtc.HasValue)
+                {
+                    continue;
+                }
+
+                var day = UnlockDayCounts.DayOf(item.UnlockTimeUtc.Value);
+                if (!grouped.TryGetValue(day, out var rows))
+                {
+                    rows = new List<AchievementDisplayItem>();
+                    grouped[day] = rows;
+                }
+
+                rows.Add(item);
+            }
+
+            var index = new Dictionary<DateTime, IReadOnlyList<AchievementDisplayItem>>(grouped.Count);
+            foreach (var pair in grouped)
+            {
+                // Chronological within the day, so the list reads as the day's activity.
+                pair.Value.Sort((left, right) => left.UnlockTimeUtc.Value.CompareTo(right.UnlockTimeUtc.Value));
+                index[pair.Key] = pair.Value;
+            }
+
+            cache.UnlocksByDay = index;
+            return index;
         }
 
         /// <summary>
