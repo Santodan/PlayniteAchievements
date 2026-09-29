@@ -306,13 +306,16 @@
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Category_Type_Difficulty">Difficulty</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Category_Type_DLC">DLC</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Category_Type_Hardcore">Hardcore</sys:String>
+    <sys:String x:Key="LOCPlayAch_ManageAchievements_Category_Type_Miscellaneous">Miscellaneous</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Category_Type_Missable">Missable</sys:String>
-    <sys:String x:Key="LOCPlayAch_ManageAchievements_Category_Type_Unobtainable">Unobtainable</sys:String>    <sys:String x:Key="LOCPlayAch_ManageAchievements_Category_Type_Multiplayer">Multiplayer</sys:String>
+    <sys:String x:Key="LOCPlayAch_ManageAchievements_Category_Type_Multiplayer">Multiplayer</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Category_Type_Progression">Progression</sys:String>
+    <sys:String x:Key="LOCPlayAch_ManageAchievements_Category_Type_SideProgression">Side Progression</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Category_Type_Singleplayer">Singleplayer</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Category_Type_Softcore">Softcore</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Category_Type_Stackable">Stackable</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Category_Type_Subset">Subset</sys:String>
+    <sys:String x:Key="LOCPlayAch_ManageAchievements_Category_Type_Unobtainable">Unobtainable</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Category_Type_Update">Update</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Category_Type_WinCondition">Win Condition</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Category_TypeSelectorLabel">Category Type</sys:String>
