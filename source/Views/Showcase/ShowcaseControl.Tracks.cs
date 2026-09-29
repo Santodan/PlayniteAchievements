@@ -38,7 +38,12 @@ namespace PlayniteAchievements.Views.Showcase
         // strips along the left and right.
         private FrameworkElement CreateTrackStrip(bool vertical, int index, bool nearEdge)
         {
-            var strip = new Border { Background = Brushes.Transparent };
+            var strip = new Border
+            {
+                Background = Brushes.Transparent,
+                CornerRadius = new CornerRadius(3),
+                Tag = (vertical, index)
+            };
             var lastCell = PageTrackCount(!vertical) - 1;
             if (vertical)
             {
@@ -78,6 +83,7 @@ namespace PlayniteAchievements.Views.Showcase
                 if (!_trackMenuOpen)
                 {
                     ShowTrackHighlight(vertical, index);
+                    SetTrackStripsLit(vertical, index);
                 }
             };
             element.MouseLeave += (_, __) =>
@@ -85,6 +91,7 @@ namespace PlayniteAchievements.Views.Showcase
                 if (!_trackMenuOpen)
                 {
                     ClearLayoutPreview();
+                    SetTrackStripsLit(null, -1);
                 }
             };
             // Preview, so a ruler's text box never sees the click; handled, so no ancestor's
@@ -99,6 +106,29 @@ namespace PlayniteAchievements.Views.Showcase
         private void ShowTrackHighlight(bool vertical, int index)
         {
             ShowLayoutPreview(new[] { TrackCell(vertical, index) }, null);
+        }
+
+        // Lights both edge strips of one track with a faint accent fill, so the strip itself
+        // shows it is under the pointer; a null axis puts every strip out.
+        private void SetTrackStripsLit(bool? vertical, int index)
+        {
+            foreach (var strip in _trackStrips.OfType<Border>())
+            {
+                var lit = vertical.HasValue &&
+                          strip.Tag is ValueTuple<bool, int> track &&
+                          track.Item1 == vertical.Value &&
+                          track.Item2 == index;
+                if (lit)
+                {
+                    strip.SetResourceReference(Border.BackgroundProperty, "PlayAch.Brush.Accent");
+                    strip.Opacity = 0.35;
+                }
+                else
+                {
+                    strip.Background = Brushes.Transparent;
+                    strip.Opacity = 1;
+                }
+            }
         }
 
         private (int Row, int Column, int RowSpan, int ColumnSpan, Thickness Margin) TrackCell(
@@ -151,10 +181,12 @@ namespace PlayniteAchievements.Views.Showcase
             {
                 _trackMenuOpen = false;
                 ClearLayoutPreview();
+                SetTrackStripsLit(null, -1);
             };
 
             _trackMenuOpen = true;
             ShowTrackHighlight(vertical, index);
+            SetTrackStripsLit(vertical, index);
             menu.IsOpen = true;
         }
 
