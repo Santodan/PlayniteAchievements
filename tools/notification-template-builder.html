@@ -1563,11 +1563,13 @@
         const manualId = element.dataset.manualId || '';
         const isIconElement = manualId === 'primaryIcon' || manualId === 'secondaryIcon';
         const hasAbsolutePosition = manualId !== 'notification' && offset?.left != null && offset?.top != null;
-        element.style.position = hasAbsolutePosition ? 'absolute' : '';
-        element.style.left = hasAbsolutePosition ? `${offset.left}px` : '';
-        element.style.top = hasAbsolutePosition ? `${offset.top}px` : '';
-        element.style.margin = hasAbsolutePosition ? '0' : '';
-        element.style.zIndex = hasAbsolutePosition ? '80' : '';
+        if (manualId !== 'notification') {
+          element.style.position = hasAbsolutePosition ? 'absolute' : '';
+          element.style.left = hasAbsolutePosition ? `${offset.left}px` : '';
+          element.style.top = hasAbsolutePosition ? `${offset.top}px` : '';
+          element.style.margin = hasAbsolutePosition ? '0' : '';
+          element.style.zIndex = hasAbsolutePosition ? '80' : '';
+        }
         element.style.transform = offset && (offset.x || offset.y) ? `translate(${offset.x || 0}px, ${offset.y || 0}px)` : '';
         if (offset?.width) {
           element.style.width = `${offset.width}px`;
@@ -2338,6 +2340,22 @@
       toast.style.top = `${Math.max(0, y)}px`;
     }
 
+    function positionSanPreviewFrame(frame, stage, slot, position) {
+      if (!frame || !stage) return;
+      positionToast(frame, stage, slot, position);
+      const left = frame.style.left || '0px';
+      const top = frame.style.top || '0px';
+      // The reusable iframe class has `inset: 0` so it can fill the stage before
+      // a SAN preset is selected. SAN rendering clones and reloads that iframe;
+      // make the resolved notification position authoritative across that cycle.
+      frame.style.setProperty('position', 'absolute', 'important');
+      frame.style.setProperty('inset', 'auto', 'important');
+      frame.style.setProperty('right', 'auto', 'important');
+      frame.style.setProperty('bottom', 'auto', 'important');
+      frame.style.setProperty('left', left, 'important');
+      frame.style.setProperty('top', top, 'important');
+    }
+
     function applyAnimation(toast, transition, slot) {
       const fadeIn = Math.max(0, transition.FadeInMilliseconds);
       const fadeOut = Math.max(0, transition.FadeOutMilliseconds);
@@ -2640,7 +2658,7 @@
       freshFrame.style.maxHeight = `${height}px`;
       frame.replaceWith(freshFrame);
       frame = freshFrame;
-      positionToast(frame, $('stage'), slot, transition.OverlayPosition);
+      positionSanPreviewFrame(frame, $('stage'), slot, transition.OverlayPosition);
       frame.srcdoc = `<!doctype html><html><body style="margin:0;background:#12151a;color:#9fb3c8;font:12px sans-serif;display:grid;place-items:center;width:100vw;height:100vh">Loading SAN ${animationPreset}...</body></html>`;
       try {
         const [globalCssRaw, baseCssRaw, baseAnimCssRaw, elementHtml, elementCssRaw, animationCssRaw] = await Promise.all([
@@ -3492,13 +3510,14 @@
         const html = `<!doctype html><html data-builder-render-key="${request}-${Date.now()}"><head><meta charset="utf-8"><style>${rewriteSanCssUrls(globalCssRaw, 'SAN-source/dist/app/')}</style><style>${rewriteSanCssUrls(baseCssRaw, 'SAN-source/notify/')}</style><style>${rewriteSanCssUrls(baseAnimCssRaw, 'SAN-source/notify/')}</style><style>${rewriteSanCssUrls(elementCssRaw, `SAN-source/notify/presets/${elementPreset}/`)}</style><style>${rewriteSanCssUrls(animationCssRaw, `SAN-source/notify/presets/${animationPreset}/`)}</style><style>${variables}</style><style>${previewOverrideStyle}</style><style>${presetRepairStyle}</style><style>${iconCornerStyle}</style><style>${builderStackingStyle}</style><style>${builderNativeRepairStyle}</style><style>${builderStaticDragStyle}</style><style>${builderOverlayStyle}</style><style>${builderDragTextGuardStyle}</style><style>${manualOverrideStyle}</style></head><body main solid ${positionAttr}${allDetailsAttr}${dragBodyAttrs} data-san-preset="${animationPreset}" data-san-elements="${elementPreset}"><div class="wrapper" id="ssdisplay"></div>${elementHtml}${script}</body></html>`;
         frame.addEventListener('load', () => {
           if (request === sanPreviewRequest) {
+            positionSanPreviewFrame(frame, $('stage'), slot, transition.OverlayPosition);
             renderSanParentDragOverlay(slot, transition, frame, width, height, true);
           }
         }, { once: true });
         frame.srcdoc = html;
         frame.style.background = '#12151a';
         frame.style.display = 'block';
-        positionToast(frame, $('stage'), slot, transition.OverlayPosition);
+        positionSanPreviewFrame(frame, $('stage'), slot, transition.OverlayPosition);
         renderSanParentDragOverlay(slot, transition, frame, width, height);
         startSanDragPayloadPolling(frame);
         $('previewStatus').textContent = `${width} x ${height} / ${transition.OverlayPosition} / SAN ${animationPreset}`;
