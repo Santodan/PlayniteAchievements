@@ -106,6 +106,7 @@ The entries below are fork-side changes, grouped by date. When a date includes a
 - Added a preview of `VIew 1` and `View 2` for `SAN`transitions
   - `Show Vew1` and `Show View2` buttons located under the `Show Notification` in the `Notification Style` menu
 - Fix `<rarityIcon>` not taking the achievements points instead of the percentage rarity text
+- Fixed the `Show Notification` not hiding on the second click
 
 ## 2026-09-14 - v3.2.1.1
 

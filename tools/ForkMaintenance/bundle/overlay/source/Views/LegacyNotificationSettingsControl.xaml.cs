@@ -3864,7 +3864,9 @@ namespace PlayniteAchievements.Views
 
         private void NotificationsShowCustomPopupPreview_Click(object sender, RoutedEventArgs e)
         {
-            StopSanViewPreview(closeOverlay: true);
+            // Keep the current persistent overlay alive so SendUnlockPopup can
+            // toggle it off when the preview button is pressed a second time.
+            StopSanViewPreview(closeOverlay: false);
             ShowCustomPopupPreview(forceStatusMessage: true);
         }
 

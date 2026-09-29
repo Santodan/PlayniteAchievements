@@ -1,6 +1,6 @@
 {
     "schemaVersion":  1,
-    "generatedUtc":  "2026-09-29T07:57:44.2205104Z",
+    "generatedUtc":  "2026-09-29T09:01:41.5745616Z",
     "baselineRef":  "upstream/main",
     "baselineCommit":  "653a310fed521206672d0aec9383fd7ec3bb94a3",
     "protectedPaths":  [
@@ -321,7 +321,7 @@
                          },
                          {
                              "path":  "source/Views/LegacyNotificationSettingsControl.xaml.cs",
-                             "sha256":  "27178D90ADB54CC31CFBFCA848BD6F1F19F2DAA38F328FFF98373A19087113B9"
+                             "sha256":  "0EE27557971BDBB939BCA6B3FB03F50D739A92529F9E05712C185F0F2CB2A7F5"
                          },
                          {
                              "path":  "source/Views/LocalAchievementEditorControl.xaml",
