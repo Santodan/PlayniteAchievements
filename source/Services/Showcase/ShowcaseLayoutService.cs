@@ -964,6 +964,8 @@ namespace PlayniteAchievements.Services.Showcase
                     AddBlock(settings, page, 2, 3, 1, 2, ShowcaseWidgetKind.Statistics);
                     AddBlock(settings, page, 3, 3, 2, 2, ShowcaseWidgetKind.Pie);
                     break;
+                // The add-page presets below draw only on library data, never on pin
+                // collections, so a new page is full on its first open.
                 case ShowcasePageTemplate.Collection:
                     AddBlock(
                         settings,
@@ -975,7 +977,7 @@ namespace PlayniteAchievements.Services.Showcase
                         ShowcaseWidgetKind.RecentAchievements,
                         widget => ShowcaseWidgetOptions.SetAchievementGridSource(
                             widget,
-                            ShowcaseAchievementGridSource.Pinned));
+                            ShowcaseAchievementGridSource.All));
                     AddBlock(
                         settings,
                         page,
@@ -986,7 +988,7 @@ namespace PlayniteAchievements.Services.Showcase
                         ShowcaseWidgetKind.GameSummaries,
                         widget => ShowcaseWidgetOptions.SetGameGridSource(
                             widget,
-                            ShowcaseGameGridSource.Pinned));
+                            ShowcaseGameGridSource.Library));
                     AddBlock(
                         settings,
                         page,
@@ -995,9 +997,85 @@ namespace PlayniteAchievements.Services.Showcase
                         2,
                         5,
                         ShowcaseWidgetKind.IconMosaic,
-                        widget => ShowcaseWidgetOptions.SetMosaicContent(
+                        widget => ConfigureGameMosaic(widget, ShowcaseGameMosaicSource.All));
+                    break;
+                case ShowcasePageTemplate.UpNext:
+                    AddBlock(
+                        settings,
+                        page,
+                        0,
+                        0,
+                        3,
+                        3,
+                        ShowcaseWidgetKind.RecentAchievements,
+                        widget => ShowcaseWidgetOptions.SetAchievementGridSource(
                             widget,
-                            ShowcaseMosaicContent.Games));
+                            ShowcaseAchievementGridSource.UnlockNext));
+                    AddBlock(
+                        settings,
+                        page,
+                        0,
+                        3,
+                        3,
+                        2,
+                        ShowcaseWidgetKind.GameSummaries,
+                        widget => ShowcaseWidgetOptions.SetGameGridSource(
+                            widget,
+                            ShowcaseGameGridSource.FinishNext));
+                    AddBlock(
+                        settings,
+                        page,
+                        3,
+                        0,
+                        2,
+                        3,
+                        ShowcaseWidgetKind.IconMosaic,
+                        widget => ConfigureAchievementMosaic(widget, ShowcaseMosaicSource.UnlockNext));
+                    AddBlock(settings, page, 3, 3, 2, 2, ShowcaseWidgetKind.Pie);
+                    break;
+                case ShowcasePageTemplate.TrophyCase:
+                    AddBlock(settings, page, 0, 0, 2, 3, ShowcaseWidgetKind.Profile);
+                    AddScoreBlock(settings, page, 0, 3, 2, 2, true, true);
+                    AddBlock(
+                        settings,
+                        page,
+                        2,
+                        0,
+                        3,
+                        3,
+                        ShowcaseWidgetKind.IconMosaic,
+                        widget => ConfigureAchievementMosaic(widget, ShowcaseMosaicSource.Rarest));
+                    AddBlock(
+                        settings,
+                        page,
+                        2,
+                        3,
+                        3,
+                        2,
+                        ShowcaseWidgetKind.Pie,
+                        widget => ShowcaseWidgetOptions.SetPieMode(widget, ShowcasePieMode.Rarity));
+                    break;
+                case ShowcasePageTemplate.Library:
+                    AddBlock(settings, page, 0, 0, 3, 3, ShowcaseWidgetKind.GameSummaries);
+                    AddBlock(
+                        settings,
+                        page,
+                        0,
+                        3,
+                        3,
+                        2,
+                        ShowcaseWidgetKind.IconMosaic,
+                        widget => ConfigureGameMosaic(widget, ShowcaseGameMosaicSource.All));
+                    AddBlock(
+                        settings,
+                        page,
+                        3,
+                        0,
+                        2,
+                        2,
+                        ShowcaseWidgetKind.Pie,
+                        widget => ShowcaseWidgetOptions.SetPieMode(widget, ShowcasePieMode.Provider));
+                    AddBlock(settings, page, 3, 2, 2, 3, ShowcaseWidgetKind.Statistics);
                     break;
                 default:
                     for (var row = 0; row < page.RowCount; row++)
@@ -1013,6 +1091,28 @@ namespace PlayniteAchievements.Services.Showcase
 
             SortBlocks(page);
             return page;
+        }
+
+        // A preset's mosaics fill their block: the default count of 24 leaves most of a large
+        // block empty, and extra tiles past the block's area only scroll.
+        private const int PresetMosaicCount = 120;
+
+        private static void ConfigureAchievementMosaic(
+            ShowcaseWidgetInstanceSettings widget,
+            ShowcaseMosaicSource source)
+        {
+            ShowcaseWidgetOptions.SetMosaicContent(widget, ShowcaseMosaicContent.Achievements);
+            ShowcaseWidgetOptions.SetMosaicSource(widget, source);
+            ShowcaseWidgetOptions.SetMosaicCount(widget, PresetMosaicCount);
+        }
+
+        private static void ConfigureGameMosaic(
+            ShowcaseWidgetInstanceSettings widget,
+            ShowcaseGameMosaicSource source)
+        {
+            ShowcaseWidgetOptions.SetMosaicContent(widget, ShowcaseMosaicContent.Games);
+            ShowcaseWidgetOptions.SetGameMosaicSource(widget, source);
+            ShowcaseWidgetOptions.SetGameMosaicCount(widget, PresetMosaicCount);
         }
 
         private static void AddScoreBlock(
@@ -1551,6 +1651,12 @@ namespace PlayniteAchievements.Services.Showcase
                     return "Analytics";
                 case ShowcasePageTemplate.Collection:
                     return "Collection";
+                case ShowcasePageTemplate.UpNext:
+                    return "Up Next";
+                case ShowcasePageTemplate.TrophyCase:
+                    return "Trophy Case";
+                case ShowcasePageTemplate.Library:
+                    return "Library";
                 case ShowcasePageTemplate.Blank:
                     return "New Page";
                 default:
