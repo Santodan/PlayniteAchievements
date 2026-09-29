@@ -919,6 +919,115 @@
         </Border>
     </DataTemplate>
 
+    <!-- Rows of the day popup: a text list, so unlike the mosaic tiles the container keeps a
+         hover highlight; the heatmap's mosaic click behavior resolves rows through this
+         container's DataContext. -->
+    <Style x:Key="ShowcaseActivityDayRowStyle" TargetType="ListBoxItem">
+        <Setter Property="Focusable" Value="False"/>
+        <Setter Property="Cursor" Value="Hand"/>
+        <Setter Property="Margin" Value="0"/>
+        <Setter Property="Padding" Value="6,4"/>
+        <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="ListBoxItem">
+                    <Border x:Name="Bd"
+                            Background="Transparent"
+                            CornerRadius="{StaticResource PlayAch.Radius.Small}"
+                            Padding="{TemplateBinding Padding}"
+                            SnapsToDevicePixels="True">
+                        <ContentPresenter HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                          VerticalAlignment="Center"/>
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Bd" Property="Background" Value="{DynamicResource PlayAch.Brush.Overlay.Tint.08}"/>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- The day popup ActivityCalendarHeatmap opens under a clicked cell: the day's summary (the
+         tooltip text with the full date) over the achievements unlocked that day in unlock order.
+         Chrome matches the time window picker's custom-range popup. A day can hold hundreds of
+         unlocks (an import), so the list virtualizes and caps its height like the context menu
+         scroller. -->
+    <DataTemplate x:Key="ShowcaseActivityDayPopupTemplate" DataType="{x:Type widgets:ActivityCalendarDayViewModel}">
+        <Border Background="{DynamicResource PlayAch.Brush.PopupSurface}"
+                BorderBrush="{DynamicResource PlayAch.Brush.PopupBorder}"
+                BorderThickness="1"
+                CornerRadius="4"
+                Padding="8"
+                MinWidth="260"
+                MaxWidth="380">
+            <DockPanel>
+                <TextBlock DockPanel.Dock="Top"
+                           Text="{Binding Header, Mode=OneWay}"
+                           FontWeight="SemiBold"
+                           Foreground="{DynamicResource PlayAch.Brush.Text}"
+                           TextWrapping="Wrap"
+                           Margin="6,0,6,6"/>
+                <ListBox ItemsSource="{Binding Unlocks, Mode=OneWay}"
+                         showcase:ShowcaseMosaicClickBehavior.IsEnabled="True"
+                         ItemContainerStyle="{StaticResource ShowcaseActivityDayRowStyle}"
+                         Background="Transparent"
+                         BorderThickness="0"
+                         Padding="0"
+                         MaxHeight="320"
+                         ScrollViewer.VerticalScrollBarVisibility="Auto"
+                         ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                         ScrollViewer.CanContentScroll="True"
+                         VirtualizingPanel.IsVirtualizing="True"
+                         VirtualizingPanel.VirtualizationMode="Recycling">
+                    <ListBox.ItemTemplate>
+                        <DataTemplate>
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <Image Width="28"
+                                       Height="28"
+                                       Stretch="Uniform"
+                                       VerticalAlignment="Center"
+                                       SnapsToDevicePixels="True"
+                                       RenderOptions.BitmapScalingMode="HighQuality"
+                                       helpers:AsyncImage.Uri="{Binding DisplayIcon, Mode=OneWay}"
+                                       helpers:AsyncImage.DecodePixel="64"/>
+                                <StackPanel Grid.Column="1"
+                                            Margin="8,0"
+                                            VerticalAlignment="Center">
+                                    <TextBlock TextTrimming="CharacterEllipsis"
+                                               Foreground="{DynamicResource PlayAch.Brush.Text}">
+                                        <Run Text="{Binding DisplayNameResolved, Mode=OneWay}"/>
+                                        <Run Text="{Binding HiddenTitleSuffix, Mode=OneWay}"
+                                             FontStyle="Italic"
+                                             FontSize="{DynamicResource PlayAch.FontSize.Caption}"
+                                             Foreground="{DynamicResource PlayAch.Brush.Text.Secondary}"/>
+                                    </TextBlock>
+                                    <TextBlock Text="{Binding GameName, Mode=OneWay}"
+                                               TextTrimming="CharacterEllipsis"
+                                               FontSize="{DynamicResource PlayAch.FontSize.Caption}"
+                                               Foreground="{DynamicResource PlayAch.Brush.Text}"
+                                               Opacity="{StaticResource PlayAch.Opacity.Subtle}"/>
+                                </StackPanel>
+                                <TextBlock Grid.Column="2"
+                                           Text="{Binding UnlockTimeOfDayText, Mode=OneWay}"
+                                           VerticalAlignment="Center"
+                                           FontSize="{DynamicResource PlayAch.FontSize.Caption}"
+                                           Foreground="{DynamicResource PlayAch.Brush.Text}"
+                                           Opacity="{StaticResource PlayAch.Opacity.Subtle}"/>
+                            </Grid>
+                        </DataTemplate>
+                    </ListBox.ItemTemplate>
+                </ListBox>
+            </DockPanel>
+        </Border>
+    </DataTemplate>
+
     <DataTemplate DataType="{x:Type widgets:ActivityCalendarWidgetViewModel}">
         <Grid>
             <Grid.RowDefinitions>
@@ -954,7 +1063,8 @@
                               VerticalScrollBarVisibility="Disabled"
                               showcase:ActivityCalendarScrollBehavior.Enabled="True">
                     <!-- Single custom-drawn visual: one element for the whole grid of cells,
-                         with tooltips served from hit tests. -->
+                         with tooltips and the day popup (ShowcaseActivityDayPopupTemplate)
+                         served from hit tests. -->
                     <showcase:ActivityCalendarHeatmap Weeks="{Binding Weeks}"
                                                       ShowMonthLabels="True"
                                                       HorizontalAlignment="Left"
