@@ -293,6 +293,7 @@ namespace PlayniteAchievements.Views.Showcase
             // queued targets containers this rebuild discards.
             ClearApplyQueue();
             _trackGrippers.Clear();
+            _trackStrips.Clear();
             _trackRulers.Clear();
             _columnRulerTexts.Clear();
             _rowRulerTexts.Clear();
@@ -303,16 +304,19 @@ namespace PlayniteAchievements.Views.Showcase
             _suppressedAddButton = null;
             DashboardGrid.RowDefinitions.Clear();
             DashboardGrid.ColumnDefinitions.Clear();
-            var gridSize = PageGridSize;
-            perf?.SetContext($"page={CurrentPage.PageId} blocks={CurrentPage.Blocks.Count} grid={gridSize}");
-            var rowWeights = ShowcaseLayoutService.NormalizeTrackWeights(CurrentPage.RowWeights, gridSize);
-            var columnWeights = ShowcaseLayoutService.NormalizeTrackWeights(CurrentPage.ColumnWeights, gridSize);
-            for (var index = 0; index < gridSize; index++)
+            var rowCount = PageRowCount;
+            var columnCount = PageColumnCount;
+            perf?.SetContext($"page={CurrentPage.PageId} blocks={CurrentPage.Blocks.Count} grid={rowCount}x{columnCount}");
+            foreach (var weight in ShowcaseLayoutService.NormalizeTrackWeights(CurrentPage.RowWeights, rowCount))
             {
                 DashboardGrid.RowDefinitions.Add(
-                    new RowDefinition { Height = new GridLength(rowWeights[index], GridUnitType.Star) });
+                    new RowDefinition { Height = new GridLength(weight, GridUnitType.Star) });
+            }
+
+            foreach (var weight in ShowcaseLayoutService.NormalizeTrackWeights(CurrentPage.ColumnWeights, columnCount))
+            {
                 DashboardGrid.ColumnDefinitions.Add(
-                    new ColumnDefinition { Width = new GridLength(columnWeights[index], GridUnitType.Star) });
+                    new ColumnDefinition { Width = new GridLength(weight, GridUnitType.Star) });
             }
 
             if (EditLayoutButton.IsChecked == true &&
@@ -361,17 +365,24 @@ namespace PlayniteAchievements.Views.Showcase
         // column handles sit on the top and bottom edges, row handles on the left and right
         // edges. They hang half outside the grid, render above the block layer, and only
         // show in edit mode, so they never compete with block drag/split/merge gestures.
-        /// <summary>The current page's normalized grid dimension.</summary>
-        private int PageGridSize => ShowcaseLayoutService.NormalizeGridSize(CurrentPage?.GridSize ?? 0);
+        /// <summary>The current page's normalized row count.</summary>
+        private int PageRowCount => ShowcaseLayoutService.NormalizeTrackCount(CurrentPage?.RowCount ?? 0);
+
+        /// <summary>The current page's normalized column count.</summary>
+        private int PageColumnCount => ShowcaseLayoutService.NormalizeTrackCount(CurrentPage?.ColumnCount ?? 0);
+
+        private int PageTrackCount(bool vertical) => vertical ? PageColumnCount : PageRowCount;
 
         private void AddTrackGrippers()
         {
-            for (var boundary = 0; boundary < PageGridSize - 1; boundary++)
+            AddTrackStrips();
+            foreach (var vertical in new[] { true, false })
             {
-                AddOverlay(CreateTrackGripper(vertical: true, boundary, nearEdge: true));
-                AddOverlay(CreateTrackGripper(vertical: true, boundary, nearEdge: false));
-                AddOverlay(CreateTrackGripper(vertical: false, boundary, nearEdge: true));
-                AddOverlay(CreateTrackGripper(vertical: false, boundary, nearEdge: false));
+                for (var boundary = 0; boundary < PageTrackCount(vertical) - 1; boundary++)
+                {
+                    AddOverlay(CreateTrackGripper(vertical, boundary, nearEdge: true));
+                    AddOverlay(CreateTrackGripper(vertical, boundary, nearEdge: false));
+                }
             }
 
             AddTrackRulers();
@@ -389,7 +400,7 @@ namespace PlayniteAchievements.Views.Showcase
         // way to set a track, where a drag only lands within a pixel or two.
         private void AddTrackRulers()
         {
-            for (var index = 0; index < PageGridSize; index++)
+            for (var index = 0; index < PageColumnCount; index++)
             {
                 var column = CreateTrackRuler(vertical: true, index, out var columnBox);
                 Grid.SetRow(column, 0);
@@ -399,7 +410,10 @@ namespace PlayniteAchievements.Views.Showcase
                 column.Margin = new Thickness(0, -TrackRulerOverhang, 0, 0);
                 _columnRulerTexts.Add(columnBox);
                 AddOverlay(column);
+            }
 
+            for (var index = 0; index < PageRowCount; index++)
+            {
                 var row = CreateTrackRuler(vertical: false, index, out var rowBox);
                 Grid.SetRow(row, index);
                 Grid.SetColumn(row, 0);
@@ -515,6 +529,10 @@ namespace PlayniteAchievements.Views.Showcase
             ruler.SetResourceReference(Border.BackgroundProperty, "PlayAch.Brush.PopupSurface");
             // Above the block layer, like the grippers.
             Panel.SetZIndex(ruler, 41);
+            // The label sits on its track's edge strip, so it answers hover and right-click the
+            // same way instead of offering the text box's Cut/Copy/Paste menu.
+            editor.ContextMenuOpening += (_, args) => args.Handled = true;
+            AttachTrackMenu(ruler, vertical, index);
             _trackRulers.Add(ruler);
             box = editor;
             return ruler;
@@ -647,7 +665,8 @@ namespace PlayniteAchievements.Views.Showcase
                 Focusable = false,
                 Template = vertical ? TrackGripperTemplateVertical : TrackGripperTemplateHorizontal
             };
-            var lastCell = PageGridSize - 1;
+            // The far edge of a column gripper is the last row, and of a row gripper the last column.
+            var lastCell = PageTrackCount(!vertical) - 1;
             var edgeOffset = TrackGripperSize / 2;
             if (vertical)
             {
@@ -731,6 +750,11 @@ namespace PlayniteAchievements.Views.Showcase
                 gripper.Visibility = editing ? Visibility.Visible : Visibility.Collapsed;
             }
 
+            foreach (var strip in _trackStrips)
+            {
+                strip.Visibility = editing ? Visibility.Visible : Visibility.Collapsed;
+            }
+
             foreach (var ruler in _trackRulers)
             {
                 ruler.Visibility = editing ? Visibility.Visible : Visibility.Collapsed;
@@ -809,8 +833,8 @@ namespace PlayniteAchievements.Views.Showcase
         {
             CurrentPage.RowWeights = null;
             CurrentPage.ColumnWeights = null;
-            ApplyTrackWeights(vertical: false, ShowcaseLayoutService.NormalizeTrackWeights(null, PageGridSize));
-            ApplyTrackWeights(vertical: true, ShowcaseLayoutService.NormalizeTrackWeights(null, PageGridSize));
+            ApplyTrackWeights(vertical: false, ShowcaseLayoutService.NormalizeTrackWeights(null, PageRowCount));
+            ApplyTrackWeights(vertical: true, ShowcaseLayoutService.NormalizeTrackWeights(null, PageColumnCount));
             SaveAndPublish();
             _layoutSignature = ComputeLayoutSignature();
             ScheduleTrackRulerUpdate();
@@ -864,7 +888,7 @@ namespace PlayniteAchievements.Views.Showcase
                 AddLayoutHandle(CreateCutLine(block, vertical: false, line));
             }
 
-            AddMergeChevrons(block);
+            var chevrons = AddMergeChevrons(block);
 
             // An empty selected block's + button must win over the cut lines crossing it, but
             // it lives inside the block container (ZIndex 0) while cut lines are grid siblings
@@ -881,6 +905,7 @@ namespace PlayniteAchievements.Views.Showcase
                 Grid.SetColumnSpan(overlayAdd, block.ColumnSpan);
                 Panel.SetZIndex(overlayAdd, 44);
                 AddLayoutHandle(overlayAdd);
+                HideChevronsCoveredBy(overlayAdd, chevrons);
                 if (_blockVisuals.TryGetValue(block.BlockId, out var state) &&
                     state.AddButton != null)
                 {
@@ -896,18 +921,22 @@ namespace PlayniteAchievements.Views.Showcase
         // below them in ZIndex: this is orientation, not an affordance, and it never takes a hit.
         private void AddLatticeLines()
         {
-            var gridSize = ShowcaseLayoutService.NormalizeGridSize(CurrentPage.GridSize);
-            for (var line = 1; line < gridSize; line++)
+            for (var line = 1; line < PageColumnCount; line++)
             {
-                AddLayoutHandle(CreateLatticeLine(vertical: true, line, gridSize));
-                AddLayoutHandle(CreateLatticeLine(vertical: false, line, gridSize));
+                AddLayoutHandle(CreateLatticeLine(vertical: true, line, PageRowCount));
+            }
+
+            for (var line = 1; line < PageRowCount; line++)
+            {
+                AddLayoutHandle(CreateLatticeLine(vertical: false, line, PageColumnCount));
             }
         }
 
+        // crossCount is the number of tracks the line runs across: rows for a vertical line.
         private static System.Windows.Shapes.Rectangle CreateLatticeLine(
             bool vertical,
             int boundary,
-            int gridSize)
+            int crossCount)
         {
             var line = new System.Windows.Shapes.Rectangle
             {
@@ -930,7 +959,7 @@ namespace PlayniteAchievements.Views.Showcase
                 line.Margin = new Thickness(0, 0, -0.5, 0);
                 Grid.SetColumn(line, boundary - 1);
                 Grid.SetRow(line, 0);
-                Grid.SetRowSpan(line, gridSize);
+                Grid.SetRowSpan(line, crossCount);
             }
             else
             {
@@ -940,7 +969,7 @@ namespace PlayniteAchievements.Views.Showcase
                 line.Margin = new Thickness(0, 0, 0, -0.5);
                 Grid.SetRow(line, boundary - 1);
                 Grid.SetColumn(line, 0);
-                Grid.SetColumnSpan(line, gridSize);
+                Grid.SetColumnSpan(line, crossCount);
             }
 
             // Below the cut lines (39) and grippers (40) so both keep visual and hit priority.
@@ -1276,15 +1305,51 @@ namespace PlayniteAchievements.Views.Showcase
         // A chevron per direction whose merge is geometrically legal (rectangular closure);
         // hover previews the closure with a glow, click commits through MergeSelectedWith
         // (which owns the multi-widget confirmation and survivor choice).
-        private void AddMergeChevrons(ShowcaseBlockSettings block)
+        private List<Button> AddMergeChevrons(ShowcaseBlockSettings block)
         {
-            AddMergeChevron(block, rowDirection: 0, columnDirection: -1, "LOCPlayAch_Showcase_MergeLeftLabel");
-            AddMergeChevron(block, rowDirection: -1, columnDirection: 0, "LOCPlayAch_Showcase_MergeUpLabel");
-            AddMergeChevron(block, rowDirection: 1, columnDirection: 0, "LOCPlayAch_Showcase_MergeDownLabel");
-            AddMergeChevron(block, rowDirection: 0, columnDirection: 1, "LOCPlayAch_Showcase_MergeRightLabel");
+            return new[]
+                {
+                    AddMergeChevron(block, rowDirection: 0, columnDirection: -1, "LOCPlayAch_Showcase_MergeLeftLabel"),
+                    AddMergeChevron(block, rowDirection: -1, columnDirection: 0, "LOCPlayAch_Showcase_MergeUpLabel"),
+                    AddMergeChevron(block, rowDirection: 1, columnDirection: 0, "LOCPlayAch_Showcase_MergeDownLabel"),
+                    AddMergeChevron(block, rowDirection: 0, columnDirection: 1, "LOCPlayAch_Showcase_MergeRightLabel")
+                }
+                .Where(chevron => chevron != null)
+                .ToList();
         }
 
-        private void AddMergeChevron(
+        // Where a chevron sits: this far in from the block's edge, centred along it.
+        private const double MergeChevronInset = 6;
+
+        // In a short or narrow empty block the centred + button reaches the chevrons on the edges
+        // across it, and being above them it takes their clicks. Those chevrons hide rather than
+        // show through the button's tint as inert, and come back when a resize gives them room.
+        // The + button's host spans the whole block, so its size is the block's.
+        private static void HideChevronsCoveredBy(Button add, IReadOnlyList<Button> chevrons)
+        {
+            if (chevrons.Count == 0 || !(add.Parent is FrameworkElement host))
+            {
+                return;
+            }
+
+            void Update()
+            {
+                foreach (var chevron in chevrons)
+                {
+                    // Left and right chevrons sit on vertical edges, so the block's width decides.
+                    var extent = chevron.HorizontalAlignment == HorizontalAlignment.Center
+                        ? host.ActualHeight
+                        : host.ActualWidth;
+                    var covered = extent / 2 - add.Width / 2 < MergeChevronInset + chevron.Width;
+                    chevron.Visibility = covered ? Visibility.Hidden : Visibility.Visible;
+                }
+            }
+
+            host.SizeChanged += (_, __) => Update();
+            Update();
+        }
+
+        private Button AddMergeChevron(
             ShowcaseBlockSettings block,
             int rowDirection,
             int columnDirection,
@@ -1299,7 +1364,7 @@ namespace PlayniteAchievements.Views.Showcase
                     target.BlockId,
                     out _))
             {
-                return;
+                return null;
             }
 
             var chevron = new Button
@@ -1321,8 +1386,8 @@ namespace PlayniteAchievements.Views.Showcase
                     ? HorizontalAlignment.Left
                     : HorizontalAlignment.Right;
                 chevron.Margin = columnDirection < 0
-                    ? new Thickness(6, 0, 0, 0)
-                    : new Thickness(0, 0, 6, 0);
+                    ? new Thickness(MergeChevronInset, 0, 0, 0)
+                    : new Thickness(0, 0, MergeChevronInset, 0);
                 Grid.SetColumn(chevron, columnDirection < 0 ? block.Column : block.Column + block.ColumnSpan - 1);
                 Grid.SetRow(chevron, block.Row);
                 Grid.SetRowSpan(chevron, block.RowSpan);
@@ -1336,8 +1401,8 @@ namespace PlayniteAchievements.Views.Showcase
                     ? VerticalAlignment.Top
                     : VerticalAlignment.Bottom;
                 chevron.Margin = rowDirection < 0
-                    ? new Thickness(0, 6, 0, 0)
-                    : new Thickness(0, 0, 0, 6);
+                    ? new Thickness(0, MergeChevronInset, 0, 0)
+                    : new Thickness(0, 0, 0, MergeChevronInset);
                 Grid.SetRow(chevron, rowDirection < 0 ? block.Row : block.Row + block.RowSpan - 1);
                 Grid.SetColumn(chevron, block.Column);
                 Grid.SetColumnSpan(chevron, block.ColumnSpan);
@@ -1350,6 +1415,7 @@ namespace PlayniteAchievements.Views.Showcase
             chevron.MouseLeave += (_, __) => ClearMergePreviewGlow();
             chevron.Click += (_, __) => MergeSelectedWith(targetBlockId);
             AddLayoutHandle(chevron);
+            return chevron;
         }
 
         private static ControlTemplate CreateMergeChevronTemplate(int rowDirection, int columnDirection)
@@ -1501,33 +1567,42 @@ namespace PlayniteAchievements.Views.Showcase
 
             foreach (var cell in cells)
             {
-                if (cell.RowSpan <= 0 || cell.ColumnSpan <= 0)
-                {
-                    continue;
-                }
-
-                var wash = new Border { Opacity = 0.06 };
-                wash.SetResourceReference(Border.BackgroundProperty, "PlayAch.Brush.Accent");
-                wash.SetResourceReference(Border.CornerRadiusProperty, "PlayAch.Radius.Section");
-                var outline = new Border { BorderThickness = new Thickness(2) };
-                outline.SetResourceReference(Border.BorderBrushProperty, "PlayAch.Brush.Accent");
-                outline.SetResourceReference(Border.CornerRadiusProperty, "PlayAch.Radius.Section");
-                var ghost = new Grid
-                {
-                    Margin = cell.Margin,
-                    IsHitTestVisible = false
-                };
-                ghost.Children.Add(wash);
-                ghost.Children.Add(outline);
-                Grid.SetRow(ghost, cell.Row);
-                Grid.SetColumn(ghost, cell.Column);
-                Grid.SetRowSpan(ghost, cell.RowSpan);
-                Grid.SetColumnSpan(ghost, cell.ColumnSpan);
-                // Above the blocks and the cut line, below the drag ghost line.
-                Panel.SetZIndex(ghost, 44);
-                _layoutPreviewGhosts.Add(ghost);
-                AddOverlay(ghost);
+                AddLayoutPreviewGhost(cell, "PlayAch.Brush.Accent");
             }
+        }
+
+        // One preview shape: an outline in the given brush over a faint wash of it. It is
+        // removed with the rest by ClearLayoutPreview.
+        private void AddLayoutPreviewGhost(
+            (int Row, int Column, int RowSpan, int ColumnSpan, Thickness Margin) cell,
+            string brushKey)
+        {
+            if (cell.RowSpan <= 0 || cell.ColumnSpan <= 0)
+            {
+                return;
+            }
+
+            var wash = new Border { Opacity = 0.06 };
+            wash.SetResourceReference(Border.BackgroundProperty, brushKey);
+            wash.SetResourceReference(Border.CornerRadiusProperty, "PlayAch.Radius.Section");
+            var outline = new Border { BorderThickness = new Thickness(2) };
+            outline.SetResourceReference(Border.BorderBrushProperty, brushKey);
+            outline.SetResourceReference(Border.CornerRadiusProperty, "PlayAch.Radius.Section");
+            var ghost = new Grid
+            {
+                Margin = cell.Margin,
+                IsHitTestVisible = false
+            };
+            ghost.Children.Add(wash);
+            ghost.Children.Add(outline);
+            Grid.SetRow(ghost, cell.Row);
+            Grid.SetColumn(ghost, cell.Column);
+            Grid.SetRowSpan(ghost, cell.RowSpan);
+            Grid.SetColumnSpan(ghost, cell.ColumnSpan);
+            // Above the blocks and the cut line, below the drag ghost line.
+            Panel.SetZIndex(ghost, 44);
+            _layoutPreviewGhosts.Add(ghost);
+            AddOverlay(ghost);
         }
 
         private void ClearLayoutPreview()
@@ -1603,18 +1678,19 @@ namespace PlayniteAchievements.Views.Showcase
             // Grid size and track weights participate so an externally changed page layout
             // rebuilds; local gripper drags refresh the stored signature themselves after
             // applying in place.
-            builder.Append('#').Append(PageGridSize).Append('#');
-            AppendTrackWeights(builder, current.RowWeights);
+            builder.Append('#').Append(PageRowCount).Append('x').Append(PageColumnCount).Append('#');
+            AppendTrackWeights(builder, current.RowWeights, PageRowCount);
             builder.Append('/');
-            AppendTrackWeights(builder, current.ColumnWeights);
+            AppendTrackWeights(builder, current.ColumnWeights, PageColumnCount);
             return builder.ToString();
         }
 
         private void AppendTrackWeights(
             System.Text.StringBuilder builder,
-            List<double> weights)
+            List<double> weights,
+            int count)
         {
-            foreach (var weight in ShowcaseLayoutService.NormalizeTrackWeights(weights, PageGridSize))
+            foreach (var weight in ShowcaseLayoutService.NormalizeTrackWeights(weights, count))
             {
                 builder
                     .Append(weight.ToString("0.###", System.Globalization.CultureInfo.InvariantCulture))
@@ -2620,8 +2696,8 @@ namespace PlayniteAchievements.Views.Showcase
         // existing block containers are repositioned and the existing widget controls re-parented
         // instead of being recreated - rebuilding would re-inflate every data grid and chart on the
         // page. Only blocks that appeared get a new container, and only blocks that disappeared
-        // lose theirs. Returns false before touching anything when the page or grid size differs,
-        // so the caller can fall back to a full rebuild.
+        // lose theirs. Returns false before touching anything when the page differs, so the caller
+        // can fall back to a full rebuild.
         private bool TryApplyBlocksInPlace()
         {
             if (_disposed || _blockVisuals.Count == 0)
@@ -2629,17 +2705,25 @@ namespace PlayniteAchievements.Views.Showcase
                 return false;
             }
 
-            var gridSize = PageGridSize;
-            if (!string.Equals(_builtPageId, CurrentPage?.PageId, StringComparison.OrdinalIgnoreCase) ||
-                DashboardGrid.RowDefinitions.Count != gridSize ||
-                DashboardGrid.ColumnDefinitions.Count != gridSize)
+            var rowCount = PageRowCount;
+            var columnCount = PageColumnCount;
+            if (!string.Equals(_builtPageId, CurrentPage?.PageId, StringComparison.OrdinalIgnoreCase))
             {
                 return false;
             }
 
+            // A row or column insert/delete changes the track counts. The blocks still map onto
+            // their containers by id, so only the definitions and the per-track edit chrome need
+            // rebuilding; a full rebuild would detach and re-lay-out every widget on the page.
+            if (DashboardGrid.RowDefinitions.Count != rowCount ||
+                DashboardGrid.ColumnDefinitions.Count != columnCount)
+            {
+                ResizeTrackDefinitions(rowCount, columnCount);
+            }
+
             var blocks = CurrentPage.Blocks;
-            ApplyTrackWeights(vertical: false, ShowcaseLayoutService.NormalizeTrackWeights(CurrentPage.RowWeights, gridSize));
-            ApplyTrackWeights(vertical: true, ShowcaseLayoutService.NormalizeTrackWeights(CurrentPage.ColumnWeights, gridSize));
+            ApplyTrackWeights(vertical: false, ShowcaseLayoutService.NormalizeTrackWeights(CurrentPage.RowWeights, rowCount));
+            ApplyTrackWeights(vertical: true, ShowcaseLayoutService.NormalizeTrackWeights(CurrentPage.ColumnWeights, columnCount));
             ClearMergePreviewGlow();
             HideCutGhost();
 
@@ -3102,14 +3186,27 @@ namespace PlayniteAchievements.Views.Showcase
         // the dashboard stays inert while it is being read rather than arranged.
         private void OnPreviewKeyDown(object sender, KeyEventArgs e)
         {
-            if (EditLayoutButton.IsChecked != true ||
-                (Keyboard.Modifiers & ModifierKeys.Control) != ModifierKeys.Control)
+            if (EditLayoutButton.IsChecked != true)
             {
                 return;
             }
 
-            // A text box inside a widget (a grid's search field) owns its own Ctrl shortcuts.
+            // A text box (a track size label, a grid's search field) owns its own Escape and Ctrl
+            // shortcuts.
             if (Keyboard.FocusedElement is System.Windows.Controls.Primitives.TextBoxBase)
+            {
+                return;
+            }
+
+            // Escape leaves edit mode, and being handled here it never reaches the window.
+            if (e.Key == Key.Escape && Keyboard.Modifiers == ModifierKeys.None)
+            {
+                EditLayoutButton.IsChecked = false;
+                e.Handled = true;
+                return;
+            }
+
+            if ((Keyboard.Modifiers & ModifierKeys.Control) != ModifierKeys.Control)
             {
                 return;
             }
@@ -3803,8 +3900,13 @@ namespace PlayniteAchievements.Views.Showcase
 
         private bool Confirm(string messageKey)
         {
+            return ConfirmMessage(Localize(messageKey));
+        }
+
+        private bool ConfirmMessage(string message)
+        {
             return _api?.Dialogs?.ShowMessage(
-                       Localize(messageKey),
+                       message,
                        Localize("LOCPlayAch_Showcase_Title"),
                        MessageBoxButton.YesNo,
                        MessageBoxImage.Warning) == MessageBoxResult.Yes;

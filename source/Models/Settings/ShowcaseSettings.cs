@@ -454,15 +454,26 @@ namespace PlayniteAchievements.Models.Settings
             new List<ShowcaseBlockSettings>();
 
         /// <summary>
-        /// The page's grid dimension (3..5, normalized by ShowcaseLayoutService). Every page
-        /// is created on the 5x5 lattice; templates are authored directly in its coordinates.
+        /// The page's row count (normalized by ShowcaseLayoutService into its track-count
+        /// bounds). 0 means unset: <see cref="GridSize"/> or the default fills it in.
         /// </summary>
-        public int GridSize { get; set; } = 5;
+        public int RowCount { get; set; }
+
+        /// <summary>The page's column count; 0 means unset, as for <see cref="RowCount"/>.</summary>
+        public int ColumnCount { get; set; }
+
+        /// <summary>
+        /// Legacy square grid dimension, kept only so older layouts still deserialize.
+        /// <c>ShowcaseLayoutService.Normalize</c> seeds unset row and column counts from it and
+        /// then clears it.
+        /// </summary>
+        [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
+        public int? GridSize { get; set; }
 
         /// <summary>Star weights for the grid's rows; null means equal shares.</summary>
         public List<double> RowWeights { get; set; }
 
-        /// <summary>Star weights for the grid's columns; null means equal thirds.</summary>
+        /// <summary>Star weights for the grid's columns; null means equal shares.</summary>
         public List<double> ColumnWeights { get; set; }
 
         public ShowcasePageSettings Clone()
@@ -471,6 +482,8 @@ namespace PlayniteAchievements.Models.Settings
             {
                 PageId = PageId,
                 Name = Name,
+                RowCount = RowCount,
+                ColumnCount = ColumnCount,
                 GridSize = GridSize,
                 Blocks = (Blocks ?? new List<ShowcaseBlockSettings>())
                     .Where(block => block != null)
