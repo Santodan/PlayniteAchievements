@@ -589,10 +589,13 @@ namespace PlayniteAchievements.Views.Showcase
         {
             if (_toolTip == null)
             {
+                // Above the cell: the pointer's cursor extends down from the hotspot and would
+                // cover a tooltip placed below. WPF flips it below when there is no room above.
                 _toolTip = new ToolTip
                 {
                     PlacementTarget = this,
-                    Placement = System.Windows.Controls.Primitives.PlacementMode.Bottom
+                    Placement = PlacementMode.Top,
+                    VerticalOffset = -4
                 };
             }
 
