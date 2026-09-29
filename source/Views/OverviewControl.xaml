@@ -614,12 +614,22 @@
                             BorderBrush="{DynamicResource PlayAch.Brush.ControlBorder}"
                             BorderThickness="0,0,0,1">
                         <Grid>
-                            <TextBlock Text="{DynamicResource LOCPlayAch_Overview_GameSummaries}"
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Grid.Column="0"
+                                       Text="{DynamicResource LOCPlayAch_Overview_GameSummaries}"
                                        Style="{DynamicResource PlayAch.TextBlock.BaseStyle}"
                                        FontWeight="Bold"
                                        Foreground="{DynamicResource PlayAch.Brush.Text}"
                                        VerticalAlignment="Center"
                                        TextTrimming="CharacterEllipsis"/>
+                            <Button Grid.Column="1"
+                                    Style="{StaticResource HeaderControlBarToggleStyle}"
+                                    Tag="{Binding ShowOverviewGameSummariesGridControlBar}"
+                                    Click="ToggleGameSummariesControlBar_Click"
+                                    Margin="{StaticResource PlayAch.Thickness.Left.Sm}"/>
                         </Grid>
                     </Border>
 
@@ -664,11 +674,24 @@
                                 Height="{StaticResource PlayAch.Size.Header.Height}"
                                 Padding="8,0"
                                 Visibility="{Binding ShowRecentAchievementsPanel, Converter={StaticResource BoolToVis}}">
-                            <TextBlock Text="{DynamicResource LOCPlayAch_RecentAchievements}"
-                                       Style="{DynamicResource PlayAch.TextBlock.BaseStyle}"
-                                       FontWeight="Bold"
-                                       Foreground="{DynamicResource PlayAch.Brush.Text}"
-                                       VerticalAlignment="Center"/>
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Grid.Column="0"
+                                           Text="{DynamicResource LOCPlayAch_RecentAchievements}"
+                                           Style="{DynamicResource PlayAch.TextBlock.BaseStyle}"
+                                           FontWeight="Bold"
+                                           Foreground="{DynamicResource PlayAch.Brush.Text}"
+                                           VerticalAlignment="Center"
+                                           TextTrimming="CharacterEllipsis"/>
+                                <Button Grid.Column="1"
+                                        Style="{StaticResource HeaderControlBarToggleStyle}"
+                                        Tag="{Binding ShowOverviewRecentAchievementsGridControlBar}"
+                                        Click="ToggleRecentAchievementsControlBar_Click"
+                                        Margin="{StaticResource PlayAch.Thickness.Left.Sm}"/>
+                            </Grid>
                         </Border>
 
                         <!-- Header for when a game IS selected -->
@@ -679,7 +702,14 @@
                                 Padding="8,0"
                                 Visibility="{Binding IsSelectedGameContentReady, Converter={StaticResource BoolToVis}}">
 
-                            <StackPanel Orientation="Horizontal"
+                            <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+
+                            <StackPanel Grid.Column="0"
+                                        Orientation="Horizontal"
                                         VerticalAlignment="Center">
 
                                 <TextBlock Text="{Binding DisplayedSelectedGame.GameName}"
@@ -734,6 +764,13 @@
                                         Margin="10,0,0,0"/>
 
                             </StackPanel>
+
+                            <Button Grid.Column="1"
+                                    Style="{StaticResource HeaderControlBarToggleStyle}"
+                                    Tag="{Binding ShowOverviewSelectedGameGridControlBar}"
+                                    Click="ToggleSelectedGameControlBar_Click"
+                                    Margin="{StaticResource PlayAch.Thickness.Left.Sm}"/>
+                            </Grid>
                         </Border>
                     </Grid>
 

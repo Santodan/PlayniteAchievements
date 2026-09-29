@@ -19,6 +19,7 @@ using PlayniteAchievements.Services.Friends;
 using PlayniteAchievements.Services.GameCustomData;
 using PlayniteAchievements.Services.Library;
 using PlayniteAchievements.Services.Refresh;
+using PlayniteAchievements.Services.Settings;
 using PlayniteAchievements.Services.UI;
 using PlayniteAchievements.ViewModels;
 using PlayniteAchievements.ViewModels.Items;
@@ -63,6 +64,7 @@ namespace PlayniteAchievements.Views
         private readonly ILogger _logger;
         private readonly PlayniteAchievementsSettings _settings;
         private PersistedSettingsSubscription _persistedSubscription;
+        private DebouncedSettingsPersist _controlBarPersist;
         private readonly RefreshRuntime _refreshService;
         private readonly ICacheManager _cacheManager;
         private readonly IFriendCacheManager _friendCache;
@@ -121,6 +123,10 @@ namespace PlayniteAchievements.Views
 
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
             _settings = settings;
+            _controlBarPersist = new DebouncedSettingsPersist(
+                this,
+                SaveSettings,
+                () => PlayniteAchievementsPlugin.Instance?.IsSettingsEditSessionActive == true);
             _refreshService = refreshRuntime ?? throw new ArgumentNullException(nameof(refreshRuntime));
             _cacheManager = cacheManager ?? throw new ArgumentNullException(nameof(cacheManager));
             _friendCache = cacheManager as IFriendCacheManager;
@@ -423,6 +429,11 @@ namespace PlayniteAchievements.Views
                     _viewModel.PropertyChanged -= ViewModel_PropertyChanged;
                 }
                 PlayniteAchievementsPlugin.SettingsSaved -= Plugin_SettingsSaved;
+                // The host disposes this control before its Unloaded fires, and Dispose alone
+                // drops a pending save, so flush the last control bar toggle here.
+                _controlBarPersist?.Flush();
+                _controlBarPersist?.Dispose();
+                _controlBarPersist = null;
                 _persistedSubscription?.Dispose();
                 _persistedSubscription = null;
                 if (_friendsOverview?.ViewModel != null)
@@ -765,6 +776,43 @@ namespace PlayniteAchievements.Views
         {
             _viewModel?.ClearGameSelection();
             _lastSelectedOverviewGameId = null;
+        }
+
+        private void ToggleGameSummariesControlBar_Click(object sender, RoutedEventArgs e)
+        {
+            // Read Persisted at click time: a settings window Cancel replaces the instance.
+            var persisted = _settings?.Persisted;
+            if (persisted == null)
+            {
+                return;
+            }
+
+            persisted.ShowOverviewGameSummariesGridControlBar = !persisted.ShowOverviewGameSummariesGridControlBar;
+            _controlBarPersist?.Schedule();
+        }
+
+        private void ToggleRecentAchievementsControlBar_Click(object sender, RoutedEventArgs e)
+        {
+            var persisted = _settings?.Persisted;
+            if (persisted == null)
+            {
+                return;
+            }
+
+            persisted.ShowOverviewRecentAchievementsGridControlBar = !persisted.ShowOverviewRecentAchievementsGridControlBar;
+            _controlBarPersist?.Schedule();
+        }
+
+        private void ToggleSelectedGameControlBar_Click(object sender, RoutedEventArgs e)
+        {
+            var persisted = _settings?.Persisted;
+            if (persisted == null)
+            {
+                return;
+            }
+
+            persisted.ShowOverviewSelectedGameGridControlBar = !persisted.ShowOverviewSelectedGameGridControlBar;
+            _controlBarPersist?.Schedule();
         }
 
         private void GameNameBreadcrumb_Click(object sender, MouseButtonEventArgs e)
@@ -1969,7 +2017,7 @@ namespace PlayniteAchievements.Views
             }
             catch (Exception ex)
             {
-                _logger?.Warn(ex, "Failed to save overview column settings.");
+                _logger?.Warn(ex, "Failed to save overview settings.");
             }
         }
     }
