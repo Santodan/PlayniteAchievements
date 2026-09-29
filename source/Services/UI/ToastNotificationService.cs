@@ -263,9 +263,12 @@ namespace PlayniteAchievements.Services.UI
 
         /// <summary>
         /// Drains the wave's track recorder (compression worker) off the UI thread and raises
-        /// <see cref="TracksCompleted"/>. Fire-and-forget from the wave's cleanup.
+        /// <see cref="TracksCompleted"/>. Fire-and-forget from the wave's cleanup. Tracks of
+        /// <paramref name="framedVms"/> get their frame chrome first, so a track reaches the
+        /// recording service complete.
         /// </summary>
-        private async Task CompleteAndRaiseTracksAsync(ToastOverlayTrackRecorder recorder)
+        private async Task CompleteAndRaiseTracksAsync(
+            ToastOverlayTrackRecorder recorder, IReadOnlyList<AchievementToastViewModel> framedVms)
         {
             if (recorder == null)
             {
@@ -281,6 +284,15 @@ namespace PlayniteAchievements.Services.UI
                         "[Recording] Toast overlay recorder completed without card samples; " +
                         "unlock videos for this wave cannot composite the notification.");
                     return;
+                }
+
+                try
+                {
+                    await AttachFramedClipChromeAsync(tracks, framedVms).ConfigureAwait(false);
+                }
+                catch (Exception ex)
+                {
+                    _logger?.Debug(ex, "Frame chrome rendering for framed clips failed.");
                 }
 
                 TracksCompleted?.Invoke(this, new ToastTracksCompletedEventArgs(tracks));
@@ -467,6 +479,8 @@ namespace PlayniteAchievements.Services.UI
                 gameCustomDataStore: _gameCustomDataStore)
             {
                 NeedsOverlayTrack = needsOverlayTrack,
+                NeedsFramedClip = needsOverlayTrack &&
+                    (UnlockClipVariantPolicy.Resolve(args, _settings?.Persisted) & ScreenshotVariants.Framed) != 0,
                 NotifyReadyAtUtc = notifyReadyAtUtc,
             });
             if (!_processing)
@@ -2961,7 +2975,9 @@ namespace PlayniteAchievements.Services.UI
 
                 // Finalize and hand the recorded card tracks to the recording service. The raw
                 // pixels are already captured, so this safely outlives window.Close() below.
-                _ = CompleteAndRaiseTracksAsync(trackRecorder);
+                _ = CompleteAndRaiseTracksAsync(
+                    trackRecorder,
+                    trackRecorder != null ? cardItems.Where(vm => vm.NeedsFramedClip).ToList() : null);
 
                 StopActiveSlide();
                 _activeCardSurface = null;
@@ -3173,6 +3189,93 @@ namespace PlayniteAchievements.Services.UI
         }
 
         /// <summary>
+        /// The frame template for one item, scoped to its game/provider (game > provider > global)
+        /// so a per-game or per-platform custom frame applies. Null when none resolves.
+        /// </summary>
+        private DataTemplate ResolveFrameTemplate(AchievementToastViewModel vm)
+        {
+            return _templateResolver.ResolveFrameTemplate(
+                vm.FrameUseThemeStyling,
+                vm.ProviderKey,
+                vm.PlayniteGameId);
+        }
+
+        /// <summary>
+        /// Readies everything the frame renders for one item. UI thread; returns false once the
+        /// service is disposed.
+        /// </summary>
+        private async Task<bool> PrepareFrameVisualsAsync(AchievementToastViewModel vm)
+        {
+            // The frame renders synchronously into a bitmap, so the ray burst inside it can only
+            // read a track that is already cached. Warm it here, at the one seam in this path that
+            // can await, and cap the wait so a slow fetch costs the burst its silhouette rather
+            // than costing the capture its frame.
+            await WarmRayTrackAsync(vm.IconPath);
+            if (_disposed)
+            {
+                return false;
+            }
+
+            // The artwork itself is the same story with no graceful degradation: a missing ray
+            // track leaves the burst a rounded rectangle, while a missing icon leaves a hole in the
+            // saved capture. So this one is uncapped. It is also the only thing that resolves the
+            // icon for a windowless wave, which saves screenshots without ever priming a visual.
+            await vm.PrepareImagesAsync();
+            return !_disposed;
+        }
+
+        /// <summary>
+        /// Renders the frame chrome onto each track whose achievement asked for a framed clip, at
+        /// the size the clip is encoded at: the track's client size under the recording
+        /// resolution cap, which is how the recorder sizes its own frames. Runs at Background
+        /// priority on the UI thread, after the wave has left the screen. A track left without
+        /// chrome has its framed clip skipped.
+        /// </summary>
+        private async Task AttachFramedClipChromeAsync(
+            IReadOnlyList<ToastOverlayTrack> tracks, IReadOnlyList<AchievementToastViewModel> framedVms)
+        {
+            if (tracks == null || framedVms == null || framedVms.Count == 0)
+            {
+                return;
+            }
+
+            var dispatcher = GetDispatcher();
+            if (dispatcher == null)
+            {
+                return;
+            }
+
+            var capHeight = ResolutionCapMath.CapHeightFor(
+                _settings?.Persisted?.RecordingResolution ?? RecordingResolution.Native);
+            var render = await dispatcher.InvokeAsync(async () =>
+            {
+                foreach (var track in tracks)
+                {
+                    var vm = framedVms.FirstOrDefault(v => v.CaptureCorrelationId == track.CaptureCorrelationId);
+                    var client = track.Samples.FirstOrDefault(s => s.ClientW > 0 && s.ClientH > 0);
+                    if (vm == null || client.ClientW <= 0)
+                    {
+                        continue;
+                    }
+
+                    var template = ResolveFrameTemplate(vm);
+                    if (template == null || !await PrepareFrameVisualsAsync(vm))
+                    {
+                        continue;
+                    }
+
+                    var size = ResolutionCapMath.Apply(client.ClientW, client.ClientH, capHeight, evenDimensions: true);
+                    var timer = System.Diagnostics.Stopwatch.StartNew();
+                    track.FrameChrome = _frameCompositor.RenderChrome(template, vm, size.Width, size.Height);
+                    _logger?.Debug(
+                        $"[Recording] Frame chrome for '{track.AchievementName}' at {size.Width}x{size.Height}: " +
+                        $"{(track.FrameChrome != null ? "rendered" : "failed")} in {timer.ElapsedMilliseconds}ms.");
+                }
+            }, DispatcherPriority.Background);
+            await render.ConfigureAwait(false);
+        }
+
+        /// <summary>
         /// Saves all requested screenshot variants for a wave. Starts on the UI thread
         /// (fire-and-forget from the toast pipeline): framed composites render on the dispatcher
         /// at Background priority so the toast animation stays smooth, and all PNG/file I/O is
@@ -3239,12 +3342,7 @@ namespace PlayniteAchievements.Services.UI
                             break;
                         }
 
-                        // Scope the frame template to each item's game/provider (game >
-                        // provider > global) so a per-game or per-platform custom frame applies.
-                        var frameTemplate = _templateResolver.ResolveFrameTemplate(
-                            item.Vm.FrameUseThemeStyling,
-                            item.Vm.ProviderKey,
-                            item.Vm.PlayniteGameId);
+                        var frameTemplate = ResolveFrameTemplate(item.Vm);
                         if (frameTemplate == null)
                         {
                             continue;
@@ -3263,23 +3361,7 @@ namespace PlayniteAchievements.Services.UI
                             continue;
                         }
 
-                        // The frame renders synchronously into a bitmap, so the ray burst inside it
-                        // can only read a track that is already cached. Warm it here, at the one
-                        // seam in this path that can await, and cap the wait so a slow fetch costs
-                        // the burst its silhouette rather than costing the capture its frame.
-                        await WarmRayTrackAsync(item.Vm.IconPath);
-                        if (_disposed)
-                        {
-                            break;
-                        }
-
-                        // The artwork itself is the same story with no graceful degradation: a
-                        // missing ray track leaves the burst a rounded rectangle, while a missing
-                        // icon leaves a hole in the saved screenshot. So this one is uncapped.
-                        // It is also the only thing that resolves the icon for a windowless wave,
-                        // which saves screenshots without ever priming a visual.
-                        await item.Vm.PrepareImagesAsync();
-                        if (_disposed)
+                        if (!await PrepareFrameVisualsAsync(item.Vm))
                         {
                             break;
                         }
