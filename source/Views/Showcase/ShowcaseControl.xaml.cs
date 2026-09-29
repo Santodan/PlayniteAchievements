@@ -3416,6 +3416,9 @@ namespace PlayniteAchievements.Views.Showcase
             add.Items.Add(PageTemplateItem(ShowcasePageTemplate.Blank));
             add.Items.Add(PageTemplateItem(ShowcasePageTemplate.Analytics));
             add.Items.Add(PageTemplateItem(ShowcasePageTemplate.Collection));
+            add.Items.Add(PageTemplateItem(ShowcasePageTemplate.UpNext));
+            add.Items.Add(PageTemplateItem(ShowcasePageTemplate.TrophyCase));
+            add.Items.Add(PageTemplateItem(ShowcasePageTemplate.Library));
             menu.Items.Add(add);
             menu.Items.Add(MenuItem(
                 Localize("LOCPlayAch_Showcase_DuplicatePage"),
