@@ -10,7 +10,7 @@ Packages:
     - "[New] Showcase! A new tab in the Overview window where you build your own achievement dashboards from widgets like your profile, scores, an activity calendar, mosaics, grids and a screenshot slideshow. Every widget can also be added to the Playnite start page."
     - "[New] Pin achievements and games into your own collections from any right-click menu, to feature them in Showcase."
     - "[New] Custom achievements! Write your own achievements for any game, and create custom platforms with their own name, color and icon."
-    - "[New] Share custom achievements with others as .pacustom packages, icons included."
+    - "[New] Share custom achievements with others as .pa packages, icons included."
     - "[New] Unified achievement editor! Manage Achievements now edits everything about an achievement in one place, for one achievement or many at once, with undo and redo. It replaces the separate Filters, Order, Capstones, Goals, Notes, Icons and Manual Tracking tabs."
     - "[New] Multiple capstones per game: each category can have its own."
     - "[New] Guild Wars 2 support, including live achievement progress while you play."
