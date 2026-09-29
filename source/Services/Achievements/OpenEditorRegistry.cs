@@ -21,6 +21,12 @@ namespace PlayniteAchievements.Services.Achievements
         /// <summary>Raised when the last editor open on a game closes.</summary>
         public static event Action<Guid> Closed;
 
+        /// <summary>
+        /// Raised after <see cref="Closed"/> when no editor is open on any game, so surfaces that
+        /// held back their updates while one was open can catch up.
+        /// </summary>
+        public static event Action AllClosed;
+
         public static void Open(Guid gameId)
         {
             if (gameId == Guid.Empty)
@@ -59,6 +65,10 @@ namespace PlayniteAchievements.Services.Achievements
             }
 
             Closed?.Invoke(gameId);
+            if (!IsAnyOpen)
+            {
+                AllClosed?.Invoke();
+            }
         }
 
         public static bool IsOpen(Guid gameId)
@@ -66,6 +76,18 @@ namespace PlayniteAchievements.Services.Achievements
             lock (Sync)
             {
                 return OpenCounts.ContainsKey(gameId);
+            }
+        }
+
+        /// <summary>True while an editor is open on any game.</summary>
+        public static bool IsAnyOpen
+        {
+            get
+            {
+                lock (Sync)
+                {
+                    return OpenCounts.Count > 0;
+                }
             }
         }
     }
