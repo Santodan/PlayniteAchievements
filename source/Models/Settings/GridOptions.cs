@@ -529,7 +529,10 @@ namespace PlayniteAchievements.Models.Settings
 
     public sealed class CategorySummaryGridOptions : PlayniteAchievements.Common.ObservableObject
     {
-        private GridColumnLayoutOptions _columns = GridColumnLayoutOptions.CreateWithProgressRightAlignment();
+        // Deserialization target: the load populates this instance in place, so a value seeded
+        // here would come back on every load after the user removed it. The Progress=Right default
+        // is applied by GridOptionsCatalog.CreateDefaultCategorySummaries instead.
+        private GridColumnLayoutOptions _columns = new GridColumnLayoutOptions();
         private bool _showColumnHeaders = true;
         private double? _rowHeight;
         private bool _useCoverImages;
@@ -540,8 +543,8 @@ namespace PlayniteAchievements.Models.Settings
 
         public GridColumnLayoutOptions Columns
         {
-            get => _columns ?? (_columns = GridColumnLayoutOptions.CreateWithProgressRightAlignment());
-            set => SetValue(ref _columns, value ?? GridColumnLayoutOptions.CreateWithProgressRightAlignment());
+            get => _columns ?? (_columns = new GridColumnLayoutOptions());
+            set => SetValue(ref _columns, value ?? new GridColumnLayoutOptions());
         }
 
         public bool ShowColumnHeaders
@@ -597,7 +600,7 @@ namespace PlayniteAchievements.Models.Settings
         {
             return new CategorySummaryGridOptions
             {
-                Columns = Columns?.Clone() ?? GridColumnLayoutOptions.CreateWithProgressRightAlignment(),
+                Columns = Columns?.Clone() ?? new GridColumnLayoutOptions(),
                 ShowColumnHeaders = ShowColumnHeaders,
                 RowHeight = RowHeight,
                 UseCoverImages = UseCoverImages,
@@ -784,7 +787,7 @@ namespace PlayniteAchievements.Models.Settings
             EnsureDefaults();
             if (!_categorySummaries.TryGetValue(key, out var options) || options == null)
             {
-                options = new CategorySummaryGridOptions();
+                options = CreateDefaultCategorySummaries();
                 _categorySummaries[key] = options;
                 AttachOptions(CategorySummariesKindName, key, options);
             }
@@ -1074,11 +1077,11 @@ namespace PlayniteAchievements.Models.Settings
             Ensure(_friendSummaries, GridOptionKeys.FriendSummaries.FriendsOverview, () => CreateDefaultFriendSummaries(GridOptionKeys.FriendSummaries.FriendsOverview));
             Ensure(_friendSummaries, GridOptionKeys.FriendSummaries.ViewFriendsAchievements, () => CreateDefaultFriendSummaries(GridOptionKeys.FriendSummaries.ViewFriendsAchievements));
 
-            Ensure(_categorySummaries, GridOptionKeys.CategorySummaries.ViewAchievements, () => new CategorySummaryGridOptions());
-            Ensure(_categorySummaries, GridOptionKeys.CategorySummaries.OverviewSelectedGame, () => new CategorySummaryGridOptions());
-            Ensure(_categorySummaries, GridOptionKeys.CategorySummaries.FriendsOverview, () => new CategorySummaryGridOptions());
-            Ensure(_categorySummaries, GridOptionKeys.CategorySummaries.ViewFriendsAchievements, () => new CategorySummaryGridOptions());
-            Ensure(_categorySummaries, GridOptionKeys.CategorySummaries.DesktopTheme, () => new CategorySummaryGridOptions());
+            Ensure(_categorySummaries, GridOptionKeys.CategorySummaries.ViewAchievements, CreateDefaultCategorySummaries);
+            Ensure(_categorySummaries, GridOptionKeys.CategorySummaries.OverviewSelectedGame, CreateDefaultCategorySummaries);
+            Ensure(_categorySummaries, GridOptionKeys.CategorySummaries.FriendsOverview, CreateDefaultCategorySummaries);
+            Ensure(_categorySummaries, GridOptionKeys.CategorySummaries.ViewFriendsAchievements, CreateDefaultCategorySummaries);
+            Ensure(_categorySummaries, GridOptionKeys.CategorySummaries.DesktopTheme, CreateDefaultCategorySummaries);
 
             Ensure(_manageAchievements, GridOptionKeys.ManageAchievements.Editor, () => new ManageAchievementsGridOptions());
 
@@ -1220,6 +1223,14 @@ namespace PlayniteAchievements.Models.Settings
         private static FriendSummaryGridOptions CreateDefaultFriendSummaries(string key)
         {
             return new FriendSummaryGridOptions();
+        }
+
+        private static CategorySummaryGridOptions CreateDefaultCategorySummaries()
+        {
+            return new CategorySummaryGridOptions
+            {
+                Columns = GridColumnLayoutOptions.CreateWithProgressRightAlignment()
+            };
         }
 
         private static void Ensure<T>(Dictionary<string, T> dictionary, string key, Func<T> factory)
