@@ -2658,8 +2658,8 @@ namespace PlayniteAchievements.Views.Showcase
         // existing block containers are repositioned and the existing widget controls re-parented
         // instead of being recreated - rebuilding would re-inflate every data grid and chart on the
         // page. Only blocks that appeared get a new container, and only blocks that disappeared
-        // lose theirs. Returns false before touching anything when the page or grid size differs,
-        // so the caller can fall back to a full rebuild.
+        // lose theirs. Returns false before touching anything when the page differs, so the caller
+        // can fall back to a full rebuild.
         private bool TryApplyBlocksInPlace()
         {
             if (_disposed || _blockVisuals.Count == 0)
@@ -2669,11 +2669,18 @@ namespace PlayniteAchievements.Views.Showcase
 
             var rowCount = PageRowCount;
             var columnCount = PageColumnCount;
-            if (!string.Equals(_builtPageId, CurrentPage?.PageId, StringComparison.OrdinalIgnoreCase) ||
-                DashboardGrid.RowDefinitions.Count != rowCount ||
-                DashboardGrid.ColumnDefinitions.Count != columnCount)
+            if (!string.Equals(_builtPageId, CurrentPage?.PageId, StringComparison.OrdinalIgnoreCase))
             {
                 return false;
+            }
+
+            // A row or column insert/delete changes the track counts. The blocks still map onto
+            // their containers by id, so only the definitions and the per-track edit chrome need
+            // rebuilding; a full rebuild would detach and re-lay-out every widget on the page.
+            if (DashboardGrid.RowDefinitions.Count != rowCount ||
+                DashboardGrid.ColumnDefinitions.Count != columnCount)
+            {
+                ResizeTrackDefinitions(rowCount, columnCount);
             }
 
             var blocks = CurrentPage.Blocks;

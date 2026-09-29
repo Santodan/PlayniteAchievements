@@ -208,6 +208,49 @@ namespace PlayniteAchievements.Views.Showcase
             }
         }
 
+        // Brings the grid's definitions to the page's counts in place. Surplus definitions come
+        // off the end and new ones go on it; the caller applies the page's weights to all of them
+        // straight after, so which definition moved does not matter. The grippers, strips and
+        // rulers are laid out per track, so they are rebuilt for the new counts.
+        private void ResizeTrackDefinitions(int rowCount, int columnCount)
+        {
+            while (DashboardGrid.RowDefinitions.Count > rowCount)
+            {
+                DashboardGrid.RowDefinitions.RemoveAt(DashboardGrid.RowDefinitions.Count - 1);
+            }
+
+            while (DashboardGrid.RowDefinitions.Count < rowCount)
+            {
+                DashboardGrid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
+            }
+
+            while (DashboardGrid.ColumnDefinitions.Count > columnCount)
+            {
+                DashboardGrid.ColumnDefinitions.RemoveAt(DashboardGrid.ColumnDefinitions.Count - 1);
+            }
+
+            while (DashboardGrid.ColumnDefinitions.Count < columnCount)
+            {
+                DashboardGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+            }
+
+            foreach (var element in _trackGrippers.Cast<UIElement>().Concat(_trackStrips).Concat(_trackRulers).ToList())
+            {
+                RemoveOverlay(element);
+            }
+
+            _trackGrippers.Clear();
+            _trackStrips.Clear();
+            _trackRulers.Clear();
+            _columnRulerTexts.Clear();
+            _rowRulerTexts.Clear();
+            // Outside edit mode the chrome is built on the next entry, as after a plain open.
+            if (EditLayoutButton.IsChecked == true)
+            {
+                AddTrackGrippers();
+            }
+        }
+
         private void InsertTrack(bool vertical, int index)
         {
             if (ShowcaseLayoutService.TryInsertTrack(Layout, CurrentPage.PageId, vertical, index))
