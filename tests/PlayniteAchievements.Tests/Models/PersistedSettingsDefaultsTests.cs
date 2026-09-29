@@ -39,6 +39,42 @@ namespace PlayniteAchievements.Models.Tests
         }
 
         [TestMethod]
+        public void Constructor_MarksCategoryProgressColumnAlignmentAsDefaulted()
+        {
+            // A config this build writes must never be re-migrated, or an override the user
+            // cleared in the first session would be filled back to Right on the next launch.
+            Assert.IsTrue(new PersistedSettings().CategoryProgressColumnAlignmentDefaulted);
+        }
+
+        [TestMethod]
+        public void Constructor_DefaultsCategoryProgressColumnToRightAcrossSurfaces()
+        {
+            // The Right default lives in the catalog's default factory. The deserialization target
+            // itself starts empty so a saved dictionary is taken verbatim on load.
+            Assert.AreEqual(0, new CategorySummaryGridOptions().Columns.CellAlignments.Count);
+
+            var catalog = new PersistedSettings().GridOptions;
+            foreach (var id in new[]
+            {
+                GridOptionKeys.CategorySummaries.ViewAchievements,
+                GridOptionKeys.CategorySummaries.OverviewSelectedGame,
+                GridOptionKeys.CategorySummaries.FriendsOverview,
+                GridOptionKeys.CategorySummaries.ViewFriendsAchievements,
+                GridOptionKeys.CategorySummaries.DesktopTheme
+            })
+            {
+                Assert.AreEqual(
+                    GridAlignment.Right,
+                    catalog.GetCategorySummaries(id).Columns.CellAlignments[PersistedSettings.ProgressColumnKey],
+                    id);
+            }
+
+            Assert.AreEqual(
+                GridAlignment.Right,
+                catalog.GetCategorySummaries("UnknownCategorySurface").Columns.CellAlignments[PersistedSettings.ProgressColumnKey]);
+        }
+
+        [TestMethod]
         public void Constructor_DefaultsCaptureResolutionsToNative()
         {
             var settings = new PersistedSettings();
@@ -359,6 +395,19 @@ namespace PlayniteAchievements.Models.Tests
             var target = new PersistedSettings();
             target.CopyFrom(source);
             Assert.IsFalse(target.ProgressColumnAlignmentDefaulted);
+        }
+
+        [TestMethod]
+        public void CloneAndCopyFrom_PreserveCategoryProgressColumnAlignmentDefaultedFlag()
+        {
+            var source = new PersistedSettings { CategoryProgressColumnAlignmentDefaulted = false };
+
+            var clone = source.Clone();
+            Assert.IsFalse(clone.CategoryProgressColumnAlignmentDefaulted);
+
+            var target = new PersistedSettings();
+            target.CopyFrom(source);
+            Assert.IsFalse(target.CategoryProgressColumnAlignmentDefaulted);
         }
 
         [TestMethod]
