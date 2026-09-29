@@ -354,6 +354,14 @@ namespace PlayniteAchievements.Services.ThemeMigration
                     totalCount += CountOccurrences(content, $"PlayniteAchievements_{mapping.Key}");
                 }
 
+                if (ShouldModernizeBindings(mode, customSelection))
+                {
+                    foreach (var bindingPath in ControlMappings.LegacyToModernBindingPaths.Keys)
+                    {
+                        totalCount += CountOccurrences(content, $"LegacyData.{bindingPath}");
+                    }
+                }
+
                 return (totalCount > 0, totalCount);
             }
             catch (Exception ex)
@@ -400,6 +408,7 @@ namespace PlayniteAchievements.Services.ThemeMigration
                     .Select(mapping => mapping.Key)
                     .ToList();
                 lines.Add($"# Modern controls: {(modernControls.Count > 0 ? string.Join(", ", modernControls) : "None")}");
+                lines.Add($"# Modern bindings: {ShouldModernizeBindings(mode, customSelection)}");
             }
 
             lines.Add(string.Empty);
@@ -628,12 +637,36 @@ namespace PlayniteAchievements.Services.ThemeMigration
                 controlReplacements += ReplaceStandaloneControlName(ref result, mapping.Key, mapping.Value);
             }
 
+            // Replace LegacyData binding paths with Theme binding paths
+            // These appear in XAML as {Binding LegacyData.HasData} etc.
+            if (ShouldModernizeBindings(mode, customSelection))
+            {
+                foreach (var mapping in ControlMappings.LegacyToModernBindingPaths)
+                {
+                    string legacyBinding = $"LegacyData.{mapping.Key}";
+                    string modernBinding = $"Theme.{mapping.Value}";
+                    int replacements = CountOccurrences(result, legacyBinding);
+                    if (replacements > 0)
+                    {
+                        result = result.Replace(legacyBinding, modernBinding);
+                        bindingReplacements += replacements;
+                    }
+                }
+            }
+
             return result;
         }
 
         private static bool ShouldApplyModernization(MigrationMode mode, CustomMigrationSelection customSelection)
         {
-            return GetSelectedControlMappings(mode, customSelection).Any();
+            return GetSelectedControlMappings(mode, customSelection).Any() ||
+                   ShouldModernizeBindings(mode, customSelection);
+        }
+
+        private static bool ShouldModernizeBindings(MigrationMode mode, CustomMigrationSelection customSelection)
+        {
+            return mode == MigrationMode.Full ||
+                   (mode == MigrationMode.Custom && customSelection?.ModernizeBindings == true);
         }
 
         private static IEnumerable<KeyValuePair<string, string>> GetSelectedControlMappings(
