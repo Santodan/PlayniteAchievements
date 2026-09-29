@@ -146,6 +146,14 @@ namespace PlayniteAchievements.ViewModels
         internal bool NeedsOverlayTrack { get; set; }
 
         /// <summary>
+        /// Whether the clip cut for this unlock includes the framed variant, so the frame's chrome
+        /// must be rendered for it once its overlay track is complete. Stamped at enqueue beside
+        /// <see cref="NeedsOverlayTrack"/>, from the same clip variant policy the recording
+        /// service resolves.
+        /// </summary>
+        internal bool NeedsFramedClip { get; set; }
+
+        /// <summary>
         /// The earliest instant this notification may show (the notification-delay gate). Stamped
         /// at enqueue from the notification-delay setting so a mid-queue settings change never
         /// retroactively moves an already-queued item. default(DateTime) means no delay applies.

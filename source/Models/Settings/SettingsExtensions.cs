@@ -147,6 +147,14 @@ namespace PlayniteAchievements.Models.Settings
             target.RecordingIncludeMicrophone = source.RecordingIncludeMicrophone;
             target.UnlockRecordingRarities = source.UnlockRecordingRarities;
             target.UnlockRecordingAlwaysCaptureCompletion = source.UnlockRecordingAlwaysCaptureCompletion;
+            target.UnlockRecordingClean = source.UnlockRecordingClean;
+            target.UnlockRecordingWithToast = source.UnlockRecordingWithToast;
+            target.UnlockRecordingFramed = source.UnlockRecordingFramed;
+            target.UnlockRecordingCleanRarities = source.UnlockRecordingCleanRarities;
+            target.UnlockRecordingCleanAlwaysCaptureCompletion = source.UnlockRecordingCleanAlwaysCaptureCompletion;
+            target.UnlockRecordingFramedRarities = source.UnlockRecordingFramedRarities;
+            target.UnlockRecordingFramedAlwaysCaptureCompletion = source.UnlockRecordingFramedAlwaysCaptureCompletion;
+            target.UnlockRecordingFramedSeconds = source.UnlockRecordingFramedSeconds;
             target.ProviderNotificationOverrides = source.ProviderNotificationOverrides != null
                 ? source.ProviderNotificationOverrides.ToDictionary(
                     kvp => kvp.Key,

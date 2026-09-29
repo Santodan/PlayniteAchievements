@@ -78,6 +78,13 @@ namespace PlayniteAchievements.Services.Capture
         /// </summary>
         public List<TimedLayer> RayLayers { get; } = new List<TimedLayer>();
 
+        /// <summary>
+        /// The screenshot frame's chrome for this achievement, rendered at the clip's frame size
+        /// when the unlock asked for a framed clip. Null otherwise, or when it could not be
+        /// rendered, which leaves the framed clip out.
+        /// </summary>
+        public FrameChromeImage FrameChrome { get; set; }
+
         /// <summary>One captured difference layer and the track time it was captured at.</summary>
         public struct TimedLayer
         {

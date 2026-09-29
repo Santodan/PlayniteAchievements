@@ -114,6 +114,38 @@ namespace PlayniteAchievements.Models.Tests
         }
 
         [TestMethod]
+        public void CloneAndCopyFrom_PreserveClipVariants()
+        {
+            var source = new PersistedSettings
+            {
+                UnlockRecordingClean = true,
+                UnlockRecordingWithToast = false,
+                UnlockRecordingFramed = true,
+                UnlockRecordingCleanRarities = RaritySelection.Rare,
+                UnlockRecordingCleanAlwaysCaptureCompletion = false,
+                UnlockRecordingFramedRarities = RaritySelection.UltraRare,
+                UnlockRecordingFramedAlwaysCaptureCompletion = false,
+                UnlockRecordingFramedSeconds = null
+            };
+
+            var clone = source.Clone();
+            var target = new PersistedSettings();
+            target.CopyFrom(source);
+
+            foreach (var copy in new[] { clone, target })
+            {
+                Assert.IsTrue(copy.UnlockRecordingClean);
+                Assert.IsFalse(copy.UnlockRecordingWithToast);
+                Assert.IsTrue(copy.UnlockRecordingFramed);
+                Assert.AreEqual(RaritySelection.Rare, copy.UnlockRecordingCleanRarities);
+                Assert.IsFalse(copy.UnlockRecordingCleanAlwaysCaptureCompletion);
+                Assert.AreEqual(RaritySelection.UltraRare, copy.UnlockRecordingFramedRarities);
+                Assert.IsFalse(copy.UnlockRecordingFramedAlwaysCaptureCompletion);
+                Assert.IsNull(copy.UnlockRecordingFramedSeconds);
+            }
+        }
+
+        [TestMethod]
         public void CloneAndCopyFrom_PreserveCaptureResolutions()
         {
             var source = new PersistedSettings

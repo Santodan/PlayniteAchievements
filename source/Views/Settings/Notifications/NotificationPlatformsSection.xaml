@@ -245,18 +245,85 @@
 
                                 <DataGridTemplateColumn Header="{DynamicResource LOCPlayAch_Column_Recordings}"
                                                         Width="Auto"
-                                                        MinWidth="100">
+                                                        MinWidth="110">
                                     <DataGridTemplateColumn.CellTemplate>
                                         <DataTemplate>
-                                            <ComboBox SelectedValue="{Binding Recordings, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                                      SelectedValuePath="Tag"
-                                                      MinWidth="86"
-                                                      VerticalAlignment="Center"
-                                                      Margin="4,2">
-                                                <ComboBoxItem Content="{DynamicResource LOCPlayAch_Common_Default}" Tag="{x:Static vm:OverrideState.Inherit}"/>
-                                                <ComboBoxItem Content="{DynamicResource LOCPlayAch_Settings_Override_On}" Tag="{x:Static vm:OverrideState.On}"/>
-                                                <ComboBoxItem Content="{DynamicResource LOCPlayAch_Settings_Override_Off}" Tag="{x:Static vm:OverrideState.Off}"/>
-                                            </ComboBox>
+                                            <Grid VerticalAlignment="Center"
+                                                  Margin="4,2">
+                                                <ToggleButton x:Name="RecordingOverridesButton"
+                                                              Content="{Binding RecordingsSummaryText}"
+                                                              HorizontalAlignment="Stretch"
+                                                              VerticalAlignment="Center"
+                                                              MinWidth="86"
+                                                              Padding="8,3"/>
+                                                <Popup PlacementTarget="{Binding ElementName=RecordingOverridesButton}"
+                                                       Placement="Bottom"
+                                                       StaysOpen="False"
+                                                       AllowsTransparency="True"
+                                                       IsOpen="{Binding IsChecked, ElementName=RecordingOverridesButton}">
+                                                    <Border Background="{DynamicResource PlayAch.Brush.PopupSurface}"
+                                                            BorderBrush="{DynamicResource PlayAch.Brush.Border}"
+                                                            BorderThickness="1"
+                                                            Padding="10"
+                                                            MinWidth="220">
+                                                        <Grid>
+                                                            <Grid.ColumnDefinitions>
+                                                                <ColumnDefinition Width="*"/>
+                                                                <ColumnDefinition Width="Auto"/>
+                                                            </Grid.ColumnDefinitions>
+                                                            <Grid.RowDefinitions>
+                                                                <RowDefinition Height="Auto"/>
+                                                                <RowDefinition Height="Auto"/>
+                                                                <RowDefinition Height="Auto"/>
+                                                            </Grid.RowDefinitions>
+
+                                                            <TextBlock Grid.Row="0" Grid.Column="0"
+                                                                       Text="{DynamicResource LOCPlayAch_Settings_ScreenshotVariantClean}"
+                                                                       Foreground="{DynamicResource PlayAch.Brush.Text}"
+                                                                       VerticalAlignment="Center"
+                                                                       Margin="0,0,10,6"/>
+                                                            <ComboBox Grid.Row="0" Grid.Column="1"
+                                                                      SelectedValue="{Binding RecordingClean, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                                      SelectedValuePath="Tag"
+                                                                      MinWidth="86"
+                                                                      Margin="0,0,0,6">
+                                                                <ComboBoxItem Content="{DynamicResource LOCPlayAch_Common_Default}" Tag="{x:Static vm:OverrideState.Inherit}"/>
+                                                                <ComboBoxItem Content="{DynamicResource LOCPlayAch_Settings_Override_On}" Tag="{x:Static vm:OverrideState.On}"/>
+                                                                <ComboBoxItem Content="{DynamicResource LOCPlayAch_Settings_Override_Off}" Tag="{x:Static vm:OverrideState.Off}"/>
+                                                            </ComboBox>
+
+                                                            <TextBlock Grid.Row="1" Grid.Column="0"
+                                                                       Text="{DynamicResource LOCPlayAch_Settings_ScreenshotVariantWithToast}"
+                                                                       Foreground="{DynamicResource PlayAch.Brush.Text}"
+                                                                       VerticalAlignment="Center"
+                                                                       Margin="0,0,10,6"/>
+                                                            <ComboBox Grid.Row="1" Grid.Column="1"
+                                                                      SelectedValue="{Binding RecordingWithToast, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                                      SelectedValuePath="Tag"
+                                                                      MinWidth="86"
+                                                                      Margin="0,0,0,6">
+                                                                <ComboBoxItem Content="{DynamicResource LOCPlayAch_Common_Default}" Tag="{x:Static vm:OverrideState.Inherit}"/>
+                                                                <ComboBoxItem Content="{DynamicResource LOCPlayAch_Settings_Override_On}" Tag="{x:Static vm:OverrideState.On}"/>
+                                                                <ComboBoxItem Content="{DynamicResource LOCPlayAch_Settings_Override_Off}" Tag="{x:Static vm:OverrideState.Off}"/>
+                                                            </ComboBox>
+
+                                                            <TextBlock Grid.Row="2" Grid.Column="0"
+                                                                       Text="{DynamicResource LOCPlayAch_Settings_ScreenshotVariantFramed}"
+                                                                       Foreground="{DynamicResource PlayAch.Brush.Text}"
+                                                                       VerticalAlignment="Center"
+                                                                       Margin="0,0,10,0"/>
+                                                            <ComboBox Grid.Row="2" Grid.Column="1"
+                                                                      SelectedValue="{Binding RecordingFramed, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                                      SelectedValuePath="Tag"
+                                                                      MinWidth="86">
+                                                                <ComboBoxItem Content="{DynamicResource LOCPlayAch_Common_Default}" Tag="{x:Static vm:OverrideState.Inherit}"/>
+                                                                <ComboBoxItem Content="{DynamicResource LOCPlayAch_Settings_Override_On}" Tag="{x:Static vm:OverrideState.On}"/>
+                                                                <ComboBoxItem Content="{DynamicResource LOCPlayAch_Settings_Override_Off}" Tag="{x:Static vm:OverrideState.Off}"/>
+                                                            </ComboBox>
+                                                        </Grid>
+                                                    </Border>
+                                                </Popup>
+                                            </Grid>
                                         </DataTemplate>
                                     </DataGridTemplateColumn.CellTemplate>
                                 </DataGridTemplateColumn>

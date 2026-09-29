@@ -591,6 +591,9 @@
     <Compile Include="..\..\source\Common\ServerClockOffset.cs" Link="Source\Common\ServerClockOffset.cs" />
     <Compile Include="..\..\source\Services\Capture\ToastOverlayTrack.cs" Link="Source\Services\Capture\ToastOverlayTrack.cs" />
     <Compile Include="..\..\source\Services\Capture\OverlayBlitMath.cs" Link="Source\Services\Capture\OverlayBlitMath.cs" />
+    <Compile Include="..\..\source\Services\Capture\FrameChromeImage.cs" Link="Source\Services\Capture\FrameChromeImage.cs" />
+    <Compile Include="..\..\source\Services\Capture\FramedClipTiming.cs" Link="Source\Services\Capture\FramedClipTiming.cs" />
+    <Compile Include="..\..\source\Services\Capture\StaticNv12Overlay.cs" Link="Source\Services\Capture\StaticNv12Overlay.cs" />
     <Compile Include="..\..\source\Services\Capture\ToastOverlayExportMath.cs" Link="Source\Services\Capture\ToastOverlayExportMath.cs" />
     <Compile Include="..\..\source\Services\Capture\CaptureCropMath.cs" Link="Source\Services\Capture\CaptureCropMath.cs" />
     <Compile Include="..\..\source\Services\Capture\ResolutionCapMath.cs" Link="Source\Services\Capture\ResolutionCapMath.cs" />
@@ -615,6 +618,7 @@
     <Compile Include="..\..\source\Services\UI\ScreenshotVariants.cs" Link="Source\Services\UI\ScreenshotVariants.cs" />
     <Compile Include="..\..\source\Services\UI\SystemFontCatalog.cs" Link="Source\Services\UI\SystemFontCatalog.cs" />
     <Compile Include="..\..\source\Services\UI\UnlockScreenshotVariantPolicy.cs" Link="Source\Services\UI\UnlockScreenshotVariantPolicy.cs" />
+    <Compile Include="..\..\source\Services\UI\UnlockClipVariantPolicy.cs" Link="Source\Services\UI\UnlockClipVariantPolicy.cs" />
     <Compile Include="..\..\source\Services\UI\ToastWindowPlacer.cs" Link="Source\Services\UI\ToastWindowPlacer.cs" />
     <Compile Include="..\..\source\Services\UI\UnlockScreenshotService.cs" Link="Source\Services\UI\UnlockScreenshotService.cs" />
 
