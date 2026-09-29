@@ -74,9 +74,18 @@ namespace PlayniteAchievements.Services.Captures
             string stem;
             if (isVideo)
             {
-                // Video clips are written without a variant suffix.
-                variant = CaptureVariant.Video;
-                stem = remainder;
+                // Clips carry the same variant suffixes as screenshots. One with no suffix any
+                // variant claims is a with-notification clip, the only kind written before clips
+                // had variants.
+                if (resolver.TryClassifyPng(remainder, out variant, out stem))
+                {
+                    variant = variant.ToVideo();
+                }
+                else
+                {
+                    variant = CaptureVariant.Video;
+                    stem = remainder;
+                }
             }
             else if (!resolver.TryClassifyPng(remainder, out variant, out stem))
             {
