@@ -18,6 +18,13 @@
             </ResourceDictionary.MergedDictionaries>
 
             <converters:BooleanAggregateConverter x:Key="AnyTrue" Mode="Any"/>
+
+            <!-- One card per capture variant (clean, notification, framed), headed by its own
+                 switch, so the variants read as separate groups. -->
+            <Style x:Key="CaptureVariantCardStyle" TargetType="Border" BasedOn="{StaticResource SettingGroupCardStyle}">
+                <Setter Property="Padding" Value="12,10"/>
+                <Setter Property="Margin" Value="{StaticResource PlayAch.Thickness.Bottom.Sm}"/>
+            </Style>
         </ResourceDictionary>
     </UserControl.Resources>
     <Grid Background="{DynamicResource PlayAch.Brush.Panel}">
@@ -65,82 +72,97 @@
                                     IsEnabled="{Binding Persisted.EnableUnlockScreenshots}"
                                     Grid.IsSharedSizeScope="True">
                             <!-- Clean variant: independent rarity threshold + completion bypass -->
-                            <controls:SettingRow Label="{DynamicResource LOCPlayAch_Settings_ScreenshotVariantClean}"
-                                                 Margin="{StaticResource PlayAch.Thickness.Bottom.Xs}">
-                                <CheckBox IsChecked="{Binding Persisted.UnlockScreenshotClean}"/>
-                            </controls:SettingRow>
-                            <StackPanel Margin="{StaticResource PlayAch.Thickness.SettingRow.Indent}"
-                                        IsEnabled="{Binding Persisted.UnlockScreenshotClean}"
-                                        Grid.IsSharedSizeScope="True">
-                                <controls:SettingRow Label="{DynamicResource LOCPlayAch_Settings_CaptureMinimumRarity}">
-                                    <Button x:Name="CleanRaritiesButton"
-                                            Style="{StaticResource AchievementSelectorButtonStyle}"
-                                            Content="{Binding CleanRaritiesText, ElementName=NotificationCapturesSectionRoot}"
-                                            Click="CleanRaritiesButton_Click"
-                                            MinWidth="140"
-                                            Height="{StaticResource PlayAch.Size.Control.Height}">
-                                        <Button.ContextMenu>
-                                            <ContextMenu Style="{StaticResource AchievementSelectorContextMenuStyle}"
-                                                         ItemContainerStyle="{StaticResource AchievementMultiSelectMenuItemStyle}"/>
-                                        </Button.ContextMenu>
-                                    </Button>
-                                </controls:SettingRow>
-                                <controls:SettingRow Label="{DynamicResource LOCPlayAch_Settings_AlwaysCaptureCompletion}">
-                                    <CheckBox IsChecked="{Binding Persisted.UnlockScreenshotCleanAlwaysCaptureCompletion}"/>
-                                </controls:SettingRow>
-                            </StackPanel>
+                            <Border Style="{StaticResource CaptureVariantCardStyle}">
+                                <StackPanel Grid.IsSharedSizeScope="True">
+                                    <CheckBox IsChecked="{Binding Persisted.UnlockScreenshotClean}"
+                                              Margin="{StaticResource PlayAch.Thickness.Bottom.Sm}">
+                                        <TextBlock Text="{DynamicResource LOCPlayAch_Settings_ScreenshotVariantClean}"
+                                                   Style="{StaticResource SubSectionHeaderStyle}"/>
+                                    </CheckBox>
+                                    <StackPanel Margin="{StaticResource PlayAch.Thickness.SettingRow.Indent}"
+                                                IsEnabled="{Binding Persisted.UnlockScreenshotClean}"
+                                                Grid.IsSharedSizeScope="True">
+                                        <controls:SettingRow Label="{DynamicResource LOCPlayAch_Settings_CaptureMinimumRarity}">
+                                            <Button x:Name="CleanRaritiesButton"
+                                                    Style="{StaticResource AchievementSelectorButtonStyle}"
+                                                    Content="{Binding CleanRaritiesText, ElementName=NotificationCapturesSectionRoot}"
+                                                    Click="CleanRaritiesButton_Click"
+                                                    MinWidth="140"
+                                                    Height="{StaticResource PlayAch.Size.Control.Height}">
+                                                <Button.ContextMenu>
+                                                    <ContextMenu Style="{StaticResource AchievementSelectorContextMenuStyle}"
+                                                                 ItemContainerStyle="{StaticResource AchievementMultiSelectMenuItemStyle}"/>
+                                                </Button.ContextMenu>
+                                            </Button>
+                                        </controls:SettingRow>
+                                        <controls:SettingRow Label="{DynamicResource LOCPlayAch_Settings_AlwaysCaptureCompletion}">
+                                            <CheckBox IsChecked="{Binding Persisted.UnlockScreenshotCleanAlwaysCaptureCompletion}"/>
+                                        </controls:SettingRow>
+                                    </StackPanel>
+                                </StackPanel>
+                            </Border>
 
                             <!-- With-notification variant: independent rarity threshold + completion bypass -->
-                            <controls:SettingRow Label="{DynamicResource LOCPlayAch_Settings_ScreenshotVariantWithToast}"
-                                                 Margin="{StaticResource PlayAch.Thickness.Bottom.Xs}">
-                                <CheckBox IsChecked="{Binding Persisted.UnlockScreenshotWithToast}"/>
-                            </controls:SettingRow>
-                            <StackPanel Margin="{StaticResource PlayAch.Thickness.SettingRow.Indent}"
-                                        IsEnabled="{Binding Persisted.UnlockScreenshotWithToast}"
-                                        Grid.IsSharedSizeScope="True">
-                                <controls:SettingRow Label="{DynamicResource LOCPlayAch_Settings_CaptureMinimumRarity}">
-                                    <Button x:Name="WithToastRaritiesButton"
-                                            Style="{StaticResource AchievementSelectorButtonStyle}"
-                                            Content="{Binding WithToastRaritiesText, ElementName=NotificationCapturesSectionRoot}"
-                                            Click="WithToastRaritiesButton_Click"
-                                            MinWidth="140"
-                                            Height="{StaticResource PlayAch.Size.Control.Height}">
-                                        <Button.ContextMenu>
-                                            <ContextMenu Style="{StaticResource AchievementSelectorContextMenuStyle}"
-                                                         ItemContainerStyle="{StaticResource AchievementMultiSelectMenuItemStyle}"/>
-                                        </Button.ContextMenu>
-                                    </Button>
-                                </controls:SettingRow>
-                                <controls:SettingRow Label="{DynamicResource LOCPlayAch_Settings_AlwaysCaptureCompletion}">
-                                    <CheckBox IsChecked="{Binding Persisted.UnlockScreenshotWithToastAlwaysCaptureCompletion}"/>
-                                </controls:SettingRow>
-                            </StackPanel>
+                            <Border Style="{StaticResource CaptureVariantCardStyle}">
+                                <StackPanel Grid.IsSharedSizeScope="True">
+                                    <CheckBox IsChecked="{Binding Persisted.UnlockScreenshotWithToast}"
+                                              Margin="{StaticResource PlayAch.Thickness.Bottom.Sm}">
+                                        <TextBlock Text="{DynamicResource LOCPlayAch_Settings_ScreenshotVariantWithToast}"
+                                                   Style="{StaticResource SubSectionHeaderStyle}"/>
+                                    </CheckBox>
+                                    <StackPanel Margin="{StaticResource PlayAch.Thickness.SettingRow.Indent}"
+                                                IsEnabled="{Binding Persisted.UnlockScreenshotWithToast}"
+                                                Grid.IsSharedSizeScope="True">
+                                        <controls:SettingRow Label="{DynamicResource LOCPlayAch_Settings_CaptureMinimumRarity}">
+                                            <Button x:Name="WithToastRaritiesButton"
+                                                    Style="{StaticResource AchievementSelectorButtonStyle}"
+                                                    Content="{Binding WithToastRaritiesText, ElementName=NotificationCapturesSectionRoot}"
+                                                    Click="WithToastRaritiesButton_Click"
+                                                    MinWidth="140"
+                                                    Height="{StaticResource PlayAch.Size.Control.Height}">
+                                                <Button.ContextMenu>
+                                                    <ContextMenu Style="{StaticResource AchievementSelectorContextMenuStyle}"
+                                                                 ItemContainerStyle="{StaticResource AchievementMultiSelectMenuItemStyle}"/>
+                                                </Button.ContextMenu>
+                                            </Button>
+                                        </controls:SettingRow>
+                                        <controls:SettingRow Label="{DynamicResource LOCPlayAch_Settings_AlwaysCaptureCompletion}">
+                                            <CheckBox IsChecked="{Binding Persisted.UnlockScreenshotWithToastAlwaysCaptureCompletion}"/>
+                                        </controls:SettingRow>
+                                    </StackPanel>
+                                </StackPanel>
+                            </Border>
 
                             <!-- Framed variant: independent rarity threshold + completion bypass -->
-                            <controls:SettingRow Label="{DynamicResource LOCPlayAch_Settings_ScreenshotVariantFramed}"
-                                                 Margin="{StaticResource PlayAch.Thickness.Bottom.Xs}">
-                                <CheckBox IsChecked="{Binding Persisted.UnlockScreenshotFramed}"/>
-                            </controls:SettingRow>
-                            <StackPanel Margin="{StaticResource PlayAch.Thickness.SettingRow.Indent}"
-                                        IsEnabled="{Binding Persisted.UnlockScreenshotFramed}"
-                                        Grid.IsSharedSizeScope="True">
-                                <controls:SettingRow Label="{DynamicResource LOCPlayAch_Settings_CaptureMinimumRarity}">
-                                    <Button x:Name="FramedRaritiesButton"
-                                            Style="{StaticResource AchievementSelectorButtonStyle}"
-                                            Content="{Binding FramedRaritiesText, ElementName=NotificationCapturesSectionRoot}"
-                                            Click="FramedRaritiesButton_Click"
-                                            MinWidth="140"
-                                            Height="{StaticResource PlayAch.Size.Control.Height}">
-                                        <Button.ContextMenu>
-                                            <ContextMenu Style="{StaticResource AchievementSelectorContextMenuStyle}"
-                                                         ItemContainerStyle="{StaticResource AchievementMultiSelectMenuItemStyle}"/>
-                                        </Button.ContextMenu>
-                                    </Button>
-                                </controls:SettingRow>
-                                <controls:SettingRow Label="{DynamicResource LOCPlayAch_Settings_AlwaysCaptureCompletion}">
-                                    <CheckBox IsChecked="{Binding Persisted.UnlockScreenshotFramedAlwaysCaptureCompletion}"/>
-                                </controls:SettingRow>
-                            </StackPanel>
+                            <Border Style="{StaticResource CaptureVariantCardStyle}">
+                                <StackPanel Grid.IsSharedSizeScope="True">
+                                    <CheckBox IsChecked="{Binding Persisted.UnlockScreenshotFramed}"
+                                              Margin="{StaticResource PlayAch.Thickness.Bottom.Sm}">
+                                        <TextBlock Text="{DynamicResource LOCPlayAch_Settings_ScreenshotVariantFramed}"
+                                                   Style="{StaticResource SubSectionHeaderStyle}"/>
+                                    </CheckBox>
+                                    <StackPanel Margin="{StaticResource PlayAch.Thickness.SettingRow.Indent}"
+                                                IsEnabled="{Binding Persisted.UnlockScreenshotFramed}"
+                                                Grid.IsSharedSizeScope="True">
+                                        <controls:SettingRow Label="{DynamicResource LOCPlayAch_Settings_CaptureMinimumRarity}">
+                                            <Button x:Name="FramedRaritiesButton"
+                                                    Style="{StaticResource AchievementSelectorButtonStyle}"
+                                                    Content="{Binding FramedRaritiesText, ElementName=NotificationCapturesSectionRoot}"
+                                                    Click="FramedRaritiesButton_Click"
+                                                    MinWidth="140"
+                                                    Height="{StaticResource PlayAch.Size.Control.Height}">
+                                                <Button.ContextMenu>
+                                                    <ContextMenu Style="{StaticResource AchievementSelectorContextMenuStyle}"
+                                                                 ItemContainerStyle="{StaticResource AchievementMultiSelectMenuItemStyle}"/>
+                                                </Button.ContextMenu>
+                                            </Button>
+                                        </controls:SettingRow>
+                                        <controls:SettingRow Label="{DynamicResource LOCPlayAch_Settings_AlwaysCaptureCompletion}">
+                                            <CheckBox IsChecked="{Binding Persisted.UnlockScreenshotFramedAlwaysCaptureCompletion}"/>
+                                        </controls:SettingRow>
+                                    </StackPanel>
+                                </StackPanel>
+                            </Border>
 
                             <TextBlock Text="{DynamicResource LOCPlayAch_Settings_ScreenshotSuffixes}"
                                        Style="{StaticResource SubSectionHeaderStyle}"
@@ -208,89 +230,104 @@
                                     Grid.IsSharedSizeScope="True">
                             <!-- Clip variants mirror the screenshot variants: each has its own rarity
                                  threshold and completion bypass, and shares the screenshot suffixes. -->
-                            <controls:SettingRow Label="{DynamicResource LOCPlayAch_Settings_ScreenshotVariantClean}"
-                                                 Margin="{StaticResource PlayAch.Thickness.Bottom.Xs}">
-                                <CheckBox IsChecked="{Binding Persisted.UnlockRecordingClean}"/>
-                            </controls:SettingRow>
-                            <StackPanel Margin="{StaticResource PlayAch.Thickness.SettingRow.Indent}"
-                                        IsEnabled="{Binding Persisted.UnlockRecordingClean}"
-                                        Grid.IsSharedSizeScope="True">
-                                <controls:SettingRow Label="{DynamicResource LOCPlayAch_Settings_CaptureMinimumRarity}">
-                                    <Button x:Name="RecordingCleanRaritiesButton"
-                                            Style="{StaticResource AchievementSelectorButtonStyle}"
-                                            Content="{Binding RecordingCleanRaritiesText, ElementName=NotificationCapturesSectionRoot}"
-                                            Click="RecordingCleanRaritiesButton_Click"
-                                            MinWidth="140"
-                                            Height="{StaticResource PlayAch.Size.Control.Height}">
-                                        <Button.ContextMenu>
-                                            <ContextMenu Style="{StaticResource AchievementSelectorContextMenuStyle}"
-                                                         ItemContainerStyle="{StaticResource AchievementMultiSelectMenuItemStyle}"/>
-                                        </Button.ContextMenu>
-                                    </Button>
-                                </controls:SettingRow>
-                                <controls:SettingRow Label="{DynamicResource LOCPlayAch_Settings_AlwaysCaptureCompletion}">
-                                    <CheckBox IsChecked="{Binding Persisted.UnlockRecordingCleanAlwaysCaptureCompletion}"/>
-                                </controls:SettingRow>
-                            </StackPanel>
+                            <Border Style="{StaticResource CaptureVariantCardStyle}">
+                                <StackPanel Grid.IsSharedSizeScope="True">
+                                    <CheckBox IsChecked="{Binding Persisted.UnlockRecordingClean}"
+                                              Margin="{StaticResource PlayAch.Thickness.Bottom.Sm}">
+                                        <TextBlock Text="{DynamicResource LOCPlayAch_Settings_ScreenshotVariantClean}"
+                                                   Style="{StaticResource SubSectionHeaderStyle}"/>
+                                    </CheckBox>
+                                    <StackPanel Margin="{StaticResource PlayAch.Thickness.SettingRow.Indent}"
+                                                IsEnabled="{Binding Persisted.UnlockRecordingClean}"
+                                                Grid.IsSharedSizeScope="True">
+                                        <controls:SettingRow Label="{DynamicResource LOCPlayAch_Settings_CaptureMinimumRarity}">
+                                            <Button x:Name="RecordingCleanRaritiesButton"
+                                                    Style="{StaticResource AchievementSelectorButtonStyle}"
+                                                    Content="{Binding RecordingCleanRaritiesText, ElementName=NotificationCapturesSectionRoot}"
+                                                    Click="RecordingCleanRaritiesButton_Click"
+                                                    MinWidth="140"
+                                                    Height="{StaticResource PlayAch.Size.Control.Height}">
+                                                <Button.ContextMenu>
+                                                    <ContextMenu Style="{StaticResource AchievementSelectorContextMenuStyle}"
+                                                                 ItemContainerStyle="{StaticResource AchievementMultiSelectMenuItemStyle}"/>
+                                                </Button.ContextMenu>
+                                            </Button>
+                                        </controls:SettingRow>
+                                        <controls:SettingRow Label="{DynamicResource LOCPlayAch_Settings_AlwaysCaptureCompletion}">
+                                            <CheckBox IsChecked="{Binding Persisted.UnlockRecordingCleanAlwaysCaptureCompletion}"/>
+                                        </controls:SettingRow>
+                                    </StackPanel>
+                                </StackPanel>
+                            </Border>
 
-                            <controls:SettingRow Label="{DynamicResource LOCPlayAch_Settings_ScreenshotVariantWithToast}"
-                                                 Margin="{StaticResource PlayAch.Thickness.Bottom.Xs}">
-                                <CheckBox IsChecked="{Binding Persisted.UnlockRecordingWithToast}"/>
-                            </controls:SettingRow>
-                            <StackPanel Margin="{StaticResource PlayAch.Thickness.SettingRow.Indent}"
-                                        IsEnabled="{Binding Persisted.UnlockRecordingWithToast}"
-                                        Grid.IsSharedSizeScope="True">
-                                <controls:SettingRow Label="{DynamicResource LOCPlayAch_Settings_CaptureMinimumRarity}">
-                                    <Button x:Name="RecordingRaritiesButton"
-                                            Style="{StaticResource AchievementSelectorButtonStyle}"
-                                            Content="{Binding RecordingRaritiesText, ElementName=NotificationCapturesSectionRoot}"
-                                            Click="RecordingRaritiesButton_Click"
-                                            MinWidth="140"
-                                            Height="{StaticResource PlayAch.Size.Control.Height}">
-                                        <Button.ContextMenu>
-                                            <ContextMenu Style="{StaticResource AchievementSelectorContextMenuStyle}"
-                                                         ItemContainerStyle="{StaticResource AchievementMultiSelectMenuItemStyle}"/>
-                                        </Button.ContextMenu>
-                                    </Button>
-                                </controls:SettingRow>
-                                <controls:SettingRow Label="{DynamicResource LOCPlayAch_Settings_AlwaysCaptureCompletion}">
-                                    <CheckBox IsChecked="{Binding Persisted.UnlockRecordingAlwaysCaptureCompletion}"/>
-                                </controls:SettingRow>
-                            </StackPanel>
+                            <Border Style="{StaticResource CaptureVariantCardStyle}">
+                                <StackPanel Grid.IsSharedSizeScope="True">
+                                    <CheckBox IsChecked="{Binding Persisted.UnlockRecordingWithToast}"
+                                              Margin="{StaticResource PlayAch.Thickness.Bottom.Sm}">
+                                        <TextBlock Text="{DynamicResource LOCPlayAch_Settings_ScreenshotVariantWithToast}"
+                                                   Style="{StaticResource SubSectionHeaderStyle}"/>
+                                    </CheckBox>
+                                    <StackPanel Margin="{StaticResource PlayAch.Thickness.SettingRow.Indent}"
+                                                IsEnabled="{Binding Persisted.UnlockRecordingWithToast}"
+                                                Grid.IsSharedSizeScope="True">
+                                        <controls:SettingRow Label="{DynamicResource LOCPlayAch_Settings_CaptureMinimumRarity}">
+                                            <Button x:Name="RecordingRaritiesButton"
+                                                    Style="{StaticResource AchievementSelectorButtonStyle}"
+                                                    Content="{Binding RecordingRaritiesText, ElementName=NotificationCapturesSectionRoot}"
+                                                    Click="RecordingRaritiesButton_Click"
+                                                    MinWidth="140"
+                                                    Height="{StaticResource PlayAch.Size.Control.Height}">
+                                                <Button.ContextMenu>
+                                                    <ContextMenu Style="{StaticResource AchievementSelectorContextMenuStyle}"
+                                                                 ItemContainerStyle="{StaticResource AchievementMultiSelectMenuItemStyle}"/>
+                                                </Button.ContextMenu>
+                                            </Button>
+                                        </controls:SettingRow>
+                                        <controls:SettingRow Label="{DynamicResource LOCPlayAch_Settings_AlwaysCaptureCompletion}">
+                                            <CheckBox IsChecked="{Binding Persisted.UnlockRecordingAlwaysCaptureCompletion}"/>
+                                        </controls:SettingRow>
+                                    </StackPanel>
+                                </StackPanel>
+                            </Border>
 
-                            <controls:SettingRow Label="{DynamicResource LOCPlayAch_Settings_ScreenshotVariantFramed}"
-                                                 Margin="{StaticResource PlayAch.Thickness.Bottom.Xs}">
-                                <CheckBox IsChecked="{Binding Persisted.UnlockRecordingFramed}"/>
-                            </controls:SettingRow>
-                            <StackPanel Margin="{StaticResource PlayAch.Thickness.SettingRow.Indent}"
-                                        IsEnabled="{Binding Persisted.UnlockRecordingFramed}"
-                                        Grid.IsSharedSizeScope="True">
-                                <controls:SettingRow Label="{DynamicResource LOCPlayAch_Settings_CaptureMinimumRarity}">
-                                    <Button x:Name="RecordingFramedRaritiesButton"
-                                            Style="{StaticResource AchievementSelectorButtonStyle}"
-                                            Content="{Binding RecordingFramedRaritiesText, ElementName=NotificationCapturesSectionRoot}"
-                                            Click="RecordingFramedRaritiesButton_Click"
-                                            MinWidth="140"
-                                            Height="{StaticResource PlayAch.Size.Control.Height}">
-                                        <Button.ContextMenu>
-                                            <ContextMenu Style="{StaticResource AchievementSelectorContextMenuStyle}"
-                                                         ItemContainerStyle="{StaticResource AchievementMultiSelectMenuItemStyle}"/>
-                                        </Button.ContextMenu>
-                                    </Button>
-                                </controls:SettingRow>
-                                <controls:SettingRow Label="{DynamicResource LOCPlayAch_Settings_AlwaysCaptureCompletion}">
-                                    <CheckBox IsChecked="{Binding Persisted.UnlockRecordingFramedAlwaysCaptureCompletion}"/>
-                                </controls:SettingRow>
-                                <controls:SettingRow Label="{DynamicResource LOCPlayAch_Settings_ToastDurationSeconds}">
-                                    <TextBox Text="{Binding Persisted.UnlockRecordingFramedSeconds, UpdateSourceTrigger=LostFocus, Converter={StaticResource NullableIntTextConverter}, ConverterParameter=1}"
-                                             Width="{StaticResource PlayAch.Size.Input.NarrowWidth}"
-                                             TextAlignment="Right"/>
-                                </controls:SettingRow>
-                                <TextBlock Text="{DynamicResource LOCPlayAch_Settings_RecordingFramedSecondsHint}"
-                                           Style="{StaticResource MutedTextStyle}"
-                                           TextWrapping="Wrap"
-                                           Margin="{StaticResource PlayAch.Thickness.Bottom.SettingRow}"/>
-                            </StackPanel>
+                            <Border Style="{StaticResource CaptureVariantCardStyle}">
+                                <StackPanel Grid.IsSharedSizeScope="True">
+                                    <CheckBox IsChecked="{Binding Persisted.UnlockRecordingFramed}"
+                                              Margin="{StaticResource PlayAch.Thickness.Bottom.Sm}">
+                                        <TextBlock Text="{DynamicResource LOCPlayAch_Settings_ScreenshotVariantFramed}"
+                                                   Style="{StaticResource SubSectionHeaderStyle}"/>
+                                    </CheckBox>
+                                    <StackPanel Margin="{StaticResource PlayAch.Thickness.SettingRow.Indent}"
+                                                IsEnabled="{Binding Persisted.UnlockRecordingFramed}"
+                                                Grid.IsSharedSizeScope="True">
+                                        <controls:SettingRow Label="{DynamicResource LOCPlayAch_Settings_CaptureMinimumRarity}">
+                                            <Button x:Name="RecordingFramedRaritiesButton"
+                                                    Style="{StaticResource AchievementSelectorButtonStyle}"
+                                                    Content="{Binding RecordingFramedRaritiesText, ElementName=NotificationCapturesSectionRoot}"
+                                                    Click="RecordingFramedRaritiesButton_Click"
+                                                    MinWidth="140"
+                                                    Height="{StaticResource PlayAch.Size.Control.Height}">
+                                                <Button.ContextMenu>
+                                                    <ContextMenu Style="{StaticResource AchievementSelectorContextMenuStyle}"
+                                                                 ItemContainerStyle="{StaticResource AchievementMultiSelectMenuItemStyle}"/>
+                                                </Button.ContextMenu>
+                                            </Button>
+                                        </controls:SettingRow>
+                                        <controls:SettingRow Label="{DynamicResource LOCPlayAch_Settings_AlwaysCaptureCompletion}">
+                                            <CheckBox IsChecked="{Binding Persisted.UnlockRecordingFramedAlwaysCaptureCompletion}"/>
+                                        </controls:SettingRow>
+                                        <controls:SettingRow Label="{DynamicResource LOCPlayAch_Settings_ToastDurationSeconds}">
+                                            <TextBox Text="{Binding Persisted.UnlockRecordingFramedSeconds, UpdateSourceTrigger=LostFocus, Converter={StaticResource NullableIntTextConverter}, ConverterParameter=1}"
+                                                     Width="{StaticResource PlayAch.Size.Input.NarrowWidth}"
+                                                     TextAlignment="Right"/>
+                                        </controls:SettingRow>
+                                        <TextBlock Text="{DynamicResource LOCPlayAch_Settings_RecordingFramedSecondsHint}"
+                                                   Style="{StaticResource MutedTextStyle}"
+                                                   TextWrapping="Wrap"
+                                                   Margin="{StaticResource PlayAch.Thickness.Bottom.SettingRow}"/>
+                                    </StackPanel>
+                                </StackPanel>
+                            </Border>
 
                             <TextBlock Text="{DynamicResource LOCPlayAch_Settings_RecordingDirectory}"
                                        Foreground="{DynamicResource PlayAch.Brush.Text}"
