@@ -6043,15 +6043,18 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
 
         private GridMultiSelectFilter BuildTypeFilter()
         {
+            // The full vocabulary, as the Categories tab filter offers it: Default so untyped rows
+            // can be found, and the derived Softcore/Hardcore modes. Only the assignment menus
+            // are limited to AssignableCategoryTypes.
             return new GridMultiSelectFilter(
                 this,
                 nameof(FilterOptionsChanged),
                 () => GetSelectedFilterText(
                     _selectedTypeFilters,
-                    AchievementCategoryTypeHelper.AssignableCategoryTypes,
+                    AchievementCategoryTypeHelper.AllowedCategoryTypes,
                     ResourceProvider.GetString("LOCPlayAch_Common_Label_Type"),
                     ManageAchievementsCategoryViewModel.GetCategoryTypeDisplayName),
-                () => AchievementCategoryTypeHelper.AssignableCategoryTypes,
+                () => AchievementCategoryTypeHelper.AllowedCategoryTypes,
                 option => _selectedTypeFilters.Contains(option),
                 (option, isSelected) => ToggleFilter(_selectedTypeFilters, option, isSelected),
                 getDisplayLabel: ManageAchievementsCategoryViewModel.GetCategoryTypeDisplayName)
