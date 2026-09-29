@@ -1202,6 +1202,9 @@
           document.querySelectorAll('.section').forEach(item => item.classList.remove('active'));
           tab.classList.add('active');
           $('tab-' + tab.dataset.tab).classList.add('active');
+          if (tab.dataset.tab === 'layout') {
+            requestAnimationFrame(() => populateManualCssFromVisibleElements());
+          }
         });
       });
     }
@@ -1351,6 +1354,7 @@
           frame.style.display = 'none';
         }
         render();
+        requestAnimationFrame(() => populateManualCssFromVisibleElements());
       });
 
       $('sanDragView1Btn')?.addEventListener('click', () => {
@@ -1452,6 +1456,7 @@
         const startHeight = existing.height || Math.round(rect.height);
         const startOffsetX = existing.x || 0;
         const startOffsetY = existing.y || 0;
+        const hasAbsolutePosition = existing.left != null && existing.top != null;
         target.classList.add('dragging');
         target.setPointerCapture?.(event.pointerId);
 
@@ -1481,8 +1486,17 @@
               }
             }
           } else {
-            next.x = Math.round(startOffsetX + moveEvent.clientX - startX);
-            next.y = Math.round(startOffsetY + moveEvent.clientY - startY);
+            const dx = moveEvent.clientX - startX;
+            const dy = moveEvent.clientY - startY;
+            if (hasAbsolutePosition) {
+              next.left = Math.round(existing.left + dx);
+              next.top = Math.round(existing.top + dy);
+              next.x = 0;
+              next.y = 0;
+            } else {
+              next.x = Math.round(startOffsetX + dx);
+              next.y = Math.round(startOffsetY + dy);
+            }
           }
           manualElementOffsets[id] = next;
           applyManualOffsets();
@@ -1548,6 +1562,12 @@
         const offset = manualElementOffsets[element.dataset.manualId];
         const manualId = element.dataset.manualId || '';
         const isIconElement = manualId === 'primaryIcon' || manualId === 'secondaryIcon';
+        const hasAbsolutePosition = manualId !== 'notification' && offset?.left != null && offset?.top != null;
+        element.style.position = hasAbsolutePosition ? 'absolute' : '';
+        element.style.left = hasAbsolutePosition ? `${offset.left}px` : '';
+        element.style.top = hasAbsolutePosition ? `${offset.top}px` : '';
+        element.style.margin = hasAbsolutePosition ? '0' : '';
+        element.style.zIndex = hasAbsolutePosition ? '80' : '';
         element.style.transform = offset && (offset.x || offset.y) ? `translate(${offset.x || 0}px, ${offset.y || 0}px)` : '';
         if (offset?.width) {
           element.style.width = `${offset.width}px`;
@@ -1570,6 +1590,56 @@
           element.style.maxHeight = '';
         }
       });
+    }
+
+    function populateManualCssFromVisibleElements() {
+      const sanOverlay = $('sanParentDragOverlay');
+      const toast = $('toast');
+      const root = sanOverlay || (toast && toast.style.display !== 'none' ? toast : null);
+      if (!root) return false;
+      const rootRect = root.getBoundingClientRect();
+      const rootWidth = sanOverlay ? (parseFloat(root.style.width) || 0) : rootRect.width;
+      const rootHeight = sanOverlay ? (parseFloat(root.style.height) || 0) : rootRect.height;
+      if (!rootWidth || !rootHeight) return false;
+      const elements = root.matches('[data-manual-id]')
+        ? [root, ...root.querySelectorAll('[data-manual-id]')]
+        : [...root.querySelectorAll('[data-manual-id]')];
+      let changed = false;
+      elements.forEach(element => {
+        const id = element.dataset.manualId || '';
+        if (!id || manualElementOffsets[id]) return;
+        const style = getComputedStyle(element);
+        const rect = element.getBoundingClientRect();
+        const width = sanOverlay ? (parseFloat(element.style.width) || 0) : rect.width;
+        const height = sanOverlay ? (parseFloat(element.style.height) || 0) : rect.height;
+        if (style.display === 'none' || style.visibility === 'hidden' || width <= 2 || height <= 2) return;
+        if (manualOffsetBaseId(id) === 'notification') {
+          manualElementOffsets[id] = {
+            x: 0,
+            y: 0,
+            width: Math.max(1, Math.round(width)),
+            height: Math.max(1, Math.round(height))
+          };
+        } else {
+          manualElementOffsets[id] = {
+            x: 0,
+            y: 0,
+            left: sanOverlay ? Math.round(parseFloat(element.style.left) || 0) : Math.round(rect.left - rootRect.left),
+            top: sanOverlay ? Math.round(parseFloat(element.style.top) || 0) : Math.round(rect.top - rootRect.top),
+            width: Math.max(1, Math.round(width)),
+            height: Math.max(1, Math.round(height)),
+            ...(sanOverlay ? { view: manualOffsetView(id, null) || sanDragViewIndex + 1 } : {})
+          };
+        }
+        changed = true;
+      });
+      if (changed) {
+        writeManualCssFromOffsets();
+        applyManualOffsets();
+        const output = $('jsonOutput');
+        if (output) output.value = JSON.stringify(buildData(), null, 2);
+      }
+      return changed;
     }
 
     function manualOffsetBaseId(id) {
@@ -2427,9 +2497,9 @@
       return 2;
     }
 
-    function renderSanParentDragOverlay(slot, transition, frame, width, height) {
+    function renderSanParentDragOverlay(slot, transition, frame, width, height, capturePositions = false) {
       removeSanParentDragOverlay();
-      if (!dragEditEnabled || !frame || frame.style.display === 'none') return;
+      if (!frame || frame.style.display === 'none') return;
       const stage = $('stage');
       const overlay = document.createElement('div');
       overlay.id = 'sanParentDragOverlay';
@@ -2536,6 +2606,7 @@
         addBox(`line${line.index}`, plainTextFromHtml(line.html, `Line ${line.index}`), nativeLine || { left: textLeft, top, width: textWidth, height: lineHeight });
         top += lineHeight + lineGap;
       });
+      if (capturePositions) populateManualCssFromVisibleElements();
     }
 
     async function renderSanPreview(data) {
@@ -3420,8 +3491,8 @@
         const dragBodyAttrs = dragEditEnabled ? ' noanim fastanim class="san-builder-static san-builder-drag-edit"' : '';
         const html = `<!doctype html><html data-builder-render-key="${request}-${Date.now()}"><head><meta charset="utf-8"><style>${rewriteSanCssUrls(globalCssRaw, 'SAN-source/dist/app/')}</style><style>${rewriteSanCssUrls(baseCssRaw, 'SAN-source/notify/')}</style><style>${rewriteSanCssUrls(baseAnimCssRaw, 'SAN-source/notify/')}</style><style>${rewriteSanCssUrls(elementCssRaw, `SAN-source/notify/presets/${elementPreset}/`)}</style><style>${rewriteSanCssUrls(animationCssRaw, `SAN-source/notify/presets/${animationPreset}/`)}</style><style>${variables}</style><style>${previewOverrideStyle}</style><style>${presetRepairStyle}</style><style>${iconCornerStyle}</style><style>${builderStackingStyle}</style><style>${builderNativeRepairStyle}</style><style>${builderStaticDragStyle}</style><style>${builderOverlayStyle}</style><style>${builderDragTextGuardStyle}</style><style>${manualOverrideStyle}</style></head><body main solid ${positionAttr}${allDetailsAttr}${dragBodyAttrs} data-san-preset="${animationPreset}" data-san-elements="${elementPreset}"><div class="wrapper" id="ssdisplay"></div>${elementHtml}${script}</body></html>`;
         frame.addEventListener('load', () => {
-          if (request === sanPreviewRequest && dragEditEnabled) {
-            renderSanParentDragOverlay(slot, transition, frame, width, height);
+          if (request === sanPreviewRequest) {
+            renderSanParentDragOverlay(slot, transition, frame, width, height, true);
           }
         }, { once: true });
         frame.srcdoc = html;

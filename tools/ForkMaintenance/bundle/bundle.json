@@ -1,6 +1,6 @@
 {
     "schemaVersion":  1,
-    "generatedUtc":  "2026-09-29T09:29:15.2819206Z",
+    "generatedUtc":  "2026-09-29T11:35:28.8039828Z",
     "baselineRef":  "upstream/main",
     "baselineCommit":  "653a310fed521206672d0aec9383fd7ec3bb94a3",
     "protectedPaths":  [
@@ -357,7 +357,7 @@
                          },
                          {
                              "path":  "tools/notification-template-builder.html",
-                             "sha256":  "FC2EA719B471ADD0F28E319EC5DDBC122532A2BA79D755D134991A155B742298"
+                             "sha256":  "E4457F208825F6C673C25BA828A257EE00F0DF755F114CD50990C42ADADA5B9F"
                          },
                          {
                              "path":  "tools/NotificationTemplates/README.md",

@@ -109,6 +109,7 @@ The entries below are fork-side changes, grouped by date. When a date includes a
 - Fixed the `Show Notification` not hiding on the second click
 - Added a on/off background option for primary and secondary icons
 - Added a color picker for the primary and secondary icon
+- Builder will not populate all the element details under the `Manual Element CSS`
 
 ## 2026-09-14 - v3.2.1.1
 
