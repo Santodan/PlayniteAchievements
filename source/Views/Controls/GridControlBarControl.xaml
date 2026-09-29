@@ -321,14 +321,15 @@
                 </Button>
             </DataTemplate>
 
-            <!-- Filter toggle styled like the settings tabs: the border turns to the accent
-                 color (with a subtle selection fill) to signal the active state; the glyph
-                 itself keeps its normal brush and does not recolor. Keys on IsChecked, the
-                 ToggleButton analog of the tab style's IsSelected trigger
-                 (PlayAch.TabItem.BaseStyle in CommonResources.xaml). -->
+            <!-- Filter toggle: rests on the same button background and border as the other
+                 control bar buttons (GridActionButtonStyle, GridModeToggleButtonStyle) so it
+                 reads as a button when inactive; the border turns to the accent color (with a
+                 subtle selection fill) to signal the active state, and the glyph keeps its
+                 normal brush. Keys on IsChecked, the ToggleButton analog of the tab style's
+                 IsSelected trigger (PlayAch.TabItem.BaseStyle in CommonResources.xaml). -->
             <Style x:Key="GridToggleFilterButtonStyle" TargetType="ToggleButton">
-                <Setter Property="Background" Value="Transparent"/>
-                <Setter Property="BorderBrush" Value="Transparent"/>
+                <Setter Property="Background" Value="{DynamicResource PlayAch.Brush.Button.Background}"/>
+                <Setter Property="BorderBrush" Value="{DynamicResource PlayAch.Brush.Button.Border}"/>
                 <Setter Property="BorderThickness" Value="{StaticResource PlayAch.Thickness.Border}"/>
                 <Setter Property="Foreground" Value="{DynamicResource PlayAch.Brush.Text}"/>
                 <Setter Property="Padding" Value="8,4"/>
