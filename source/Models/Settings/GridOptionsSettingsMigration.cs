@@ -8,6 +8,10 @@ namespace PlayniteAchievements.Models.Settings
     /// Seeds the typed GridOptions catalog from the older flat per-grid settings. Legacy
     /// settings remain readable through JsonIgnore compatibility properties after load, but
     /// all copied values are persisted through the catalog.
+    ///
+    /// Also fills the Right default for the category summary Progress column once, gated by
+    /// <see cref="PersistedSettings.CategoryProgressColumnAlignmentDefaulted"/>, for configs
+    /// written while that default was seeded on the deserialization target.
     /// </summary>
     public static class GridOptionsSettingsMigration
     {
@@ -79,6 +83,7 @@ namespace PlayniteAchievements.Models.Settings
                 changed |= SeedStartPageControlBarDefaults(gridOptions);
                 changed |= SeedSingleGameAppearanceFromOverviewSelectedGame(gridOptions);
                 changed |= SeedDesktopThemeAppearanceFromLegacyDataGrid(gridOptions);
+                changed |= SeedCategoryProgressColumnRightDefault(persisted, gridOptions);
 
                 return changed
                     ? root.ToString(Formatting.None)
@@ -393,6 +398,52 @@ namespace PlayniteAchievements.Models.Settings
             }
 
             entry[nameof(GridCommonOptions.ShowControlBar)] = false;
+            return true;
+        }
+
+        /// <summary>
+        /// Fills Right for the category summary Progress column on every category entry that lacks
+        /// the key, then stamps the one-time flag. Runs after the legacy column sets are copied so
+        /// a pre-catalog config is filled after its own alignments land. Entries absent from the
+        /// JSON are left alone: the catalog seeds Right for them at runtime. Once the flag is set,
+        /// an absent key is the user's cleared override and is never re-filled. Values are written
+        /// as integers to match how the GridAlignment enum is serialized.
+        /// </summary>
+        private static bool SeedCategoryProgressColumnRightDefault(JObject persisted, JObject gridOptions)
+        {
+            const string flagName = nameof(PersistedSettings.CategoryProgressColumnAlignmentDefaulted);
+
+            var flag = persisted[flagName];
+            if (flag != null && flag.Type == JTokenType.Boolean && flag.Value<bool>())
+            {
+                return false;
+            }
+
+            var group = gridOptions?[nameof(GridOptionsCatalog.CategorySummaries)] as JObject;
+            foreach (var id in new[]
+            {
+                GridOptionKeys.CategorySummaries.ViewAchievements,
+                GridOptionKeys.CategorySummaries.OverviewSelectedGame,
+                GridOptionKeys.CategorySummaries.FriendsOverview,
+                GridOptionKeys.CategorySummaries.ViewFriendsAchievements,
+                GridOptionKeys.CategorySummaries.DesktopTheme
+            })
+            {
+                if (!(group?[id] is JObject entry))
+                {
+                    continue;
+                }
+
+                var changed = false;
+                var columns = GetOrCreateObject(entry, nameof(CategorySummaryGridOptions.Columns), ref changed);
+                var alignments = GetOrCreateObject(columns, nameof(GridColumnLayoutOptions.CellAlignments), ref changed);
+                if (alignments[PersistedSettings.ProgressColumnKey] == null)
+                {
+                    alignments[PersistedSettings.ProgressColumnKey] = (int)GridAlignment.Right;
+                }
+            }
+
+            persisted[flagName] = true;
             return true;
         }
 
