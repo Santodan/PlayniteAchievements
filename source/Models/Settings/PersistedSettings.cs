@@ -119,6 +119,14 @@ namespace PlayniteAchievements.Models.Settings
         private bool _recordingIncludeMicrophone = false;
         private RaritySelection _unlockRecordingRarities = RaritySelection.All;
         private bool _unlockRecordingAlwaysCaptureCompletion = true;
+        private bool _unlockRecordingClean = false;
+        private bool _unlockRecordingWithToast = true;
+        private bool _unlockRecordingFramed = false;
+        private RaritySelection _unlockRecordingCleanRarities = RaritySelection.All;
+        private bool _unlockRecordingCleanAlwaysCaptureCompletion = true;
+        private RaritySelection _unlockRecordingFramedRarities = RaritySelection.All;
+        private bool _unlockRecordingFramedAlwaysCaptureCompletion = true;
+        private int? _unlockRecordingFramedSeconds = 5;
         private Dictionary<string, ProviderNotificationOverride> _providerNotificationOverrides =
             new Dictionary<string, ProviderNotificationOverride>(StringComparer.OrdinalIgnoreCase);
         private ToastScreenCorner _toastPosition = ToastScreenCorner.BottomRight;
@@ -1527,7 +1535,7 @@ namespace PlayniteAchievements.Models.Settings
         }
 
         /// <summary>
-        /// The set of achievement rarity tiers that produce unlock recording clips.
+        /// The set of achievement rarity tiers that produce with-notification unlock clips.
         /// </summary>
         public RaritySelection UnlockRecordingRarities
         {
@@ -1537,12 +1545,81 @@ namespace PlayniteAchievements.Models.Settings
 
         /// <summary>
         /// When true, completing achievements, capstones, and standalone game-complete events
-        /// bypass the recording rarity threshold.
+        /// bypass the with-notification clip rarity threshold.
         /// </summary>
         public bool UnlockRecordingAlwaysCaptureCompletion
         {
             get => _unlockRecordingAlwaysCaptureCompletion;
             set => SetValue(ref _unlockRecordingAlwaysCaptureCompletion, value);
+        }
+
+        /// <summary>Save the unlock clip with no notification composited in.</summary>
+        public bool UnlockRecordingClean
+        {
+            get => _unlockRecordingClean;
+            set => SetValue(ref _unlockRecordingClean, value);
+        }
+
+        /// <summary>Save the unlock clip with this unlock's notification card composited in.</summary>
+        public bool UnlockRecordingWithToast
+        {
+            get => _unlockRecordingWithToast;
+            set => SetValue(ref _unlockRecordingWithToast, value);
+        }
+
+        /// <summary>
+        /// Save the unlock clip with the theme frame composited over its opening
+        /// <see cref="UnlockRecordingFramedSeconds"/>, fading out at the end of that span.
+        /// </summary>
+        public bool UnlockRecordingFramed
+        {
+            get => _unlockRecordingFramed;
+            set => SetValue(ref _unlockRecordingFramed, value);
+        }
+
+        /// <summary>The set of achievement rarity tiers that produce clean unlock clips.</summary>
+        public RaritySelection UnlockRecordingCleanRarities
+        {
+            get => _unlockRecordingCleanRarities;
+            set => SetValue(ref _unlockRecordingCleanRarities, value);
+        }
+
+        /// <summary>
+        /// When true, completing achievements, capstones, and standalone game-complete events
+        /// bypass the clean clip rarity threshold.
+        /// </summary>
+        public bool UnlockRecordingCleanAlwaysCaptureCompletion
+        {
+            get => _unlockRecordingCleanAlwaysCaptureCompletion;
+            set => SetValue(ref _unlockRecordingCleanAlwaysCaptureCompletion, value);
+        }
+
+        /// <summary>The set of achievement rarity tiers that produce framed unlock clips.</summary>
+        public RaritySelection UnlockRecordingFramedRarities
+        {
+            get => _unlockRecordingFramedRarities;
+            set => SetValue(ref _unlockRecordingFramedRarities, value);
+        }
+
+        /// <summary>
+        /// When true, completing achievements, capstones, and standalone game-complete events
+        /// bypass the framed clip rarity threshold.
+        /// </summary>
+        public bool UnlockRecordingFramedAlwaysCaptureCompletion
+        {
+            get => _unlockRecordingFramedAlwaysCaptureCompletion;
+            set => SetValue(ref _unlockRecordingFramedAlwaysCaptureCompletion, value);
+        }
+
+        /// <summary>
+        /// How long the frame shows from the start of a framed clip before it fades out. Null
+        /// keeps the frame over the whole clip. The notification is left out of a framed clip
+        /// whenever the frame is still showing when it would appear.
+        /// </summary>
+        public int? UnlockRecordingFramedSeconds
+        {
+            get => _unlockRecordingFramedSeconds;
+            set => SetValue(ref _unlockRecordingFramedSeconds, value.HasValue && value.Value > 0 ? value : null);
         }
 
         /// <summary>
@@ -3049,6 +3126,14 @@ namespace PlayniteAchievements.Models.Settings
                 RecordingIncludeMicrophone = this.RecordingIncludeMicrophone,
                 UnlockRecordingRarities = this.UnlockRecordingRarities,
                 UnlockRecordingAlwaysCaptureCompletion = this.UnlockRecordingAlwaysCaptureCompletion,
+                UnlockRecordingClean = this.UnlockRecordingClean,
+                UnlockRecordingWithToast = this.UnlockRecordingWithToast,
+                UnlockRecordingFramed = this.UnlockRecordingFramed,
+                UnlockRecordingCleanRarities = this.UnlockRecordingCleanRarities,
+                UnlockRecordingCleanAlwaysCaptureCompletion = this.UnlockRecordingCleanAlwaysCaptureCompletion,
+                UnlockRecordingFramedRarities = this.UnlockRecordingFramedRarities,
+                UnlockRecordingFramedAlwaysCaptureCompletion = this.UnlockRecordingFramedAlwaysCaptureCompletion,
+                UnlockRecordingFramedSeconds = this.UnlockRecordingFramedSeconds,
                 ProviderNotificationOverrides = this.ProviderNotificationOverrides != null
                     ? this.ProviderNotificationOverrides.ToDictionary(
                         kvp => kvp.Key,
