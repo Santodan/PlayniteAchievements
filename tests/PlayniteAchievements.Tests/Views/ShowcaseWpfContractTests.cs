@@ -465,7 +465,14 @@ namespace PlayniteAchievements.Tests.Views
                 new[] { "source", "Views", "Controls", "UnlockTimelineChart.xaml" },
                 new[] { "source", "Views", "Showcase", "ScreenshotInfoPanel.xaml" },
                 new[] { "source", "Views", "OverviewControl.xaml" },
-                new[] { "source", "Views", "StartPage", "StartPageShowcaseWidgetView.xaml" }
+                new[] { "source", "Views", "StartPage", "StartPageShowcaseWidgetView.xaml" },
+                // Created once per Manage window each, but five owners of the same scoped
+                // dictionary: plain merges re-parsed CommonResources about thirty times per open.
+                new[] { "source", "Views", "ManageAchievements", "ManageAchievementsControl.xaml" },
+                new[] { "source", "Views", "ManageAchievements", "ManageAchievementsEditorTab.xaml" },
+                new[] { "source", "Views", "ManageAchievements", "ManageAchievementsCategoryTab.xaml" },
+                new[] { "source", "Views", "ManageAchievements", "ManageAchievementsManualTrackingTab.xaml" },
+                new[] { "source", "Views", "ManageAchievements", "ManageAchievementsOverviewTab.xaml" }
             };
 
             foreach (var parts in files)
