@@ -350,14 +350,6 @@ namespace PlayniteAchievements.Services.ThemeMigration
                 }
             }
 
-            foreach (var bindingPath in ControlMappings.LegacyToModernBindingPaths.Keys)
-            {
-                if (content.IndexOf($"LegacyData.{bindingPath}", StringComparison.Ordinal) >= 0)
-                {
-                    return true;
-                }
-            }
-
             return false;
         }
 
