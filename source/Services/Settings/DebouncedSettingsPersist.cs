@@ -21,7 +21,8 @@ namespace PlayniteAchievements.Services.Settings
     ///   commit changes the user may be about to revert.
     ///
     /// Attach it to the editor control and hand it the records it edits; it hooks Loaded/Unloaded
-    /// itself.
+    /// itself. A caller that flips a value directly instead of handing over a record calls
+    /// <see cref="Schedule"/> after the write.
     /// </summary>
     internal sealed class DebouncedSettingsPersist : IDisposable
     {
@@ -180,7 +181,10 @@ namespace PlayniteAchievements.Services.Settings
             }
         }
 
-        private void OnRecordChanged(object sender, PropertyChangedEventArgs e)
+        /// <summary>
+        /// Starts or restarts the debounce window for an edit made outside the watched records.
+        /// </summary>
+        public void Schedule()
         {
             if (_disposed)
             {
@@ -199,6 +203,11 @@ namespace PlayniteAchievements.Services.Settings
             // Restart the window on every edit so a burst of toggles produces one write.
             _timer.Stop();
             _timer.Start();
+        }
+
+        private void OnRecordChanged(object sender, PropertyChangedEventArgs e)
+        {
+            Schedule();
         }
     }
 }
