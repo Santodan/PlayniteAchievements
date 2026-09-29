@@ -1506,6 +1506,18 @@ namespace PlayniteAchievements.Views.Controls
                    surface == GridSurface.DesktopThemeCategory;
         }
 
+        private const string CapturesColumnKey = "Captures";
+
+        private static bool IsFriendSurface(GridSurface surface)
+        {
+            return surface == GridSurface.FriendsOverview ||
+                   surface == GridSurface.FriendsOverviewSelectedFriend ||
+                   surface == GridSurface.ViewFriendsAchievements ||
+                   surface == GridSurface.ViewFriendsAchievementsSelectedFriend ||
+                   surface == GridSurface.FriendsOverviewCategory ||
+                   surface == GridSurface.ViewFriendsAchievementsCategory;
+        }
+
         // Keep the friend columns out of every grid except Friends Overview: collapse them so
         // they never render and exclude them from the column visibility menu so they cannot be toggled on.
         private void ApplyFriendColumnRestrictions()
@@ -1516,6 +1528,15 @@ namespace PlayniteAchievements.Views.Controls
             }
 
             var surface = ResolveSurface();
+
+            // Captures are the user's own screenshots and clips of their own unlocks; a friend's
+            // game row has none to open, so the column is dropped from every friend surface.
+            if (IsFriendSurface(surface))
+            {
+                _columnPersistence.ForcedCollapsedKeys.Add(CapturesColumnKey);
+                _columnPersistence.ExcludedVisibilityKeys.Add(CapturesColumnKey);
+            }
+
             if (surface == GridSurface.FriendsOverview || surface == GridSurface.ViewFriendsAchievements)
             {
                 foreach (var key in AggregateFriendExcludedColumnKeys)
