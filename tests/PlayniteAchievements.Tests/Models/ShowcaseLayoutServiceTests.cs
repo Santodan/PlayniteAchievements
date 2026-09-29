@@ -32,6 +32,33 @@ namespace PlayniteAchievements.Tests.Models
         }
 
         [TestMethod]
+        public void AddPagePresets_FillEveryBlockWithoutPinnedSources()
+        {
+            foreach (var template in new[]
+                     {
+                         ShowcasePageTemplate.Analytics,
+                         ShowcasePageTemplate.Collection,
+                         ShowcasePageTemplate.UpNext,
+                         ShowcasePageTemplate.TrophyCase,
+                         ShowcasePageTemplate.Library
+                     })
+            {
+                var settings = new ShowcaseSettings();
+                var page = ShowcaseLayoutService.AddPage(settings, template);
+                var widgets = page.Blocks
+                    .Select(block => settings.WidgetInstances.SingleOrDefault(widget =>
+                        widget.InstanceId == block.WidgetInstanceId))
+                    .ToList();
+
+                Assert.IsTrue(widgets.All(widget => widget != null), $"{template} leaves a block empty");
+                Assert.IsFalse(
+                    widgets.SelectMany(widget => widget.Options.Values).Contains("Pinned"),
+                    $"{template} shows a pin collection");
+                Assert.AreEqual(25, page.Blocks.Sum(block => block.RowSpan * block.ColumnSpan), template.ToString());
+            }
+        }
+
+        [TestMethod]
         public void CreateWidget_SeedsTheMatchingDefaultPinCollection()
         {
             var settings = ShowcaseLayoutService.CreateDefault();
