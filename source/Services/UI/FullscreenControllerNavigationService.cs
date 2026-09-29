@@ -401,6 +401,16 @@ namespace PlayniteAchievements.Services.UI
             return input == ControllerInput.RightShoulder;
         }
 
+        internal static bool IsLeftTriggerInput(ControllerInput input)
+        {
+            return input == ControllerInput.TriggerLeft;
+        }
+
+        internal static bool IsRightTriggerInput(ControllerInput input)
+        {
+            return input == ControllerInput.TriggerRight;
+        }
+
         internal static bool FocusDataGrid(DataGrid grid, int? preferredIndex = null)
         {
             if (grid == null)
