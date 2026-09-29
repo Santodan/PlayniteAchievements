@@ -143,6 +143,61 @@ namespace PlayniteAchievements.Tests.Services
         }
 
         [TestMethod]
+        public void Normalize_CanonicalizesSideProgressionAliasesBetweenProgressionAndWinCondition()
+        {
+            Assert.AreEqual("SideProgression", AchievementCategoryTypeHelper.Normalize("sideprogression"));
+            Assert.AreEqual("SideProgression", AchievementCategoryTypeHelper.Normalize("Side Progression"));
+            Assert.AreEqual("SideProgression", AchievementCategoryTypeHelper.Normalize("side-progression"));
+            Assert.AreEqual("SideProgression", AchievementCategoryTypeHelper.Normalize("side_progression"));
+            Assert.AreEqual("SideProgression", AchievementCategoryTypeHelper.Normalize("side quest"));
+            Assert.AreEqual(
+                "Progression|SideProgression|WinCondition",
+                AchievementCategoryTypeHelper.Normalize("WinCondition|SideProgression|Progression"));
+        }
+
+        [TestMethod]
+        public void Normalize_CanonicalizesMiscellaneousAliasesBetweenDifficultyAndMissable()
+        {
+            Assert.AreEqual("Miscellaneous", AchievementCategoryTypeHelper.Normalize("miscellaneous"));
+            Assert.AreEqual("Miscellaneous", AchievementCategoryTypeHelper.Normalize("misc"));
+            Assert.AreEqual(
+                "Difficulty|Miscellaneous|Missable",
+                AchievementCategoryTypeHelper.Normalize("missable|misc|difficulty"));
+        }
+
+        [TestMethod]
+        public void Normalize_OrdersDifficultyBeforeMissableAndStackableAfterUnobtainable()
+        {
+            Assert.AreEqual(
+                "Difficulty|Missable|Unobtainable|Stackable",
+                AchievementCategoryTypeHelper.Normalize("stackable|unobtainable|missable|difficulty"));
+        }
+
+        [TestMethod]
+        public void AssignableCategoryTypes_IncludesSideProgressionAndMiscellaneous()
+        {
+            var assignable = AchievementCategoryTypeHelper.AssignableCategoryTypes.ToList();
+
+            CollectionAssert.Contains(assignable, "SideProgression");
+            CollectionAssert.Contains(assignable, "Miscellaneous");
+        }
+
+        [TestMethod]
+        public void AllowedCategoryTypes_FollowsGroupedCanonicalOrder()
+        {
+            CollectionAssert.AreEqual(
+                new[]
+                {
+                    "Default", "Base", "DLC", "Update", "Subset",
+                    "Singleplayer", "Multiplayer",
+                    "Progression", "SideProgression", "WinCondition", "Collectable", "Difficulty", "Miscellaneous",
+                    "Missable", "Unobtainable", "Stackable",
+                    "Softcore", "Hardcore"
+                },
+                AchievementCategoryTypeHelper.AllowedCategoryTypes.ToList());
+        }
+
+        [TestMethod]
         public void GetGroupTypeComponents_ReturnsOnlyGroupTypesInCanonicalOrder()
         {
             CollectionAssert.AreEqual(
