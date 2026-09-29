@@ -26,9 +26,9 @@ namespace PlayniteAchievements.Services.ThemeMigration
         };
 
         /// <summary>
-        /// Maps LegacyData binding paths to Theme binding paths.
+        /// Maps LegacyData binding paths to ModernTheme binding paths.
         /// Keys are the legacy binding path suffixes, values are the modern binding path suffixes.
-        /// Full bindings are in format: {Binding LegacyData.XXX} -> {Binding Theme.YYY}
+        /// Full bindings are in format: {Binding LegacyData.XXX} -> {Binding ModernTheme.YYY}
         /// </summary>
         public static readonly Dictionary<string, string> LegacyToModernBindingPaths = new Dictionary<string, string>
         {
