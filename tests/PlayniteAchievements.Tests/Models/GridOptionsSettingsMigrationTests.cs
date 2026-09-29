@@ -68,6 +68,113 @@ namespace PlayniteAchievements.Models.Tests
         }
 
         [TestMethod]
+        public void MigrateFromJson_SeedsCategoryProgressRightWhereMissingAndStampsFlag()
+        {
+            // Written by a build that seeded Right on the deserialization target: an entry with a
+            // cleared key, one with the user's own Center, and one with no column data at all.
+            var json = new JObject
+            {
+                ["Persisted"] = new JObject
+                {
+                    ["GridOptions"] = new JObject
+                    {
+                        ["CategorySummaries"] = new JObject
+                        {
+                            [GridOptionKeys.CategorySummaries.ViewAchievements] = new JObject
+                            {
+                                ["Columns"] = new JObject
+                                {
+                                    ["CellAlignments"] = new JObject { ["GameSummaryName"] = 1 }
+                                }
+                            },
+                            [GridOptionKeys.CategorySummaries.OverviewSelectedGame] = new JObject
+                            {
+                                ["Columns"] = new JObject
+                                {
+                                    ["CellAlignments"] = new JObject { ["GameSummaryProgression"] = 1 }
+                                }
+                            },
+                            [GridOptionKeys.CategorySummaries.FriendsOverview] = new JObject()
+                        }
+                    }
+                }
+            }.ToString();
+
+            var persisted = MigratePersisted(json);
+            var group = (JObject)persisted["GridOptions"]["CategorySummaries"];
+
+            var viewAchievements = group[GridOptionKeys.CategorySummaries.ViewAchievements]["Columns"]["CellAlignments"];
+            Assert.AreEqual((int)GridAlignment.Right, viewAchievements["GameSummaryProgression"].Value<int>());
+            Assert.AreEqual(1, viewAchievements["GameSummaryName"].Value<int>());
+
+            // The user's own choice on another surface is left alone.
+            Assert.AreEqual(
+                (int)GridAlignment.Center,
+                group[GridOptionKeys.CategorySummaries.OverviewSelectedGame]["Columns"]["CellAlignments"]["GameSummaryProgression"].Value<int>());
+
+            // An entry without column data gets the objects created and the key filled.
+            Assert.AreEqual(
+                (int)GridAlignment.Right,
+                group[GridOptionKeys.CategorySummaries.FriendsOverview]["Columns"]["CellAlignments"]["GameSummaryProgression"].Value<int>());
+
+            // Entries absent from the JSON are not created; the catalog seeds them at runtime.
+            Assert.IsNull(group[GridOptionKeys.CategorySummaries.ViewFriendsAchievements]);
+            Assert.IsNull(group[GridOptionKeys.CategorySummaries.DesktopTheme]);
+
+            Assert.IsTrue(persisted["CategoryProgressColumnAlignmentDefaulted"].Value<bool>());
+        }
+
+        [TestMethod]
+        public void MigrateFromJson_KeepsClearedCategoryProgressAlignmentOnceFlagIsSet()
+        {
+            var json = new JObject
+            {
+                ["Persisted"] = new JObject
+                {
+                    ["CategoryProgressColumnAlignmentDefaulted"] = true,
+                    ["GridOptions"] = new JObject
+                    {
+                        ["CategorySummaries"] = new JObject
+                        {
+                            [GridOptionKeys.CategorySummaries.ViewAchievements] = new JObject
+                            {
+                                ["Columns"] = new JObject
+                                {
+                                    ["CellAlignments"] = new JObject { ["GameSummaryName"] = 1 }
+                                }
+                            }
+                        }
+                    }
+                }
+            }.ToString();
+
+            var persisted = MigratePersisted(json);
+
+            // Already defaulted: the absent key is the user's cleared override and stays absent.
+            Assert.IsNull(
+                persisted["GridOptions"]["CategorySummaries"][GridOptionKeys.CategorySummaries.ViewAchievements]
+                    ["Columns"]["CellAlignments"]["GameSummaryProgression"]);
+            Assert.IsTrue(persisted["CategoryProgressColumnAlignmentDefaulted"].Value<bool>());
+        }
+
+        [TestMethod]
+        public void MigrateFromJson_StampsCategoryProgressFlagWithoutCreatingEntries()
+        {
+            const string json = @"{ ""Persisted"": { ""GlobalLanguage"": ""english"" } }";
+
+            var persisted = MigratePersisted(json);
+
+            Assert.IsTrue(persisted["CategoryProgressColumnAlignmentDefaulted"].Value<bool>());
+            Assert.IsNull(persisted["GridOptions"]?["CategorySummaries"]);
+        }
+
+        private static JObject MigratePersisted(string json)
+        {
+            var migrated = JObject.Parse(GridOptionsSettingsMigration.MigrateFromJson(json));
+            return (JObject)migrated["Persisted"];
+        }
+
+        [TestMethod]
         public void ShowcaseSurfaceDefaults_PreserveSourceOrder()
         {
             var catalog = new GridOptionsCatalog();
