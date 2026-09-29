@@ -1012,7 +1012,7 @@ namespace PlayniteAchievements.Views
                 .Select(option => option.Key)
                 .ToList();
 
-            return new CustomMigrationSelection(modernControlNames, modernizeBindings: true);
+            return new CustomMigrationSelection(modernControlNames);
         }
 
         private void SetAllThemeMigrationCustomOptions(bool isModern)
