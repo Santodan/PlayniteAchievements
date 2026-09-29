@@ -288,7 +288,7 @@ namespace PlayniteAchievements.Views.Settings.Display.ThemeControls
                 .Select(option => option.Key)
                 .ToList();
 
-            return new CustomMigrationSelection(modernControlNames);
+            return new CustomMigrationSelection(modernControlNames, modernizeBindings: true);
         }
 
         private void InitializeCustomOptions()
