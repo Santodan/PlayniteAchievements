@@ -299,6 +299,71 @@ namespace PlayniteAchievements.ViewModels.Items
             return true;
         }
 
+        /// <summary>
+        /// True when <paramref name="games"/> would build the same groups as
+        /// <paramref name="previous"/>: the same provider key, provider name and platforms at
+        /// every position. The instances may differ.
+        /// </summary>
+        /// <remarks>
+        /// A showcase widget lists the whole library's platforms, and every snapshot carries new
+        /// game instances, so <see cref="HasSameGames"/> failed on each edit and the widget
+        /// rebuilt its groups from the whole library. The walk here allocates nothing. A reorder
+        /// reads as a change, which only costs the rebuild it replaces.
+        /// </remarks>
+        public static bool HasSameFilterOptions(
+            IReadOnlyList<GameSummaryItem> previous,
+            IReadOnlyList<GameSummaryItem> games)
+        {
+            if (previous == null || games == null || previous.Count != games.Count)
+            {
+                return false;
+            }
+
+            for (var i = 0; i < games.Count; i++)
+            {
+                var before = previous[i];
+                var after = games[i];
+                if (ReferenceEquals(before, after))
+                {
+                    continue;
+                }
+
+                if (before == null || after == null ||
+                    !string.Equals(before.ProviderFilterKey, after.ProviderFilterKey, StringComparison.Ordinal) ||
+                    !string.Equals(before.Provider, after.Provider, StringComparison.Ordinal) ||
+                    !HasSamePlatforms(before.Platforms, after.Platforms))
+                {
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        private static bool HasSamePlatforms(IReadOnlyList<string> previous, IReadOnlyList<string> platforms)
+        {
+            if (ReferenceEquals(previous, platforms))
+            {
+                return true;
+            }
+
+            var beforeCount = previous?.Count ?? 0;
+            if (beforeCount != (platforms?.Count ?? 0))
+            {
+                return false;
+            }
+
+            for (var i = 0; i < beforeCount; i++)
+            {
+                if (!string.Equals(previous[i], platforms[i], StringComparison.Ordinal))
+                {
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
         private static string GetProviderFilterDisplayName(string providerKey)
         {
             if (string.IsNullOrWhiteSpace(providerKey))
