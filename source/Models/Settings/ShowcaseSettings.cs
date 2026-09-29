@@ -28,7 +28,10 @@ namespace PlayniteAchievements.Models.Settings
         Blank = 0,
         Showcase = 1,
         Analytics = 2,
-        Collection = 3
+        Collection = 3,
+        UpNext = 4,
+        TrophyCase = 5,
+        Library = 6
     }
 
     public enum ShowcaseScoreMode
