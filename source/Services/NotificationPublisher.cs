@@ -2720,6 +2720,7 @@ steamImage +
             variables.AppendLine($"  --san-secondary-icon-corner-radius: {Math.Max(0, settings?.OverlayCustomSecondaryIconCornerRadius ?? 10).ToString("0.###", CultureInfo.InvariantCulture)}px;");
             variables.AppendLine($"  --san-icon-background: {(settings?.OverlayCustomShowIconBackground != false ? CssBrushColor(settings?.OverlayCustomIconBackgroundColor, "#24ffffff") : "transparent")};");
             variables.AppendLine($"  --san-secondary-icon-background: {(settings?.OverlayCustomShowSecondaryIconBackground != false ? CssBrushColor(settings?.OverlayCustomSecondaryIconBackgroundColor, "#18ffffff") : "transparent")};");
+            variables.AppendLine($"  --san-cover-background: {(settings?.OverlayCustomShowCoverBackground != false ? CssBrushColor(settings?.OverlayCustomCoverBackgroundColor, "#1cffffff") : "transparent")};");
             variables.AppendLine($"  --iconsize: var(--san-icon-size);");
             variables.AppendLine($"  --icon-size: var(--san-icon-size);");
             variables.AppendLine($"  --achicon-size: var(--san-icon-size);");
@@ -2846,7 +2847,7 @@ steamImage +
             variables.AppendLine("body.san-webview-force-visible #achicon { opacity: 1 !important; scale: 1 !important; animation: none !important; display: grid !important; }");
             variables.AppendLine("body.san-webview-force-visible .wrapper#achiconwrapper { opacity: 1 !important; scale: 1 !important; animation: none !important; }");
             variables.AppendLine("body.san-webview-no-secondary-icon .wrapper#logo, body.san-webview-no-secondary-icon #logo { display: none !important; opacity: 0 !important; animation: none !important; }");
-            variables.AppendLine(".san-game-cover { position: absolute; top: 0; bottom: 0; width: var(--san-cover-width); background: center / contain no-repeat var(--san-cover-image); opacity: 1; pointer-events: none; z-index: 2; }");
+            variables.AppendLine(".san-game-cover { position: absolute; top: 0; bottom: 0; width: var(--san-cover-width); background-color: var(--san-cover-background); background-image: var(--san-cover-image); background-position: center; background-size: contain; background-repeat: no-repeat; opacity: 1; pointer-events: none; z-index: 2; }");
             variables.AppendLine(".san-game-cover.left { left: 0; }");
             variables.AppendLine(".san-game-cover.right { right: 0; }");
             variables.AppendLine("body.san-webview-has-cover .wrapper#achcont { overflow: hidden; }");
@@ -5217,7 +5218,9 @@ if ({JsBool(settings?.OverlayCustomAutoResizeToContent == true)}) {{
                     coverHeight,
                     Math.Max(6, cornerRadius / 2.5),
                     new Thickness(0, 0, 14, 0),
-                    settings?.OverlayCustomCoverImagePath);
+                    settings?.OverlayCustomCoverImagePath,
+                    settings?.OverlayCustomShowCoverBackground != false,
+                    settings?.OverlayCustomCoverBackgroundColor);
                 if (leftCover != null)
                 {
                     if (!TryAddAbsoluteManualElement(absoluteLayer, leftCover, manualOffsets, "coverLeft"))
@@ -5495,7 +5498,9 @@ if ({JsBool(settings?.OverlayCustomAutoResizeToContent == true)}) {{
                     coverHeight,
                     Math.Max(6, cornerRadius / 2.5),
                     new Thickness(14, 0, 0, 0),
-                    settings?.OverlayCustomCoverImagePath);
+                    settings?.OverlayCustomCoverImagePath,
+                    settings?.OverlayCustomShowCoverBackground != false,
+                    settings?.OverlayCustomCoverBackgroundColor);
                 if (rightCover != null)
                 {
                     if (!TryAddAbsoluteManualElement(absoluteLayer, rightCover, manualOffsets, "coverRight"))
@@ -8134,7 +8139,7 @@ if ({JsBool(settings?.OverlayCustomAutoResizeToContent == true)}) {{
             }
         }
 
-        private FrameworkElement CreateGameCoverElement(Game game, double width, double height, double cornerRadius, Thickness margin, string customImagePath = null)
+        private FrameworkElement CreateGameCoverElement(Game game, double width, double height, double cornerRadius, Thickness margin, string customImagePath = null, bool showBackground = true, string backgroundColor = null)
         {
             var coverSource = TryCreateOverlayImageSource(customImagePath) ?? TryCreatePlayniteGameImageSource(game, useBackground: false);
             if (coverSource == null)
@@ -8148,7 +8153,9 @@ if ({JsBool(settings?.OverlayCustomAutoResizeToContent == true)}) {{
                 Height = height,
                 CornerRadius = new CornerRadius(cornerRadius),
                 Margin = margin,
-                Background = new SolidColorBrush(Color.FromArgb(28, 255, 255, 255)),
+                Background = showBackground
+                    ? ParseBrushOrDefault(backgroundColor, Color.FromArgb(28, 255, 255, 255))
+                    : Brushes.Transparent,
                 Child = new Image
                 {
                     Source = coverSource,

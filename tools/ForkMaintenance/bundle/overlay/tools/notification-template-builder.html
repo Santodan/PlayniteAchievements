@@ -943,6 +943,8 @@
               <div class="check"><label><input id="EnableGameCoverInOverlay" type="checkbox"> Show game cover</label></div>
               <div class="field"><label for="GameCoverPosition">Cover position</label><select id="GameCoverPosition"><option>Left</option><option selected>Right</option></select></div>
               <div class="field"><label for="GameCoverWidth">Cover width</label><input id="GameCoverWidth" type="number" value="80"></div>
+              <div class="check"><label><input id="ShowCoverBackground" type="checkbox" checked> Cover background</label></div>
+              <div class="field"><label for="CoverBackgroundColor">Cover background color</label><div class="color-row"><input id="CoverBackgroundColorPicker" type="color" value="#ffffff"><input id="CoverBackgroundColor" value="#1CFFFFFF"></div></div>
             </div>
             <div class="field">
               <label for="coverUrl">Cover image URL, file path, or data URI</label>
@@ -1089,7 +1091,7 @@
       'SecondaryIconSource', 'ShowSecondaryIconRarityGlow', 'ShowSecondaryIconBackground', 'SecondaryIconBackgroundColor', 'SanPresetId',
       'SanElementPresetId', 'SanView1DurationMilliseconds', 'SanView2DurationMilliseconds',
       'ManualElementCss',
-      'EnableGameCoverInOverlay', 'GameCoverPosition', 'GameCoverWidth',
+      'EnableGameCoverInOverlay', 'GameCoverPosition', 'GameCoverWidth', 'ShowCoverBackground', 'CoverBackgroundColor',
       'EnableGameBannerAsBackground', 'GameBannerOpacity', 'GameBannerBlurRadius',
       'primaryCustomIconUrl', 'secondaryCustomIconUrl',
       'coverUrl', 'bannerUrl', 'sampleGameName', 'sampleAchievementName',
@@ -1794,6 +1796,7 @@
         ['MetaColor', 'MetaColorPicker'],
         ['IconBackgroundColor', 'IconBackgroundColorPicker'],
         ['SecondaryIconBackgroundColor', 'SecondaryIconBackgroundColorPicker'],
+        ['CoverBackgroundColor', 'CoverBackgroundColorPicker'],
         ['Line4Color', 'Line4ColorPicker'],
         ['Line5Color', 'Line5ColorPicker'],
         ['Line6Color', 'Line6ColorPicker']
@@ -2040,6 +2043,8 @@
           ShowSecondaryIconBackground: bool('ShowSecondaryIconBackground'),
           IconBackgroundColor: $('IconBackgroundColor').value,
           SecondaryIconBackgroundColor: $('SecondaryIconBackgroundColor').value,
+          ShowCoverBackground: bool('ShowCoverBackground'),
+          CoverBackgroundColor: $('CoverBackgroundColor').value,
           Width: num('Width'),
           Height: num('Height'),
           CornerRadius: num('CornerRadius'),
@@ -2177,6 +2182,8 @@
           EnableGameCoverInOverlay: bool('EnableGameCoverInOverlay'),
           GameCoverPosition: $('GameCoverPosition').value,
           GameCoverWidth: num('GameCoverWidth'),
+          ShowCoverBackground: bool('ShowCoverBackground'),
+          CoverBackgroundColor: $('CoverBackgroundColor').value,
           EnableGameBannerAsBackground: bool('EnableGameBannerAsBackground'),
           GameBannerOpacity: Number($('GameBannerOpacity').value || 0.3),
           GameBannerBlurRadius: num('GameBannerBlurRadius'),
@@ -2435,11 +2442,12 @@
       toast.querySelector('.copy').style.animation = `toastCopyPreview ${total}ms linear infinite`;
     }
 
-    function renderCover(target, url, width, height, radius) {
+    function renderCover(target, url, width, height, radius, showBackground, backgroundColor) {
       target.style.display = 'block';
       target.style.width = `${Math.max(40, width)}px`;
       target.style.height = `${Math.max(28, height)}px`;
       target.style.borderRadius = `${Math.max(4, radius)}px`;
+      target.style.background = showBackground ? cssBrushColor(backgroundColor, '#1CFFFFFF') : 'transparent';
       target.innerHTML = url
         ? `<img src="${url}" alt="cover">`
         : '<div style="display:grid;place-items:center;height:100%;color:#aeb8c4;font-weight:700">COVER</div>';
@@ -3663,7 +3671,7 @@
       if (transition.EnableGameCoverInOverlay) {
         const target = transition.GameCoverPosition === 'Left' ? coverLeft : coverRight;
         const coverHeight = Math.max(28, height - (compactPaddingY * 2));
-        renderCover(target, normalizeImageInput($('coverUrl').value), transition.GameCoverWidth, coverHeight, Math.max(4, slot.CornerRadius / 2.5));
+        renderCover(target, normalizeImageInput($('coverUrl').value), transition.GameCoverWidth, coverHeight, Math.max(4, slot.CornerRadius / 2.5), slot.ShowCoverBackground !== false, slot.CoverBackgroundColor);
       }
 
       positionToast(toast, stage, slot, transition.OverlayPosition);
@@ -3793,6 +3801,7 @@
       check('ShowSecondaryIconRarityGlow', slot.ShowSecondaryIconRarityGlow === true || transition.ShowSecondaryIconRarityGlow === true);
       check('ShowIconBackground', slot.ShowIconBackground !== false && transition.ShowIconBackground !== false);
       check('ShowSecondaryIconBackground', slot.ShowSecondaryIconBackground !== false && transition.ShowSecondaryIconBackground !== false);
+      check('ShowCoverBackground', slot.ShowCoverBackground !== false && transition.ShowCoverBackground !== false);
       check('TitleBold', slot.TitleBold !== false);
       check('TitleItalic', slot.TitleItalic === true);
       check('TitleUnderline', slot.TitleUnderline === true);
@@ -3865,6 +3874,7 @@
       check('EnableGameBannerAsBackground', transition.EnableGameBannerAsBackground);
       assign('IconBackgroundColor', slot.IconBackgroundColor || transition.IconBackgroundColor);
       assign('SecondaryIconBackgroundColor', slot.SecondaryIconBackgroundColor || transition.SecondaryIconBackgroundColor);
+      assign('CoverBackgroundColor', slot.CoverBackgroundColor || transition.CoverBackgroundColor);
       assign('coverUrl', slot.CustomCoverImagePath || transition.CustomCoverImagePath || $('coverUrl').value);
       assign('bannerUrl', slot.CustomBannerImagePath || transition.CustomBannerImagePath || $('bannerUrl').value);
       assign('primaryCustomIconUrl', slot.CustomIconPath || $('primaryCustomIconUrl').value);
@@ -3883,7 +3893,8 @@
         ['DetailColor', 'DetailColorPicker'],
         ['MetaColor', 'MetaColorPicker'],
         ['IconBackgroundColor', 'IconBackgroundColorPicker'],
-        ['SecondaryIconBackgroundColor', 'SecondaryIconBackgroundColorPicker']
+        ['SecondaryIconBackgroundColor', 'SecondaryIconBackgroundColorPicker'],
+        ['CoverBackgroundColor', 'CoverBackgroundColorPicker']
       ].forEach(([textId, pickerId]) => {
         const value = pickerHex($(textId).value);
         if (/^#[0-9A-F]{6}$/i.test(value)) {

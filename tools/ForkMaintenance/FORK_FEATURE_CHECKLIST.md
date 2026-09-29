@@ -24,7 +24,9 @@ must still be verified in Playnite.
   geometry between the HTML builder and the extension after template import.
   The no-achievement placeholder uses the configured primary-icon footprint,
   and game covers preserve their full aspect ratio inside the cover element
-  instead of being cropped when its width or height is changed.
+  instead of being cropped when its width or height is changed. The cover
+  background can be independently enabled or disabled and assigned a color;
+  both settings survive style-slot save/load and JSON template export/import.
 - Upstream v3 live polling is the single unlock detector for the custom
   Achievement Notification; own-player events use the fork renderer without
   also displaying the upstream toast.

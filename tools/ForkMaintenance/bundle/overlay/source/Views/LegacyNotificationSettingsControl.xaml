@@ -3925,6 +3925,19 @@
                                                              IsEnabled="{Binding EnableGameBannerAsBackground}"/>
                                                  </Grid>
 
+                                                 <StackPanel Orientation="Horizontal" Margin="0,0,0,8"
+                                                             IsEnabled="{Binding EnableGameCoverInOverlay}">
+                                                     <CheckBox Content="Cover background"
+                                                               IsChecked="{Binding OverlayCustomShowCoverBackground, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                               VerticalAlignment="Center"/>
+                                                     <Button Content="Pick color" Tag="CoverBackground"
+                                                             Click="NotificationsPickCustomColor_Click" Margin="14,0,6,0"
+                                                             IsEnabled="{Binding OverlayCustomShowCoverBackground}"/>
+                                                     <TextBox Width="92"
+                                                              Text="{Binding OverlayCustomCoverBackgroundColor, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                              IsEnabled="{Binding OverlayCustomShowCoverBackground}"/>
+                                                 </StackPanel>
+
                                                  <Grid Margin="0,0,0,8">
                                                      <Grid.ColumnDefinitions>
                                                          <ColumnDefinition Width="Auto"/>

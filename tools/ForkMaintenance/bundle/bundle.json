@@ -1,6 +1,6 @@
 {
     "schemaVersion":  1,
-    "generatedUtc":  "2026-09-29T13:43:33.7836991Z",
+    "generatedUtc":  "2026-09-29T13:52:29.9960722Z",
     "baselineRef":  "upstream/main",
     "baselineCommit":  "653a310fed521206672d0aec9383fd7ec3bb94a3",
     "protectedPaths":  [
@@ -10,7 +10,7 @@
                        ],
     "patch":  {
                   "path":  "fork-changes.patch",
-                  "sha256":  "46338C801B1502C5740CA807A3493FD587843DB1ECCBEE24BB149B6D3DBBC3F1"
+                  "sha256":  "3BEF9A7A8A3664F3BABF41BC75544FF68F786300A4EFEE46971ECAE13C076650"
               },
     "localizationRecipes":  {
                                 "path":  "localization-recipes.json",
@@ -89,7 +89,7 @@
                          },
                          {
                              "path":  "source/Models/Settings/NotificationOverlayTemplateFile.cs",
-                             "sha256":  "73DD87077A03C5F019F59F6B2410CBDBB05E3D39E149601ECEB5A89A587A3663"
+                             "sha256":  "70290CE78DC10556E1CC8C4FECD16CC5252531BF164F294D2A0E50AD33DF008B"
                          },
                          {
                              "path":  "source/Models/Settings/PersistedSettings.ForkCompatibility.cs",
@@ -141,7 +141,7 @@
                          },
                          {
                              "path":  "source/Providers/Local/LocalSettings.cs",
-                             "sha256":  "5D5631E3ABF081BBCA7B0E30267C8E7CE4A510813D746A19DF45D2D18785856D"
+                             "sha256":  "762E872D6A27DBEC6C124C9C96725F4B152398B9CA5FCAB01131927D20F20A6E"
                          },
                          {
                              "path":  "source/Providers/Local/LocalSettingsView.xaml",
@@ -317,11 +317,11 @@
                          },
                          {
                              "path":  "source/Views/LegacyNotificationSettingsControl.xaml",
-                             "sha256":  "07C2FAA13F3D32523F30CA63E876ECF78A3559D2258FC1B1E84D095E79C35E7A"
+                             "sha256":  "A7ED23C775F758808491EF62BFBDE90406E5BCCCCB7CAFFA1A4405438A4F87E2"
                          },
                          {
                              "path":  "source/Views/LegacyNotificationSettingsControl.xaml.cs",
-                             "sha256":  "1DF4C537D43077BA7F0FB09601ADA043D80EC105F718DBB9B2C4B485D6D6D1D2"
+                             "sha256":  "6053FB23B7F3F7E797E823D740923013AF43B52DA87A569F5643E4A74813D7EE"
                          },
                          {
                              "path":  "source/Views/LocalAchievementEditorControl.xaml",
@@ -357,7 +357,7 @@
                          },
                          {
                              "path":  "tools/notification-template-builder.html",
-                             "sha256":  "A6DB97F869ED714E0C730D802A0CC0D61A350444895C216D34C8BC27CFB32FEE"
+                             "sha256":  "04917D3112F48F54445538E2C54740F96809752FE2AB14A67DD6C21A38176A93"
                          },
                          {
                              "path":  "tools/NotificationTemplates/README.md",

@@ -200,6 +200,8 @@ namespace PlayniteAchievements.Providers.Local
         public bool ShowSecondaryIconBackground { get; set; } = true;
         public string IconBackgroundColor { get; set; } = "#24FFFFFF";
         public string SecondaryIconBackgroundColor { get; set; } = "#18FFFFFF";
+        public bool ShowCoverBackground { get; set; } = true;
+        public string CoverBackgroundColor { get; set; } = "#1CFFFFFF";
         public double Width { get; set; } = 460;
         public double Height { get; set; } = 128;
         public double CornerRadius { get; set; } = 18;
@@ -442,6 +444,8 @@ namespace PlayniteAchievements.Providers.Local
         private bool _overlayCustomShowSecondaryIconBackground = true;
         private string _overlayCustomIconBackgroundColor = "#24FFFFFF";
         private string _overlayCustomSecondaryIconBackgroundColor = "#18FFFFFF";
+        private bool _overlayCustomShowCoverBackground = true;
+        private string _overlayCustomCoverBackgroundColor = "#1CFFFFFF";
         private double _overlayCustomWidth = 460;
         private double _overlayCustomHeight = 128;
         private double _overlayCustomCornerRadius = 18;
@@ -1949,6 +1953,18 @@ namespace PlayniteAchievements.Providers.Local
             set => SetValue(ref _overlayCustomSecondaryIconBackgroundColor, string.IsNullOrWhiteSpace(value) ? "#18FFFFFF" : value.Trim());
         }
 
+        public bool OverlayCustomShowCoverBackground
+        {
+            get => _overlayCustomShowCoverBackground;
+            set => SetValue(ref _overlayCustomShowCoverBackground, value);
+        }
+
+        public string OverlayCustomCoverBackgroundColor
+        {
+            get => _overlayCustomCoverBackgroundColor;
+            set => SetValue(ref _overlayCustomCoverBackgroundColor, string.IsNullOrWhiteSpace(value) ? "#1CFFFFFF" : value.Trim());
+        }
+
         public ScoreProgressNotificationSettings CollectionProgressNotifications
         {
             get => _collectionProgressNotifications ?? (_collectionProgressNotifications = new ScoreProgressNotificationSettings());
@@ -2558,6 +2574,8 @@ namespace PlayniteAchievements.Providers.Local
                     ShowSecondaryIconBackground = slot.ShowSecondaryIconBackground,
                     IconBackgroundColor = NormalizeColorSetting(slot.IconBackgroundColor, "#24FFFFFF"),
                     SecondaryIconBackgroundColor = NormalizeColorSetting(slot.SecondaryIconBackgroundColor, "#18FFFFFF"),
+                    ShowCoverBackground = slot.ShowCoverBackground,
+                    CoverBackgroundColor = NormalizeColorSetting(slot.CoverBackgroundColor, "#1CFFFFFF"),
                     Width = Math.Max(280, Math.Min(900, slot.Width)),
                     Height = Math.Max(MinCustomOverlayHeight, Math.Min(320, slot.Height)),
                     CornerRadius = Math.Max(0, Math.Min(180, slot.CornerRadius)),

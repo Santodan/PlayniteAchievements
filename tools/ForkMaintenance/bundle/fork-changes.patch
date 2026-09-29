@@ -5861,7 +5861,7 @@ index 10ed192a6393c7feccfcf5a16e3b10a980c060a2..b07ad5f918014607a1e36bccc0255ba4
          {
              token.ThrowIfCancellationRequested();
 diff --git a/source/Services/NotificationPublisher.cs b/source/Services/NotificationPublisher.cs
-index 44ae3dd84cc37e070ab9e77a4800b18c9646d63a..55593ac65a04f2e70c67f2e2dabdbbf0153f50df 100644
+index 44ae3dd84cc37e070ab9e77a4800b18c9646d63a..13ed424ceeebe4a00d7728d49baf494ec0bc2ee6 100644
 --- a/source/Services/NotificationPublisher.cs
 +++ b/source/Services/NotificationPublisher.cs
 @@ -1,23 +1,82 @@
@@ -6594,7 +6594,7 @@ index 44ae3dd84cc37e070ab9e77a4800b18c9646d63a..55593ac65a04f2e70c67f2e2dabdbbf0
          private static string AuthNotificationId(string providerKey) => $"PlayAch-AuthFailed-{providerKey}";
  
          public void ShowProviderAuthFailed(List<string> providerKeys)
-@@ -163,5 +862,7557 @@ private void OpenPluginSettingsForProvider(string providerKey)
+@@ -163,5 +862,7564 @@ private void OpenPluginSettingsForProvider(string providerKey)
                  _logger?.Debug(ex, "Failed to open plugin settings from notification click.");
              }
          }
@@ -8456,6 +8456,7 @@ index 44ae3dd84cc37e070ab9e77a4800b18c9646d63a..55593ac65a04f2e70c67f2e2dabdbbf0
 +            variables.AppendLine($"  --san-secondary-icon-corner-radius: {Math.Max(0, settings?.OverlayCustomSecondaryIconCornerRadius ?? 10).ToString("0.###", CultureInfo.InvariantCulture)}px;");
 +            variables.AppendLine($"  --san-icon-background: {(settings?.OverlayCustomShowIconBackground != false ? CssBrushColor(settings?.OverlayCustomIconBackgroundColor, "#24ffffff") : "transparent")};");
 +            variables.AppendLine($"  --san-secondary-icon-background: {(settings?.OverlayCustomShowSecondaryIconBackground != false ? CssBrushColor(settings?.OverlayCustomSecondaryIconBackgroundColor, "#18ffffff") : "transparent")};");
++            variables.AppendLine($"  --san-cover-background: {(settings?.OverlayCustomShowCoverBackground != false ? CssBrushColor(settings?.OverlayCustomCoverBackgroundColor, "#1cffffff") : "transparent")};");
 +            variables.AppendLine($"  --iconsize: var(--san-icon-size);");
 +            variables.AppendLine($"  --icon-size: var(--san-icon-size);");
 +            variables.AppendLine($"  --achicon-size: var(--san-icon-size);");
@@ -8582,7 +8583,7 @@ index 44ae3dd84cc37e070ab9e77a4800b18c9646d63a..55593ac65a04f2e70c67f2e2dabdbbf0
 +            variables.AppendLine("body.san-webview-force-visible #achicon { opacity: 1 !important; scale: 1 !important; animation: none !important; display: grid !important; }");
 +            variables.AppendLine("body.san-webview-force-visible .wrapper#achiconwrapper { opacity: 1 !important; scale: 1 !important; animation: none !important; }");
 +            variables.AppendLine("body.san-webview-no-secondary-icon .wrapper#logo, body.san-webview-no-secondary-icon #logo { display: none !important; opacity: 0 !important; animation: none !important; }");
-+            variables.AppendLine(".san-game-cover { position: absolute; top: 0; bottom: 0; width: var(--san-cover-width); background: center / contain no-repeat var(--san-cover-image); opacity: 1; pointer-events: none; z-index: 2; }");
++            variables.AppendLine(".san-game-cover { position: absolute; top: 0; bottom: 0; width: var(--san-cover-width); background-color: var(--san-cover-background); background-image: var(--san-cover-image); background-position: center; background-size: contain; background-repeat: no-repeat; opacity: 1; pointer-events: none; z-index: 2; }");
 +            variables.AppendLine(".san-game-cover.left { left: 0; }");
 +            variables.AppendLine(".san-game-cover.right { right: 0; }");
 +            variables.AppendLine("body.san-webview-has-cover .wrapper#achcont { overflow: hidden; }");
@@ -10953,7 +10954,9 @@ index 44ae3dd84cc37e070ab9e77a4800b18c9646d63a..55593ac65a04f2e70c67f2e2dabdbbf0
 +                    coverHeight,
 +                    Math.Max(6, cornerRadius / 2.5),
 +                    new Thickness(0, 0, 14, 0),
-+                    settings?.OverlayCustomCoverImagePath);
++                    settings?.OverlayCustomCoverImagePath,
++                    settings?.OverlayCustomShowCoverBackground != false,
++                    settings?.OverlayCustomCoverBackgroundColor);
 +                if (leftCover != null)
 +                {
 +                    if (!TryAddAbsoluteManualElement(absoluteLayer, leftCover, manualOffsets, "coverLeft"))
@@ -11231,7 +11234,9 @@ index 44ae3dd84cc37e070ab9e77a4800b18c9646d63a..55593ac65a04f2e70c67f2e2dabdbbf0
 +                    coverHeight,
 +                    Math.Max(6, cornerRadius / 2.5),
 +                    new Thickness(14, 0, 0, 0),
-+                    settings?.OverlayCustomCoverImagePath);
++                    settings?.OverlayCustomCoverImagePath,
++                    settings?.OverlayCustomShowCoverBackground != false,
++                    settings?.OverlayCustomCoverBackgroundColor);
 +                if (rightCover != null)
 +                {
 +                    if (!TryAddAbsoluteManualElement(absoluteLayer, rightCover, manualOffsets, "coverRight"))
@@ -13870,7 +13875,7 @@ index 44ae3dd84cc37e070ab9e77a4800b18c9646d63a..55593ac65a04f2e70c67f2e2dabdbbf0
 +            }
 +        }
 +
-+        private FrameworkElement CreateGameCoverElement(Game game, double width, double height, double cornerRadius, Thickness margin, string customImagePath = null)
++        private FrameworkElement CreateGameCoverElement(Game game, double width, double height, double cornerRadius, Thickness margin, string customImagePath = null, bool showBackground = true, string backgroundColor = null)
 +        {
 +            var coverSource = TryCreateOverlayImageSource(customImagePath) ?? TryCreatePlayniteGameImageSource(game, useBackground: false);
 +            if (coverSource == null)
@@ -13884,7 +13889,9 @@ index 44ae3dd84cc37e070ab9e77a4800b18c9646d63a..55593ac65a04f2e70c67f2e2dabdbbf0
 +                Height = height,
 +                CornerRadius = new CornerRadius(cornerRadius),
 +                Margin = margin,
-+                Background = new SolidColorBrush(Color.FromArgb(28, 255, 255, 255)),
++                Background = showBackground
++                    ? ParseBrushOrDefault(backgroundColor, Color.FromArgb(28, 255, 255, 255))
++                    : Brushes.Transparent,
 +                Child = new Image
 +                {
 +                    Source = coverSource,

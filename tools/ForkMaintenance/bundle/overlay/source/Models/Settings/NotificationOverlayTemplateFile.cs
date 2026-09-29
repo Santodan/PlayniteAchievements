@@ -58,6 +58,10 @@ namespace PlayniteAchievements.Models.Settings
 
         public string SecondaryIconBackgroundColor { get; set; } = "#18FFFFFF";
 
+        public bool ShowCoverBackground { get; set; } = true;
+
+        public string CoverBackgroundColor { get; set; } = "#1CFFFFFF";
+
         public string IconSource { get; set; } = LocalOverlayIconSource.AchievementIcon.ToString();
 
         public string SecondaryIconSource { get; set; } = LocalOverlayIconSource.None.ToString();
