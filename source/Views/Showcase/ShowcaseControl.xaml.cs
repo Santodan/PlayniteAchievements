@@ -888,7 +888,7 @@ namespace PlayniteAchievements.Views.Showcase
                 AddLayoutHandle(CreateCutLine(block, vertical: false, line));
             }
 
-            AddMergeChevrons(block);
+            var chevrons = AddMergeChevrons(block);
 
             // An empty selected block's + button must win over the cut lines crossing it, but
             // it lives inside the block container (ZIndex 0) while cut lines are grid siblings
@@ -905,6 +905,7 @@ namespace PlayniteAchievements.Views.Showcase
                 Grid.SetColumnSpan(overlayAdd, block.ColumnSpan);
                 Panel.SetZIndex(overlayAdd, 44);
                 AddLayoutHandle(overlayAdd);
+                HideChevronsCoveredBy(overlayAdd, chevrons);
                 if (_blockVisuals.TryGetValue(block.BlockId, out var state) &&
                     state.AddButton != null)
                 {
@@ -1304,15 +1305,51 @@ namespace PlayniteAchievements.Views.Showcase
         // A chevron per direction whose merge is geometrically legal (rectangular closure);
         // hover previews the closure with a glow, click commits through MergeSelectedWith
         // (which owns the multi-widget confirmation and survivor choice).
-        private void AddMergeChevrons(ShowcaseBlockSettings block)
+        private List<Button> AddMergeChevrons(ShowcaseBlockSettings block)
         {
-            AddMergeChevron(block, rowDirection: 0, columnDirection: -1, "LOCPlayAch_Showcase_MergeLeftLabel");
-            AddMergeChevron(block, rowDirection: -1, columnDirection: 0, "LOCPlayAch_Showcase_MergeUpLabel");
-            AddMergeChevron(block, rowDirection: 1, columnDirection: 0, "LOCPlayAch_Showcase_MergeDownLabel");
-            AddMergeChevron(block, rowDirection: 0, columnDirection: 1, "LOCPlayAch_Showcase_MergeRightLabel");
+            return new[]
+                {
+                    AddMergeChevron(block, rowDirection: 0, columnDirection: -1, "LOCPlayAch_Showcase_MergeLeftLabel"),
+                    AddMergeChevron(block, rowDirection: -1, columnDirection: 0, "LOCPlayAch_Showcase_MergeUpLabel"),
+                    AddMergeChevron(block, rowDirection: 1, columnDirection: 0, "LOCPlayAch_Showcase_MergeDownLabel"),
+                    AddMergeChevron(block, rowDirection: 0, columnDirection: 1, "LOCPlayAch_Showcase_MergeRightLabel")
+                }
+                .Where(chevron => chevron != null)
+                .ToList();
         }
 
-        private void AddMergeChevron(
+        // Where a chevron sits: this far in from the block's edge, centred along it.
+        private const double MergeChevronInset = 6;
+
+        // In a short or narrow empty block the centred + button reaches the chevrons on the edges
+        // across it, and being above them it takes their clicks. Those chevrons hide rather than
+        // show through the button's tint as inert, and come back when a resize gives them room.
+        // The + button's host spans the whole block, so its size is the block's.
+        private static void HideChevronsCoveredBy(Button add, IReadOnlyList<Button> chevrons)
+        {
+            if (chevrons.Count == 0 || !(add.Parent is FrameworkElement host))
+            {
+                return;
+            }
+
+            void Update()
+            {
+                foreach (var chevron in chevrons)
+                {
+                    // Left and right chevrons sit on vertical edges, so the block's width decides.
+                    var extent = chevron.HorizontalAlignment == HorizontalAlignment.Center
+                        ? host.ActualHeight
+                        : host.ActualWidth;
+                    var covered = extent / 2 - add.Width / 2 < MergeChevronInset + chevron.Width;
+                    chevron.Visibility = covered ? Visibility.Hidden : Visibility.Visible;
+                }
+            }
+
+            host.SizeChanged += (_, __) => Update();
+            Update();
+        }
+
+        private Button AddMergeChevron(
             ShowcaseBlockSettings block,
             int rowDirection,
             int columnDirection,
@@ -1327,7 +1364,7 @@ namespace PlayniteAchievements.Views.Showcase
                     target.BlockId,
                     out _))
             {
-                return;
+                return null;
             }
 
             var chevron = new Button
@@ -1349,8 +1386,8 @@ namespace PlayniteAchievements.Views.Showcase
                     ? HorizontalAlignment.Left
                     : HorizontalAlignment.Right;
                 chevron.Margin = columnDirection < 0
-                    ? new Thickness(6, 0, 0, 0)
-                    : new Thickness(0, 0, 6, 0);
+                    ? new Thickness(MergeChevronInset, 0, 0, 0)
+                    : new Thickness(0, 0, MergeChevronInset, 0);
                 Grid.SetColumn(chevron, columnDirection < 0 ? block.Column : block.Column + block.ColumnSpan - 1);
                 Grid.SetRow(chevron, block.Row);
                 Grid.SetRowSpan(chevron, block.RowSpan);
@@ -1364,8 +1401,8 @@ namespace PlayniteAchievements.Views.Showcase
                     ? VerticalAlignment.Top
                     : VerticalAlignment.Bottom;
                 chevron.Margin = rowDirection < 0
-                    ? new Thickness(0, 6, 0, 0)
-                    : new Thickness(0, 0, 0, 6);
+                    ? new Thickness(0, MergeChevronInset, 0, 0)
+                    : new Thickness(0, 0, 0, MergeChevronInset);
                 Grid.SetRow(chevron, rowDirection < 0 ? block.Row : block.Row + block.RowSpan - 1);
                 Grid.SetColumn(chevron, block.Column);
                 Grid.SetColumnSpan(chevron, block.ColumnSpan);
@@ -1378,6 +1415,7 @@ namespace PlayniteAchievements.Views.Showcase
             chevron.MouseLeave += (_, __) => ClearMergePreviewGlow();
             chevron.Click += (_, __) => MergeSelectedWith(targetBlockId);
             AddLayoutHandle(chevron);
+            return chevron;
         }
 
         private static ControlTemplate CreateMergeChevronTemplate(int rowDirection, int columnDirection)
