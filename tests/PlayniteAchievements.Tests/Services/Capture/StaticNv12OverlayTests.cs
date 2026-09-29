@@ -54,6 +54,25 @@ namespace PlayniteAchievements.Services.Tests.Capture
         }
 
         [TestMethod]
+        public void Blend_LargeEnoughToSplitIntoBands_MatchesThePerFrameBlend()
+        {
+            const int w = 640;
+            const int h = 480;
+            var overlay = MakeOverlay(w, h);
+            var yExpected = MakeLuma(w, h);
+            var uvExpected = MakeChroma(w, h);
+            OverlayBlitMath.BlendOntoNv12(yExpected, uvExpected, w, h, overlay, w, h, new Rectangle(0, 0, w, h));
+
+            var still = StaticNv12Overlay.Create(overlay, w, h, w, h);
+            var y = MakeLuma(w, h);
+            var uv = MakeChroma(w, h);
+            still.Blend(y, uv, 1.0);
+
+            AssertClose(yExpected, y, 1);
+            AssertClose(uvExpected, uv, 1);
+        }
+
+        [TestMethod]
         public void Blend_AtZeroOpacity_LeavesTheFrameAlone()
         {
             var still = StaticNv12Overlay.Create(MakeOverlay(W, H), W, H, W, H);
