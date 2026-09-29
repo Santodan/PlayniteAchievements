@@ -52,7 +52,8 @@ namespace PlayniteAchievements.Tests.Models
             Assert.AreEqual(imported.PageId, settings.LastSelectedPageId);
             Assert.AreNotEqual(page.PageId, imported.PageId);
             Assert.AreEqual("Mine 2", imported.Name);
-            Assert.AreEqual(page.GridSize, imported.GridSize);
+            Assert.AreEqual(4, imported.RowCount);
+            Assert.AreEqual(7, imported.ColumnCount);
             CollectionAssert.AreEqual(page.RowWeights, imported.RowWeights);
             Assert.AreEqual(page.Blocks.Count, imported.Blocks.Count);
 
@@ -340,7 +341,11 @@ namespace PlayniteAchievements.Tests.Models
         {
             var settings = new ShowcaseSettings();
             var page = ShowcaseLayoutService.AddPage(settings, ShowcasePageTemplate.Blank, "Mine");
-            page.RowWeights = Enumerable.Repeat(1.5, page.GridSize).ToList();
+            // Non-square, so the round trip has to carry both counts.
+            Assert.IsTrue(ShowcaseLayoutService.TryInsertTrack(settings, page.PageId, vertical: true, 5));
+            Assert.IsTrue(ShowcaseLayoutService.TryInsertTrack(settings, page.PageId, vertical: true, 6));
+            Assert.IsTrue(ShowcaseLayoutService.TryDeleteTrack(settings, page.PageId, vertical: false, 4));
+            page.RowWeights = Enumerable.Repeat(1.5, page.RowCount).ToList();
 
             var recent = ShowcaseLayoutService.CreateWidget(settings, ShowcaseWidgetKind.RecentAchievements);
             recent.CustomTitle = "Latest";
