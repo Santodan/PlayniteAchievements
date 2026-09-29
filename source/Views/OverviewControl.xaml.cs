@@ -374,35 +374,59 @@ namespace PlayniteAchievements.Views
                     return;
                 }
 
-                Dispatcher.BeginInvoke(new Action(() =>
-                {
-                    if (!_isActive || !IsVisible)
-                    {
-                        return;
-                    }
-
-                    if (ActiveSubView == OverviewSubView.Friends)
-                    {
-                        FriendsSubViewButton?.Focus();
-                        return;
-                    }
-
-                    if (ActiveSubView == OverviewSubView.Showcase)
-                    {
-                        _showcase?.FocusInitialTarget();
-                        return;
-                    }
-
-                    if (!FocusLeftFilterArea())
-                    {
-                        FocusOverviewGrid();
-                    }
-                }), DispatcherPriority.Input);
+                FocusActiveSubViewControllerTarget();
             }
             catch
             {
                 // Focus seeding is best-effort; activation should not fail if Playnite state is unavailable.
             }
+        }
+
+        private void FocusActiveSubViewControllerTarget()
+        {
+            Dispatcher.BeginInvoke(new Action(() =>
+            {
+                if (!_isActive || !IsVisible)
+                {
+                    return;
+                }
+
+                if (ActiveSubView == OverviewSubView.Friends)
+                {
+                    FriendsSubViewButton?.Focus();
+                    return;
+                }
+
+                if (ActiveSubView == OverviewSubView.Showcase)
+                {
+                    _showcase?.FocusInitialTarget();
+                    return;
+                }
+
+                if (!FocusLeftFilterArea())
+                {
+                    FocusOverviewGrid();
+                }
+            }), DispatcherPriority.Input);
+        }
+
+        // Steps through the sub-views in switch-button order, skipping Friends when its button is hidden.
+        // Stops at either end rather than wrapping.
+        private void MoveSubView(int direction)
+        {
+            var order = _settings?.Persisted?.EnableFriendsFeatures == false
+                ? new[] { OverviewSubView.Overview, OverviewSubView.Showcase }
+                : new[] { OverviewSubView.Overview, OverviewSubView.Friends, OverviewSubView.Showcase };
+
+            var index = Array.IndexOf(order, ActiveSubView);
+            var target = index < 0 ? 0 : index + direction;
+            if (target < 0 || target >= order.Length || order[target] == ActiveSubView)
+            {
+                return;
+            }
+
+            ActiveSubView = order[target];
+            FocusActiveSubViewControllerTarget();
         }
 
         public void Deactivate()
@@ -828,6 +852,18 @@ namespace PlayniteAchievements.Views
             if (_viewModel == null)
             {
                 return false;
+            }
+
+            if (FullscreenControllerNavigationService.IsLeftTriggerInput(input))
+            {
+                MoveSubView(-1);
+                return true;
+            }
+
+            if (FullscreenControllerNavigationService.IsRightTriggerInput(input))
+            {
+                MoveSubView(1);
+                return true;
             }
 
             if (ActiveSubView == OverviewSubView.Friends)
