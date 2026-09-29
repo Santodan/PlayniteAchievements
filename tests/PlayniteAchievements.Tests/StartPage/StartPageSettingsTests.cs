@@ -307,6 +307,33 @@ namespace PlayniteAchievements.Tests.StartPage
         }
 
         [TestMethod]
+        public void JsonRoundTrip_KeepsClearedCategoryProgressAlignmentCleared()
+        {
+            // Clearing the override removes the key. The load must take the saved dictionary
+            // verbatim rather than populating a seeded Right back into it.
+            var settings = new PersistedSettings();
+            var alignments = settings.GridOptions
+                .GetCategorySummaries(GridOptionKeys.CategorySummaries.ViewAchievements)
+                .Columns.CellAlignments;
+            Assert.AreEqual(GridAlignment.Right, alignments[PersistedSettings.ProgressColumnKey]);
+            alignments.Remove(PersistedSettings.ProgressColumnKey);
+
+            var roundTrip = JsonConvert.DeserializeObject<PersistedSettings>(
+                JsonConvert.SerializeObject(settings));
+
+            Assert.IsFalse(roundTrip.GridOptions
+                .GetCategorySummaries(GridOptionKeys.CategorySummaries.ViewAchievements)
+                .Columns.CellAlignments.ContainsKey(PersistedSettings.ProgressColumnKey));
+
+            // An untouched surface keeps its seeded default through the same round trip.
+            Assert.AreEqual(
+                GridAlignment.Right,
+                roundTrip.GridOptions
+                    .GetCategorySummaries(GridOptionKeys.CategorySummaries.OverviewSelectedGame)
+                    .Columns.CellAlignments[PersistedSettings.ProgressColumnKey]);
+        }
+
+        [TestMethod]
         public void JsonRoundTrip_PreservesEveryGridOptionsSurface()
         {
             var settings = new PersistedSettings();
