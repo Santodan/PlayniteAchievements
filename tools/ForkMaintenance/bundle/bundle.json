@@ -1,6 +1,6 @@
 {
     "schemaVersion":  1,
-    "generatedUtc":  "2026-09-29T13:52:29.9960722Z",
+    "generatedUtc":  "2026-09-29T16:05:53.4326404Z",
     "baselineRef":  "upstream/main",
     "baselineCommit":  "653a310fed521206672d0aec9383fd7ec3bb94a3",
     "protectedPaths":  [
@@ -10,7 +10,7 @@
                        ],
     "patch":  {
                   "path":  "fork-changes.patch",
-                  "sha256":  "3BEF9A7A8A3664F3BABF41BC75544FF68F786300A4EFEE46971ECAE13C076650"
+                  "sha256":  "8179501F142583124410BA7BC85182CD8FF846A56CEF9DD68524BB1337FFB7C2"
               },
     "localizationRecipes":  {
                                 "path":  "localization-recipes.json",
@@ -141,7 +141,7 @@
                          },
                          {
                              "path":  "source/Providers/Local/LocalSettings.cs",
-                             "sha256":  "762E872D6A27DBEC6C124C9C96725F4B152398B9CA5FCAB01131927D20F20A6E"
+                             "sha256":  "1A31DD26466DC57B888C2A14C73CAB078E2E252094AA9CB6B5C102DC836BAC85"
                          },
                          {
                              "path":  "source/Providers/Local/LocalSettingsView.xaml",
@@ -321,7 +321,7 @@
                          },
                          {
                              "path":  "source/Views/LegacyNotificationSettingsControl.xaml.cs",
-                             "sha256":  "6053FB23B7F3F7E797E823D740923013AF43B52DA87A569F5643E4A74813D7EE"
+                             "sha256":  "BC53078712D636527226C95AAAAD72B8A447A7EE4B5B6A152B53878F20F658AA"
                          },
                          {
                              "path":  "source/Views/LocalAchievementEditorControl.xaml",
@@ -357,7 +357,7 @@
                          },
                          {
                              "path":  "tools/notification-template-builder.html",
-                             "sha256":  "04917D3112F48F54445538E2C54740F96809752FE2AB14A67DD6C21A38176A93"
+                             "sha256":  "1456143BB122F9E5978A804A3D2F0E81580023C2B1DDC3229E178BCF0271162B"
                          },
                          {
                              "path":  "tools/NotificationTemplates/README.md",

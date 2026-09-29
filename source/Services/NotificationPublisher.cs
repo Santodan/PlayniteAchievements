@@ -2639,6 +2639,18 @@ steamImage +
                 : string.Empty;
             var sanElems = ResolveSanTextElements(settings, line1, line2, line3, out var unlockMessage, out var title, out var desc);
             var sanLineDefinitionsJson = BuildSanLineDefinitionsJson(settings, line1, line2, line3, line4, line5, line6);
+            var sanElementAnchorsJson = "{}";
+            if (!string.IsNullOrWhiteSpace(settings?.OverlayCustomElementAnchorsJson))
+            {
+                try
+                {
+                    sanElementAnchorsJson = JObject.Parse(settings.OverlayCustomElementAnchorsJson).ToString(Newtonsoft.Json.Formatting.None);
+                }
+                catch (Newtonsoft.Json.JsonException)
+                {
+                    sanElementAnchorsJson = "{}";
+                }
+            }
 
             var view1Seconds = Math.Max(0.5, (settings?.OverlayCustomSanView1DurationMilliseconds > 0 ? settings.OverlayCustomSanView1DurationMilliseconds : 5000) / 1000.0);
             var view2Seconds = Math.Max(0.5, (settings?.OverlayCustomSanView2DurationMilliseconds > 0 ? settings.OverlayCustomSanView2DurationMilliseconds : 5000) / 1000.0);
@@ -2816,6 +2828,10 @@ steamImage +
             variables.AppendLine(".wrapper#achcontent > .san-line-stack { grid-column: 1 / -1; grid-row: 1 / -1; }");
             variables.AppendLine(".san-line-stack { display: flex !important; flex-direction: column !important; align-items: flex-start !important; justify-content: center !important; gap: 0 !important; width: 100% !important; min-width: 0 !important; height: 100% !important; overflow: hidden !important; }");
             variables.AppendLine(".san-line-stack .san-generated-line { position: static !important; inset: auto !important; transform: none !important; translate: 0 0 !important; display: block !important; opacity: 1 !important; scale: 1 !important; animation: none !important; transition: none !important; width: 100% !important; min-width: 0 !important; white-space: normal !important; overflow: visible !important; text-overflow: clip !important; }");
+            if (settings?.OverlayCustomWrapAllText == true)
+            {
+                variables.AppendLine(".san-line-stack .san-generated-line { overflow-wrap: anywhere !important; word-break: break-word !important; }");
+            }
             variables.AppendLine(".wrapper#achcontent:has(.san-line-stack), .san-line-stack, .san-line-stack * { opacity: 1 !important; }");
             variables.AppendLine(".san-line-inner { display: inline-block; line-height: 1.15; vertical-align: middle; max-width: 100%; }");
             variables.AppendLine(".san-line-inner, .san-line-inner * { font-weight: inherit !important; font-style: inherit !important; text-decoration: inherit !important; }");
@@ -2938,6 +2954,7 @@ const sanStrings = {{
   desc: {JsString(desc)}
 }};
 const sanLineDefinitions = {sanLineDefinitionsJson};
+const sanElementAnchors = {sanElementAnchorsJson};
 const sanElems = {JsStringArray(sanElems)};
 const sanTimelineStartedAt = performance.now();
 const sanEscape = value => String(value || '').replace(/[&<>'""]/g, ch => {{
@@ -3127,6 +3144,65 @@ window.playniteResumeSanScreenshot = () => {{
 document.body.dataset.sanAnimationPreset = {JsString(animationPreset)};
 document.body.dataset.sanElements = {JsString(elementPreset)};
 sanApplyElems();
+const sanReflowWrappedManualLines = () => {{
+  if (!{JsBool(settings?.OverlayCustomWrapAllText == true)}) return;
+  document.querySelectorAll('#achcont').forEach(root => {{
+    const lines = [...root.querySelectorAll('.san-generated-line[data-san-line-id]')]
+      .filter(line => getComputedStyle(line).position === 'absolute' && getComputedStyle(line).display !== 'none');
+    lines.forEach(line => {{
+      const style = getComputedStyle(line);
+      if (!line.dataset.sanManualBaseTop) line.dataset.sanManualBaseTop = String(parseFloat(style.top) || 0);
+      if (!line.dataset.sanManualBaseHeight) line.dataset.sanManualBaseHeight = String(Math.max(1, parseFloat(style.height) || line.getBoundingClientRect().height || 1));
+      const baseHeight = Number(line.dataset.sanManualBaseHeight) || 1;
+      line.style.setProperty('height', 'auto', 'important');
+      line.style.setProperty('min-height', baseHeight + 'px', 'important');
+      line.style.setProperty('overflow-wrap', 'anywhere', 'important');
+      line.style.setProperty('word-break', 'break-word', 'important');
+    }});
+    lines.sort((a, b) => (Number(a.dataset.sanManualBaseTop) || 0) - (Number(b.dataset.sanManualBaseTop) || 0));
+    let addedHeight = 0;
+    lines.forEach(line => {{
+      const baseTop = Number(line.dataset.sanManualBaseTop) || 0;
+      const baseHeight = Number(line.dataset.sanManualBaseHeight) || 1;
+      line.style.setProperty('top', Math.round(baseTop + addedHeight) + 'px', 'important');
+      const actualHeight = Math.max(baseHeight, line.scrollHeight, line.getBoundingClientRect().height);
+      addedHeight += Math.max(0, actualHeight - baseHeight);
+    }});
+  }});
+}};
+const sanApplyElementAnchors = () => {{
+  sanReflowWrappedManualLines();
+  Object.entries(sanElementAnchors || {{}}).forEach(([id, anchor]) => {{
+    const elementSelector = id === 'primaryIcon'
+      ? '#achiconwrapper,#iconbg'
+      : id === 'secondaryIcon'
+        ? '#logo,.san-secondary-icon'
+        : '';
+    if (!elementSelector || !anchor || !/^line[1-6]$/.test(anchor.target || '')) return;
+    document.querySelectorAll('#achcont').forEach(root => {{
+      if (getComputedStyle(root).display === 'none') return;
+      const target = root.querySelector('.san-generated-line[data-san-line-id=""' + anchor.target + '""]');
+      const element = root.querySelector(elementSelector);
+      if (!target || !element || getComputedStyle(target).display === 'none') return;
+      const rootRect = root.getBoundingClientRect();
+      const targetRect = target.getBoundingClientRect();
+      const elementRect = element.getBoundingClientRect();
+      const gap = Math.max(0, Number(anchor.gap == null ? 8 : anchor.gap) || 0);
+      let left = targetRect.left - rootRect.left;
+      if (anchor.side === 'left') left -= elementRect.width + gap;
+      else if (anchor.side === 'right') left += targetRect.width + gap;
+      let top = targetRect.top - rootRect.top;
+      if (anchor.align === 'center') top += (targetRect.height - elementRect.height) / 2;
+      else if (anchor.align === 'bottom') top += targetRect.height - elementRect.height;
+      root.style.setProperty('position', 'relative', 'important');
+      element.style.setProperty('position', 'absolute', 'important');
+      element.style.setProperty('left', Math.round(left + (Number(anchor.offsetX) || 0)) + 'px', 'important');
+      element.style.setProperty('top', Math.round(top + (Number(anchor.offsetY) || 0)) + 'px', 'important');
+      element.style.setProperty('margin', '0', 'important');
+      element.style.setProperty('z-index', '90', 'important');
+    }});
+  }});
+}};
 if (document.body.dataset.sanAnimationPreset === 'epicgames' || document.body.dataset.sanElements === 'epicgames') document.body.classList.add('san-webview-force-visible');
 document.body.classList.add('san-webview-fast-start');
 document.body.classList.toggle('san-webview-disable-san-transition', {JsBool(!usesSanTimeline)});
@@ -3148,6 +3224,14 @@ document.querySelectorAll('#logo').forEach(el => {{
     el.style.backgroundImage = 'url(' + {JsString(logoUri)} + ')';
   }}
 }});
+window.requestAnimationFrame(sanApplyElementAnchors);
+if (Object.keys(sanElementAnchors || {{}}).length) {{
+  const sanAnchorResizeObserver = new ResizeObserver(() => window.requestAnimationFrame(sanApplyElementAnchors));
+  document.querySelectorAll('#achcont,.san-line-stack').forEach(el => sanAnchorResizeObserver.observe(el));
+  new MutationObserver(() => window.requestAnimationFrame(sanApplyElementAnchors))
+    .observe(document.body, {{ subtree: true, childList: true, characterData: true }});
+  window.addEventListener('resize', sanApplyElementAnchors);
+}}
 document.querySelectorAll('#achicon').forEach(img => {{
   const verify = () => {{
     if (!img.getAttribute('src') || (img.complete && img.naturalWidth === 0)) document.body.classList.add('san-webview-hide-icon-border');
@@ -4981,7 +5065,7 @@ if ({JsBool(settings?.OverlayCustomAutoResizeToContent == true)}) {{
             return offsets != null && !string.IsNullOrWhiteSpace(key) && offsets.TryGetValue(key, out var offset) && offset.HasAbsolutePosition;
         }
 
-        private static bool TryAddAbsoluteManualElement(Canvas layer, FrameworkElement element, IDictionary<string, ManualElementAdjustment> offsets, string key)
+        private static bool TryAddAbsoluteManualElement(Canvas layer, FrameworkElement element, IDictionary<string, ManualElementAdjustment> offsets, string key, bool allowAutoHeight = false)
         {
             if (layer == null || element == null || offsets == null || string.IsNullOrWhiteSpace(key) ||
                 !offsets.TryGetValue(key, out var offset) || !offset.HasAbsolutePosition)
@@ -4999,14 +5083,122 @@ if ({JsBool(settings?.OverlayCustomAutoResizeToContent == true)}) {{
 
             if (offset.Height > 0)
             {
-                element.Height = offset.Height;
-                ApplyManualChildHeight(element, offset.Height);
+                if (allowAutoHeight)
+                {
+                    element.Height = double.NaN;
+                    element.MinHeight = offset.Height;
+                }
+                else
+                {
+                    element.Height = offset.Height;
+                    ApplyManualChildHeight(element, offset.Height);
+                }
             }
 
             Canvas.SetLeft(element, offset.Left);
             Canvas.SetTop(element, offset.Top);
             layer.Children.Add(element);
             return true;
+        }
+
+        private static void ConfigureAbsoluteManualReflow(
+            Canvas layer,
+            IDictionary<string, FrameworkElement> lines,
+            IDictionary<string, ManualElementAdjustment> offsets,
+            FrameworkElement primaryIcon,
+            FrameworkElement secondaryIcon,
+            LocalSettings settings)
+        {
+            if (layer == null || lines == null || lines.Count == 0)
+            {
+                return;
+            }
+
+            JObject anchors = null;
+            try
+            {
+                anchors = string.IsNullOrWhiteSpace(settings.OverlayCustomElementAnchorsJson)
+                    ? null
+                    : JObject.Parse(settings.OverlayCustomElementAnchorsJson);
+            }
+            catch (Newtonsoft.Json.JsonException)
+            {
+                anchors = null;
+            }
+
+            var arranging = false;
+            Action arrange = () =>
+            {
+                if (arranging)
+                {
+                    return;
+                }
+
+                arranging = true;
+                try
+                {
+                    var addedHeight = 0d;
+                    foreach (var entry in lines
+                        .Where(pair => offsets.TryGetValue(pair.Key, out var adjustment) && adjustment.HasAbsolutePosition)
+                        .OrderBy(pair => offsets[pair.Key].Top))
+                    {
+                        var adjustment = offsets[entry.Key];
+                        var baseHeight = Math.Max(1, adjustment.Height);
+                        Canvas.SetTop(entry.Value, adjustment.Top + addedHeight);
+                        entry.Value.Measure(new Size(Math.Max(1, adjustment.Width), double.PositiveInfinity));
+                        var actualHeight = Math.Max(baseHeight, Math.Max(entry.Value.ActualHeight, entry.Value.DesiredSize.Height));
+                        addedHeight += Math.Max(0, actualHeight - baseHeight);
+                    }
+
+                    var requiredBottom = lines
+                        .Where(pair => offsets.ContainsKey(pair.Key))
+                        .Select(pair => Canvas.GetTop(pair.Value) + Math.Max(pair.Value.ActualHeight, pair.Value.DesiredSize.Height))
+                        .DefaultIfEmpty(0)
+                        .Max();
+                    layer.MinHeight = Math.Max(layer.MinHeight, requiredBottom + 12);
+
+                    ApplyAnchor("primaryIcon", primaryIcon);
+                    ApplyAnchor("secondaryIcon", secondaryIcon);
+                }
+                finally
+                {
+                    arranging = false;
+                }
+            };
+
+            void ApplyAnchor(string id, FrameworkElement element)
+            {
+                if (element == null || !offsets.TryGetValue(id, out var elementOffset) || !elementOffset.HasAbsolutePosition || anchors?[id] is not JObject anchor)
+                {
+                    return;
+                }
+
+                var targetId = anchor.Value<string>("target");
+                if (string.IsNullOrWhiteSpace(targetId) || !lines.TryGetValue(targetId, out var target))
+                {
+                    return;
+                }
+
+                var targetLeft = Canvas.GetLeft(target);
+                var targetTop = Canvas.GetTop(target);
+                var targetWidth = Math.Max(target.ActualWidth, target.DesiredSize.Width);
+                var targetHeight = Math.Max(target.ActualHeight, target.DesiredSize.Height);
+                var elementWidth = Math.Max(element.ActualWidth, element.DesiredSize.Width);
+                var elementHeight = Math.Max(element.ActualHeight, element.DesiredSize.Height);
+                var side = anchor.Value<string>("side") ?? "left";
+                var align = anchor.Value<string>("align") ?? "center";
+                var gap = Math.Max(0, anchor.Value<double?>("gap") ?? 8);
+                var left = side == "right" ? targetLeft + targetWidth + gap : side == "overlay" ? targetLeft : targetLeft - elementWidth - gap;
+                var top = align == "bottom" ? targetTop + targetHeight - elementHeight : align == "top" ? targetTop : targetTop + ((targetHeight - elementHeight) / 2);
+                Canvas.SetLeft(element, left + (anchor.Value<double?>("offsetX") ?? 0));
+                Canvas.SetTop(element, top + (anchor.Value<double?>("offsetY") ?? 0));
+            }
+
+            layer.Loaded += (_, __) => layer.Dispatcher.BeginInvoke(arrange);
+            foreach (var line in lines.Values)
+            {
+                line.SizeChanged += (_, __) => layer.Dispatcher.BeginInvoke(arrange);
+            }
         }
 
         private static void ApplyManualChildWidth(FrameworkElement element, double width)
@@ -5177,6 +5369,8 @@ if ({JsBool(settings?.OverlayCustomAutoResizeToContent == true)}) {{
             var secondaryIconAbsolute = HasAbsoluteManualElementAdjustment(manualOffsets, "secondaryIcon");
             var coverLeftAbsolute = HasAbsoluteManualElementAdjustment(manualOffsets, "coverLeft");
             var coverRightAbsolute = HasAbsoluteManualElementAdjustment(manualOffsets, "coverRight");
+            var absoluteLines = new Dictionary<string, FrameworkElement>(StringComparer.OrdinalIgnoreCase);
+            FrameworkElement secondaryIconElement = null;
 
             var grid = new Grid();
             grid.Margin = contentPadding;
@@ -5278,6 +5472,7 @@ if ({JsBool(settings?.OverlayCustomAutoResizeToContent == true)}) {{
                     Margin = new Thickness(0, 0, isCompactSanCard ? Math.Max(6, 8 * overlayScale) : 14, 0),
                     Child = CreateCustomOverlayIconContent(settings, rawIconPath, providerKey, titleBrush, secondaryIconSize, titleSize, rarityKey, settings?.OverlayCustomSecondaryIconSource ?? LocalOverlayIconSource.AchievementIcon, secondaryIconCornerRadius)
                 };
+                secondaryIconElement = secondaryIcon;
                 if (settings?.OverlayCustomShowSecondaryIconRarityGlow == true)
                 {
                     var glow = CreateIconRarityGlowEffect(rarityKey);
@@ -5330,10 +5525,14 @@ if ({JsBool(settings?.OverlayCustomAutoResizeToContent == true)}) {{
                 if (line != null)
                 {
                     ApplyCustomLineTextEffect(line, settings, 1);
-                    if (!TryAddAbsoluteManualElement(absoluteLayer, line, manualOffsets, "line1"))
+                    if (!TryAddAbsoluteManualElement(absoluteLayer, line, manualOffsets, "line1", wrapAllText))
                     {
                         ApplyManualElementOffset(line, manualOffsets, "line1");
                         textStack.Children.Add(line);
+                    }
+                    else
+                    {
+                        absoluteLines["line1"] = line;
                     }
                 }
             }
@@ -5367,10 +5566,14 @@ if ({JsBool(settings?.OverlayCustomAutoResizeToContent == true)}) {{
                 if (line != null)
                 {
                     ApplyCustomLineTextEffect(line, settings, 2);
-                    if (!TryAddAbsoluteManualElement(absoluteLayer, line, manualOffsets, "line2"))
+                    if (!TryAddAbsoluteManualElement(absoluteLayer, line, manualOffsets, "line2", wrapAllText))
                     {
                         ApplyManualElementOffset(line, manualOffsets, "line2");
                         textStack.Children.Add(line);
+                    }
+                    else
+                    {
+                        absoluteLines["line2"] = line;
                     }
                 }
             }
@@ -5404,10 +5607,14 @@ if ({JsBool(settings?.OverlayCustomAutoResizeToContent == true)}) {{
                 if (line != null)
                 {
                     ApplyCustomLineTextEffect(line, settings, 3);
-                    if (!TryAddAbsoluteManualElement(absoluteLayer, line, manualOffsets, "line3"))
+                    if (!TryAddAbsoluteManualElement(absoluteLayer, line, manualOffsets, "line3", wrapAllText))
                     {
                         ApplyManualElementOffset(line, manualOffsets, "line3");
                         textStack.Children.Add(line);
+                    }
+                    else
+                    {
+                        absoluteLines["line3"] = line;
                     }
                 }
             }
@@ -5418,10 +5625,14 @@ if ({JsBool(settings?.OverlayCustomAutoResizeToContent == true)}) {{
                 if (line != null)
                 {
                     ApplyCustomLineTextEffect(line, settings, 4);
-                    if (!TryAddAbsoluteManualElement(absoluteLayer, line, manualOffsets, "line4"))
+                    if (!TryAddAbsoluteManualElement(absoluteLayer, line, manualOffsets, "line4", wrapAllText))
                     {
                         ApplyManualElementOffset(line, manualOffsets, "line4");
                         textStack.Children.Add(line);
+                    }
+                    else
+                    {
+                        absoluteLines["line4"] = line;
                     }
                 }
             }
@@ -5432,10 +5643,14 @@ if ({JsBool(settings?.OverlayCustomAutoResizeToContent == true)}) {{
                 if (line != null)
                 {
                     ApplyCustomLineTextEffect(line, settings, 5);
-                    if (!TryAddAbsoluteManualElement(absoluteLayer, line, manualOffsets, "line5"))
+                    if (!TryAddAbsoluteManualElement(absoluteLayer, line, manualOffsets, "line5", wrapAllText))
                     {
                         ApplyManualElementOffset(line, manualOffsets, "line5");
                         textStack.Children.Add(line);
+                    }
+                    else
+                    {
+                        absoluteLines["line5"] = line;
                     }
                 }
             }
@@ -5446,10 +5661,14 @@ if ({JsBool(settings?.OverlayCustomAutoResizeToContent == true)}) {{
                 if (line != null)
                 {
                     ApplyCustomLineTextEffect(line, settings, 6);
-                    if (!TryAddAbsoluteManualElement(absoluteLayer, line, manualOffsets, "line6"))
+                    if (!TryAddAbsoluteManualElement(absoluteLayer, line, manualOffsets, "line6", wrapAllText))
                     {
                         ApplyManualElementOffset(line, manualOffsets, "line6");
                         textStack.Children.Add(line);
+                    }
+                    else
+                    {
+                        absoluteLines["line6"] = line;
                     }
                 }
             }
@@ -5473,6 +5692,7 @@ if ({JsBool(settings?.OverlayCustomAutoResizeToContent == true)}) {{
                     Margin = new Thickness(isCompactSanCard ? Math.Max(6, 8 * overlayScale) : 14, 0, 0, 0),
                     Child = CreateCustomOverlayIconContent(settings, rawIconPath, providerKey, titleBrush, secondaryIconSize, titleSize, rarityKey, settings?.OverlayCustomSecondaryIconSource ?? LocalOverlayIconSource.AchievementIcon, secondaryIconCornerRadius)
                 };
+                secondaryIconElement = secondaryIcon;
                 if (settings?.OverlayCustomShowSecondaryIconRarityGlow == true)
                 {
                     var glow = CreateIconRarityGlowEffect(rarityKey);
@@ -5517,6 +5737,7 @@ if ({JsBool(settings?.OverlayCustomAutoResizeToContent == true)}) {{
             {
                 container.Children.Add(absoluteLayer);
             }
+            ConfigureAbsoluteManualReflow(absoluteLayer, absoluteLines, manualOffsets, icon, secondaryIconElement, settings);
             root.Child = container;
             ApplySanTemplateAnimation(root, icon, textStack, settings);
             return root;

@@ -4418,6 +4418,7 @@ namespace PlayniteAchievements.Views
                 SanThemeJson = localSettings.OverlayCustomSanThemeJson,
                 SanThemeDirectory = localSettings.OverlayCustomSanThemeDirectory,
                 ManualElementCss = localSettings.OverlayCustomManualElementCss,
+                ElementAnchorsJson = localSettings.OverlayCustomElementAnchorsJson,
                 SanView1DurationMilliseconds = localSettings.OverlayCustomSanView1DurationMilliseconds,
                 SanView2DurationMilliseconds = localSettings.OverlayCustomSanView2DurationMilliseconds,
                 TitleBold = localSettings.OverlayCustomTitleBold,
@@ -4625,6 +4626,7 @@ namespace PlayniteAchievements.Views
                         SanThemeJson = localSettings.OverlayCustomSanThemeJson,
                         SanThemeDirectory = localSettings.OverlayCustomSanThemeDirectory,
                         ManualElementCss = localSettings.OverlayCustomManualElementCss,
+                        ElementAnchorsJson = localSettings.OverlayCustomElementAnchorsJson,
                         TitleBold = localSettings.OverlayCustomTitleBold,
                         TitleItalic = localSettings.OverlayCustomTitleItalic,
                         TitleUnderline = localSettings.OverlayCustomTitleUnderline,
@@ -5972,6 +5974,7 @@ namespace PlayniteAchievements.Views
             localSettings.OverlayCustomSanThemeJson = slot.SanThemeJson;
             localSettings.OverlayCustomSanThemeDirectory = slot.SanThemeDirectory;
             localSettings.OverlayCustomManualElementCss = slot.ManualElementCss;
+            localSettings.OverlayCustomElementAnchorsJson = slot.ElementAnchorsJson;
             localSettings.OverlayCustomSanView1DurationMilliseconds = slot.SanView1DurationMilliseconds <= 0 ? 5000 : slot.SanView1DurationMilliseconds;
             localSettings.OverlayCustomSanView2DurationMilliseconds = slot.SanView2DurationMilliseconds <= 0 ? 5000 : slot.SanView2DurationMilliseconds;
             localSettings.OverlayCustomTitleBold = slot.TitleBold;

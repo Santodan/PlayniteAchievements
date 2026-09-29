@@ -847,6 +847,18 @@
               <button id="sanDragView2Btn" type="button" class="action secondary">View 2</button>
             </div>
             <textarea id="ManualElementCss" spellcheck="false" placeholder="body[data-san-preset=&quot;default&quot;] .wrapper#achiconwrapper { transform: translate(4px, 0); }"></textarea>
+            <div class="grid two" style="margin-top:10px">
+              <label class="check"><input id="AnchorEnabled" type="checkbox"><span>Attach this selected element to a text line</span></label>
+              <div class="field"><label for="AnchorElement">Element</label><select id="AnchorElement"><option value="primaryIcon">Primary icon</option><option value="secondaryIcon">Secondary / provider icon</option></select></div>
+              <div class="field"><label for="AnchorTarget">Attach to</label><select id="AnchorTarget"><option value="line1">Line 1</option><option value="line2">Line 2</option><option value="line3">Line 3</option><option value="line4">Line 4</option><option value="line5">Line 5</option><option value="line6">Line 6</option></select></div>
+              <div class="field"><label for="AnchorSide">Side</label><select id="AnchorSide"><option value="left">Left</option><option value="right">Right</option><option value="overlay">Overlay</option></select></div>
+              <div class="field"><label for="AnchorAlign">Vertical alignment</label><select id="AnchorAlign"><option value="center">Center</option><option value="top">Top</option><option value="bottom">Bottom</option></select></div>
+              <div class="field"><label for="AnchorGap">Gap</label><input id="AnchorGap" type="number" min="0" value="8"></div>
+              <div class="field"><label for="AnchorOffsetX">X offset</label><input id="AnchorOffsetX" type="number" value="0"></div>
+              <div class="field"><label for="AnchorOffsetY">Y offset</label><input id="AnchorOffsetY" type="number" value="0"></div>
+            </div>
+            <p class="hint">Each icon has its own attachment. Select an icon above and clear its checkbox to return only that icon to free positioning.</p>
+            <p class="hint" id="AnchorStatus"></p>
           </div>
 
           <div class="group">
@@ -1091,6 +1103,7 @@
       'SecondaryIconSource', 'ShowSecondaryIconRarityGlow', 'ShowSecondaryIconBackground', 'SecondaryIconBackgroundColor', 'SanPresetId',
       'SanElementPresetId', 'SanView1DurationMilliseconds', 'SanView2DurationMilliseconds',
       'ManualElementCss',
+      'AnchorEnabled', 'AnchorElement', 'AnchorTarget', 'AnchorSide', 'AnchorAlign', 'AnchorGap', 'AnchorOffsetX', 'AnchorOffsetY',
       'EnableGameCoverInOverlay', 'GameCoverPosition', 'GameCoverWidth', 'ShowCoverBackground', 'CoverBackgroundColor',
       'EnableGameBannerAsBackground', 'GameBannerOpacity', 'GameBannerBlurRadius',
       'primaryCustomIconUrl', 'secondaryCustomIconUrl',
@@ -1104,6 +1117,8 @@
     let dragEditEnabled = false;
     let sanDragViewIndex = 0;
     let manualElementOffsets = {};
+    let elementAnchors = {};
+    let selectedAnchorElement = 'primaryIcon';
     let sanPreviewRequest = 0;
     let sanDragPollTimer = null;
     let builderDefaultValues = null;
@@ -1590,7 +1605,14 @@
           element.style.maxWidth = '';
           element.style.flexBasis = '';
         }
-        if (offset?.height) {
+        const isWrappedLine = /^line\d+$/i.test(manualId) && $('WrapAllText')?.checked;
+        if (offset?.height && isWrappedLine) {
+          element.style.height = 'auto';
+          element.style.minHeight = `${offset.height}px`;
+          element.style.maxHeight = '';
+          element.style.overflowWrap = 'anywhere';
+          element.style.wordBreak = 'break-word';
+        } else if (offset?.height) {
           element.style.height = `${offset.height}px`;
           element.style.minHeight = `${offset.height}px`;
           element.style.maxHeight = `${offset.height}px`;
@@ -1600,6 +1622,66 @@
           element.style.maxHeight = '';
         }
       });
+      if ($('WrapAllText')?.checked) {
+        const wrappedLines = [...document.querySelectorAll('[data-manual-id^="line"]')]
+          .filter(element => {
+            const offset = manualElementOffsets[element.dataset.manualId];
+            return offset?.top != null && getComputedStyle(element).display !== 'none';
+          })
+          .sort((a, b) => manualElementOffsets[a.dataset.manualId].top - manualElementOffsets[b.dataset.manualId].top);
+        let addedHeight = 0;
+        wrappedLines.forEach(element => {
+          const offset = manualElementOffsets[element.dataset.manualId];
+          const baseHeight = Math.max(1, Number(offset.height) || 1);
+          element.style.top = `${Math.round(Number(offset.top) + addedHeight)}px`;
+          const actualHeight = Math.max(baseHeight, element.scrollHeight, element.getBoundingClientRect().height);
+          addedHeight += Math.max(0, actualHeight - baseHeight);
+        });
+        const toast = $('toast');
+        if (toast && $('AutoResizeToContent')?.checked && wrappedLines.length) {
+          const requiredHeight = Math.max(
+            num('Height'),
+            ...wrappedLines.map(element => (parseFloat(element.style.top) || 0) + element.getBoundingClientRect().height + 12)
+          );
+          toast.style.height = `${Math.ceil(requiredHeight)}px`;
+          toast.style.minHeight = toast.style.height;
+          toast.style.maxHeight = '';
+          toast.style.setProperty('--builder-toast-height', `${Math.ceil(requiredHeight)}px`);
+          positionToast(toast, $('stage'), { Width: num('Width'), Height: Math.ceil(requiredHeight) }, $('OverlayPosition').value);
+        }
+      }
+      Object.entries(elementAnchors).forEach(([id, anchor]) => {
+        const element = document.querySelector(`[data-manual-id="${id}"]`);
+        const target = document.querySelector(`[data-manual-id="${anchor.target}"]`);
+        if (!element || !target || getComputedStyle(target).display === 'none') return;
+        const targetLeft = parseFloat(target.style.left) || 0;
+        const targetTop = parseFloat(target.style.top) || 0;
+        const targetWidth = target.getBoundingClientRect().width;
+        const targetHeight = target.getBoundingClientRect().height;
+        const elementWidth = element.getBoundingClientRect().width;
+        const elementHeight = element.getBoundingClientRect().height;
+        const gap = Math.max(0, Number(anchor.gap ?? 8) || 0);
+        let left = targetLeft;
+        if (anchor.side === 'left') left -= elementWidth + gap;
+        else if (anchor.side === 'right') left += targetWidth + gap;
+        let top = targetTop;
+        if (anchor.align === 'center') top += (targetHeight - elementHeight) / 2;
+        else if (anchor.align === 'bottom') top += targetHeight - elementHeight;
+        element.style.position = 'absolute';
+        element.style.left = `${Math.round(left + (Number(anchor.offsetX) || 0))}px`;
+        element.style.top = `${Math.round(top + (Number(anchor.offsetY) || 0))}px`;
+      });
+      const toast = $('toast');
+      if (toast && $('AutoResizeToContent')?.checked) {
+        const positioned = [...toast.querySelectorAll('[data-manual-id]')]
+          .filter(element => element !== toast && getComputedStyle(element).display !== 'none' && getComputedStyle(element).position === 'absolute');
+        const requiredHeight = Math.max(num('Height'), ...positioned.map(element => (parseFloat(element.style.top) || 0) + element.getBoundingClientRect().height + 12));
+        toast.style.height = `${Math.ceil(requiredHeight)}px`;
+        toast.style.minHeight = toast.style.height;
+        toast.style.maxHeight = '';
+        toast.style.setProperty('--builder-toast-height', `${Math.ceil(requiredHeight)}px`);
+        positionToast(toast, $('stage'), { Width: num('Width'), Height: Math.ceil(requiredHeight) }, $('OverlayPosition').value);
+      }
     }
 
     function populateManualCssFromVisibleElements() {
@@ -1700,6 +1782,13 @@
         if (/^line\d+$/i.test(baseId)) {
           declarations.push(`  overflow: visible !important;`);
           declarations.push(`  white-space: ${$('WrapAllText')?.checked ? 'normal' : 'nowrap'} !important;`);
+          if ($('WrapAllText')?.checked && absoluteRect) {
+            declarations.push(`  --san-manual-line-height: ${absoluteRect.height}px;`);
+            declarations.push(`  height: auto !important;`);
+            declarations.push(`  min-height: ${absoluteRect.height}px !important;`);
+            declarations.push(`  overflow-wrap: anywhere !important;`);
+            declarations.push(`  word-break: break-word !important;`);
+          }
         }
         const view = manualOffsetView(id, offset);
         if (view) {
@@ -2009,6 +2098,41 @@
         .trim();
     }
 
+    function loadAnchorControls(id) {
+      id = id || $('AnchorElement')?.value || 'primaryIcon';
+      selectedAnchorElement = id;
+      const anchor = elementAnchors[id];
+      $('AnchorEnabled').checked = !!anchor;
+      $('AnchorTarget').value = anchor?.target || 'line1';
+      $('AnchorSide').value = anchor?.side || 'left';
+      $('AnchorAlign').value = anchor?.align || 'center';
+      $('AnchorGap').value = Number(anchor?.gap ?? 8);
+      $('AnchorOffsetX').value = Number(anchor?.offsetX || 0);
+      $('AnchorOffsetY').value = Number(anchor?.offsetY || 0);
+      const active = Object.entries(elementAnchors).map(([key, value]) => `${key === 'primaryIcon' ? 'Primary' : 'Secondary'} → ${String(value.target || '').replace('line', 'Line ')}`);
+      if ($('AnchorStatus')) $('AnchorStatus').textContent = active.length ? `Active attachments: ${active.join('; ')}` : 'Active attachments: none';
+    }
+
+    function saveAnchorControls(id) {
+      id = id || selectedAnchorElement || 'primaryIcon';
+      if (!$('AnchorEnabled')?.checked) {
+        delete elementAnchors[id];
+        const active = Object.entries(elementAnchors).map(([key, value]) => `${key === 'primaryIcon' ? 'Primary' : 'Secondary'} → ${String(value.target || '').replace('line', 'Line ')}`);
+        if ($('AnchorStatus')) $('AnchorStatus').textContent = active.length ? `Active attachments: ${active.join('; ')}` : 'Active attachments: none';
+        return;
+      }
+      elementAnchors[id] = {
+        target: $('AnchorTarget').value,
+        side: $('AnchorSide').value,
+        align: $('AnchorAlign').value,
+        gap: Math.max(0, num('AnchorGap')),
+        offsetX: num('AnchorOffsetX'),
+        offsetY: num('AnchorOffsetY')
+      };
+      const active = Object.entries(elementAnchors).map(([key, value]) => `${key === 'primaryIcon' ? 'Primary' : 'Secondary'} → ${String(value.target || '').replace('line', 'Line ')}`);
+      if ($('AnchorStatus')) $('AnchorStatus').textContent = active.length ? `Active attachments: ${active.join('; ')}` : 'Active attachments: none';
+    }
+
     function buildData() {
       return {
         SchemaVersion: 1,
@@ -2024,6 +2148,7 @@
           SanThemeJson: importedSanThemeJson,
           SanThemeDirectory: importedSanThemeDirectory,
           ManualElementCss: $('ManualElementCss').value || '',
+          ElementAnchorsJson: JSON.stringify(elementAnchors),
           SanView1DurationMilliseconds: num('SanView1DurationMilliseconds'),
           SanView2DurationMilliseconds: num('SanView2DurationMilliseconds'),
           AutoResizeToContent: bool('AutoResizeToContent'),
@@ -2258,6 +2383,20 @@
       }
       if (data && data.type === 'san-preview-ready') {
         console.info('SAN preview iframe rendered:', data.preset, data.elementPreset);
+      }
+      if (data && data.type === 'san-preview-height') {
+        const frame = $('sanPreviewFrame');
+        const measuredHeight = Math.max(45, Math.min(2000, Math.ceil(Number(data.height) || 0)));
+        if (frame && measuredHeight) {
+          frame.style.height = `${measuredHeight}px`;
+          frame.style.minHeight = `${measuredHeight}px`;
+          frame.style.maxHeight = `${measuredHeight}px`;
+          const current = buildData();
+          $('stage').style.minHeight = `${Math.max(420, measuredHeight + 48)}px`;
+          positionSanPreviewFrame(frame, $('stage'), { ...current.CustomStyleSlot, Height: measuredHeight }, current.Transition.OverlayPosition);
+          renderSanParentDragOverlay(current.CustomStyleSlot, current.Transition, frame, Math.max(280, current.CustomStyleSlot.Width), measuredHeight);
+          $('previewStatus').textContent = `${Math.max(280, current.CustomStyleSlot.Width)} x ${measuredHeight} auto / ${current.Transition.OverlayPosition}`;
+        }
       }
       handleSanManualOffset(data);
     });
@@ -2712,6 +2851,7 @@
           };
           const lines=${JSON.stringify(lines)};
           const manualOffsets=${JSON.stringify(manualElementOffsets || {})};
+          const elementAnchors=${JSON.stringify(elementAnchors || {})};
           const iconUri=${JSON.stringify(iconUri)};
           const secondaryUri=${JSON.stringify(secondaryUri)};
           const showSecondary=${JSON.stringify((slot.SecondaryIconSource || 'None') !== 'None')};
@@ -3179,11 +3319,91 @@
             document.body.toggleAttribute('alldetails', lines.filter(line=>line.html).length>=3);
             forceVisible();
           };
+          const reflowWrappedManualLines=()=>{
+            if(!${JSON.stringify(slot.WrapAllText === true)})return;
+            document.querySelectorAll('#achcont').forEach(root=>{
+              const wrappedLines=[...root.querySelectorAll('.san-generated-line[data-san-line-id]')]
+                .filter(line=>getComputedStyle(line).position==='absolute'&&getComputedStyle(line).display!=='none');
+              wrappedLines.forEach(line=>{
+                const style=getComputedStyle(line);
+                if(!line.dataset.sanManualBaseTop)line.dataset.sanManualBaseTop=String(parseFloat(style.top)||0);
+                if(!line.dataset.sanManualBaseHeight)line.dataset.sanManualBaseHeight=String(Math.max(1,parseFloat(style.height)||line.getBoundingClientRect().height||1));
+                const baseHeight=Number(line.dataset.sanManualBaseHeight)||1;
+                line.style.setProperty('height','auto','important');
+                line.style.setProperty('min-height',baseHeight+'px','important');
+                line.style.setProperty('overflow-wrap','anywhere','important');
+                line.style.setProperty('word-break','break-word','important');
+              });
+              wrappedLines.sort((a,b)=>(Number(a.dataset.sanManualBaseTop)||0)-(Number(b.dataset.sanManualBaseTop)||0));
+              let addedHeight=0;
+              wrappedLines.forEach(line=>{
+                const baseTop=Number(line.dataset.sanManualBaseTop)||0;
+                const baseHeight=Number(line.dataset.sanManualBaseHeight)||1;
+                line.style.setProperty('top',Math.round(baseTop+addedHeight)+'px','important');
+                const actualHeight=Math.max(baseHeight,line.scrollHeight,line.getBoundingClientRect().height);
+                addedHeight+=Math.max(0,actualHeight-baseHeight);
+              });
+            });
+          };
+          let lastReportedPreviewHeight=previewHeight;
+          const applyElementAnchors=()=>{
+            reflowWrappedManualLines();
+            Object.entries(elementAnchors||{}).forEach(([id,anchor])=>{
+              const elementSelector=id==='primaryIcon'?'#achiconwrapper,#iconbg':'#logo,.san-secondary-icon';
+              document.querySelectorAll('#achcont').forEach(root=>{
+                if(getComputedStyle(root).display==='none')return;
+                const target=root.querySelector('.san-generated-line[data-san-line-id="'+anchor.target+'"]');
+                const element=root.querySelector(elementSelector);
+                if(!target||!element)return;
+                const rootRect=root.getBoundingClientRect();
+                const targetRect=target.getBoundingClientRect();
+                const elementRect=element.getBoundingClientRect();
+                const gap=Math.max(0,Number(anchor.gap??8)||0);
+                let left=targetRect.left-rootRect.left;
+                if(anchor.side==='left')left-=elementRect.width+gap;
+                else if(anchor.side==='right')left+=targetRect.width+gap;
+                let top=targetRect.top-rootRect.top;
+                if(anchor.align==='center')top+=(targetRect.height-elementRect.height)/2;
+                else if(anchor.align==='bottom')top+=targetRect.height-elementRect.height;
+                root.style.setProperty('position','relative','important');
+                element.style.setProperty('position','absolute','important');
+                element.style.setProperty('left',Math.round(left+(Number(anchor.offsetX)||0))+'px','important');
+                element.style.setProperty('top',Math.round(top+(Number(anchor.offsetY)||0))+'px','important');
+                element.style.setProperty('margin','0','important');
+                element.style.setProperty('z-index','90','important');
+              });
+            });
+            if(${JSON.stringify(slot.AutoResizeToContent === true)}){
+              let requiredHeight=previewHeight;
+              document.querySelectorAll('#achcont').forEach(root=>{
+                if(getComputedStyle(root).display==='none')return;
+                const rootRect=root.getBoundingClientRect();
+                root.querySelectorAll('.san-generated-line,#achiconwrapper,#logo,.san-secondary-icon,.san-game-cover').forEach(element=>{
+                  if(getComputedStyle(element).display==='none')return;
+                  const rect=element.getBoundingClientRect();
+                  requiredHeight=Math.max(requiredHeight,Math.ceil(rect.bottom-rootRect.top+10));
+                });
+              });
+              requiredHeight=Math.max(previewHeight,requiredHeight);
+              document.documentElement.style.setProperty('--notifyheight',requiredHeight+'px');
+              document.querySelectorAll('#outerwrapper,#achcont,#bg').forEach(element=>element.style.setProperty('height',requiredHeight+'px','important'));
+              if(requiredHeight!==lastReportedPreviewHeight){
+                lastReportedPreviewHeight=requiredHeight;
+                parent.postMessage({type:'san-preview-height',height:requiredHeight},'*');
+              }
+            }
+          };
           fill();
+          requestAnimationFrame(applyElementAnchors);
+          if(Object.keys(elementAnchors||{}).length){
+            const anchorObserver=new ResizeObserver(()=>requestAnimationFrame(applyElementAnchors));
+            document.querySelectorAll('#achcont,.san-line-stack').forEach(el=>anchorObserver.observe(el));
+            new MutationObserver(()=>requestAnimationFrame(applyElementAnchors)).observe(document.body,{subtree:true,childList:true,characterData:true});
+          }
           setTimeout(()=>{forceVisible();},80);
           setTimeout(()=>{if(!dragEditEnabled)buildPayloadOverlay();},500);
           setTimeout(()=>{if(!dragEditEnabled)buildPayloadOverlay();},1000);
-          window.addEventListener('resize',()=>{positionSanPreset();if(!dragEditEnabled)buildPayloadOverlay();});
+          window.addEventListener('resize',()=>{positionSanPreset();applyElementAnchors();if(!dragEditEnabled)buildPayloadOverlay();});
             parent.postMessage({type:'san-preview-ready',preset:${JSON.stringify(animationPreset)},elementPreset:${JSON.stringify(elementPreset)}},'*');
           const initSanDragEdit=()=>{
             if(!dragEditEnabled)return;
@@ -3515,7 +3735,7 @@
           // or hiding the editable labels.
           if(false) setTimeout(initSanDragEdit,120);
         <\/script>`;
-        const previewOverrideStyle = `html,body{width:100%;height:100%;margin:0;background:transparent!important;overflow:hidden;color-scheme:dark;text-rendering:${Number(slot.TextFormattingMode)===1?'geometricPrecision':Number(slot.TextFormattingMode)===2?'optimizeLegibility':'auto'}}body{opacity:1!important}.wrapper#outerwrapper{position:relative!important;opacity:1!important;visibility:visible!important;width:var(--notifywidth)!important;height:var(--notifyheight)!important}.wrapper#bg{visibility:visible!important}.wrapper#achcontent>.san-line-stack,.wrapper#content>.san-line-stack,.wrapper#header>.san-line-stack{grid-column:1/-1;grid-row:1/-1;z-index:80}.san-line-stack{display:flex!important;flex-direction:column!important;align-items:flex-start!important;justify-content:center!important;gap:0!important;width:100%!important;min-width:0!important;height:100%!important;overflow:hidden!important;opacity:1!important;visibility:visible!important}.san-line-stack .san-generated-line{position:static!important;inset:auto!important;transform:none!important;translate:0 0!important;display:block!important;opacity:1!important;scale:1!important;animation:none!important;transition:none!important;width:100%!important;min-width:0!important;white-space:${slot.WrapAllText?'normal':'nowrap'}!important;overflow:visible!important;text-overflow:clip!important}.san-line-inner{display:inline-block;line-height:1.15;vertical-align:middle;max-width:100%}.san-line-inner,.san-line-inner *{font-weight:inherit!important;font-style:inherit!important;text-decoration:inherit!important}.wrapper#achiconwrapper{width:var(--san-icon-size)!important;height:var(--san-icon-size)!important;min-width:var(--san-icon-size)!important;min-height:var(--san-icon-size)!important;max-width:var(--san-icon-size)!important;max-height:var(--san-icon-size)!important}.wrapper#logo{width:var(--san-secondary-icon-size)!important;height:var(--san-secondary-icon-size)!important;min-width:var(--san-secondary-icon-size)!important;min-height:var(--san-secondary-icon-size)!important;max-width:var(--san-secondary-icon-size)!important;max-height:var(--san-secondary-icon-size)!important}.wrapper#achiconwrapper>*,.wrapper#logo>*,.wrapper#achiconwrapper img,.wrapper#logo img,#achicon,#logo{max-width:100%!important;max-height:100%!important;object-fit:contain!important}.san-inline-token-icon{display:inline-block;width:1em;height:1em;background-size:contain;background-repeat:no-repeat;background-position:center;vertical-align:-.15em;margin:0 1px}${slot.ManualElementCss||''}`;
+        const previewOverrideStyle = `html,body{width:100%;height:100%;margin:0;background:transparent!important;overflow:hidden;color-scheme:dark;text-rendering:${Number(slot.TextFormattingMode)===1?'geometricPrecision':Number(slot.TextFormattingMode)===2?'optimizeLegibility':'auto'}}body{opacity:1!important}.wrapper#outerwrapper{position:relative!important;opacity:1!important;visibility:visible!important;width:var(--notifywidth)!important;height:var(--notifyheight)!important}.wrapper#bg{visibility:visible!important}.wrapper#achcontent>.san-line-stack,.wrapper#content>.san-line-stack,.wrapper#header>.san-line-stack{grid-column:1/-1;grid-row:1/-1;z-index:80}.san-line-stack{display:flex!important;flex-direction:column!important;align-items:flex-start!important;justify-content:center!important;gap:0!important;width:100%!important;min-width:0!important;height:100%!important;overflow:hidden!important;opacity:1!important;visibility:visible!important}.san-line-stack .san-generated-line{position:static!important;inset:auto!important;transform:none!important;translate:0 0!important;display:block!important;opacity:1!important;scale:1!important;animation:none!important;transition:none!important;width:100%!important;min-width:0!important;white-space:${slot.WrapAllText?'normal':'nowrap'}!important;overflow:visible!important;text-overflow:clip!important;${slot.WrapAllText?'overflow-wrap:anywhere!important;word-break:break-word!important;':''}}.san-line-inner{display:inline-block;line-height:1.15;vertical-align:middle;max-width:100%}.san-line-inner,.san-line-inner *{font-weight:inherit!important;font-style:inherit!important;text-decoration:inherit!important}.wrapper#achiconwrapper{width:var(--san-icon-size)!important;height:var(--san-icon-size)!important;min-width:var(--san-icon-size)!important;min-height:var(--san-icon-size)!important;max-width:var(--san-icon-size)!important;max-height:var(--san-icon-size)!important}.wrapper#logo{width:var(--san-secondary-icon-size)!important;height:var(--san-secondary-icon-size)!important;min-width:var(--san-secondary-icon-size)!important;min-height:var(--san-secondary-icon-size)!important;max-width:var(--san-secondary-icon-size)!important;max-height:var(--san-secondary-icon-size)!important}.wrapper#achiconwrapper>*,.wrapper#logo>*,.wrapper#achiconwrapper img,.wrapper#logo img,#achicon,#logo{max-width:100%!important;max-height:100%!important;object-fit:contain!important}.san-inline-token-icon{display:inline-block;width:1em;height:1em;background-size:contain;background-repeat:no-repeat;background-position:center;vertical-align:-.15em;margin:0 1px}${slot.ManualElementCss||''}`;
         const presetRepairStyle = `.wrapper#achcontent>#unlockmsg,.wrapper#achcontent>#title,.wrapper#achcontent>#desc{display:none!important}.wrapper#achcontent:has(.san-line-stack),.san-line-stack,.san-line-stack *{opacity:1!important}.wrapper#achiconwrapper>*,.wrapper#logo>*,.wrapper#achiconwrapper img,.wrapper#logo img,.wrapper#achiconwrapper svg,.wrapper#logo svg{width:100%!important;height:100%!important;max-width:100%!important;max-height:100%!important;object-fit:contain!important}${slot.ShowIconRarityGlow?`.wrapper#achiconwrapper{filter:drop-shadow(0 0 ${Math.max(2,(slot.IconSize||58)*0.16)}px ${glowColor})!important}`:''}${slot.ShowSecondaryIconRarityGlow&&slot.SecondaryIconSource!=='None'?`.wrapper#logo{filter:drop-shadow(0 0 ${Math.max(2,(slot.SecondaryIconSize||slot.IconSize||58)*0.16)}px ${glowColor})!important}`:''}body[data-san-elements] #iconbg,body[data-san-elements] #achicon,body[data-san-elements] .icon,body[data-san-elements] .achicon{width:var(--san-icon-size)!important;height:var(--san-icon-size)!important;min-width:var(--san-icon-size)!important;min-height:var(--san-icon-size)!important;max-width:var(--san-icon-size)!important;max-height:var(--san-icon-size)!important;background-size:contain!important}body[data-san-elements] #logo{width:var(--san-secondary-icon-size)!important;height:var(--san-secondary-icon-size)!important;min-width:var(--san-secondary-icon-size)!important;min-height:var(--san-secondary-icon-size)!important;max-width:var(--san-secondary-icon-size)!important;max-height:var(--san-secondary-icon-size)!important;background-size:contain!important}.wrapper#achiconinnerwrapper,#achicon,#iconborder{width:100%!important;height:100%!important;max-width:100%!important;max-height:100%!important}#xpwrapper{display:none!important}.wrapper#achcont,.wrapper#bg{border-radius:var(--roundness)!important;overflow:hidden}.wrapper#achcont{border:var(--outlinewidth) var(--outline) var(--outlinecolor)!important}body[data-san-elements="xbox360"] .wrapper#achcontent .san-line-stack,body[data-san-elements="xboxone"] .wrapper#achcontent .san-line-stack,body[data-san-elements="ps5"] .wrapper#achcontent .san-line-stack,body[data-san-elements="ps4"] .wrapper#achcontent .san-line-stack{grid-column:2!important}body[data-san-preset="epicgames"] .wrapper#achcont,body[data-san-elements="epicgames"] .wrapper#achcont{width:100%!important;scale:1!important;opacity:var(--opacity)!important}body[data-san-preset="epicgames"] .wrapper#achcontent,body[data-san-elements="epicgames"] .wrapper#achcontent{position:absolute!important;inset:0!important;width:auto!important;display:grid!important;grid-template-columns:calc(var(--san-icon-size) + 10px) minmax(0,1fr) calc(var(--san-icon-size) + 10px)!important;align-items:center!important;justify-content:stretch!important;padding:calc(8px * var(--scale)) calc(12px * var(--scale))!important;opacity:1!important;visibility:visible!important;overflow:hidden!important}body[data-san-preset="epicgames"] .wrapper#achcontent .san-line-stack,body[data-san-elements="epicgames"] .wrapper#achcontent .san-line-stack{grid-column:2!important;position:relative!important;z-index:50!important;opacity:1!important;visibility:visible!important;display:flex!important;width:100%!important;height:100%!important;align-items:center!important;text-align:center!important}body[data-san-preset="epicgames"] #iconbg,body[data-san-elements="epicgames"] #iconbg{display:none!important;opacity:0!important;background:none!important}body[data-san-preset="default"] #bg,body[data-san-elements="default"] #bg{background-color:var(--primarycolor)!important}body[data-san-preset="default"] .wrapper#achcontent .san-line-stack,body[data-san-elements="default"] .wrapper#achcontent .san-line-stack{box-sizing:border-box!important;padding-left:calc(12px * var(--scale))!important;padding-right:calc(12px * var(--scale))!important}body[data-san-preset="gfwl"] #iconbg,body[data-san-elements="gfwl"] #iconbg{background:var(--tertiarycolor)!important;background-image:none!important}body[data-san-preset="gfwl"] .wrapper#logo,body[data-san-elements="gfwl"] .wrapper#logo{background-image:none!important;width:var(--san-icon-size)!important;height:var(--san-icon-size)!important;min-width:var(--san-icon-size)!important;min-height:var(--san-icon-size)!important;max-width:var(--san-icon-size)!important;max-height:var(--san-icon-size)!important}body[data-san-preset="gfwl"] .wrapper#achiconwrapper::before,body[data-san-preset="gfwl"] .wrapper#logo::before,body[data-san-elements="gfwl"] .wrapper#achiconwrapper::before,body[data-san-elements="gfwl"] .wrapper#logo::before{background:var(--tertiarycolor)!important;background-image:none!important}body[data-san-elements="steamdeck"] .wrapper#achcontent .san-line-stack,body[data-san-elements="ps3"] .wrapper#achcontent .san-line-stack{grid-column:1/-1!important}body[data-san-elements="xboxone"] #iconbg{display:none!important}body[data-san-preset="windows"] .wrapper#content,body[data-san-elements="windows"] .wrapper#content{gap:calc(.12rem * var(--scale)) calc(.35rem * var(--scale))!important;padding:calc(.25rem * var(--scale)) calc(.45rem * var(--scale))!important;align-content:center!important}body[data-san-preset="windows"] .wrapper#header,body[data-san-elements="windows"] .wrapper#header{padding:calc(.12rem * var(--scale)) calc(.45rem * var(--scale))!important;gap:calc(.35rem * var(--scale))!important;align-self:end!important}body[data-san-preset="windows"] .wrapper#header>.wrapper#logo,body[data-san-elements="windows"] .wrapper#header>.wrapper#logo{width:calc(.95rem * var(--unlockmsgfontsize))!important;height:calc(.95rem * var(--unlockmsgfontsize))!important;min-width:calc(.95rem * var(--unlockmsgfontsize))!important;min-height:calc(.95rem * var(--unlockmsgfontsize))!important;max-width:calc(.95rem * var(--unlockmsgfontsize))!important;max-height:calc(.95rem * var(--unlockmsgfontsize))!important}body[data-san-preset="windows"] .wrapper#achcontent,body[data-san-elements="windows"] .wrapper#achcontent{row-gap:calc(.08rem * var(--scale))!important;align-self:start!important}body[data-san-preset="windows"] .wrapper#achcontent>.san-line-stack,body[data-san-elements="windows"] .wrapper#achcontent>.san-line-stack{justify-content:flex-start!important}body[data-san-elements="ps5"] .wrapper#logo,body[data-san-elements="ps4"] .wrapper#logo{grid-column:3!important;grid-column-start:3!important;justify-self:end!important;z-index:4!important;margin-inline:calc(.35rem * var(--scale))!important;margin-left:calc(.35rem * var(--scale))!important;margin-right:calc(.35rem * var(--scale))!important}body[data-san-elements="ps5"] .wrapper#logo::before,body[data-san-elements="ps5"] .wrapper#logo::after,body[data-san-elements="ps4"] .wrapper#logo::before,body[data-san-elements="ps4"] .wrapper#logo::after{content:none!important;display:none!important;background:none!important}body[data-san-elements="ps5"] .wrapper#achiconwrapper,body[data-san-elements="ps4"] .wrapper#achiconwrapper{grid-column:1!important;grid-column-start:1!important;justify-self:start!important;z-index:4!important}body[data-san-elements="ps5"] .wrapper#achcontent,body[data-san-elements="ps4"] .wrapper#achcontent{grid-column:2!important;min-width:0!important;column-gap:calc(.2rem * var(--fontsize))!important}body[data-san-elements="default"] .wrapper#achiconwrapper{z-index:4!important}body[data-san-elements="default"] .wrapper#achcontent .san-line-stack{box-sizing:border-box!important}body[data-san-elements="default"] #achcont[data-san-view-index="1"] .wrapper#achcontent .san-line-stack{margin-left:calc(var(--san-icon-size) + (12px * var(--scale)))!important;max-width:calc(100% - var(--san-icon-size) - (12px * var(--scale)))!important}body[data-san-elements="default"] #achcont[data-san-view-index="2"] .wrapper#achcontent .san-line-stack{margin-right:calc(var(--san-secondary-icon-size) + (12px * var(--scale)))!important;max-width:calc(100% - var(--san-secondary-icon-size) - (12px * var(--scale)))!important}`;
         const primaryIconBackground = slot.ShowIconBackground===false ? 'transparent' : cssBrushColor(slot.IconBackgroundColor,'#24FFFFFF');
         const secondaryIconBackground = slot.ShowSecondaryIconBackground===false ? 'transparent' : cssBrushColor(slot.SecondaryIconBackgroundColor,'#18FFFFFF');
@@ -3678,7 +3898,8 @@
       applyAnimation(toast, transition, slot);
       applyManualOffsets();
       $('jsonOutput').value = JSON.stringify(data, null, 2);
-      $('previewStatus').textContent = `${width} x ${height} / ${transition.OverlayPosition} / ${slot.SanPresetId || slot.AnimationStyle}`;
+      const renderedHeight = Math.ceil(toast.getBoundingClientRect().height || height);
+      $('previewStatus').textContent = `${width} x ${renderedHeight}${slot.AutoResizeToContent ? ' auto' : ''} / ${transition.OverlayPosition} / ${slot.SanPresetId || slot.AnimationStyle}`;
     }
 
     function downloadJson() {
@@ -3733,6 +3954,8 @@
       importedSanThemeJson = '';
       importedSanThemeDirectory = '';
       manualElementOffsets = {};
+      elementAnchors = {};
+      selectedAnchorElement = 'primaryIcon';
       customIconPreviewData.primary = '';
       customIconPreviewData.secondary = '';
       dragEditEnabled = false;
@@ -3752,6 +3975,7 @@
       if ($('textLinesScroll')) $('textLinesScroll').scrollTop = 0;
 
       focusedTemplateField = $('AchievementTemplate');
+      loadAnchorControls('primaryIcon');
       syncColorPickers();
       setExtraLineCount(defaultVisibleLineCount());
       render();
@@ -3786,6 +4010,8 @@
       assign('SanElementPresetId', slot.SanElementPresetId);
       assign('ManualElementCss', slot.ManualElementCss);
       manualElementOffsets = parseManualCssToOffsets(slot.ManualElementCss);
+      try { elementAnchors = JSON.parse(slot.ElementAnchorsJson || '{}') || {}; } catch { elementAnchors = {}; }
+      loadAnchorControls();
       importedSanThemeJson = slot.SanThemeJson || '';
       importedSanThemeDirectory = slot.SanThemeDirectory || '';
       check('AutoResizeToContent', slot.AutoResizeToContent);
@@ -4212,6 +4438,26 @@
     ids.forEach(id => {
       const element = $(id);
       if (!element) return;
+      if (id === 'AnchorElement') {
+        element.addEventListener('change', () => {
+          saveAnchorControls(selectedAnchorElement);
+          loadAnchorControls(element.value);
+          render();
+        });
+        return;
+      }
+      if (id === 'WrapAllText') {
+        element.addEventListener('change', () => {
+          writeManualCssFromOffsets();
+          render();
+        });
+        return;
+      }
+      if (['AnchorEnabled', 'AnchorTarget', 'AnchorSide', 'AnchorAlign', 'AnchorGap', 'AnchorOffsetX', 'AnchorOffsetY'].includes(id)) {
+        element.addEventListener('input', () => { saveAnchorControls(); render(); });
+        element.addEventListener('change', () => { saveAnchorControls(); render(); });
+        return;
+      }
       if (id === 'ManualElementCss') {
         // The standard preview uses this parsed model for absolute positioning.
         // Keep it synchronized when CSS is pasted or edited directly so icon and

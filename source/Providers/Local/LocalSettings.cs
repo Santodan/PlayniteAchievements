@@ -312,6 +312,7 @@ namespace PlayniteAchievements.Providers.Local
         public string SanThemeJson { get; set; } = string.Empty;
         public string SanThemeDirectory { get; set; } = string.Empty;
         public string ManualElementCss { get; set; } = string.Empty;
+        public string ElementAnchorsJson { get; set; } = string.Empty;
         public int SanView1DurationMilliseconds { get; set; } = 5000;
         public int SanView2DurationMilliseconds { get; set; } = 5000;
         public bool TitleBold { get; set; } = true;
@@ -562,6 +563,7 @@ namespace PlayniteAchievements.Providers.Local
         private string _overlayCustomSanThemeJson = string.Empty;
         private string _overlayCustomSanThemeDirectory = string.Empty;
         private string _overlayCustomManualElementCss = string.Empty;
+        private string _overlayCustomElementAnchorsJson = string.Empty;
         private int _overlayCustomSanView1DurationMilliseconds = 5000;
         private int _overlayCustomSanView2DurationMilliseconds = 5000;
         private bool _overlayCustomTitleBold = true;
@@ -1673,6 +1675,12 @@ namespace PlayniteAchievements.Providers.Local
             set => SetValue(ref _overlayCustomManualElementCss, value ?? string.Empty);
         }
 
+        public string OverlayCustomElementAnchorsJson
+        {
+            get => _overlayCustomElementAnchorsJson;
+            set => SetValue(ref _overlayCustomElementAnchorsJson, value ?? string.Empty);
+        }
+
         public int OverlayCustomSanView1DurationMilliseconds
         {
             get => _overlayCustomSanView1DurationMilliseconds;
@@ -2688,6 +2696,7 @@ namespace PlayniteAchievements.Providers.Local
                     SanThemeJson = slot.SanThemeJson ?? string.Empty,
                     SanThemeDirectory = slot.SanThemeDirectory ?? string.Empty,
                     ManualElementCss = slot.ManualElementCss ?? string.Empty,
+                    ElementAnchorsJson = slot.ElementAnchorsJson ?? string.Empty,
                     SanView1DurationMilliseconds = Math.Max(500, Math.Min(30000, slot.SanView1DurationMilliseconds <= 0 ? 5000 : slot.SanView1DurationMilliseconds)),
                     SanView2DurationMilliseconds = Math.Max(500, Math.Min(30000, slot.SanView2DurationMilliseconds <= 0 ? 5000 : slot.SanView2DurationMilliseconds)),
                     TitleBold = slot.TitleBold,
