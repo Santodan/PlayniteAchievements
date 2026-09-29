@@ -136,13 +136,13 @@ namespace PlayniteAchievements.Services.Capture
         }
 
         // BT.709 luma weights and the limited-range 8-bit scale the clips are encoded with.
-        private const double Kr = 0.2126;
-        private const double Kb = 0.0722;
-        private const double Kg = 1.0 - Kr - Kb;
-        private const double LumaScale = 219.0;
-        private const double ChromaScale = 224.0;
-        private const double LumaOffset = 16.0;
-        private const double ChromaOffset = 128.0;
+        internal const double Kr = 0.2126;
+        internal const double Kb = 0.0722;
+        internal const double Kg = 1.0 - Kr - Kb;
+        internal const double LumaScale = 219.0;
+        internal const double ChromaScale = 224.0;
+        internal const double LumaOffset = 16.0;
+        internal const double ChromaOffset = 128.0;
 
         /// <summary>
         /// Blends a premultiplied-BGRA overlay onto an NV12 region: <paramref name="yRegion"/> holds
