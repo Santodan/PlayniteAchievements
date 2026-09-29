@@ -328,6 +328,10 @@
                         <DataTrigger Binding="{Binding ActiveRefreshHeader.ShowProgress, ElementName=OverviewControlRoot}" Value="True">
                             <Setter Property="BorderThickness" Value="0"/>
                         </DataTrigger>
+                        <!-- The showcase hides the progress strip, so the header keeps its own rule. -->
+                        <DataTrigger Binding="{Binding ActiveSubView, ElementName=OverviewControlRoot}" Value="{x:Static rootModels:OverviewSubView.Showcase}">
+                            <Setter Property="BorderThickness" Value="0,0,0,1"/>
+                        </DataTrigger>
                     </Style.Triggers>
                 </Style>
             </Border.Style>
@@ -564,8 +568,19 @@
                 Background="Transparent"
                 BorderBrush="{DynamicResource PlayAch.Brush.ControlBorder}"
                 BorderThickness="0,0,0,1"
-                Padding="8,8"
-                Visibility="{Binding ActiveRefreshHeader.ShowProgress, ElementName=OverviewControlRoot, Converter={StaticResource BoolToVis}}">
+                Padding="8,8">
+            <Border.Style>
+                <Style TargetType="Border">
+                    <Setter Property="Visibility" Value="{Binding ActiveRefreshHeader.ShowProgress, ElementName=OverviewControlRoot, Converter={StaticResource BoolToVis}}"/>
+                    <Style.Triggers>
+                        <!-- Like the refresh controls, refresh progress belongs to the overview and
+                             friends views, not the showcase. -->
+                        <DataTrigger Binding="{Binding ActiveSubView, ElementName=OverviewControlRoot}" Value="{x:Static rootModels:OverviewSubView.Showcase}">
+                            <Setter Property="Visibility" Value="Collapsed"/>
+                        </DataTrigger>
+                    </Style.Triggers>
+                </Style>
+            </Border.Style>
             <StackPanel VerticalAlignment="Center">
                 <TextBlock Text="{Binding ActiveRefreshHeader.ProgressMessage, ElementName=OverviewControlRoot}"
                            Style="{DynamicResource PlayAch.TextBlock.BaseStyle}"
