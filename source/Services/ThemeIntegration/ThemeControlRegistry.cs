@@ -62,6 +62,7 @@ namespace PlayniteAchievements.Services.ThemeIntegration
             "AchievementCompactLockedList",
             "AchievementCompactUnlockedList",
             "AchievementCompactLatest",
+            "AchievementChart", // alias of AchievementBarChart
             "AchievementBarChart",
             "AchievementPieChart",
             "AchievementStats",
