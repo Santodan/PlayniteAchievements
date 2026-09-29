@@ -1,8 +1,10 @@
 using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
 using System.Windows.Documents;
 using System.Windows.Input;
 using System.Windows.Media;
@@ -42,12 +44,13 @@ namespace PlayniteAchievements.Views.Showcase
     /// Draws the activity heatmap as a single visual instead of one element per day cell.
     /// A year (or more) of cells as retained Border elements makes page switches and
     /// scrolling drag; OnRender keeps the whole calendar one drawing and serves tooltips
-    /// from mouse hit tests.
+    /// and the day popup (the day's unlocks, opened by clicking a cell) from mouse hit tests.
     /// </summary>
     public sealed class ActivityCalendarHeatmap : FrameworkElement
     {
         private const double CellCornerRadius = 2;
         private const double CellMargin = 1;
+        private const string DayPopupTemplateKey = "ShowcaseActivityDayPopupTemplate";
         private static readonly double[] IntensityOpacity = { 0.30, 0.55, 0.78, 1.0 };
 
         public static readonly DependencyProperty WeeksProperty =
@@ -59,7 +62,7 @@ namespace PlayniteAchievements.Views.Showcase
                     null,
                     FrameworkPropertyMetadataOptions.AffectsMeasure |
                     FrameworkPropertyMetadataOptions.AffectsRender,
-                    (d, __) => ((ActivityCalendarHeatmap)d).ResetHover()));
+                    (d, __) => ((ActivityCalendarHeatmap)d).OnWeeksChanged()));
 
         public IReadOnlyList<ActivityCalendarWeekViewModel> Weeks
         {
@@ -108,6 +111,7 @@ namespace PlayniteAchievements.Views.Showcase
                 }
 
                 CloseToolTip();
+                CloseDayPopup();
             };
         }
 
@@ -126,6 +130,26 @@ namespace PlayniteAchievements.Views.Showcase
             }
 
             return _hoverVisual;
+        }
+
+        /// <summary>
+        /// The day popup is a logical child so its content resolves resources (the popup
+        /// template's brushes, the row menu's styles) through the widget template tree rather
+        /// than depending on Popup's placement-target inheritance.
+        /// </summary>
+        protected override IEnumerator LogicalChildren =>
+            _popup == null ? base.LogicalChildren : EnumeratePopup();
+
+        private IEnumerator EnumeratePopup()
+        {
+            yield return _popup;
+        }
+
+        /// <summary>A replaced calendar invalidates both the hovered and the opened cell index.</summary>
+        private void OnWeeksChanged()
+        {
+            ResetHover();
+            CloseDayPopup();
         }
 
         private void OnAppearanceChanged(object sender, EventArgs e)
@@ -278,14 +302,68 @@ namespace PlayniteAchievements.Views.Showcase
             ResetHover();
         }
 
-        /// <summary>Clears the hover outline and tooltip; also runs when Weeks is replaced,
+        /// <summary>Clears the hover outline, cursor, and tooltip; also runs when Weeks is replaced,
         /// because a stale outline would point at whatever cell now occupies the old index.</summary>
         private void ResetHover()
         {
             _hoverWeekIndex = -1;
             _hoverDayIndex = -1;
+            _pressWeekIndex = -1;
+            _pressDayIndex = -1;
+            Cursor = null;
             RenderHoverIndicator();
             CloseToolTip();
+        }
+
+        /// <summary>
+        /// Resolves the day cell under <paramref name="position"/>: a real (non-placeholder) cell
+        /// with a tooltip, its week and day indices, and its box rect in this element's coordinates.
+        /// </summary>
+        private bool TryHitTestCell(
+            Point position,
+            out int weekIndex,
+            out int dayIndex,
+            out ActivityCalendarDayViewModel day,
+            out Rect cellRect)
+        {
+            weekIndex = -1;
+            dayIndex = -1;
+            day = null;
+            cellRect = Rect.Empty;
+
+            var weeks = Weeks;
+            if (weeks == null || weeks.Count == 0)
+            {
+                return false;
+            }
+
+            var metrics = ActivityCalendarMetrics.For(this);
+            var cellBox = metrics.CellBox;
+            var top = ShowMonthLabels ? metrics.MonthBandHeight : 0;
+            if (position.Y < top || position.X < 0)
+            {
+                return false;
+            }
+
+            var week = (int)(position.X / cellBox);
+            var dayOfWeek = (int)((position.Y - top) / cellBox);
+            if (week >= weeks.Count || dayOfWeek >= 7)
+            {
+                return false;
+            }
+
+            var days = weeks[week]?.Days;
+            var cell = days != null && dayOfWeek < days.Count ? days[dayOfWeek] : null;
+            if (cell == null || !cell.IsDay)
+            {
+                return false;
+            }
+
+            weekIndex = week;
+            dayIndex = dayOfWeek;
+            day = cell;
+            cellRect = new Rect(week * cellBox, top + dayOfWeek * cellBox, cellBox, cellBox);
+            return true;
         }
 
         /// <summary>
@@ -296,27 +374,12 @@ namespace PlayniteAchievements.Views.Showcase
         /// </summary>
         private void UpdateHoverToolTip(Point position)
         {
-            var weeks = Weeks;
-            if (weeks == null || weeks.Count == 0)
+            if (Weeks == null || Weeks.Count == 0)
             {
                 return;
             }
 
-            var metrics = ActivityCalendarMetrics.For(this);
-            var cellBox = metrics.CellBox;
-            var top = ShowMonthLabels ? metrics.MonthBandHeight : 0;
-            var weekIndex = (int)(position.X / cellBox);
-            var dayIndex = (int)((position.Y - top) / cellBox);
-
-            string tooltip = null;
-            if (position.Y >= top && weekIndex >= 0 && weekIndex < weeks.Count &&
-                dayIndex >= 0 && dayIndex < 7)
-            {
-                var days = weeks[weekIndex]?.Days;
-                tooltip = days != null && dayIndex < days.Count ? days[dayIndex]?.Tooltip : null;
-            }
-
-            if (tooltip == null)
+            if (!TryHitTestCell(position, out var weekIndex, out var dayIndex, out var day, out var cellRect))
             {
                 ResetHover();
                 return;
@@ -329,12 +392,157 @@ namespace PlayniteAchievements.Views.Showcase
 
             _hoverWeekIndex = weekIndex;
             _hoverDayIndex = dayIndex;
+            // Only cells that open the day popup read as clickable.
+            Cursor = day.HasUnlocks ? Cursors.Hand : null;
             RenderHoverIndicator();
-            ShowToolTip(tooltip, new Rect(
-                weekIndex * cellBox,
-                top + dayIndex * cellBox,
-                cellBox,
-                cellBox));
+            ShowToolTip(day.Tooltip, cellRect);
+        }
+
+        private Popup _popup;
+        private ContentPresenter _popupContent;
+        private IInputElement _focusBeforePopup;
+        private int _popupWeekIndex = -1;
+        private int _popupDayIndex = -1;
+        private int _pressWeekIndex = -1;
+        private int _pressDayIndex = -1;
+        private bool _pressClosedPopup;
+
+        /// <summary>
+        /// A click is a press and release on the same cell. The popup opens on the release rather
+        /// than the press because a Popup with StaysOpen false also closes on a button release
+        /// outside its capture, so one opened on the press would close on the same click.
+        /// </summary>
+        protected override void OnMouseLeftButtonDown(MouseButtonEventArgs e)
+        {
+            base.OnMouseLeftButtonDown(e);
+            _pressWeekIndex = -1;
+            _pressDayIndex = -1;
+            if (e.Handled || e.ClickCount != 1 ||
+                !TryHitTestCell(e.GetPosition(this), out var weekIndex, out var dayIndex, out var day, out _) ||
+                !day.HasUnlocks)
+            {
+                _pressClosedPopup = false;
+                return;
+            }
+
+            // The press is left unhandled so the dashboard's own press bookkeeping still sees it;
+            // only the release that completes the click is claimed.
+            _pressWeekIndex = weekIndex;
+            _pressDayIndex = dayIndex;
+        }
+
+        protected override void OnMouseLeftButtonUp(MouseButtonEventArgs e)
+        {
+            base.OnMouseLeftButtonUp(e);
+            var pressWeekIndex = _pressWeekIndex;
+            var pressDayIndex = _pressDayIndex;
+            var pressClosedPopup = _pressClosedPopup;
+            _pressWeekIndex = -1;
+            _pressDayIndex = -1;
+            _pressClosedPopup = false;
+            if (e.Handled || pressWeekIndex < 0 ||
+                !TryHitTestCell(e.GetPosition(this), out var weekIndex, out var dayIndex, out var day, out var cellRect) ||
+                weekIndex != pressWeekIndex || dayIndex != pressDayIndex || !day.HasUnlocks)
+            {
+                return;
+            }
+
+            e.Handled = true;
+            if (pressClosedPopup)
+            {
+                // The press that started this click closed the popup on this same cell, so the
+                // click toggles it off instead of reopening it.
+                return;
+            }
+
+            CloseToolTip();
+            ShowDayPopup(day, weekIndex, dayIndex, cellRect);
+        }
+
+        /// <summary>
+        /// Opens the day popup under <paramref name="cellRect"/>. The popup owns its content
+        /// presenter; the template comes from the widget resources so the list markup stays in
+        /// XAML beside the calendar template.
+        /// </summary>
+        private void ShowDayPopup(ActivityCalendarDayViewModel day, int weekIndex, int dayIndex, Rect cellRect)
+        {
+            if (_popup == null)
+            {
+                _popupContent = new ContentPresenter { Focusable = true };
+                _popupContent.PreviewKeyDown += OnPopupPreviewKeyDown;
+                _popup = new Popup
+                {
+                    PlacementTarget = this,
+                    Placement = PlacementMode.Bottom,
+                    VerticalOffset = 4,
+                    StaysOpen = false,
+                    AllowsTransparency = true,
+                    PopupAnimation = PopupAnimation.Fade,
+                    Child = _popupContent
+                };
+                _popup.Opened += OnPopupOpened;
+                _popup.Closed += OnPopupClosed;
+                AddLogicalChild(_popup);
+            }
+
+            // Like the tooltip, a popup's position is fixed at open time, so moving to another
+            // cell closes and reopens it against the new rect.
+            _popup.IsOpen = false;
+            _popupContent.ContentTemplate = TryFindResource(DayPopupTemplateKey) as DataTemplate;
+            _popupContent.Content = day;
+            _popup.PlacementRectangle = cellRect;
+            _popupWeekIndex = weekIndex;
+            _popupDayIndex = dayIndex;
+            _focusBeforePopup = Keyboard.FocusedElement;
+            _popup.IsOpen = true;
+        }
+
+        private void CloseDayPopup()
+        {
+            if (_popup != null)
+            {
+                _popup.IsOpen = false;
+            }
+        }
+
+        /// <summary>Takes keyboard focus so Escape closes the popup; restored on close.</summary>
+        private void OnPopupOpened(object sender, EventArgs e)
+        {
+            Keyboard.Focus(_popupContent);
+        }
+
+        private void OnPopupClosed(object sender, EventArgs e)
+        {
+            var weekIndex = _popupWeekIndex;
+            var dayIndex = _popupDayIndex;
+            _popupWeekIndex = -1;
+            _popupDayIndex = -1;
+
+            // Closed by a press on the cell it was opened for: remember that so the release that
+            // completes the click does not reopen it. A press anywhere else clears the flag.
+            _pressClosedPopup = Mouse.LeftButton == MouseButtonState.Pressed &&
+                TryHitTestCell(Mouse.GetPosition(this), out var pressWeek, out var pressDay, out _, out _) &&
+                pressWeek == weekIndex && pressDay == dayIndex;
+
+            // Hand focus back the way a context menu does; by now the popup window may already
+            // have released it, leaving nothing focused, so the restore is not gated on it.
+            if (_focusBeforePopup != null &&
+                (Keyboard.FocusedElement == null || _popupContent.IsKeyboardFocusWithin))
+            {
+                Keyboard.Focus(_focusBeforePopup);
+            }
+
+            _focusBeforePopup = null;
+            _popupContent.Content = null;
+        }
+
+        private void OnPopupPreviewKeyDown(object sender, KeyEventArgs e)
+        {
+            if (e.Key == Key.Escape)
+            {
+                e.Handled = true;
+                CloseDayPopup();
+            }
         }
 
         /// <summary>
