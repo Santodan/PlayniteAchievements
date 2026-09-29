@@ -946,7 +946,7 @@ namespace PlayniteAchievements.Services.Capture
             return ((long)high << 32) | (uint)low;
         }
 
-        private static long ToTicks(double seconds)
+        internal static long ToTicks(double seconds)
         {
             return (long)(Math.Max(0, seconds) * OneSecond100ns);
         }
