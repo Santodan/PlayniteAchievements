@@ -290,9 +290,22 @@ namespace PlayniteAchievements.Views.Showcase
         private int _hoverWeekIndex = -1;
         private int _hoverDayIndex = -1;
 
+        /// <summary>
+        /// The day popup is this element's logical child, so mouse events raised inside it (and,
+        /// while it holds capture, anywhere) bubble here with a position that can land on a cell.
+        /// Only events that originated on the calendar itself, with no popup open, drive the hover.
+        /// </summary>
+        private bool IsOwnMouseEvent(RoutedEventArgs e) =>
+            ReferenceEquals(e.OriginalSource, this);
+
         protected override void OnMouseMove(MouseEventArgs e)
         {
             base.OnMouseMove(e);
+            if (!IsOwnMouseEvent(e) || _popup?.IsOpen == true)
+            {
+                return;
+            }
+
             UpdateHoverToolTip(e.GetPosition(this));
         }
 
@@ -417,7 +430,7 @@ namespace PlayniteAchievements.Views.Showcase
             base.OnMouseLeftButtonDown(e);
             _pressWeekIndex = -1;
             _pressDayIndex = -1;
-            if (e.Handled || e.ClickCount != 1 ||
+            if (e.Handled || !IsOwnMouseEvent(e) || e.ClickCount != 1 ||
                 !TryHitTestCell(e.GetPosition(this), out var weekIndex, out var dayIndex, out var day, out _) ||
                 !day.HasUnlocks)
             {
@@ -440,7 +453,7 @@ namespace PlayniteAchievements.Views.Showcase
             _pressWeekIndex = -1;
             _pressDayIndex = -1;
             _pressClosedPopup = false;
-            if (e.Handled || pressWeekIndex < 0 ||
+            if (e.Handled || !IsOwnMouseEvent(e) || pressWeekIndex < 0 ||
                 !TryHitTestCell(e.GetPosition(this), out var weekIndex, out var dayIndex, out var day, out var cellRect) ||
                 weekIndex != pressWeekIndex || dayIndex != pressDayIndex || !day.HasUnlocks)
             {
