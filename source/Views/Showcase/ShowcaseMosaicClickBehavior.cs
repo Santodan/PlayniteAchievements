@@ -12,10 +12,12 @@ using PlayniteAchievements.Views.Helpers;
 namespace PlayniteAchievements.Views.Showcase
 {
     /// <summary>
-    /// Makes mosaic tiles clickable. Achievement tiles open the View Achievements window scrolled
-    /// to the achievement, as the compact lists do, and right-click to the shared achievement row
-    /// menu. Game tiles open the game in the library, and right-click to the Open (game or
-    /// library) menu plus, for pinned tiles, the reorder and unpin items.
+    /// Makes mosaic tiles and achievement list rows clickable. Achievement tiles, and list items
+    /// whose data is an achievement row (the activity calendar's day popup), open the View
+    /// Achievements window scrolled to the achievement, as the compact lists do, and right-click
+    /// to the shared achievement row menu. Game tiles open the game in the library, and
+    /// right-click to the Open (game or library) menu plus, for pinned tiles, the reorder and
+    /// unpin items.
     /// Both clicks run on the tunneling events: theme-provided implicit styles can consume the
     /// bubbling ones inside the list. Edit mode needs no guard here, since the dashboard turns
     /// widget bodies inert through IsHitTestVisible.
@@ -173,6 +175,15 @@ namespace PlayniteAchievements.Views.Showcase
             itemControl = source as AchievementCompactItemControl
                 ?? VisualTreeHelpers.FindVisualParent<AchievementCompactItemControl>(source);
             item = itemControl?.DataContext as AchievementDisplayItem;
+            if (item != null)
+            {
+                return true;
+            }
+
+            // Text rows (no compact tile) resolve through their list container instead.
+            var container = source as ListBoxItem
+                ?? VisualTreeHelpers.FindVisualParent<ListBoxItem>(source);
+            item = container?.DataContext as AchievementDisplayItem;
             return item != null;
         }
 
