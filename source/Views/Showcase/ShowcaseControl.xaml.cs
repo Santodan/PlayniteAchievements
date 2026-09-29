@@ -3186,14 +3186,27 @@ namespace PlayniteAchievements.Views.Showcase
         // the dashboard stays inert while it is being read rather than arranged.
         private void OnPreviewKeyDown(object sender, KeyEventArgs e)
         {
-            if (EditLayoutButton.IsChecked != true ||
-                (Keyboard.Modifiers & ModifierKeys.Control) != ModifierKeys.Control)
+            if (EditLayoutButton.IsChecked != true)
             {
                 return;
             }
 
-            // A text box inside a widget (a grid's search field) owns its own Ctrl shortcuts.
+            // A text box (a track size label, a grid's search field) owns its own Escape and Ctrl
+            // shortcuts.
             if (Keyboard.FocusedElement is System.Windows.Controls.Primitives.TextBoxBase)
+            {
+                return;
+            }
+
+            // Escape leaves edit mode, and being handled here it never reaches the window.
+            if (e.Key == Key.Escape && Keyboard.Modifiers == ModifierKeys.None)
+            {
+                EditLayoutButton.IsChecked = false;
+                e.Handled = true;
+                return;
+            }
+
+            if ((Keyboard.Modifiers & ModifierKeys.Control) != ModifierKeys.Control)
             {
                 return;
             }
