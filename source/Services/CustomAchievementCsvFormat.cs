@@ -9,12 +9,13 @@ namespace PlayniteAchievements.Services
     /// <summary>
     /// The CSV shape written into a custom-achievements .pa package. The header uses readable column names;
     /// <see cref="CustomAchievementTextImportService"/> normalizes them back to fields, so a
-    /// template and an export share this single header.
+    /// template and an export share this single header. It carries no unlock state or
+    /// progress, which stay with the user who earned them.
     /// </summary>
     public static class CustomAchievementCsvFormat
     {
         public const string Header =
-            "ID,Title,Description,Unlocked,Unlock Time (UTC),Points,Trophy Type,Hidden,Rarity,Global Percent,Progress,Progress Total,Unlocked Icon,Locked Icon";
+            "ID,Title,Description,Points,Trophy Type,Hidden,Rarity,Global Percent,Progress Total,Unlocked Icon,Locked Icon";
 
         public static List<string> BuildLines(IEnumerable<CustomAchievementDefinition> definitions)
         {
@@ -38,14 +39,11 @@ namespace PlayniteAchievements.Services
                 definition.Id,
                 definition.DisplayName,
                 definition.Description,
-                definition.Unlocked ? "true" : "false",
-                definition.UnlockTimeUtc?.ToString("yyyy-MM-dd'T'HH:mm:ss'Z'", CultureInfo.InvariantCulture),
                 definition.Points?.ToString(CultureInfo.InvariantCulture),
                 definition.TrophyType,
                 definition.Hidden ? "true" : "false",
                 definition.Rarity,
                 definition.GlobalPercentUnlocked?.ToString(CultureInfo.InvariantCulture),
-                definition.ProgressNum?.ToString(CultureInfo.InvariantCulture),
                 definition.ProgressDenom?.ToString(CultureInfo.InvariantCulture),
                 definition.UnlockedIconPath,
                 definition.LockedIconPath
