@@ -1219,8 +1219,9 @@ namespace PlayniteAchievements.Services.Achievements
 
         /// <summary>
         /// Merges imported definitions into the game's custom achievements by ID, the same rule
-        /// the editor applies to its rows: a matching ID is replaced in place, anything else is
-        /// appended. For callers with no editor rows to merge into.
+        /// the editor applies to its rows: a matching ID is replaced in place, keeping its local
+        /// unlock state and progress, and anything else is appended. For callers with no editor
+        /// rows to merge into.
         /// </summary>
         public void MergeCustomAchievements(
             Guid gameId,
@@ -1248,7 +1249,9 @@ namespace PlayniteAchievements.Services.Achievements
                                 StringComparison.OrdinalIgnoreCase));
                         if (index >= 0)
                         {
-                            merged[index] = definition.Clone();
+                            var replacement = definition.Clone();
+                            PortablePersonalState.CarryLocal(merged[index], replacement);
+                            merged[index] = replacement;
                             updatedCount++;
                         }
                         else
