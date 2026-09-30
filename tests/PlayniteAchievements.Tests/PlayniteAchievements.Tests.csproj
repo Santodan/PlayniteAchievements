@@ -471,6 +471,7 @@
     <Compile Include="..\..\source\Services\Showcase\ShowcasePinService.cs" Link="Source\Services\Showcase\ShowcasePinService.cs" />
     <Compile Include="..\..\source\Services\Showcase\ShowcaseWidgetProjectionService.cs" Link="Source\Services\Showcase\ShowcaseWidgetProjectionService.cs" />
     <Compile Include="..\..\source\Services\Showcase\ShowcaseProfileResolver.cs" Link="Source\Services\Showcase\ShowcaseProfileResolver.cs" />
+    <Compile Include="..\..\source\Services\Showcase\GameCapstoneRarityResolver.cs" Link="Source\Services\Showcase\GameCapstoneRarityResolver.cs" />
     <Compile Include="..\..\source\Models\Settings\AchievementOverride.cs" Link="Source\Models\Settings\AchievementOverride.cs" />
     <Compile Include="..\..\source\Models\Achievements\IAchievementOverrideTarget.cs" Link="Source\Models\Achievements\IAchievementOverrideTarget.cs" />
     <Compile Include="..\..\source\Services\Achievements\AchievementOverrideApplier.cs" Link="Source\Services\Achievements\AchievementOverrideApplier.cs" />
