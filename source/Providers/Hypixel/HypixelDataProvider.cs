@@ -2,6 +2,7 @@ using PlayniteAchievements.Models;
 using PlayniteAchievements.Models.Achievements;
 using PlayniteAchievements.Providers.Overrides;
 using PlayniteAchievements.Providers.Settings;
+using PlayniteAchievements.Services.Achievements;
 using PlayniteAchievements.Services.GameCustomData;
 using PlayniteAchievements.Services.Refresh;
 using Playnite.SDK;
@@ -18,8 +19,9 @@ namespace PlayniteAchievements.Providers.Hypixel
     /// Hypixel achievement provider backed by the public hypixel.net profile page. Hypixel
     /// achievements are account-wide across every Hypixel game, so the whole set is attached to
     /// the matched Hypixel entry in the Playnite library, one category per Hypixel game.
-    /// Exempt from in-game polling: each refresh downloads the full profile page, and repeating
-    /// that on a timer while the player is online would be a steady load on the site.
+    /// Exempt from in-game polling: hypixel.net serves profile pages from its CDN cache, which on
+    /// 2026-09-30 returned pages 4.5 and 12 hours old for active players, so a poll during play
+    /// re-downloads the same page and cannot observe a new unlock.
     /// </summary>
     internal sealed class HypixelDataProvider : DataProviderBase<HypixelSettings>, IDataProvider, IProviderOverride, IInGamePollingExempt, IDisposable
     {
@@ -140,15 +142,16 @@ namespace PlayniteAchievements.Providers.Hypixel
             return await ProviderRefreshExecutor.RunProviderGamesAsync(
                 gamesToRefresh,
                 onGameStarting,
-                (game, token) =>
+                async (game, token) =>
                 {
                     if (!IsCapable(game))
                     {
-                        return Task.FromResult(ProviderRefreshExecutor.ProviderGameResult.Skipped());
+                        return ProviderRefreshExecutor.ProviderGameResult.Skipped();
                     }
 
                     var data = BuildGameData(game, profile, catalog);
-                    return Task.FromResult(new ProviderRefreshExecutor.ProviderGameResult { Data = data });
+                    await DownloadCategoryArtAsync(game.Id, profile, token).ConfigureAwait(false);
+                    return new ProviderRefreshExecutor.ProviderGameResult { Data = data };
                 },
                 onGameCompleted,
                 isAuthRequiredException: _ => false,
@@ -177,6 +180,61 @@ namespace PlayniteAchievements.Providers.Hypixel
                 PlayniteGameId = game?.Id,
                 Achievements = achievements
             };
+        }
+
+        /// <summary>
+        /// Downloads each game panel's heading icon as default category art for its category, so
+        /// the per-game categories render with that game's icon. Uses the shared provider-default
+        /// convention read by CategoryDefaultImageResolver: existing art is kept and user overrides
+        /// win over defaults. Best-effort: failures never fail the refresh, and existing targets are
+        /// skipped so repeat refreshes cost nothing.
+        /// </summary>
+        private async Task DownloadCategoryArtAsync(Guid playniteGameId, HypixelProfile profile, CancellationToken cancel)
+        {
+            if (playniteGameId == Guid.Empty || profile?.Panels == null)
+            {
+                return;
+            }
+
+            var diskImageService = PlayniteAchievementsPlugin.Instance?.DiskImageService;
+            if (diskImageService == null)
+            {
+                return;
+            }
+
+            var gameIdText = playniteGameId.ToString("D");
+            var seenLabels = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var panel in profile.Panels)
+            {
+                cancel.ThrowIfCancellationRequested();
+                if (panel == null || panel.Entries.Count == 0 || string.IsNullOrWhiteSpace(panel.IconUrl))
+                {
+                    continue;
+                }
+
+                var label = AchievementCategoryTypeHelper.NormalizeCategoryOrDefault(panel.DisplayName);
+                if (string.Equals(label, AchievementCategoryTypeHelper.DefaultCategoryLabel, StringComparison.OrdinalIgnoreCase) ||
+                    !seenLabels.Add(label))
+                {
+                    continue;
+                }
+
+                try
+                {
+                    var artTarget = diskImageService.GetDefaultCategoryImagePath(gameIdText, label);
+                    // decodeSize 0 stores the original bytes: no square crop, original aspect.
+                    await diskImageService.GetOrDownloadIconToPathAsync(panel.IconUrl, artTarget, decodeSize: 0, cancel)
+                        .ConfigureAwait(false);
+                }
+                catch (OperationCanceledException) when (cancel.IsCancellationRequested)
+                {
+                    throw;
+                }
+                catch (Exception ex)
+                {
+                    _logger?.Debug(ex, $"[Hypixel] Default category image download failed for '{panel.DisplayName}'.");
+                }
+            }
         }
 
         /// <summary>
