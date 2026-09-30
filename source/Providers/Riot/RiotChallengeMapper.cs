@@ -444,6 +444,29 @@ namespace PlayniteAchievements.Providers.Riot
         }
 
         /// <summary>
+        /// The token art of the highest tier the challenge publishes art for.
+        /// </summary>
+        private static string ResolveTopTierIconUrl(CDragonChallenge challenge)
+        {
+            if (challenge?.LevelToIconPath == null || challenge.LevelToIconPath.Count == 0)
+            {
+                return null;
+            }
+
+            var byLevel = new Dictionary<string, string>(challenge.LevelToIconPath, StringComparer.OrdinalIgnoreCase);
+            for (var rank = RiotChallengeLevels.Ascending.Length - 1; rank >= 1; rank--)
+            {
+                if (byLevel.TryGetValue(RiotChallengeLevels.Ascending[rank], out var path) &&
+                    !string.IsNullOrWhiteSpace(path))
+                {
+                    return BuildAssetUrl(path);
+                }
+            }
+
+            return null;
+        }
+
+        /// <summary>
         /// Applies CommunityDragon's documented rule: <c>/lol-game-data/assets/&lt;path&gt;</c> maps to
         /// <c>plugins/rcp-be-lol-game-data/global/default/&lt;lowercased path&gt;</c>.
         /// </summary>
@@ -470,9 +493,10 @@ namespace PlayniteAchievements.Providers.Riot
 
         /// <summary>
         /// Default category art for capstone groups: a challenge's category is named after the
-        /// capstone it hangs off, so that capstone's token art belongs to the category. The lowest
-        /// tier's art is used so the image does not depend on the player's rank. The five top-level
-        /// categories carry no art and get no entry.
+        /// capstone it hangs off, so that capstone's token art belongs to the category. The highest
+        /// tier's art is used: it does not depend on the player's rank, and the low tiers' tokens are
+        /// grey (Iron is a dark grey medallion). The five top-level categories carry no art and get
+        /// no entry.
         /// </summary>
         public static List<(string Label, string IconUrl)> BuildCategoryArtPlan(
             CDragonChallengeFile metadata,
@@ -503,7 +527,7 @@ namespace PlayniteAchievements.Providers.Riot
                 }
 
                 var label = ResolveCategory(challenge, metadata.Challenges, categoryDisplayNames);
-                var iconUrl = ResolveIconUrl(parent, null);
+                var iconUrl = ResolveTopTierIconUrl(parent);
                 if (!string.IsNullOrWhiteSpace(label) &&
                     !string.IsNullOrWhiteSpace(iconUrl) &&
                     seen.Add(label))
