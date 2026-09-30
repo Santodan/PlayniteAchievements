@@ -66,9 +66,10 @@
             <Style x:Key="SidebarStatGroupStyle" TargetType="StackPanel">
                 <Setter Property="Margin" Value="0,0,0,6" />
             </Style>
-            <!-- Rarity and trophies pair up two per row. Columns are equal and as wide as the widest
-                 chip, so long counts widen the sidebar; a hidden chip drops out and the rest close
-                 up, and a chip left alone on the last row spans both columns. The panel owns the
+            <!-- Rarity and trophies sit in fixed pairs (ultra rare + rare, uncommon + common;
+                 platinum + gold, silver + bronze). Columns are equal and as wide as the widest
+                 chip, so long counts widen the sidebar; a hidden chip drops out of its pair and
+                 the other spans both columns, and a pair with neither shown takes no row. The panel owns the
                  gaps, so its chips carry no margin; the 9 bottom margin matches a single-column
                  group's last chip gap plus group gap. -->
             <Style x:Key="SidebarStatPairGroupStyle" TargetType="controls:PairedRowsPanel">
