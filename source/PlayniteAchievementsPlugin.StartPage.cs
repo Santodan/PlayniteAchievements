@@ -103,9 +103,36 @@ namespace PlayniteAchievements
                 viewId,
                 instanceId,
                 definition.ShowcaseWidgetKind.Value);
-            return new ShowcaseWidgetOptionsControl(
+            if (settings.Kind != ShowcaseWidgetKind.Profile)
+            {
+                return new ShowcaseWidgetOptionsControl(
+                    settings,
+                    PersistSettingsForUi);
+            }
+
+            // The profile card's identity (name, avatar, links) sits above its display options,
+            // as in the Showcase widget dialog; both persist on each edit.
+            var profile = settings.Profile ?? (settings.Profile = new ShowcaseProfileSettings());
+            var panel = new StackPanel { Margin = new Thickness(16) };
+            panel.Children.Add(new ShowcaseProfileSettingsEditor(profile, () =>
+            {
+                PersistSettingsForUi();
+                ShowcaseConfigurationEvents.RaiseChanged();
+            }));
+            panel.Children.Add(new ShowcaseWidgetOptionsControl(
                 settings,
-                PersistSettingsForUi);
+                PersistSettingsForUi,
+                margin: new Thickness(0),
+                loadStyles: false));
+            var host = new UserControl { Content = panel };
+            host.Resources.MergedDictionaries.Add(new ResourceDictionary
+            {
+                Source = new Uri(
+                    "pack://application:,,,/PlayniteAchievements;component/Resources/PlayAchImplicitControlStyles.xaml",
+                    UriKind.Absolute)
+            });
+            Common.FormattingCulture.Apply(host);
+            return host;
         }
 
         public void OnViewRemoved(string viewId, Guid instanceId)
