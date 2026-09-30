@@ -546,9 +546,9 @@
                                                       SelectiveScrollingGrid.SelectiveScrollingOrientation="{Binding AreRowDetailsFrozen, ConverterParameter={x:Static SelectiveScrollingOrientation.Vertical}, Converter={x:Static DataGrid.RowDetailsScrollingConverter}, RelativeSource={RelativeSource AncestorType={x:Type DataGrid}}}"
                                                       Visibility="{TemplateBinding DetailsVisibility}"/>
 
-                            <DataGridRowHeader Grid.RowSpan="2"
-                                               SelectiveScrollingGrid.SelectiveScrollingOrientation="Vertical"
-                                               Visibility="{Binding HeadersVisibility, ConverterParameter={x:Static DataGridHeadersVisibility.Row}, Converter={x:Static DataGrid.HeadersVisibilityConverter}, RelativeSource={RelativeSource AncestorType={x:Type DataGrid}}}"/>
+                            <!-- No row header: no grid using this style shows one. Its visibility
+                                 was an ancestor binding to the DataGrid, and when that binding did
+                                 not resolve the header drew as a 10px box and pushed the row right. -->
                         </SelectiveScrollingGrid>
                       </Grid>
                     </Border>
