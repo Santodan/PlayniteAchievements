@@ -8,6 +8,8 @@ using Playnite.SDK;
 using PlayniteAchievements.Common;
 using PlayniteAchievements.Models;
 using PlayniteAchievements.Services.Achievements;
+using ObservableObject = PlayniteAchievements.Common.ObservableObject;
+using RelayCommand = PlayniteAchievements.Common.RelayCommand;
 
 namespace PlayniteAchievements.Views.Settings.General
 {
