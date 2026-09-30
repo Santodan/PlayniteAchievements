@@ -62,7 +62,7 @@ namespace PlayniteAchievements.Views.Helpers
                     using (DpiAwarenessScope.PerMonitorV2())
                     {
                         new WindowInteropHelper(window).EnsureHandle();
-                        messageScope = PerMonitorWindowMessageScope.Attach(window);
+                        messageScope = PerMonitorWindowMessageScope.Attach(window, logger);
                     }
                 }
 
