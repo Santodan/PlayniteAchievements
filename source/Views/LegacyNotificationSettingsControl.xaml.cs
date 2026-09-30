@@ -1509,6 +1509,7 @@ namespace PlayniteAchievements.Views
                 case nameof(Providers.Local.LocalSettings.EnableGameCoverInOverlay):
                 case nameof(Providers.Local.LocalSettings.GameCoverPosition):
                 case nameof(Providers.Local.LocalSettings.GameCoverWidth):
+                case nameof(Providers.Local.LocalSettings.CenterGameCoverVertically):
                 case nameof(Providers.Local.LocalSettings.SelectedCustomStyleSlot):
                 case nameof(Providers.Local.LocalSettings.CustomOverlayStyleSlots):
                     return true;
@@ -4453,6 +4454,7 @@ namespace PlayniteAchievements.Views
                 EnableGameCoverInOverlay = localSettings.EnableGameCoverInOverlay,
                 GameCoverPosition = localSettings.GameCoverPosition,
                 GameCoverWidth = localSettings.GameCoverWidth,
+                CenterGameCoverVertically = localSettings.CenterGameCoverVertically,
                 EnableGameBannerAsBackground = localSettings.EnableGameBannerAsBackground,
                 GameBannerOpacity = localSettings.GameBannerOpacity,
                 GameBannerBlurRadius = localSettings.GameBannerBlurRadius,
@@ -4659,6 +4661,7 @@ namespace PlayniteAchievements.Views
                         EnableGameCoverInOverlay = localSettings.EnableGameCoverInOverlay,
                         GameCoverPosition = localSettings.GameCoverPosition,
                         GameCoverWidth = localSettings.GameCoverWidth,
+                        CenterGameCoverVertically = localSettings.CenterGameCoverVertically,
                         EnableGameBannerAsBackground = localSettings.EnableGameBannerAsBackground,
                         GameBannerOpacity = localSettings.GameBannerOpacity,
                         GameBannerBlurRadius = localSettings.GameBannerBlurRadius,
@@ -4692,6 +4695,7 @@ namespace PlayniteAchievements.Views
                         EnableGameCoverInOverlay = localSettings.EnableGameCoverInOverlay,
                         GameCoverPosition = localSettings.GameCoverPosition.ToString(),
                         GameCoverWidth = localSettings.GameCoverWidth,
+                        CenterGameCoverVertically = localSettings.CenterGameCoverVertically,
                         EnableGameBannerAsBackground = localSettings.EnableGameBannerAsBackground,
                         GameBannerOpacity = localSettings.GameBannerOpacity,
                         GameBannerBlurRadius = localSettings.GameBannerBlurRadius,
@@ -4923,6 +4927,7 @@ namespace PlayniteAchievements.Views
             localSettings.EnableGameCoverInOverlay = imported.Transition.EnableGameCoverInOverlay;
             localSettings.EnableGameBannerAsBackground = imported.Transition.EnableGameBannerAsBackground;
             localSettings.GameCoverWidth = imported.Transition.GameCoverWidth;
+            localSettings.CenterGameCoverVertically = imported.Transition.CenterGameCoverVertically;
             localSettings.GameBannerOpacity = imported.Transition.GameBannerOpacity;
             localSettings.GameBannerBlurRadius = imported.Transition.GameBannerBlurRadius;
 
@@ -6012,6 +6017,7 @@ namespace PlayniteAchievements.Views
             localSettings.EnableGameCoverInOverlay = slot.EnableGameCoverInOverlay;
             localSettings.GameCoverPosition = slot.GameCoverPosition;
             localSettings.GameCoverWidth = slot.GameCoverWidth;
+            localSettings.CenterGameCoverVertically = slot.CenterGameCoverVertically;
             localSettings.EnableGameBannerAsBackground = slot.EnableGameBannerAsBackground;
             localSettings.GameBannerOpacity = slot.GameBannerOpacity;
             localSettings.GameBannerBlurRadius = slot.GameBannerBlurRadius;

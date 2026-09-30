@@ -72,6 +72,8 @@ namespace PlayniteAchievements.Models.Settings
 
         public double GameCoverWidth { get; set; } = 80;
 
+        public bool CenterGameCoverVertically { get; set; }
+
         public bool EnableGameBannerAsBackground { get; set; }
 
         public double GameBannerOpacity { get; set; } = 0.3;

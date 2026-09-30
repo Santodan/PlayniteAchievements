@@ -116,6 +116,8 @@ The entries below are fork-side changes, grouped by date. When a date includes a
 - Added a color picker for the `Cover` background
 - Added the possibility of attaching icons to the lines
 - Corrected the height not changing in the builder with the `Auto height` enabled
+- Added a center option for the cover when the `Auto height` is selected
+- Fixed the default cover size
 
 ## 2026-09-14 - v3.2.1.1
 

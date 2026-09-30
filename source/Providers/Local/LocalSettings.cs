@@ -347,6 +347,7 @@ namespace PlayniteAchievements.Providers.Local
         public bool EnableGameCoverInOverlay { get; set; }
         public LocalOverlayCoverPosition GameCoverPosition { get; set; } = LocalOverlayCoverPosition.Right;
         public double GameCoverWidth { get; set; } = 80;
+        public bool CenterGameCoverVertically { get; set; }
         public bool EnableGameBannerAsBackground { get; set; }
         public double GameBannerOpacity { get; set; } = 0.3;
         public int GameBannerBlurRadius { get; set; } = 8;
@@ -628,6 +629,7 @@ namespace PlayniteAchievements.Providers.Local
         private bool _enableGameCoverInOverlay = false;
         private LocalOverlayCoverPosition _gameCoverPosition = LocalOverlayCoverPosition.Right;
         private double _gameCoverWidth = 80;
+        private bool _centerGameCoverVertically;
         private bool _enableGameBannerAsBackground = false;
         private double _gameBannerOpacity = 0.3;
         private int _gameBannerBlurRadius = 8;
@@ -2236,6 +2238,12 @@ namespace PlayniteAchievements.Providers.Local
             set => SetValue(ref _gameCoverWidth, Math.Max(40, Math.Min(200, value)));
         }
 
+        public bool CenterGameCoverVertically
+        {
+            get => _centerGameCoverVertically;
+            set => SetValue(ref _centerGameCoverVertically, value);
+        }
+
         public bool EnableGameBannerAsBackground
         {
             get => _enableGameBannerAsBackground;
@@ -2723,6 +2731,7 @@ namespace PlayniteAchievements.Providers.Local
                     EnableGameCoverInOverlay = slot.EnableGameCoverInOverlay,
                     GameCoverPosition = slot.GameCoverPosition,
                     GameCoverWidth = Math.Max(40, Math.Min(260, slot.GameCoverWidth <= 0 ? 80 : slot.GameCoverWidth)),
+                    CenterGameCoverVertically = slot.CenterGameCoverVertically,
                     EnableGameBannerAsBackground = slot.EnableGameBannerAsBackground,
                     GameBannerOpacity = Math.Max(0, Math.Min(1, slot.GameBannerOpacity)),
                     GameBannerBlurRadius = Math.Max(0, Math.Min(30, slot.GameBannerBlurRadius)),

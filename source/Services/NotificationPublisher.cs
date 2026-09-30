@@ -3281,6 +3281,9 @@ if ({JsBool(settings?.OverlayCustomAutoResizeToContent == true)}) {{
 </script>";
 
             var manualCss = SanitizeInlineCss(settings?.OverlayCustomManualElementCss);
+            var coverCenterCss = settings?.OverlayCustomAutoResizeToContent == true && settings.CenterGameCoverVertically
+                ? ".san-game-cover { top: 50% !important; bottom: auto !important; transform: translateY(-50%) !important; }"
+                : string.Empty;
             return $@"<!doctype html>
 <html>
 <head>
@@ -3293,6 +3296,7 @@ if ({JsBool(settings?.OverlayCustomAutoResizeToContent == true)}) {{
 <style>{presetCss}</style>
 <style>{variables}</style>
 <style>{manualCss}</style>
+<style>{coverCenterCss}</style>
 </head>
 <body {bodyAttrs} style=""background-color: transparent;"">
 <audio src=""""></audio>
@@ -5414,7 +5418,8 @@ if ({JsBool(settings?.OverlayCustomAutoResizeToContent == true)}) {{
                     new Thickness(0, 0, 14, 0),
                     settings?.OverlayCustomCoverImagePath,
                     settings?.OverlayCustomShowCoverBackground != false,
-                    settings?.OverlayCustomCoverBackgroundColor);
+                    settings?.OverlayCustomCoverBackgroundColor,
+                    settings?.OverlayCustomAutoResizeToContent == true && settings.CenterGameCoverVertically);
                 if (leftCover != null)
                 {
                     if (!TryAddAbsoluteManualElement(absoluteLayer, leftCover, manualOffsets, "coverLeft"))
@@ -5423,6 +5428,10 @@ if ({JsBool(settings?.OverlayCustomAutoResizeToContent == true)}) {{
                         Grid.SetColumn(leftCover, currentColumn);
                         grid.Children.Add(leftCover);
                         currentColumn++;
+                    }
+                    else if (settings?.OverlayCustomAutoResizeToContent == true && settings.CenterGameCoverVertically)
+                    {
+                        CenterCanvasElementVertically(root, leftCover);
                     }
                 }
             }
@@ -5720,7 +5729,8 @@ if ({JsBool(settings?.OverlayCustomAutoResizeToContent == true)}) {{
                     new Thickness(14, 0, 0, 0),
                     settings?.OverlayCustomCoverImagePath,
                     settings?.OverlayCustomShowCoverBackground != false,
-                    settings?.OverlayCustomCoverBackgroundColor);
+                    settings?.OverlayCustomCoverBackgroundColor,
+                    settings?.OverlayCustomAutoResizeToContent == true && settings.CenterGameCoverVertically);
                 if (rightCover != null)
                 {
                     if (!TryAddAbsoluteManualElement(absoluteLayer, rightCover, manualOffsets, "coverRight"))
@@ -5728,6 +5738,10 @@ if ({JsBool(settings?.OverlayCustomAutoResizeToContent == true)}) {{
                         ApplyManualElementOffset(rightCover, manualOffsets, "coverRight");
                         Grid.SetColumn(rightCover, currentColumn);
                         grid.Children.Add(rightCover);
+                    }
+                    else if (settings?.OverlayCustomAutoResizeToContent == true && settings.CenterGameCoverVertically)
+                    {
+                        CenterCanvasElementVertically(root, rightCover);
                     }
                 }
             }
@@ -8360,7 +8374,7 @@ if ({JsBool(settings?.OverlayCustomAutoResizeToContent == true)}) {{
             }
         }
 
-        private FrameworkElement CreateGameCoverElement(Game game, double width, double height, double cornerRadius, Thickness margin, string customImagePath = null, bool showBackground = true, string backgroundColor = null)
+        private FrameworkElement CreateGameCoverElement(Game game, double width, double height, double cornerRadius, Thickness margin, string customImagePath = null, bool showBackground = true, string backgroundColor = null, bool centerVertically = false)
         {
             var coverSource = TryCreateOverlayImageSource(customImagePath) ?? TryCreatePlayniteGameImageSource(game, useBackground: false);
             if (coverSource == null)
@@ -8374,6 +8388,7 @@ if ({JsBool(settings?.OverlayCustomAutoResizeToContent == true)}) {{
                 Height = height,
                 CornerRadius = new CornerRadius(cornerRadius),
                 Margin = margin,
+                VerticalAlignment = centerVertically ? VerticalAlignment.Center : VerticalAlignment.Stretch,
                 Background = showBackground
                     ? ParseBrushOrDefault(backgroundColor, Color.FromArgb(28, 255, 255, 255))
                     : Brushes.Transparent,
@@ -8385,6 +8400,29 @@ if ({JsBool(settings?.OverlayCustomAutoResizeToContent == true)}) {{
                     Height = height
                 }
             };
+        }
+
+        private static void CenterCanvasElementVertically(FrameworkElement root, FrameworkElement element)
+        {
+            if (root == null || element == null)
+            {
+                return;
+            }
+
+            Action update = () =>
+            {
+                var rootHeight = root.ActualHeight > 0 ? root.ActualHeight : root.Height;
+                var elementHeight = element.ActualHeight > 0 ? element.ActualHeight : element.Height;
+                if (!double.IsNaN(rootHeight) && !double.IsInfinity(rootHeight) && rootHeight > 0 &&
+                    !double.IsNaN(elementHeight) && !double.IsInfinity(elementHeight) && elementHeight > 0)
+                {
+                    Canvas.SetTop(element, Math.Max(0, (rootHeight - elementHeight) / 2));
+                }
+            };
+
+            root.SizeChanged += (_, __) => update();
+            element.SizeChanged += (_, __) => update();
+            update();
         }
 
         private ImageSource TryCreateOverlayImageSource(string rawIconPath)
