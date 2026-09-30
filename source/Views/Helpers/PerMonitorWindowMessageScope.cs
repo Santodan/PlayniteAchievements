@@ -6,6 +6,8 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Interop;
+using System.Windows.Media;
+using System.Windows.Shell;
 using System.Windows.Threading;
 using Playnite.SDK;
 using PlayniteAchievements.Common;
@@ -45,6 +47,12 @@ namespace PlayniteAchievements.Views.Helpers
     /// miss, worst on the right side of the window. A <c>PreProcessInput</c> handler cancels such
     /// a synchronize report for a subclassed window and re-issues it under Per-Monitor-V2.
     ///
+    /// WindowChrome answers <c>WM_NCHITTEST</c> by converting the point with the window's
+    /// <c>DpiScale</c>, which can disagree with the scale the window renders at, so the title-bar
+    /// buttons resolve to <c>HTCAPTION</c> and a click drags the window. The subclass answers
+    /// <c>HTCLIENT</c> first for any element marked hit-test visible in chrome, found through the
+    /// render transform.
+    ///
     /// Uses comctl32 <c>SetWindowSubclass</c>, which chains with WPF's own <c>HwndSubclass</c>, and
     /// detaches on <c>WM_NCDESTROY</c>. The subclass callback is a single static delegate so it can
     /// never be collected while a window still routes through it.
@@ -52,6 +60,21 @@ namespace PlayniteAchievements.Views.Helpers
     internal static class PerMonitorWindowMessageScope
     {
         private const uint WmNcDestroy = 0x0082;
+        private const uint WmNcHitTest = 0x0084;
+        private static readonly IntPtr HtClient = new IntPtr(1);
+
+        [StructLayout(LayoutKind.Sequential)]
+        private struct NativeRect
+        {
+            public int Left;
+            public int Top;
+            public int Right;
+            public int Bottom;
+        }
+
+        [DllImport("user32.dll")]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        private static extern bool GetWindowRect(IntPtr hWnd, out NativeRect rect);
         private static readonly UIntPtr SubclassId = new UIntPtr(0x50414D53); // 'PAMS'
 
         private delegate IntPtr SubclassProc(
@@ -90,6 +113,7 @@ namespace PlayniteAchievements.Views.Helpers
         private static bool _inputHandlerRegistered;
         private static bool _resynchronizing;
         private static bool _loggedResynchronize;
+        private static bool _loggedChromeHitTest;
         private static ILogger _logger;
 
         /// <summary>
@@ -280,7 +304,68 @@ namespace PlayniteAchievements.Views.Helpers
 
             using (DpiAwarenessScope.PerMonitorV2())
             {
+                if (uMsg == WmNcHitTest && IsOverChromeElement(hWnd, lParam, out var window))
+                {
+                    var chromeResult = DefSubclassProc(hWnd, uMsg, wParam, lParam);
+                    if (chromeResult != HtClient)
+                    {
+                        LogChromeHitTestCorrection(hWnd, window, chromeResult);
+                    }
+
+                    return HtClient;
+                }
+
                 return DefSubclassProc(hWnd, uMsg, wParam, lParam);
+            }
+        }
+
+        // WindowChrome converts the WM_NCHITTEST point with the window's DpiScale, which in this
+        // system-aware process can disagree with the scale the window is actually rendered at, so the
+        // point misses the title-bar buttons and resolves to HTCAPTION. Hit-test through the render
+        // transform instead and claim the point for any element the chrome would pass through.
+        private static bool IsOverChromeElement(IntPtr hWnd, IntPtr lParam, out Window window)
+        {
+            window = null;
+            try
+            {
+                var source = HwndSource.FromHwnd(hWnd);
+                window = source?.RootVisual as Window;
+                if (window == null || source.CompositionTarget == null || !GetWindowRect(hWnd, out var rect))
+                {
+                    return false;
+                }
+
+                var packed = lParam.ToInt64();
+                var devicePoint = new Point((short)(packed & 0xFFFF) - rect.Left, (short)((packed >> 16) & 0xFFFF) - rect.Top);
+                var logicalPoint = source.CompositionTarget.TransformFromDevice.Transform(devicePoint);
+                var element = window.InputHitTest(logicalPoint);
+                return element != null && WindowChrome.GetIsHitTestVisibleInChrome(element);
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
+        private static void LogChromeHitTestCorrection(IntPtr hWnd, Window window, IntPtr chromeResult)
+        {
+            if (_loggedChromeHitTest)
+            {
+                return;
+            }
+
+            _loggedChromeHitTest = true;
+            try
+            {
+                var renderScale = HwndSource.FromHwnd(hWnd)?.CompositionTarget?.TransformToDevice.M11 ?? 0;
+                var dpiScale = VisualTreeHelper.GetDpi(window).DpiScaleX;
+                _logger?.Info(
+                    $"[Dpi] Corrected title-bar hit test in per-monitor window '{window.Title}': " +
+                    $"chrome={chromeResult.ToInt64()}, renderScale={renderScale:0.###}, dpiScale={dpiScale:0.###}");
+            }
+            catch
+            {
+                // Diagnostic only.
             }
         }
     }
