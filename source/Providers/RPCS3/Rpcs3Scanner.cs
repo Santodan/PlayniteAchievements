@@ -73,6 +73,13 @@ namespace PlayniteAchievements.Providers.RPCS3
         /// </summary>
         public string CategoryLabel { get; set; }
         public string CategoryArtPath { get; set; }
+
+        /// <summary>
+        /// Each DLC trophy group's category label and its GR###.PNG on disk. The trophy file
+        /// carries one icon per group, and RPCS3 installs every entry of it beside the trophy
+        /// icons, so a group's category renders with the group's own art.
+        /// </summary>
+        public List<(string Label, string ArtPath)> GroupArt { get; set; } = new List<(string Label, string ArtPath)>();
     }
 
     /// <summary>
@@ -324,6 +331,8 @@ namespace PlayniteAchievements.Providers.RPCS3
                 {
                     categoryArt.Add((sourceAchievements.CategoryLabel, sourceAchievements.CategoryArtPath));
                 }
+
+                categoryArt.AddRange(sourceAchievements.GroupArt);
             }
 
             if (achievements.Count == 0)
@@ -541,7 +550,8 @@ namespace PlayniteAchievements.Providers.RPCS3
                             isCollection,
                             forceLocked: false),
                         CategoryLabel = string.IsNullOrWhiteSpace(sourceTitle) ? source.NpCommId : sourceTitle,
-                        CategoryArtPath = FindExistingIcon0Path(trophyFolderPath)
+                        CategoryArtPath = FindExistingIcon0Path(trophyFolderPath),
+                        GroupArt = BuildGroupArt(trophies, trophyFolderPath, source, sourceTitle, isCollection)
                     };
                 }
                 catch (Exception ex)
@@ -587,7 +597,8 @@ namespace PlayniteAchievements.Providers.RPCS3
                         isCollection: isCollection,
                         forceLocked: true),
                     CategoryLabel = string.IsNullOrWhiteSpace(source.SourceTitle) ? source.NpCommId : source.SourceTitle,
-                    CategoryArtPath = FindExistingIcon0Path(iconDirectory)
+                    CategoryArtPath = FindExistingIcon0Path(iconDirectory),
+                    GroupArt = BuildGroupArt(trophies, iconDirectory, source, source.SourceTitle, isCollection)
                 };
             }
             catch (Exception ex)
@@ -661,6 +672,50 @@ namespace PlayniteAchievements.Providers.RPCS3
         /// directory), or null when the directory or file is absent. RPCS3's trophy
         /// manager shows this image per trophy set.
         /// </summary>
+        /// <summary>
+        /// One entry per DLC trophy group whose GR###.PNG exists, labelled with the category its
+        /// trophies carry (see <see cref="BuildAchievementCategory"/>), first group per label.
+        /// </summary>
+        private static List<(string Label, string ArtPath)> BuildGroupArt(
+            List<Rpcs3Trophy> trophies,
+            string directory,
+            GameTrophySource source,
+            string sourceTitle,
+            bool isCollection)
+        {
+            var art = new List<(string Label, string ArtPath)>();
+            if (trophies == null || string.IsNullOrWhiteSpace(directory))
+            {
+                return art;
+            }
+
+            var collectionTitle = string.IsNullOrWhiteSpace(sourceTitle) ? source?.NpCommId : sourceTitle;
+            var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var trophy in trophies)
+            {
+                if (!string.Equals(MapGroupIdToCategoryType(trophy?.GroupId), "DLC", StringComparison.OrdinalIgnoreCase) ||
+                    !int.TryParse(trophy.GroupId.Trim(), out var groupNumber) ||
+                    groupNumber <= 0)
+                {
+                    continue;
+                }
+
+                var label = BuildAchievementCategory(trophy, collectionTitle, isCollection);
+                if (string.IsNullOrWhiteSpace(label) || !seen.Add(label))
+                {
+                    continue;
+                }
+
+                var path = Path.Combine(directory, $"GR{groupNumber:D3}.PNG");
+                if (File.Exists(path))
+                {
+                    art.Add((label, path));
+                }
+            }
+
+            return art;
+        }
+
         private static string FindExistingIcon0Path(string directory)
         {
             if (string.IsNullOrWhiteSpace(directory))
