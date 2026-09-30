@@ -86,9 +86,13 @@ namespace PlayniteAchievements.Services.UI
         /// <c>ToastGlowMargin</c>. Deriving the layout from a value the active template may simply
         /// ignore is what let a theme card be pulled into the one above it.
         ///
-        /// An empty thickness when the container is not realized, has no visual child, or is not
-        /// connected to it — every caller then falls back to "no reserved room", which is the
-        /// natural layout.
+        /// Taken from the root's arranged rect (layout offset and size), not its rendered bounds.
+        /// A theme template may animate its own root with a RenderTransform (a slide, a pop); read
+        /// through that transform, a card measured mid-entry reports its start position as reserved
+        /// room and the corner placement shifts the window inward by the animation's travel.
+        ///
+        /// An empty thickness when the container is not realized or has no visual child — every
+        /// caller then falls back to "no reserved room", which is the natural layout.
         /// </summary>
         public static Thickness MeasureCardInset(FrameworkElement container)
         {
@@ -105,21 +109,13 @@ namespace PlayniteAchievements.Services.UI
                 return default(Thickness);
             }
 
-            try
-            {
-                var bounds = root.TransformToAncestor(container)
-                    .TransformBounds(new Rect(root.RenderSize));
-                return new Thickness(
-                    bounds.Left,
-                    bounds.Top,
-                    container.RenderSize.Width - bounds.Right,
-                    container.RenderSize.Height - bounds.Bottom);
-            }
-            catch
-            {
-                // TransformToAncestor throws while the tree is being torn down or re-templated.
-                return default(Thickness);
-            }
+            var offset = VisualTreeHelper.GetOffset(root);
+            var bounds = new Rect(new Point(offset.X, offset.Y), root.RenderSize);
+            return new Thickness(
+                bounds.Left,
+                bounds.Top,
+                container.RenderSize.Width - bounds.Right,
+                container.RenderSize.Height - bounds.Bottom);
         }
 
         /// <summary>
