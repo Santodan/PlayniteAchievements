@@ -5861,7 +5861,7 @@ index 10ed192a6393c7feccfcf5a16e3b10a980c060a2..b07ad5f918014607a1e36bccc0255ba4
          {
              token.ThrowIfCancellationRequested();
 diff --git a/source/Services/NotificationPublisher.cs b/source/Services/NotificationPublisher.cs
-index 44ae3dd84cc37e070ab9e77a4800b18c9646d63a..4ed75ab718501c6adf922b95edd5f31708985b63 100644
+index 44ae3dd84cc37e070ab9e77a4800b18c9646d63a..54502be8d9a568d142c0e8577459ff9b0f300c95 100644
 --- a/source/Services/NotificationPublisher.cs
 +++ b/source/Services/NotificationPublisher.cs
 @@ -1,23 +1,82 @@
@@ -6594,7 +6594,7 @@ index 44ae3dd84cc37e070ab9e77a4800b18c9646d63a..4ed75ab718501c6adf922b95edd5f317
          private static string AuthNotificationId(string providerKey) => $"PlayAch-AuthFailed-{providerKey}";
  
          public void ShowProviderAuthFailed(List<string> providerKeys)
-@@ -163,5 +862,7785 @@ private void OpenPluginSettingsForProvider(string providerKey)
+@@ -163,5 +862,7837 @@ private void OpenPluginSettingsForProvider(string providerKey)
                  _logger?.Debug(ex, "Failed to open plugin settings from notification click.");
              }
          }
@@ -9017,6 +9017,12 @@ index 44ae3dd84cc37e070ab9e77a4800b18c9646d63a..4ed75ab718501c6adf922b95edd5f317
 +</script>";
 +
 +            var manualCss = SanitizeInlineCss(settings?.OverlayCustomManualElementCss);
++            var coverWidthCss = settings?.EnableGameCoverInOverlay == true
++                ? ".san-game-cover.left, .san-game-cover.right { width: var(--san-cover-width) !important; }"
++                : string.Empty;
++            var coverCenterCss = settings?.OverlayCustomAutoResizeToContent == true && settings.CenterGameCoverVertically
++                ? ".san-game-cover { top: 50% !important; bottom: auto !important; transform: translateY(-50%) !important; }"
++                : string.Empty;
 +            return $@"<!doctype html>
 +<html>
 +<head>
@@ -9029,6 +9035,8 @@ index 44ae3dd84cc37e070ab9e77a4800b18c9646d63a..4ed75ab718501c6adf922b95edd5f317
 +<style>{presetCss}</style>
 +<style>{variables}</style>
 +<style>{manualCss}</style>
++<style>{coverWidthCss}</style>
++<style>{coverCenterCss}</style>
 +</head>
 +<body {bodyAttrs} style=""background-color: transparent;"">
 +<audio src=""""></audio>
@@ -10988,6 +10996,16 @@ index 44ae3dd84cc37e070ab9e77a4800b18c9646d63a..4ed75ab718501c6adf922b95edd5f317
 +            var timestamp = DateTime.Now;
 +            var sourceName = game?.Source?.Name ?? string.Empty;
 +            var manualOffsets = ParseManualElementCssOffsets(settings?.OverlayCustomManualElementCss);
++            // Cover width is a first-class setting. Drag-edit CSS may position the
++            // cover and retain its height, but must not make GameCoverWidth inert.
++            if (manualOffsets.TryGetValue("coverLeft", out var manualLeftCover))
++            {
++                manualLeftCover.Width = 0;
++            }
++            if (manualOffsets.TryGetValue("coverRight", out var manualRightCover))
++            {
++                manualRightCover.Width = 0;
++            }
 +
 +            var useSanPresetHints = IsSanTransitionStyle(settings?.UnlockOverlayTransitionStyle ?? LocalUnlockOverlayTransitionStyle.Fade) ||
 +                !string.IsNullOrWhiteSpace(settings?.OverlayCustomSanElementPresetId);
@@ -11150,7 +11168,8 @@ index 44ae3dd84cc37e070ab9e77a4800b18c9646d63a..4ed75ab718501c6adf922b95edd5f317
 +                    new Thickness(0, 0, 14, 0),
 +                    settings?.OverlayCustomCoverImagePath,
 +                    settings?.OverlayCustomShowCoverBackground != false,
-+                    settings?.OverlayCustomCoverBackgroundColor);
++                    settings?.OverlayCustomCoverBackgroundColor,
++                    settings?.OverlayCustomAutoResizeToContent == true && settings.CenterGameCoverVertically);
 +                if (leftCover != null)
 +                {
 +                    if (!TryAddAbsoluteManualElement(absoluteLayer, leftCover, manualOffsets, "coverLeft"))
@@ -11159,6 +11178,10 @@ index 44ae3dd84cc37e070ab9e77a4800b18c9646d63a..4ed75ab718501c6adf922b95edd5f317
 +                        Grid.SetColumn(leftCover, currentColumn);
 +                        grid.Children.Add(leftCover);
 +                        currentColumn++;
++                    }
++                    else if (settings?.OverlayCustomAutoResizeToContent == true && settings.CenterGameCoverVertically)
++                    {
++                        CenterCanvasElementVertically(root, leftCover);
 +                    }
 +                }
 +            }
@@ -11456,7 +11479,8 @@ index 44ae3dd84cc37e070ab9e77a4800b18c9646d63a..4ed75ab718501c6adf922b95edd5f317
 +                    new Thickness(14, 0, 0, 0),
 +                    settings?.OverlayCustomCoverImagePath,
 +                    settings?.OverlayCustomShowCoverBackground != false,
-+                    settings?.OverlayCustomCoverBackgroundColor);
++                    settings?.OverlayCustomCoverBackgroundColor,
++                    settings?.OverlayCustomAutoResizeToContent == true && settings.CenterGameCoverVertically);
 +                if (rightCover != null)
 +                {
 +                    if (!TryAddAbsoluteManualElement(absoluteLayer, rightCover, manualOffsets, "coverRight"))
@@ -11464,6 +11488,10 @@ index 44ae3dd84cc37e070ab9e77a4800b18c9646d63a..4ed75ab718501c6adf922b95edd5f317
 +                        ApplyManualElementOffset(rightCover, manualOffsets, "coverRight");
 +                        Grid.SetColumn(rightCover, currentColumn);
 +                        grid.Children.Add(rightCover);
++                    }
++                    else if (settings?.OverlayCustomAutoResizeToContent == true && settings.CenterGameCoverVertically)
++                    {
++                        CenterCanvasElementVertically(root, rightCover);
 +                    }
 +                }
 +            }
@@ -14096,7 +14124,7 @@ index 44ae3dd84cc37e070ab9e77a4800b18c9646d63a..4ed75ab718501c6adf922b95edd5f317
 +            }
 +        }
 +
-+        private FrameworkElement CreateGameCoverElement(Game game, double width, double height, double cornerRadius, Thickness margin, string customImagePath = null, bool showBackground = true, string backgroundColor = null)
++        private FrameworkElement CreateGameCoverElement(Game game, double width, double height, double cornerRadius, Thickness margin, string customImagePath = null, bool showBackground = true, string backgroundColor = null, bool centerVertically = false)
 +        {
 +            var coverSource = TryCreateOverlayImageSource(customImagePath) ?? TryCreatePlayniteGameImageSource(game, useBackground: false);
 +            if (coverSource == null)
@@ -14110,6 +14138,7 @@ index 44ae3dd84cc37e070ab9e77a4800b18c9646d63a..4ed75ab718501c6adf922b95edd5f317
 +                Height = height,
 +                CornerRadius = new CornerRadius(cornerRadius),
 +                Margin = margin,
++                VerticalAlignment = centerVertically ? VerticalAlignment.Center : VerticalAlignment.Stretch,
 +                Background = showBackground
 +                    ? ParseBrushOrDefault(backgroundColor, Color.FromArgb(28, 255, 255, 255))
 +                    : Brushes.Transparent,
@@ -14121,6 +14150,29 @@ index 44ae3dd84cc37e070ab9e77a4800b18c9646d63a..4ed75ab718501c6adf922b95edd5f317
 +                    Height = height
 +                }
 +            };
++        }
++
++        private static void CenterCanvasElementVertically(FrameworkElement root, FrameworkElement element)
++        {
++            if (root == null || element == null)
++            {
++                return;
++            }
++
++            Action update = () =>
++            {
++                var rootHeight = root.ActualHeight > 0 ? root.ActualHeight : root.Height;
++                var elementHeight = element.ActualHeight > 0 ? element.ActualHeight : element.Height;
++                if (!double.IsNaN(rootHeight) && !double.IsInfinity(rootHeight) && rootHeight > 0 &&
++                    !double.IsNaN(elementHeight) && !double.IsInfinity(elementHeight) && elementHeight > 0)
++                {
++                    Canvas.SetTop(element, Math.Max(0, (rootHeight - elementHeight) / 2));
++                }
++            };
++
++            root.SizeChanged += (_, __) => update();
++            element.SizeChanged += (_, __) => update();
++            update();
 +        }
 +
 +        private ImageSource TryCreateOverlayImageSource(string rawIconPath)

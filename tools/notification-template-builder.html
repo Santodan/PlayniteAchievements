@@ -1454,6 +1454,9 @@
               delete manualElementOffsets[manualOffsetBaseId(id)];
             }
             manualElementOffsets[id] = next;
+            if (/^cover(?:Left|Right)$/i.test(manualOffsetBaseId(id)) && resizeMode) {
+              $('GameCoverWidth').value = Math.max(1, Math.round(next.width));
+            }
             target.style.left = `${next.left}px`;
             target.style.top = `${next.top}px`;
             target.style.width = `${next.width}px`;
@@ -1523,6 +1526,9 @@
             }
           }
           manualElementOffsets[id] = next;
+          if (/^cover(?:Left|Right)$/i.test(manualOffsetBaseId(id)) && resizeMode && next.width) {
+            $('GameCoverWidth').value = Math.max(1, Math.round(next.width));
+          }
           applyManualOffsets();
           writeManualCssFromOffsets();
         };
@@ -1597,7 +1603,7 @@
           element.style.zIndex = hasAbsolutePosition ? '80' : '';
         }
         element.style.transform = offset && (offset.x || offset.y) ? `translate(${offset.x || 0}px, ${offset.y || 0}px)` : '';
-        if (offset?.width) {
+        if (offset?.width && !isCoverElement) {
           element.style.width = `${offset.width}px`;
           element.style.minWidth = `${offset.width}px`;
           element.style.maxWidth = `${offset.width}px`;
@@ -1775,12 +1781,14 @@
           declarations.push(`  transform: none !important;`);
           declarations.push(`  margin: 0 !important;`);
           declarations.push(`  z-index: 80 !important;`);
-          declarations.push(`  width: ${absoluteRect.width}px !important;`);
+          if (baseId !== 'coverLeft' && baseId !== 'coverRight') {
+            declarations.push(`  width: ${absoluteRect.width}px !important;`);
+          }
           declarations.push(`  height: ${absoluteRect.height}px !important;`);
         } else if (offset.x || offset.y) {
           declarations.push(`  transform: translate(${offset.x || 0}px, ${offset.y || 0}px) !important;`);
         }
-        if (!absoluteRect && offset.width) declarations.push(`  width: ${offset.width}px !important;`);
+        if (!absoluteRect && offset.width && baseId !== 'coverLeft' && baseId !== 'coverRight') declarations.push(`  width: ${offset.width}px !important;`);
         if (!absoluteRect && offset.height) declarations.push(`  height: ${offset.height}px !important;`);
         if (/^line\d+$/i.test(baseId)) {
           declarations.push(`  overflow: visible !important;`);
@@ -3754,7 +3762,12 @@
         // the exported selectors here as well makes SAN preset transforms offset
         // them a second time; the builder-owned overlay below is the sole preview
         // renderer for saved manual positions.
-        const manualOverrideStyle = '';
+        // GameCoverWidth remains editable after drag-edit. Older imports may
+        // contain a fixed cover width in ManualElementCss, so this later rule
+        // deliberately gives the first-class width control final precedence.
+        const manualOverrideStyle = transition.EnableGameCoverInOverlay
+          ? `.san-game-cover.left,.san-game-cover.right{width:${Math.max(1, Number(transition.GameCoverWidth) || 80)}px!important}`
+          : '';
         const positionAttr = String(transition.OverlayPosition || 'TopRight').replace(/([a-z])([A-Z])/g, '$1$2').toLowerCase();
         const allDetailsAttr = '';
         const dragBodyAttrs = dragEditEnabled ? ' noanim fastanim class="san-builder-static san-builder-drag-edit"' : '';

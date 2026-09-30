@@ -3927,6 +3927,10 @@
 
                                                  <StackPanel Orientation="Horizontal" Margin="0,0,0,8"
                                                              IsEnabled="{Binding EnableGameCoverInOverlay}">
+                                                     <CheckBox Content="Center cover vertically with auto height"
+                                                               IsChecked="{Binding CenterGameCoverVertically, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                               VerticalAlignment="Center"
+                                                               Margin="0,0,18,0"/>
                                                      <CheckBox Content="Cover background"
                                                                IsChecked="{Binding OverlayCustomShowCoverBackground, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                                                VerticalAlignment="Center"/>

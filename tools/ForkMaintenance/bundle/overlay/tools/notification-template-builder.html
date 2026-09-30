@@ -955,6 +955,7 @@
               <div class="check"><label><input id="EnableGameCoverInOverlay" type="checkbox"> Show game cover</label></div>
               <div class="field"><label for="GameCoverPosition">Cover position</label><select id="GameCoverPosition"><option>Left</option><option selected>Right</option></select></div>
               <div class="field"><label for="GameCoverWidth">Cover width</label><input id="GameCoverWidth" type="number" value="80"></div>
+              <div class="check"><label><input id="CenterGameCoverVertically" type="checkbox"> Center vertically with auto height</label></div>
               <div class="check"><label><input id="ShowCoverBackground" type="checkbox" checked> Cover background</label></div>
               <div class="field"><label for="CoverBackgroundColor">Cover background color</label><div class="color-row"><input id="CoverBackgroundColorPicker" type="color" value="#ffffff"><input id="CoverBackgroundColor" value="#1CFFFFFF"></div></div>
             </div>
@@ -1104,7 +1105,7 @@
       'SanElementPresetId', 'SanView1DurationMilliseconds', 'SanView2DurationMilliseconds',
       'ManualElementCss',
       'AnchorEnabled', 'AnchorElement', 'AnchorTarget', 'AnchorSide', 'AnchorAlign', 'AnchorGap', 'AnchorOffsetX', 'AnchorOffsetY',
-      'EnableGameCoverInOverlay', 'GameCoverPosition', 'GameCoverWidth', 'ShowCoverBackground', 'CoverBackgroundColor',
+      'EnableGameCoverInOverlay', 'GameCoverPosition', 'GameCoverWidth', 'CenterGameCoverVertically', 'ShowCoverBackground', 'CoverBackgroundColor',
       'EnableGameBannerAsBackground', 'GameBannerOpacity', 'GameBannerBlurRadius',
       'primaryCustomIconUrl', 'secondaryCustomIconUrl',
       'coverUrl', 'bannerUrl', 'sampleGameName', 'sampleAchievementName',
@@ -1453,6 +1454,9 @@
               delete manualElementOffsets[manualOffsetBaseId(id)];
             }
             manualElementOffsets[id] = next;
+            if (/^cover(?:Left|Right)$/i.test(manualOffsetBaseId(id)) && resizeMode) {
+              $('GameCoverWidth').value = Math.max(1, Math.round(next.width));
+            }
             target.style.left = `${next.left}px`;
             target.style.top = `${next.top}px`;
             target.style.width = `${next.width}px`;
@@ -1522,6 +1526,9 @@
             }
           }
           manualElementOffsets[id] = next;
+          if (/^cover(?:Left|Right)$/i.test(manualOffsetBaseId(id)) && resizeMode && next.width) {
+            $('GameCoverWidth').value = Math.max(1, Math.round(next.width));
+          }
           applyManualOffsets();
           writeManualCssFromOffsets();
         };
@@ -1585,6 +1592,8 @@
         const offset = manualElementOffsets[element.dataset.manualId];
         const manualId = element.dataset.manualId || '';
         const isIconElement = manualId === 'primaryIcon' || manualId === 'secondaryIcon';
+        const isCoverElement = manualId === 'coverLeft' || manualId === 'coverRight';
+        const preservesRenderedSize = isIconElement || isCoverElement;
         const hasAbsolutePosition = manualId !== 'notification' && offset?.left != null && offset?.top != null;
         if (manualId !== 'notification') {
           element.style.position = hasAbsolutePosition ? 'absolute' : '';
@@ -1594,12 +1603,12 @@
           element.style.zIndex = hasAbsolutePosition ? '80' : '';
         }
         element.style.transform = offset && (offset.x || offset.y) ? `translate(${offset.x || 0}px, ${offset.y || 0}px)` : '';
-        if (offset?.width) {
+        if (offset?.width && !isCoverElement) {
           element.style.width = `${offset.width}px`;
           element.style.minWidth = `${offset.width}px`;
           element.style.maxWidth = `${offset.width}px`;
           if (isIconElement) element.style.flexBasis = `${offset.width}px`;
-        } else if (!isIconElement) {
+        } else if (!preservesRenderedSize) {
           element.style.width = '';
           element.style.minWidth = '';
           element.style.maxWidth = '';
@@ -1616,7 +1625,7 @@
           element.style.height = `${offset.height}px`;
           element.style.minHeight = `${offset.height}px`;
           element.style.maxHeight = `${offset.height}px`;
-        } else if (!isIconElement) {
+        } else if (!preservesRenderedSize) {
           element.style.height = '';
           element.style.minHeight = '';
           element.style.maxHeight = '';
@@ -1772,12 +1781,14 @@
           declarations.push(`  transform: none !important;`);
           declarations.push(`  margin: 0 !important;`);
           declarations.push(`  z-index: 80 !important;`);
-          declarations.push(`  width: ${absoluteRect.width}px !important;`);
+          if (baseId !== 'coverLeft' && baseId !== 'coverRight') {
+            declarations.push(`  width: ${absoluteRect.width}px !important;`);
+          }
           declarations.push(`  height: ${absoluteRect.height}px !important;`);
         } else if (offset.x || offset.y) {
           declarations.push(`  transform: translate(${offset.x || 0}px, ${offset.y || 0}px) !important;`);
         }
-        if (!absoluteRect && offset.width) declarations.push(`  width: ${offset.width}px !important;`);
+        if (!absoluteRect && offset.width && baseId !== 'coverLeft' && baseId !== 'coverRight') declarations.push(`  width: ${offset.width}px !important;`);
         if (!absoluteRect && offset.height) declarations.push(`  height: ${offset.height}px !important;`);
         if (/^line\d+$/i.test(baseId)) {
           declarations.push(`  overflow: visible !important;`);
@@ -2170,6 +2181,7 @@
           SecondaryIconBackgroundColor: $('SecondaryIconBackgroundColor').value,
           ShowCoverBackground: bool('ShowCoverBackground'),
           CoverBackgroundColor: $('CoverBackgroundColor').value,
+          CenterGameCoverVertically: bool('CenterGameCoverVertically'),
           Width: num('Width'),
           Height: num('Height'),
           CornerRadius: num('CornerRadius'),
@@ -2307,6 +2319,7 @@
           EnableGameCoverInOverlay: bool('EnableGameCoverInOverlay'),
           GameCoverPosition: $('GameCoverPosition').value,
           GameCoverWidth: num('GameCoverWidth'),
+          CenterGameCoverVertically: bool('CenterGameCoverVertically'),
           ShowCoverBackground: bool('ShowCoverBackground'),
           CoverBackgroundColor: $('CoverBackgroundColor').value,
           EnableGameBannerAsBackground: bool('EnableGameBannerAsBackground'),
@@ -3749,7 +3762,12 @@
         // the exported selectors here as well makes SAN preset transforms offset
         // them a second time; the builder-owned overlay below is the sole preview
         // renderer for saved manual positions.
-        const manualOverrideStyle = '';
+        // GameCoverWidth remains editable after drag-edit. Older imports may
+        // contain a fixed cover width in ManualElementCss, so this later rule
+        // deliberately gives the first-class width control final precedence.
+        const manualOverrideStyle = transition.EnableGameCoverInOverlay
+          ? `.san-game-cover.left,.san-game-cover.right{width:${Math.max(1, Number(transition.GameCoverWidth) || 80)}px!important}`
+          : '';
         const positionAttr = String(transition.OverlayPosition || 'TopRight').replace(/([a-z])([A-Z])/g, '$1$2').toLowerCase();
         const allDetailsAttr = '';
         const dragBodyAttrs = dragEditEnabled ? ' noanim fastanim class="san-builder-static san-builder-drag-edit"' : '';
@@ -3898,6 +3916,13 @@
       positionToast(toast, stage, slot, transition.OverlayPosition);
       applyAnimation(toast, transition, slot);
       applyManualOffsets();
+      if (transition.EnableGameCoverInOverlay && slot.AutoResizeToContent && transition.CenterGameCoverVertically) {
+        const centeredCover = transition.GameCoverPosition === 'Left' ? coverLeft : coverRight;
+        centeredCover.style.position = 'absolute';
+        centeredCover.style.top = '50%';
+        centeredCover.style.bottom = 'auto';
+        centeredCover.style.transform = 'translateY(-50%)';
+      }
       $('jsonOutput').value = JSON.stringify(data, null, 2);
       const renderedHeight = Math.ceil(toast.getBoundingClientRect().height || height);
       $('previewStatus').textContent = `${width} x ${renderedHeight}${slot.AutoResizeToContent ? ' auto' : ''} / ${transition.OverlayPosition} / ${slot.SanPresetId || slot.AnimationStyle}`;
@@ -4029,6 +4054,7 @@
       check('ShowIconBackground', slot.ShowIconBackground !== false && transition.ShowIconBackground !== false);
       check('ShowSecondaryIconBackground', slot.ShowSecondaryIconBackground !== false && transition.ShowSecondaryIconBackground !== false);
       check('ShowCoverBackground', slot.ShowCoverBackground !== false && transition.ShowCoverBackground !== false);
+      check('CenterGameCoverVertically', slot.CenterGameCoverVertically === true || transition.CenterGameCoverVertically === true);
       check('TitleBold', slot.TitleBold !== false);
       check('TitleItalic', slot.TitleItalic === true);
       check('TitleUnderline', slot.TitleUnderline === true);

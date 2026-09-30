@@ -3281,6 +3281,9 @@ if ({JsBool(settings?.OverlayCustomAutoResizeToContent == true)}) {{
 </script>";
 
             var manualCss = SanitizeInlineCss(settings?.OverlayCustomManualElementCss);
+            var coverWidthCss = settings?.EnableGameCoverInOverlay == true
+                ? ".san-game-cover.left, .san-game-cover.right { width: var(--san-cover-width) !important; }"
+                : string.Empty;
             var coverCenterCss = settings?.OverlayCustomAutoResizeToContent == true && settings.CenterGameCoverVertically
                 ? ".san-game-cover { top: 50% !important; bottom: auto !important; transform: translateY(-50%) !important; }"
                 : string.Empty;
@@ -3296,6 +3299,7 @@ if ({JsBool(settings?.OverlayCustomAutoResizeToContent == true)}) {{
 <style>{presetCss}</style>
 <style>{variables}</style>
 <style>{manualCss}</style>
+<style>{coverWidthCss}</style>
 <style>{coverCenterCss}</style>
 </head>
 <body {bodyAttrs} style=""background-color: transparent;"">
@@ -5256,6 +5260,16 @@ if ({JsBool(settings?.OverlayCustomAutoResizeToContent == true)}) {{
             var timestamp = DateTime.Now;
             var sourceName = game?.Source?.Name ?? string.Empty;
             var manualOffsets = ParseManualElementCssOffsets(settings?.OverlayCustomManualElementCss);
+            // Cover width is a first-class setting. Drag-edit CSS may position the
+            // cover and retain its height, but must not make GameCoverWidth inert.
+            if (manualOffsets.TryGetValue("coverLeft", out var manualLeftCover))
+            {
+                manualLeftCover.Width = 0;
+            }
+            if (manualOffsets.TryGetValue("coverRight", out var manualRightCover))
+            {
+                manualRightCover.Width = 0;
+            }
 
             var useSanPresetHints = IsSanTransitionStyle(settings?.UnlockOverlayTransitionStyle ?? LocalUnlockOverlayTransitionStyle.Fade) ||
                 !string.IsNullOrWhiteSpace(settings?.OverlayCustomSanElementPresetId);
