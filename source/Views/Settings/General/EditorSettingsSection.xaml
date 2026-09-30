@@ -13,6 +13,31 @@
                 <ResourceDictionary Source="pack://application:,,,/PlayniteAchievements;component/Resources/SettingsScopedControlStyles.xaml"/>
                 <ResourceDictionary Source="pack://application:,,,/PlayniteAchievements;component/Resources/CommonResources.xaml"/>
             </ResourceDictionary.MergedDictionaries>
+
+            <!-- One row per template: the text box, its reset, and a note when it does not format. -->
+            <DataTemplate x:Key="TemplateRowTemplate">
+                <controls:SettingRow Label="{Binding Label}">
+                    <StackPanel>
+                        <StackPanel Orientation="Horizontal">
+                            <TextBox Text="{Binding Text, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                     Width="320"
+                                     LostFocus="TemplateTextBox_LostFocus"
+                                     PreviewKeyDown="TemplateTextBox_PreviewKeyDown"/>
+                            <Button Content="{DynamicResource LOCPlayAch_Settings_Style_ResetToDefault}"
+                                    Command="{Binding ResetCommand}"
+                                    Margin="{StaticResource PlayAch.Thickness.Left.Sm}"
+                                    Padding="{StaticResource PlayAch.Thickness.ButtonPadding}"/>
+                        </StackPanel>
+                        <TextBlock Text="{DynamicResource LOCPlayAch_Settings_AutoCapstoneText_TemplateInvalid}"
+                                   Foreground="{DynamicResource PlayAch.Brush.ErrorText}"
+                                   TextWrapping="Wrap"
+                                   MaxWidth="400"
+                                   HorizontalAlignment="Left"
+                                   Margin="0,4,0,0"
+                                   Visibility="{Binding IsInvalid, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+                    </StackPanel>
+                </controls:SettingRow>
+            </DataTemplate>
         </ResourceDictionary>
     </UserControl.Resources>
     <ScrollViewer VerticalScrollBarVisibility="Auto"
@@ -35,34 +60,22 @@
                                Margin="{StaticResource PlayAch.Thickness.Bottom.Md}"
                                TextWrapping="Wrap"/>
 
-                    <!-- One row per template: the text box, its reset, and a note when it does not format. -->
-                    <ItemsControl x:Name="TemplateItems" Focusable="False">
-                        <ItemsControl.ItemTemplate>
-                            <DataTemplate>
-                                <controls:SettingRow Label="{Binding Label}">
-                                    <StackPanel>
-                                        <StackPanel Orientation="Horizontal">
-                                            <TextBox Text="{Binding Text, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                                     Width="320"
-                                                     LostFocus="TemplateTextBox_LostFocus"
-                                                     PreviewKeyDown="TemplateTextBox_PreviewKeyDown"/>
-                                            <Button Content="{DynamicResource LOCPlayAch_Settings_Style_ResetToDefault}"
-                                                    Command="{Binding ResetCommand}"
-                                                    Margin="{StaticResource PlayAch.Thickness.Left.Sm}"
-                                                    Padding="{StaticResource PlayAch.Thickness.ButtonPadding}"/>
-                                        </StackPanel>
-                                        <TextBlock Text="{DynamicResource LOCPlayAch_Settings_AutoCapstoneText_TemplateInvalid}"
-                                                   Foreground="{DynamicResource PlayAch.Brush.ErrorText}"
-                                                   TextWrapping="Wrap"
-                                                   MaxWidth="400"
-                                                   HorizontalAlignment="Left"
-                                                   Margin="0,4,0,0"
-                                                   Visibility="{Binding IsInvalid, Converter={StaticResource BooleanToVisibilityConverter}}"/>
-                                    </StackPanel>
-                                </controls:SettingRow>
-                            </DataTemplate>
-                        </ItemsControl.ItemTemplate>
-                    </ItemsControl>
+                    <!-- Whole-game templates, then category ones, each a name and a description. -->
+                    <TextBlock Text="{DynamicResource LOCPlayAch_Column_Game}"
+                               Style="{StaticResource SubSectionHeaderStyle}"
+                               Margin="{StaticResource PlayAch.Thickness.Bottom.Sm}"/>
+                    <ItemsControl x:Name="GameTemplateItems"
+                                  Focusable="False"
+                                  ItemTemplate="{StaticResource TemplateRowTemplate}"
+                                  Margin="{StaticResource PlayAch.Thickness.SettingRow.Indent}"/>
+
+                    <TextBlock Text="{DynamicResource LOCPlayAch_Common_Label_Category}"
+                               Style="{StaticResource SubSectionHeaderStyle}"
+                               Margin="{StaticResource PlayAch.Thickness.SubSectionHeading}"/>
+                    <ItemsControl x:Name="CategoryTemplateItems"
+                                  Focusable="False"
+                                  ItemTemplate="{StaticResource TemplateRowTemplate}"
+                                  Margin="{StaticResource PlayAch.Thickness.SettingRow.Indent}"/>
 
                     <!-- Section-level action, not one setting's control. -->
                     <StackPanel Orientation="Horizontal" Margin="{StaticResource PlayAch.Thickness.Top.Md}">
