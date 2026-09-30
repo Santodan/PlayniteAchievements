@@ -47,16 +47,17 @@ namespace PlayniteAchievements.Services.Summaries
 
         /// <summary>
         /// Projects a single game's data into a <see cref="GameSummaryItem"/>.
-        /// Returns null when the game is excluded from summaries or has no achievements
-        /// (unless <paramref name="allowEmpty"/> is true, in which case a minimal
-        /// zero-count item is returned so a single-game surface can still show the row).
+        /// Returns null when the game is excluded from summaries or has no achievements,
+        /// unless <paramref name="forSingleGame"/> is true: a single-game surface always gets
+        /// its row, with zero counts when there are no achievements. Summary exclusion only
+        /// keeps a game out of library-wide summaries.
         /// </summary>
         public GameSummaryItem Build(
             GameAchievementData gameData,
             PlayniteAchievementsSettings settings,
-            bool allowEmpty = false)
+            bool forSingleGame = false)
         {
-            if (gameData == null || gameData.ExcludedFromSummaries)
+            if (gameData == null || (gameData.ExcludedFromSummaries && !forSingleGame))
             {
                 return null;
             }
@@ -64,7 +65,7 @@ namespace PlayniteAchievements.Services.Summaries
             var hasAchievements = gameData.Achievements != null &&
                                   gameData.HasAchievements &&
                                   gameData.Achievements.Count > 0;
-            if (!hasAchievements && !allowEmpty)
+            if (!hasAchievements && !forSingleGame)
             {
                 return null;
             }

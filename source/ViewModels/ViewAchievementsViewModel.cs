@@ -724,7 +724,7 @@ namespace PlayniteAchievements.ViewModels
                     gameData.Game = game;
                 }
 
-                item = _summaryBuilder.Build(gameData, _settings, allowEmpty: true);
+                item = _summaryBuilder.Build(gameData, _settings, forSingleGame: true);
             }
             else if (game != null)
             {
@@ -736,7 +736,7 @@ namespace PlayniteAchievements.ViewModels
                     HasAchievements = false,
                     Achievements = new List<AchievementDetail>()
                 };
-                item = _summaryBuilder.Build(stub, _settings, allowEmpty: true);
+                item = _summaryBuilder.Build(stub, _settings, forSingleGame: true);
             }
 
             var items = item != null
