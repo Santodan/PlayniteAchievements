@@ -1,6 +1,6 @@
 {
     "schemaVersion":  1,
-    "generatedUtc":  "2026-09-29T16:05:53.4326404Z",
+    "generatedUtc":  "2026-09-30T10:56:15.7374742Z",
     "baselineRef":  "upstream/main",
     "baselineCommit":  "653a310fed521206672d0aec9383fd7ec3bb94a3",
     "protectedPaths":  [
@@ -141,7 +141,7 @@
                          },
                          {
                              "path":  "source/Providers/Local/LocalSettings.cs",
-                             "sha256":  "1A31DD26466DC57B888C2A14C73CAB078E2E252094AA9CB6B5C102DC836BAC85"
+                             "sha256":  "737C88FED6348AD5B70FF7471AE8EECA938E5C260A0E38B2632C6DBD827B3902"
                          },
                          {
                              "path":  "source/Providers/Local/LocalSettingsView.xaml",
@@ -357,7 +357,7 @@
                          },
                          {
                              "path":  "tools/notification-template-builder.html",
-                             "sha256":  "1456143BB122F9E5978A804A3D2F0E81580023C2B1DDC3229E178BCF0271162B"
+                             "sha256":  "49A425BF76EAA83C2E830D931DCF3E2889F59A598D152CDE8BEB959DA24B13F0"
                          },
                          {
                              "path":  "tools/NotificationTemplates/README.md",

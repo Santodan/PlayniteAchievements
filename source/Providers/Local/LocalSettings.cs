@@ -1545,21 +1545,15 @@ namespace PlayniteAchievements.Providers.Local
                 var source = value;
                 if (source == LocalOverlayIconSource.None)
                 {
-                    if (SetValue(ref _overlayCustomSecondaryIconSource, LocalOverlayIconSource.None))
-                    {
-                        OnPropertyChanged(nameof(OverlayCustomShowSecondaryIcon));
-                    }
-
+                    SetValue(ref _overlayCustomSecondaryIconSource, LocalOverlayIconSource.None);
                     SetValue(ref _overlayCustomShowSecondaryIcon, false);
+                    OnPropertyChanged(nameof(OverlayCustomShowSecondaryIcon));
                     return;
                 }
 
-                if (SetValue(ref _overlayCustomSecondaryIconSource, source))
-                {
-                    OnPropertyChanged(nameof(OverlayCustomShowSecondaryIcon));
-                }
-
                 SetValue(ref _overlayCustomShowSecondaryIcon, true);
+                SetValue(ref _overlayCustomSecondaryIconSource, source);
+                OnPropertyChanged(nameof(OverlayCustomShowSecondaryIcon));
             }
         }
 

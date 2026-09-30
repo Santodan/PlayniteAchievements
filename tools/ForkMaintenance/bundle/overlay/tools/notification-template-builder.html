@@ -3782,6 +3782,7 @@
       const stage = $('stage');
       const toast = $('toast');
       const sanFrame = $('sanPreviewFrame');
+      syncSecondaryIconControls();
       updateSanDragViewControls(slot);
 
       stage.style.background = 'linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,0)), #12151a';
@@ -4073,6 +4074,7 @@
       assign('SecondaryIconSource', secondaryIconEnabled
         ? iconSourceName(transition.SecondaryIconSource !== undefined ? transition.SecondaryIconSource : slot.SecondaryIconSource)
         : 'None');
+      syncSecondaryIconControls();
       assign('LayoutStyle', enumName(slot.LayoutStyle, ['Standard', 'XboxModern', 'XboxClassic'], 'Standard'));
       assign('AnimationStyle', enumName(slot.AnimationStyle, ['Standard', 'SanXqjan', 'SanExpandCard', 'SanSlideCard', 'SanEpic', 'SanAero', 'SanDefault'], 'Standard'));
       assign('TransitionStyle', transition.TransitionStyle !== undefined
@@ -4127,6 +4129,15 @@
           $(pickerId).value = value;
         }
       });
+    }
+
+    function syncSecondaryIconControls() {
+      const hasSecondaryIcon = $('SecondaryIconSource')?.value !== 'None';
+      const backgroundToggle = $('ShowSecondaryIconBackground');
+      if (backgroundToggle) backgroundToggle.disabled = !hasSecondaryIcon;
+      const backgroundEnabled = hasSecondaryIcon && backgroundToggle?.checked === true;
+      if ($('SecondaryIconBackgroundColorPicker')) $('SecondaryIconBackgroundColorPicker').disabled = !backgroundEnabled;
+      if ($('SecondaryIconBackgroundColor')) $('SecondaryIconBackgroundColor').disabled = !backgroundEnabled;
     }
 
     async function fileToDataUri(file) {
