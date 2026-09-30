@@ -344,6 +344,13 @@ namespace PlayniteAchievements.Views.Showcase
                         Localize("LOCPlayAch_Settings_ShowCompletionGlow"),
                         ShowcaseWidgetOptions.GetGameMosaicShowCompletionGlow(_settings),
                         value => ShowcaseWidgetOptions.SetGameMosaicShowCompletionGlow(_settings, value));
+                    // Completed games only: the capstone's rarity, or the rarest achievement
+                    // when the game has no capstone.
+                    AddToggle(
+                        gameMosaicPanel,
+                        Localize("LOCPlayAch_Settings_ShowCompactListRarityBar"),
+                        ShowcaseWidgetOptions.GetMosaicShowRarityBar(_settings),
+                        value => ShowcaseWidgetOptions.SetMosaicShowRarityBar(_settings, value));
                     AddChoice(
                         gameMosaicPanel,
                         Localize("LOCPlayAch_Settings_SortBy"),
