@@ -25,5 +25,19 @@ namespace PlayniteAchievements.Views.Showcase
                 .FromName("IsGridLayoutEnabled", typeof(VirtualizingWrapPanel), typeof(VirtualizingWrapPanel))
                 ?.SetValue(this, false);
         }
+
+        /// <summary>
+        /// Lays out each tile at its own measured size instead of the first tile's. Set by name for
+        /// the same reason as IsGridLayoutEnabled: AllowDifferentSizedItems is 2.x-only.
+        /// </summary>
+        public bool AllowVariableItemSizes
+        {
+            get => DependencyPropertyDescriptor
+                .FromName("AllowDifferentSizedItems", typeof(VirtualizingWrapPanel), typeof(VirtualizingWrapPanel))
+                ?.GetValue(this) as bool? == true;
+            set => DependencyPropertyDescriptor
+                .FromName("AllowDifferentSizedItems", typeof(VirtualizingWrapPanel), typeof(VirtualizingWrapPanel))
+                ?.SetValue(this, value);
+        }
     }
 }

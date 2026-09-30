@@ -2,6 +2,7 @@ using System;
 using System.Windows;
 using PlayniteAchievements.Common;
 using PlayniteAchievements.Models.Settings;
+using PlayniteAchievements.Services.Images;
 using PlayniteAchievements.Services.Showcase;
 using PlayniteAchievements.ViewModels.Items;
 
@@ -12,10 +13,18 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
     /// also exposes reorder/unpin commands, which the tile context menu adds beside the
     /// Open items (see ShowcaseMosaicClickBehavior).
     /// </summary>
-    public sealed class GameTileViewModel
+    public sealed class GameTileViewModel : ObservableObject
     {
+        // Width-to-height bounds for a cover's own shape, so a stray banner or strip image
+        // cannot stretch a row out of proportion.
+        private const double MinCoverAspect = 0.5;
+        private const double MaxCoverAspect = 2.0;
+
         private readonly Guid? _gameId;
         private readonly string _pinCollectionId;
+        private readonly bool _rarityBarEnabled;
+        private double _coverWidth;
+        private double? _rarityPercent;
 
         public GameTileViewModel(
             GameSummaryItem game,
@@ -26,7 +35,8 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
             int decodePixel,
             bool useCovers = true,
             bool showCompletionGlow = false,
-            int spacing = 6)
+            int spacing = 6,
+            bool showRarityBar = false)
         {
             _gameId = game.PlayniteGameId;
             _pinCollectionId = pinCollectionId;
@@ -38,12 +48,22 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
             CoverPath = useCovers
                 ? (HasCover ? cover : icon)
                 : (!string.IsNullOrWhiteSpace(icon) ? icon : cover);
-            CoverWidth = coverWidth;
             CoverHeight = coverHeight;
+            // A cover takes its own shape at the shared row height. Until its aspect is known
+            // (see NeedsAspectProbe) it holds the default portrait width.
+            _coverWidth = coverWidth;
+            NeedsAspectProbe = HasCover;
+            if (HasCover && ImagePixelSize.TryGetCachedAspectRatio(cover, out var aspect))
+            {
+                ApplyAspectRatio(aspect);
+            }
+
             DecodePixel = decodePixel;
             GameName = game.GameName;
             IsPinnable = pinnable && game.PlayniteGameId.HasValue;
+            IsCompleted = game.IsCompleted;
             ShowCompletionGlow = showCompletionGlow && game.IsCompleted;
+            _rarityBarEnabled = showRarityBar;
             GlowSpacing = showCompletionGlow;
             TileMargin = new Thickness(showCompletionGlow ? Math.Max(spacing, GlowClearance) : spacing);
             IsSeamless = spacing == 0 && !showCompletionGlow;
@@ -60,9 +80,18 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
 
         public bool HasCover { get; }
 
-        public double CoverWidth { get; }
+        /// <summary>The tile's width: the cover's own aspect at <see cref="CoverHeight"/>.</summary>
+        public double CoverWidth
+        {
+            get => _coverWidth;
+            private set => SetValue(ref _coverWidth, value);
+        }
 
+        /// <summary>The shared row height every tile in the mosaic is drawn at.</summary>
         public double CoverHeight { get; }
+
+        /// <summary>True while the cover's aspect ratio has not been read yet.</summary>
+        public bool NeedsAspectProbe { get; private set; }
 
         public int DecodePixel { get; }
 
@@ -70,8 +99,34 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
 
         public bool IsPinnable { get; }
 
+        public bool IsCompleted { get; }
+
         /// <summary>True when the tile's game is completed and the widget shows the glow.</summary>
         public bool ShowCompletionGlow { get; }
+
+        /// <summary>
+        /// Global unlock percent of the game's capstone (or, with no capstone, its rarest
+        /// achievement), shown by the rarity bar.
+        /// </summary>
+        public double? RarityPercent
+        {
+            get => _rarityPercent;
+            private set => SetValue(
+                ref _rarityPercent,
+                value,
+                nameof(RarityPercent),
+                nameof(RarityPercentValue),
+                nameof(ShowRarityBar));
+        }
+
+        /// <summary><see cref="RarityPercent"/> for the bar's non-nullable Value.</summary>
+        public double RarityPercentValue => _rarityPercent ?? 0;
+
+        /// <summary>
+        /// True when the widget's rarity bar option is on, the game is completed (the same gate as
+        /// the completion glow), and a percent was found.
+        /// </summary>
+        public bool ShowRarityBar => _rarityBarEnabled && IsCompleted && _rarityPercent.HasValue;
 
         /// <summary>
         /// True on every tile while the widget's completion-glow option is on, completed or not,
@@ -101,6 +156,21 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
 
         private static ShowcaseSettings Settings =>
             PlayniteAchievementsPlugin.Instance?.Settings?.Persisted?.Showcase;
+
+        /// <summary>
+        /// Sizes the tile to a probed cover aspect (width over height). An unreadable cover (0)
+        /// keeps the default portrait width.
+        /// </summary>
+        public void ApplyAspectRatio(double aspect)
+        {
+            NeedsAspectProbe = false;
+            if (aspect > 0)
+            {
+                CoverWidth = Math.Round(CoverHeight * Math.Max(MinCoverAspect, Math.Min(MaxCoverAspect, aspect)));
+            }
+        }
+
+        public void SetRarityPercent(double? percent) => RarityPercent = percent;
 
         private void Move(int direction)
         {
