@@ -1557,6 +1557,16 @@ namespace PlayniteAchievements
         }
 
         /// <summary>
+        /// Remembers a template the user set, in the live settings and any open edit snapshot, so
+        /// capstone text written with it still reads as default after a Cancel or a later change.
+        /// </summary>
+        public void RecordAutoCapstoneTemplate(string template)
+        {
+            _settingsViewModel?.UpdatePersistedIncludingEditSnapshot(
+                settings => AutoCapstoneText.RecordInHistory(settings, template));
+        }
+
+        /// <summary>
         /// Records the templates now applied, and a template the user set, in both the live
         /// settings and any open edit snapshot, since the text they wrote stays either way.
         /// </summary>
