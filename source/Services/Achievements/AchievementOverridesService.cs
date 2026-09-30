@@ -1298,11 +1298,17 @@ namespace PlayniteAchievements.Services.Achievements
                 definitions.Add(definition.Clone());
                 customData.CustomAchievements = definitions;
 
+                // Placed first, so the capstone leads the list, and its category's group when it
+                // stands for one. Everything else keeps its order behind it: entries the order
+                // does not name follow those it does, in their own order.
+                var apiName = CustomAchievementProjectionService.BuildApiName(definition.Id);
+                customData.AchievementOrder = AchievementOrderHelper.NormalizeApiNames(
+                    new[] { apiName }.Concat(customData.AchievementOrder ?? new List<string>()));
+
                 var normalizedCategory = AchievementCategoryTypeHelper.NormalizeCategory(category);
                 if (!string.IsNullOrWhiteSpace(normalizedCategory))
                 {
                     var overrides = CloneOverrides(customData);
-                    var apiName = CustomAchievementProjectionService.BuildApiName(definition.Id);
                     if (!overrides.TryGetValue(apiName, out var entry) || entry == null)
                     {
                         entry = new AchievementOverride();
