@@ -1393,6 +1393,7 @@ namespace PlayniteAchievements.Views
                 case nameof(Providers.Local.LocalSettings.OverlayCustomWrapAllText):
                 case nameof(Providers.Local.LocalSettings.OverlayCustomShowLine1):
                 case nameof(Providers.Local.LocalSettings.OverlayCustomShowBorder):
+                case nameof(Providers.Local.LocalSettings.OverlayCustomBorderWidth):
                 case nameof(Providers.Local.LocalSettings.OverlayCustomShowGameName):
                 case nameof(Providers.Local.LocalSettings.OverlayCustomShowMeta):
                 case nameof(Providers.Local.LocalSettings.OverlayCustomBackgroundColor):
@@ -4297,6 +4298,7 @@ namespace PlayniteAchievements.Views
                 WrapAllText = localSettings.OverlayCustomWrapAllText,
                 ShowLine1 = localSettings.OverlayCustomShowLine1,
                 ShowBorder = localSettings.OverlayCustomShowBorder,
+                BorderWidth = localSettings.OverlayCustomBorderWidth,
                 ShowGameName = localSettings.OverlayCustomShowGameName,
                 ShowMeta = localSettings.OverlayCustomShowMeta,
                 IconSize = localSettings.OverlayCustomIconSize,
@@ -4506,6 +4508,7 @@ namespace PlayniteAchievements.Views
                         WrapAllText = localSettings.OverlayCustomWrapAllText,
                         ShowLine1 = localSettings.OverlayCustomShowLine1,
                         ShowBorder = localSettings.OverlayCustomShowBorder,
+                        BorderWidth = localSettings.OverlayCustomBorderWidth,
                         ShowGameName = localSettings.OverlayCustomShowGameName,
                         ShowMeta = localSettings.OverlayCustomShowMeta,
                         IconSize = localSettings.OverlayCustomIconSize,
@@ -5164,6 +5167,7 @@ namespace PlayniteAchievements.Views
                 slot.SecondaryIconSize = ResolveSanImportedIconSize(slot.Height, customisation.Value<double?>("logoscale"), slot.IconSize);
                 slot.CornerRadius = Math.Max(0, (customisation.Value<double?>("roundness") ?? 0) / 4.0 * scale);
                 slot.ShowBorder = customisation.Value<bool?>("useoutline") == true;
+                slot.BorderWidth = Math.Max(0.5, Math.Min(12, (customisation.Value<double?>("outlinewidth") ?? 25) / 25.0));
                 slot.EnableGameBannerAsBackground = string.Equals(customisation.Value<string>("bgstyle"), "gameart", StringComparison.OrdinalIgnoreCase);
                 slot.EnableGameCoverInOverlay = false;
                 slot.BackgroundColor = NormalizeSanThemeColor(customisation.Value<string>("primarycolor"), slot.BackgroundColor);
@@ -5883,6 +5887,7 @@ namespace PlayniteAchievements.Views
             localSettings.OverlayCustomWrapAllText = slot.WrapAllText;
             localSettings.OverlayCustomShowLine1 = slot.ShowLine1;
             localSettings.OverlayCustomShowBorder = slot.ShowBorder;
+            localSettings.OverlayCustomBorderWidth = slot.BorderWidth;
             localSettings.OverlayCustomShowGameName = slot.ShowGameName;
             localSettings.OverlayCustomShowMeta = slot.ShowMeta;
             localSettings.OverlayCustomBackgroundColor = slot.BackgroundColor;

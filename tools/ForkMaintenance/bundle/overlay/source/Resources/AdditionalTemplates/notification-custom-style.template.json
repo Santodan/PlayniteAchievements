@@ -8,6 +8,7 @@
     "WrapAllText": true,
     "ShowLine1": true,
     "ShowBorder": true,
+    "BorderWidth": 1.5,
     "ShowGameName": true,
     "ShowMeta": true,
     "IconSize": 62,

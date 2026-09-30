@@ -190,6 +190,7 @@ namespace PlayniteAchievements.Providers.Local
         public bool WrapAllText { get; set; }
         public bool ShowLine1 { get; set; } = true;
         public bool ShowBorder { get; set; } = true;
+        public double BorderWidth { get; set; } = 1.5;
         public bool ShowGameName { get; set; }
         public bool ShowMeta { get; set; }
         public double IconSize { get; set; } = 58;
@@ -468,6 +469,7 @@ namespace PlayniteAchievements.Providers.Local
         private bool _overlayCustomWrapAllText;
         private bool _overlayCustomShowLine1 = true;
         private bool _overlayCustomShowBorder = true;
+        private double _overlayCustomBorderWidth = 1.5;
         private bool _overlayCustomShowGameName;
         private bool _overlayCustomShowMeta;
         private string _overlayCustomBackgroundColor = "#1E2430";
@@ -1110,6 +1112,12 @@ namespace PlayniteAchievements.Providers.Local
         {
             get => _overlayCustomShowBorder;
             set => SetValue(ref _overlayCustomShowBorder, value);
+        }
+
+        public double OverlayCustomBorderWidth
+        {
+            get => _overlayCustomBorderWidth;
+            set => SetValue(ref _overlayCustomBorderWidth, Math.Max(0.5, Math.Min(12, value)));
         }
 
         public bool OverlayCustomShowGameName
@@ -2574,6 +2582,7 @@ namespace PlayniteAchievements.Providers.Local
                     WrapAllText = slot.WrapAllText,
                     ShowLine1 = slot.ShowLine1,
                     ShowBorder = slot.ShowBorder,
+                    BorderWidth = Math.Max(0.5, Math.Min(12, slot.BorderWidth <= 0 ? 1.5 : slot.BorderWidth)),
                     ShowGameName = slot.ShowGameName,
                     ShowMeta = slot.ShowMeta,
                     IconSize = Math.Max(24, Math.Min(220, slot.IconSize <= 0 ? 58 : slot.IconSize)),

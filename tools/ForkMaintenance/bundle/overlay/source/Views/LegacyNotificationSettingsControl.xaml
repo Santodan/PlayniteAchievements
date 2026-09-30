@@ -4013,7 +4013,7 @@
                                                          <ColumnDefinition Width="180"/>
                                                          <ColumnDefinition Width="20"/>
                                                          <ColumnDefinition Width="Auto"/>
-                                                         <ColumnDefinition Width="180"/>
+                                                         <ColumnDefinition Width="280"/>
                                                          <ColumnDefinition Width="20"/>
                                                          <ColumnDefinition Width="Auto"/>
                                                          <ColumnDefinition Width="180"/>
@@ -4035,14 +4035,33 @@
                                                                 VerticalAlignment="Center"
                                                                 Margin="0,0,8,0"
                                                                 FontWeight="SemiBold"/>
-                                                     <DockPanel Grid.Column="4" LastChildFill="True">
+                                                     <Grid Grid.Column="4">
+                                                         <Grid.ColumnDefinitions>
+                                                             <ColumnDefinition Width="52"/>
+                                                             <ColumnDefinition Width="*"/>
+                                                             <ColumnDefinition Width="Auto"/>
+                                                             <ColumnDefinition Width="54"/>
+                                                             <ColumnDefinition Width="Auto"/>
+                                                         </Grid.ColumnDefinitions>
                                                          <Button Content="Pick"
                                                                  Width="52"
                                                                  Tag="Border"
                                                                  Click="NotificationsPickCustomColor_Click"/>
-                                                         <TextBox Text="{Binding OverlayCustomBorderColor, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                                                  Margin="8,0,0,0"/>
-                                                     </DockPanel>
+                                                         <TextBox Grid.Column="1"
+                                                                  Text="{Binding OverlayCustomBorderColor, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                                  Margin="8,0,8,0"/>
+                                                         <TextBlock Grid.Column="2"
+                                                                    Text="Size:"
+                                                                    VerticalAlignment="Center"
+                                                                    Margin="0,0,6,0"/>
+                                                         <TextBox Grid.Column="3"
+                                                                  IsEnabled="{Binding OverlayCustomShowBorder}"
+                                                                  Text="{Binding OverlayCustomBorderWidth, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"/>
+                                                         <TextBlock Grid.Column="4"
+                                                                    Text="px"
+                                                                    VerticalAlignment="Center"
+                                                                    Margin="4,0,0,0"/>
+                                                     </Grid>
                                                      <TextBlock Grid.Column="6"
                                                                 Text="Accent:"
                                                                 VerticalAlignment="Center"

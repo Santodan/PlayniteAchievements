@@ -513,19 +513,22 @@ namespace PlayniteAchievements.Services
 
             var width = Math.Max(280, localSettings?.OverlayCustomWidth ?? 460);
             var height = Math.Max(LocalSettings.MinCustomOverlayHeight, localSettings?.OverlayCustomHeight ?? 128);
+            var borderSpace = localSettings?.OverlayCustomShowBorder != false
+                ? Math.Max(0.5, Math.Min(12, localSettings?.OverlayCustomBorderWidth ?? 1.5)) * overlayScale
+                : 0;
             var frame = new Grid
             {
-                Width = width,
-                MinHeight = height
+                Width = width + (borderSpace * 2),
+                MinHeight = height + (borderSpace * 2)
             };
 
             if (localSettings?.OverlayCustomAutoResizeToContent == true)
             {
-                frame.MaxHeight = Math.Max(height, 520);
+                frame.MaxHeight = Math.Max(height + (borderSpace * 2), 520 + (borderSpace * 2));
             }
             else
             {
-                frame.Height = height;
+                frame.Height = height + (borderSpace * 2);
             }
 
             frame.Children.Add(content);
@@ -607,12 +610,17 @@ namespace PlayniteAchievements.Services
 
             var width = Math.Max(280, settings.OverlayCustomWidth);
             var height = Math.Max(LocalSettings.MinCustomOverlayHeight, settings.OverlayCustomHeight);
+            var borderSpace = settings.OverlayCustomShowBorder
+                ? Math.Max(0.5, Math.Min(12, settings.OverlayCustomBorderWidth)) * Math.Max(0.1, settings.OverlayCustomScale)
+                : 0;
+            var outerWidth = width + (borderSpace * 2);
+            var outerHeight = height + (borderSpace * 2);
             var durationMs = Math.Max(1200, settings.UnlockOverlayDurationMilliseconds);
             var autoResizeToContent = settings.OverlayCustomAutoResizeToContent;
             var host = new Grid
             {
-                Width = width,
-                Height = height,
+                Width = outerWidth,
+                Height = outerHeight,
                 ClipToBounds = true,
                 Background = Brushes.Transparent
             };
@@ -652,7 +660,7 @@ namespace PlayniteAchievements.Services
                 var generation = loadGeneration;
                 var webView = new WebView2
                 {
-                    Width = width,
+                    Width = outerWidth,
                     Height = host.Height,
                     HorizontalAlignment = HorizontalAlignment.Left,
                     VerticalAlignment = VerticalAlignment.Top,
@@ -717,7 +725,7 @@ namespace PlayniteAchievements.Services
                                 return;
                             }
 
-                            var resizedHeight = Math.Max(height, Math.Min(2000, Math.Ceiling(measuredHeight)));
+                            var resizedHeight = Math.Max(outerHeight, Math.Min(2000, Math.Ceiling(measuredHeight)));
                             host.Height = resizedHeight;
                             webView.Height = resizedHeight;
                         };
@@ -1345,9 +1353,15 @@ steamImage +
                             return;
                         }
 
+                        var customBorderSpace = isCustomStyle && localSettings?.OverlayCustomShowBorder != false
+                            ? Math.Max(0.5, Math.Min(12, localSettings?.OverlayCustomBorderWidth ?? 1.5)) * overlayScale
+                            : 0;
+                        var windowWidth = width + (customBorderSpace * 2);
+                        var windowHeight = height + (customBorderSpace * 2);
+
                         var overlayWindow = new Window
                         {
-                            Width = width,
+                            Width = windowWidth,
                             WindowStyle = WindowStyle.None,
                             ResizeMode = ResizeMode.NoResize,
                             AllowsTransparency = true,
@@ -1362,13 +1376,13 @@ steamImage +
 
                         if (autoResizeCustom)
                         {
-                            overlayWindow.MinHeight = height;
-                            overlayWindow.MaxHeight = Math.Max(height, 520);
+                            overlayWindow.MinHeight = windowHeight;
+                            overlayWindow.MaxHeight = Math.Max(windowHeight, 520 + (customBorderSpace * 2));
                             overlayWindow.SizeToContent = SizeToContent.Height;
                         }
                         else
                         {
-                            overlayWindow.Height = height;
+                            overlayWindow.Height = windowHeight;
                         }
 
                         overlayWindow.Content = BuildOverlayContent(title, safeGameName, safeAchievement, achievementIconPath, style, providerKey, localSettings, overlayScale, game, achievementDescription, achievementPoints, achievementRarity, achievementTrophy);
@@ -1718,8 +1732,11 @@ steamImage +
 
             try
             {
-                var canvasWidth = (int)Math.Ceiling(Math.Max(1, width));
-                var canvasHeight = (int)Math.Ceiling(Math.Max(1, height));
+                var borderSpace = settings.OverlayCustomShowBorder
+                    ? Math.Max(0.5, Math.Min(12, settings.OverlayCustomBorderWidth)) * Math.Max(0.1, settings.OverlayCustomScale)
+                    : 0;
+                var canvasWidth = (int)Math.Ceiling(Math.Max(1, width + (borderSpace * 2)));
+                var canvasHeight = (int)Math.Ceiling(Math.Max(1, height + (borderSpace * 2)));
                 var autoResizeToContent = settings.OverlayCustomAutoResizeToContent;
                 var isSanTransition = IsSanTransitionStyle(settings.UnlockOverlayTransitionStyle);
                 var overlayOpacity = Math.Max(0.35, Math.Min(1.0, settings.OverlayCustomOpacity));
@@ -2784,8 +2801,9 @@ steamImage +
             variables.AppendLine($"  --blur: {(((customisation?.Value<double?>("blur") ?? 0) * sanScale) / 50.0).ToString("0.###", CultureInfo.InvariantCulture)}px;");
             variables.AppendLine($"  --mask: {ResolveSanMask(settings, customisation)};");
             variables.AppendLine($"  --outline: {(settings?.OverlayCustomShowBorder != false ? (customisation?.Value<string>("outline") ?? "solid") : "none")};");
-            variables.AppendLine($"  --outlinewidth: {(((customisation?.Value<double?>("outlinewidth") ?? 25) / 25.0) * Math.Max(0.1, settings?.OverlayCustomScale ?? 1.0)).ToString("0.###", CultureInfo.InvariantCulture)}px;");
+            variables.AppendLine($"  --outlinewidth: {(Math.Max(0.5, Math.Min(12, settings?.OverlayCustomBorderWidth ?? 1.5)) * Math.Max(0.1, settings?.OverlayCustomScale ?? 1.0)).ToString("0.###", CultureInfo.InvariantCulture)}px;");
             variables.AppendLine($"  --outlinecolor: {CssColor(settings?.OverlayCustomBorderColor, CssColor(customisation?.Value<string>("outlinecolor"), "transparent"))};");
+            variables.AppendLine($"  --san-border-space: {(settings?.OverlayCustomShowBorder != false ? Math.Max(0.5, Math.Min(12, settings?.OverlayCustomBorderWidth ?? 1.5)) * Math.Max(0.1, settings?.OverlayCustomScale ?? 1.0) : 0).ToString("0.###", CultureInfo.InvariantCulture)}px;");
             variables.AppendLine($"  --iconborder: {ResolveSanIconBorder(settings, customisation, achievementRarity)};");
             variables.AppendLine($"  --iconborderpos: {(string.Equals(customisation?.Value<string>("iconborderpos"), "back", StringComparison.OrdinalIgnoreCase) ? "-1" : "99")};");
             variables.AppendLine($"  --iconborderscale: {((customisation?.Value<double?>("iconborderscale") ?? 100) / 100.0).ToString("0.###", CultureInfo.InvariantCulture)};");
@@ -2811,7 +2829,7 @@ steamImage +
             variables.AppendLine($"  --percentdisplaytype: {(customisation?.Value<bool?>("usepercent") == true ? "block" : "none")};");
             variables.AppendLine("}");
             variables.AppendLine("html, body { overflow: hidden; background: transparent !important; }");
-            variables.AppendLine("body { opacity: 1 !important; }");
+            variables.AppendLine("body { box-sizing: border-box !important; padding: var(--san-border-space) !important; opacity: 1 !important; }");
             var cssTextRendering = ResolveCssTextRendering(settings?.OverlayCustomTextFormattingMode ?? LocalOverlayTextFormattingMode.Auto);
             if (!string.IsNullOrWhiteSpace(cssTextRendering))
             {
@@ -2855,7 +2873,7 @@ steamImage +
             }
             variables.AppendLine("#xpwrapper { display: none !important; }");
             variables.AppendLine(".wrapper#achcont, .wrapper#bg { border-radius: var(--roundness) !important; overflow: hidden; }");
-            variables.AppendLine(".wrapper#achcont { position: relative !important; border: var(--outlinewidth) var(--outline) var(--outlinecolor) !important; }");
+            variables.AppendLine(".wrapper#achcont { position: relative !important; border: 0 !important; outline: var(--outlinewidth) var(--outline) var(--outlinecolor) !important; outline-offset: 0; }");
             variables.AppendLine("body.san-webview-fast-start .wrapper#achcontent { opacity: 1 !important; animation: none !important; animation-delay: 0ms !important; transition: none !important; }");
             variables.AppendLine("body.san-webview-fast-start .wrapper#achcontent > span { opacity: 1 !important; animation: none !important; animation-delay: 0ms !important; transition: none !important; }");
             variables.AppendLine("body.san-webview-hide-icon-border #iconborder { display: none !important; }");
@@ -5398,13 +5416,13 @@ if ({JsBool(settings?.OverlayCustomAutoResizeToContent == true)}) {{
             var contentPadding = isCompactSanCard
                 ? new Thickness(Math.Max(5, 6 * overlayScale), Math.Max(4, 5 * overlayScale), Math.Max(7, 8 * overlayScale), Math.Max(4, 5 * overlayScale))
                 : new Thickness(16);
+            var borderWidth = Math.Max(0.5, Math.Min(12, settings?.OverlayCustomBorderWidth ?? 1.5)) * overlayScale;
 
             var root = new Border
             {
                 Width = customWidth,
                 Background = backgroundBrush,
-                BorderBrush = borderBrush,
-                BorderThickness = (settings?.OverlayCustomShowBorder != false) ? new Thickness(1.5) : new Thickness(0),
+                BorderThickness = new Thickness(0),
                 CornerRadius = new CornerRadius(cornerRadius),
                 Padding = new Thickness(0),
                 ClipToBounds = true
@@ -5823,8 +5841,23 @@ if ({JsBool(settings?.OverlayCustomAutoResizeToContent == true)}) {{
             }
             ConfigureAbsoluteManualReflow(absoluteLayer, absoluteLines, manualOffsets, icon, secondaryIconElement, settings);
             root.Child = container;
-            ApplySanTemplateAnimation(root, icon, textStack, settings);
-            return root;
+            root.Margin = new Thickness(borderWidth);
+            var visualRoot = new Grid();
+            visualRoot.Children.Add(root);
+            if (settings?.OverlayCustomShowBorder != false)
+            {
+                visualRoot.Children.Add(new Border
+                {
+                    BorderBrush = borderBrush,
+                    BorderThickness = new Thickness(borderWidth),
+                    CornerRadius = new CornerRadius(cornerRadius + borderWidth),
+                    Background = Brushes.Transparent,
+                    IsHitTestVisible = false
+                });
+            }
+
+            ApplySanTemplateAnimation(visualRoot, icon, textStack, settings);
+            return visualRoot;
         }
 
         private FrameworkElement BuildSanXqjanCustomOverlayContent(
