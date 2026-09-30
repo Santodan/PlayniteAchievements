@@ -60,6 +60,7 @@
     <Color x:Key="PlayAch.Color.ProviderApple">#E5E5E5</Color>
     <Color x:Key="PlayAch.Color.ProviderFFXIV">#C0392B</Color>
     <Color x:Key="PlayAch.Color.ProviderGW2">#E2601A</Color>
+    <Color x:Key="PlayAch.Color.ProviderHypixel">#F6B31E</Color>
     <Color x:Key="PlayAch.Color.MigrationAccent">#FF37A7C8</Color>
     <Color x:Key="PlayAch.Color.MigrationAccentPressed">#FF2D8FAB</Color>
 
@@ -140,6 +141,7 @@
     <SolidColorBrush x:Key="PlayAch.Brush.ProviderApple" Color="{StaticResource PlayAch.Color.ProviderApple}"/>
     <SolidColorBrush x:Key="PlayAch.Brush.ProviderFFXIV" Color="{StaticResource PlayAch.Color.ProviderFFXIV}"/>
     <SolidColorBrush x:Key="PlayAch.Brush.ProviderGW2" Color="{StaticResource PlayAch.Color.ProviderGW2}"/>
+    <SolidColorBrush x:Key="PlayAch.Brush.ProviderHypixel" Color="{StaticResource PlayAch.Color.ProviderHypixel}"/>
     <SolidColorBrush x:Key="PlayAch.Brush.MigrationAccent" Color="{StaticResource PlayAch.Color.MigrationAccent}"/>
     <SolidColorBrush x:Key="PlayAch.Brush.MigrationAccentPressed" Color="{StaticResource PlayAch.Color.MigrationAccentPressed}"/>
 
