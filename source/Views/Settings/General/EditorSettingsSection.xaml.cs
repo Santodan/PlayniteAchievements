@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
@@ -31,15 +32,24 @@ namespace PlayniteAchievements.Views.Settings.General
             _settings = settings ?? throw new ArgumentNullException(nameof(settings));
             _plugin = plugin ?? throw new ArgumentNullException(nameof(plugin));
 
-            TemplateRows = new List<AutoCapstoneTemplateRow>
+            // Grouped under Game and Category headers, so the rows reuse the generic column labels.
+            var gameRows = new[]
             {
-                new AutoCapstoneTemplateRow(AutoCapstoneTextField.GameName, "LOCPlayAch_Settings_AutoCapstoneText_GameTitle", this),
-                new AutoCapstoneTemplateRow(AutoCapstoneTextField.GameDescription, "LOCPlayAch_Settings_AutoCapstoneText_GameDescription", this),
-                new AutoCapstoneTemplateRow(AutoCapstoneTextField.CategoryName, "LOCPlayAch_Settings_AutoCapstoneText_CategoryTitle", this),
-                new AutoCapstoneTemplateRow(AutoCapstoneTextField.CategoryDescription, "LOCPlayAch_Settings_AutoCapstoneText_CategoryDescription", this)
+                new AutoCapstoneTemplateRow(AutoCapstoneTextField.GameName, NameLabelKey, this),
+                new AutoCapstoneTemplateRow(AutoCapstoneTextField.GameDescription, DescriptionLabelKey, this)
             };
-            TemplateItems.ItemsSource = TemplateRows;
+            var categoryRows = new[]
+            {
+                new AutoCapstoneTemplateRow(AutoCapstoneTextField.CategoryName, NameLabelKey, this),
+                new AutoCapstoneTemplateRow(AutoCapstoneTextField.CategoryDescription, DescriptionLabelKey, this)
+            };
+            TemplateRows = gameRows.Concat(categoryRows).ToList();
+            GameTemplateItems.ItemsSource = gameRows;
+            CategoryTemplateItems.ItemsSource = categoryRows;
         }
+
+        private const string NameLabelKey = "LOCPlayAch_Column_Name";
+        private const string DescriptionLabelKey = "LOCPlayAch_Column_Description";
 
         public IReadOnlyList<AutoCapstoneTemplateRow> TemplateRows { get; }
 
