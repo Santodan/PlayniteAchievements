@@ -68,6 +68,12 @@ namespace PlayniteAchievements.Models.Settings
         private int _friendsPeriodicUpdateHours = 24;
         private bool _enableInGamePolling = true;
         private bool _enableAutoCapstoneGeneration = false;
+        private string _autoCapstoneGameNameTemplate;
+        private string _autoCapstoneGameDescriptionTemplate;
+        private string _autoCapstoneCategoryNameTemplate;
+        private string _autoCapstoneCategoryDescriptionTemplate;
+        private List<string> _autoCapstoneTemplateHistory = new List<string>();
+        private string _autoCapstoneAppliedTemplates;
         private int _inGamePollIntervalSeconds = 15;
         private bool _inGamePollRefreshFriends = false;
         private int _inGameFriendRefreshMultiplier = 4;
@@ -884,6 +890,66 @@ namespace PlayniteAchievements.Models.Settings
         {
             get => _enableAutoCapstoneGeneration;
             set => SetValue(ref _enableAutoCapstoneGeneration, value);
+        }
+
+        /// <summary>
+        /// The whole-game auto capstone's title template ({0} = game), or null to follow the
+        /// language's default.
+        /// </summary>
+        public string AutoCapstoneGameNameTemplate
+        {
+            get => _autoCapstoneGameNameTemplate;
+            set => SetValue(ref _autoCapstoneGameNameTemplate, value);
+        }
+
+        /// <summary>
+        /// The whole-game auto capstone's description template ({0} = game), or null to follow
+        /// the language's default.
+        /// </summary>
+        public string AutoCapstoneGameDescriptionTemplate
+        {
+            get => _autoCapstoneGameDescriptionTemplate;
+            set => SetValue(ref _autoCapstoneGameDescriptionTemplate, value);
+        }
+
+        /// <summary>
+        /// A category auto capstone's title template ({0} = game, {1} = category), or null to
+        /// follow the language's default.
+        /// </summary>
+        public string AutoCapstoneCategoryNameTemplate
+        {
+            get => _autoCapstoneCategoryNameTemplate;
+            set => SetValue(ref _autoCapstoneCategoryNameTemplate, value);
+        }
+
+        /// <summary>
+        /// A category auto capstone's description template ({0} = game, {1} = category), or null
+        /// to follow the language's default.
+        /// </summary>
+        public string AutoCapstoneCategoryDescriptionTemplate
+        {
+            get => _autoCapstoneCategoryDescriptionTemplate;
+            set => SetValue(ref _autoCapstoneCategoryDescriptionTemplate, value);
+        }
+
+        /// <summary>
+        /// Every template the user has set, so a capstone written with one they have since
+        /// replaced still reads as default text rather than an edit.
+        /// </summary>
+        public List<string> AutoCapstoneTemplateHistory
+        {
+            get => _autoCapstoneTemplateHistory;
+            set => SetValue(ref _autoCapstoneTemplateHistory, value ?? new List<string>());
+        }
+
+        /// <summary>
+        /// The resolved templates the library's auto capstones were last brought in line with, so
+        /// startup knows whether a template or language change still has to be applied.
+        /// </summary>
+        public string AutoCapstoneAppliedTemplates
+        {
+            get => _autoCapstoneAppliedTemplates;
+            set => SetValue(ref _autoCapstoneAppliedTemplates, value);
         }
         public int InGamePollIntervalSeconds
         {
@@ -3043,6 +3109,12 @@ namespace PlayniteAchievements.Models.Settings
                 FriendsPeriodicUpdateHours = this.FriendsPeriodicUpdateHours,
                 EnableInGamePolling = this.EnableInGamePolling,
                 EnableAutoCapstoneGeneration = this.EnableAutoCapstoneGeneration,
+                AutoCapstoneGameNameTemplate = this.AutoCapstoneGameNameTemplate,
+                AutoCapstoneGameDescriptionTemplate = this.AutoCapstoneGameDescriptionTemplate,
+                AutoCapstoneCategoryNameTemplate = this.AutoCapstoneCategoryNameTemplate,
+                AutoCapstoneCategoryDescriptionTemplate = this.AutoCapstoneCategoryDescriptionTemplate,
+                AutoCapstoneTemplateHistory = new List<string>(this.AutoCapstoneTemplateHistory ?? new List<string>()),
+                AutoCapstoneAppliedTemplates = this.AutoCapstoneAppliedTemplates,
                 InGamePollIntervalSeconds = this.InGamePollIntervalSeconds,
                 InGamePollRefreshFriends = this.InGamePollRefreshFriends,
                 InGameFriendRefreshMultiplier = this.InGameFriendRefreshMultiplier,

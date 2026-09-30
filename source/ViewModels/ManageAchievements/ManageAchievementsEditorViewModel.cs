@@ -8670,7 +8670,10 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         {
             var row = new AchievementEditorRow
             {
-                DisplayName = "New Achievement " + Math.Max(1, index).ToString(CultureInfo.InvariantCulture),
+                DisplayName = string.Format(
+                    FormattingCulture.Current,
+                    ResourceProvider.GetString("LOCPlayAch_ManageAchievements_Custom_NewAchievementName"),
+                    Math.Max(1, index)),
                 IsNew = true,
                 Rarity = ManageAchievements.AchievementEditorFieldRules.NormalizeAuthoredRarity(null, isBulkRow: false)
             };
