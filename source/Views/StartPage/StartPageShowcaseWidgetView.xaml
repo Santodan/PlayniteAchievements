@@ -13,5 +13,6 @@
         </ResourceDictionary>
     </UserControl.Resources>
     <showcase:ShowcaseWidgetControl Projection="{Binding Projection}"
+                                     ShowCardChrome="False"
                                      Margin="4"/>
 </UserControl>
