@@ -85,6 +85,24 @@ namespace PlayniteAchievements.Services.Tests.Captures
         }
 
         [TestMethod]
+        public void ForeignScreenshots_AreNotCaptures()
+        {
+            // Other tools (Steam, NVIDIA) can save into the same per-game folders.
+            WriteCapture("Portal", "20240101123456_1.png");
+            WriteCapture("Portal", "Portal Screenshot 2024.01.01 - 12.34.56.78.png");
+            WriteCapture("Braid", "20240101123456_1.png");
+            WriteCapture("Braid", "001_Time.png");
+            var service = CreateService();
+
+            Assert.IsFalse(service.GameFolderHasCaptures("Portal"));
+            Assert.IsFalse(service.ScanGame("Portal").HasAny);
+            Assert.IsTrue(service.GameFolderHasCaptures("Braid"));
+            CollectionAssert.AreEqual(
+                new[] { "Time" },
+                service.ScanGame("Braid").Groups.Select(group => group.AchievementStem).ToArray());
+        }
+
+        [TestMethod]
         public void Invalidate_AddsTheNewFolderToTheMembershipSet()
         {
             var service = CreateService();
