@@ -111,8 +111,16 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
         public double? RarityPercent
         {
             get => _rarityPercent;
-            private set => SetValue(ref _rarityPercent, value, nameof(RarityPercent), nameof(ShowRarityBar));
+            private set => SetValue(
+                ref _rarityPercent,
+                value,
+                nameof(RarityPercent),
+                nameof(RarityPercentValue),
+                nameof(ShowRarityBar));
         }
+
+        /// <summary><see cref="RarityPercent"/> for the bar's non-nullable Value.</summary>
+        public double RarityPercentValue => _rarityPercent ?? 0;
 
         /// <summary>
         /// True when the widget's rarity bar option is on, the game is completed (the same gate as
