@@ -94,6 +94,44 @@ namespace PlayniteAchievements.Providers.GuildWars2
         }
 
         /// <summary>
+        /// Default category art: each category's own icon, keyed by the same "Group / Category" path
+        /// the rows carry, in display order. Groups publish no icon, and a category without one is
+        /// left out so the display falls back to the game's art.
+        /// </summary>
+        public static List<(string Label, string IconUrl)> BuildCategoryArtPlan(Gw2Catalog catalog)
+        {
+            var plan = new List<(string Label, string IconUrl)>();
+            if (catalog == null || !catalog.IsUsable)
+            {
+                return plan;
+            }
+
+            var categoriesById = BuildCategoryIndex(catalog.Categories);
+            var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+            foreach (var group in catalog.Groups.Where(g => g != null).OrderBy(g => g.Order))
+            {
+                foreach (var category in ResolveCategories(group, categoriesById))
+                {
+                    if (category.Achievements == null ||
+                        category.Achievements.Count == 0 ||
+                        string.IsNullOrWhiteSpace(category.Icon))
+                    {
+                        continue;
+                    }
+
+                    var categoryPath = CategoryPathHelper.JoinRaw(group.Name, category.Name);
+                    if (!string.IsNullOrWhiteSpace(categoryPath) && seen.Add(categoryPath))
+                    {
+                        plan.Add((categoryPath, category.Icon.Trim()));
+                    }
+                }
+            }
+
+            return plan;
+        }
+
+        /// <summary>
         /// One achievement per tier of a ladder. A Guild Wars 2 achievement is earned again at each
         /// successive tier, so a tier is the only thing here that is actually all-or-nothing, and
         /// modelling it that way lets a tier climb be an ordinary locked-to-unlocked transition.

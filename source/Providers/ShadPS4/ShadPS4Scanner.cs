@@ -4,6 +4,7 @@ using PlayniteAchievements.Providers.EmuLibrary;
 using PlayniteAchievements.Providers.Exophase;
 using PlayniteAchievements.Providers.Settings;
 using PlayniteAchievements.Services;
+using PlayniteAchievements.Services.Achievements;
 using PlayniteAchievements.Services.GameCustomData;
 using PlayniteAchievements.Services.Refresh;
 using Playnite.SDK;
@@ -304,6 +305,9 @@ namespace PlayniteAchievements.Providers.ShadPS4
                 var metadataGroupNamesById = BuildGroupNamesDictionary(metadataDoc, ps4Locale);
                 var localizedGroupNamesById = BuildGroupNamesDictionary(localizedDoc, ps4Locale);
 
+                // Category label -> trophy group id, first group to use a label wins.
+                var groupIdsByLabel = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+
                 foreach (var trophyElement in doc.Descendants("trophy"))
                 {
                     cancel.ThrowIfCancellationRequested();
@@ -341,6 +345,11 @@ namespace PlayniteAchievements.Providers.ShadPS4
                     if (string.IsNullOrWhiteSpace(groupName))
                     {
                         metadataGroupNamesById.TryGetValue(groupId, out groupName);
+                    }
+
+                    if (!string.IsNullOrWhiteSpace(groupName) && !groupIdsByLabel.ContainsKey(groupName.Trim()))
+                    {
+                        groupIdsByLabel[groupName.Trim()] = groupId;
                     }
 
                     bool isUnlocked;
@@ -390,6 +399,8 @@ namespace PlayniteAchievements.Providers.ShadPS4
                         Category = string.IsNullOrWhiteSpace(groupName) ? null : groupName.Trim()
                     });
                 }
+
+                ApplyDefaultCategoryArt(game, iconsFolder, groupIdsByLabel);
 
                 var formatLabel = format == TrophyFormat.New ? "new format" : "old format";
                 _logger?.Info($"[ShadPS4] Parsed {achievements.Count} trophies ({formatLabel}) for '{game.Name}' ({unlockedCount} unlocked)");
@@ -724,6 +735,70 @@ namespace PlayniteAchievements.Providers.ShadPS4
         #endregion
 
         #region Trophy metadata helpers
+
+        /// <summary>
+        /// Publishes each trophy group's own icon as the default category art for its category
+        /// label. shadPS4 extracts every PNG of the trophy file into Icons under its entry name,
+        /// so a DLC group's icon is GR###.PNG and the base set's is ICON0.PNG. Uses the shared
+        /// provider-default convention read by CategoryDefaultImageResolver: existing art is kept,
+        /// and user overrides always win over defaults.
+        /// </summary>
+        private void ApplyDefaultCategoryArt(Game game, string iconsFolder, IReadOnlyDictionary<string, string> groupIdsByLabel)
+        {
+            if (string.IsNullOrWhiteSpace(iconsFolder) ||
+                groupIdsByLabel == null ||
+                groupIdsByLabel.Count == 0 ||
+                game?.Id == null ||
+                game.Id == Guid.Empty)
+            {
+                return;
+            }
+
+            var diskImageService = PlayniteAchievementsPlugin.Instance?.DiskImageService;
+            if (diskImageService == null)
+            {
+                return;
+            }
+
+            var gameIdText = game.Id.ToString("D");
+            foreach (var entry in groupIdsByLabel)
+            {
+                var label = AchievementCategoryTypeHelper.NormalizeCategoryOrDefault(entry.Key);
+                if (string.Equals(label, AchievementCategoryTypeHelper.DefaultCategoryLabel, StringComparison.OrdinalIgnoreCase))
+                {
+                    continue;
+                }
+
+                try
+                {
+                    var artPath = GetTrophyGroupIconPath(iconsFolder, entry.Value);
+                    if (artPath != null)
+                    {
+                        diskImageService.SaveDefaultCategoryImageFromFile(gameIdText, label, artPath);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger?.Debug(ex, $"[ShadPS4] Default category image copy failed for '{entry.Key}'.");
+                }
+            }
+        }
+
+        private static string GetTrophyGroupIconPath(string iconsFolder, string groupId)
+        {
+            var fileName = string.Equals(MapGroupIdToCategoryType(groupId), "Base", StringComparison.Ordinal)
+                ? "ICON0.PNG"
+                : int.TryParse(groupId?.Trim(), out var number) && number > 0
+                    ? $"GR{number:D3}.PNG"
+                    : null;
+            if (fileName == null)
+            {
+                return null;
+            }
+
+            var path = Path.Combine(iconsFolder, fileName);
+            return File.Exists(path) ? path : null;
+        }
 
         private string GetTrophyIconPath(string iconsFolder, string trophyId)
         {
