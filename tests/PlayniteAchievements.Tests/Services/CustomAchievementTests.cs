@@ -420,6 +420,14 @@ namespace PlayniteAchievements.Services.Tests
                     packagePath);
 
                 Assert.IsTrue(store.IsCustomAchievementsPackage(packagePath));
+                string csvText;
+                using (var archive = System.IO.Compression.ZipFile.OpenRead(packagePath))
+                using (var reader = new StreamReader(archive.GetEntry(GameCustomDataStore.CustomAchievementsPackageCsvEntryName).Open()))
+                {
+                    csvText = reader.ReadToEnd();
+                }
+
+                StringAssert.DoesNotMatch(csvText, new System.Text.RegularExpressions.Regex(@"(?i)unlocked,|unlock time|2026-01-02|progress,"));
                 Assert.ThrowsException<InvalidOperationException>(
                     () => store.ImportReplacePortable(gameId, packagePath),
                     "A custom-achievements package must not replace the game's custom data.");
@@ -432,14 +440,14 @@ namespace PlayniteAchievements.Services.Tests
                 Assert.AreEqual("first-win", first.Id);
                 Assert.AreEqual("First, Win", first.DisplayName);
                 Assert.AreEqual("Uses a \"quote\"", first.Description);
-                Assert.IsTrue(first.Unlocked);
-                Assert.AreEqual(new DateTime(2026, 1, 2, 3, 4, 5, DateTimeKind.Utc), first.UnlockTimeUtc);
+                Assert.IsFalse(first.Unlocked, "A package never carries unlock state.");
+                Assert.IsNull(first.UnlockTimeUtc);
                 Assert.AreEqual(10, first.Points);
                 Assert.AreEqual("gold", first.TrophyType);
                 Assert.IsTrue(first.Hidden);
                 Assert.AreEqual("Rare", first.Rarity);
                 Assert.AreEqual(12.5, first.GlobalPercentUnlocked);
-                Assert.AreEqual(1, first.ProgressNum);
+                Assert.IsNull(first.ProgressNum, "A package never carries progress.");
                 Assert.AreEqual(2, first.ProgressDenom);
                 Assert.IsNull(first.UnlockedIconPath);
                 Assert.AreEqual("second", result.Definitions[1].Id);
