@@ -1544,7 +1544,7 @@ namespace PlayniteAchievements
                         _logger?.Error(ex, "Failed to apply auto capstone text templates.");
                     }
                 },
-                new GlobalProgressOptions(ResourceProvider.GetString("LOCPlayAch_Settings_AutoCapstoneText_ApplyProgress"))
+                new GlobalProgressOptions(ResourceProvider.GetString("LOCPlayAch_Settings_AutoCapstoneText_Progress"))
                 {
                     Cancelable = true,
                     IsIndeterminate = false
