@@ -180,7 +180,7 @@
                                             <ColumnDefinition Width="Auto" />
                                             <ColumnDefinition Width="*" />
                                         </Grid.ColumnDefinitions>
-                                        <Image Style="{StaticResource OverviewBadgeImageStyle}" Source="{DynamicResource BadgeCompletedGame}" />
+                                        <Image Style="{StaticResource OverviewBadgeImageStyle}" Source="{DynamicResource BadgeRarityCompleted}" />
                                         <TextBlock Style="{StaticResource SidebarStatValueStyle}" Text="{Binding OverviewSummary.Capstones.Text}" />
                                     </Grid>
                                 </Border>
