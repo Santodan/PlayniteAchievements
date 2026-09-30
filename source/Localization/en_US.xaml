@@ -625,10 +625,6 @@
     <sys:String x:Key="LOCPlayAch_Settings_EnableAutoCapstoneGeneration_Description">After a game refreshes, gives it an auto capstone once if it has no capstone yet. Turning this off stops new ones and keeps existing capstones.</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_AutoCapstoneGeneration_ApplyToExisting">Also add auto capstones to games already in your library?</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_AutoCapstoneGeneration_Progress">Adding auto capstones...</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_AutoCapstoneText_GameTitle">Game Title</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_AutoCapstoneText_GameDescription">Game Description</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_AutoCapstoneText_CategoryTitle">Category Title</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_AutoCapstoneText_CategoryDescription">Category Description</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_AutoCapstoneText_Hint">The text new auto capstones get. {0} is the game's name and {1} the category's. Apply updates existing auto capstones still on default text; ones whose title or description you edited keep it.</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_AutoCapstoneText_ApplyConfirm">Update every auto capstone still on default text to these templates? Capstones whose title or description you edited keep their text.</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_AutoCapstoneText_Progress">Updating auto capstone text...</sys:String>
