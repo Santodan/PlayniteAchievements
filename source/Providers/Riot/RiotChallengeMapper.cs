@@ -469,6 +469,53 @@ namespace PlayniteAchievements.Providers.Riot
         }
 
         /// <summary>
+        /// Default category art for capstone groups: a challenge's category is named after the
+        /// capstone it hangs off, so that capstone's token art belongs to the category. The lowest
+        /// tier's art is used so the image does not depend on the player's rank. The five top-level
+        /// categories carry no art and get no entry.
+        /// </summary>
+        public static List<(string Label, string IconUrl)> BuildCategoryArtPlan(
+            CDragonChallengeFile metadata,
+            IReadOnlyDictionary<string, string> categoryDisplayNames)
+        {
+            var plan = new List<(string Label, string IconUrl)>();
+            if (metadata?.Challenges == null || metadata.Challenges.Count == 0)
+            {
+                return plan;
+            }
+
+            var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var entry in metadata.Challenges.OrderBy(pair => pair.Key, StringComparer.Ordinal))
+            {
+                var challenge = entry.Value;
+                if (challenge == null || IsCategoryNode(challenge))
+                {
+                    continue;
+                }
+
+                var parentId = GetTag(challenge, ParentTag);
+                if (string.IsNullOrWhiteSpace(parentId) ||
+                    !metadata.Challenges.TryGetValue(parentId, out var parent) ||
+                    parent == null ||
+                    IsCategoryNode(parent))
+                {
+                    continue;
+                }
+
+                var label = ResolveCategory(challenge, metadata.Challenges, categoryDisplayNames);
+                var iconUrl = ResolveIconUrl(parent, null);
+                if (!string.IsNullOrWhiteSpace(label) &&
+                    !string.IsNullOrWhiteSpace(iconUrl) &&
+                    seen.Add(label))
+                {
+                    plan.Add((label, iconUrl));
+                }
+            }
+
+            return plan;
+        }
+
+        /// <summary>
         /// The owning group's display name: the parent capstone for a leaf challenge, or the
         /// localized top-level category for a capstone. Null when the challenge has no parent —
         /// providers must not invent a sentinel label.
