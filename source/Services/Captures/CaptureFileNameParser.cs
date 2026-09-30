@@ -11,11 +11,17 @@ namespace PlayniteAchievements.Services.Captures
     /// Parses a capture filename (<c>NNN_AchievementName[_variant].png|mp4</c>, optionally with a
     /// " (2)" collision marker) back into a <see cref="CaptureItem"/>. Kept free of any capture-writer
     /// or Win32 dependency so it can be unit-tested in isolation.
+    /// <para>
+    /// A file is a capture only when its name has the writer's shape: a 3-5 digit number (the writer
+    /// pads to the width of the game's achievement total, minimum 3), an underscore, and a non-empty
+    /// name. The variant suffix plays no part in that decision, so screenshots other tools save into
+    /// the same folders are rejected however the suffixes are configured.
+    /// </para>
     /// </summary>
     internal static class CaptureFileNameParser
     {
         private static readonly Regex DedupMarker = new Regex(@"\s\((\d+)\)$", RegexOptions.Compiled);
-        private static readonly Regex LeadingNumber = new Regex(@"^(\d+)_", RegexOptions.Compiled);
+        private static readonly Regex LeadingNumber = new Regex(@"^(\d{3,5})_(?=.)", RegexOptions.Compiled);
 
         public static SuffixResolver CreateResolver(
             string cleanSuffix,
@@ -23,51 +29,17 @@ namespace PlayniteAchievements.Services.Captures
             string framedSuffix) =>
             SuffixResolver.Create(cleanSuffix, notificationSuffix, framedSuffix);
 
+        /// <summary>True when the path names a file the capture writer could have produced.</summary>
+        public static bool HasCaptureSignature(string filePath) =>
+            TrySplit(filePath, out _, out _, out _, out _);
+
         public static bool TryParse(string filePath, SuffixResolver resolver, out CaptureItem item)
         {
             item = null;
-            if (string.IsNullOrEmpty(filePath) || resolver == null)
+            if (resolver == null ||
+                !TrySplit(filePath, out var isVideo, out var number, out var remainder, out var dedupCounter))
             {
                 return false;
-            }
-
-            var ext = Path.GetExtension(filePath);
-            var isVideo = string.Equals(ext, ".mp4", StringComparison.OrdinalIgnoreCase);
-            var isPng = string.Equals(ext, ".png", StringComparison.OrdinalIgnoreCase);
-            if (!isVideo && !isPng)
-            {
-                return false;
-            }
-
-            var name = Path.GetFileNameWithoutExtension(filePath);
-            if (string.IsNullOrEmpty(name))
-            {
-                return false;
-            }
-
-            // A filename collision appends " (2)", " (3)" before the extension; keep the counter
-            // (0 = original file) and drop the marker so the variant suffix ends the string and
-            // the achievement stem groups correctly.
-            var dedupCounter = 0;
-            var dedupMatch = DedupMarker.Match(name);
-            if (dedupMatch.Success)
-            {
-                int.TryParse(
-                    dedupMatch.Groups[1].Value,
-                    NumberStyles.None,
-                    CultureInfo.InvariantCulture,
-                    out dedupCounter);
-                name = name.Substring(0, dedupMatch.Index);
-            }
-
-            var number = 0;
-            var remainder = name;
-            var match = LeadingNumber.Match(name);
-            if (match.Success &&
-                int.TryParse(match.Groups[1].Value, NumberStyles.None, CultureInfo.InvariantCulture, out var parsed))
-            {
-                number = parsed;
-                remainder = name.Substring(match.Length);
             }
 
             CaptureVariant variant;
@@ -100,6 +72,64 @@ namespace PlayniteAchievements.Services.Captures
             }
 
             item = new CaptureItem(filePath, variant, number, stem, dedupCounter);
+            return true;
+        }
+
+        /// <summary>
+        /// Checks the capture shape and splits the name into its number, the text after it (stem
+        /// plus any variant suffix), and the collision counter (0 = original file).
+        /// </summary>
+        private static bool TrySplit(
+            string filePath,
+            out bool isVideo,
+            out int number,
+            out string remainder,
+            out int dedupCounter)
+        {
+            isVideo = false;
+            number = 0;
+            remainder = null;
+            dedupCounter = 0;
+            if (string.IsNullOrEmpty(filePath))
+            {
+                return false;
+            }
+
+            var ext = Path.GetExtension(filePath);
+            isVideo = string.Equals(ext, ".mp4", StringComparison.OrdinalIgnoreCase);
+            var isPng = string.Equals(ext, ".png", StringComparison.OrdinalIgnoreCase);
+            if (!isVideo && !isPng)
+            {
+                return false;
+            }
+
+            var name = Path.GetFileNameWithoutExtension(filePath);
+            if (string.IsNullOrEmpty(name))
+            {
+                return false;
+            }
+
+            // A filename collision appends " (2)", " (3)" before the extension; drop the marker so
+            // the variant suffix ends the string and the achievement stem groups correctly.
+            var dedupMatch = DedupMarker.Match(name);
+            if (dedupMatch.Success)
+            {
+                int.TryParse(
+                    dedupMatch.Groups[1].Value,
+                    NumberStyles.None,
+                    CultureInfo.InvariantCulture,
+                    out dedupCounter);
+                name = name.Substring(0, dedupMatch.Index);
+            }
+
+            var match = LeadingNumber.Match(name);
+            if (!match.Success ||
+                !int.TryParse(match.Groups[1].Value, NumberStyles.None, CultureInfo.InvariantCulture, out number))
+            {
+                return false;
+            }
+
+            remainder = name.Substring(match.Length);
             return true;
         }
 
