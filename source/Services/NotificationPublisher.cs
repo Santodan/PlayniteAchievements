@@ -2864,6 +2864,7 @@ steamImage +
             variables.AppendLine("body.san-webview-force-visible .wrapper#achiconwrapper { opacity: 1 !important; scale: 1 !important; animation: none !important; }");
             variables.AppendLine("body.san-webview-no-secondary-icon .wrapper#logo, body.san-webview-no-secondary-icon #logo { display: none !important; opacity: 0 !important; animation: none !important; }");
             variables.AppendLine(".san-game-cover { position: absolute; top: 0; bottom: 0; width: var(--san-cover-width); background-color: var(--san-cover-background); background-image: var(--san-cover-image); background-position: center; background-size: contain; background-repeat: no-repeat; opacity: 1; pointer-events: none; z-index: 2; }");
+            variables.AppendLine(".san-game-cover.empty::after { content: 'COVER'; position: absolute; inset: 0; display: grid; place-items: center; color: #aeb8c4; font-family: 'Segoe UI', sans-serif; font-size: 12px; font-weight: 700; }");
             variables.AppendLine(".san-game-cover.left { left: 0; }");
             variables.AppendLine(".san-game-cover.right { right: 0; }");
             variables.AppendLine("body.san-webview-has-cover .wrapper#achcont { overflow: hidden; }");
@@ -3228,12 +3229,12 @@ if (document.body.dataset.sanAnimationPreset === 'epicgames' || document.body.da
 document.body.classList.add('san-webview-fast-start');
 document.body.classList.toggle('san-webview-disable-san-transition', {JsBool(!usesSanTimeline)});
 document.body.classList.toggle('san-webview-no-secondary-icon', {JsBool(settings?.OverlayCustomShowSecondaryIcon != true)});
-document.body.classList.toggle('san-webview-has-cover', {JsBool(settings?.EnableGameCoverInOverlay == true && !string.IsNullOrWhiteSpace(coverImageUri))});
+document.body.classList.toggle('san-webview-has-cover', {JsBool(settings?.EnableGameCoverInOverlay == true)});
 document.body.classList.toggle('san-cover-left', {JsBool(settings?.GameCoverPosition == LocalOverlayCoverPosition.Left)});
 document.body.classList.toggle('san-cover-right', {JsBool(settings?.GameCoverPosition != LocalOverlayCoverPosition.Left)});
-if ({JsBool(settings?.EnableGameCoverInOverlay == true && !string.IsNullOrWhiteSpace(coverImageUri))}) {{
+if ({JsBool(settings?.EnableGameCoverInOverlay == true)}) {{
   const cover = document.createElement('div');
-  cover.className = 'san-game-cover ' + ({JsBool(settings?.GameCoverPosition == LocalOverlayCoverPosition.Left)} ? 'left' : 'right');
+  cover.className = 'san-game-cover ' + ({JsBool(settings?.GameCoverPosition == LocalOverlayCoverPosition.Left)} ? 'left' : 'right') + ({JsBool(string.IsNullOrWhiteSpace(coverImageUri))} ? ' empty' : '');
   const container = document.getElementById('achcont') || document.body;
   container.appendChild(cover);
 }}
@@ -8446,12 +8447,7 @@ if ({JsBool(settings?.OverlayCustomAutoResizeToContent == true)}) {{
         private FrameworkElement CreateGameCoverElement(Game game, double width, double height, double cornerRadius, Thickness margin, string customImagePath = null, bool showBackground = true, string backgroundColor = null, bool centerVertically = false)
         {
             var coverSource = TryCreateOverlayImageSource(customImagePath) ?? TryCreatePlayniteGameImageSource(game, useBackground: false);
-            if (coverSource == null)
-            {
-                return null;
-            }
-
-            return new Border
+            var cover = new Border
             {
                 Width = width,
                 Height = height,
@@ -8460,15 +8456,26 @@ if ({JsBool(settings?.OverlayCustomAutoResizeToContent == true)}) {{
                 VerticalAlignment = centerVertically ? VerticalAlignment.Center : VerticalAlignment.Stretch,
                 Background = showBackground
                     ? ParseBrushOrDefault(backgroundColor, Color.FromArgb(28, 255, 255, 255))
-                    : Brushes.Transparent,
-                Child = new Image
+                    : Brushes.Transparent
+            };
+            cover.Child = coverSource != null
+                ? (FrameworkElement)new Image
                 {
                     Source = coverSource,
                     Stretch = Stretch.Uniform,
                     Width = width,
                     Height = height
                 }
-            };
+                : new TextBlock
+                {
+                    Text = "COVER",
+                    Foreground = new SolidColorBrush(Color.FromRgb(174, 184, 196)),
+                    FontSize = 12,
+                    FontWeight = FontWeights.Bold,
+                    HorizontalAlignment = HorizontalAlignment.Center,
+                    VerticalAlignment = VerticalAlignment.Center
+                };
+            return cover;
         }
 
         private static void CenterCanvasElementVertically(FrameworkElement root, FrameworkElement element)
