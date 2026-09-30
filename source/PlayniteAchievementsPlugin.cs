@@ -740,6 +740,7 @@ namespace PlayniteAchievements
                         _achievementOverridesService,
                         gameId => _achievementDataService?.GetGameAchievementData(gameId),
                         () => _managedCustomIconService,
+                        () => AutoCapstoneText.Resolve(_settingsViewModel?.Settings?.Persisted),
                         _logger);
                     _autoCapstoneGenerator = new AutoCapstoneGenerator(
                         _gameCustomDataStore,
