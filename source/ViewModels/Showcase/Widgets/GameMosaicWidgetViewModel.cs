@@ -2,10 +2,15 @@ using System;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Linq;
+using System.Threading.Tasks;
+using System.Windows.Threading;
 using PlayniteAchievements.Common;
 using PlayniteAchievements.Models;
 using PlayniteAchievements.Models.Settings;
 using PlayniteAchievements.Services;
+using PlayniteAchievements.Services.Images;
+using PlayniteAchievements.Services.Overview;
+using PlayniteAchievements.Services.Showcase;
 using PlayniteAchievements.ViewModels.Items;
 
 namespace PlayniteAchievements.ViewModels.Showcase.Widgets
@@ -23,7 +28,13 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
         // unrelated refresh syncs the existing tiles instead of re-creating (and re-decoding) them.
         private readonly Dictionary<GameSummaryItem, GameTileViewModel> _tiles =
             new Dictionary<GameSummaryItem, GameTileViewModel>();
+        private readonly HashSet<GameTileViewModel> _probing = new HashSet<GameTileViewModel>();
         private TileLayout _layout;
+
+        // The rarity index is one pass over the snapshot's achievements, rebuilt only when the
+        // snapshot is replaced.
+        private OverviewDataSnapshot _rarityIndexSnapshot;
+        private Dictionary<Guid, GameCapstoneRarityResolver.Candidates> _rarityIndex;
 
         public GameMosaicWidgetViewModel()
         {
@@ -41,7 +52,8 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
                 ?? (Density == WidgetViewportDensity.Compact
                     ? 44
                     : Density == WidgetViewportDensity.Expanded ? 72 : ShowcaseWidgetOptions.DefaultMosaicCoverWidth);
-            // Icon tiles are square; cover tiles keep the portrait box-art ratio.
+            // Icon tiles are square. Cover tiles share the portrait box-art height, and each takes
+            // its own cover's width at that height (see GameTileViewModel).
             var coverHeight = useCovers ? Math.Round(coverWidth * 1.4) : coverWidth;
             var layout = new TileLayout(
                 ShowcaseWidgetOptions.GetGameMosaicSource(Projection?.Instance) == ShowcaseGameMosaicSource.Pinned,
@@ -51,7 +63,8 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
                 Math.Max(64, (int)Math.Ceiling(coverHeight * 2)),
                 useCovers,
                 ShowcaseWidgetOptions.GetGameMosaicShowCompletionGlow(Projection?.Instance),
-                ShowcaseWidgetOptions.GetMosaicSpacing(Projection?.Instance));
+                ShowcaseWidgetOptions.GetMosaicSpacing(Projection?.Instance),
+                ShowcaseWidgetOptions.GetMosaicShowRarityBar(Projection?.Instance));
 
             if (!layout.Equals(_layout))
             {
@@ -85,7 +98,9 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
 
             var capped = adapter.Apply(list)
                 .Take(ShowcaseWidgetOptions.GetGameMosaicCount(Projection?.Instance));
-            CollectionHelper.Replace(Tiles, OrderGames(capped).Select(GetTile));
+            var tiles = OrderGames(capped).Select(GetTile).ToList();
+            CollectionHelper.Replace(Tiles, tiles);
+            ProbeCoverAspects(tiles);
         }
 
         private GameTileViewModel GetTile(GameSummaryItem game)
@@ -101,11 +116,66 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
                     _layout.DecodePixel,
                     _layout.UseCovers,
                     _layout.ShowCompletionGlow,
-                    _layout.Spacing);
+                    _layout.Spacing,
+                    _layout.ShowRarityBar);
                 _tiles[game] = tile;
             }
 
+            // Set on reused tiles too, so a new snapshot's percents reach them.
+            if (_layout.ShowRarityBar)
+            {
+                tile.SetRarityPercent(ResolveRarityPercent(game));
+            }
+
             return tile;
+        }
+
+        private double? ResolveRarityPercent(GameSummaryItem game)
+        {
+            if (!game.IsCompleted || !game.PlayniteGameId.HasValue)
+            {
+                return null;
+            }
+
+            var snapshot = Projection?.Snapshot;
+            if (_rarityIndex == null || !ReferenceEquals(snapshot, _rarityIndexSnapshot))
+            {
+                _rarityIndexSnapshot = snapshot;
+                _rarityIndex = GameCapstoneRarityResolver.Index(snapshot?.Achievements);
+            }
+
+            return _rarityIndex.TryGetValue(game.PlayniteGameId.Value, out var candidates)
+                ? GameCapstoneRarityResolver.Resolve(candidates, game.CapstoneTotal > 0)
+                : null;
+        }
+
+        /// <summary>
+        /// Reads the aspect ratio of every cover not yet in the session cache off the UI thread,
+        /// then resizes those tiles in one dispatcher pass so the mosaic lays out once.
+        /// </summary>
+        private void ProbeCoverAspects(IReadOnlyList<GameTileViewModel> tiles)
+        {
+            var pending = tiles
+                .Where(tile => tile.NeedsAspectProbe && _probing.Add(tile))
+                .ToList();
+            if (pending.Count == 0)
+            {
+                return;
+            }
+
+            var dispatcher = Dispatcher.CurrentDispatcher;
+            Task.Run(() =>
+            {
+                var aspects = pending.Select(tile => ImagePixelSize.GetAspectRatio(tile.CoverPath)).ToList();
+                dispatcher.BeginInvoke(DispatcherPriority.Background, new Action(() =>
+                {
+                    for (var i = 0; i < pending.Count; i++)
+                    {
+                        _probing.Remove(pending[i]);
+                        pending[i].ApplyAspectRatio(aspects[i]);
+                    }
+                }));
+            });
         }
 
         /// <summary>
@@ -135,7 +205,8 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
                 int decodePixel,
                 bool useCovers,
                 bool showCompletionGlow,
-                int spacing)
+                int spacing,
+                bool showRarityBar)
             {
                 Pinnable = pinnable;
                 PinCollectionId = pinCollectionId;
@@ -145,6 +216,7 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
                 UseCovers = useCovers;
                 ShowCompletionGlow = showCompletionGlow;
                 Spacing = spacing;
+                ShowRarityBar = showRarityBar;
             }
 
             public bool Pinnable { get; }
@@ -155,6 +227,7 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
             public bool UseCovers { get; }
             public bool ShowCompletionGlow { get; }
             public int Spacing { get; }
+            public bool ShowRarityBar { get; }
 
             public bool Equals(TileLayout other) =>
                 other != null &&
@@ -165,7 +238,8 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
                 DecodePixel == other.DecodePixel &&
                 UseCovers == other.UseCovers &&
                 ShowCompletionGlow == other.ShowCompletionGlow &&
-                Spacing == other.Spacing;
+                Spacing == other.Spacing &&
+                ShowRarityBar == other.ShowRarityBar;
 
             public override bool Equals(object obj) => Equals(obj as TileLayout);
 

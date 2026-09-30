@@ -444,6 +444,29 @@ namespace PlayniteAchievements.Providers.Riot
         }
 
         /// <summary>
+        /// The token art of the highest tier the challenge publishes art for.
+        /// </summary>
+        private static string ResolveTopTierIconUrl(CDragonChallenge challenge)
+        {
+            if (challenge?.LevelToIconPath == null || challenge.LevelToIconPath.Count == 0)
+            {
+                return null;
+            }
+
+            var byLevel = new Dictionary<string, string>(challenge.LevelToIconPath, StringComparer.OrdinalIgnoreCase);
+            for (var rank = RiotChallengeLevels.Ascending.Length - 1; rank >= 1; rank--)
+            {
+                if (byLevel.TryGetValue(RiotChallengeLevels.Ascending[rank], out var path) &&
+                    !string.IsNullOrWhiteSpace(path))
+                {
+                    return BuildAssetUrl(path);
+                }
+            }
+
+            return null;
+        }
+
+        /// <summary>
         /// Applies CommunityDragon's documented rule: <c>/lol-game-data/assets/&lt;path&gt;</c> maps to
         /// <c>plugins/rcp-be-lol-game-data/global/default/&lt;lowercased path&gt;</c>.
         /// </summary>
@@ -466,6 +489,54 @@ namespace PlayniteAchievements.Providers.Riot
                 : trimmed.TrimStart('/');
 
             return AssetRoot + relative.ToLowerInvariant();
+        }
+
+        /// <summary>
+        /// Default category art for capstone groups: a challenge's category is named after the
+        /// capstone it hangs off, so that capstone's token art belongs to the category. The highest
+        /// tier's art is used: it does not depend on the player's rank, and the low tiers' tokens are
+        /// grey (Iron is a dark grey medallion). The five top-level categories carry no art and get
+        /// no entry.
+        /// </summary>
+        public static List<(string Label, string IconUrl)> BuildCategoryArtPlan(
+            CDragonChallengeFile metadata,
+            IReadOnlyDictionary<string, string> categoryDisplayNames)
+        {
+            var plan = new List<(string Label, string IconUrl)>();
+            if (metadata?.Challenges == null || metadata.Challenges.Count == 0)
+            {
+                return plan;
+            }
+
+            var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var entry in metadata.Challenges.OrderBy(pair => pair.Key, StringComparer.Ordinal))
+            {
+                var challenge = entry.Value;
+                if (challenge == null || IsCategoryNode(challenge))
+                {
+                    continue;
+                }
+
+                var parentId = GetTag(challenge, ParentTag);
+                if (string.IsNullOrWhiteSpace(parentId) ||
+                    !metadata.Challenges.TryGetValue(parentId, out var parent) ||
+                    parent == null ||
+                    IsCategoryNode(parent))
+                {
+                    continue;
+                }
+
+                var label = ResolveCategory(challenge, metadata.Challenges, categoryDisplayNames);
+                var iconUrl = ResolveTopTierIconUrl(parent);
+                if (!string.IsNullOrWhiteSpace(label) &&
+                    !string.IsNullOrWhiteSpace(iconUrl) &&
+                    seen.Add(label))
+                {
+                    plan.Add((label, iconUrl));
+                }
+            }
+
+            return plan;
         }
 
         /// <summary>

@@ -142,6 +142,27 @@ namespace PlayniteAchievements.Riot.Tests
         private static AchievementDetail Get(string apiName) => Build().Single(a => a.ApiName == apiName);
 
         [TestMethod]
+        public void BuildCategoryArtPlan_GivesTheCapstoneCategoryItsHighestTierToken()
+        {
+            var metadata = RiotChallengeMapper.ParseMetadata(MetadataJson);
+
+            var plan = RiotChallengeMapper.BuildCategoryArtPlan(metadata, CategoryNames);
+
+            Assert.AreEqual(1, plan.Count, "Only the capstone group has art; the top-level category has none.");
+            Assert.AreEqual(Get("101001:IRON").Category, plan[0].Label);
+            Assert.AreEqual(
+                RiotChallengeMapper.BuildAssetUrl("/lol-game-data/assets/ASSETS/Challenges/Config/101000/Tokens/GOLD.png"),
+                plan[0].IconUrl);
+        }
+
+        [TestMethod]
+        public void BuildCategoryArtPlan_EmptyMetadataYieldsNothing()
+        {
+            Assert.AreEqual(0, RiotChallengeMapper.BuildCategoryArtPlan(null, CategoryNames).Count);
+            Assert.AreEqual(0, RiotChallengeMapper.BuildCategoryArtPlan(new CDragonChallengeFile(), CategoryNames).Count);
+        }
+
+        [TestMethod]
         public void BuildAchievements_EmitsOneAchievementPerThresholdTier()
         {
             var achievements = Build();

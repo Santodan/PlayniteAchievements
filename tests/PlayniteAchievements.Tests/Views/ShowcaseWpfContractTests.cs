@@ -143,6 +143,11 @@ namespace PlayniteAchievements.Tests.Views
                 "Views",
                 "Showcase",
                 "ShowcaseWidgetSettingsDialog.cs");
+            var profileEditor = ReadRepoFile(
+                "source",
+                "Views",
+                "Showcase",
+                "ShowcaseProfileSettingsEditor.cs");
             var localization = ReadRepoFile("source", "Localization", "en_US.xaml");
             var uiText = ReadRepoFile(
                 "source",
@@ -155,7 +160,7 @@ namespace PlayniteAchievements.Tests.Views
             StringAssert.Contains(plugin, "InvalidateStartPageData();");
             StringAssert.Contains(editor, "PlayniteUiProvider.CreateExtensionWindow");
             StringAssert.Contains(editor, "LOCPlayAch_Showcase_WidgetSettingsTitle");
-            StringAssert.Contains(editor, "LOCPlayAch_Button_Clear");
+            StringAssert.Contains(profileEditor, "LOCPlayAch_Button_Clear");
             StringAssert.Contains(localization, "LOCPlayAch_Showcase_MergeDeleteConfirm");
             StringAssert.Contains(localization, "LOCPlayAch_Showcase_Stat_CurrentStreak");
             StringAssert.Contains(uiText, "Localize(string key)");

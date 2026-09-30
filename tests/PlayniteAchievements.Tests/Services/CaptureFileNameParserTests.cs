@@ -121,5 +121,31 @@ namespace PlayniteAchievements.Services.Captures.Tests
             Assert.AreEqual(CaptureVariant.Clean, item.Variant);
             Assert.AreEqual("First Win", item.AchievementStem);
         }
+
+        [DataTestMethod]
+        [DataRow(@"C:\Shots\Game\20240101123456_1.png")]
+        [DataRow(@"C:\Shots\Game\Counter-strike 2 Screenshot 2024.01.01 - 12.34.56.78.png")]
+        [DataRow(@"C:\Shots\Game\First Win_clean.png")]
+        [DataRow(@"C:\Shots\Game\12_First Win.png")]
+        [DataRow(@"C:\Shots\Game\007_.png")]
+        [DataRow(@"C:\Shots\Game\007_ (2).mp4")]
+        public void TryParse_ForeignScreenshotName_IsRejected(string path)
+        {
+            Assert.IsFalse(CaptureFileNameParser.HasCaptureSignature(path));
+            Assert.IsFalse(CaptureFileNameParser.TryParse(path, DefaultResolver(), out var item));
+            Assert.IsNull(item);
+        }
+
+        [DataTestMethod]
+        [DataRow(@"C:\Shots\Game\007_First Win_toast.png", 7, "First Win_toast")]
+        [DataRow(@"C:\Shots\Game\0012_First Win_clean (2).png", 12, "First Win")]
+        [DataRow(@"C:\Shots\Game\10250_First Win.mp4", 10250, "First Win")]
+        public void TryParse_CaptureShape_IsAcceptedWhateverTheSuffix(string path, int number, string stem)
+        {
+            Assert.IsTrue(CaptureFileNameParser.HasCaptureSignature(path));
+            Assert.IsTrue(CaptureFileNameParser.TryParse(path, DefaultResolver(), out var item));
+            Assert.AreEqual(number, item.Number);
+            Assert.AreEqual(stem, item.AchievementStem);
+        }
     }
 }

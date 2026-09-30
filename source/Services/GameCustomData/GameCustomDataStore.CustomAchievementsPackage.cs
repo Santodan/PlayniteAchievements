@@ -14,7 +14,8 @@ namespace PlayniteAchievements.Services.GameCustomData
     /// achievement definitions (<see cref="CustomAchievementCsvFormat"/>) and, when any
     /// definition has an icon, the bundled icon files under the package images folder. It has
     /// no <see cref="PortablePackageManifestEntryName"/> entry, which is what tells it apart from
-    /// a whole-game package. A template is the same package with a header-only CSV.
+    /// a whole-game package. A template is the same package with a header-only CSV. Neither
+    /// direction carries unlock state or progress (<see cref="PortablePersonalState"/>).
     /// </summary>
     public sealed partial class GameCustomDataStore
     {
@@ -58,6 +59,7 @@ namespace PlayniteAchievements.Services.GameCustomData
                 .Where(definition => definition != null)
                 .Select(definition => definition.Clone())
                 .ToList();
+            clones.ForEach(PortablePersonalState.Strip);
             var fileStems = AchievementIconCachePathBuilder.BuildFileStems(
                 clones.Select(definition => CustomAchievementProjectionService.BuildApiName(definition.Id)));
             var imageSources = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
@@ -133,6 +135,11 @@ namespace PlayniteAchievements.Services.GameCustomData
                 if (result.HasErrors || result.Definitions.Count == 0)
                 {
                     return result;
+                }
+
+                foreach (var definition in result.Definitions)
+                {
+                    PortablePersonalState.Strip(definition);
                 }
 
                 var fileStems = AchievementIconCachePathBuilder.BuildFileStems(

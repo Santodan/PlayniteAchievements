@@ -61,6 +61,9 @@
     <Compile Include="..\..\source\Providers\GuildWars2\Gw2ProgressSignature.cs" Link="Source\Providers\GuildWars2\Gw2ProgressSignature.cs" />
     <Compile Include="..\..\source\Providers\GuildWars2\Gw2InGameProgressMapper.cs" Link="Source\Providers\GuildWars2\Gw2InGameProgressMapper.cs" />
     <Compile Include="..\..\source\Providers\GuildWars2\Gw2LiveProgressState.cs" Link="Source\Providers\GuildWars2\Gw2LiveProgressState.cs" />
+    <Compile Include="..\..\source\Providers\Hypixel\HypixelModels.cs" Link="Source\Providers\Hypixel\HypixelModels.cs" />
+    <Compile Include="..\..\source\Providers\Hypixel\HypixelParsing.cs" Link="Source\Providers\Hypixel\HypixelParsing.cs" />
+    <Compile Include="..\..\source\Providers\Hypixel\HypixelAchievementMapper.cs" Link="Source\Providers\Hypixel\HypixelAchievementMapper.cs" />
 
     <Compile Include="..\..\source\Providers\GameJolt\GameJoltModels.cs" Link="Source\Providers\GameJolt\GameJoltModels.cs" />
     <Compile Include="..\..\source\Providers\GameJolt\GameJoltTrophyMapper.cs" Link="Source\Providers\GameJolt\GameJoltTrophyMapper.cs" />
@@ -106,6 +109,7 @@
     <Compile Include="..\..\source\Services\LegacyManualLinkImporter.cs" Link="Source\Services\LegacyManualLinkImporter.cs" />
     <Compile Include="..\..\source\Services\GameCustomData\GameCustomDataStore.cs" Link="Source\Services\GameCustomData\GameCustomDataStore.cs" />
     <Compile Include="..\..\source\Services\GameCustomData\GameCustomDataStore.CustomAchievementsPackage.cs" Link="Source\Services\GameCustomData\GameCustomDataStore.CustomAchievementsPackage.cs" />
+    <Compile Include="..\..\source\Services\GameCustomData\PortablePersonalState.cs" Link="Source\Services\GameCustomData\PortablePersonalState.cs" />
     <Compile Include="..\..\source\Services\CustomAchievementCsvFormat.cs" Link="Source\Services\CustomAchievementCsvFormat.cs" />
     <Compile Include="..\..\source\Services\Achievements\CustomAchievementSummaryMerger.cs" Link="Source\Services\Achievements\CustomAchievementSummaryMerger.cs" />
     <Compile Include="..\..\source\Services\Achievements\RecentUnlockOrder.cs" Link="Source\Services\Achievements\RecentUnlockOrder.cs" />
@@ -140,6 +144,8 @@
     <Compile Include="..\..\source\Services\Achievements\AutoCapstoneCalculator.cs" Link="Source\Services\Achievements\AutoCapstoneCalculator.cs" />
     <Compile Include="..\..\source\Services\Achievements\AutoCapstoneEligibility.cs" Link="Source\Services\Achievements\AutoCapstoneEligibility.cs" />
     <Compile Include="..\..\source\Services\Achievements\AutoCapstoneTemplate.cs" Link="Source\Services\Achievements\AutoCapstoneTemplate.cs" />
+    <Compile Include="..\..\source\Services\Achievements\AutoCapstoneText.cs" Link="Source\Services\Achievements\AutoCapstoneText.cs" />
+    <Compile Include="..\..\source\Services\Achievements\AutoCapstoneTextRewriter.cs" Link="Source\Services\Achievements\AutoCapstoneTextRewriter.cs" />
     <Compile Include="..\..\source\Services\Achievements\CapstoneResolver.cs" Link="Source\Services\Achievements\CapstoneResolver.cs" />
     <Compile Include="..\..\source\Services\Achievements\CapstoneCompletion.cs" Link="Source\Services\Achievements\CapstoneCompletion.cs" />
     <Compile Include="..\..\source\Services\Images\AchievementIconCachePathBuilder.cs" Link="Source\Services\Images\AchievementIconCachePathBuilder.cs" />
@@ -470,6 +476,7 @@
     <Compile Include="..\..\source\Services\Showcase\ShowcasePinService.cs" Link="Source\Services\Showcase\ShowcasePinService.cs" />
     <Compile Include="..\..\source\Services\Showcase\ShowcaseWidgetProjectionService.cs" Link="Source\Services\Showcase\ShowcaseWidgetProjectionService.cs" />
     <Compile Include="..\..\source\Services\Showcase\ShowcaseProfileResolver.cs" Link="Source\Services\Showcase\ShowcaseProfileResolver.cs" />
+    <Compile Include="..\..\source\Services\Showcase\GameCapstoneRarityResolver.cs" Link="Source\Services\Showcase\GameCapstoneRarityResolver.cs" />
     <Compile Include="..\..\source\Models\Settings\AchievementOverride.cs" Link="Source\Models\Settings\AchievementOverride.cs" />
     <Compile Include="..\..\source\Models\Achievements\IAchievementOverrideTarget.cs" Link="Source\Models\Achievements\IAchievementOverrideTarget.cs" />
     <Compile Include="..\..\source\Services\Achievements\AchievementOverrideApplier.cs" Link="Source\Services\Achievements\AchievementOverrideApplier.cs" />

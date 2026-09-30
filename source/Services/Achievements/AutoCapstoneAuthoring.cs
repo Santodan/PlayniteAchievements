@@ -23,41 +23,24 @@ namespace PlayniteAchievements.Services.Achievements
         private readonly AchievementOverridesService _overridesService;
         private readonly Func<Guid, GameAchievementData> _resolveGameData;
         private readonly Func<ManagedCustomIconService> _iconService;
+        private readonly Func<AutoCapstoneTemplates> _templates;
         private readonly ILogger _logger;
 
+        /// <param name="templates">The text templates in effect, read at each authoring.</param>
         public AutoCapstoneAuthoring(
             GameCustomDataStore store,
             AchievementOverridesService overridesService,
             Func<Guid, GameAchievementData> resolveGameData,
             Func<ManagedCustomIconService> iconService,
+            Func<AutoCapstoneTemplates> templates,
             ILogger logger)
         {
             _store = store;
             _overridesService = overridesService;
             _resolveGameData = resolveGameData;
             _iconService = iconService;
+            _templates = templates;
             _logger = logger;
-        }
-
-        private const string CategoryDescriptionKey = "LOCPlayAch_ManageAchievements_Custom_AutoCapstoneCategoryDescription";
-
-        /// <summary>
-        /// The title and description an auto capstone is authored with: the game's name and the
-        /// base game for the whole game, or both naming the category it stands for.
-        /// </summary>
-        /// <param name="category">The category's raw label, or null for the whole game.</param>
-        public static (string Title, string Description) Describe(string gameName, string category)
-        {
-            if (string.IsNullOrWhiteSpace(category))
-            {
-                return (gameName, ResourceProvider.GetString(AutoCapstoneTemplate.DescriptionKey));
-            }
-
-            // The display label, not the raw path, so a nested category reads as the list shows it.
-            var label = AchievementCategoryTypeHelper.ToCategoryLabelDisplayText(category);
-            return (
-                gameName + ": " + label,
-                string.Format(ResourceProvider.GetString(CategoryDescriptionKey), label));
         }
 
         /// <summary>
@@ -131,7 +114,7 @@ namespace PlayniteAchievements.Services.Achievements
             var name = (game?.Name ?? gameData?.GameName ?? string.Empty).Trim();
             if (string.IsNullOrWhiteSpace(name))
             {
-                name = ResourceProvider.GetString("LOCPlayAch_ManageAchievements_Custom_AutoCapstone");
+                name = ResourceProvider.GetString(AutoCapstoneText.FallbackGameNameKey);
             }
 
             var existing = stored?.CustomAchievements?
@@ -139,7 +122,7 @@ namespace PlayniteAchievements.Services.Achievements
                 .ToList() ?? new List<CustomAchievementDefinition>();
             var id = ResolveUniqueId(existing);
             var apiName = CustomAchievementProjectionService.BuildApiName(id);
-            var (title, description) = Describe(name, normalizedCategory);
+            var (title, description) = AutoCapstoneText.Describe(_templates?.Invoke(), name, normalizedCategory);
 
             var definition = new CustomAchievementDefinition
             {

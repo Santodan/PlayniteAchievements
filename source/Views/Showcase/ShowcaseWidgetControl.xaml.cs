@@ -83,6 +83,21 @@ namespace PlayniteAchievements.Views.Showcase
             set => SetValue(RayGlowTiersProperty, value);
         }
 
+        // False drops the card's surface fill and outline so the host's background shows
+        // through (start page widgets sit directly on the start page).
+        public static readonly DependencyProperty ShowCardChromeProperty =
+            DependencyProperty.Register(
+                nameof(ShowCardChrome),
+                typeof(bool),
+                typeof(ShowcaseWidgetControl),
+                new PropertyMetadata(true));
+
+        public bool ShowCardChrome
+        {
+            get => (bool)GetValue(ShowCardChromeProperty);
+            set => SetValue(ShowCardChromeProperty, value);
+        }
+
         public ShowcaseWidgetControl()
         {
             InitializeComponent();

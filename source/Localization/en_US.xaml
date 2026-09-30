@@ -216,6 +216,7 @@
     <sys:String x:Key="LOCPlayAch_Provider_GameJolt">Game Jolt</sys:String>
     <sys:String x:Key="LOCPlayAch_Provider_GooglePlay">Google Play</sys:String>
     <sys:String x:Key="LOCPlayAch_Provider_Hoyoverse">HoYoverse</sys:String>
+    <sys:String x:Key="LOCPlayAch_Provider_Hypixel">Hypixel</sys:String>
     <sys:String x:Key="LOCPlayAch_Provider_Manual">Manual</sys:String>
     <sys:String x:Key="LOCPlayAch_Provider_PSN">PlayStation</sys:String>
     <sys:String x:Key="LOCPlayAch_Provider_RetroAchievements">RetroAchievements</sys:String>
@@ -333,6 +334,7 @@
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Custom_Hidden">Hidden</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Custom_ImportSummary">Imported {0} rows ({1} added, {2} updated).</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Custom_LockedIcon">Locked Icon</sys:String>
+    <sys:String x:Key="LOCPlayAch_ManageAchievements_Custom_NewAchievementName">New Achievement {0}</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Custom_NoImportRows">No importable achievements were found.</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Custom_NoSelection">Select a custom achievement row.</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Custom_ProgressDenom">Progress Total</sys:String>
@@ -623,6 +625,10 @@
     <sys:String x:Key="LOCPlayAch_Settings_EnableAutoCapstoneGeneration_Description">After a game refreshes, gives it an auto capstone once if it has no capstone yet. Turning this off stops new ones and keeps existing capstones.</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_AutoCapstoneGeneration_ApplyToExisting">Also add auto capstones to games already in your library?</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_AutoCapstoneGeneration_Progress">Adding auto capstones...</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_AutoCapstoneText_Hint">The text new auto capstones get. {0} is the game's name and {1} the category's. Apply updates existing auto capstones still on default text; ones whose title or description you edited keep it.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_AutoCapstoneText_ApplyConfirm">Update every auto capstone still on default text to these templates? Capstones whose title or description you edited keep their text.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_AutoCapstoneText_Progress">Updating auto capstone text...</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_AutoCapstoneText_TemplateInvalid">Not a valid template. Use {0} for the game and {1} for the category, and double braces for literal ones.</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_EnableFriendsFeatures">Enable Friends Features</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_EnableFriendsFeatures_Description">Disable to hide all friends-related settings, the friends overview, and friend achievement menus.</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_EnableUnlockToasts">Show my unlock notifications</sys:String>
@@ -1008,6 +1014,12 @@
     <sys:String x:Key="LOCPlayAch_Settings_GW2_NoDatesNote">Guild Wars 2 does not record when an achievement was earned and publishes no completion rates, so Guild Wars 2 achievements show no unlock date and no rarity.</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_GW2_ApiKey_Help">The key is a long hyphenated code. It is stored in the plugin settings in readable form and sent only to api.guildwars2.com. It is not your password, it can only read, and you can delete it at any time on the same page you created it.</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_GW2_MissingProgression">The key is valid but lacks the progression permission. Create a new key with progression ticked.</sys:String>
+
+    <!-- Provider: Hypixel -->
+    <sys:String x:Key="LOCPlayAch_Settings_Hypixel_NoDatesNote">Achievements are read from your public Hypixel profile. Hypixel does not record when an achievement was earned, so Hypixel achievements show no unlock date.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_Hypixel_PlayerNotFound">No Hypixel player found with that username.</sys:String>
+    <!-- Hypixel_Unavailable: leave the domain "hypixel.net" untranslated. -->
+    <sys:String x:Key="LOCPlayAch_Settings_Hypixel_Unavailable">hypixel.net could not be reached to look up the player. Try again later.</sys:String>
 
     <!-- Provider: Riot -->
     <sys:String x:Key="LOCPlayAch_Settings_Riot_Help">Reading League of Legends Challenges uses Riot's official API, which needs a free API key tied to your Riot account. Riot publishes no per-player endpoint that works without one:</sys:String>

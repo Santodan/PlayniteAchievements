@@ -66,7 +66,7 @@ $tools = @(
     'CaptureHarness', 'FrameDump', 'AttributeBisect', 'PacerProbe', 'GenerationLoss',
     'SlideProbe', 'SlideStoryboardProbe', 'SlideCadenceProbe',
     'ChimeSeparationProbe', 'ChimeBurstProbe', 'HapticProbe', 'ComposerProbe',
-    'CaptureStarvationProbe', 'ChannelMapProbe', 'ClipRemnantProbe')
+    'CaptureStarvationProbe', 'ChannelMapProbe', 'ClipRemnantProbe', 'ThemeToastClipProbe')
 # Tools that compile plugin source files in directly, so they always test the current algorithm
 # rather than a built DLL.
 $extraSources = @{
@@ -133,7 +133,7 @@ foreach ($tool in $tools) {
     $exe = Join-Path $out ($tool + '.exe')
     # CaptureHarness loads the plugin into the process and therefore must match Playnite's x86
     # runtime. Keep the standalone analysis tools x64 so large frame dumps are not VA-constrained.
-    $platform = if ($tool -eq 'CaptureHarness') { 'x86' } else { 'x64' }
+    $platform = if (@('CaptureHarness', 'ThemeToastClipProbe') -contains $tool) { 'x86' } else { 'x64' }
     $messages = & $csc /nologo /t:exe /langversion:preview /nostdlib+ "/platform:$platform" $manifest $refs "/out:$exe" $sources 2>&1 |
         Where-Object { $_ -match 'error CS' }
     if ($messages) {

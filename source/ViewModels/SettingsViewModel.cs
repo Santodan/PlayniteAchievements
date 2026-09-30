@@ -139,6 +139,29 @@ namespace PlayniteAchievements.ViewModels
         /// </summary>
         public bool IsEditSessionActive => _editingClone != null;
 
+        /// <summary>
+        /// Applies <paramref name="update"/> to the live settings and, while a settings window is
+        /// open, to its edit snapshot too, for bookkeeping that records work already done outside
+        /// the settings (such as text written to the library) and so must survive a Cancel.
+        /// </summary>
+        public void UpdatePersistedIncludingEditSnapshot(Action<PersistedSettings> update)
+        {
+            if (update == null)
+            {
+                return;
+            }
+
+            if (Settings?.Persisted != null)
+            {
+                update(Settings.Persisted);
+            }
+
+            if (_editingClone?.Persisted != null)
+            {
+                update(_editingClone.Persisted);
+            }
+        }
+
         public void BeginEdit()
         {
             // Only persisted settings need an edit snapshot; runtime/theme data can be large.

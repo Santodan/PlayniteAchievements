@@ -6,9 +6,9 @@ using System.Windows.Controls;
 namespace PlayniteAchievements.Views.Controls
 {
     /// <summary>
-    /// Lays its visible children out two per row in equal columns, as wide as the widest child.
-    /// A child left alone on the last row spans both columns. Collapsed children take no cell,
-    /// so the rest close up.
+    /// Lays its children out in fixed pairs by position (first and second, third and fourth, ...),
+    /// in equal columns as wide as the widest child. A collapsed child drops out of its pair and
+    /// the other spans both columns; a pair with both children collapsed takes no row.
     /// </summary>
     public sealed class PairedRowsPanel : Panel
     {
@@ -38,8 +38,8 @@ namespace PlayniteAchievements.Views.Controls
 
         protected override Size MeasureOverride(Size availableSize)
         {
-            var visible = VisibleChildren();
-            if (visible.Count == 0)
+            var rows = VisibleRows();
+            if (rows.Count == 0)
             {
                 return new Size(0, 0);
             }
@@ -49,53 +49,57 @@ namespace PlayniteAchievements.Views.Controls
                 : Math.Max(0, (availableSize.Width - ColumnGap) / 2);
 
             var cellWidth = 0.0;
+            var spanWidth = 0.0;
+            var anyPair = false;
             var height = 0.0;
-            for (var i = 0; i < visible.Count; i += 2)
+            for (var i = 0; i < rows.Count; i++)
             {
-                var spans = i + 1 >= visible.Count;
-                var first = visible[i];
-                first.Measure(new Size(spans ? availableSize.Width : cellConstraint, double.PositiveInfinity));
-                var rowHeight = first.DesiredSize.Height;
-                cellWidth = Math.Max(cellWidth, spans
-                    ? Math.Max(0, (first.DesiredSize.Width - ColumnGap) / 2)
-                    : first.DesiredSize.Width);
-
-                if (!spans)
+                var (first, second) = rows[i];
+                double rowHeight;
+                if (second == null)
                 {
-                    var second = visible[i + 1];
+                    first.Measure(new Size(availableSize.Width, double.PositiveInfinity));
+                    rowHeight = first.DesiredSize.Height;
+                    spanWidth = Math.Max(spanWidth, first.DesiredSize.Width);
+                }
+                else
+                {
+                    anyPair = true;
+                    first.Measure(new Size(cellConstraint, double.PositiveInfinity));
                     second.Measure(new Size(cellConstraint, double.PositiveInfinity));
-                    rowHeight = Math.Max(rowHeight, second.DesiredSize.Height);
-                    cellWidth = Math.Max(cellWidth, second.DesiredSize.Width);
+                    rowHeight = Math.Max(first.DesiredSize.Height, second.DesiredSize.Height);
+                    cellWidth = Math.Max(cellWidth, Math.Max(first.DesiredSize.Width, second.DesiredSize.Width));
                 }
 
                 height += rowHeight + (i > 0 ? RowGap : 0);
             }
 
-            var width = visible.Count == 1 ? visible[0].DesiredSize.Width : (cellWidth * 2) + ColumnGap;
+            var width = anyPair
+                ? Math.Max((cellWidth * 2) + ColumnGap, spanWidth)
+                : spanWidth;
             return new Size(width, height);
         }
 
         protected override Size ArrangeOverride(Size finalSize)
         {
-            var visible = VisibleChildren();
             var cellWidth = Math.Max(0, (finalSize.Width - ColumnGap) / 2);
             var y = 0.0;
-            for (var i = 0; i < visible.Count; i += 2)
+            var rows = VisibleRows();
+            for (var i = 0; i < rows.Count; i++)
             {
                 if (i > 0)
                 {
                     y += RowGap;
                 }
 
-                var first = visible[i];
-                if (i + 1 >= visible.Count)
+                var (first, second) = rows[i];
+                if (second == null)
                 {
                     first.Arrange(new Rect(0, y, finalSize.Width, first.DesiredSize.Height));
                     y += first.DesiredSize.Height;
                     continue;
                 }
 
-                var second = visible[i + 1];
                 var rowHeight = Math.Max(first.DesiredSize.Height, second.DesiredSize.Height);
                 first.Arrange(new Rect(0, y, cellWidth, rowHeight));
                 second.Arrange(new Rect(cellWidth + ColumnGap, y, cellWidth, rowHeight));
@@ -105,18 +109,33 @@ namespace PlayniteAchievements.Views.Controls
             return finalSize;
         }
 
-        private List<UIElement> VisibleChildren()
+        /// <summary>
+        /// Rows of the fixed pairs that still have a visible child. A row with one visible child
+        /// has it in <c>first</c> and a null <c>second</c>.
+        /// </summary>
+        private List<(UIElement first, UIElement second)> VisibleRows()
         {
-            var visible = new List<UIElement>(InternalChildren.Count);
-            foreach (UIElement child in InternalChildren)
+            var rows = new List<(UIElement first, UIElement second)>((InternalChildren.Count + 1) / 2);
+            for (var i = 0; i < InternalChildren.Count; i += 2)
             {
-                if (child != null && child.Visibility != Visibility.Collapsed)
+                var a = VisibleOrNull(InternalChildren[i]);
+                var b = i + 1 < InternalChildren.Count ? VisibleOrNull(InternalChildren[i + 1]) : null;
+                if (a != null)
                 {
-                    visible.Add(child);
+                    rows.Add((a, b));
+                }
+                else if (b != null)
+                {
+                    rows.Add((b, null));
                 }
             }
 
-            return visible;
+            return rows;
+        }
+
+        private static UIElement VisibleOrNull(UIElement child)
+        {
+            return child != null && child.Visibility != Visibility.Collapsed ? child : null;
         }
     }
 }

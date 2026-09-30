@@ -1,6 +1,27 @@
 AddonId: PlayniteAchievements
 Packages:
 
+  - Version: 4.0.1
+    RequiredApiVersion: 6.14.0
+    ReleaseDate: 2026-09-30
+    PackageUrl: https://github.com/justin-delano/PlayniteAchievements/releases/download/v4.0.1/PlayniteAchievements_4_0_1.pext
+    Changelog:
+    - "[New] Hypixel support. Set your Minecraft username in Settings, then give a game the Hypixel platform override in Manage Achievements."
+    - "[New] Choose the title and description that auto capstones get, in the new Settings > General > Editor tab. Apply updates existing auto capstones you haven't edited."
+    - "[Adjusted] Auto capstone text follows Playnite's language, including capstones already created."
+    - "[Adjusted] A new auto capstone is placed first in the achievement order."
+    - "[Adjusted] Game mosaics in Showcase show each cover at its own shape, with an optional rarity bar for the game's capstone."
+    - "[Adjusted] Showcase widgets on the start page no longer draw a card background, so your start page shows through."
+    - "[Adjusted] Guild Wars 2, Riot, ShadPS4 and RPCS3 categories get their platform's artwork as their default image."
+    - "[Fixed] Sharing a .pa package no longer includes your own unlocks, progress or goals, and importing one keeps your existing unlocks."
+    - "[Fixed] Screenshots from other tools saved in the captures folder no longer show up in the captures gallery or slideshow."
+    - "[Fixed] View Achievements was missing the summary row for games excluded from your stats."
+    - "[Fixed] The start page Profile widget's settings were missing the name, avatar, background and link options."
+    - "[Fixed] Achievement rows no longer shift right because of a small empty box at their start."
+    - "[Fixed] Improved hover and click behavior in plugin windows on multi-monitor setups with mixed display scaling."
+    - "[Fixed] Some theme notifications no longer appear offset from the corner of the screen."
+    - "As always, many additional improvements and fixes behind the scenes."
+
   - Version: 4.0.0
     RequiredApiVersion: 6.14.0
     ReleaseDate: 2026-09-29

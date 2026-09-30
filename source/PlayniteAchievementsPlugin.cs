@@ -67,7 +67,7 @@ namespace PlayniteAchievements
 
         private static readonly string[] ProviderRefreshOrder =
         {
-            "Manual", "FFXIV", "Exophase", "Steam", "Epic", "GOG", "BattleNet", "EA", "GameJolt", "Riot", "GW2", "Hoyoverse", "RPCS3", "ShadPS4", "PSN", "Xenia", "Xbox", "RetroAchievements"
+            "Manual", "FFXIV", "Exophase", "Steam", "Epic", "GOG", "BattleNet", "EA", "GameJolt", "Riot", "GW2", "Hypixel", "Hoyoverse", "RPCS3", "ShadPS4", "PSN", "Xenia", "Xbox", "RetroAchievements"
         };
 
         private readonly PlayniteAchievementsSettingsViewModel _settingsViewModel;
@@ -146,6 +146,7 @@ namespace PlayniteAchievements
         private AutoCapstoneMaintainer _autoCapstoneMaintainer;
         private AutoCapstoneGenerator _autoCapstoneGenerator;
         private AutoCapstoneAuthoring _autoCapstoneAuthoring;
+        private AutoCapstoneTextService _autoCapstoneTextService;
 
         /// <summary>
         /// Games added to the library but not yet refreshed. Held until OnLibraryUpdated so the
@@ -740,6 +741,14 @@ namespace PlayniteAchievements
                         _achievementOverridesService,
                         gameId => _achievementDataService?.GetGameAchievementData(gameId),
                         () => _managedCustomIconService,
+                        () => AutoCapstoneText.Resolve(_settingsViewModel?.Settings?.Persisted),
+                        _logger);
+                    _autoCapstoneTextService = new AutoCapstoneTextService(
+                        _gameCustomDataStore,
+                        () => _settingsViewModel?.Settings?.Persisted,
+                        gameId => api.Database?.Games?.Get(gameId)?.Name
+                            ?? _achievementDataService?.GetGameAchievementData(gameId)?.GameName,
+                        GetPluginLocalizationDirectory(),
                         _logger);
                     _autoCapstoneGenerator = new AutoCapstoneGenerator(
                         _gameCustomDataStore,
@@ -1385,6 +1394,10 @@ namespace PlayniteAchievements
                     _logger?.Error(ex, "Failed to re-localize notification header texts.");
                 }
 
+                // Bring auto capstones still on default text in line with a language or template
+                // change made since they were last applied.
+                StartAutoCapstoneTextApply();
+
                 _notificationImageStore?.PruneOrphans(
                     _settingsViewModel?.Settings?.Persisted,
                     _gameCustomDataStore?.LoadAll());
@@ -1452,6 +1465,126 @@ namespace PlayniteAchievements
                     Cancelable = true,
                     IsIndeterminate = false
                 });
+        }
+
+        /// <summary>
+        /// Applies the auto capstone text templates in the background when they differ from the
+        /// ones last applied, which is how a language change reaches existing capstones.
+        /// </summary>
+        private void StartAutoCapstoneTextApply()
+        {
+            var service = _autoCapstoneTextService;
+            if (service == null || !AutoCapstoneTextService.NeedsApply(_settingsViewModel?.Settings?.Persisted))
+            {
+                return;
+            }
+
+            var dispatcher = Application.Current?.Dispatcher;
+            _ = Task.Run(() =>
+            {
+                try
+                {
+                    var signature = service.Apply();
+                    dispatcher?.BeginInvoke(new Action(() => RecordAutoCapstoneTextApplied(signature)));
+                }
+                catch (Exception ex)
+                {
+                    _logger?.Error(ex, "Failed to apply auto capstone text templates.");
+                }
+            });
+        }
+
+        /// <summary>
+        /// Asks, then rewrites every auto capstone still on default text with the current
+        /// templates, for the Editor settings' Apply button.
+        /// </summary>
+        /// <remarks>
+        /// Like tag sync, what it writes stays even if the settings are then cancelled; the
+        /// templates it applied are recorded in the edit snapshot too, so a Cancel that restores
+        /// the old templates is applied back at the next startup.
+        /// </remarks>
+        public void ApplyAutoCapstoneTextWithProgress()
+        {
+            var service = _autoCapstoneTextService;
+            if (service == null)
+            {
+                return;
+            }
+
+            var answer = PlayniteApi.Dialogs.ShowMessage(
+                ResourceProvider.GetString("LOCPlayAch_Settings_AutoCapstoneText_ApplyConfirm"),
+                ResourceProvider.GetString("LOCPlayAch_Title_PluginName"),
+                MessageBoxButton.YesNo,
+                MessageBoxImage.Question);
+            if (answer != MessageBoxResult.Yes)
+            {
+                return;
+            }
+
+            string signature = null;
+            PlayniteApi.Dialogs.ActivateGlobalProgress(
+                progress =>
+                {
+                    try
+                    {
+                        signature = service.Apply(
+                            progress.CancelToken,
+                            (done, total) =>
+                            {
+                                progress.ProgressMaxValue = total;
+                                progress.CurrentProgressValue = done;
+                            });
+                    }
+                    catch (OperationCanceledException)
+                    {
+                        // Cancelled from the dialog: the rest are applied at the next startup.
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger?.Error(ex, "Failed to apply auto capstone text templates.");
+                    }
+                },
+                new GlobalProgressOptions(ResourceProvider.GetString("LOCPlayAch_Settings_AutoCapstoneText_Progress"))
+                {
+                    Cancelable = true,
+                    IsIndeterminate = false
+                });
+
+            if (signature != null)
+            {
+                RecordAutoCapstoneTextApplied(signature);
+            }
+        }
+
+        /// <summary>
+        /// Remembers a template the user set, in the live settings and any open edit snapshot, so
+        /// capstone text written with it still reads as default after a Cancel or a later change.
+        /// </summary>
+        public void RecordAutoCapstoneTemplate(string template)
+        {
+            _settingsViewModel?.UpdatePersistedIncludingEditSnapshot(
+                settings => AutoCapstoneText.RecordInHistory(settings, template));
+        }
+
+        /// <summary>
+        /// Records the templates now applied, and a template the user set, in both the live
+        /// settings and any open edit snapshot, since the text they wrote stays either way.
+        /// </summary>
+        private void RecordAutoCapstoneTextApplied(string signature)
+        {
+            _settingsViewModel?.UpdatePersistedIncludingEditSnapshot(settings =>
+            {
+                settings.AutoCapstoneAppliedTemplates = signature;
+                foreach (var field in AutoCapstoneText.Fields)
+                {
+                    AutoCapstoneText.RecordInHistory(settings, AutoCapstoneText.GetStored(settings, field));
+                }
+            });
+
+            if (_settingsViewModel?.IsEditSessionActive != true)
+            {
+                PersistSettingsForUi();
+            }
         }
 
         private void PersistedSettings_PropertyChanged(object sender, PropertyChangedEventArgs e)

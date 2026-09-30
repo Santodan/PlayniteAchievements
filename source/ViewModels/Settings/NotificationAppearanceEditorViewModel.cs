@@ -1186,7 +1186,7 @@ namespace PlayniteAchievements.ViewModels.Settings
         /// </summary>
         public string BackgroundImageDimensionsText =>
             HasBackgroundImage &&
-            TryReadImagePixelSize(_style.ToastBackgroundImagePath, out var w, out var h)
+            ImagePixelSize.TryRead(_style.ToastBackgroundImagePath, out var w, out var h)
                 ? string.Format(CultureInfo.CurrentCulture, "{0} × {1}", w, h)
                 : string.Empty;
 
@@ -1204,7 +1204,7 @@ namespace PlayniteAchievements.ViewModels.Settings
                 return;
             }
 
-            if (!TryReadImagePixelSize(_style.ToastBackgroundImagePath, out var imageWidth, out var imageHeight) ||
+            if (!ImagePixelSize.TryRead(_style.ToastBackgroundImagePath, out var imageWidth, out var imageHeight) ||
                 imageWidth <= 0 || imageHeight <= 0)
             {
                 return;
@@ -1214,33 +1214,6 @@ namespace PlayniteAchievements.ViewModels.Settings
             surface.CardWidth = width;
             surface.CardHeight = Math.Round(width * imageHeight / imageWidth);
             RefreshCardDimensions();
-        }
-
-        // Reads an image's pixel dimensions from its header without decoding the full bitmap.
-        // Returns the first frame's size for animated GIFs (their logical canvas size).
-        private static bool TryReadImagePixelSize(string path, out int width, out int height)
-        {
-            width = 0;
-            height = 0;
-            try
-            {
-                if (string.IsNullOrWhiteSpace(path) || !File.Exists(path))
-                {
-                    return false;
-                }
-
-                var frame = BitmapFrame.Create(
-                    new Uri(path, UriKind.Absolute),
-                    BitmapCreateOptions.DelayCreation,
-                    BitmapCacheOption.None);
-                width = frame.PixelWidth;
-                height = frame.PixelHeight;
-                return width > 0 && height > 0;
-            }
-            catch
-            {
-                return false;
-            }
         }
 
         /// <summary>

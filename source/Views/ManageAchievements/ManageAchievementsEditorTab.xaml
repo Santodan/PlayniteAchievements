@@ -1799,7 +1799,7 @@
                                      may be a capstone on an ancestor category or the game-wide one
                                      rather than anything in this category at all. -->
                                 <StackPanel Orientation="Horizontal" Margin="0,2,0,0">
-                                    <Image Source="{DynamicResource BadgeCompletedGame}"
+                                    <Image Source="{DynamicResource BadgeRarityCompleted}"
                                            Style="{StaticResource RarityIcon}"
                                            Width="14"
                                            Height="14"

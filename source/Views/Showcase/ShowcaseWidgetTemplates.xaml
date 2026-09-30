@@ -752,8 +752,10 @@
                  VirtualizingPanel.VirtualizationMode="Recycling">
             <ListBox.ItemsPanel>
                 <ItemsPanelTemplate>
-                    <!-- Packs the tiles at the spacing option's gap and centers them. -->
+                    <!-- Packs the tiles at the spacing option's gap and centers them. Covers keep
+                         their own shape, so tiles differ in width. -->
                     <showcase:ShowcaseMosaicWrapPanel Orientation="Horizontal"
+                                                      AllowVariableItemSizes="True"
                                                       VirtualizingPanel.CacheLengthUnit="Item"
                                                       VirtualizingPanel.VirtualizationMode="Recycling"/>
                 </ItemsPanelTemplate>
@@ -883,7 +885,14 @@
                                         </Style.Triggers>
                                     </Style>
                                 </Border.Style>
-                                <Image Style="{StaticResource MosaicTileArtStyle}"/>
+                                <Grid>
+                                    <Image Style="{StaticResource MosaicTileArtStyle}"/>
+                                    <!-- Capstone rarity: the shared rarity bar over the cover's
+                                         bottom edge, on completed games only. -->
+                                    <ProgressBar Style="{StaticResource PlayAch.ProgressBar.RarityBar}"
+                                                 Value="{Binding RarityPercentValue, Mode=OneWay}"
+                                                 Visibility="{Binding ShowRarityBar, Converter={StaticResource BoolToVis}}"/>
+                                </Grid>
                             </Border>
                         </Grid>
                     </DataTemplate>

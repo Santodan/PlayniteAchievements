@@ -52,6 +52,75 @@
         <Setter Property="FontFamily" Value="{DynamicResource PlayAch.FontFamily.Body}"/>
     </Style>
 
+    <!-- Rarity bar: a global unlock percent (Value, 0-100) drawn across the bottom of an
+         achievement icon or a game cover. Shared by AchievementCompactItemControl and the
+         showcase Game Mosaic tiles. -->
+    <converters:RarityPercentToTextConverter x:Key="RarityPercentToTextConverter"/>
+    <Style x:Key="PlayAch.ProgressBar.RarityBar" TargetType="ProgressBar">
+        <Setter Property="Minimum" Value="0"/>
+        <Setter Property="Maximum" Value="100"/>
+        <Setter Property="VerticalAlignment" Value="Bottom"/>
+        <Setter Property="IsHitTestVisible" Value="False"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="ProgressBar">
+                    <Grid>
+                        <!-- Opaque track: a faint accent over black, so the unfilled part reads as a
+                             dark accent and the art does not show through behind the text. -->
+                        <Border Background="Black"/>
+                        <Border Background="{DynamicResource PlayAch.Brush.Accent}"
+                                Opacity="0.3"/>
+                        <ProgressBar Height="14"
+                                     Minimum="0"
+                                     Maximum="100"
+                                     Value="{TemplateBinding Value}"
+                                     Background="Transparent"
+                                     Foreground="{DynamicResource PlayAch.Brush.Accent}"
+                                     BorderThickness="0"/>
+                        <!-- The text's line box is slightly taller than the bar; the negative margins
+                             keep it from growing the host, so the bar stays pinned to the art's bottom
+                             edge and the text is not layout-clipped.
+                             The shadow is drawn by copies behind the text: an Effect on the visible
+                             TextBlock would rasterize it and soften the glyphs. A wide blur darkens
+                             the surrounding area and a tight one gives the glyphs a firm outline. -->
+                        <TextBlock Text="{Binding Value, RelativeSource={RelativeSource TemplatedParent}, Converter={StaticResource RarityPercentToTextConverter}}"
+                                   Style="{StaticResource PlayAch.TextBlock.BaseStyle}"
+                                   HorizontalAlignment="Center"
+                                   VerticalAlignment="Center"
+                                   Margin="0,-2"
+                                   FontSize="12"
+                                   FontWeight="SemiBold"
+                                   Foreground="Black">
+                            <TextBlock.Effect>
+                                <DropShadowEffect Color="Black" ShadowDepth="0" BlurRadius="6" Opacity="1"/>
+                            </TextBlock.Effect>
+                        </TextBlock>
+                        <TextBlock Text="{Binding Value, RelativeSource={RelativeSource TemplatedParent}, Converter={StaticResource RarityPercentToTextConverter}}"
+                                   Style="{StaticResource PlayAch.TextBlock.BaseStyle}"
+                                   HorizontalAlignment="Center"
+                                   VerticalAlignment="Center"
+                                   Margin="0,-2"
+                                   FontSize="12"
+                                   FontWeight="SemiBold"
+                                   Foreground="Black">
+                            <TextBlock.Effect>
+                                <DropShadowEffect Color="Black" ShadowDepth="0" BlurRadius="2" Opacity="1"/>
+                            </TextBlock.Effect>
+                        </TextBlock>
+                        <TextBlock Text="{Binding Value, RelativeSource={RelativeSource TemplatedParent}, Converter={StaticResource RarityPercentToTextConverter}}"
+                                   Style="{StaticResource PlayAch.TextBlock.BaseStyle}"
+                                   HorizontalAlignment="Center"
+                                   VerticalAlignment="Center"
+                                   Margin="0,-2"
+                                   FontSize="12"
+                                   FontWeight="SemiBold"
+                                   Foreground="White"/>
+                    </Grid>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
     <!-- Keyed tooltip style so scoped plugin windows can opt into themed tooltips without
          restyling every Playnite tooltip when CommonResources is merged at application scope.
          Tooltips that set Background/BorderBrush/Padding locally still win via TemplateBinding. -->

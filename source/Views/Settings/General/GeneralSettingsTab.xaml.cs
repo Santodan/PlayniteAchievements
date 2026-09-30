@@ -8,7 +8,7 @@ using PlayniteAchievements.Views.Settings.Navigation;
 namespace PlayniteAchievements.Views.Settings.General
 {
     /// <summary>
-    /// General settings tab: a master-detail navigation over the six General sections. Sections
+    /// General settings tab: a master-detail navigation over the General sections. Sections
     /// are created lazily when first selected.
     /// </summary>
     public partial class GeneralSettingsTab : UserControl, IDisposable
@@ -18,6 +18,7 @@ namespace PlayniteAchievements.Views.Settings.General
         private GeneralOverviewSection _overviewSection;
         private SyncUpdatesSection _syncUpdatesSection;
         private HotkeySettingsSection _hotkeySection;
+        private EditorSettingsSection _editorSection;
         private TaggingSettingsSection _taggingSection;
         private MaintenanceSettingsSection _maintenanceSection;
 
@@ -57,6 +58,12 @@ namespace PlayniteAchievements.Views.Settings.General
                     iconGlyph: "\uE765",
                     viewFactory: () => _hotkeySection =
                         new HotkeySettingsSection(settings)),
+                new SettingsNavigationItem(
+                    "Editor",
+                    ResourceProvider.GetString("LOCPlayAch_ManageAchievements_Tab_Editor"),
+                    iconGlyph: "",
+                    viewFactory: () => _editorSection =
+                        new EditorSettingsSection(settings, plugin)),
                 new SettingsNavigationItem(
                     "Tagging",
                     ResourceProvider.GetString("LOCPlayAch_Settings_TaggingHeader"),

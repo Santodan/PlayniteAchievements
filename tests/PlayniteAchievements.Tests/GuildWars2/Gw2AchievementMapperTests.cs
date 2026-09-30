@@ -93,6 +93,35 @@ namespace PlayniteAchievements.GuildWars2.Tests
             => all.Single(a => a.ApiName == apiName);
 
         [TestMethod]
+        public void BuildCategoryArtPlan_KeysEachCategoryIconByTheRowCategoryPath()
+        {
+            var plan = Gw2AchievementMapper.BuildCategoryArtPlan(BuildCatalog());
+            var rowPaths = new HashSet<string>(Build().Select(a => a.Category));
+
+            CollectionAssert.AreEqual(
+                new[]
+                {
+                    "https://render.guildwars2.com/file/CAT10/1.png",
+                    "https://render.guildwars2.com/file/CAT11/1.png",
+                    "https://render.guildwars2.com/file/CAT90/1.png"
+                },
+                plan.Select(entry => entry.IconUrl).ToArray());
+            Assert.IsTrue(plan.All(entry => rowPaths.Contains(entry.Label)));
+        }
+
+        [TestMethod]
+        public void BuildCategoryArtPlan_SkipsCategoriesWithoutAnIcon()
+        {
+            var catalog = BuildCatalog();
+            catalog.Categories[1].Icon = " ";
+
+            var plan = Gw2AchievementMapper.BuildCategoryArtPlan(catalog);
+
+            Assert.AreEqual(2, plan.Count);
+            Assert.IsFalse(plan.Any(entry => entry.IconUrl.Contains("CAT11")));
+        }
+
+        [TestMethod]
         public void BuildAchievements_EmitsOneRowPerTier()
         {
             var results = Build();

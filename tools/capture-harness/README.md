@@ -429,6 +429,44 @@ ships. The 160 is the worst case by construction: a 4x4 checker alternating line
 straddles the tone-map shoulder, where averaging before the curve gives 255 and averaging after it
 gives 147. Real frames do not look like that; the ramp case is the representative number.
 
+## The theme toast clip probe
+
+```powershell
+tools\capture-harness\bin\ThemeToastClipProbe.exe <AchievementToast.xaml> [--theme <themeDir>] [--base <clip.mp4>]
+    [--fps 60] [--out <dir>] [--label <name>]
+```
+
+Runs a theme's toast file through the clip path and writes `<label>.mp4` plus `<label>_motion.csv` to
+`bin\theme_toast\`.
+The surface, slide host, shadow capture, pixel prime, per-tick sampling, slide storyboards, track recorder
+and overlay re-encoder are the plugin's own, driven by reflection on an uninitialized
+`ToastNotificationService`; the probe supplies only the wave timeline (warm frames, capture delay, hold,
+slide-out) and the sampling cadence, both mirrored from the wave loop.
+Playnite's `ThemeFile` extension is replaced by the file path it resolves to, the PS5-Experience gradient
+and the `LOCPS5*` strings are defined in the probe, and the base clip defaults to `harness_clip.mp4`.
+
+At every sample it records where the card's template root actually is on screen and compares that with
+where the track will composite it (the host slide offset plus the opaque left edge of the stored frame).
+The summary counts samples where the live card moved but the recorded one did not, and reports the
+position error.
+
+What it established, on the PS5-Experience toast of 2026-09-30 at 60 fps:
+
+- A slide authored as a `Loaded`-triggered `TranslateTransform` inside the template is invisible to the
+  clip path. The primed frame was taken with the card 128 px short of rest; the track held it through the
+  slide-in span and then snapped (26 of 36 moving samples frozen, 162 px worst error at the slide-out,
+  which the clip replaced with a fade in place).
+- The shadow layer is captured once, before the slide, at the card's position then. With the card moving
+  inside its own frame the halo no longer lines up, and the clip shows a ghost copy of the card's text for
+  the whole hold.
+- The same motion authored in `ToastSlideIn`/`ToastSlideOut` against
+  `(UIElement.RenderTransform).(TransformGroup.Children)[1].(TranslateTransform.X)` is recorded as host
+  offset and interpolated: 0 frozen samples, 0.0 px error, one stored frame, no ghost.
+
+Limits: a live wave also settles DPI and places the window between the card's `Loaded` and the slide
+start, so how far a template animation has run when the frame is primed differs from the probe. The
+freeze and the misplaced halo do not depend on that distance, only its size does.
+
 ## Supporting tools
 
 - **`Show-Mp4Timeline.ps1 <file.mp4>`** — dumps `mdhd` durations and the `stts` table per track. A single

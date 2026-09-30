@@ -900,6 +900,7 @@ namespace PlayniteAchievements.Services.GameCustomData
             }
 
             var portable = GameCustomDataNormalizer.NormalizePortable(normalized.ToPortable(), playniteGameId);
+            PortablePersonalState.Strip(portable);
             if (!GameCustomDataNormalizer.HasPortableData(portable))
             {
                 throw new InvalidOperationException("No exportable custom data exists for this game.");
@@ -1751,6 +1752,7 @@ namespace PlayniteAchievements.Services.GameCustomData
             string invalidDataMessage)
         {
             var normalizedPortable = GameCustomDataNormalizer.NormalizePortable(portable, playniteGameId);
+            PortablePersonalState.Strip(normalizedPortable);
             if (!GameCustomDataNormalizer.HasPortableData(normalizedPortable))
             {
                 throw new InvalidOperationException(invalidDataMessage);
@@ -1764,6 +1766,7 @@ namespace PlayniteAchievements.Services.GameCustomData
                 playniteGameId,
                 current.ExcludedFromRefreshes,
                 current.ExcludedFromSummaries);
+            PortablePersonalState.CarryLocal(current, merged);
 
             Save(playniteGameId, merged);
             return LoadOrDefault(playniteGameId);
