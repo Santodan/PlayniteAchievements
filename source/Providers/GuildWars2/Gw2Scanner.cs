@@ -2,6 +2,7 @@ using Playnite.SDK;
 using Playnite.SDK.Models;
 using PlayniteAchievements.Models;
 using PlayniteAchievements.Models.Achievements;
+using PlayniteAchievements.Services.Achievements;
 using PlayniteAchievements.Services.Refresh;
 using System;
 using System.Collections.Generic;
@@ -140,11 +141,11 @@ namespace PlayniteAchievements.Providers.GuildWars2
             var result = await ProviderRefreshExecutor.RunProviderGamesAsync(
                 gamesToRefresh,
                 onGameStarting,
-                (game, token) =>
+                async (game, token) =>
                 {
                     if (ShouldSkipUnchanged(game, snapshot, progressUnchanged))
                     {
-                        return Task.FromResult(ProviderRefreshExecutor.ProviderGameResult.Skipped());
+                        return ProviderRefreshExecutor.ProviderGameResult.Skipped();
                     }
 
                     var data = BuildGameData(game, achievements.Value);
@@ -154,7 +155,8 @@ namespace PlayniteAchievements.Providers.GuildWars2
                         _deliveredGames.Add(game.Id);
                     }
 
-                    return Task.FromResult(new ProviderRefreshExecutor.ProviderGameResult { Data = data });
+                    await DownloadCategoryArtAsync(game.Id, catalog, token).ConfigureAwait(false);
+                    return new ProviderRefreshExecutor.ProviderGameResult { Data = data };
                 },
                 onGameCompleted,
                 isAuthRequiredException: ex => ex is Gw2AuthorizationException,
@@ -212,6 +214,53 @@ namespace PlayniteAchievements.Providers.GuildWars2
         /// Every capable game gets its own copy of the achievement list, since the refresh pipeline
         /// rewrites icon paths on the objects it is handed.
         /// </summary>
+        /// <summary>
+        /// Downloads each category's icon as default category art for its "Group / Category" path.
+        /// Uses the shared provider-default convention read by CategoryDefaultImageResolver:
+        /// existing art is kept and user overrides win over defaults. Best-effort: failures never
+        /// fail the refresh, and existing targets are skipped so later refreshes cost nothing.
+        /// </summary>
+        private async Task DownloadCategoryArtAsync(Guid playniteGameId, Gw2Catalog catalog, CancellationToken cancel)
+        {
+            if (playniteGameId == Guid.Empty)
+            {
+                return;
+            }
+
+            var diskImageService = PlayniteAchievementsPlugin.Instance?.DiskImageService;
+            if (diskImageService == null)
+            {
+                return;
+            }
+
+            var gameIdText = playniteGameId.ToString("D");
+            foreach (var entry in Gw2AchievementMapper.BuildCategoryArtPlan(catalog))
+            {
+                cancel.ThrowIfCancellationRequested();
+                var label = AchievementCategoryTypeHelper.NormalizeCategoryOrDefault(entry.Label);
+                if (string.Equals(label, AchievementCategoryTypeHelper.DefaultCategoryLabel, StringComparison.OrdinalIgnoreCase))
+                {
+                    continue;
+                }
+
+                try
+                {
+                    var artTarget = diskImageService.GetDefaultCategoryImagePath(gameIdText, label);
+                    // decodeSize 0 stores the original bytes: no square crop, original aspect.
+                    await diskImageService.GetOrDownloadIconToPathAsync(entry.IconUrl, artTarget, decodeSize: 0, cancel)
+                        .ConfigureAwait(false);
+                }
+                catch (OperationCanceledException) when (cancel.IsCancellationRequested)
+                {
+                    throw;
+                }
+                catch (Exception ex)
+                {
+                    _logger?.Debug(ex, $"[GW2] Default category image download failed for '{entry.Label}'.");
+                }
+            }
+        }
+
         private GameAchievementData BuildGameData(Game game, IReadOnlyList<AchievementDetail> achievements)
         {
             return new GameAchievementData
