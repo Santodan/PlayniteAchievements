@@ -13,11 +13,24 @@
         </ResourceDictionary>
     </UserControl.Resources>
     <Border x:Name="RootBorder"
-            Background="{DynamicResource PlayAch.Brush.Surface}"
             BorderBrush="{DynamicResource PlayAch.Brush.Border}"
-            BorderThickness="{StaticResource PlayAch.Thickness.Border}"
             CornerRadius="{StaticResource PlayAch.Radius.Section}"
             ClipToBounds="True">
+        <!-- Fill and outline are style setters, not local values, so the ShowCardChrome
+             trigger can clear them. Transparent (not null) keeps gaps hit-testable. -->
+        <Border.Style>
+            <Style TargetType="Border">
+                <Setter Property="Background" Value="{DynamicResource PlayAch.Brush.Surface}"/>
+                <Setter Property="BorderThickness" Value="{StaticResource PlayAch.Thickness.Border}"/>
+                <Style.Triggers>
+                    <DataTrigger Binding="{Binding ShowCardChrome, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                 Value="False">
+                        <Setter Property="Background" Value="Transparent"/>
+                        <Setter Property="BorderThickness" Value="0"/>
+                    </DataTrigger>
+                </Style.Triggers>
+            </Style>
+        </Border.Style>
         <!-- Clipped to the card's rounded inner outline in code (OnRootContentSizeChanged):
              ClipToBounds only clips to the rectangle, so full-bleed content drew over the
              rounded corners and the border. -->
