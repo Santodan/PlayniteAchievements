@@ -117,6 +117,7 @@ The entries below are fork-side changes, grouped by date. When a date includes a
 - Added the possibility of attaching icons to the lines
 - Corrected the height not changing in the builder with the `Auto height` enabled
 - Added a center option for the cover when the `Auto height` is selected
+- Added a border-aware text wrapping in both the builder and extension
 
 ## 2026-09-14 - v3.2.1.1
 

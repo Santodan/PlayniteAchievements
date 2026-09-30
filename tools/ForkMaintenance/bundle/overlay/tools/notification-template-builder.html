@@ -1631,6 +1631,7 @@
           element.style.maxHeight = '';
         }
       });
+      constrainManualLineWidths($('toast'));
       if ($('WrapAllText')?.checked) {
         const wrappedLines = [...document.querySelectorAll('[data-manual-id^="line"]')]
           .filter(element => {
@@ -1691,6 +1692,45 @@
         toast.style.setProperty('--builder-toast-height', `${Math.ceil(requiredHeight)}px`);
         positionToast(toast, $('stage'), { Width: num('Width'), Height: Math.ceil(requiredHeight) }, $('OverlayPosition').value);
       }
+    }
+
+    function constrainManualLineWidths(root) {
+      if (!root || !$('WrapAllText')?.checked) return;
+      const gap = 6;
+      const obstacles = [...root.querySelectorAll('[data-manual-id]')]
+        .filter(element => {
+          const id = element.dataset.manualId || '';
+          return element !== root && !/^line\d+$/i.test(id) &&
+            getComputedStyle(element).display !== 'none' && getComputedStyle(element).position === 'absolute';
+        });
+      [...root.querySelectorAll('[data-manual-id^="line"]')].forEach(line => {
+        const offset = manualElementOffsets[line.dataset.manualId];
+        if (!offset || offset.left == null || offset.top == null || !offset.width) return;
+        let left = Number(offset.left) || 0;
+        let width = Math.max(1, Number(offset.width) || 1);
+        const top = Number(offset.top) || 0;
+        const height = Math.max(1, Number(offset.height) || line.getBoundingClientRect().height || 1);
+        obstacles.forEach(obstacle => {
+          const obstacleOffset = manualElementOffsets[obstacle.dataset.manualId];
+          if (!obstacleOffset || obstacleOffset.left == null || obstacleOffset.top == null) return;
+          const obstacleLeft = Number(obstacleOffset.left) || 0;
+          const obstacleTop = Number(obstacleOffset.top) || 0;
+          const obstacleWidth = obstacle.getBoundingClientRect().width;
+          const obstacleHeight = obstacle.getBoundingClientRect().height;
+          if (top >= obstacleTop + obstacleHeight || top + height <= obstacleTop ||
+              left >= obstacleLeft + obstacleWidth || left + width <= obstacleLeft) return;
+          if (obstacleLeft > left) width = Math.max(1, obstacleLeft - gap - left);
+          else {
+            const right = left + width;
+            left = obstacleLeft + obstacleWidth + gap;
+            width = Math.max(1, right - left);
+          }
+        });
+        line.style.left = `${Math.round(left)}px`;
+        line.style.width = `${Math.round(width)}px`;
+        line.style.minWidth = `${Math.round(width)}px`;
+        line.style.maxWidth = `${Math.round(width)}px`;
+      });
     }
 
     function populateManualCssFromVisibleElements() {
@@ -3339,8 +3379,29 @@
                 .filter(line=>getComputedStyle(line).position==='absolute'&&getComputedStyle(line).display!=='none');
               wrappedLines.forEach(line=>{
                 const style=getComputedStyle(line);
+                if(!line.dataset.sanManualBaseLeft)line.dataset.sanManualBaseLeft=String(parseFloat(style.left)||0);
+                if(!line.dataset.sanManualBaseWidth)line.dataset.sanManualBaseWidth=String(Math.max(1,parseFloat(style.width)||line.getBoundingClientRect().width||1));
                 if(!line.dataset.sanManualBaseTop)line.dataset.sanManualBaseTop=String(parseFloat(style.top)||0);
                 if(!line.dataset.sanManualBaseHeight)line.dataset.sanManualBaseHeight=String(Math.max(1,parseFloat(style.height)||line.getBoundingClientRect().height||1));
+                let left=Number(line.dataset.sanManualBaseLeft)||0;
+                let width=Number(line.dataset.sanManualBaseWidth)||1;
+                const top=Number(line.dataset.sanManualBaseTop)||0;
+                const height=Number(line.dataset.sanManualBaseHeight)||1;
+                [...root.querySelectorAll('#achiconwrapper,#logo,.san-secondary-icon,.san-game-cover')].forEach(obstacle=>{
+                  const obstacleStyle=getComputedStyle(obstacle);
+                  if(obstacleStyle.display==='none'||obstacleStyle.visibility==='hidden'||obstacle===line)return;
+                  const rootRect=root.getBoundingClientRect();
+                  const rect=obstacle.getBoundingClientRect();
+                  const obstacleLeft=rect.left-rootRect.left;
+                  const obstacleTop=rect.top-rootRect.top;
+                  if(top>=obstacleTop+rect.height||top+height<=obstacleTop||left>=obstacleLeft+rect.width||left+width<=obstacleLeft)return;
+                  if(obstacleLeft>left)width=Math.max(1,obstacleLeft-6-left);
+                  else{const right=left+width;left=obstacleLeft+rect.width+6;width=Math.max(1,right-left);}
+                });
+                line.style.setProperty('left',Math.round(left)+'px','important');
+                line.style.setProperty('width',Math.round(width)+'px','important');
+                line.style.setProperty('min-width',Math.round(width)+'px','important');
+                line.style.setProperty('max-width',Math.round(width)+'px','important');
                 const baseHeight=Number(line.dataset.sanManualBaseHeight)||1;
                 line.style.setProperty('height','auto','important');
                 line.style.setProperty('min-height',baseHeight+'px','important');

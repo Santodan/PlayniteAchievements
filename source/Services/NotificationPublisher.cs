@@ -3151,8 +3151,29 @@ const sanReflowWrappedManualLines = () => {{
       .filter(line => getComputedStyle(line).position === 'absolute' && getComputedStyle(line).display !== 'none');
     lines.forEach(line => {{
       const style = getComputedStyle(line);
+      if (!line.dataset.sanManualBaseLeft) line.dataset.sanManualBaseLeft = String(parseFloat(style.left) || 0);
+      if (!line.dataset.sanManualBaseWidth) line.dataset.sanManualBaseWidth = String(Math.max(1, parseFloat(style.width) || line.getBoundingClientRect().width || 1));
       if (!line.dataset.sanManualBaseTop) line.dataset.sanManualBaseTop = String(parseFloat(style.top) || 0);
       if (!line.dataset.sanManualBaseHeight) line.dataset.sanManualBaseHeight = String(Math.max(1, parseFloat(style.height) || line.getBoundingClientRect().height || 1));
+      let left = Number(line.dataset.sanManualBaseLeft) || 0;
+      let width = Number(line.dataset.sanManualBaseWidth) || 1;
+      const top = Number(line.dataset.sanManualBaseTop) || 0;
+      const height = Number(line.dataset.sanManualBaseHeight) || 1;
+      [...root.querySelectorAll('#achiconwrapper,#logo,.san-secondary-icon,.san-game-cover')].forEach(obstacle => {{
+        const obstacleStyle = getComputedStyle(obstacle);
+        if (obstacleStyle.display === 'none' || obstacleStyle.visibility === 'hidden' || obstacle === line) return;
+        const rootRect = root.getBoundingClientRect();
+        const rect = obstacle.getBoundingClientRect();
+        const obstacleLeft = rect.left - rootRect.left;
+        const obstacleTop = rect.top - rootRect.top;
+        if (top >= obstacleTop + rect.height || top + height <= obstacleTop || left >= obstacleLeft + rect.width || left + width <= obstacleLeft) return;
+        if (obstacleLeft > left) width = Math.max(1, obstacleLeft - 6 - left);
+        else {{ const right = left + width; left = obstacleLeft + rect.width + 6; width = Math.max(1, right - left); }}
+      }});
+      line.style.setProperty('left', Math.round(left) + 'px', 'important');
+      line.style.setProperty('width', Math.round(width) + 'px', 'important');
+      line.style.setProperty('min-width', Math.round(width) + 'px', 'important');
+      line.style.setProperty('max-width', Math.round(width) + 'px', 'important');
       const baseHeight = Number(line.dataset.sanManualBaseHeight) || 1;
       line.style.setProperty('height', 'auto', 'important');
       line.style.setProperty('min-height', baseHeight + 'px', 'important');
@@ -5152,8 +5173,42 @@ if ({JsBool(settings?.OverlayCustomAutoResizeToContent == true)}) {{
                     {
                         var adjustment = offsets[entry.Key];
                         var baseHeight = Math.Max(1, adjustment.Height);
+                        var left = adjustment.Left;
+                        var width = Math.Max(1, adjustment.Width);
+                        foreach (var obstacle in layer.Children.OfType<FrameworkElement>().Where(element => !lines.Values.Contains(element)))
+                        {
+                            var obstacleLeft = Canvas.GetLeft(obstacle);
+                            var obstacleTop = Canvas.GetTop(obstacle);
+                            if (double.IsNaN(obstacleLeft) || double.IsNaN(obstacleTop))
+                            {
+                                continue;
+                            }
+
+                            obstacle.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
+                            var obstacleWidth = Math.Max(obstacle.ActualWidth, obstacle.DesiredSize.Width);
+                            var obstacleHeight = Math.Max(obstacle.ActualHeight, obstacle.DesiredSize.Height);
+                            if (adjustment.Top >= obstacleTop + obstacleHeight || adjustment.Top + baseHeight <= obstacleTop ||
+                                left >= obstacleLeft + obstacleWidth || left + width <= obstacleLeft)
+                            {
+                                continue;
+                            }
+
+                            if (obstacleLeft > left)
+                            {
+                                width = Math.Max(1, obstacleLeft - 6 - left);
+                            }
+                            else
+                            {
+                                var right = left + width;
+                                left = obstacleLeft + obstacleWidth + 6;
+                                width = Math.Max(1, right - left);
+                            }
+                        }
+
+                        Canvas.SetLeft(entry.Value, left);
+                        entry.Value.Width = width;
                         Canvas.SetTop(entry.Value, adjustment.Top + addedHeight);
-                        entry.Value.Measure(new Size(Math.Max(1, adjustment.Width), double.PositiveInfinity));
+                        entry.Value.Measure(new Size(width, double.PositiveInfinity));
                         var actualHeight = Math.Max(baseHeight, Math.Max(entry.Value.ActualHeight, entry.Value.DesiredSize.Height));
                         addedHeight += Math.Max(0, actualHeight - baseHeight);
                     }
