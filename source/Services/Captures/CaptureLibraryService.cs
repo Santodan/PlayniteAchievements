@@ -438,7 +438,10 @@ namespace PlayniteAchievements.Services.Captures
 
         private void CaptureFileChanged(object sender, FileSystemEventArgs e)
         {
-            if (!IsCaptureFile(e?.FullPath) || IsReservedTestCapture(sender, e?.FullPath))
+            // A rename away from the capture shape still removes a capture, so either end counts.
+            var isCapture = IsCaptureFile(e?.FullPath) ||
+                (e is RenamedEventArgs renamed && IsCaptureFile(renamed.OldFullPath));
+            if (!isCapture || IsReservedTestCapture(sender, e?.FullPath))
             {
                 return;
             }
@@ -624,12 +627,10 @@ namespace PlayniteAchievements.Services.Captures
                 .Any(IsCaptureFile);
         }
 
-        private static bool IsCaptureFile(string path)
-        {
-            var ext = Path.GetExtension(path);
-            return string.Equals(ext, ".png", StringComparison.OrdinalIgnoreCase) ||
-                   string.Equals(ext, ".mp4", StringComparison.OrdinalIgnoreCase);
-        }
+        // Same shape test the scan applies, so a folder or watcher event holding only other tools'
+        // screenshots never reads as a capture.
+        private static bool IsCaptureFile(string path) =>
+            CaptureFileNameParser.HasCaptureSignature(path);
 
         private static bool IsReservedTestCapture(object sender, string path)
         {
