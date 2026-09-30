@@ -3379,7 +3379,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 var id = CustomAchievementProjectionService.NormalizeId(definition.Id);
                 if (!string.IsNullOrWhiteSpace(id) && byId.TryGetValue(id, out var existing))
                 {
-                    existing.ApplyDefinition(definition, preserveOriginalId: true);
+                    existing.ApplyDefinition(definition, preserveOriginalId: true, keepPersonalState: true);
                     updated++;
                     continue;
                 }
@@ -8747,7 +8747,9 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             return row;
         }
 
-        public void ApplyDefinition(CustomAchievementDefinition definition, bool preserveOriginalId)
+        /// <param name="keepPersonalState">Leaves this row's unlock state, unlock time and
+        /// progress as they are, for an imported package that carries none of them.</param>
+        public void ApplyDefinition(CustomAchievementDefinition definition, bool preserveOriginalId, bool keepPersonalState = false)
         {
             if (definition == null)
             {
@@ -8758,8 +8760,13 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             Id = definition.Id;
             DisplayName = definition.DisplayName;
             Description = definition.Description;
-            Unlocked = definition.Unlocked;
-            UnlockTime = definition.UnlockTimeUtc;
+            if (!keepPersonalState)
+            {
+                Unlocked = definition.Unlocked;
+                UnlockTime = definition.UnlockTimeUtc;
+                ProgressNumText = FormatInt(definition.ProgressNum);
+            }
+
             UnlockedIconPath = definition.UnlockedIconPath;
             LockedIconPath = definition.LockedIconPath;
             PointsText = FormatInt(definition.Points);
@@ -8768,7 +8775,6 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             Rarity = ManageAchievements.AchievementEditorFieldRules.NormalizeAuthoredRarity(definition.Rarity, IsBulkRow);
             GlobalPercentUnlockedText = FormatDouble(definition.GlobalPercentUnlocked);
             SyncRarityInputFromState();
-            ProgressNumText = FormatInt(definition.ProgressNum);
             ProgressDenomText = FormatInt(definition.ProgressDenom);
             ValidationMessage = null;
             SuppressNotifications = false;
