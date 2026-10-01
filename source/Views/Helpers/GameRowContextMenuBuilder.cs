@@ -39,10 +39,17 @@ namespace PlayniteAchievements.Views.Helpers
         {
             var menu = new ContextMenu();
             var hasPlayniteGameId = TryGetGameId(data, out var menuGameId);
-            menu.Items.Add(CreateMenuItem(resourceOwner, "LOCPlayAch_Menu_RefreshGame",
-                () => ExecuteCommand(refreshGameCommand, data)));
 
-            if (hasPlayniteGameId)
+            // A row whose game was removed from Playnite (custom data left behind) keeps only the
+            // Maintenance actions; refreshing or opening it has nothing to act on.
+            var gameInLibrary = !hasPlayniteGameId || GameExists(playniteApi, menuGameId);
+            if (gameInLibrary)
+            {
+                menu.Items.Add(CreateMenuItem(resourceOwner, "LOCPlayAch_Menu_RefreshGame",
+                    () => ExecuteCommand(refreshGameCommand, data)));
+            }
+
+            if (hasPlayniteGameId && gameInLibrary)
             {
                 menu.Items.Add(CreateOpenMenu(
                     resourceOwner,
@@ -83,6 +90,10 @@ namespace PlayniteAchievements.Views.Helpers
                 }
 
                 menu.Items.Add(new Separator());
+            }
+
+            if (hasPlayniteGameId)
+            {
 
                 var excludedFromSummaries = overridesService?.IsExcludedFromSummaries(menuGameId) == true;
                 var excludedFromRefreshes = overridesService?.IsExcludedFromRefreshes(menuGameId) == true;
@@ -181,6 +192,39 @@ namespace PlayniteAchievements.Views.Helpers
                 ?? resourceKey;
         }
 
+        /// <summary>
+        /// True when the game is in the Playnite library, or when the library cannot be read.
+        /// </summary>
+        private static bool GameExists(IPlayniteAPI playniteApi, Guid gameId)
+        {
+            var games = (playniteApi ?? API.Instance)?.Database?.Games;
+            return games == null || games.Get(gameId) != null;
+        }
+
+        /// <summary>
+        /// The Playnite game's name, else the row's recorded name, else the unknown-game text.
+        /// </summary>
+        private static string ResolveGameName(object data, Playnite.SDK.Models.Game game)
+        {
+            if (!string.IsNullOrWhiteSpace(game?.Name))
+            {
+                return game.Name;
+            }
+
+            string rowName;
+            switch (data)
+            {
+                case GameSummaryItem summary: rowName = summary.GameName; break;
+                case AchievementDisplayItem ach: rowName = ach.GameName; break;
+                case RecentAchievementItem recent: rowName = recent.GameName; break;
+                default: rowName = null; break;
+            }
+
+            return !string.IsNullOrWhiteSpace(rowName)
+                ? rowName
+                : ResourceProvider.GetString("LOCPlayAch_Text_UnknownGame");
+        }
+
         private static bool IsGameInstalled(IPlayniteAPI playniteApi, Guid gameId)
         {
             if (gameId == Guid.Empty)
@@ -246,13 +290,9 @@ namespace PlayniteAchievements.Views.Helpers
             }
 
             var game = playniteApi?.Database?.Games?.Get(gameId);
-            if (game == null)
-            {
-                return;
-            }
-
+            var gameName = ResolveGameName(data, game);
             var result = playniteApi?.Dialogs?.ShowMessage(
-                string.Format(ResourceProvider.GetString("LOCPlayAch_Menu_ClearData_ConfirmSingle"), game.Name),
+                string.Format(ResourceProvider.GetString("LOCPlayAch_Menu_ClearData_ConfirmSingle"), gameName),
                 ResourceProvider.GetString("LOCPlayAch_Title_PluginName"),
                 MessageBoxButton.YesNo, MessageBoxImage.Warning) ?? MessageBoxResult.None;
 
@@ -265,11 +305,18 @@ namespace PlayniteAchievements.Views.Helpers
             {
                 if (overridesService != null)
                 {
-                    overridesService.ClearGameData(game.Id, game.Name);
+                    overridesService.ClearGameData(gameId, gameName);
                 }
                 else
                 {
-                    cacheManager?.RemoveGameCache(game.Id);
+                    cacheManager?.RemoveGameCache(gameId);
+                }
+
+                // A removed game can never refresh again, and its custom achievements would
+                // otherwise keep the row alive.
+                if (game == null)
+                {
+                    PlayniteAchievementsPlugin.Instance?.GameCustomDataStore?.Delete(gameId);
                 }
 
                 playniteApi?.Dialogs?.ShowMessage(
@@ -279,7 +326,7 @@ namespace PlayniteAchievements.Views.Helpers
             }
             catch (Exception ex)
             {
-                logger?.Error(ex, $"Failed to clear data for game '{game.Name}' ({game.Id}).");
+                logger?.Error(ex, $"Failed to clear data for game '{gameName}' ({gameId}).");
                 playniteApi?.Dialogs?.ShowMessage(
                     string.Format(ResourceProvider.GetString("LOCPlayAch_Status_Failed"), ex.Message),
                     ResourceProvider.GetString("LOCPlayAch_Title_PluginName"),
@@ -310,12 +357,6 @@ namespace PlayniteAchievements.Views.Helpers
                 return;
             }
 
-            var game = playniteApi?.Database?.Games?.Get(gameId);
-            if (game == null)
-            {
-                return;
-            }
-
             if (!excluded)
             {
                 overridesService?.SetExcludedByUser(gameId, excluded: false, clearCachedDataWhenExcluding: false);
@@ -332,7 +373,9 @@ namespace PlayniteAchievements.Views.Helpers
             if (clearDataWhenExcluding)
             {
                 var result = playniteApi?.Dialogs?.ShowMessage(
-                    string.Format(ResourceProvider.GetString("LOCPlayAch_Menu_Exclude_ConfirmSingle"), game.Name),
+                    string.Format(
+                        ResourceProvider.GetString("LOCPlayAch_Menu_Exclude_ConfirmSingle"),
+                        ResolveGameName(data, playniteApi?.Database?.Games?.Get(gameId))),
                     ResourceProvider.GetString("LOCPlayAch_Title_PluginName"),
                     MessageBoxButton.YesNo,
                     MessageBoxImage.Warning) ?? MessageBoxResult.None;

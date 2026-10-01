@@ -2563,8 +2563,12 @@ namespace PlayniteAchievements
             {
                 try
                 {
-                    _logger.Info($"Detected removed game '{game?.Name}' ({game?.GameId}); removing cached achievements and icons.");
+                    _logger.Info($"Detected removed game '{game?.Name}' ({game?.GameId}); removing cached achievements, icons and custom data.");
                     _cacheManager.RemoveGameCache(game.Id);
+
+                    // Custom achievements alone keep a synthetic row alive, and nothing can
+                    // reattach them: a re-added game gets a new id.
+                    _gameCustomDataStore?.Delete(game.Id);
                 }
                 catch (Exception ex)
                 {
