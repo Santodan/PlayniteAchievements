@@ -4633,6 +4633,71 @@ namespace PlayniteAchievements.Providers.Local
                 out isAmbiguous);
         }
 
+        internal string GetLocalAchievementSourceDisplayPath(Game game, string folderOrFilePath)
+        {
+            if (string.IsNullOrWhiteSpace(folderOrFilePath) || File.Exists(folderOrFilePath))
+            {
+                return folderOrFilePath ?? string.Empty;
+            }
+
+            var sourcePaths = new List<string>();
+            AddExistingPath(sourcePaths, ResolveAchievementFilePath(folderOrFilePath, "achievements.json"));
+            foreach (var iniFileName in LocalAchievementIniFileNames)
+            {
+                AddExistingPath(sourcePaths, ResolveAchievementFilePath(folderOrFilePath, iniFileName));
+            }
+
+            if (TryResolveAppId(game, out var appId, out _) && appId > 0)
+            {
+                foreach (var path in GetSteamAppCacheSchemaFilePaths(appId))
+                {
+                    AddSourcePathWithinFolder(sourcePaths, folderOrFilePath, path);
+                }
+
+                foreach (var path in GetSteamAppCacheUserStatsFilePaths(appId, game))
+                {
+                    AddSourcePathWithinFolder(sourcePaths, folderOrFilePath, path);
+                }
+
+                foreach (var path in GetSteamLibraryCacheFilePaths(appId, game))
+                {
+                    AddSourcePathWithinFolder(sourcePaths, folderOrFilePath, path);
+                }
+
+                var progress = TryGetSteamLocalProgressSummary(appId, game);
+                AddSourcePathWithinFolder(sourcePaths, folderOrFilePath, progress?.SourcePath);
+            }
+
+            return sourcePaths.Count > 0
+                ? string.Join(" | ", sourcePaths)
+                : folderOrFilePath;
+        }
+
+        private static void AddSourcePathWithinFolder(ICollection<string> paths, string folderPath, string sourcePath)
+        {
+            if (paths == null || string.IsNullOrWhiteSpace(folderPath) ||
+                string.IsNullOrWhiteSpace(sourcePath) || !File.Exists(sourcePath))
+            {
+                return;
+            }
+
+            try
+            {
+                var normalizedFolder = Path.GetFullPath(folderPath)
+                    .TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar) + Path.DirectorySeparatorChar;
+                var normalizedSource = Path.GetFullPath(sourcePath);
+                if (normalizedSource.StartsWith(normalizedFolder, StringComparison.OrdinalIgnoreCase) &&
+                    !paths.Contains(normalizedSource, StringComparer.OrdinalIgnoreCase))
+                {
+                    paths.Add(normalizedSource);
+                }
+            }
+            catch
+            {
+                // Keep the folder fallback when either path cannot be normalized.
+            }
+        }
+
         internal void ResetLocalFolderDiscovery(Game game)
         {
             if (game == null)

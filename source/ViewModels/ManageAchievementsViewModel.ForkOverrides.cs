@@ -109,7 +109,9 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         {
             get
             {
-                if (HasLocalFolderOverride) return string.Format(L("LOCPlayAch_Common_Status_OverrideSetValue", "Override set: {0}"), LocalFolderOverrideValue);
+                if (HasLocalFolderOverride) return string.Format(
+                    L("LOCPlayAch_Common_Status_OverrideSetValue", "Override set: {0}"),
+                    string.IsNullOrWhiteSpace(LocalFolderAutoPath) ? LocalFolderOverrideValue : LocalFolderAutoPath);
                 if (HasAmbiguousLocalFolders) return string.Format(L("LOCPlayAch_GameOptions_Status_LocalFolderAmbiguous", "Multiple local folders found. Using: {0}"), LocalFolderAutoPath);
                 if (!string.IsNullOrWhiteSpace(LocalFolderAutoPath)) return string.Format(L("LOCPlayAch_GameOptions_Status_LocalFolderAuto", "Detected folder: {0}"), LocalFolderAutoPath);
                 return L(
@@ -305,7 +307,9 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             {
                 Add(
                     L("LOCPlayAch_GameOptions_Overrides_LocalFolderHeader", "Local save folder override"),
-                    LocalFolderOverrideValue);
+                    string.IsNullOrWhiteSpace(LocalFolderAutoPath)
+                        ? LocalFolderOverrideValue
+                        : LocalFolderAutoPath);
             }
 
             if (HasLocalSteamAppIdOverride)
@@ -418,7 +422,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             else { HasLocalSteamAppCacheUserOverride = false; LocalSteamAppCacheUserOverrideValue = string.Empty; LocalSteamAppCacheUserOverrideInput = string.Empty; }
             if (localProvider != null && game != null && localProvider.TryGetResolvedFolderInfo(game, out var selectedFolder, out var candidates, out var isFolderOverridden, out var isAmbiguousFolder))
             {
-                HasLocalFolderOverride = isFolderOverridden; LocalFolderOverrideValue = isFolderOverridden ? selectedFolder : string.Empty; LocalFolderOverrideInput = isFolderOverridden ? selectedFolder : string.Empty; LocalFolderAutoPath = selectedFolder;
+                HasLocalFolderOverride = isFolderOverridden; LocalFolderOverrideValue = isFolderOverridden ? selectedFolder : string.Empty; LocalFolderOverrideInput = isFolderOverridden ? selectedFolder : string.Empty; LocalFolderAutoPath = localProvider.GetLocalAchievementSourceDisplayPath(game, selectedFolder);
                 HasAmbiguousLocalFolders = isAmbiguousFolder; LocalFolderCandidates = candidates ?? Array.Empty<string>();
                 SetValue(
                     ref _selectedAmbiguousFolder,
@@ -427,7 +431,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             }
             else if (LocalSavesProvider.TryGetFolderOverride(_gameId, out var folder))
             {
-                HasLocalFolderOverride = true; LocalFolderOverrideValue = folder; LocalFolderOverrideInput = folder; LocalFolderAutoPath = folder; HasAmbiguousLocalFolders = false; LocalFolderCandidates = Array.Empty<string>(); SelectedAmbiguousFolder = null;
+                HasLocalFolderOverride = true; LocalFolderOverrideValue = folder; LocalFolderOverrideInput = folder; LocalFolderAutoPath = localProvider?.GetLocalAchievementSourceDisplayPath(game, folder) ?? folder; HasAmbiguousLocalFolders = false; LocalFolderCandidates = Array.Empty<string>(); SelectedAmbiguousFolder = null;
             }
             else
             {
