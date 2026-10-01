@@ -1,6 +1,6 @@
 {
     "schemaVersion":  1,
-    "generatedUtc":  "2026-09-30T13:26:27.9546141Z",
+    "generatedUtc":  "2026-10-01T11:44:42.2281911Z",
     "baselineRef":  "upstream/main",
     "baselineCommit":  "653a310fed521206672d0aec9383fd7ec3bb94a3",
     "protectedPaths":  [
@@ -117,7 +117,7 @@
                          },
                          {
                              "path":  "source/Providers/Local/LocalFolderGamesImporter.cs",
-                             "sha256":  "DA53B1F8849E7E610A8F5995979C1660BA6EDD6D3A2AA95E53FC4EB0DF1C12D7"
+                             "sha256":  "1188122501AACA95807EDB9DD7CAA9C9E2A4D332E223659863D5E850328E9F36"
                          },
                          {
                              "path":  "source/Providers/Local/LocalImportProgressControl.xaml",
@@ -137,7 +137,7 @@
                          },
                          {
                              "path":  "source/Providers/Local/LocalSavesProvider.cs",
-                             "sha256":  "359A7F5AB8F35E4DF7A4FBE636BF9AD4ADCE2E6C2FD4771F5CB3984FD5D66285"
+                             "sha256":  "C57195236811EDDED2E2011AA9FCB59B05077D8D7A903720307EF43DF35F0396"
                          },
                          {
                              "path":  "source/Providers/Local/LocalSettings.cs",

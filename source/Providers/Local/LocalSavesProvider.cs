@@ -53,6 +53,7 @@ namespace PlayniteAchievements.Providers.Local
             @"steam_settings\settings\achievements.json",
             @"steam_settings\stats\achievements.json",
             @"tenoke.ini",
+            @"SOVEREIGN.ini",
             @"achievement\achievements.json",
             @"achievements.json"
         };
@@ -60,6 +61,7 @@ namespace PlayniteAchievements.Providers.Local
         private static readonly string[] LocalAchievementIniFileNames =
         {
             "tenoke.ini",
+            "SOVEREIGN.ini",
             "achievements.ini",
             "user_stats.ini"
         };
@@ -336,6 +338,15 @@ namespace PlayniteAchievements.Providers.Local
             string configuredFolderOverridePath = null;
             var hasFolderOverride = game != null && TryGetFolderOverride(game.Id, out configuredFolderOverridePath);
             var hasDirectAchievementFileOverride = hasFolderOverride && File.Exists(configuredFolderOverridePath);
+            if (hasFolderOverride &&
+                TryFindSovereignIniPathFromFolder(configuredFolderOverridePath, out var configuredSovereignIniPath) &&
+                TryExtractAppIdFromSovereignIni(configuredSovereignIniPath, out var sovereignAppId))
+            {
+                appId = sovereignAppId.ToString(CultureInfo.InvariantCulture);
+                isAppIdOverridden = true;
+                Log($"SOVEREIGN APPID INFERRED: game='{game?.Name}' appId={appId} source={configuredSovereignIniPath}");
+            }
+
             if (string.IsNullOrEmpty(appId))
             {
                 // If no app id is available from metadata, try to resolve it from a configured
@@ -883,6 +894,14 @@ namespace PlayniteAchievements.Providers.Local
             var paths = new List<string>();
             var appId = GetAppId(game, out _);
             int lumaAppId;
+
+            if (TryGetFolderOverride(game.Id, out var configuredFolderOverridePath) &&
+                TryFindSovereignIniPathFromFolder(configuredFolderOverridePath, out var sovereignIniPath) &&
+                TryExtractAppIdFromSovereignIni(sovereignIniPath, out var sovereignAppId))
+            {
+                appId = sovereignAppId.ToString(CultureInfo.InvariantCulture);
+                AddExistingPath(paths, sovereignIniPath);
+            }
 
             if (TryResolveNemirtingasPaths(game, out var epicSchemaPath, out var epicSavePath))
             {
@@ -1687,6 +1706,95 @@ namespace PlayniteAchievements.Providers.Local
             }
 
             return TryFindTenokeIniPathRecursive(folderPath, 0, Math.Max(0, maxSearchDepth), out iniPath);
+        }
+
+        private static bool TryFindSovereignIniPathFromFolder(string folderPath, out string iniPath)
+        {
+            iniPath = null;
+            if (string.IsNullOrWhiteSpace(folderPath))
+            {
+                return false;
+            }
+
+            if (File.Exists(folderPath))
+            {
+                if (string.Equals(Path.GetFileName(folderPath), "SOVEREIGN.ini", StringComparison.OrdinalIgnoreCase))
+                {
+                    iniPath = folderPath;
+                    return true;
+                }
+
+                return false;
+            }
+
+            if (!Directory.Exists(folderPath))
+            {
+                return false;
+            }
+
+            var candidate = Path.Combine(folderPath, "SOVEREIGN.ini");
+            if (!File.Exists(candidate))
+            {
+                return false;
+            }
+
+            iniPath = candidate;
+            return true;
+        }
+
+        private static bool TryExtractAppIdFromSovereignIni(string iniPath, out int appId)
+        {
+            appId = 0;
+            if (string.IsNullOrWhiteSpace(iniPath) || !File.Exists(iniPath))
+            {
+                return false;
+            }
+
+            try
+            {
+                var inGameSection = false;
+                foreach (var rawLine in File.ReadLines(iniPath))
+                {
+                    var line = (rawLine ?? string.Empty).Trim();
+                    if (string.IsNullOrWhiteSpace(line) || line.StartsWith("#", StringComparison.Ordinal) || line.StartsWith(";", StringComparison.Ordinal))
+                    {
+                        continue;
+                    }
+
+                    if (line.StartsWith("[", StringComparison.Ordinal) && line.EndsWith("]", StringComparison.Ordinal))
+                    {
+                        var sectionName = line.Substring(1, line.Length - 2).Trim();
+                        inGameSection = string.Equals(sectionName, "Game", StringComparison.OrdinalIgnoreCase);
+                        continue;
+                    }
+
+                    if (!inGameSection)
+                    {
+                        continue;
+                    }
+
+                    var separatorIndex = line.IndexOf('=');
+                    if (separatorIndex <= 0)
+                    {
+                        continue;
+                    }
+
+                    var key = line.Substring(0, separatorIndex).Trim();
+                    var value = StripIniInlineComment(line.Substring(separatorIndex + 1)).Trim().Trim('"');
+                    if (string.Equals(key, "AppID", StringComparison.OrdinalIgnoreCase) &&
+                        int.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out appId) &&
+                        appId > 0)
+                    {
+                        return true;
+                    }
+                }
+            }
+            catch
+            {
+                appId = 0;
+            }
+
+            return false;
         }
 
         private static bool TryFindTenokeIniPathRecursive(string directoryPath, int currentDepth, int maxDepth, out string iniPath)
@@ -8095,6 +8203,7 @@ namespace PlayniteAchievements.Providers.Local
             return !string.IsNullOrWhiteSpace(ResolveAchievementFilePath(folderPath, "achievements.ini")) ||
                 !string.IsNullOrWhiteSpace(ResolveAchievementFilePath(folderPath, "user_stats.ini")) ||
                 !string.IsNullOrWhiteSpace(ResolveAchievementFilePath(folderPath, "tenoke.ini")) ||
+                !string.IsNullOrWhiteSpace(ResolveAchievementFilePath(folderPath, "SOVEREIGN.ini")) ||
                 !string.IsNullOrWhiteSpace(ResolveAchievementFilePath(folderPath, "achievements.json"));
         }
 
@@ -8133,6 +8242,11 @@ namespace PlayniteAchievements.Providers.Local
                 score += 1;
             }
 
+            if (!string.IsNullOrWhiteSpace(ResolveAchievementFilePath(folderPath, "SOVEREIGN.ini")))
+            {
+                score += 2;
+            }
+
             if (!string.IsNullOrWhiteSpace(ResolveAchievementFilePath(folderPath, "achievements.json")))
             {
                 score += 1;
@@ -8144,7 +8258,7 @@ namespace PlayniteAchievements.Providers.Local
         private static DateTime GetLatestAchievementFileWriteTime(string folderPath)
         {
             var latest = DateTime.MinValue;
-            foreach (var fileName in new[] { "achievements.ini", "user_stats.ini", "tenoke.ini", "achievements.json" })
+            foreach (var fileName in new[] { "achievements.ini", "user_stats.ini", "tenoke.ini", "SOVEREIGN.ini", "achievements.json" })
             {
                 var filePath = ResolveAchievementFilePath(folderPath, fileName);
                 if (!string.IsNullOrWhiteSpace(filePath) && File.Exists(filePath))

@@ -120,6 +120,7 @@ The entries below are fork-side changes, grouped by date. When a date includes a
 - Added a border-aware text wrapping in both the builder and extension
 - Cover element will now appear even when no `Preview Game` is selected
 - Added a border size settings
+- Added compatibility with `SOVEREIGN.ini`
 
 ## 2026-09-14 - v3.2.1.1
 

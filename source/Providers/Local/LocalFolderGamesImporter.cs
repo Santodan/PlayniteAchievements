@@ -786,10 +786,12 @@ namespace PlayniteAchievements.Providers.Local
             var iniPath = ResolveAchievementFilePath(directory, "achievements.ini");
             var jsonPath = ResolveAchievementFilePath(directory, "achievements.json");
             var tenokeIniPath = ResolveAchievementFilePath(directory, "tenoke.ini");
+            var sovereignIniPath = ResolveAchievementFilePath(directory, "SOVEREIGN.ini");
             var tenokeUserStatsPath = ResolveAchievementFilePath(directory, "user_stats.ini");
             var hasAchievementFile = !string.IsNullOrWhiteSpace(iniPath) ||
                 !string.IsNullOrWhiteSpace(jsonPath) ||
                 !string.IsNullOrWhiteSpace(tenokeIniPath) ||
+                !string.IsNullOrWhiteSpace(sovereignIniPath) ||
                 !string.IsNullOrWhiteSpace(tenokeUserStatsPath);
             if (!hasAchievementFile)
             {
@@ -1390,7 +1392,7 @@ namespace PlayniteAchievements.Providers.Local
         private static DateTime GetLatestAchievementFileWriteTime(string folderPath)
         {
             var latest = DateTime.MinValue;
-            foreach (var fileName in new[] { "achievements.ini", "user_stats.ini", "tenoke.ini", "achievements.json" })
+            foreach (var fileName in new[] { "achievements.ini", "user_stats.ini", "tenoke.ini", "SOVEREIGN.ini", "achievements.json" })
             {
                 var filePath = ResolveAchievementFilePath(folderPath, fileName);
                 if (!string.IsNullOrWhiteSpace(filePath) && File.Exists(filePath))
