@@ -53,7 +53,6 @@ namespace PlayniteAchievements.Providers.Local
             @"steam_settings\settings\achievements.json",
             @"steam_settings\stats\achievements.json",
             @"tenoke.ini",
-            @"SOVEREIGN.ini",
             @"achievement\achievements.json",
             @"achievements.json"
         };
@@ -64,6 +63,16 @@ namespace PlayniteAchievements.Providers.Local
             "SOVEREIGN.ini",
             "achievements.ini",
             "user_stats.ini"
+        };
+
+        private static readonly string[] SupportedAchievementRelativeDirectories =
+        {
+            string.Empty,
+            "Stats",
+            "steam_settings",
+            @"steam_settings\settings",
+            @"steam_settings\stats",
+            "achievement"
         };
 
         public sealed class ExpectedAchievementsDownloadResult
@@ -239,6 +248,11 @@ namespace PlayniteAchievements.Providers.Local
                 return true;
             }
 
+            if (TryGetInstallLocalAchievementFolder(game, out _))
+            {
+                return true;
+            }
+
             if (!TryResolveAppId(game, out var appId, out _ ) || appId <= 0)
             {
                 // Explicit Local configuration is sufficient capability and should not trigger
@@ -330,6 +344,7 @@ namespace PlayniteAchievements.Providers.Local
             var hasEnabledCustomSchemaOverride = game != null &&
                 TryGetCustomSchemaEnabledOverride(game.Id, out var isCustomSchemaEnabled) &&
                 isCustomSchemaEnabled;
+            var hasInstallLocalAchievementFolder = TryGetInstallLocalAchievementFolder(game, out _);
             var shouldFetchIconsFromGame = hasEnabledCustomSchemaOverride && game != null &&
                 GameCustomDataLookup.IsViewAchievementsIconFetchEnabled(game.Id);
             // Schema-defined icons from the active schema should always remain usable.
@@ -345,6 +360,13 @@ namespace PlayniteAchievements.Providers.Local
                 appId = sovereignAppId.ToString(CultureInfo.InvariantCulture);
                 isAppIdOverridden = true;
                 Log($"SOVEREIGN APPID INFERRED: game='{game?.Name}' appId={appId} source={configuredSovereignIniPath}");
+            }
+            else if (!hasFolderOverride &&
+                TryResolveInstalledSovereignIni(game, out var installedSovereignIniPath, out sovereignAppId))
+            {
+                appId = sovereignAppId.ToString(CultureInfo.InvariantCulture);
+                isAppIdOverridden = true;
+                Log($"SOVEREIGN APPID AUTO-DETECTED: game='{game?.Name}' appId={appId} source={installedSovereignIniPath}");
             }
 
             if (string.IsNullOrEmpty(appId))
@@ -391,7 +413,8 @@ namespace PlayniteAchievements.Providers.Local
 
             if (string.IsNullOrEmpty(appId))
             {
-                if (!hasEnabledCustomSchemaOverride && !hasFolderOverride && !SupportsSchemaOnlyManualFallback(game))
+                if (!hasEnabledCustomSchemaOverride && !hasFolderOverride &&
+                    !hasInstallLocalAchievementFolder && !SupportsSchemaOnlyManualFallback(game))
                 {
                     Log($"LOCAL APPID RESOLUTION: game='{game?.Name}' failed (no app id from metadata or configured overrides).");
                     return null;
@@ -898,6 +921,11 @@ namespace PlayniteAchievements.Providers.Local
             if (TryGetFolderOverride(game.Id, out var configuredFolderOverridePath) &&
                 TryFindSovereignIniPathFromFolder(configuredFolderOverridePath, out var sovereignIniPath) &&
                 TryExtractAppIdFromSovereignIni(sovereignIniPath, out var sovereignAppId))
+            {
+                appId = sovereignAppId.ToString(CultureInfo.InvariantCulture);
+                AddExistingPath(paths, sovereignIniPath);
+            }
+            else if (TryResolveInstalledSovereignIni(game, out sovereignIniPath, out sovereignAppId))
             {
                 appId = sovereignAppId.ToString(CultureInfo.InvariantCulture);
                 AddExistingPath(paths, sovereignIniPath);
@@ -1739,6 +1767,40 @@ namespace PlayniteAchievements.Providers.Local
             }
 
             iniPath = candidate;
+            return true;
+        }
+
+        private bool TryResolveInstalledSovereignIni(Game game, out string iniPath, out int appId)
+        {
+            iniPath = null;
+            appId = 0;
+            if (game == null)
+            {
+                return false;
+            }
+
+            var installDirectory = PathExpansion.ExpandGamePath(_api, game, game.InstallDirectory)?.Trim();
+            return TryFindSovereignIniPathFromFolder(installDirectory, out iniPath) &&
+                TryExtractAppIdFromSovereignIni(iniPath, out appId);
+        }
+
+        private bool TryGetInstallLocalAchievementFolder(Game game, out string folderPath)
+        {
+            folderPath = null;
+            if (game == null)
+            {
+                return false;
+            }
+
+            var installDirectory = PathExpansion.ExpandGamePath(_api, game, game.InstallDirectory)?.Trim();
+            if (string.IsNullOrWhiteSpace(installDirectory) ||
+                !Directory.Exists(installDirectory) ||
+                !HasLocalAchievementFiles(installDirectory))
+            {
+                return false;
+            }
+
+            folderPath = installDirectory;
             return true;
         }
 
@@ -8055,12 +8117,15 @@ namespace PlayniteAchievements.Providers.Local
                 _logger?.Warn($"Local save folder or file override for '{game.Name}' no longer exists: {overriddenFolderPath}");
             }
 
-            if (string.IsNullOrWhiteSpace(appId))
+            var candidates = string.IsNullOrWhiteSpace(appId)
+                ? new List<string>()
+                : FindLocalFolders(appId);
+            if (TryGetInstallLocalAchievementFolder(game, out var installLocalFolder) &&
+                !candidates.Contains(installLocalFolder, StringComparer.OrdinalIgnoreCase))
             {
-                return false;
+                candidates.Add(installLocalFolder);
             }
 
-            var candidates = FindLocalFolders(appId);
             candidateFolders = candidates;
 
             if (candidates.Count == 0)
@@ -8291,16 +8356,15 @@ namespace PlayniteAchievements.Providers.Local
                     : null;
             }
 
-            var directPath = Path.Combine(folderPath, fileName);
-            if (File.Exists(directPath))
+            foreach (var relativeDirectory in SupportedAchievementRelativeDirectories)
             {
-                return directPath;
-            }
-
-            var statsPath = Path.Combine(folderPath, "Stats", fileName);
-            if (File.Exists(statsPath))
-            {
-                return statsPath;
+                var candidatePath = string.IsNullOrWhiteSpace(relativeDirectory)
+                    ? Path.Combine(folderPath, fileName)
+                    : Path.Combine(folderPath, relativeDirectory, fileName);
+                if (File.Exists(candidatePath))
+                {
+                    return candidatePath;
+                }
             }
 
             return null;

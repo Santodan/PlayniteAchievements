@@ -1,6 +1,6 @@
 {
     "schemaVersion":  1,
-    "generatedUtc":  "2026-10-01T11:44:42.2281911Z",
+    "generatedUtc":  "2026-10-01T11:52:47.1857865Z",
     "baselineRef":  "upstream/main",
     "baselineCommit":  "653a310fed521206672d0aec9383fd7ec3bb94a3",
     "protectedPaths":  [
@@ -137,7 +137,7 @@
                          },
                          {
                              "path":  "source/Providers/Local/LocalSavesProvider.cs",
-                             "sha256":  "C57195236811EDDED2E2011AA9FCB59B05077D8D7A903720307EF43DF35F0396"
+                             "sha256":  "B4511C4202F23DD4EEC21788CBC1029677EA5D8654FD8517AA5FF79BEAF45630"
                          },
                          {
                              "path":  "source/Providers/Local/LocalSettings.cs",

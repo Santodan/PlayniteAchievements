@@ -121,6 +121,7 @@ The entries below are fork-side changes, grouped by date. When a date includes a
 - Cover element will now appear even when no `Preview Game` is selected
 - Added a border size settings
 - Added compatibility with `SOVEREIGN.ini`
+- Added the installation folder to the Auto-scanned folders' list
 
 ## 2026-09-14 - v3.2.1.1
 
