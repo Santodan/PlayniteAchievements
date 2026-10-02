@@ -1,11 +1,11 @@
-<UserControl x:Class="PlayniteAchievements.Views.ManageAchievements.ManageAchievementsControl"
+﻿<UserControl x:Class="PlayniteAchievements.Views.ManageAchievements.ManageAchievementsControl"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
-             xmlns:views="clr-namespace:PlayniteAchievements.Views.ManageAchievements"
              xmlns:helpers="clr-namespace:PlayniteAchievements.Views.Helpers"
              xmlns:converters="clr-namespace:PlayniteAchievements.Views.Converters"
+             xmlns:controls="clr-namespace:PlayniteAchievements.Views.Controls"
              mc:Ignorable="d"
              d:DesignHeight="700"
              d:DesignWidth="1050">
@@ -13,7 +13,7 @@
     <UserControl.Resources>
         <ResourceDictionary>
             <ResourceDictionary.MergedDictionaries>
-                <ResourceDictionary Source="pack://application:,,,/PlayniteAchievements;component/Resources/ManageAchievementsScopedControlStyles.xaml"/>
+                <helpers:SharedResourceDictionary Source="pack://application:,,,/PlayniteAchievements;component/Resources/ManageAchievementsScopedControlStyles.xaml"/>
             </ResourceDictionary.MergedDictionaries>
 
             <Style x:Key="NavTabRadioStyle" TargetType="RadioButton">
@@ -52,12 +52,32 @@
                 </Setter>
             </Style>
 
-            <Style x:Key="NavSectionHeaderStyle" TargetType="TextBlock">
-                <Setter Property="Foreground" Value="{DynamicResource PlayAch.Brush.Text}" />
-                <Setter Property="Opacity" Value="0.65" />
-                <Setter Property="FontWeight" Value="SemiBold" />
-                <Setter Property="FontSize" Value="{DynamicResource PlayAch.FontSize.Body}" />
-                <Setter Property="Margin" Value="0,12,0,4" />
+            <!-- Sidebar stats: one full-width chip per row, icon or label left, value right. -->
+            <Style x:Key="SidebarStatChipStyle" TargetType="Border" BasedOn="{StaticResource MetaChipStyle}">
+                <Setter Property="Margin" Value="0,0,0,3" />
+                <Setter Property="HorizontalAlignment" Value="Stretch" />
+            </Style>
+            <Style x:Key="SidebarStatValueStyle" TargetType="TextBlock" BasedOn="{StaticResource ChipCountTextStyle}">
+                <Setter Property="Grid.Column" Value="1" />
+                <Setter Property="HorizontalAlignment" Value="Right" />
+                <Setter Property="VerticalAlignment" Value="Center" />
+            </Style>
+            <Style x:Key="SidebarStatGroupStyle" TargetType="StackPanel">
+                <Setter Property="Margin" Value="0,0,0,6" />
+            </Style>
+            <!-- Rarity and trophies sit in fixed pairs (ultra rare + rare, uncommon + common;
+                 platinum + gold, silver + bronze). Columns are equal and as wide as the widest
+                 chip, so long counts widen the sidebar; a hidden chip drops out of its pair and
+                 the other spans both columns, and a pair with neither shown takes no row. The panel owns the
+                 gaps, so its chips carry no margin; the 9 bottom margin matches a single-column
+                 group's last chip gap plus group gap. -->
+            <Style x:Key="SidebarStatPairGroupStyle" TargetType="controls:PairedRowsPanel">
+                <Setter Property="ColumnGap" Value="3" />
+                <Setter Property="RowGap" Value="3" />
+                <Setter Property="Margin" Value="0,0,0,9" />
+            </Style>
+            <Style x:Key="SidebarStatPairChipStyle" TargetType="Border" BasedOn="{StaticResource SidebarStatChipStyle}">
+                <Setter Property="Margin" Value="0" />
             </Style>
         </ResourceDictionary>
     </UserControl.Resources>
@@ -65,7 +85,10 @@
     <Border Background="{DynamicResource PlayAch.Brush.Window.Background}" Padding="12">
     <Grid>
         <Grid.ColumnDefinitions>
-            <ColumnDefinition Width="245" />
+            <!-- As wide as the longest tab name or stat row; the cover follows that width. The
+                 stats reserve their widest row up front, so the width holds still: a change
+                 would resize the content column and re-lay-out every tab host in it. -->
+            <ColumnDefinition Width="Auto" MinWidth="150" />
             <ColumnDefinition Width="12" />
             <ColumnDefinition Width="*" />
         </Grid.ColumnDefinitions>
@@ -76,105 +99,301 @@
                 BorderThickness="{StaticResource PlayAch.Thickness.Border}"
                 CornerRadius="{StaticResource PlayAch.Radius.Card}"
                 Padding="{StaticResource PlayAch.Thickness.CardPadding}">
-            <Grid>
-                <Grid.RowDefinitions>
-                    <RowDefinition Height="Auto" />
-                    <RowDefinition Height="12" />
-                    <RowDefinition Height="Auto" />
-                    <RowDefinition Height="16" />
-                    <RowDefinition Height="*" />
-                </Grid.RowDefinitions>
+            <DockPanel LastChildFill="True">
+                <!-- Always-visible stats, docked at the bottom so every tab shows them. Right-click
+                     shows or hides stat groups for every game. Transparent background so the
+                     gaps between chips take the right-click too. -->
+                <Border x:Name="SidebarStatsHost"
+                        DockPanel.Dock="Bottom"
+                        Background="Transparent"
+                        MouseRightButtonUp="SidebarStatsHost_MouseRightButtonUp"
+                        BorderBrush="{DynamicResource PlayAch.Brush.ControlBorder}"
+                        BorderThickness="0,1,0,0"
+                        Margin="0,10,0,0"
+                        Padding="0,10,0,0">
+                    <StackPanel>
+                        <!-- Width reservation: a zero-height, hidden pair row whose counts are twice
+                             the achievement count at first load, so the sidebar is already wide
+                             enough for every chip it may later show. Without it a chip appearing
+                             or a count gaining a digit would widen the sidebar, and every tab
+                             host beside it would re-lay-out. -->
+                        <controls:PairedRowsPanel Height="0"
+                                                  Visibility="Hidden"
+                                                  Style="{StaticResource SidebarStatPairGroupStyle}"
+                                                  Margin="0">
+                            <Border Style="{StaticResource SidebarStatPairChipStyle}">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <Image Style="{StaticResource OverviewBadgeImageStyle}" />
+                                    <TextBlock Style="{StaticResource SidebarStatValueStyle}" Text="{Binding SidebarStatWidthReservationText}" />
+                                </Grid>
+                            </Border>
+                            <Border Style="{StaticResource SidebarStatPairChipStyle}">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <Image Style="{StaticResource OverviewBadgeImageStyle}" />
+                                    <TextBlock Style="{StaticResource SidebarStatValueStyle}" Text="{Binding SidebarStatWidthReservationText}" />
+                                </Grid>
+                            </Border>
+                        </controls:PairedRowsPanel>
 
-                <Border Grid.Row="2"
-                        Height="190"
-                        CornerRadius="{StaticResource PlayAch.Radius.Card}"
-                        ClipToBounds="False"
-                        Background="Transparent">
-                    <Image Stretch="Uniform"
-                           VerticalAlignment="Center"
-                           HorizontalAlignment="Center"
-                           helpers:AsyncImage.Uri="{Binding GameImagePath, Converter={StaticResource DefaultGameImage}, ConverterParameter=cover}"
-                           helpers:AsyncImage.DecodePixel="480" />
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Grid.Column="0"
+                                       Style="{StaticResource FieldLabelStyle}"
+                                       Text="{DynamicResource LOCPlayAch_ManageAchievements_Overview_Completion}" />
+                            <TextBlock Grid.Column="1"
+                                       Text="{Binding CompletionSummary}"
+                                       Foreground="{DynamicResource PlayAch.Brush.Text}"
+                                       FontWeight="SemiBold"
+                                       Margin="12,0,0,0"
+                                       HorizontalAlignment="Right" />
+                        </Grid>
+                        <ProgressBar Value="{Binding CompletionPercentValue, Mode=OneWay}"
+                                     Maximum="100"
+                                     Height="6"
+                                     Margin="0,6,0,10" />
+
+                        <Border BorderBrush="{DynamicResource PlayAch.Brush.ControlBorder}"
+                                BorderThickness="0,1,0,0"
+                                Margin="0,0,0,10"
+                                Visibility="{Binding SidebarAnyStatsVisible, Converter={StaticResource BoolToVis}}" />
+
+                        <!-- Capstones, then rarity and trophies (highest first), then the rest. A group collapses
+                             when the game has nothing for it or it is hidden from the right-click menu. -->
+                        <StackPanel Visibility="{Binding SidebarAnyStatsVisible, Converter={StaticResource BoolToVis}}">
+                            <StackPanel Style="{StaticResource SidebarStatGroupStyle}"
+                                        Visibility="{Binding SidebarCapstonesVisible, Converter={StaticResource BoolToVis}}">
+                                <Border Style="{StaticResource SidebarStatChipStyle}" ToolTip="{Binding OverviewSummary.Capstones.ToolTip}"
+                                        Visibility="{Binding SidebarCapstonesVisible, Converter={StaticResource BoolToVis}}">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="*" />
+                                        </Grid.ColumnDefinitions>
+                                        <Image Style="{StaticResource OverviewBadgeImageStyle}" Source="{DynamicResource BadgeRarityCompleted}" />
+                                        <TextBlock Style="{StaticResource SidebarStatValueStyle}" Text="{Binding OverviewSummary.Capstones.Text}" />
+                                    </Grid>
+                                </Border>
+                            </StackPanel>
+                            <controls:PairedRowsPanel Style="{StaticResource SidebarStatPairGroupStyle}"
+                                         Visibility="{Binding SidebarRarityVisible, Converter={StaticResource BoolToVis}}">
+                                <Border Style="{StaticResource SidebarStatPairChipStyle}" ToolTip="{DynamicResource LOCPlayAch_Rarity_UltraRare}"
+                                        Visibility="{Binding OverviewSummary.RarityUltraRare.IsVisible, Converter={StaticResource BoolToVis}}">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="*" />
+                                        </Grid.ColumnDefinitions>
+                                        <Image Style="{StaticResource OverviewBadgeImageStyle}" Source="{DynamicResource BadgeRarityUltraRare}" />
+                                        <TextBlock Style="{StaticResource SidebarStatValueStyle}" Text="{Binding OverviewSummary.RarityUltraRare.Text}" />
+                                    </Grid>
+                                </Border>
+                                <Border Style="{StaticResource SidebarStatPairChipStyle}" ToolTip="{DynamicResource LOCPlayAch_Rarity_Rare}"
+                                        Visibility="{Binding OverviewSummary.RarityRare.IsVisible, Converter={StaticResource BoolToVis}}">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="*" />
+                                        </Grid.ColumnDefinitions>
+                                        <Image Style="{StaticResource OverviewBadgeImageStyle}" Source="{DynamicResource BadgeRarityRare}" />
+                                        <TextBlock Style="{StaticResource SidebarStatValueStyle}" Text="{Binding OverviewSummary.RarityRare.Text}" />
+                                    </Grid>
+                                </Border>
+                                <Border Style="{StaticResource SidebarStatPairChipStyle}" ToolTip="{DynamicResource LOCPlayAch_Rarity_Uncommon}"
+                                        Visibility="{Binding OverviewSummary.RarityUncommon.IsVisible, Converter={StaticResource BoolToVis}}">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="*" />
+                                        </Grid.ColumnDefinitions>
+                                        <Image Style="{StaticResource OverviewBadgeImageStyle}" Source="{DynamicResource BadgeRarityUncommon}" />
+                                        <TextBlock Style="{StaticResource SidebarStatValueStyle}" Text="{Binding OverviewSummary.RarityUncommon.Text}" />
+                                    </Grid>
+                                </Border>
+                                <Border Style="{StaticResource SidebarStatPairChipStyle}" ToolTip="{DynamicResource LOCPlayAch_Rarity_Common}"
+                                        Visibility="{Binding OverviewSummary.RarityCommon.IsVisible, Converter={StaticResource BoolToVis}}">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="*" />
+                                        </Grid.ColumnDefinitions>
+                                        <Image Style="{StaticResource OverviewBadgeImageStyle}" Source="{DynamicResource BadgeRarityCommon}" />
+                                        <TextBlock Style="{StaticResource SidebarStatValueStyle}" Text="{Binding OverviewSummary.RarityCommon.Text}" />
+                                    </Grid>
+                                </Border>
+                            </controls:PairedRowsPanel>
+                            <controls:PairedRowsPanel Style="{StaticResource SidebarStatPairGroupStyle}"
+                                         Visibility="{Binding SidebarTrophiesVisible, Converter={StaticResource BoolToVis}}">
+                                <Border Style="{StaticResource SidebarStatPairChipStyle}" ToolTip="{DynamicResource LOCPlayAch_Trophy_Platinum}"
+                                        Visibility="{Binding OverviewSummary.TrophyPlatinum.IsVisible, Converter={StaticResource BoolToVis}}">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="*" />
+                                        </Grid.ColumnDefinitions>
+                                        <Image Style="{StaticResource OverviewBadgeImageStyle}" Source="{DynamicResource TrophyPlatinum}" />
+                                        <TextBlock Style="{StaticResource SidebarStatValueStyle}" Text="{Binding OverviewSummary.TrophyPlatinum.Text}" />
+                                    </Grid>
+                                </Border>
+                                <Border Style="{StaticResource SidebarStatPairChipStyle}" ToolTip="{DynamicResource LOCPlayAch_Trophy_Gold}"
+                                        Visibility="{Binding OverviewSummary.TrophyGold.IsVisible, Converter={StaticResource BoolToVis}}">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="*" />
+                                        </Grid.ColumnDefinitions>
+                                        <Image Style="{StaticResource OverviewBadgeImageStyle}" Source="{DynamicResource TrophyGold}" />
+                                        <TextBlock Style="{StaticResource SidebarStatValueStyle}" Text="{Binding OverviewSummary.TrophyGold.Text}" />
+                                    </Grid>
+                                </Border>
+                                <Border Style="{StaticResource SidebarStatPairChipStyle}" ToolTip="{DynamicResource LOCPlayAch_Trophy_Silver}"
+                                        Visibility="{Binding OverviewSummary.TrophySilver.IsVisible, Converter={StaticResource BoolToVis}}">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="*" />
+                                        </Grid.ColumnDefinitions>
+                                        <Image Style="{StaticResource OverviewBadgeImageStyle}" Source="{DynamicResource TrophySilver}" />
+                                        <TextBlock Style="{StaticResource SidebarStatValueStyle}" Text="{Binding OverviewSummary.TrophySilver.Text}" />
+                                    </Grid>
+                                </Border>
+                                <Border Style="{StaticResource SidebarStatPairChipStyle}" ToolTip="{DynamicResource LOCPlayAch_Trophy_Bronze}"
+                                        Visibility="{Binding OverviewSummary.TrophyBronze.IsVisible, Converter={StaticResource BoolToVis}}">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="*" />
+                                        </Grid.ColumnDefinitions>
+                                        <Image Style="{StaticResource OverviewBadgeImageStyle}" Source="{DynamicResource TrophyBronze}" />
+                                        <TextBlock Style="{StaticResource SidebarStatValueStyle}" Text="{Binding OverviewSummary.TrophyBronze.Text}" />
+                                    </Grid>
+                                </Border>
+                            </controls:PairedRowsPanel>
+                            <StackPanel Style="{StaticResource SidebarStatGroupStyle}"
+                                        Visibility="{Binding SidebarOtherStatsVisible, Converter={StaticResource BoolToVis}}">
+                                <Border Style="{StaticResource SidebarStatChipStyle}"
+                                        Visibility="{Binding SidebarPointsVisible, Converter={StaticResource BoolToVis}}">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="*" />
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Style="{StaticResource ChipTextStyle}" VerticalAlignment="Center" Text="{DynamicResource LOCPlayAch_Column_Points}" />
+                                        <TextBlock Style="{StaticResource SidebarStatValueStyle}" Text="{Binding OverviewSummary.Points.Text}" />
+                                    </Grid>
+                                </Border>
+                                <Border Style="{StaticResource SidebarStatChipStyle}"
+                                        Visibility="{Binding SidebarGoalsVisible, Converter={StaticResource BoolToVis}}">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="*" />
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Style="{StaticResource ChipTextStyle}" VerticalAlignment="Center" Text="{DynamicResource LOCPlayAch_ManageAchievements_Editor_Goal}" />
+                                        <TextBlock Style="{StaticResource SidebarStatValueStyle}" Text="{Binding OverviewSummary.Goals.Text}" />
+                                    </Grid>
+                                </Border>
+                                <Border Style="{StaticResource SidebarStatChipStyle}"
+                                        Visibility="{Binding SidebarCategorizedVisible, Converter={StaticResource BoolToVis}}">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="*" />
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Style="{StaticResource ChipTextStyle}" VerticalAlignment="Center" Text="{DynamicResource LOCPlayAch_ManageAchievements_Overview_Categorized}" />
+                                        <TextBlock Style="{StaticResource SidebarStatValueStyle}" Text="{Binding OverviewSummary.Categorized.Text}" />
+                                    </Grid>
+                                </Border>
+                                <Border Style="{StaticResource SidebarStatChipStyle}"
+                                        Visibility="{Binding SidebarFilteredVisible, Converter={StaticResource BoolToVis}}">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="*" />
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Style="{StaticResource ChipTextStyle}" VerticalAlignment="Center" Text="{DynamicResource LOCPlayAch_Menu_Filters}" />
+                                        <TextBlock Style="{StaticResource SidebarStatValueStyle}" Text="{Binding OverviewSummary.Filtered.Text}" />
+                                    </Grid>
+                                </Border>
+                                <Border Style="{StaticResource SidebarStatChipStyle}"
+                                        Visibility="{Binding SidebarNotesVisible, Converter={StaticResource BoolToVis}}">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="*" />
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Style="{StaticResource ChipTextStyle}" VerticalAlignment="Center" Text="{DynamicResource LOCPlayAch_ManageAchievements_Tab_Notes}" />
+                                        <TextBlock Style="{StaticResource SidebarStatValueStyle}" Text="{Binding OverviewSummary.Notes.Text}" />
+                                    </Grid>
+                                </Border>
+                            </StackPanel>
+                        </StackPanel>
+                    </StackPanel>
                 </Border>
 
-                <ScrollViewer Grid.Row="4"
-                              VerticalScrollBarVisibility="Auto"
-                              HorizontalScrollBarVisibility="Disabled">
-                    <StackPanel>
-                        <TextBlock Text="{DynamicResource LOCPlayAch_Common_General}"
-                                   Style="{StaticResource NavSectionHeaderStyle}"
-                                   Margin="0,0,0,4" />
+                <!-- The tabs never scroll: the cover takes what height is left, up to 190, and
+                     shrinks first when the window is short or the stats run long. -->
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="12" />
+                        <RowDefinition Height="*" MaxHeight="190" />
+                        <RowDefinition Height="16" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+
+                    <controls:WidthFollowingDecorator Grid.Row="2">
+                        <Border CornerRadius="{StaticResource PlayAch.Radius.Card}"
+                                ClipToBounds="False"
+                                Background="Transparent">
+                            <Image Stretch="Uniform"
+                                   VerticalAlignment="Center"
+                                   HorizontalAlignment="Center"
+                                   helpers:AsyncImage.Uri="{Binding GameImagePath, Converter={StaticResource DefaultGameImage}, ConverterParameter=cover}"
+                                   helpers:AsyncImage.DecodePixel="480" />
+                        </Border>
+                    </controls:WidthFollowingDecorator>
+
+                    <StackPanel Grid.Row="4">
                         <RadioButton x:Name="OverviewTabButton"
                                      Content="{DynamicResource LOCPlayAch_ManageAchievements_Tab_Overview}"
                                      Style="{StaticResource NavTabRadioStyle}"
                                      IsChecked="{Binding SelectedTab, Mode=TwoWay, Converter={StaticResource EnumToBool}, ConverterParameter=Overview}" />
-                        <RadioButton x:Name="ManualTrackingTabButton"
-                                     Content="{DynamicResource LOCPlayAch_ManageAchievements_Tab_ManualTracking}"
+                        <!-- Not gated on HasAchievementData: it is the Custom tab widened to every
+                             achievement, so it must stay reachable for a game with no cached
+                             achievements, where custom ones are authored. -->
+                        <RadioButton x:Name="EditorTabButton"
+                                     Content="{DynamicResource LOCPlayAch_ManageAchievements_Tab_Editor}"
                                      Style="{StaticResource NavTabRadioStyle}"
-                                     Visibility="{Binding ShowManualTrackingTab, Converter={StaticResource BoolToVis}}"
-                                     IsChecked="{Binding SelectedTab, Mode=TwoWay, Converter={StaticResource EnumToBool}, ConverterParameter=ManualTracking}" />
+                                     IsChecked="{Binding SelectedTab, Mode=TwoWay, Converter={StaticResource EnumToBool}, ConverterParameter=Editor}" />
 
-                        <RadioButton x:Name="CustomSchemaTabButton"
-                                     Content="{DynamicResource LOCPlayAch_GameOptions_Tab_CustomSchema}"
-                                     Style="{StaticResource NavTabRadioStyle}"
-                                     IsChecked="{Binding SelectedTab, Mode=TwoWay, Converter={StaticResource EnumToBool}, ConverterParameter=CustomSchema}" />
-
-                        <TextBlock x:Name="AchievementsSectionHeader"
-                                   Text="{DynamicResource LOCPlayAch_Achievements}"
-                                   Style="{StaticResource NavSectionHeaderStyle}"
-                                   Visibility="{Binding HasAchievementData, Converter={StaticResource BoolToVis}}" />
                         <RadioButton x:Name="CategoryTabButton"
                                      Content="{DynamicResource LOCPlayAch_ManageAchievements_Tab_Category}"
                                      Style="{StaticResource NavTabRadioStyle}"
                                      Visibility="{Binding HasAchievementData, Converter={StaticResource BoolToVis}}"
                                      IsChecked="{Binding SelectedTab, Mode=TwoWay, Converter={StaticResource EnumToBool}, ConverterParameter=Category}" />
-                        <RadioButton x:Name="FiltersTabButton"
-                                     Content="{DynamicResource LOCPlayAch_Menu_Filters}"
-                                     Style="{StaticResource NavTabRadioStyle}"
-                                     Visibility="{Binding HasAchievementData, Converter={StaticResource BoolToVis}}"
-                                     IsChecked="{Binding SelectedTab, Mode=TwoWay, Converter={StaticResource EnumToBool}, ConverterParameter=Filters}" />
-                        <RadioButton x:Name="AchievementOrderTabButton"
-                                     Content="{DynamicResource LOCPlayAch_ManageAchievements_Tab_AchievementOrder}"
-                                     Style="{StaticResource NavTabRadioStyle}"
-                                     Visibility="{Binding HasAchievementData, Converter={StaticResource BoolToVis}}"
-                                     IsChecked="{Binding SelectedTab, Mode=TwoWay, Converter={StaticResource EnumToBool}, ConverterParameter=AchievementOrder}" />
-                        <RadioButton x:Name="CapstonesTabButton"
-                                     Content="{DynamicResource LOCPlayAch_ManageAchievements_Tab_Capstones}"
-                                     Style="{StaticResource NavTabRadioStyle}"
-                                     Visibility="{Binding HasAchievementData, Converter={StaticResource BoolToVis}}"
-                                     IsChecked="{Binding SelectedTab, Mode=TwoWay, Converter={StaticResource EnumToBool}, ConverterParameter=Capstones}" />
-                        <RadioButton x:Name="GoalsTabButton"
-                                     Content="{DynamicResource LOCPlayAch_ManageAchievements_Tab_Goals}"
-                                     Style="{StaticResource NavTabRadioStyle}"
-                                     Visibility="{Binding HasAchievementData, Converter={StaticResource BoolToVis}}"
-                                     IsChecked="{Binding SelectedTab, Mode=TwoWay, Converter={StaticResource EnumToBool}, ConverterParameter=Goals}" />
-                        <RadioButton x:Name="NotesTabButton"
-                                     Content="{DynamicResource LOCPlayAch_ManageAchievements_Tab_Notes}"
-                                     Style="{StaticResource NavTabRadioStyle}"
-                                     Visibility="{Binding HasAchievementData, Converter={StaticResource BoolToVis}}"
-                                     IsChecked="{Binding SelectedTab, Mode=TwoWay, Converter={StaticResource EnumToBool}, ConverterParameter=Notes}" />
 
-                        <TextBlock Text="{DynamicResource LOCPlayAch_Settings_Appearance}"
-                                   Style="{StaticResource NavSectionHeaderStyle}" />
-                        <RadioButton x:Name="CustomIconsTabButton"
-                                     Content="{DynamicResource LOCPlayAch_ManageAchievements_Tab_CustomIcons}"
-                                     Style="{StaticResource NavTabRadioStyle}"
-                                     Visibility="{Binding HasAchievementData, Converter={StaticResource BoolToVis}}"
-                                     IsChecked="{Binding SelectedTab, Mode=TwoWay, Converter={StaticResource EnumToBool}, ConverterParameter=CustomIcons}" />
                         <RadioButton x:Name="NotificationsTabButton"
                                      Content="{DynamicResource LOCPlayAch_Settings_TabNotifications}"
                                      Style="{StaticResource NavTabRadioStyle}"
                                      IsChecked="{Binding SelectedTab, Mode=TwoWay, Converter={StaticResource EnumToBool}, ConverterParameter=Notifications}" />
-
-                        <TextBlock Text="{DynamicResource LOCPlayAch_Settings_Maintenance_Title}"
-                                   Style="{StaticResource NavSectionHeaderStyle}" />
-                        <RadioButton x:Name="OverridesTabButton"
-                                     Content="{DynamicResource LOCPlayAch_ManageAchievements_Tab_Overrides}"
+                        <RadioButton x:Name="LocalOverridesTabButton"
+                                     Content="Local Overrides"
                                      Style="{StaticResource NavTabRadioStyle}"
-                                     IsChecked="{Binding SelectedTab, Mode=TwoWay, Converter={StaticResource EnumToBool}, ConverterParameter=Overrides}" />
+                                     IsChecked="{Binding SelectedTab, Mode=TwoWay, Converter={StaticResource EnumToBool}, ConverterParameter=LocalOverrides}" />
                     </StackPanel>
-                </ScrollViewer>
-            </Grid>
+                </Grid>
+            </DockPanel>
         </Border>
 
         <Border x:Name="ManageAchievementsContentHost"
@@ -185,286 +404,51 @@
                 CornerRadius="{StaticResource PlayAch.Radius.Card}"
                 Padding="{StaticResource PlayAch.Thickness.CardPadding}">
             <Grid>
-                <views:ManageAchievementsOverviewTab x:Name="OverviewTabControl">
-                    <views:ManageAchievementsOverviewTab.Style>
-                        <Style TargetType="{x:Type views:ManageAchievementsOverviewTab}">
-                            <Setter Property="Visibility" Value="Collapsed" />
+                <!-- Every tab is a host, and every host is Hidden rather than Collapsed when
+                     it is not the selected one.
+
+                     Hosted, so the shell does not build all five: overview and overrides used
+                     to be inline, which put their construction and first layout inside
+                     ShowDialog's synchronous first render.
+
+                     Hidden, so a host that has been filled is still measured and arranged.
+                     WPF skips layout for a Collapsed element entirely, which meant a
+                     pre-built tab still paid its whole first layout and render on the click
+                     that revealed it - measured as a 557ms stall on selecting the editor.
+                     Hidden lets the idle prebuild absorb that instead. -->
+                <Grid>
+                    <Grid.Style>
+                        <Style TargetType="{x:Type Grid}">
+                            <Setter Property="Visibility" Value="Hidden" />
                             <Style.Triggers>
                                 <DataTrigger Binding="{Binding SelectedTab}" Value="Overview">
                                     <Setter Property="Visibility" Value="Visible" />
                                 </DataTrigger>
                             </Style.Triggers>
                         </Style>
-                    </views:ManageAchievementsOverviewTab.Style>
-                </views:ManageAchievementsOverviewTab>
+                    </Grid.Style>
+                    <ContentControl x:Name="OverviewHost" />
+                </Grid>
 
-                <Grid x:Name="CustomSchemaControlRoot">
+
+                <Grid>
                     <Grid.Style>
                         <Style TargetType="{x:Type Grid}">
-                            <Setter Property="Visibility" Value="Collapsed" />
+                            <Setter Property="Visibility" Value="Hidden" />
                             <Style.Triggers>
-                                <DataTrigger Binding="{Binding SelectedTab}" Value="CustomSchema">
+                                <DataTrigger Binding="{Binding SelectedTab}" Value="Editor">
                                     <Setter Property="Visibility" Value="Visible" />
                                 </DataTrigger>
                             </Style.Triggers>
                         </Style>
                     </Grid.Style>
-                    <Grid.RowDefinitions>
-                        <RowDefinition Height="Auto" />
-                        <RowDefinition Height="12" />
-                        <RowDefinition Height="*" />
-                    </Grid.RowDefinitions>
-
-                    <StackPanel Grid.Row="0" Orientation="Horizontal">
-                        <RadioButton Content="{DynamicResource LOCPlayAch_GameOptions_Tab_Schema}"
-                                     Style="{StaticResource NavTabRadioStyle}"
-                                     Margin="0"
-                                     IsChecked="{Binding SelectedCustomSchemaTab, Mode=TwoWay, Converter={StaticResource EnumToBool}, ConverterParameter=SchemaJson}" />
-                        <RadioButton Content="{DynamicResource LOCPlayAch_GameOptions_Tab_Capstones}"
-                                     Style="{StaticResource NavTabRadioStyle}"
-                                     Margin="8,0,0,0"
-                                     IsChecked="{Binding SelectedCustomSchemaTab, Mode=TwoWay, Converter={StaticResource EnumToBool}, ConverterParameter=Capstones}" />
-                        <RadioButton Content="{DynamicResource LOCPlayAch_GameOptions_Tab_Category}"
-                                     Style="{StaticResource NavTabRadioStyle}"
-                                     Margin="8,0,0,0"
-                                     IsChecked="{Binding SelectedCustomSchemaTab, Mode=TwoWay, Converter={StaticResource EnumToBool}, ConverterParameter=Category}" />
-                        <RadioButton Content="{DynamicResource LOCPlayAch_GameOptions_Tab_AchievementOrder}"
-                                     Style="{StaticResource NavTabRadioStyle}"
-                                     Margin="8,0,0,0"
-                                     IsChecked="{Binding SelectedCustomSchemaTab, Mode=TwoWay, Converter={StaticResource EnumToBool}, ConverterParameter=AchievementOrder}" />
-                        <RadioButton Content="{DynamicResource LOCPlayAch_GameOptions_Tab_CustomIcons}"
-                                     Style="{StaticResource NavTabRadioStyle}"
-                                     Margin="8,0,0,0"
-                                     IsChecked="{Binding SelectedCustomSchemaTab, Mode=TwoWay, Converter={StaticResource EnumToBool}, ConverterParameter=CustomIcons}" />
-                    </StackPanel>
-
-                    <Grid Grid.Row="2">
-                        <Grid>
-                            <Grid.Style>
-                                <Style TargetType="{x:Type Grid}">
-                                    <Setter Property="Visibility" Value="Collapsed" />
-                                    <Style.Triggers>
-                                        <DataTrigger Binding="{Binding SelectedCustomSchemaTab}" Value="SchemaJson">
-                                            <Setter Property="Visibility" Value="Visible" />
-                                        </DataTrigger>
-                                    </Style.Triggers>
-                                </Style>
-                            </Grid.Style>
-                            <Grid.RowDefinitions>
-                                <RowDefinition Height="Auto" />
-                                <RowDefinition Height="Auto" />
-                                <RowDefinition Height="Auto" />
-                                <RowDefinition Height="Auto" />
-                                <RowDefinition Height="*" />
-                                <RowDefinition Height="Auto" />
-                            </Grid.RowDefinitions>
-                            <TextBlock Grid.Row="0"
-                                       Text="{Binding LocalCustomSchemaStatusText}"
-                                       Foreground="{DynamicResource PlayAch.Brush.Text}"
-                                       TextWrapping="Wrap"
-                                       Margin="{StaticResource PlayAch.Thickness.Bottom.Sm}" />
-                            <CheckBox Grid.Row="1"
-                                      Content="{DynamicResource LOCPlayAch_GameOptions_CustomSchemaEnabled}"
-                                      IsChecked="{Binding LocalCustomSchemaEnabled, Mode=TwoWay}"
-                                      Margin="{StaticResource PlayAch.Thickness.Bottom.Sm}" />
-                            <Grid Grid.Row="2" Margin="{StaticResource PlayAch.Thickness.Bottom.Sm}">
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="*" />
-                                    <ColumnDefinition Width="Auto" />
-                                    <ColumnDefinition Width="Auto" />
-                                    <ColumnDefinition Width="Auto" />
-                                </Grid.ColumnDefinitions>
-                                <TextBox Grid.Column="0"
-                                         Text="{Binding LocalCustomSchemaOverrideInput, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                         Padding="8,6" />
-                                <Button Grid.Column="1"
-                                        Content="{DynamicResource LOCPlayAch_Button_Browse}"
-                                        Command="{Binding BrowseLocalCustomSchemaOverrideCommand}"
-                                        Padding="{StaticResource PlayAch.Thickness.ButtonPadding}"
-                                        Margin="{StaticResource PlayAch.Thickness.Left.Sm}" />
-                                <Button Grid.Column="2"
-                                        Content="{DynamicResource LOCPlayAch_Button_Apply}"
-                                        Command="{Binding ApplyLocalCustomSchemaOverrideCommand}"
-                                        Padding="{StaticResource PlayAch.Thickness.ButtonPadding}"
-                                        Margin="{StaticResource PlayAch.Thickness.Left.Sm}" />
-                                <Button Grid.Column="3"
-                                        Content="{DynamicResource LOCPlayAch_Button_Clear}"
-                                        Command="{Binding ClearLocalCustomSchemaOverrideCommand}"
-                                        Padding="{StaticResource PlayAch.Thickness.ButtonPadding}"
-                                        Margin="{StaticResource PlayAch.Thickness.Left.Sm}" />
-                            </Grid>
-                            <StackPanel Grid.Row="3"
-                                        Orientation="Horizontal"
-                                        Margin="{StaticResource PlayAch.Thickness.Bottom.Sm}">
-                                <Button Content="{DynamicResource LOCPlayAch_Button_Reload}"
-                                        Command="{Binding ReloadCustomSchemaEditorCommand}"
-                                        Padding="{StaticResource PlayAch.Thickness.ButtonPadding}"
-                                        Margin="{StaticResource PlayAch.Thickness.Right.Sm}" />
-                                <Button Content="{DynamicResource LOCPlayAch_Button_Save}"
-                                        Command="{Binding SaveCustomSchemaEditorCommand}"
-                                        Padding="{StaticResource PlayAch.Thickness.ButtonPadding}" />
-                            </StackPanel>
-                            <TextBox Grid.Row="4"
-                                     Text="{Binding CustomSchemaEditorText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                     AcceptsReturn="True"
-                                     AcceptsTab="True"
-                                     VerticalScrollBarVisibility="Auto"
-                                     HorizontalScrollBarVisibility="Auto"
-                                     TextWrapping="NoWrap"
-                                     FontFamily="Consolas"
-                                     FontSize="12"
-                                     Padding="8" />
-                            <TextBlock Grid.Row="5"
-                                       Text="{Binding CustomSchemaEditorStatus}"
-                                       Foreground="{DynamicResource PlayAch.Brush.Text}"
-                                       Margin="{StaticResource PlayAch.Thickness.Top.Sm}"
-                                       TextWrapping="Wrap"
-                                       Opacity="0.82">
-                                <TextBlock.Style>
-                                    <Style TargetType="TextBlock">
-                                        <Style.Triggers>
-                                            <DataTrigger Binding="{Binding CustomSchemaEditorStatusIsError}" Value="True">
-                                                <Setter Property="Foreground" Value="#FFE07070" />
-                                                <Setter Property="Opacity" Value="1" />
-                                            </DataTrigger>
-                                        </Style.Triggers>
-                                    </Style>
-                                </TextBlock.Style>
-                            </TextBlock>
-                        </Grid>
-
-                        <Grid>
-                            <Grid.Style>
-                                <Style TargetType="{x:Type Grid}">
-                                    <Setter Property="Visibility" Value="Collapsed" />
-                                    <Style.Triggers>
-                                        <DataTrigger Binding="{Binding SelectedCustomSchemaTab}" Value="Capstones">
-                                            <Setter Property="Visibility" Value="Visible" />
-                                        </DataTrigger>
-                                    </Style.Triggers>
-                                </Style>
-                            </Grid.Style>
-                            <ContentControl x:Name="CustomSchemaCapstoneHost" />
-                        </Grid>
-
-                        <Grid>
-                            <Grid.Style>
-                                <Style TargetType="{x:Type Grid}">
-                                    <Setter Property="Visibility" Value="Collapsed" />
-                                    <Style.Triggers>
-                                        <DataTrigger Binding="{Binding SelectedCustomSchemaTab}" Value="AchievementOrder">
-                                            <Setter Property="Visibility" Value="Visible" />
-                                        </DataTrigger>
-                                    </Style.Triggers>
-                                </Style>
-                            </Grid.Style>
-                            <ContentControl x:Name="CustomSchemaAchievementOrderHost" />
-                        </Grid>
-
-                        <Grid>
-                            <Grid.Style>
-                                <Style TargetType="{x:Type Grid}">
-                                    <Setter Property="Visibility" Value="Collapsed" />
-                                    <Style.Triggers>
-                                        <DataTrigger Binding="{Binding SelectedCustomSchemaTab}" Value="Category">
-                                            <Setter Property="Visibility" Value="Visible" />
-                                        </DataTrigger>
-                                    </Style.Triggers>
-                                </Style>
-                            </Grid.Style>
-                            <ContentControl x:Name="CustomSchemaCategoryHost" />
-                        </Grid>
-
-                        <Grid>
-                            <Grid.Style>
-                                <Style TargetType="{x:Type Grid}">
-                                    <Setter Property="Visibility" Value="Collapsed" />
-                                    <Style.Triggers>
-                                        <DataTrigger Binding="{Binding SelectedCustomSchemaTab}" Value="CustomIcons">
-                                            <Setter Property="Visibility" Value="Visible" />
-                                        </DataTrigger>
-                                    </Style.Triggers>
-                                </Style>
-                            </Grid.Style>
-                            <ContentControl x:Name="CustomSchemaAchievementIconsHost" />
-                        </Grid>
-                    </Grid>
-                </Grid>
-
-                <views:ManageAchievementsOverridesTab x:Name="OverridesTabControl">
-                    <views:ManageAchievementsOverridesTab.Style>
-                        <Style TargetType="{x:Type views:ManageAchievementsOverridesTab}">
-                            <Setter Property="Visibility" Value="Collapsed" />
-                            <Style.Triggers>
-                                <DataTrigger Binding="{Binding SelectedTab}" Value="Overrides">
-                                    <Setter Property="Visibility" Value="Visible" />
-                                </DataTrigger>
-                            </Style.Triggers>
-                        </Style>
-                    </views:ManageAchievementsOverridesTab.Style>
-                </views:ManageAchievementsOverridesTab>
-
-                <Grid>
-                    <Grid.Style>
-                        <Style TargetType="{x:Type Grid}">
-                            <Setter Property="Visibility" Value="Collapsed" />
-                            <Style.Triggers>
-                                <DataTrigger Binding="{Binding SelectedTab}" Value="Capstones">
-                                    <Setter Property="Visibility" Value="Visible" />
-                                </DataTrigger>
-                            </Style.Triggers>
-                        </Style>
-                    </Grid.Style>
-
-                    <ContentControl x:Name="CapstoneHost" />
+                    <ContentControl x:Name="EditorHost" />
                 </Grid>
 
                 <Grid>
                     <Grid.Style>
                         <Style TargetType="{x:Type Grid}">
-                            <Setter Property="Visibility" Value="Collapsed" />
-                            <Style.Triggers>
-                                <DataTrigger Binding="{Binding SelectedTab}" Value="ManualTracking">
-                                    <Setter Property="Visibility" Value="Visible" />
-                                </DataTrigger>
-                            </Style.Triggers>
-                        </Style>
-                    </Grid.Style>
-                    <ContentControl x:Name="ManualHost" />
-                </Grid>
-
-                <Grid>
-                    <Grid.Style>
-                        <Style TargetType="{x:Type Grid}">
-                            <Setter Property="Visibility" Value="Collapsed" />
-                            <Style.Triggers>
-                                <DataTrigger Binding="{Binding SelectedTab}" Value="AchievementOrder">
-                                    <Setter Property="Visibility" Value="Visible" />
-                                </DataTrigger>
-                            </Style.Triggers>
-                        </Style>
-                    </Grid.Style>
-                    <ContentControl x:Name="AchievementOrderHost" />
-                </Grid>
-
-                <Grid>
-                    <Grid.Style>
-                        <Style TargetType="{x:Type Grid}">
-                            <Setter Property="Visibility" Value="Collapsed" />
-                            <Style.Triggers>
-                                <DataTrigger Binding="{Binding SelectedTab}" Value="Goals">
-                                    <Setter Property="Visibility" Value="Visible" />
-                                </DataTrigger>
-                            </Style.Triggers>
-                        </Style>
-                    </Grid.Style>
-                    <ContentControl x:Name="GoalsHost" />
-                </Grid>
-
-                <Grid>
-                    <Grid.Style>
-                        <Style TargetType="{x:Type Grid}">
-                            <Setter Property="Visibility" Value="Collapsed" />
+                            <Setter Property="Visibility" Value="Hidden" />
                             <Style.Triggers>
                                 <DataTrigger Binding="{Binding SelectedTab}" Value="Category">
                                     <Setter Property="Visibility" Value="Visible" />
@@ -478,49 +462,7 @@
                 <Grid>
                     <Grid.Style>
                         <Style TargetType="{x:Type Grid}">
-                            <Setter Property="Visibility" Value="Collapsed" />
-                            <Style.Triggers>
-                                <DataTrigger Binding="{Binding SelectedTab}" Value="Filters">
-                                    <Setter Property="Visibility" Value="Visible" />
-                                </DataTrigger>
-                            </Style.Triggers>
-                        </Style>
-                    </Grid.Style>
-                    <ContentControl x:Name="FiltersHost" />
-                </Grid>
-
-                <Grid>
-                    <Grid.Style>
-                        <Style TargetType="{x:Type Grid}">
-                            <Setter Property="Visibility" Value="Collapsed" />
-                            <Style.Triggers>
-                                <DataTrigger Binding="{Binding SelectedTab}" Value="Notes">
-                                    <Setter Property="Visibility" Value="Visible" />
-                                </DataTrigger>
-                            </Style.Triggers>
-                        </Style>
-                    </Grid.Style>
-                    <ContentControl x:Name="NotesHost" />
-                </Grid>
-
-                <Grid>
-                    <Grid.Style>
-                        <Style TargetType="{x:Type Grid}">
-                            <Setter Property="Visibility" Value="Collapsed" />
-                            <Style.Triggers>
-                                <DataTrigger Binding="{Binding SelectedTab}" Value="CustomIcons">
-                                    <Setter Property="Visibility" Value="Visible" />
-                                </DataTrigger>
-                            </Style.Triggers>
-                        </Style>
-                    </Grid.Style>
-                    <ContentControl x:Name="AchievementIconsHost" />
-                </Grid>
-
-                <Grid>
-                    <Grid.Style>
-                        <Style TargetType="{x:Type Grid}">
-                            <Setter Property="Visibility" Value="Collapsed" />
+                            <Setter Property="Visibility" Value="Hidden" />
                             <Style.Triggers>
                                 <DataTrigger Binding="{Binding SelectedTab}" Value="Notifications">
                                     <Setter Property="Visibility" Value="Visible" />
@@ -529,6 +471,20 @@
                         </Style>
                     </Grid.Style>
                     <ContentControl x:Name="NotificationsHost" />
+                </Grid>
+
+                <Grid>
+                    <Grid.Style>
+                        <Style TargetType="{x:Type Grid}">
+                            <Setter Property="Visibility" Value="Hidden" />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding SelectedTab}" Value="LocalOverrides">
+                                    <Setter Property="Visibility" Value="Visible" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </Grid.Style>
+                    <ContentControl x:Name="LocalOverridesHost" />
                 </Grid>
             </Grid>
         </Border>

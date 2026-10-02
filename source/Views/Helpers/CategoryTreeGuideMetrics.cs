@@ -95,6 +95,14 @@ namespace PlayniteAchievements.Views.Helpers
         public const double ToggleRadius = 7d;
 
         /// <summary>
+        /// How far a boundary toggle reaches below the row that draws it. The last row has no row
+        /// beneath it to paint the glyph, so it draws its own past its bottom edge - which is also
+        /// where the scrolling panel stops clipping once the list is scrolled to the end. Surfaces
+        /// add this much room under the last row so that glyph stays reachable.
+        /// </summary>
+        public const double BoundaryToggleOverhang = ToggleRadius + 4d;
+
+        /// <summary>
         /// Radius of the boundary toggle - the +/- glyph centred on the border between a
         /// toggle-bearing row and the row beneath it. Shared by both rows so the row above (which
         /// stops its descender at the glyph's top) and the row below (which draws the glyph and

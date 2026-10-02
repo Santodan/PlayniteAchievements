@@ -304,7 +304,15 @@ display's own period read from the OS.
 
 ```powershell
 tools\capture-harness\bin\SlideCadenceProbe.exe [--repeats 5] [--load N]
+    [--card-width 442] [--card-height 138] [--glow 12] [--nested]
 ```
+
+The geometry flags matter more than they look: the default 442x138 card with a 12-radius shadow pins
+every transform variant at 100% of refresh on a quick display, and a variant measured with no headroom
+cannot show a win. Display scale is not settable here, so reproduce a scaled card by its device-pixel
+equivalent - `--card-width 2328 --card-height 496 --glow 72` is the same rasterization work at 100% as
+a 1164x248 card with a 36-radius border glow at 200%. `--nested` gives each text line the real
+template's nested effect pair, which costs two full-width render intermediates per line instead of one.
 
 `--load N` spawns N child processes of the probe itself, each rendering large animated blurs every
 frame. GPU contention arrives from other processes when a game runs, so the load deliberately lives
@@ -343,6 +351,39 @@ the contended regime either, which is why the plugin's quiet-slide scope does no
 Counting the animation's own value changes would prove nothing: a WPF timeline advances once per composed
 frame by construction, so that only re-measures the render loop. The rate the loop itself holds is the
 number.
+
+#### At a user-sized card, the surface is the ceiling
+
+Both tables above were taken at the default 442x138 card, where the transform variants sit at 100% and
+so cannot separate. Re-measured on the same 165 Hz display at a reported user geometry -
+`--card-width 2328 --card-height 496 --glow 72 --nested`, the device-pixel equivalent of a 1164x248
+card with the border glow on at 200% scale - `Transform` alone drops to **22 frames, 82.5 Hz, 50% of
+refresh**, with no GPU load at all.
+
+The glow radius does not move that number. Holding the geometry and varying only the blur:
+
+| card effect | `Transform` frames | sustained |
+|---|---|---|
+| `--glow 72` | 23 | 50% |
+| `--glow 24` | 22 | 50% |
+| `--glow 0` | 23 | 50% |
+
+So the per-frame cost is **the layered window's surface blit, which scales with area**, not the card's
+effects - consistent with the contended finding above that a retained tree does not re-rasterize a
+static card on translate. A blur is paid once, at first paint; the blit is paid every frame.
+
+This corrects one claim above: *the travel padding is not free at a large card.* It is free at 442x138
+only because everything there is already at the ceiling. `TransformNoPadding` removes ~57% of the
+surface (the reserved travel room, which at a top corner hangs off the monitor entirely) and is the
+only variant observed to reach 100% at the large geometry. It remains unusable as a mode - an HWND
+clips its content, so a slide needs that room - but it prices what the oversized surface costs, and it
+means shrinking the window to the card *after the settle* is worth real frames for the hold, where 10
+of a toast's ~10.2 seconds are spent.
+
+A `BitmapCache` still buys nothing: `TransformCached` did not beat `Transform` at this geometry either,
+which is now explained rather than merely observed - there is no per-frame rasterization for a cache to
+save. Its numbers, and `TransformNoPadding`'s, varied run to run by enough (20-38 frames) that only
+`Transform`'s stable 22-23 should be read as a measurement; repeat those two before acting on them.
 
 ## The composer probe
 
@@ -387,6 +428,44 @@ So the fold is geometrically exact and, on realistic content, within one 8-bit s
 ships. The 160 is the worst case by construction: a 4x4 checker alternating linear 4.0 and 0.02
 straddles the tone-map shoulder, where averaging before the curve gives 255 and averaging after it
 gives 147. Real frames do not look like that; the ramp case is the representative number.
+
+## The theme toast clip probe
+
+```powershell
+tools\capture-harness\bin\ThemeToastClipProbe.exe <AchievementToast.xaml> [--theme <themeDir>] [--base <clip.mp4>]
+    [--fps 60] [--out <dir>] [--label <name>]
+```
+
+Runs a theme's toast file through the clip path and writes `<label>.mp4` plus `<label>_motion.csv` to
+`bin\theme_toast\`.
+The surface, slide host, shadow capture, pixel prime, per-tick sampling, slide storyboards, track recorder
+and overlay re-encoder are the plugin's own, driven by reflection on an uninitialized
+`ToastNotificationService`; the probe supplies only the wave timeline (warm frames, capture delay, hold,
+slide-out) and the sampling cadence, both mirrored from the wave loop.
+Playnite's `ThemeFile` extension is replaced by the file path it resolves to, the PS5-Experience gradient
+and the `LOCPS5*` strings are defined in the probe, and the base clip defaults to `harness_clip.mp4`.
+
+At every sample it records where the card's template root actually is on screen and compares that with
+where the track will composite it (the host slide offset plus the opaque left edge of the stored frame).
+The summary counts samples where the live card moved but the recorded one did not, and reports the
+position error.
+
+What it established, on the PS5-Experience toast of 2026-09-30 at 60 fps:
+
+- A slide authored as a `Loaded`-triggered `TranslateTransform` inside the template is invisible to the
+  clip path. The primed frame was taken with the card 128 px short of rest; the track held it through the
+  slide-in span and then snapped (26 of 36 moving samples frozen, 162 px worst error at the slide-out,
+  which the clip replaced with a fade in place).
+- The shadow layer is captured once, before the slide, at the card's position then. With the card moving
+  inside its own frame the halo no longer lines up, and the clip shows a ghost copy of the card's text for
+  the whole hold.
+- The same motion authored in `ToastSlideIn`/`ToastSlideOut` against
+  `(UIElement.RenderTransform).(TransformGroup.Children)[1].(TranslateTransform.X)` is recorded as host
+  offset and interpolated: 0 frozen samples, 0.0 px error, one stored frame, no ghost.
+
+Limits: a live wave also settles DPI and places the window between the card's `Loaded` and the slide
+start, so how far a template animation has run when the frame is primed differs from the probe. The
+freeze and the misplaced halo do not depend on that distance, only its size does.
 
 ## Supporting tools
 

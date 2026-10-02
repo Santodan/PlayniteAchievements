@@ -10,6 +10,21 @@ namespace PlayniteAchievements.Views.Helpers
         private const double MinimumSavedWidth = 100d;
         private const double MinimumSavedHeight = 100d;
 
+        /// <summary>
+        /// Attaches against the running plugin's settings. For the many dialogs opened from static
+        /// helpers, which have no settings reference of their own.
+        /// </summary>
+        public static void Attach(Window window, string key, ILogger logger = null)
+        {
+            var plugin = PlayniteAchievementsPlugin.Instance;
+            Attach(
+                window,
+                plugin?.Settings?.Persisted,
+                () => plugin?.PersistSettingsForUi(),
+                key,
+                logger);
+        }
+
         public static void Attach(
             Window window,
             PersistedSettings settings,
@@ -52,8 +67,15 @@ namespace PlayniteAchievements.Views.Helpers
                 window.WindowStartupLocation = WindowStartupLocation.Manual;
                 window.Left = bounds.Left;
                 window.Top = bounds.Top;
-                window.Width = bounds.Width;
-                window.Height = bounds.Height;
+
+                // A fixed-size dialog gets its position back but keeps the size its caller asked
+                // for. Restoring a saved size there would pin whatever the content measured in an
+                // older version, and clip it as soon as the dialog gains a field.
+                if (window.ResizeMode != ResizeMode.NoResize)
+                {
+                    window.Width = bounds.Width;
+                    window.Height = bounds.Height;
+                }
 
                 if (placement.IsMaximized && window.ResizeMode != ResizeMode.NoResize)
                 {

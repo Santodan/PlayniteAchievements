@@ -975,6 +975,12 @@ namespace PlayniteAchievements.Models
         public List<AchievementDetail> AchievementsRarityDesc => ModernTheme.AchievementsRarityDesc ?? EmptyAchievementList;
 
         [DontSerialize]
+        public AchievementDetail LatestAchievementData => ModernTheme.LatestAchievementData;
+
+        [DontSerialize]
+        public bool HasLatestAchievementData => ModernTheme.HasLatestAchievementData;
+
+        [DontSerialize]
         public AchievementRarityStats Common => ModernTheme.Common ?? EmptyRarityStats;
 
         [DontSerialize]
@@ -2231,6 +2237,20 @@ namespace PlayniteAchievements.Models
         }
 
         [DontSerialize]
+        public int CollectorMastery
+        {
+            get => ModernTheme.CollectorMastery;
+            set => ModernTheme.CollectorMastery = value;
+        }
+
+        [DontSerialize]
+        public int PrestigeMastery
+        {
+            get => ModernTheme.PrestigeMastery;
+            set => ModernTheme.PrestigeMastery = value;
+        }
+
+        [DontSerialize]
         public int Level
         {
             get => LegacyTheme.Level;
@@ -2465,20 +2485,12 @@ namespace PlayniteAchievements.Models
 
         private void RefreshThemeDisplayItemsFromPersisted()
         {
-            var persisted = Persisted;
-            if (persisted == null)
+            if (Persisted == null)
             {
                 return;
             }
 
-            ModernTheme.RefreshDisplayItems(
-                persisted.ShowHiddenIcon,
-                persisted.ShowHiddenTitle,
-                persisted.ShowHiddenDescription,
-                persisted.ShowHiddenSuffix,
-                persisted.ShowLockedIcon,
-                persisted.UseSeparateLockedIconsWhenAvailable,
-                persisted.ShowCompactListRarityBar);
+            ModernTheme.RefreshDisplayItems(this);
         }
 
         /// <summary>

@@ -70,6 +70,13 @@ namespace PlayniteAchievements.Views.Helpers
         private static TimeSpan _lastRenderingTime = TimeSpan.MinValue;
         private static double _nextDueMs;
 
+        /// <summary>
+        /// Targets currently on the render tick. This list holds strong references, and a WPF
+        /// child references its parent, so a target stranded here roots its whole ancestor
+        /// chain (grid row, grid, hosting control). Diagnostics only.
+        /// </summary>
+        internal static int SubscriberCount => Subscribers.Count;
+
         public static void Subscribe(IRayAnimationTarget target)
         {
             if (target == null || Subscribers.Contains(target))

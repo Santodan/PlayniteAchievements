@@ -286,6 +286,29 @@ namespace PlayniteAchievements.Services.Tests.Recording
         }
 
         [TestMethod]
+        public void RetroAchievementsInGameCapture_NeverAnchorsOnTheServerClock()
+        {
+            var provider = File.ReadAllText(FindRepoFile(
+                "source", "Providers", "RetroAchievements", "RetroAchievementsDataProvider.cs"));
+
+            // Both registrations anchor on their reported stamps, which is only sound because
+            // ReportedClock converts them onto the capture timeline first and withholds them
+            // while that clock is uncorrelated.
+            StringAssert.Contains(provider, "IsRemote = true");
+            StringAssert.Contains(
+                provider,
+                "UnlockAnchorPolicy = InGameUnlockAnchorPolicy.ProviderReported");
+            StringAssert.Contains(provider, "ReportedClock = _serverClock");
+
+            // The feed's stamps must reach the mapper's clock conversion.
+            StringAssert.Contains(provider, "_serverClock.ToCaptureTimeline");
+
+            var reader = File.ReadAllText(FindRepoFile(
+                "source", "Providers", "RetroAchievements", "EmulatorLog", "RaEmulatorLogReader.cs"));
+            StringAssert.Contains(reader, "UnlockTimeUtc = CaptureTimelineClock.UtcNow");
+        }
+
+        [TestMethod]
         public void ControllerDefaultOutput_KeepsProgramChannelsAndDropsActuatorChannels()
         {
             var recorder = File.ReadAllText(FindRepoFile(
@@ -333,17 +356,19 @@ namespace PlayniteAchievements.Services.Tests.Recording
             var service = File.ReadAllText(FindRepoFile(
                 "source", "Services", "Recording", "UnlockRecordingService.cs"));
             var reencodeStart = service.IndexOf(
-                "private async Task<string> ReencodeWithTrackAsync", StringComparison.Ordinal);
+                "private ClipComposition ResolveComposition", StringComparison.Ordinal);
             var reencodeEnd = service.IndexOf(
                 "private static string SaveClipToUniquePath", reencodeStart, StringComparison.Ordinal);
             Assert.IsTrue(reencodeStart >= 0 && reencodeEnd > reencodeStart);
             var reencode = service.Substring(reencodeStart, reencodeEnd - reencodeStart);
             Assert.AreEqual(1, reencode.Split(new[] { "TryReadChimePcm(" },
                 StringSplitOptions.None).Length - 1);
-            Assert.AreEqual(1, reencode.Split(new[] { "reencoder.Export(" },
+            Assert.AreEqual(1, reencode.Split(new[] { "reencoder.ExportWithOverlays(" },
                 StringSplitOptions.None).Length - 1);
             StringAssert.Contains(reencode, "request.UsedFallbackTrack");
-            StringAssert.Contains(reencode, "chimePcm, chimeStartSeconds");
+            // Each variant takes the resolved chime only when it asks for one; the clean clip never does.
+            StringAssert.Contains(reencode, "var chimePcm = withChime ? composition.ChimePcm : null;");
+            StringAssert.Contains(reencode, "composition.ChimeStartSeconds");
             // Placement prefers the host's measured audible onset; only without one is the live
             // alignment delay subtracted from the launch-to-card stamp gap.
             StringAssert.Contains(reencode, "_getSoundAudibleOnsetUtc?.Invoke(playbackId.Value)");

@@ -82,6 +82,41 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Modern
         }
 
         /// <summary>
+        /// Identifies the ColumnSettingsKeyOverride dependency property.
+        /// </summary>
+        public static readonly DependencyProperty ColumnSettingsKeyOverrideProperty =
+            DependencyProperty.Register(nameof(ColumnSettingsKeyOverride), typeof(string),
+                typeof(AchievementDataGridControl), new PropertyMetadata(null, OnColumnSettingsKeyOverrideChanged));
+
+        /// <summary>
+        /// Swaps the inner grid's column settings key, so a settings preview can show a column set
+        /// of its own without disturbing the shared DesktopTheme surface. Previews run with layout
+        /// persistence off, so the key only selects which columns start visible.
+        /// </summary>
+        public string ColumnSettingsKeyOverride
+        {
+            get => (string)GetValue(ColumnSettingsKeyOverrideProperty);
+            set => SetValue(ColumnSettingsKeyOverrideProperty, value);
+        }
+
+        private static void OnColumnSettingsKeyOverrideChanged(
+            DependencyObject d, DependencyPropertyChangedEventArgs e)
+        {
+            (d as AchievementDataGridControl)?.ApplyColumnSettingsKeyOverride();
+        }
+
+        private void ApplyColumnSettingsKeyOverride()
+        {
+            var key = ColumnSettingsKeyOverride;
+            if (AchievementsGrid == null || string.IsNullOrWhiteSpace(key))
+            {
+                return;
+            }
+
+            AchievementsGrid.ColumnSettingsKey = key;
+        }
+
+        /// <summary>
         /// Identifies the PreviewMinimumMaxHeight dependency property.
         /// When set, preview controls clamp persisted max height up to this minimum.
         /// </summary>
@@ -121,6 +156,13 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Modern
         public bool HasSummaryItem => (bool)GetValue(HasSummaryItemProperty);
 
         private readonly FriendCompareController _friendCompare;
+
+        /// <summary>
+        /// Keeps the wheel on whichever of this control's grids the pointer is over. The theme's
+        /// page handles the tunnelling wheel to scroll its details view, which otherwise leaves
+        /// the grid standing still while the page moves underneath it.
+        /// </summary>
+        protected override WheelScrollAxis? WheelClaimAxis => WheelScrollAxis.Vertical;
 
         public AchievementDataGridControl()
         {
@@ -271,7 +313,7 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Modern
             }
 
             var isPreview = ThemeDataOverride != null;
-            var persistedMaxHeight = settings.AchievementDataGridMaxHeight;
+            var persistedMaxHeight = settings.DesktopThemeAchievementGridMaxHeight;
             var resolvedMaxHeight = AchievementDataGridPreviewHeightResolver.Resolve(
                 persistedMaxHeight,
                 isPreview,
@@ -434,7 +476,7 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Modern
         /// </summary>
         protected override bool ShouldHandleSettingsDataChange(string propertyName)
         {
-            return propertyName == nameof(PersistedSettings.AchievementDataGridMaxHeight) ||
+            return propertyName == nameof(PersistedSettings.DesktopThemeAchievementGridMaxHeight) ||
                    propertyName == nameof(PersistedSettings.DesktopThemeAchievementGridMaxRows) ||
                    AchievementSortHelper.IsConfiguredDefaultSortPropertyName(
                        propertyName,
@@ -560,7 +602,8 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Modern
                 plugin?.AchievementOverridesService,
                 plugin?.CacheManager,
                 LogManager.GetLogger(),
-                includeViewCaptures: true);
+                includeViewCaptures: true,
+                menuSource: row);
             if (menu == null || menu.Items.Count == 0)
             {
                 return false;
@@ -596,7 +639,8 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Modern
                 RefreshAfterRowOptionsChanged,
                 includeViewCaptures: true,
                 onGoalChanged: ReapplyGoalOrderAfterRowOptionsChanged,
-                onCapstoneChanged: ApplyCapstoneAfterRowOptionsChanged);
+                onCapstoneChanged: ApplyCapstoneAfterRowOptionsChanged,
+                menuSource: row);
             if (menu.Items.Count == 0)
             {
                 return false;
@@ -617,29 +661,25 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Modern
         }
 
         /// <summary>
-        /// Re-stamps the capstone flag on the rows already on screen. Valid only when a capstone
-        /// is being set, where every other row becomes a non-capstone.
+        /// Re-stamps the capstone flags on the rows already on screen from the game's stored set,
+        /// so the click that changed a capstone is the one that shows it.
         /// </summary>
         private bool ApplyCapstoneAfterRowOptionsChanged(string capstoneApiName)
         {
             var items = DisplayItems;
-            if (items == null || items.Count == 0 || string.IsNullOrWhiteSpace(capstoneApiName))
+            if (items == null || items.Count == 0)
             {
                 return false;
             }
 
-            foreach (var item in items)
+            var gameId = items.FirstOrDefault(item => item?.PlayniteGameId != null)?.PlayniteGameId;
+            if (gameId == null)
             {
-                if (item != null)
-                {
-                    item.IsCapstone = string.Equals(
-                        (item.ApiName ?? string.Empty).Trim(),
-                        capstoneApiName.Trim(),
-                        StringComparison.OrdinalIgnoreCase);
-                }
+                return false;
             }
 
-            return true;
+            return PlayniteAchievementsPlugin.Instance?.AchievementMarkerToggle?
+                .TryRestampCapstones(gameId.Value, items) == true;
         }
 
         /// <summary>
@@ -762,6 +802,9 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Modern
             var isPreview = ThemeDataOverride != null;
             AchievementsGrid.AllowLayoutPersistence = !isPreview;
             AchievementsGrid.AllowColumnVisibilityMenu = !isPreview;
+            // The override is applied here too: the inner grid may not have existed yet when the
+            // property was set from XAML.
+            ApplyColumnSettingsKeyOverride();
         }
 
         private string GetPreviewKind()

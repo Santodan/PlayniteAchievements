@@ -1,0 +1,96 @@
+<UserControl x:Class="PlayniteAchievements.Views.Showcase.ShowcaseControl"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:controls="clr-namespace:PlayniteAchievements.Views.Controls"
+             Loaded="OnLoaded"
+             PreviewKeyDown="OnPreviewKeyDown"
+             Focusable="True"
+             FocusVisualStyle="{x:Null}"
+             UseLayoutRounding="True"
+             SnapsToDevicePixels="True">
+    <Grid Margin="10">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+
+        <!-- Detached by OverviewControl and re-hosted in the window header's top-right
+             slot so the dashboard gets the full height of the tab content area. -->
+        <Grid x:Name="HeaderBar" Grid.Row="0" Margin="0,0,0,8">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+
+            <!-- Header actions speak in glyphs; localized text lives in the tooltips. -->
+            <Button x:Name="CapturePageButton"
+                    Grid.Column="0"
+                    Content="&#xE722;"
+                    FontFamily="Segoe MDL2 Assets"
+                    ToolTip="{DynamicResource LOCPlayAch_Button_Save}"
+                    Click="CapturePageButton_Click"
+                    MinWidth="36"
+                    Margin="0,0,6,0"/>
+            <Button x:Name="PreviousPageButton"
+                    Grid.Column="1"
+                    Content="&#xE76B;"
+                    FontFamily="Segoe MDL2 Assets"
+                    ToolTip="{DynamicResource LOCPlayAch_Showcase_PreviousPage}"
+                    Click="PreviousPageButton_Click"
+                    MinWidth="36"/>
+            <ComboBox x:Name="PageSelector"
+                      Grid.Column="2"
+                      DisplayMemberPath="Name"
+                      SelectionChanged="PageSelector_SelectionChanged"
+                      MinWidth="150"
+                      MaxWidth="320"
+                      Margin="6,0"/>
+            <Button x:Name="NextPageButton"
+                    Grid.Column="3"
+                    Content="&#xE76C;"
+                    FontFamily="Segoe MDL2 Assets"
+                    ToolTip="{DynamicResource LOCPlayAch_Showcase_NextPage}"
+                    Click="NextPageButton_Click"
+                    MinWidth="36"/>
+            <TextBlock x:Name="PageCountText"
+                       Grid.Column="4"
+                       Foreground="{DynamicResource PlayAch.Brush.Text}"
+                       Opacity="0.7"
+                       VerticalAlignment="Center"
+                       Margin="10,0,0,0"/>
+
+            <!-- Shows the mode a click switches to: a pencil while viewing, an eye while
+                 editing. Glyph and tooltip are swapped in EditLayoutButton_Changed. -->
+            <ToggleButton x:Name="EditLayoutButton"
+                          Grid.Column="6"
+                          Content="&#xE70F;"
+                          FontFamily="Segoe MDL2 Assets"
+                          ToolTip="{DynamicResource LOCPlayAch_Common_Edit}"
+                          Checked="EditLayoutButton_Changed"
+                          Unchecked="EditLayoutButton_Changed"
+                          MinWidth="36"
+                          Margin="18,0,6,0"/>
+            <Button x:Name="PageActionsButton"
+                    Grid.Column="7"
+                    Content="&#xE712;"
+                    FontFamily="Segoe MDL2 Assets"
+                    ToolTip="{DynamicResource LOCPlayAch_Showcase_PageActions}"
+                    Click="PageActionsButton_Click"
+                    MinWidth="36"/>
+        </Grid>
+
+        <Grid x:Name="DashboardSurface"
+              Grid.Row="2">
+            <!-- Clamped so an oversized child can never make the grid clip itself, which would
+                 hide the track grippers and size labels that hang outside its bounds. -->
+            <controls:ClampedDesiredSizeGrid x:Name="DashboardGrid"/>
+        </Grid>
+    </Grid>
+</UserControl>

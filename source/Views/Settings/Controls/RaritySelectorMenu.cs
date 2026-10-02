@@ -1,8 +1,6 @@
 using System;
 using System.Collections.Generic;
-using System.Windows;
 using System.Windows.Controls;
-using System.Windows.Controls.Primitives;
 using Playnite.SDK;
 using PlayniteAchievements.Models.Achievements;
 
@@ -36,21 +34,11 @@ namespace PlayniteAchievements.Views.Settings.Controls
         /// ContextMenu so the caller keeps control of its placement and styling.
         /// <paramref name="onChanged"/> runs after each toggle, for refreshing summary text.
         /// </summary>
-        /// <summary>
-        /// Everything the glow settings offer: the tiers that can actually glow, plus completion.
-        /// Common is left out because no glow is ever drawn for it — offering it would be a toggle
-        /// that visibly does nothing.
-        /// </summary>
-        public const RaritySelection GlowTiers =
-            RaritySelection.Uncommon | RaritySelection.Rare | RaritySelection.UltraRare |
-            RaritySelection.Completed;
-
         public static void Open(
             Button button,
             Func<RaritySelection> get,
             Action<RaritySelection> set,
             Action onChanged = null,
-            bool includeCommon = true,
             bool includeCompleted = false)
         {
             var menu = button?.ContextMenu;
@@ -62,11 +50,6 @@ namespace PlayniteAchievements.Views.Settings.Controls
             menu.Items.Clear();
             foreach (var option in Options)
             {
-                if (!includeCommon && option.Tier == RarityTier.Common)
-                {
-                    continue;
-                }
-
                 var flag = option.Tier.ToFlag();
                 menu.Items.Add(CreateMenuItem(
                     button,
@@ -101,16 +84,13 @@ namespace PlayniteAchievements.Views.Settings.Controls
         }
 
         /// <summary>
-        /// Summary text for a selection: All, None, or the selected tiers in order. When Common is
-        /// excluded it is also ignored for the All check, so a glow selection covering every tier it
-        /// can reads as All rather than listing three of four.
+        /// Summary text for a selection: All, None, or the selected tiers in order.
         /// </summary>
         public static string Format(
             RaritySelection selection,
-            bool includeCommon = true,
             bool includeCompleted = false)
         {
-            var offered = includeCommon ? RaritySelection.All : GlowTiers & ~RaritySelection.Completed;
+            var offered = RaritySelection.All;
             if (includeCompleted)
             {
                 offered |= RaritySelection.Completed;
@@ -129,11 +109,6 @@ namespace PlayniteAchievements.Views.Settings.Controls
             var labels = new List<string>();
             foreach (var option in Options)
             {
-                if (!includeCommon && option.Tier == RarityTier.Common)
-                {
-                    continue;
-                }
-
                 if (selection.Contains(option.Tier))
                 {
                     labels.Add(Localize(option.LabelKey));
@@ -150,43 +125,12 @@ namespace PlayniteAchievements.Views.Settings.Controls
 
         private static MenuItem CreateMenuItem(Button button, string header, bool isChecked, Action<bool> onToggle)
         {
-            var item = new MenuItem
-            {
-                Header = header,
-                IsCheckable = true,
-                StaysOpenOnClick = true,
-                IsChecked = isChecked
-            };
-
-            if (button?.TryFindResource("AchievementMultiSelectMenuItemStyle") is Style itemStyle)
-            {
-                item.Style = itemStyle;
-            }
-
-            item.Click += (_, __) => onToggle?.Invoke(item.IsChecked);
-            return item;
+            return MultiSelectMenu.CreateItem(button, header, isChecked, onToggle);
         }
 
         private static void OpenContextMenu(Button button, ContextMenu menu)
         {
-            if (button == null || menu == null || menu.Items.Count == 0)
-            {
-                return;
-            }
-
-            RoutedEventHandler onClosed = null;
-            onClosed = (_, __) =>
-            {
-                menu.Closed -= onClosed;
-                button.ReleaseMouseCapture();
-            };
-
-            menu.Closed += onClosed;
-            menu.PlacementTarget = button;
-            menu.Placement = PlacementMode.Bottom;
-            menu.HorizontalOffset = 0;
-            menu.VerticalOffset = 0;
-            menu.IsOpen = true;
+            MultiSelectMenu.Open(button, menu);
         }
 
         private static string Localize(string key)

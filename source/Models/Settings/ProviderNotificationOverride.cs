@@ -22,7 +22,17 @@ namespace PlayniteAchievements.Models.Settings
 
         public bool? ScreenshotFramed { get; set; }
 
+        /// <summary>
+        /// Stored by earlier versions as one switch for every clip. False still turns off each
+        /// clip variant that has no value of its own.
+        /// </summary>
         public bool? Recordings { get; set; }
+
+        public bool? RecordingClean { get; set; }
+
+        public bool? RecordingWithToast { get; set; }
+
+        public bool? RecordingFramed { get; set; }
 
         [JsonIgnore]
         public bool IsAllInherit =>
@@ -32,7 +42,10 @@ namespace PlayniteAchievements.Models.Settings
             ScreenshotClean == null &&
             ScreenshotWithToast == null &&
             ScreenshotFramed == null &&
-            Recordings == null;
+            Recordings == null &&
+            RecordingClean == null &&
+            RecordingWithToast == null &&
+            RecordingFramed == null;
 
         public ProviderNotificationOverride Clone()
         {
@@ -44,7 +57,10 @@ namespace PlayniteAchievements.Models.Settings
                 ScreenshotClean = ScreenshotClean,
                 ScreenshotWithToast = ScreenshotWithToast,
                 ScreenshotFramed = ScreenshotFramed,
-                Recordings = Recordings
+                Recordings = Recordings,
+                RecordingClean = RecordingClean,
+                RecordingWithToast = RecordingWithToast,
+                RecordingFramed = RecordingFramed
             };
         }
     }

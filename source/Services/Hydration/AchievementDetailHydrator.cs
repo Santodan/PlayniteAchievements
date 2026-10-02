@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using PlayniteAchievements.Models;
@@ -59,24 +59,16 @@ namespace PlayniteAchievements.Services.Hydration
                 }
             }
 
-            var manualCapstone = customData.ManualCapstoneApiName;
-            var hasManualCapstone = !string.IsNullOrWhiteSpace(manualCapstone);
-
-            var categoryOverrides = customData.AchievementCategoryOverrides ??
-                new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-            var hasCategoryOverrides = categoryOverrides.Count > 0;
-
-            var categoryTypeOverrides = customData.AchievementCategoryTypeOverrides ??
-                new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-            var hasCategoryTypeOverrides = categoryTypeOverrides.Count > 0;
+            // One record per achievement carries category, category type, note, the icon paths and
+            // the user-editable provider fields, so a row needs a single lookup rather than one per
+            // facet.
+            var overridesByApiName = customData.ResolveAchievementOverrides();
+            var hasOverrides = overridesByApiName != null && overridesByApiName.Count > 0;
 
             var filteredApiNames = customData.FilteredAchievementApiNames ??
                 new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             var summaryFilteredApiNames = customData.SummaryFilteredAchievementApiNames ??
                 new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-
-            var achievementNotes = customData.AchievementNotes ??
-                new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 
             // Goal position is resolved once per game rather than scanning the list per row.
             var goalOrderByApiName = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
@@ -109,32 +101,25 @@ namespace PlayniteAchievements.Services.Hydration
                 detail.ProviderCategory = providerCategory;
                 var providerCategoryType = AchievementCategoryTypeHelper.Normalize(detail.CategoryType);
 
-                if (hasManualCapstone)
+                AchievementOverride userOverride = null;
+                if (hasOverrides && !string.IsNullOrWhiteSpace(apiName))
                 {
-                    detail.IsCapstone = string.Equals(
-                        apiName,
-                        manualCapstone,
-                        StringComparison.OrdinalIgnoreCase);
+                    overridesByApiName.TryGetValue(apiName, out userOverride);
                 }
 
-                if (hasCategoryOverrides)
+                if (userOverride != null)
                 {
-                    if (!string.IsNullOrWhiteSpace(apiName) &&
-                        categoryOverrides.TryGetValue(apiName, out var overrideCategory) &&
-                        !string.IsNullOrWhiteSpace(overrideCategory))
+                    if (!string.IsNullOrWhiteSpace(userOverride.Category))
                     {
-                        providerCategory = NormalizeCategory(overrideCategory);
+                        providerCategory = NormalizeCategory(userOverride.Category);
                     }
-                }
 
-                if (hasCategoryTypeOverrides)
-                {
-                    if (!string.IsNullOrWhiteSpace(apiName) &&
-                        categoryTypeOverrides.TryGetValue(apiName, out var overrideCategoryType) &&
-                        !string.IsNullOrWhiteSpace(overrideCategoryType))
+                    if (!string.IsNullOrWhiteSpace(userOverride.CategoryType))
                     {
-                        providerCategoryType = AchievementCategoryTypeHelper.Normalize(overrideCategoryType);
+                        providerCategoryType = AchievementCategoryTypeHelper.Normalize(userOverride.CategoryType);
                     }
+
+                    AchievementOverrideApplier.Apply(detail, userOverride, customData.HasManualLink);
                 }
 
                 // NormalizePath, not NormalizeCategoryOrDefault: a provider may now supply a nested
@@ -147,10 +132,7 @@ namespace PlayniteAchievements.Services.Hydration
                 detail.IsFiltered = !string.IsNullOrWhiteSpace(apiName) && filteredApiNames.Contains(apiName);
                 detail.IsFilteredFromSummaries = !string.IsNullOrWhiteSpace(apiName) &&
                                                  summaryFilteredApiNames.Contains(apiName);
-                detail.AchievementNote = !string.IsNullOrWhiteSpace(apiName) &&
-                                         achievementNotes.TryGetValue(apiName, out var note)
-                    ? note
-                    : null;
+                detail.AchievementNote = userOverride?.Note;
 
                 // An unlocked achievement is never an effective goal, so display stays correct
                 // even before the stored list is pruned.
@@ -164,6 +146,34 @@ namespace PlayniteAchievements.Services.Hydration
 
                 detail.IsGoal = goalOrderIndex != int.MaxValue;
                 detail.GoalOrderIndex = goalOrderIndex;
+            }
+
+            StampCapstones(detailList, customData);
+        }
+
+        /// <summary>
+        /// Marks the game's capstones, in a pass of its own because a category-scoped capstone is
+        /// filed by its achievement's category and the loop above is where that category is
+        /// finally decided. Stamping inside it would file every capstone under the provider's label
+        /// and quietly lose any the user had re-filed.
+        /// </summary>
+        private static void StampCapstones(
+            IList<AchievementDetail> detailList,
+            ResolvedGameCustomData customData)
+        {
+            // An untouched game keeps whatever the provider flagged, so there is nothing to stamp.
+            if (customData?.CapstonesMaterialized != true)
+            {
+                return;
+            }
+
+            var resolver = CapstoneResolver.Resolve(detailList, customData.Capstones, true);
+            foreach (var detail in detailList)
+            {
+                if (detail != null)
+                {
+                    detail.IsCapstone = resolver.IsCapstone(detail.ApiName);
+                }
             }
         }
 

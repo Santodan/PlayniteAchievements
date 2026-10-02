@@ -69,11 +69,17 @@ namespace PlayniteAchievements.Models.Achievements
         public bool IsAchievementSchemaAuthoritative { get; set; }
 
         /// <summary>
-        /// Computed completion status based on all achievements unlocked or capstone.
+        /// Computed completion status: every achievement unlocked, or every capstone unlocked.
         /// </summary>
         public bool IsCompleted =>
-            (Achievements?.Count > 0 && Achievements.All(a => a?.Unlocked == true)) ||
-            IsCapstoneUnlocked();
+            PlayniteAchievements.Services.Achievements.CapstoneCompletion.IsCompleted(Achievements);
+
+        /// <summary>
+        /// How many times this game counts as finished: one per capstone earned, or one for a
+        /// clean 100% when the game names no capstone at all.
+        /// </summary>
+        public int Completions =>
+            PlayniteAchievements.Services.Achievements.CapstoneCompletion.Count(Achievements).Completions;
 
         /// <summary>
         /// True only when every achievement is unlocked — IsCompleted without the capstone
@@ -82,13 +88,6 @@ namespace PlayniteAchievements.Models.Achievements
         /// </summary>
         public bool IsFullyUnlocked =>
             Achievements?.Count > 0 && Achievements.All(a => a?.Unlocked == true);
-
-        private bool IsCapstoneUnlocked()
-        {
-            if (Achievements == null || Achievements.Count == 0)
-                return false;
-            return Achievements.Any(a => a?.IsCapstone == true && a.Unlocked);
-        }
 
         public string GameName { get; set; }
 

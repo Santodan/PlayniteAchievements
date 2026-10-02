@@ -28,7 +28,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         }
 
         private const string LocalProviderKey = "Local";
-        private GameOptionsOverrideTab _selectedOverridesTab = GameOptionsOverrideTab.Main;
+        private GameOptionsOverrideTab _selectedOverridesTab = GameOptionsOverrideTab.Local;
         private GameOptionsLocalOverrideTab _selectedLocalOverrideTab = GameOptionsLocalOverrideTab.LocalSavesSchema;
         private bool _hasLocalFolderOverride;
         private string _localFolderOverrideValue = string.Empty;
@@ -190,6 +190,32 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         public bool HasPreferredProviderOverride => !string.IsNullOrWhiteSpace(PreferredProviderOverrideInput);
         public IReadOnlyList<OverviewOverrideItem> OverviewOverrides { get => _overviewOverrides; private set { if (SetValueAndReturn(ref _overviewOverrides, value ?? Array.Empty<OverviewOverrideItem>())) OnPropertyChanged(nameof(HasOverviewOverrides)); } }
         public bool HasOverviewOverrides => OverviewOverrides.Count > 0;
+        private bool HasAnyLocalPageOverrides =>
+            LocalSavesProvider.HasAnyGameOverride(_gameId) ||
+            HasSteamAccountOverride ||
+            HasPreferredProviderOverride;
+
+        private bool ClearAllLocalPageOverrides()
+        {
+            var changed = LocalSavesProvider.TryClearAllGameOverrides(
+                _gameId,
+                CurrentGameName,
+                _persistSettingsForUi,
+                _logger);
+            changed |= SteamDataProvider.TryClearSteamAccountOverride(
+                _gameId,
+                CurrentGameName,
+                _persistSettingsForUi,
+                _logger);
+
+            if (HasPreferredProviderOverride)
+            {
+                var result = _achievementOverridesService?.ClearPreferredProviderOverride(_gameId);
+                changed |= result != null && result.Success;
+            }
+
+            return changed;
+        }
 
         public RelayCommand ApplyLocalFolderOverrideCommand => _applyLocalFolderOverrideCommand ??= new RelayCommand(_ => ApplyLocalFolderOverride(), _ => HasGame);
         public RelayCommand ClearLocalFolderOverrideCommand => _clearLocalFolderOverrideCommand ??= new RelayCommand(_ => ClearLocalFolderOverride(), _ => HasGame && HasLocalFolderOverride);
@@ -269,7 +295,9 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
 
             if (IsExcludedFromSummaries)
             {
-                Add(L("LOCPlayAch_ManageAchievements_Overrides_SummaryExclusionHeader", "Summary Exclusion"), SummaryExclusionStatusText);
+                Add(
+                    L("LOCPlayAch_ManageAchievements_Overrides_SummaryExclusionHeader", "Summary Exclusion"),
+                    L("LOCPlayAch_ManageAchievements_Status_ExcludedFromSummaries", "Excluded from summaries"));
             }
 
             if (UseSeparateLockedIconsOverride)
@@ -560,9 +588,8 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             _achievementOverridesService?.ClearGameData(_gameId, CurrentGameName);
             _gameDataSnapshotProvider?.Invalidate();
             _refreshService?.Cache?.NotifyCacheInvalidated();
-            ShowManualTrackingTab = true;
             _manualTrackingWarningAcceptedForProvider = _cachedProviderKey;
-            SelectedTab = ManageAchievementsTab.ManualTracking;
+            SelectedTab = ManageAchievementsTab.Editor;
         }
         private void ApplyExophaseForceFlag(bool value) { var data = TryLoadStoredCustomData(_plugin?.GameCustomDataStore) ?? new PlayniteAchievements.Models.Settings.GameCustomDataFile(); data.ForceUseExophase = value; _plugin?.GameCustomDataStore?.Save(_gameId, data); _persistSettingsForUi?.Invoke(); }
         private string GetSteamUserDisplayName(string userId) => string.IsNullOrWhiteSpace(userId) ? L("LOCPlayAch_GameOptions_LocalSteamUser_Automatic", "Automatic (all detected users)") : AvailableLocalSteamAppCacheUsers?.FirstOrDefault(o => string.Equals(o.UserId, userId, StringComparison.OrdinalIgnoreCase))?.DisplayName ?? userId;

@@ -52,7 +52,11 @@
     <ScrollViewer VerticalScrollBarVisibility="Auto"
                   HorizontalScrollBarVisibility="Disabled">
         <StackPanel Margin="0">
+            <!-- This view is now hosted as the dedicated Local Overrides page. The former
+                 Main/Local outer switch is obsolete; the four local-provider tabs below are
+                 the page's navigation. -->
             <StackPanel Orientation="Horizontal"
+                        Visibility="Collapsed"
                         Margin="{StaticResource PlayAch.Thickness.Bottom.Md}">
                 <RadioButton Content="{DynamicResource LOCPlayAch_GameOptions_Overrides_Tab_Main}"
                              GroupName="ManageAchievementOverrideTabs"
@@ -64,17 +68,7 @@
                              IsChecked="{Binding SelectedOverridesTab, Mode=TwoWay, Converter={StaticResource EnumToBool}, ConverterParameter=Local}" />
             </StackPanel>
 
-            <StackPanel>
-                <StackPanel.Style>
-                    <Style TargetType="StackPanel">
-                        <Setter Property="Visibility" Value="Collapsed" />
-                        <Style.Triggers>
-                            <DataTrigger Binding="{Binding SelectedOverridesTab}" Value="Main">
-                                <Setter Property="Visibility" Value="Visible" />
-                            </DataTrigger>
-                        </Style.Triggers>
-                    </Style>
-                </StackPanel.Style>
+            <StackPanel Visibility="Collapsed">
             <Border Style="{StaticResource CardBorderStyle}" Margin="{StaticResource PlayAch.Thickness.Bottom.Md}">
                 <StackPanel>
                     <TextBlock Text="{DynamicResource LOCPlayAch_ManageAchievements_Overrides_ExclusionHeader}"
@@ -287,16 +281,6 @@
             </StackPanel>
 
             <StackPanel>
-                <StackPanel.Style>
-                    <Style TargetType="StackPanel">
-                        <Setter Property="Visibility" Value="Collapsed" />
-                        <Style.Triggers>
-                            <DataTrigger Binding="{Binding SelectedOverridesTab}" Value="Local">
-                                <Setter Property="Visibility" Value="Visible" />
-                            </DataTrigger>
-                        </Style.Triggers>
-                    </Style>
-                </StackPanel.Style>
 
                 <StackPanel Orientation="Horizontal"
                             Margin="{StaticResource PlayAch.Thickness.Bottom.Md}">

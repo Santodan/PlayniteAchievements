@@ -33,6 +33,7 @@ namespace PlayniteAchievements.Providers.RetroAchievements.Hashing
 
         public IReadOnlyList<byte[]> MagicPrefixes { get; set; }
         public int SkipBytes { get; set; }
+        public int MagicOffset { get; set; }
 
         public int? SizeModuloBytes { get; set; }
         public int? SizeRemainderBytes { get; set; }
@@ -44,7 +45,8 @@ namespace PlayniteAchievements.Providers.RetroAchievements.Hashing
         private static readonly byte[] NesMagic = Encoding.ASCII.GetBytes("NES\x1a");
         private static readonly byte[] FdsMagic = Encoding.ASCII.GetBytes("FDS\x1a");
         private static readonly byte[] LynxMagic = Encoding.ASCII.GetBytes("LYNX\0");
-        private static readonly byte[] Atari7800Magic = { 0x01, (byte)'A', (byte)'T', (byte)'A', (byte)'R', (byte)'I', (byte)'7', (byte)'8', (byte)'0', (byte)'0' };
+        private static readonly byte[] Atari7800Magic = Encoding.ASCII.GetBytes("ATARI7800");
+        private static readonly byte[] ScvMagic = Encoding.ASCII.GetBytes("EmuSCV");
 
         private static readonly Dictionary<int, RaConsoleHashingSpecEntry> Spec =
             new Dictionary<int, RaConsoleHashingSpecEntry>
@@ -55,7 +57,8 @@ namespace PlayniteAchievements.Providers.RetroAchievements.Hashing
                 [3] = new RaConsoleHashingSpecEntry { Kind = RaHashMethodKind.HeaderSizeModSkip, SkipBytes = 512, SizeModuloBytes = 0x2000, SizeRemainderBytes = 512 },
                 [8] = new RaConsoleHashingSpecEntry { Kind = RaHashMethodKind.HeaderSizeModSkip, SkipBytes = 512, SizeBitFlagBytes = 512 },
                 [13] = new RaConsoleHashingSpecEntry { Kind = RaHashMethodKind.HeaderMagicSkip, MagicPrefixes = new[] { LynxMagic }, SkipBytes = 64 },
-                [51] = new RaConsoleHashingSpecEntry { Kind = RaHashMethodKind.HeaderMagicSkip, MagicPrefixes = new[] { Atari7800Magic }, SkipBytes = 128 },
+                [51] = new RaConsoleHashingSpecEntry { Kind = RaHashMethodKind.HeaderMagicSkip, MagicPrefixes = new[] { Atari7800Magic }, SkipBytes = 128, MagicOffset = 1 }, // hash_rom.c:24, byte 0 is not checked
+                [55] = new RaConsoleHashingSpecEntry { Kind = RaHashMethodKind.HeaderMagicSkip, MagicPrefixes = new[] { ScvMagic }, SkipBytes = 32 }, // hash_rom.c:505
 
                 [27] = new RaConsoleHashingSpecEntry { Kind = RaHashMethodKind.ArcadeFilename },
                 [71] = new RaConsoleHashingSpecEntry { Kind = RaHashMethodKind.ArduboyHexNormalize },

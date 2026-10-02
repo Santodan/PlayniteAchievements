@@ -3,9 +3,7 @@ using System.ComponentModel;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
-using Playnite.SDK;
 using Playnite.SDK.Events;
-using PlayniteAchievements.Services.Logging;
 using PlayniteAchievements.ViewModels;
 using PlayniteAchievements.Views.Helpers;
 
@@ -20,7 +18,6 @@ namespace PlayniteAchievements.Views.Dialogs
     public partial class CaptureGalleryViewer : UserControl, IFullscreenControllerNavigable
     {
         private static readonly TimeSpan SeekStep = TimeSpan.FromSeconds(5);
-        private static readonly ILogger Logger = PluginLogger.GetLogger(nameof(CaptureGalleryViewer));
 
         private readonly CaptureGalleryViewModel _vm;
 
@@ -58,32 +55,7 @@ namespace PlayniteAchievements.Views.Dialogs
                 Transport.Pause();
             }
 
-            var content = new FullscreenMediaViewer(path, isVideo);
-            var window = new Window
-            {
-                WindowStyle = WindowStyle.None,
-                ResizeMode = ResizeMode.NoResize,
-                WindowStartupLocation = WindowStartupLocation.CenterOwner,
-                Background = System.Windows.Media.Brushes.Black,
-                ShowInTaskbar = false,
-                Owner = Window.GetWindow(this),
-                Content = content
-            };
-            content.RequestClose += (_, __) => window.Close();
-            window.Loaded += (_, __) => window.WindowState = WindowState.Maximized;
-
-            // Same per-monitor realization as the gallery popout, so the screenshot renders at the
-            // monitor's native scale instead of being bitmap-stretched by Windows.
-            PerMonitorWindowRealizer.Apply(window, window.Owner, Logger, "Lightbox");
-            window.PreviewKeyDown += (s, args) =>
-            {
-                if (args.Key == Key.Escape)
-                {
-                    window.Close();
-                    args.Handled = true;
-                }
-            };
-            window.ShowDialog();
+            FullscreenMediaViewerPresenter.Show(this, path, isVideo);
         }
 
         private void ViewModel_PropertyChanged(object sender, PropertyChangedEventArgs e)

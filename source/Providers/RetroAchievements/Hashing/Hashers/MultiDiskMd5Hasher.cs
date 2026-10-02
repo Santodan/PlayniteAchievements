@@ -11,16 +11,18 @@ namespace PlayniteAchievements.Providers.RetroAchievements.Hashing.Hashers
     {
         public string Name => "Multi-disk (MD5 per disk)";
 
-        public async Task<IReadOnlyList<string>> ComputeHashesAsync(string filePath, CancellationToken cancel)
+        public bool SupportsForwardOnlyInput => true;
+
+        public async Task<IReadOnlyList<string>> ComputeHashesAsync(RaHashSource source, CancellationToken cancel)
         {
-            if (string.IsNullOrWhiteSpace(filePath))
+            if (string.IsNullOrWhiteSpace(source?.Path))
             {
                 return Array.Empty<string>();
             }
 
-            if (filePath.EndsWith(".m3u", StringComparison.OrdinalIgnoreCase))
+            if (source.IsFile && source.Path.EndsWith(".m3u", StringComparison.OrdinalIgnoreCase))
             {
-                var paths = ExpandM3u(filePath);
+                var paths = ExpandM3u(source.Path);
                 var hashes = new List<string>();
                 foreach (var p in paths)
                 {
@@ -41,10 +43,13 @@ namespace PlayniteAchievements.Providers.RetroAchievements.Hashing.Hashers
                 return hashes;
             }
 
-            var single = await HashUtils
-                .ComputeMd5HexFromFileAsync(filePath, startOffset: 0, maxBytes: HashUtils.MaxHashBytes, cancel)
-                .ConfigureAwait(false);
-            return new[] { single };
+            using (var stream = source.Open())
+            {
+                var single = await HashUtils
+                    .ComputeMd5HexFromStreamAsync(stream, HashUtils.MaxHashBytes, cancel)
+                    .ConfigureAwait(false);
+                return new[] { single };
+            }
         }
 
         private static IEnumerable<string> ExpandM3u(string m3uPath)

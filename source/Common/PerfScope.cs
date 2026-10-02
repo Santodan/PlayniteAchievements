@@ -9,16 +9,64 @@ namespace PlayniteAchievements.Common
     internal sealed class PerfScope : IDisposable
     {
         private const int SevereThresholdMs = 250;
-        // Diagnostic toggle for perf tracing. Flip to true and rebuild to emit timing logs; set
-        // back to false to disable (Start/StartStartup then return null, so `using` scopes are a
-        // no-op with zero overhead). Kept runtime-evaluated to avoid constant-folded unreachable
-        // branches. Also gates MemoryDiagnostics [MemPerf] lines.
-        internal static readonly bool PerfTracingEnabled = false;
+
+        /// <summary>
+        /// Name of the opt-in marker file. Create an empty file with this name in the plugin's
+        /// extension data folder (the one holding playniteachievements.log) and tracing arms on
+        /// the next Playnite start. That is what lets a user who reports a stall capture a log
+        /// without being handed a custom build.
+        /// </summary>
+        internal const string TracingOptInFileName = "perftrace.enabled";
+
+        // Diagnostic toggle for perf tracing. A Debug build traces unconditionally; a Release
+        // build traces only when the opt-in file above is present.
+        //
+        // This used to be a hand-flipped constant with a "set this back to false before packing a
+        // release" note, and it shipped on. That is expensive, not merely chatty:
+        //   - LeakWatch.Track runs per editor row behind a global lock, and LeakWatch.TrackAll
+        //     runs over whole library row sets inside the overview's per-edit delta, so an edit
+        //     on a large library pays a locked scan it would not pay in a shipped build.
+        //   - It turns on the cheap half of MemoryDiagnostics: the [MemPerf] counter lines, the
+        //     sampler, and RetentionProbes.
+        //   - It gates far more than the scopes: toast capture probes, toast placement
+        //     diagnostics, the ray animation driver, the compact list controls, and a
+        //     developer-only main-menu item that would otherwise be hidden from users.
+        //
+        // Runtime-evaluated (never a const) so branches are not constant-folded away.
+        internal static bool PerfTracingEnabled { get; private set; } =
+#if DEBUG
+            true;
+#else
+            false;
+#endif
+
+        /// <summary>
+        /// Arms tracing for a Release build when the opt-in marker file is present in the
+        /// plugin's user data folder. Call once at startup, before the first scope. A Debug
+        /// build is already on and is left alone; a probe failure leaves tracing off.
+        /// </summary>
+        public static void ConfigureTracing(string pluginUserDataPath)
+        {
+            if (PerfTracingEnabled || string.IsNullOrWhiteSpace(pluginUserDataPath))
+            {
+                return;
+            }
+
+            try
+            {
+                PerfTracingEnabled = System.IO.File.Exists(
+                    System.IO.Path.Combine(pluginUserDataPath, TracingOptInFileName));
+            }
+            catch
+            {
+                // A probe that cannot run leaves tracing off, which is the shipping default.
+            }
+        }
 
         private readonly ILogger _logger;
         private readonly string _tag;
         private readonly int _thresholdMs;
-        private readonly string _context;
+        private string _context;
         private readonly bool _startupVariant;
         private readonly Stopwatch _stopwatch;
         private bool _disposed;
@@ -31,6 +79,19 @@ namespace PlayniteAchievements.Common
             _context = context ?? string.Empty;
             _startupVariant = startupVariant;
             _stopwatch = Stopwatch.StartNew();
+        }
+
+        /// <summary>
+        /// Replaces the context detail emitted with this scope's line. A method rather than a
+        /// property because Start returns null when tracing is off, and C# cannot assign through
+        /// a null-conditional -- so callers write scope?.SetContext(...) and pay nothing when
+        /// disabled. Use it for something known only once the work finishes, typically a result
+        /// count: the duration alone cannot say whether a query is slow because of its volume or
+        /// because of a sort.
+        /// </summary>
+        public void SetContext(string context)
+        {
+            _context = context ?? string.Empty;
         }
 
         public static PerfScope Start(ILogger logger, string tag, int thresholdMs = 50, string context = null)

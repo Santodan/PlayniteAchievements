@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using PlayniteAchievements.Services.Database.Rows;
 using PlayniteAchievements.Common;
 using PlayniteAchievements.Models;
 using PlayniteAchievements.Models.Achievements;
@@ -15,23 +16,21 @@ using System.Windows;
 
 namespace PlayniteAchievements.Services.Cache
 {
-    internal interface ICacheReadOptimizations
-    {
-        List<GameAchievementData> LoadAllGameDataFast();
+    // ICacheReadOptimizations lives in its own file, so the sources that consume it can be
+    // linked into the test project without dragging this one in.
 
-        CachedSummaryData LoadCachedSummaryDataFast(int recentAchievementDetailLimit = 0);
+    // Write access to the AchievementOverrides mirror table — the summary queries' SQL-side view
+    // of the per-achievement override records that live in the separate custom-data database.
+    // Carries the filter flags plus the user-editable points and trophy type, which aggregates
+    // read directly; fields no query aggregates stay in the blob.
+    internal interface IAchievementOverrideMirror
+    {
+        void ReplaceAchievementOverrides(Guid playniteGameId, IReadOnlyList<AchievementOverrideMirrorEntry> entries);
+
+        void ResyncAllAchievementOverrides(IReadOnlyDictionary<Guid, IReadOnlyList<AchievementOverrideMirrorEntry>> entriesByGameId);
     }
 
-    // Write access to the AchievementFilters mirror table — the summary queries' SQL-side view
-    // of the per-game achievement filter lists that live in the separate custom-data database.
-    internal interface IAchievementFilterMirror
-    {
-        void ReplaceAchievementFilters(Guid playniteGameId, IReadOnlyList<(string ApiName, string Kind)> entries);
-
-        void ResyncAllAchievementFilters(IReadOnlyDictionary<Guid, IReadOnlyList<(string ApiName, string Kind)>> entriesByGameId);
-    }
-
-    public sealed class CacheManager : ICacheManager, ICacheReadOptimizations, IAchievementFilterMirror, IFriendCacheManager, IInGameProgressCacheWriter, IDisposable
+    public sealed class CacheManager : ICacheManager, ICacheReadOptimizations, IAchievementOverrideMirror, IFriendCacheManager, IInGameProgressCacheWriter, IDisposable
     {
         private const int MaxInMemoryGames = 256;
 
@@ -166,15 +165,78 @@ namespace PlayniteAchievements.Services.Cache
             return LoadCachedSummaryDataFast(recentAchievementDetailLimit);
         }
 
-        // Mirror writes never throw: when the store failed to initialize, summaries are
-        // unavailable anyway and the summary reader fails open (empty table = unfiltered).
-        void IAchievementFilterMirror.ReplaceAchievementFilters(
-            Guid playniteGameId,
-            IReadOnlyList<(string ApiName, string Kind)> entries)
+        CachedSummaryData ICacheReadOptimizations.LoadCachedSummaryDataForGameFast(Guid playniteGameId)
+        {
+            return LoadCachedSummaryDataForGameFast(playniteGameId);
+        }
+
+        Dictionary<Guid, HashSet<string>> ICacheReadOptimizations.LoadUnlockedApiNamesFast(
+            IReadOnlyDictionary<Guid, HashSet<string>> wanted)
         {
             try
             {
-                _store.ReplaceAchievementFilters(playniteGameId, entries);
+                lock (_sync)
+                {
+                    EnsureReady_Locked("LoadUnlockedApiNamesFast");
+                }
+
+                using (var scope = PerfScope.Start(_logger, "Cache.LoadUnlockedApiNamesFast", thresholdMs: 25))
+                {
+                    scope?.SetContext("games=" + (wanted?.Count ?? 0));
+
+                    // Read off _sync, on the store's read connection, like the summary it corrects.
+                    return _store.LoadUnlockedApiNames(wanted) ?? new Dictionary<Guid, HashSet<string>>();
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger?.Debug(ex, "Failed reading unlocked capstone ApiNames.");
+                return null;
+            }
+        }
+
+        HashSet<Guid> ICacheReadOptimizations.GetNoAchievementGameIds()
+        {
+            var result = new HashSet<Guid>();
+            try
+            {
+                lock (_sync)
+                {
+                    EnsureReady_Locked("GetNoAchievementGameIds");
+                }
+
+                using (PerfScope.Start(_logger, "Cache.GetNoAchievementGameIds", thresholdMs: 25))
+                {
+                    foreach (var key in _store.GetNoAchievementCacheKeysForCurrentUsers())
+                    {
+                        // Cache keys are only game ids for Playnite-backed rows; a provider-only
+                        // row has no game to skip, so it simply does not join the set.
+                        if (Guid.TryParse(key, out var gameId) && gameId != Guid.Empty)
+                        {
+                            result.Add(gameId);
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                // An empty set means "skip nothing", which is the safe direction: the refresh
+                // considers every game rather than wrongly passing one over.
+                _logger?.Debug(ex, "Failed reading the cached no-achievement game set.");
+            }
+
+            return result;
+        }
+
+        // Mirror writes never throw: when the store failed to initialize, summaries are
+        // unavailable anyway and the summary reader fails open (empty table = unfiltered).
+        void IAchievementOverrideMirror.ReplaceAchievementOverrides(
+            Guid playniteGameId,
+            IReadOnlyList<AchievementOverrideMirrorEntry> entries)
+        {
+            try
+            {
+                _store.ReplaceAchievementOverrides(playniteGameId, entries);
             }
             catch (Exception ex)
             {
@@ -182,18 +244,15 @@ namespace PlayniteAchievements.Services.Cache
             }
         }
 
-        void IAchievementFilterMirror.ResyncAllAchievementFilters(
-            IReadOnlyDictionary<Guid, IReadOnlyList<(string ApiName, string Kind)>> entriesByGameId)
+        void IAchievementOverrideMirror.ResyncAllAchievementOverrides(
+            IReadOnlyDictionary<Guid, IReadOnlyList<AchievementOverrideMirrorEntry>> entriesByGameId)
         {
             try
             {
-                var changedGames = _store.ResyncAllAchievementFilters(entriesByGameId);
-                if (!RealtimePollingLogScope.IsActive || changedGames > 0)
-                {
-                    _logger?.Debug(changedGames > 0
-                        ? $"[Filters] Achievement filter mirror resynced for {changedGames} game(s)."
-                        : "[Filters] Achievement filter mirror unchanged.");
-                }
+                var changedGames = _store.ResyncAllAchievementOverrides(entriesByGameId);
+                _logger?.Debug(changedGames > 0
+                    ? $"[Filters] Achievement filter mirror resynced for {changedGames} game(s)."
+                    : "[Filters] Achievement filter mirror unchanged.");
             }
             catch (Exception ex)
             {
@@ -435,6 +494,24 @@ namespace PlayniteAchievements.Services.Cache
 
                 _lruOrder.RemoveLast();
                 _userAchievements.Remove(lru.Value);
+            }
+        }
+
+        /// <summary>
+        /// In-memory game cache occupancy, for memory diagnostics: entries plus the achievement
+        /// rows they hold (the cache is capped by game count, so the row total is what actually
+        /// tracks its footprint).
+        /// </summary>
+        public void GetMemoryCacheStats(out int games, out int achievements)
+        {
+            lock (_sync)
+            {
+                games = _userAchievements.Count;
+                achievements = 0;
+                foreach (var entry in _userAchievements.Values)
+                {
+                    achievements += entry?.Data?.Achievements?.Count ?? 0;
+                }
             }
         }
 
@@ -796,6 +873,43 @@ namespace PlayniteAchievements.Services.Cache
             }
         }
 
+        internal CachedSummaryData LoadCachedSummaryDataForGameFast(Guid playniteGameId)
+        {
+            using (var scope = PerfScope.Start(_logger, "Cache.LoadCachedSummaryDataForGameFast", thresholdMs: 25))
+            {
+                scope?.SetContext(playniteGameId.ToString());
+                var scopeChanged = false;
+
+                try
+                {
+                    lock (_sync)
+                    {
+                        EnsureReady_Locked("LoadCachedSummaryDataForGameFast");
+                        scopeChanged = RefreshScopeToken_Locked(clearMemoryOnChange: true);
+                    }
+
+                    // Read off _sync, on the store's read connection, exactly as the
+                    // whole-library read does.
+                    return _store.LoadCachedSummaryDataForGame(playniteGameId);
+                }
+                catch (Exception ex)
+                {
+                    _logger?.Error(ex, $"Failed loading cached summary data for game {playniteGameId}.");
+
+                    // null, not an empty result: the caller must fall back to a full rebuild
+                    // rather than conclude the game now contributes nothing.
+                    return null;
+                }
+                finally
+                {
+                    if (scopeChanged)
+                    {
+                        RaiseCacheDeltaUpdatedEvent(string.Empty, CacheDeltaOperationType.FullReset);
+                    }
+                }
+            }
+        }
+
         public GameAchievementData LoadGameData(string key)
         {
             using (PerfScope.Start(_logger, "Cache.LoadGameData", thresholdMs: 25, context: key))
@@ -1046,7 +1160,12 @@ namespace PlayniteAchievements.Services.Cache
 
                 RaiseGameCacheUpdatedEvent(cacheKey);
                 RaiseCacheDeltaUpdatedEvent(cacheKey, CacheDeltaOperationType.Remove);
-                RaiseCacheInvalidatedEvent();
+
+                // Scoped, like the in-game write path above. A full invalidation makes
+                // LibraryProjectionService treat this as unscoped, which skips its idle delay
+                // and schedules an eager whole-library projection rebuild -- for one game
+                // leaving the cache. The id is already in hand.
+                RaiseCacheInvalidatedEvent(CacheInvalidatedEventArgs.Scoped(new[] { playniteGameId }));
             }
             catch (Exception ex)
             {
@@ -1585,6 +1704,12 @@ namespace PlayniteAchievements.Services.Cache
                     ScaledPoints = achievement.ScaledPoints,
                     CategoryType = achievement.CategoryType,
                     Category = achievement.Category,
+                    // Carried with Category, not derived from it later: hydration overwrites
+                    // Category with the user's assignment and keeps the provider's own label here,
+                    // and every load clones. Dropping it made the hydrator's "prefer the captured
+                    // provider label" defence dead across any cache round-trip, leaving the
+                    // provider baseline to be reconstructed from a value the user can replace.
+                    ProviderCategory = achievement.ProviderCategory,
                     TrophyType = achievement.TrophyType,
                     Hidden = achievement.Hidden,
                     IsCapstone = achievement.IsCapstone,

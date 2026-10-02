@@ -58,5 +58,23 @@ namespace PlayniteAchievements.Providers.Riot
 
         /// <summary>Canonical upper-case name, or <see cref="None"/> when unrecognized.</summary>
         public static string Normalize(string level) => Ascending[GetRank(level)];
+
+        /// <summary>
+        /// Title-cased tier label for display, e.g. IRON to "Iron". Empty for <see cref="None"/> and
+        /// for unrecognized names, so a caller composing a label never renders an empty pair of
+        /// parentheses. Derived from <see cref="Ascending"/> so the ladder stays the only source of
+        /// tier names.
+        /// </summary>
+        public static string GetDisplayName(string level)
+        {
+            var rank = GetRank(level);
+            if (rank == 0)
+            {
+                return string.Empty;
+            }
+
+            var canonical = Ascending[rank];
+            return char.ToUpperInvariant(canonical[0]) + canonical.Substring(1).ToLowerInvariant();
+        }
     }
 }

@@ -63,6 +63,30 @@ namespace PlayniteAchievements.Services.Capture
                 return false;
             }
 
+            // The rectangle relative to the region, so the blit's own clipping lands the same pixels.
+            var regionRect = new Rectangle(
+                destRect.X - region.X, destRect.Y - region.Y, destRect.Width, destRect.Height);
+            return ComposeRegion(
+                frame,
+                region,
+                (y, uv) => OverlayBlitMath.BlendOntoNv12(
+                    y, uv, region.Width, region.Height, overlay, overlayW, overlayH, regionRect));
+        }
+
+        /// <summary>
+        /// Hands <paramref name="blend"/> the luma rows of <paramref name="region"/> (which must
+        /// cover whole 2x2 chroma blocks) and the chroma rows beneath them, each packed at the
+        /// region's width, then writes both back into <paramref name="frame"/>. The buffer plumbing
+        /// <see cref="Compose"/> uses, for overlays that blend in their own way. Returns false for
+        /// an empty region.
+        /// </summary>
+        public bool ComposeRegion(Sample frame, Rectangle region, Action<byte[], byte[]> blend)
+        {
+            if (frame == null || blend == null || region.IsEmpty)
+            {
+                return false;
+            }
+
             var lumaLength = region.Width * region.Height;
             if (_yRegion == null || _yRegion.Length < lumaLength)
             {
@@ -70,17 +94,13 @@ namespace PlayniteAchievements.Services.Capture
                 _uvRegion = new byte[lumaLength / 2];
             }
 
-            // The rectangle relative to the region, so the blit's own clipping lands the same pixels.
-            var regionRect = new Rectangle(
-                destRect.X - region.X, destRect.Y - region.Y, destRect.Width, destRect.Height);
-
             if (frame.BufferCount == 1)
             {
                 using (var buffer = frame.GetBufferByIndex(0))
                 {
-                    if (!TryBlend2D(buffer, overlay, overlayW, overlayH, region, regionRect))
+                    if (!TryBlend2D(buffer, region, blend))
                     {
-                        BlendContiguous(buffer, overlay, overlayW, overlayH, region, regionRect);
+                        BlendContiguous(buffer, region, blend);
                     }
                 }
 
@@ -91,7 +111,7 @@ namespace PlayniteAchievements.Services.Capture
             // sample's only buffer so the composited pixels are what the sink receives.
             using (var contiguous = frame.ConvertToContiguousBuffer())
             {
-                BlendContiguous(contiguous, overlay, overlayW, overlayH, region, regionRect);
+                BlendContiguous(contiguous, region, blend);
                 frame.RemoveAllBuffers();
                 frame.AddBuffer(contiguous);
             }
@@ -104,8 +124,7 @@ namespace PlayniteAchievements.Services.Capture
         /// not implement <c>IMF2DBuffer</c> or reports a bottom-up pitch (never the case for NV12),
         /// leaving the contiguous fallback to do the work.
         /// </summary>
-        private bool TryBlend2D(
-            MediaBuffer buffer, byte[] overlay, int overlayW, int overlayH, Rectangle region, Rectangle regionRect)
+        private bool TryBlend2D(MediaBuffer buffer, Rectangle region, Action<byte[], byte[]> blend)
         {
             using (var view = Buffer2DHandle.From(buffer))
             {
@@ -122,7 +141,7 @@ namespace PlayniteAchievements.Services.Capture
                         return false;
                     }
 
-                    BlendPlanes(scanline0, pitch, overlay, overlayW, overlayH, region, regionRect);
+                    BlendPlanes(scanline0, pitch, region, blend);
                 }
                 finally
                 {
@@ -134,8 +153,7 @@ namespace PlayniteAchievements.Services.Capture
         }
 
         /// <summary>The contiguous path: a 1D lock with rows laid out by the decoded type's stride.</summary>
-        private void BlendContiguous(
-            MediaBuffer buffer, byte[] overlay, int overlayW, int overlayH, Rectangle region, Rectangle regionRect)
+        private void BlendContiguous(MediaBuffer buffer, Rectangle region, Action<byte[], byte[]> blend)
         {
             var ptr = buffer.Lock(out _, out var currentLength);
             try
@@ -145,7 +163,7 @@ namespace PlayniteAchievements.Services.Capture
                     return;
                 }
 
-                BlendPlanes(ptr, _stride, overlay, overlayW, overlayH, region, regionRect);
+                BlendPlanes(ptr, _stride, region, blend);
             }
             finally
             {
@@ -158,8 +176,7 @@ namespace PlayniteAchievements.Services.Capture
         /// the overlay into them, and copies both back. The chroma plane starts <c>frameH</c> rows
         /// below the luma plane and shares its pitch; its rows cover two luma rows each.
         /// </summary>
-        private void BlendPlanes(
-            IntPtr scanline0, int pitch, byte[] overlay, int overlayW, int overlayH, Rectangle region, Rectangle regionRect)
+        private void BlendPlanes(IntPtr scanline0, int pitch, Rectangle region, Action<byte[], byte[]> blend)
         {
             var chromaPlane = IntPtr.Add(scanline0, pitch * _frameH);
             var chromaRows = region.Height / 2;
@@ -177,8 +194,7 @@ namespace PlayniteAchievements.Services.Capture
                     _uvRegion, row * region.Width, region.Width);
             }
 
-            OverlayBlitMath.BlendOntoNv12(
-                _yRegion, _uvRegion, region.Width, region.Height, overlay, overlayW, overlayH, regionRect);
+            blend(_yRegion, _uvRegion);
 
             for (var row = 0; row < region.Height; row++)
             {

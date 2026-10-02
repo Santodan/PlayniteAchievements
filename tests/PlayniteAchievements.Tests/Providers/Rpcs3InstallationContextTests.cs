@@ -108,6 +108,58 @@ namespace PlayniteAchievements.Providers.Tests
             Assert.AreEqual("00000003", equals);
         }
 
+        [TestMethod]
+        public void Resolve_ConfiguredInstalls_UsesFirstWithAResolvableProfile()
+        {
+            var root = CreateRoot();
+            try
+            {
+                var brokenInstall = Path.Combine(root, "broken");
+                CreateUser(brokenInstall, "00000001");
+                WriteActiveUser(brokenInstall, "00000002");
+
+                var workingInstall = Path.Combine(root, "working");
+                CreateUser(workingInstall, "00000001");
+                WriteActiveUser(workingInstall, "00000001");
+
+                var settings = new Rpcs3Settings
+                {
+                    ExecutablePaths = new System.Collections.Generic.List<string>
+                    {
+                        Path.Combine(root, "missing", "rpcs3.exe"),
+                        Path.Combine(brokenInstall, "rpcs3.exe"),
+                        Path.Combine(workingInstall, "rpcs3.exe")
+                    }
+                };
+
+                var context = Rpcs3InstallationResolver.Resolve(null, settings, null, null);
+
+                Assert.IsNotNull(context);
+                Assert.AreEqual(workingInstall, context.EmulatorRoot.TrimEnd('\\'));
+                Assert.IsTrue(Rpcs3InstallationResolver.ValidateExecutablePath(Path.Combine(workingInstall, "rpcs3.exe")).IsValid);
+                Assert.AreEqual(
+                    "LOCPlayAch_Rpcs3Validation_NoTrophyFolder",
+                    Rpcs3InstallationResolver.ValidateExecutablePath(Path.Combine(brokenInstall, "rpcs3.exe")).MessageKey);
+                Assert.AreEqual(
+                    "LOCPlayAch_InvalidPath",
+                    Rpcs3InstallationResolver.ValidateExecutablePath(Path.Combine(root, "missing", "rpcs3.exe")).MessageKey);
+            }
+            finally
+            {
+                DeleteDirectory(root);
+            }
+        }
+
+        [TestMethod]
+        public void Settings_LegacyExecutablePath_LoadsAsOneEntryAndIsNotWrittenBack()
+        {
+            var settings = new Rpcs3Settings();
+            settings.DeserializeFromJson("{\"ExecutablePath\":\"C:\\\\RPCS3\\\\rpcs3.exe\"}");
+
+            CollectionAssert.AreEqual(new[] { "C:\\RPCS3\\rpcs3.exe" }, settings.ExecutablePaths);
+            StringAssert.DoesNotMatch(settings.SerializeToJson(), new System.Text.RegularExpressions.Regex("\"ExecutablePath\""));
+        }
+
         private static string CreateRoot()
         {
             var root = Path.Combine(Path.GetTempPath(), "PlayniteAchievementsTests", nameof(Rpcs3InstallationContextTests), Guid.NewGuid().ToString("N"));

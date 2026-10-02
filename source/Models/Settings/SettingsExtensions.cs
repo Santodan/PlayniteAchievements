@@ -63,6 +63,13 @@ namespace PlayniteAchievements.Models.Settings
             target.EnableFriendsPeriodicUpdates = source.EnableFriendsPeriodicUpdates;
             target.FriendsPeriodicUpdateHours = source.FriendsPeriodicUpdateHours;
             target.EnableInGamePolling = source.EnableInGamePolling;
+            target.EnableAutoCapstoneGeneration = source.EnableAutoCapstoneGeneration;
+            target.AutoCapstoneGameNameTemplate = source.AutoCapstoneGameNameTemplate;
+            target.AutoCapstoneGameDescriptionTemplate = source.AutoCapstoneGameDescriptionTemplate;
+            target.AutoCapstoneCategoryNameTemplate = source.AutoCapstoneCategoryNameTemplate;
+            target.AutoCapstoneCategoryDescriptionTemplate = source.AutoCapstoneCategoryDescriptionTemplate;
+            target.AutoCapstoneTemplateHistory = new List<string>(source.AutoCapstoneTemplateHistory ?? new List<string>());
+            target.AutoCapstoneAppliedTemplates = source.AutoCapstoneAppliedTemplates;
             target.InGamePollIntervalSeconds = source.InGamePollIntervalSeconds;
             target.InGamePollRefreshFriends = source.InGamePollRefreshFriends;
             target.InGameFriendRefreshMultiplier = source.InGameFriendRefreshMultiplier;
@@ -88,6 +95,8 @@ namespace PlayniteAchievements.Models.Settings
             target.OpenSettingsHotkey = source.OpenSettingsHotkey;
             target.CategoryModeHotkey = source.CategoryModeHotkey;
             target.TestUnlockHotkey = source.TestUnlockHotkey;
+
+            target.HiddenManageSidebarStatGroups = source.HiddenManageSidebarStatGroups;
             target.EnableCaptureTestFolder = source.EnableCaptureTestFolder;
 
             // Notification Settings
@@ -144,6 +153,14 @@ namespace PlayniteAchievements.Models.Settings
             target.RecordingIncludeMicrophone = source.RecordingIncludeMicrophone;
             target.UnlockRecordingRarities = source.UnlockRecordingRarities;
             target.UnlockRecordingAlwaysCaptureCompletion = source.UnlockRecordingAlwaysCaptureCompletion;
+            target.UnlockRecordingClean = source.UnlockRecordingClean;
+            target.UnlockRecordingWithToast = source.UnlockRecordingWithToast;
+            target.UnlockRecordingFramed = source.UnlockRecordingFramed;
+            target.UnlockRecordingCleanRarities = source.UnlockRecordingCleanRarities;
+            target.UnlockRecordingCleanAlwaysCaptureCompletion = source.UnlockRecordingCleanAlwaysCaptureCompletion;
+            target.UnlockRecordingFramedRarities = source.UnlockRecordingFramedRarities;
+            target.UnlockRecordingFramedAlwaysCaptureCompletion = source.UnlockRecordingFramedAlwaysCaptureCompletion;
+            target.UnlockRecordingFramedSeconds = source.UnlockRecordingFramedSeconds;
             target.ProviderNotificationOverrides = source.ProviderNotificationOverrides != null
                 ? source.ProviderNotificationOverrides.ToDictionary(
                     kvp => kvp.Key,
@@ -157,6 +174,12 @@ namespace PlayniteAchievements.Models.Settings
             target.ShowHiddenDescription = source.ShowHiddenDescription;
             target.ShowHiddenSuffix = source.ShowHiddenSuffix;
             target.ShowLockedIcon = source.ShowLockedIcon;
+            target.ShowLockedTitle = source.ShowLockedTitle;
+            target.ShowLockedDescription = source.ShowLockedDescription;
+            target.ShowHiddenTrophy = source.ShowHiddenTrophy;
+            target.ShowHiddenPoints = source.ShowHiddenPoints;
+            target.ShowLockedTrophy = source.ShowLockedTrophy;
+            target.ShowLockedPoints = source.ShowLockedPoints;
             target.UseSeparateLockedIconsWhenAvailable = source.UseSeparateLockedIconsWhenAvailable;
             target.SeparateLockedIconEnabledGameIds = source.SeparateLockedIconEnabledGameIds != null
                 ? new HashSet<Guid>(source.SeparateLockedIconEnabledGameIds)
@@ -191,21 +214,26 @@ namespace PlayniteAchievements.Models.Settings
             target.ShowOverviewTrophyPieChart = source.ShowOverviewTrophyPieChart;
             target.ShowOverviewPiePercentages = source.ShowOverviewPiePercentages;
             target.OverviewPieSmallSliceMode = source.OverviewPieSmallSliceMode;
+            target.OverviewPieIncludeLocked = source.OverviewPieIncludeLocked;
             target.ShowOverviewBarCharts = source.ShowOverviewBarCharts;
             target.ShowTopMenuBarButton = source.ShowTopMenuBarButton;
             target.ShowCompletedProgressColoring = source.ShowCompletedProgressColoring;
+            target.TintMissableLocks = source.TintMissableLocks;
             target.UseExophaseForSteamFriendOwnership = source.UseExophaseForSteamFriendOwnership;
             target.ShowFriendSpoilers = source.ShowFriendSpoilers;
             target.FriendsOverviewRecentUnlockLimit = source.FriendsOverviewRecentUnlockLimit;
             target.ShowCompactListRarityBar = source.ShowCompactListRarityBar;
             target.ProgressColumnAlignmentDefaulted = source.ProgressColumnAlignmentDefaulted;
             target.InlineSurfaceTransparencySeeded = source.InlineSurfaceTransparencySeeded;
+            target.CommonGlowTierCleared = source.CommonGlowTierCleared;
+            target.CategoryProgressColumnAlignmentDefaulted = source.CategoryProgressColumnAlignmentDefaulted;
             target.GridColumnHeaderAlignment = source.GridColumnHeaderAlignment;
             target.GridCellAlignment = source.GridCellAlignment;
             target.GridCellVerticalAlignment = source.GridCellVerticalAlignment;
             target.UnlockDateDisplayMode = source.UnlockDateDisplayMode;
             target.PlaytimeDisplayMode = source.PlaytimeDisplayMode;
             target.CategoryCompletionBadgeMode = source.CategoryCompletionBadgeMode;
+            target.ProgressBadgeSource = source.ProgressBadgeSource;
             target.FriendNameDisplayMode = source.FriendNameDisplayMode;
             target.EnableAchievementCompactListControl = source.EnableAchievementCompactListControl;
             target.EnableAchievementDataGridControl = source.EnableAchievementDataGridControl;
@@ -223,8 +251,7 @@ namespace PlayniteAchievements.Models.Settings
             target.CompactUnlockedListSortDescending = source.CompactUnlockedListSortDescending;
             target.CompactLockedListSortMode = source.CompactLockedListSortMode;
             target.CompactLockedListSortDescending = source.CompactLockedListSortDescending;
-            target.StartPagePieCharts = source.StartPagePieCharts?.Clone() ??
-                new StartPagePieWidgetSettings();
+            target.Showcase = source.Showcase?.Clone();
             target.GridOptions = source.GridOptions?.Clone() ?? new GridOptionsCatalog();
             target.StartPageActivityScope = source.StartPageActivityScope;
             target.StartPageProgressScope = source.StartPageProgressScope;
@@ -248,8 +275,10 @@ namespace PlayniteAchievements.Models.Settings
                     kvp => kvp.Value?.Clone(),
                     StringComparer.OrdinalIgnoreCase)
                 : new Dictionary<string, WindowPlacementState>(StringComparer.OrdinalIgnoreCase);
-            target.OverviewTimelineRange = source.OverviewTimelineRange;
-            target.ViewAchievementsTimelineRange = source.ViewAchievementsTimelineRange;
+            target.OverviewTimeWindow = source.OverviewTimeWindow;
+            target.OverviewTimelineGranularity = source.OverviewTimelineGranularity;
+            target.ViewAchievementsTimeWindow = source.ViewAchievementsTimeWindow;
+            target.ViewAchievementsTimelineGranularity = source.ViewAchievementsTimelineGranularity;
             target.ViewAchievementsTimelineVisible = source.ViewAchievementsTimelineVisible;
 
             // General Settings

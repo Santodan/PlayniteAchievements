@@ -130,6 +130,38 @@ namespace PlayniteAchievements.ViewModels
         // These methods delegate to the nested Settings object
         // ============================================================
 
+        /// <summary>
+        /// True between <see cref="BeginEdit"/> and <see cref="CancelEdit"/>/<see cref="EndEdit"/>,
+        /// i.e. while a settings window holds a pending edit snapshot. Editors that write straight
+        /// to the live persisted tree (the per-grid display settings popup) suppress their own save
+        /// while this is true, so the settings window's OK/Cancel decides whether their changes are
+        /// written.
+        /// </summary>
+        public bool IsEditSessionActive => _editingClone != null;
+
+        /// <summary>
+        /// Applies <paramref name="update"/> to the live settings and, while a settings window is
+        /// open, to its edit snapshot too, for bookkeeping that records work already done outside
+        /// the settings (such as text written to the library) and so must survive a Cancel.
+        /// </summary>
+        public void UpdatePersistedIncludingEditSnapshot(Action<PersistedSettings> update)
+        {
+            if (update == null)
+            {
+                return;
+            }
+
+            if (Settings?.Persisted != null)
+            {
+                update(Settings.Persisted);
+            }
+
+            if (_editingClone?.Persisted != null)
+            {
+                update(_editingClone.Persisted);
+            }
+        }
+
         public void BeginEdit()
         {
             // Only persisted settings need an edit snapshot; runtime/theme data can be large.
@@ -155,6 +187,7 @@ namespace PlayniteAchievements.ViewModels
                 }
             }
 
+            _editingClone = null;
             _plugin.ProviderRegistry?.CancelEditSession();
             _plugin.ProviderRegistry?.SyncFromSettings(Settings.Persisted);
             SyncAchievementNotificationDebugLog();
@@ -164,6 +197,7 @@ namespace PlayniteAchievements.ViewModels
 
         public void EndEdit()
         {
+            _editingClone = null;
             _plugin.ProviderRegistry?.CommitEditSession(false);
             _plugin.PersistSettingsForUiSilently();
             _plugin.ReconfigureUnlockRecordingForSettingsSave();

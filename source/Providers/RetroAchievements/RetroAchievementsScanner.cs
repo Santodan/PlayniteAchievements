@@ -28,7 +28,11 @@ namespace PlayniteAchievements.Providers.RetroAchievements
         private readonly RetroAchievementsPathResolver _pathResolver;
         private readonly RetroAchievementsHashCacheStore _hashCache;
         private readonly Func<DiskImageService> _diskImageServiceResolver;
+        private readonly RetroAchievementsCandidateHasher _candidateHasher;
         private readonly Dictionary<int, List<Models.RaGameListWithTitle>> _gameListCache = new();
+
+        // Unsaved cache writes that trigger a mid-scan save, so progress survives a crash or cancel.
+        private const int HashCacheSaveBatch = 25;
 
         public RetroAchievementsScanner(
             ILogger logger,
@@ -46,6 +50,7 @@ namespace PlayniteAchievements.Providers.RetroAchievements
             _pathResolver = pathResolver ?? throw new ArgumentNullException(nameof(pathResolver));
             _hashCache = hashCache ?? throw new ArgumentNullException(nameof(hashCache));
             _diskImageServiceResolver = diskImageServiceResolver;
+            _candidateHasher = new RetroAchievementsCandidateHasher(logger);
         }
 
         /// <summary>
@@ -54,12 +59,13 @@ namespace PlayniteAchievements.Providers.RetroAchievements
         /// </summary>
         private bool TryValidateCache(
             Game game,
+            RaHashCacheEntry entry,
             IReadOnlyList<string> candidates,
             out int raGameId)
         {
             raGameId = 0;
 
-            if (!_hashCache.TryGet(game.Id, out var entry))
+            if (entry == null || entry.Resolution != RaHashCacheResolution.HashMatch || entry.RaGameId <= 0)
             {
                 return false;
             }
@@ -112,26 +118,93 @@ namespace PlayniteAchievements.Providers.RetroAchievements
             return true;
         }
 
-        /// <summary>
-        /// Stores a cache entry after a successful hash match.
-        /// </summary>
-        private void StoreHashCacheEntry(Game game, string matchedPath, int raGameId)
+        private static bool TryGetCachedNameMatch(
+            RaHashCacheEntry entry,
+            Game game,
+            int? consoleId,
+            out int raGameId,
+            out int matchConsoleId)
         {
+            raGameId = 0;
+            matchConsoleId = 0;
+
+            if (entry == null ||
+                entry.Resolution != RaHashCacheResolution.NameMatch ||
+                entry.RaGameId <= 0 ||
+                !entry.NameMatchedConsoleId.HasValue ||
+                !string.Equals(entry.NameMatchedGameName, game?.Name, StringComparison.Ordinal))
+            {
+                return false;
+            }
+
+            if (consoleId.HasValue && consoleId.Value != entry.NameMatchedConsoleId.Value)
+            {
+                return false;
+            }
+
+            raGameId = entry.RaGameId;
+            matchConsoleId = entry.NameMatchedConsoleId.Value;
+            return true;
+        }
+
+        /// <summary>
+        /// Records how a game resolved, together with the hashes computed for its candidates.
+        /// Skips the write when nothing differs from the cached entry, so unchanged games
+        /// do not trigger cache saves.
+        /// </summary>
+        private void StoreHashCacheEntry(
+            Game game,
+            RaHashCacheEntry previous,
+            RaHashCacheResolution resolution,
+            int raGameId,
+            string matchedPath,
+            int? nameMatchConsoleId,
+            List<RaHashCacheCandidate> candidateRecords,
+            bool candidatesChanged)
+        {
+            if (!candidatesChanged &&
+                previous != null &&
+                previous.Resolution == resolution &&
+                previous.RaGameId == raGameId &&
+                string.Equals(previous.MatchedRomPath, matchedPath, StringComparison.OrdinalIgnoreCase) &&
+                previous.NameMatchedConsoleId == nameMatchConsoleId &&
+                (resolution != RaHashCacheResolution.NameMatch ||
+                 string.Equals(previous.NameMatchedGameName, game?.Name, StringComparison.Ordinal)))
+            {
+                return;
+            }
+
             try
             {
-                var fi = new FileInfo(matchedPath);
-                _hashCache.Set(game.Id, new RaHashCacheEntry
+                var entry = new RaHashCacheEntry
                 {
-                    MatchedRomPath = matchedPath,
-                    FileSize = fi.Length,
-                    LastWriteTicksUtc = fi.LastWriteTimeUtc.Ticks,
+                    Resolution = resolution,
                     RaGameId = raGameId,
-                    Dependencies = RetroAchievementsHashCacheStore.CaptureDependencySnapshot(matchedPath)
-                });
+                    Candidates = candidateRecords
+                };
+
+                if (resolution == RaHashCacheResolution.HashMatch && !string.IsNullOrWhiteSpace(matchedPath))
+                {
+                    var fi = new FileInfo(matchedPath);
+                    entry.MatchedRomPath = matchedPath;
+                    entry.FileSize = fi.Length;
+                    entry.LastWriteTicksUtc = fi.LastWriteTimeUtc.Ticks;
+                    entry.Dependencies = candidateRecords?
+                        .FirstOrDefault(c => string.Equals(c.Path, matchedPath, StringComparison.OrdinalIgnoreCase))?
+                        .Dependencies
+                        ?? RetroAchievementsHashCacheStore.CaptureDependencySnapshot(matchedPath);
+                }
+                else if (resolution == RaHashCacheResolution.NameMatch)
+                {
+                    entry.NameMatchedGameName = game?.Name;
+                    entry.NameMatchedConsoleId = nameMatchConsoleId;
+                }
+
+                _hashCache.Set(game.Id, entry);
             }
-            catch
+            catch (Exception ex)
             {
-                // Ignore cache storage failures
+                _logger?.Debug(ex, $"[RA] Failed to record hash cache entry for '{game?.Name}'.");
             }
         }
 
@@ -158,7 +231,25 @@ namespace PlayniteAchievements.Providers.RetroAchievements
                 _settings.Persisted.ScanDelayMs,
                 _settings.Persisted.MaxRetryAttempts);
 
-            var result = await ProviderRefreshExecutor.RunProviderGamesAsync(
+            try
+            {
+                return await RunScanAsync(gamesToRefresh, onGameStarting, onGameCompleted, providerSettings, rateLimiter, cancel).ConfigureAwait(false);
+            }
+            finally
+            {
+                _hashCache.Save();
+            }
+        }
+
+        private Task<RebuildPayload> RunScanAsync(
+            IReadOnlyList<Game> gamesToRefresh,
+            Action<Game> onGameStarting,
+            Func<Game, GameAchievementData, Task> onGameCompleted,
+            RetroAchievementsSettings providerSettings,
+            RateLimiter rateLimiter,
+            CancellationToken cancel)
+        {
+            return ProviderRefreshExecutor.RunProviderGamesAsync(
                 gamesToRefresh,
                 onGameStarting,
                 async (game, token) =>
@@ -192,6 +283,8 @@ namespace PlayniteAchievements.Providers.RetroAchievements
                         IsTransientError,
                         token).ConfigureAwait(false);
 
+                    _hashCache.SaveIfPending(HashCacheSaveBatch);
+
                     return new ProviderRefreshExecutor.ProviderGameResult
                     {
                         Data = data
@@ -205,10 +298,7 @@ namespace PlayniteAchievements.Providers.RetroAchievements
                 },
                 delayBetweenGamesAsync: null,
                 delayAfterErrorAsync: (consecutiveErrors, token) => rateLimiter.DelayAfterErrorAsync(consecutiveErrors, token),
-                cancel).ConfigureAwait(false);
-
-            _hashCache.Save();
-            return result;
+                cancel);
         }
 
         /// <summary>
@@ -235,156 +325,40 @@ namespace PlayniteAchievements.Providers.RetroAchievements
                 return result;
             }
 
+            _hashCache.TryGet(game.Id, out var cachedEntry);
+            var candidateRecords = new List<RaHashCacheCandidate>();
+            var candidatesChanged = false;
+
             if (consoleId.HasValue && hasher != null)
             {
                 var candidates = _pathResolver.ResolveCandidateFilePaths(game).ToList();
                 _logger?.Info($"[RA] Scanning '{game?.Name}' consoleId={consoleId.Value} hasher={hasher.Name} candidates={candidates.Count}.");
 
                 // Try to skip hashing if file unchanged
-                if (TryValidateCache(game, candidates, out var cachedRaGameId))
+                if (TryValidateCache(game, cachedEntry, candidates, out var cachedRaGameId))
                 {
                     // Still verify with RA API
-                    var cachedResult = await FetchGameInfoAsync(game, cachedRaGameId, consoleId, cancel).ConfigureAwait(false);
-                    if (cachedResult != null && cachedResult.HasAchievements)
+                    var cached = await FetchGameInfoWithOutcomeAsync(game, cachedRaGameId, consoleId, cancel).ConfigureAwait(false);
+                    if (cached.Outcome != FetchOutcome.NotFound)
                     {
-                        return cachedResult;
+                        // A fetch failure keeps the entry: the file still matches, only the request failed.
+                        return cached.Data;
                     }
-                    // Cache invalid (game removed from RA?), fall through to re-hash
-                    _logger?.Info($"[RA] Cache verification failed for '{game.Name}', re-hashing");
+
+                    _logger?.Info($"[RA] Cached gameId={cachedRaGameId} no longer exists for '{game.Name}', re-matching");
                     _hashCache.Remove(game.Id);
+                    cachedEntry = null;
                 }
 
-                try
+                var hashMatch = await TryResolveByHashAsync(
+                    consoleId.Value, hasher, raSettings, candidates, cachedEntry, candidateRecords, cancel).ConfigureAwait(false);
+                candidatesChanged = hashMatch.CandidatesChanged;
+
+                if (hashMatch.GameId > 0)
                 {
-                    var index = await _hashIndexStore.GetHashIndexAsync(consoleId.Value, cancel).ConfigureAwait(false);
-
-                    foreach (var candidate in candidates)
-                    {
-                        cancel.ThrowIfCancellationRequested();
-
-                        if (string.IsNullOrWhiteSpace(candidate)) continue;
-
-                        // CSO files need to be decompressed before hashing
-                        if (ArchiveUtils.IsCsoPath(candidate) && raSettings.EnableArchiveScanning)
-                        {
-                            if (!File.Exists(candidate))
-                            {
-                                continue;
-                            }
-
-                            _logger?.Info($"[RA] Decompressing CSO file: '{candidate}'");
-                            try
-                            {
-                                using (var tmpIso = CsoUtils.DecompressToTempFile(candidate))
-                                {
-                                    var hashes = await hasher.ComputeHashesAsync(tmpIso.Path, cancel).ConfigureAwait(false);
-                                    var match = TryMatchHash(index, hashes, out var matchedHash, out var gameId);
-                                    _logger?.Info($"[RA] CSO file '{candidate}' hashes={FormatHashesForLog(hashes)} matched={match} gameId={gameId}");
-
-                                    if (match)
-                                    {
-                                        StoreHashCacheEntry(game, candidate, gameId);
-                                        return await FetchGameInfoAsync(game, gameId, consoleId, cancel).ConfigureAwait(false);
-                                    }
-                                }
-                            }
-                            catch (Exception ex)
-                            {
-                                _logger?.Warn(ex, $"[RA] Failed to decompress CSO file '{candidate}': {ex.Message}");
-                            }
-                            continue;
-                        }
-
-                        // RVZ files need to be decompressed before hashing
-                        if (ArchiveUtils.IsRvzPath(candidate) && raSettings.EnableArchiveScanning)
-                        {
-                            if (!File.Exists(candidate))
-                            {
-                                continue;
-                            }
-
-                            _logger?.Info($"[RA] Decompressing RVZ file: '{candidate}'");
-                            try
-                            {
-                                using (var tmpIso = RvzUtils.DecompressToTempFile(candidate))
-                                {
-                                    var hashes = await hasher.ComputeHashesAsync(tmpIso.Path, cancel).ConfigureAwait(false);
-                                    var match = TryMatchHash(index, hashes, out var matchedHash, out var gameId);
-                                    _logger?.Info($"[RA] RVZ file '{candidate}' hashes={FormatHashesForLog(hashes)} matched={match} gameId={gameId}");
-
-                                    if (match)
-                                    {
-                                        StoreHashCacheEntry(game, candidate, gameId);
-                                        return await FetchGameInfoAsync(game, gameId, consoleId, cancel).ConfigureAwait(false);
-                                    }
-                                }
-                            }
-                            catch (Exception ex)
-                            {
-                                _logger?.Warn(ex, $"[RA] Failed to decompress RVZ file '{candidate}': {ex.Message}");
-                            }
-                            continue;
-                        }
-
-                        // Standard archive handling (zip, 7z, rar)
-                        if (ArchiveUtils.IsArchivePath(candidate) && raSettings.EnableArchiveScanning)
-                        {
-                            // Arcade hashing is based on filename; no need to inspect entries.
-                            if (hasher is Hashing.Hashers.ArcadeFilenameHasher)
-                            {
-                                var hashes = await hasher.ComputeHashesAsync(candidate, cancel).ConfigureAwait(false);
-                                var match = TryMatchHash(index, hashes, out var matchedHash, out var gameId);
-                                _logger?.Info($"[RA] Archive '{candidate}' hashes={FormatHashesForLog(hashes)} matched={match} gameId={gameId}");
-                                if (match)
-                                {
-                                    StoreHashCacheEntry(game, candidate, gameId);
-                                    return await FetchGameInfoAsync(game, gameId, consoleId, cancel).ConfigureAwait(false);
-                                }
-
-                                continue;
-                            }
-
-                            var entries = ArchiveUtils.GetCandidateEntries(candidate);
-                            foreach (var entry in entries)
-                            {
-                                cancel.ThrowIfCancellationRequested();
-
-                                using (var tmp = ArchiveUtils.ExtractEntryToTempFile(candidate, entry))
-                                {
-                                    var hashes = await hasher.ComputeHashesAsync(tmp.Path, cancel).ConfigureAwait(false);
-                                    var match = TryMatchHash(index, hashes, out var matchedHash, out var gameId);
-                                    _logger?.Info($"[RA] ArchiveEntry '{entry.Key}' hashes={FormatHashesForLog(hashes)} matched={match} gameId={gameId}");
-
-                                    if (match)
-                                    {
-                                        StoreHashCacheEntry(game, candidate, gameId);
-                                        return await FetchGameInfoAsync(game, gameId, consoleId, cancel).ConfigureAwait(false);
-                                    }
-                                }
-                            }
-                        }
-                        else
-                        {
-                            if (!File.Exists(candidate))
-                            {
-                                continue;
-                            }
-
-                            var hashes = await hasher.ComputeHashesAsync(candidate, cancel).ConfigureAwait(false);
-                            var match = TryMatchHash(index, hashes, out var matchedHash, out var gameId);
-                            _logger?.Info($"[RA] File '{candidate}' hashes={FormatHashesForLog(hashes)} matched={match} gameId={gameId}");
-
-                            if (match)
-                            {
-                                StoreHashCacheEntry(game, candidate, gameId);
-                                return await FetchGameInfoAsync(game, gameId, consoleId, cancel).ConfigureAwait(false);
-                            }
-                        }
-                    }
-                }
-                catch (Exception ex)
-                {
-                    _logger?.Warn(ex, $"[RA] Hash scanning failed for '{game.Name}': {ex.Message}");
+                    StoreHashCacheEntry(game, cachedEntry, RaHashCacheResolution.HashMatch, hashMatch.GameId,
+                        hashMatch.MatchedPath, null, candidateRecords, candidatesChanged);
+                    return await FetchGameInfoAsync(game, hashMatch.GameId, consoleId, cancel).ConfigureAwait(false);
                 }
             }
             else
@@ -395,15 +369,27 @@ namespace PlayniteAchievements.Providers.RetroAchievements
             // Try name-based fallback if enabled
             if (raSettings.EnableRaNameFallback)
             {
-                if (consoleId.HasValue)
+                var nameMatchId = 0;
+                var nameMatchConsoleId = 0;
+
+                if (TryGetCachedNameMatch(cachedEntry, game, consoleId, out var cachedNameId, out var cachedNameConsoleId))
                 {
-                    var nameMatchId = await TryMatchGameByNameAsync(game, consoleId.Value, cancel).ConfigureAwait(false);
+                    _logger?.Info($"[RA] Using cached name match for '{game.Name}' -> gameId={cachedNameId}");
+                    nameMatchId = cachedNameId;
+                    nameMatchConsoleId = cachedNameConsoleId;
+                }
+                else if (consoleId.HasValue)
+                {
+                    nameMatchId = await TryMatchGameByNameAsync(game, consoleId.Value, cancel).ConfigureAwait(false);
+                    nameMatchConsoleId = consoleId.Value;
                     if (nameMatchId > 0)
                     {
                         _logger?.Info($"[RA] Name-based fallback matched gameId={nameMatchId} for '{game.Name}'");
-                        return await FetchGameInfoAsync(game, nameMatchId, consoleId, cancel).ConfigureAwait(false);
                     }
-                    _logger?.Info($"[RA] Name-based fallback found no match for '{game.Name}'");
+                    else
+                    {
+                        _logger?.Info($"[RA] Name-based fallback found no match for '{game.Name}'");
+                    }
                 }
                 else if (RetroAchievementsCapabilityHelper.CanUsePlatformlessNameFallback(game, raSettings))
                 {
@@ -411,22 +397,165 @@ namespace PlayniteAchievements.Providers.RetroAchievements
                     if (nameMatch != null)
                     {
                         _logger?.Info($"[RA] Platformless name fallback matched '{game.Name}' -> gameId={nameMatch.GameId} consoleId={nameMatch.ConsoleId}");
-                        return await FetchGameInfoAsync(game, nameMatch.GameId, nameMatch.ConsoleId, cancel).ConfigureAwait(false);
+                        nameMatchId = nameMatch.GameId;
+                        nameMatchConsoleId = nameMatch.ConsoleId;
+                    }
+                    else
+                    {
+                        _logger?.Info($"[RA] Platformless name fallback found no unambiguous match for '{game.Name}'");
+                    }
+                }
+
+                if (nameMatchId > 0)
+                {
+                    var named = await FetchGameInfoWithOutcomeAsync(game, nameMatchId, nameMatchConsoleId, cancel).ConfigureAwait(false);
+                    if (named.Outcome == FetchOutcome.NotFound)
+                    {
+                        _hashCache.Remove(game.Id);
+                    }
+                    else
+                    {
+                        StoreHashCacheEntry(game, cachedEntry, RaHashCacheResolution.NameMatch, nameMatchId,
+                            null, nameMatchConsoleId, candidateRecords, candidatesChanged);
                     }
 
-                    _logger?.Info($"[RA] Platformless name fallback found no unambiguous match for '{game.Name}'");
+                    return named.Data;
                 }
+            }
+
+            if (candidateRecords.Count > 0)
+            {
+                StoreHashCacheEntry(game, cachedEntry, RaHashCacheResolution.None, 0,
+                    null, null, candidateRecords, candidatesChanged);
             }
 
             return BuildNoAchievements(game, appId: 0);
         }
 
+        private readonly struct HashResolution
+        {
+            public HashResolution(int gameId, string matchedPath, bool candidatesChanged)
+            {
+                GameId = gameId;
+                MatchedPath = matchedPath;
+                CandidatesChanged = candidatesChanged;
+            }
+
+            public int GameId { get; }
+            public string MatchedPath { get; }
+            public bool CandidatesChanged { get; }
+        }
+
+        /// <summary>
+        /// Matches candidate hashes against the console's hash index. Hashes recorded for an
+        /// unchanged file are re-matched without reading it; only new or changed files are hashed.
+        /// Every candidate examined is appended to <paramref name="candidateRecords"/>.
+        /// </summary>
+        private async Task<HashResolution> TryResolveByHashAsync(
+            int consoleId,
+            IRaHasher hasher,
+            RetroAchievementsSettings raSettings,
+            IReadOnlyList<string> candidates,
+            RaHashCacheEntry cachedEntry,
+            List<RaHashCacheCandidate> candidateRecords,
+            CancellationToken cancel)
+        {
+            var changed = false;
+
+            // Without a file to read there is nothing to match, so skip the index fetch.
+            if (!candidates.Any(c => !string.IsNullOrWhiteSpace(c) && File.Exists(c)))
+            {
+                return new HashResolution(0, null, false);
+            }
+
+            Dictionary<string, int> index;
+            try
+            {
+                index = await _hashIndexStore.GetHashIndexAsync(consoleId, cancel).ConfigureAwait(false);
+            }
+            catch (OperationCanceledException) when (cancel.IsCancellationRequested)
+            {
+                throw;
+            }
+            catch (Exception ex)
+            {
+                _logger?.Warn(ex, $"[RA] Failed to load hash index for consoleId={consoleId}: {ex.Message}");
+                return new HashResolution(0, null, false);
+            }
+
+            if (index == null)
+            {
+                return new HashResolution(0, null, false);
+            }
+
+            var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var candidate in candidates)
+            {
+                cancel.ThrowIfCancellationRequested();
+
+                if (string.IsNullOrWhiteSpace(candidate) || !seen.Add(candidate))
+                {
+                    continue;
+                }
+
+                var result = await _candidateHasher.HashAsync(
+                    candidate, hasher, raSettings, cachedEntry, index.ContainsKey, cancel).ConfigureAwait(false);
+                if (result == null)
+                {
+                    continue;
+                }
+
+                candidateRecords.Add(result.Record);
+                changed |= !result.FromCache;
+
+                if (result.MatchedHash != null && index.TryGetValue(result.MatchedHash, out var gameId))
+                {
+                    if (result.FromCache)
+                    {
+                        _logger?.Info($"[RA] Recorded hash of '{candidate}' matched gameId={gameId}: skipping hash");
+                    }
+
+                    return new HashResolution(gameId, candidate, changed);
+                }
+            }
+
+            return new HashResolution(0, null, changed);
+        }
+
+        private enum FetchOutcome
+        {
+            Ok,
+            NotFound,
+            Failed
+        }
+
         private async Task<GameAchievementData> FetchGameInfoAsync(Game game, int gameId, int? consoleId, CancellationToken cancel)
+        {
+            var fetched = await FetchGameInfoWithOutcomeAsync(game, gameId, consoleId, cancel).ConfigureAwait(false);
+            return fetched.Data;
+        }
+
+        /// <summary>
+        /// Fetches a game's sets. <see cref="FetchOutcome.NotFound"/> means RA returned no game for
+        /// the ID; <see cref="FetchOutcome.Failed"/> means the request itself failed, which says
+        /// nothing about whether the ID is still valid.
+        /// </summary>
+        private async Task<(GameAchievementData Data, FetchOutcome Outcome)> FetchGameInfoWithOutcomeAsync(
+            Game game,
+            int gameId,
+            int? consoleId,
+            CancellationToken cancel)
         {
             try
             {
                 var raSettings = ProviderRegistry.Settings<RetroAchievementsSettings>();
                 var gameInfo = await _api.GetGameInfoAndUserProgressAsync(gameId, cancel).ConfigureAwait(false);
+                if (gameInfo == null || (gameInfo.GameId <= 0 && string.IsNullOrWhiteSpace(gameInfo.GameTitle)))
+                {
+                    _logger?.Warn($"[RA] RetroAchievements returned no game for gameId={gameId}.");
+                    return (BuildNoAchievements(game, appId: gameId), FetchOutcome.NotFound);
+                }
+
                 var subsetConsoleId = RetroAchievementsSubsetConsoleResolver.Resolve(gameInfo, consoleId);
                 var selectedSubsetGameIds = game != null
                     ? GameCustomDataLookup.GetRetroAchievementsSelectedSubsetGameIds(game.Id)
@@ -448,7 +577,7 @@ namespace PlayniteAchievements.Providers.RetroAchievements
 
                 await DownloadCategoryImagesAsync(game?.Id, sets.CategoryImageSources, cancel).ConfigureAwait(false);
 
-                return new GameAchievementData
+                var data = new GameAchievementData
                 {
                     AppId = gameId,
                     GameName = game?.Name,
@@ -460,11 +589,16 @@ namespace PlayniteAchievements.Providers.RetroAchievements
                     IsAchievementSchemaAuthoritative = selectedSubsetGameIds.Count > 0,
                     Achievements = sets.Achievements
                 };
+                return (data, FetchOutcome.Ok);
+            }
+            catch (OperationCanceledException) when (cancel.IsCancellationRequested)
+            {
+                throw;
             }
             catch (Exception ex)
             {
                 _logger?.Error(ex, $"[RA] Failed to fetch game info for gameId={gameId}: {ex.Message}");
-                return BuildNoAchievements(game, appId: gameId);
+                return (BuildNoAchievements(game, appId: gameId), FetchOutcome.Failed);
             }
         }
 
@@ -526,37 +660,6 @@ namespace PlayniteAchievements.Providers.RetroAchievements
             public int GameId { get; set; }
             public int ConsoleId { get; set; }
             public string Title { get; set; }
-        }
-
-        private static bool TryMatchHash(Dictionary<string, int> index, IReadOnlyList<string> hashes, out string matchedHash, out int gameId)
-        {
-            matchedHash = null;
-            gameId = 0;
-
-            if (index == null || hashes == null)
-            {
-                return false;
-            }
-
-            foreach (var h in hashes)
-            {
-                if (string.IsNullOrWhiteSpace(h)) continue;
-                var key = h.Trim().ToLowerInvariant();
-
-                if (index.TryGetValue(key, out gameId))
-                {
-                    matchedHash = key;
-                    return true;
-                }
-            }
-
-            return false;
-        }
-
-        private static string FormatHashesForLog(IReadOnlyList<string> hashes)
-        {
-            if (hashes == null || hashes.Count == 0) return "(none)";
-            return string.Join(",", hashes.Select(h => string.IsNullOrWhiteSpace(h) ? "?" : h));
         }
 
         private async Task<int> TryMatchGameByNameAsync(Game game, int consoleId, CancellationToken cancel)

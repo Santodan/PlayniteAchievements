@@ -15,15 +15,25 @@ namespace PlayniteAchievements.Providers.RetroAchievements.Hashing.Hashers
 
         public override string Name => "3DO (OperaFS header + LaunchMe MD5)";
 
-        protected override async Task<IReadOnlyList<string>> ComputeHashesInternalAsync(string filePath, CancellationToken cancel)
+        protected override async Task<IReadOnlyList<string>> ComputeHashesInternalAsync(RaHashSource source, CancellationToken cancel)
         {
+            var filePath = source.Path;
             var operafsIdentifier = new byte[] { 0x01, 0x5A, 0x5A, 0x5A, 0x5A, 0x5A, 0x01 };
 
-            using (var image = DiscImageReader.Open(filePath))
+            using (var track = DiscImage.Open(source).OpenTrack(DiscTrackSelector.FirstData))
             using (var md5 = MD5.Create())
             {
+                if (track == null)
+                {
+                    return Array.Empty<string>();
+                }
+
+                // Sectors are addressed from the start of the track (rc_hash_3do reads track 1 from sector 0).
+                bool ReadWhole(long sectorIndex, byte[] target) =>
+                    track.ReadSector(track.FirstTrackSector + sectorIndex, target, 0, target.Length) == target.Length;
+
                 var sector0 = new byte[2048];
-                if (!await image.TryReadSectorAsync(0, sector0, cancel).ConfigureAwait(false))
+                if (!ReadWhole(0, sector0))
                 {
                     return Array.Empty<string>();
                 }
@@ -33,7 +43,7 @@ namespace PlayniteAchievements.Providers.RetroAchievements.Hashing.Hashers
                 {
                     if (sector0[i] != operafsIdentifier[i])
                     {
-                        Logger?.Warn($"[RA] {Name}: Not an OperaFS disc: {filePath}");
+                        WarnOnce($"[RA] {Name}: Not an OperaFS disc: {filePath}");
                         return Array.Empty<string>();
                     }
                 }
@@ -64,7 +74,7 @@ namespace PlayniteAchievements.Providers.RetroAchievements.Hashing.Hashers
                 {
                     cancel.ThrowIfCancellationRequested();
 
-                    if (!await image.TryReadSectorAsync(dirSector, sector, cancel).ConfigureAwait(false))
+                    if (!ReadWhole(dirSector, sector))
                     {
                         return Array.Empty<string>();
                     }
@@ -109,25 +119,29 @@ namespace PlayniteAchievements.Providers.RetroAchievements.Hashing.Hashers
 
                 if (launchMeSize == 0)
                 {
-                    Logger?.Warn($"[RA] {Name}: Could not find LaunchMe: {filePath}");
+                    WarnOnce($"[RA] {Name}: Could not find LaunchMe: {filePath}");
                     return Array.Empty<string>();
                 }
 
-                var launchSector = (int)(launchMeAddress / 2048);
+                // LaunchMe is read in runs of whole sectors; the last sector is only partly hashed.
+                long launchSector = launchMeAddress / 2048;
                 var remaining = Math.Min(launchMeSize, HashUtils.MaxHashBytes);
+                var run = new byte[DiscTrack.RunSectors * 2048];
                 while (remaining > 0)
                 {
                     cancel.ThrowIfCancellationRequested();
 
-                    if (!await image.TryReadSectorAsync(launchSector, sector, cancel).ConfigureAwait(false))
+                    var sectors = Math.Min(DiscTrack.RunSectors, (remaining + 2047) / 2048);
+                    var read = await track.ReadSectorRunAsync(track.FirstTrackSector + launchSector, sectors, 2048, run, cancel).ConfigureAwait(false);
+                    if (read < sectors * 2048)
                     {
                         return Array.Empty<string>();
                     }
 
-                    var toHash = Math.Min(2048, remaining);
-                    md5.TransformBlock(sector, 0, toHash, null, 0);
+                    var toHash = Math.Min(sectors * 2048, remaining);
+                    md5.TransformBlock(run, 0, toHash, null, 0);
                     remaining -= toHash;
-                    launchSector++;
+                    launchSector += sectors;
                 }
 
                 md5.TransformFinalBlock(Array.Empty<byte>(), 0, 0);

@@ -11,10 +11,9 @@
         CommonResources/AchievementResources, so these implicit styles never leak into the
         theme-integration controls embedded in the user's theme.
 
-        Holds every control type whose base style lives in CommonResources. The only window-specific
-        exception is DatePicker, whose base-style cluster (Calendar/CalendarItem/CalendarButton/etc.)
-        lives in ManageAchievementsStyles and is used only by that window, so its implicit style stays
-        declared in ManageAchievementsScopedControlStyles.
+        Holds every control type whose base style lives in CommonResources, including DatePicker:
+        its Calendar cluster lives in DatePickerStyles, which CommonResources merges, so the plugin
+        windows and the TimeWindowPicker share one themed picker.
     -->
     <ResourceDictionary.MergedDictionaries>
         <ResourceDictionary Source="pack://application:,,,/PlayniteAchievements;component/Resources/CommonResources.xaml"/>
@@ -37,5 +36,6 @@
     <Style TargetType="TabItem" BasedOn="{StaticResource PlayAch.TabItem.BaseStyle}"/>
     <Style TargetType="ProgressBar" BasedOn="{StaticResource PlayAch.ProgressBar.BaseStyle}"/>
     <Style TargetType="Expander" BasedOn="{StaticResource PlayAch.Expander.BaseStyle}"/>
+    <Style TargetType="DatePicker" BasedOn="{StaticResource PlayAch.DatePicker.BaseStyle}"/>
 
 </ResourceDictionary>

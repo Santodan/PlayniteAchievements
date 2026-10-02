@@ -5,17 +5,13 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
     public enum ManageAchievementsTab
     {
         Overview,
-        CustomSchema,
-        ManualTracking,
+        // The merged editor: every achievement in one list, authored and provider-supplied alike.
+        // It replaced the Custom tab outright and absorbed the Manual Tracking, Filters, Capstones,
+        // Goals, Notes, Order and Icons tabs, which each owned a slice of what it now does.
+        Editor,
         Category,
-        Filters,
-        AchievementOrder,
-        Capstones,
-        Goals,
-        Notes,
-        CustomIcons,
         Notifications,
-        Overrides
+        LocalOverrides
     }
 
     internal static class ManageAchievementsTabs
@@ -28,13 +24,9 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         public static readonly HashSet<ManageAchievementsTab> RequireAchievementData =
             new HashSet<ManageAchievementsTab>
             {
-                ManageAchievementsTab.Category,
-                ManageAchievementsTab.Filters,
-                ManageAchievementsTab.AchievementOrder,
-                ManageAchievementsTab.Capstones,
-                ManageAchievementsTab.Goals,
-                ManageAchievementsTab.Notes,
-                ManageAchievementsTab.CustomIcons
+                // Editor is deliberately absent: like the Custom tab it folds in, it must stay
+                // reachable for a game with no cached achievements so custom ones can be authored.
+                ManageAchievementsTab.Category
             };
     }
 }

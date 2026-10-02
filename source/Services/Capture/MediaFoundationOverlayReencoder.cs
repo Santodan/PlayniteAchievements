@@ -82,8 +82,47 @@ namespace PlayniteAchievements.Services.Capture
             double endSeconds, byte[] chimePcm, double chimeStartSeconds, string outputPath,
             int configuredFps, RecordingQuality quality)
         {
-            if (string.IsNullOrEmpty(baseClipPath) || track == null ||
-                track.Samples.Count == 0 || string.IsNullOrEmpty(outputPath))
+            var toast = CreateToastSource(track, toastStartSeconds, toastMaxSeconds);
+            if (toast == null)
+            {
+                return false;
+            }
+
+            return ExportWithOverlays(
+                baseClipPath, new IFrameOverlaySource[] { toast }, trimLeadSeconds, endSeconds,
+                chimePcm, chimeStartSeconds, outputPath, configuredFps, quality);
+        }
+
+        /// <summary>
+        /// The card as an overlay source: from <paramref name="toastStartSeconds"/> on the base
+        /// clip's timeline, bounded by <paramref name="toastMaxSeconds"/> and the track's own
+        /// length. Null for a track with no samples.
+        /// </summary>
+        internal static IFrameOverlaySource CreateToastSource(
+            ToastOverlayTrack track, double toastStartSeconds, double toastMaxSeconds)
+        {
+            if (track == null || track.Samples.Count == 0)
+            {
+                return null;
+            }
+
+            var toastStart = ToTicks(toastStartSeconds);
+            return new ToastOverlaySource(track, toastStart, ToastEndTicks(toastStart, toastMaxSeconds, track));
+        }
+
+        /// <summary>
+        /// <see cref="Export"/> with any set of overlays, drawn in list order. An empty list still
+        /// trims the clip to [<paramref name="trimLeadSeconds"/>, <paramref name="endSeconds"/>],
+        /// re-encoding only the head GOP when the splice applies, which is how a clean clip gets
+        /// the same span as the composited variants.
+        /// </summary>
+        [HandleProcessCorruptedStateExceptions, System.Security.SecurityCritical]
+        internal bool ExportWithOverlays(
+            string baseClipPath, IReadOnlyList<IFrameOverlaySource> overlays, double trimLeadSeconds,
+            double endSeconds, byte[] chimePcm, double chimeStartSeconds, string outputPath,
+            int configuredFps, RecordingQuality quality)
+        {
+            if (string.IsNullOrEmpty(baseClipPath) || overlays == null || string.IsNullOrEmpty(outputPath))
             {
                 return false;
             }
@@ -92,12 +131,6 @@ namespace PlayniteAchievements.Services.Capture
             {
                 try
                 {
-                    var toastStart = ToTicks(toastStartSeconds);
-                    var overlays = new IFrameOverlaySource[]
-                    {
-                        new ToastOverlaySource(track, toastStart, ToastEndTicks(toastStart, toastMaxSeconds, track)),
-                    };
-
                     if (SpliceEnabled && TrySpliceExport(
                             baseClipPath, overlays, trimLeadSeconds, endSeconds, chimePcm, chimeStartSeconds,
                             outputPath, configuredFps, quality))
@@ -111,7 +144,7 @@ namespace PlayniteAchievements.Services.Capture
                 }
                 catch (Exception ex)
                 {
-                    _logger?.Warn(ex, "[Recording] Toast overlay re-encode failed; the toastless clip is kept.");
+                    _logger?.Warn(ex, "[Recording] Overlay re-encode failed; the base clip is kept.");
                     return false;
                 }
             }
@@ -638,22 +671,19 @@ namespace PlayniteAchievements.Services.Capture
         /// <summary>
         /// The number of luma rows a decoded frame's surface is allocated over — the chroma plane
         /// begins that many rows down, not <paramref name="frameH"/>. Media Foundation exposes no
-        /// direct accessor, so it comes from the contiguous length, which packs rows to the frame
-        /// width while keeping the allocated height; the buffer's own capacity is the cross-check,
-        /// and an answer that fits neither is refused rather than guessed at (the pass then falls
-        /// back to leaving the clip without its card, never to writing one with torn colour).
+        /// direct accessor, so it comes from the contiguous length, cross-checked against the
+        /// buffer's own capacity by <see cref="Nv12LayoutMath.AlignedHeight"/>; an answer that fits
+        /// nothing is refused rather than guessed at (the pass then falls back to leaving the clip
+        /// without its card, never to writing one with torn colour).
         /// </summary>
         private static int AlignedHeight(IMF2DBuffer view, MediaBuffer buffer, int frameW, int frameH, int pitch)
         {
-            var planeBytes = frameW * 3 / 2;
             var contiguousLength = view.GetContiguousLength();
-            if (pitch >= frameW && planeBytes > 0 && contiguousLength % planeBytes == 0)
+            var alignedH = Nv12LayoutMath.AlignedHeight(
+                frameW, frameH, pitch, contiguousLength, buffer.MaxLength);
+            if (alignedH > 0)
             {
-                var alignedH = contiguousLength / planeBytes;
-                if (alignedH >= frameH && (long)pitch * alignedH * 3 / 2 <= buffer.MaxLength)
-                {
-                    return alignedH;
-                }
+                return alignedH;
             }
 
             throw new InvalidDataException(
@@ -913,7 +943,7 @@ namespace PlayniteAchievements.Services.Capture
             return ((long)high << 32) | (uint)low;
         }
 
-        private static long ToTicks(double seconds)
+        internal static long ToTicks(double seconds)
         {
             return (long)(Math.Max(0, seconds) * OneSecond100ns);
         }

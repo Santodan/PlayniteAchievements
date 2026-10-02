@@ -29,9 +29,49 @@ namespace PlayniteAchievements.Services.Achievements
             _logger = logger;
         }
 
-        public CacheWriteResult SetCapstone(Guid playniteGameId, string capstoneApiName)
+        /// <summary>
+        /// Sets, moves or clears one of a game's capstones.
+        /// </summary>
+        /// <remarks>
+        /// The first edit materializes the game: the provider's own capstones are written to the
+        /// stored set alongside the edit, and from then on the stored set is the whole truth while
+        /// provider flags no longer apply. That is what makes a seeded capstone and a nominated one
+        /// behave identically afterwards, and it is what the single stored capstone already did
+        /// before there could be more than one.
+        ///
+        /// A capstone claims its own achievement's category, so nominating one displaces whatever
+        /// stood for that category before.
+        /// </remarks>
+        public CacheWriteResult SetCapstone(Guid playniteGameId, string apiName, bool isCapstone)
         {
-            if (playniteGameId == Guid.Empty)
+            return SetCapstones(playniteGameId, new[] { (apiName, isCapstone) });
+        }
+
+        /// <summary>
+        /// Applies several capstone edits in a single store update.
+        /// </summary>
+        /// <remarks>
+        /// Setting capstones across a selection used to call the single-achievement form in a
+        /// loop, and each call re-read the record, re-cloned the override map, re-indexed every
+        /// achievement and took its own store write. The edits are applied here in order against
+        /// one in-memory set, so displacement still resolves exactly as it would sequentially --
+        /// one capstone stands for a category, and a later edit still displaces an earlier one.
+        /// </remarks>
+        public CacheWriteResult SetCapstones(
+            Guid playniteGameId,
+            IReadOnlyList<(string ApiName, bool IsCapstone)> edits)
+        {
+            var normalizedEdits = new List<(string ApiName, bool IsCapstone)>();
+            foreach (var edit in edits ?? Array.Empty<(string, bool)>())
+            {
+                var trimmed = (edit.ApiName ?? string.Empty).Trim();
+                if (!string.IsNullOrWhiteSpace(trimmed))
+                {
+                    normalizedEdits.Add((trimmed, edit.IsCapstone));
+                }
+            }
+
+            if (playniteGameId == Guid.Empty || normalizedEdits.Count == 0)
             {
                 return CacheWriteResult.CreateFailure(
                     string.Empty,
@@ -41,18 +81,44 @@ namespace PlayniteAchievements.Services.Achievements
 
             try
             {
-                // A capstone's only summary-visible effect is GameAchievementData.IsCompleted, so
-                // the summary and projection rebuild is only warranted when completion actually
-                // flips. Setting one on a still-locked achievement cannot flip it.
-                var affectsSummaryData = CapstoneChangeFlipsCompletion(playniteGameId, capstoneApiName);
+                var achievements = ResolveCapstoneCandidates(playniteGameId);
+
+                // Materializing means capturing the provider's own capstones alongside the edit, so
+                // a game whose achievements cannot be read right now must not be materialized: the
+                // stored set would be this one entry and every provider capstone would be dropped.
+                if ((achievements == null || achievements.Count == 0) &&
+                    !(_gameCustomDataStore.TryLoad(playniteGameId, out var existing) &&
+                      existing?.CapstonesMaterialized == true))
+                {
+                    _logger?.Warn(
+                        $"Refusing to set a capstone for gameId={playniteGameId}: no achievements are loaded to seed the set from.");
+                    return CacheWriteResult.CreateFailure(
+                        playniteGameId.ToString(),
+                        "no_achievements_loaded",
+                        ResourceProvider.GetString("LOCPlayAch_Error_RebuildFailed"));
+                }
+
+                var next = BuildNextCapstones(
+                    playniteGameId,
+                    achievements ?? new List<AchievementDetail>(),
+                    normalizedEdits);
+
+                // Summary rows carry the capstone counts the completion badge shows, so the rebuild
+                // is warranted whenever the edit moves either that count or completion.
+                var affectsSummaryData = CapstoneChangeAffectsSummaries(playniteGameId, achievements, next);
 
                 _gameCustomDataStore.Update(
                     playniteGameId,
                     customData =>
                     {
-                        customData.ManualCapstoneApiName = capstoneApiName;
+                        customData.CapstonesMaterialized = true;
+                        customData.Capstones = next;
                     },
-                    affectsSummaryData);
+                    affectsSummaryData,
+                    // Capstones are not in the override mirror, which carries only the filtered
+                    // ApiNames and the user-editable points and trophy type, so resyncing it here
+                    // would clone the record and take the write connection for nothing.
+                    affectsOverrideMirror: false);
 
                 return CacheWriteResult.CreateSuccess(playniteGameId.ToString(), DateTime.UtcNow);
             }
@@ -68,63 +134,204 @@ namespace PlayniteAchievements.Services.Achievements
         }
 
         /// <summary>
-        /// Whether changing the manual capstone changes the game's completion state, which is the
-        /// only thing about a capstone any summary or rollup can see. Fails safe: anything it
-        /// cannot determine is reported as a change, so summaries are never left stale.
+        /// Every achievement that could be a capstone, which means the authored ones too.
         /// </summary>
-        private bool CapstoneChangeFlipsCompletion(Guid playniteGameId, string nextCapstoneApiName)
+        /// <remarks>
+        /// The cache holds only what a provider supplied; an authored achievement lives in custom
+        /// data and is projected onto the list by hydration, which this path does not run. Reading
+        /// the cache alone left authored achievements invisible here, so seeding missed the ones a
+        /// provider had marked, a category could not be resolved for them, and the pruning below
+        /// treated a capstone on one as pointing at an achievement that no longer exists.
+        /// </remarks>
+        private List<AchievementDetail> ResolveCapstoneCandidates(Guid playniteGameId)
+        {
+            var achievements = _cacheService?.LoadGameData(playniteGameId.ToString())?.Achievements
+                ?? new List<AchievementDetail>();
+            var candidates = new List<AchievementDetail>(achievements);
+
+            if (_gameCustomDataStore.TryLoad(playniteGameId, out var customData) &&
+                customData?.CustomAchievements != null &&
+                customData.CustomAchievements.Count > 0)
+            {
+                candidates.AddRange(
+                    CustomAchievementProjectionService.ProjectAchievements(
+                        playniteGameId,
+                        customData.CustomAchievements));
+            }
+
+            return candidates;
+        }
+
+        /// <summary>
+        /// The game's capstone set with one edit applied, seeded from the provider when the game
+        /// has not been edited before.
+        /// </summary>
+        private List<CapstoneAssignment> BuildNextCapstones(
+            Guid playniteGameId,
+            IReadOnlyList<AchievementDetail> achievements,
+            IReadOnlyList<(string ApiName, bool IsCapstone)> edits)
+        {
+            // One load of the record, not three: resolving it clones the whole graph, including the
+            // per-achievement override map, which is the bulk of a heavily customized game.
+            var stored = _gameCustomDataStore.TryLoad(playniteGameId, out var customData) ? customData : null;
+            var materialized = stored?.CapstonesMaterialized == true;
+            var current = materialized
+                ? (stored.Capstones ?? new List<CapstoneAssignment>())
+                    .Select(assignment => assignment?.Clone())
+                    .Where(assignment => assignment != null)
+                    .ToList()
+                : CapstoneResolver.Materialize(achievements);
+
+            // Categories come from the cache unhydrated, so a user's category override has to be
+            // applied here the way hydration applies it. Without this the displacement below reads
+            // the provider's category and can free a slot the user never pointed at.
+            var categoryOverrides = GameCustomDataFile.CloneAchievementOverrideMap(stored?.AchievementOverrides)
+                ?? new Dictionary<string, AchievementOverride>(StringComparer.OrdinalIgnoreCase);
+
+            // Indexed once: the displacement check below asks for a category per stored capstone.
+            var byApiName = new Dictionary<string, AchievementDetail>(StringComparer.OrdinalIgnoreCase);
+            foreach (var achievement in achievements)
+            {
+                var key = (achievement?.ApiName ?? string.Empty).Trim();
+                if (!string.IsNullOrWhiteSpace(key) && !byApiName.ContainsKey(key))
+                {
+                    byApiName[key] = achievement;
+                }
+            }
+
+            // Folded in order, so a batch lands exactly where the same edits applied one at a
+            // time would: a later edit still displaces an earlier one that shares its category.
+            var next = current;
+            foreach (var edit in edits)
+            {
+                var apiName = edit.ApiName;
+                var isCapstone = edit.IsCapstone;
+                var category = ResolveCategory(byApiName, categoryOverrides, apiName);
+                var folded = new List<CapstoneAssignment>();
+                foreach (var assignment in next)
+                {
+                    if (assignment.Matches(apiName))
+                    {
+                        continue;
+                    }
+
+                    // One capstone stands for a category, so nominating one displaces whatever
+                    // stood for that category before.
+                    if (isCapstone &&
+                        string.Equals(
+                            ResolveCategory(byApiName, categoryOverrides, assignment.ApiName),
+                            category,
+                            StringComparison.OrdinalIgnoreCase))
+                    {
+                        continue;
+                    }
+
+                    folded.Add(assignment);
+                }
+
+                if (isCapstone)
+                {
+                    folded.Add(new CapstoneAssignment { ApiName = apiName });
+                }
+
+                next = folded;
+            }
+
+            // Drop entries whose achievement the provider no longer sends, so readers can trust the
+            // stored count as the game's capstone total without re-reading its achievements to
+            // check. Only when the achievements are actually in hand: an empty list here means a
+            // game that could not be loaded, and pruning against it would wipe the set.
+            if (byApiName.Count > 0)
+            {
+                next.RemoveAll(assignment => !byApiName.ContainsKey((assignment.ApiName ?? string.Empty).Trim()));
+            }
+
+            return next;
+        }
+
+        private static string ResolveCategory(
+            IReadOnlyDictionary<string, AchievementDetail> byApiName,
+            IReadOnlyDictionary<string, AchievementOverride> categoryOverrides,
+            string apiName)
+        {
+            var trimmed = (apiName ?? string.Empty).Trim();
+            if (categoryOverrides != null &&
+                categoryOverrides.TryGetValue(trimmed, out var userOverride) &&
+                !string.IsNullOrWhiteSpace(userOverride?.Category))
+            {
+                return AchievementCategoryTypeHelper.NormalizeCategoryOrDefault(userOverride.Category);
+            }
+
+            byApiName.TryGetValue(trimmed, out var match);
+            return AchievementCategoryTypeHelper.NormalizeCategoryOrDefault(
+                match?.ProviderCategory ?? match?.Category);
+        }
+
+        /// <summary>
+        /// Whether a capstone edit changes anything a summary or rollup can see. Fails safe:
+        /// anything it cannot determine is reported as a change, so summaries are never left stale.
+        /// </summary>
+        /// <remarks>
+        /// Completion is no longer the only visible effect. Summary rows carry how many capstones a
+        /// game has and how many are earned, and the completion badge shows that count, so adding
+        /// or dropping one matters even on a game whose completion cannot move. A fully unlocked
+        /// game used to be able to skip the rebuild for exactly that reason; it cannot now.
+        /// </remarks>
+        private bool CapstoneChangeAffectsSummaries(
+            Guid playniteGameId,
+            IReadOnlyList<AchievementDetail> achievements,
+            List<CapstoneAssignment> next)
         {
             try
             {
-                var achievements = _cacheService?.LoadGameData(playniteGameId.ToString())?.Achievements;
                 if (achievements == null || achievements.Count == 0)
                 {
                     return true;
                 }
 
-                // A fully unlocked game counts as complete whatever the capstone is.
-                if (achievements.All(a => a?.Unlocked == true))
-                {
-                    return false;
-                }
-
-                var previousCapstone = _gameCustomDataStore.TryLoad(playniteGameId, out var customData)
-                    ? customData?.ManualCapstoneApiName
-                    : null;
-
-                return IsCapstoneUnlocked(achievements, previousCapstone) !=
-                       IsCapstoneUnlocked(achievements, nextCapstoneApiName);
+                var set = GameCustomDataLookup.GetCapstoneSet(playniteGameId, null, _gameCustomDataStore);
+                var before = Summarize(achievements, set.Assignments, set.Materialized);
+                var after = Summarize(achievements, next, true);
+                return before.Key != after.Key || before.Value != after.Value;
             }
             catch (Exception ex)
             {
-                _logger?.Debug(ex, $"Failed evaluating capstone completion impact for gameId={playniteGameId}.");
+                _logger?.Debug(ex, $"Failed evaluating capstone summary impact for gameId={playniteGameId}.");
                 return true;
             }
         }
 
         /// <summary>
-        /// Mirrors hydration: a manual capstone replaces the provider's own capstone flags
-        /// outright, so with one set only that achievement counts.
+        /// What a given capstone set would put on the game's summary row: whether it reads as
+        /// finished, and how many finishes it stands for. Resolves the set rather than reading the
+        /// already stamped flags, because the point is to weigh a set that is not stored yet.
         /// </summary>
-        private static bool IsCapstoneUnlocked(
+        private static KeyValuePair<bool, int> Summarize(
             IReadOnlyList<AchievementDetail> achievements,
-            string manualCapstoneApiName)
+            IEnumerable<CapstoneAssignment> assignments,
+            bool materialized)
         {
-            if (string.IsNullOrWhiteSpace(manualCapstoneApiName))
+            var resolver = CapstoneResolver.Resolve(achievements, assignments, materialized);
+            var allUnlocked = achievements.All(a => a?.Unlocked == true);
+            if (resolver.Count == 0)
             {
-                return achievements.Any(a => a?.IsCapstone == true && a.Unlocked);
+                return new KeyValuePair<bool, int>(allUnlocked, allUnlocked ? 1 : 0);
             }
 
-            var trimmed = manualCapstoneApiName.Trim();
-            return achievements.Any(a =>
-                a != null &&
-                a.Unlocked &&
-                string.Equals((a.ApiName ?? string.Empty).Trim(), trimmed, StringComparison.OrdinalIgnoreCase));
+            var unlocked = resolver.EffectiveApiNames.Count(apiName =>
+                achievements.Any(a =>
+                    a != null &&
+                    a.Unlocked &&
+                    string.Equals((a.ApiName ?? string.Empty).Trim(), apiName, StringComparison.OrdinalIgnoreCase)));
+
+            return new KeyValuePair<bool, int>(
+                allUnlocked || unlocked >= resolver.Count,
+                unlocked);
         }
 
-        public Task<CacheWriteResult> SetCapstoneAsync(Guid playniteGameId, string capstoneApiName)
+        public Task<CacheWriteResult> SetCapstoneAsync(Guid playniteGameId, string apiName, bool isCapstone)
         {
-            return Task.Run(() => SetCapstone(playniteGameId, capstoneApiName));
+            return Task.Run(() => SetCapstone(playniteGameId, apiName, isCapstone));
         }
 
         public string GetPreferredProviderOverride(Guid playniteGameId)
@@ -325,7 +532,7 @@ namespace PlayniteAchievements.Services.Achievements
                 gameId,
                 customData =>
                 {
-                    customData.AchievementCategoryOverrides = CopyStringOverrides(categoryOverrides);
+                    ReplaceOverrideField(customData, categoryOverrides, (entry, value) => entry.Category = value);
                 },
                 affectsSummaryData: false);
         }
@@ -341,7 +548,7 @@ namespace PlayniteAchievements.Services.Achievements
                 gameId,
                 customData =>
                 {
-                    customData.AchievementCategoryTypeOverrides = CopyStringOverrides(categoryTypeOverrides);
+                    ReplaceOverrideField(customData, categoryTypeOverrides, (entry, value) => entry.CategoryType = value);
                 },
                 affectsSummaryData: false);
         }
@@ -360,8 +567,8 @@ namespace PlayniteAchievements.Services.Achievements
                 gameId,
                 customData =>
                 {
-                    customData.AchievementCategoryOverrides = CopyStringOverrides(categoryOverrides);
-                    customData.AchievementCategoryTypeOverrides = CopyStringOverrides(categoryTypeOverrides);
+                    ReplaceOverrideField(customData, categoryOverrides, (entry, value) => entry.Category = value);
+                    ReplaceOverrideField(customData, categoryTypeOverrides, (entry, value) => entry.CategoryType = value);
                 },
                 affectsSummaryData: false);
         }
@@ -392,8 +599,8 @@ namespace PlayniteAchievements.Services.Achievements
 
             _gameCustomDataStore.Update(gameId, customData =>
             {
-                customData.AchievementCategoryOverrides = CopyStringOverrides(categoryOverrides);
-                customData.AchievementCategoryTypeOverrides = CopyStringOverrides(categoryTypeOverrides);
+                ReplaceOverrideField(customData, categoryOverrides, (entry, value) => entry.Category = value);
+                ReplaceOverrideField(customData, categoryTypeOverrides, (entry, value) => entry.CategoryType = value);
                 customData.AchievementCategoryOrder = CopyCategoryOrder(categoryOrder);
                 customData.AchievementCategoryImageOverrides = CopyCategoryImageOverrides(categoryImageOverrides);
                 customData.GameSummaryCategory = GameCustomDataNormalizer.NormalizeGameSummaryCategory(gameSummaryCategory);
@@ -444,6 +651,507 @@ namespace PlayniteAchievements.Services.Achievements
             });
         }
 
+        private static Dictionary<string, AchievementOverride> CloneOverrides(GameCustomDataFile customData)
+        {
+            var clone = new Dictionary<string, AchievementOverride>(StringComparer.OrdinalIgnoreCase);
+            if (customData.AchievementOverrides == null)
+            {
+                return clone;
+            }
+
+            foreach (var pair in customData.AchievementOverrides)
+            {
+                if (!string.IsNullOrWhiteSpace(pair.Key) && pair.Value != null)
+                {
+                    clone[pair.Key] = pair.Value.Clone();
+                }
+            }
+
+            return clone;
+        }
+
+        private static void StoreOverrides(
+            GameCustomDataFile customData,
+            Dictionary<string, AchievementOverride> overrides)
+        {
+            var pruned = new Dictionary<string, AchievementOverride>(StringComparer.OrdinalIgnoreCase);
+            foreach (var pair in overrides)
+            {
+                if (pair.Value != null && !pair.Value.IsEmpty)
+                {
+                    pruned[pair.Key] = pair.Value;
+                }
+            }
+
+            customData.AchievementOverrides = pruned.Count > 0 ? pruned : null;
+
+            // The legacy mirror maps are dropped, not left as they were.
+            //
+            // Normalization republishes them from this record, which is what makes the record
+            // authoritative - but it merges them INTO the record first, so that only holds for a
+            // value the record still carries. A value cleared here stayed in its mirror and the
+            // next save folded it straight back, which is why clearing an icon override never
+            // stuck: the write reported no entries and the old path reappeared on reload.
+            //
+            // Safe to drop because nothing writes a mirror on its own; the only other place that
+            // touches them rewrites their keys alongside the record during an ApiName migration.
+            customData.AchievementCategoryOverrides = null;
+            customData.AchievementCategoryTypeOverrides = null;
+            customData.AchievementNotes = null;
+            customData.AchievementUnlockedIconOverrides = null;
+            customData.AchievementLockedIconOverrides = null;
+        }
+
+        /// <summary>
+        /// Applies a change to one achievement's override record, pruning the row when nothing is
+        /// left on it. The record is authoritative: normalization republishes the legacy mirror
+        /// maps from it, so writing only a mirror map would have the change discarded.
+        /// </summary>
+        /// <summary>
+        /// Sets a note on many achievements in a single store update.
+        /// </summary>
+        /// <remarks>
+        /// Per-entry values, so this cannot use ReplaceOverrideField: that clears the field on
+        /// every override row absent from the map, which for notes would erase the notes on rows
+        /// the gesture never touched. Only the named achievements are altered.
+        /// </remarks>
+        public void SetAchievementNotes(Guid gameId, IReadOnlyDictionary<string, string> notesByApiName)
+        {
+            if (gameId == Guid.Empty || notesByApiName == null || notesByApiName.Count == 0)
+            {
+                return;
+            }
+
+            var normalized = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var pair in notesByApiName)
+            {
+                var apiName = AchievementNoteHelper.NormalizeApiName(pair.Key);
+                if (!string.IsNullOrWhiteSpace(apiName))
+                {
+                    normalized[apiName] = AchievementNoteHelper.NormalizeNote(pair.Value);
+                }
+            }
+
+            if (normalized.Count == 0)
+            {
+                return;
+            }
+
+            _gameCustomDataStore.Update(
+                gameId,
+                customData =>
+                {
+                    var overrides = CloneOverrides(customData);
+                    foreach (var pair in normalized)
+                    {
+                        if (!overrides.TryGetValue(pair.Key, out var entry) || entry == null)
+                        {
+                            entry = new AchievementOverride();
+                        }
+
+                        entry.Note = pair.Value;
+                        overrides[pair.Key] = entry;
+                    }
+
+                    StoreOverrides(customData, overrides);
+                },
+                affectsSummaryData: false);
+        }
+
+        private static void MutateOverride(
+            GameCustomDataFile customData,
+            string apiName,
+            Action<AchievementOverride> apply)
+        {
+            MutateOverrides(customData, new[] { apiName }, apply);
+        }
+
+        /// <summary>
+        /// Applies the same edit to many achievements' override records, cloning and storing the
+        /// override map once for the whole set rather than once per achievement.
+        /// </summary>
+        /// <remarks>
+        /// The singular form clones the map, mutates one entry and stores it back, so calling it
+        /// in a loop re-cloned every override the game has for each achievement touched. That is
+        /// the inner half of what made applying a field across a selection quadratic; the outer
+        /// half was one whole store write per row.
+        /// </remarks>
+        private static void MutateOverrides(
+            GameCustomDataFile customData,
+            IReadOnlyCollection<string> apiNames,
+            Action<AchievementOverride> apply)
+        {
+            if (apiNames == null || apiNames.Count == 0)
+            {
+                return;
+            }
+
+            var overrides = CloneOverrides(customData);
+            foreach (var apiName in apiNames)
+            {
+                if (string.IsNullOrWhiteSpace(apiName))
+                {
+                    continue;
+                }
+
+                if (!overrides.TryGetValue(apiName, out var entry) || entry == null)
+                {
+                    entry = new AchievementOverride();
+                }
+
+                apply(entry);
+                overrides[apiName] = entry;
+            }
+
+            StoreOverrides(customData, overrides);
+        }
+
+        /// <summary>
+        /// Replaces one field across every override record from a whole-map write. The field is
+        /// cleared on rows absent from <paramref name="values"/>, matching the replace semantics the
+        /// legacy map writes had.
+        /// </summary>
+        private static void ReplaceOverrideField(
+            GameCustomDataFile customData,
+            IReadOnlyDictionary<string, string> values,
+            Action<AchievementOverride, string> apply)
+        {
+            var overrides = CloneOverrides(customData);
+            foreach (var entry in overrides.Values)
+            {
+                apply(entry, null);
+            }
+
+            if (values != null)
+            {
+                foreach (var pair in values)
+                {
+                    var apiName = (pair.Key ?? string.Empty).Trim();
+                    var value = (pair.Value ?? string.Empty).Trim();
+                    if (string.IsNullOrWhiteSpace(apiName) || string.IsNullOrWhiteSpace(value))
+                    {
+                        continue;
+                    }
+
+                    if (!overrides.TryGetValue(apiName, out var entry) || entry == null)
+                    {
+                        entry = new AchievementOverride();
+                        overrides[apiName] = entry;
+                    }
+
+                    apply(entry, value);
+                }
+            }
+
+            StoreOverrides(customData, overrides);
+        }
+
+        /// <summary>
+        /// Sets or clears one achievement's user-editable provider fields. A null value clears that
+        /// override, so the achievement falls back to the provider's own value rather than to blank.
+        /// </summary>
+        /// <remarks>
+        /// Unlock status is absent by design: it stays provider-owned so an edit cannot move
+        /// unlocked counts or completion. <paramref name="unlockTimeUtc"/> only corrects the
+        /// timestamp of an achievement that is already unlocked. Rarity is absent for provider
+        /// achievements; a custom achievement carries its own on its definition.
+        /// </remarks>
+        public void SetAchievementFieldOverride(
+            Guid gameId,
+            string achievementApiName,
+            AchievementEditableField field,
+            object value)
+        {
+            SetAchievementFieldOverride(gameId, new[] { achievementApiName }, field, value);
+        }
+
+        /// <summary>
+        /// Sets one field across many achievements in a single store update.
+        /// </summary>
+        /// <remarks>
+        /// The per-achievement form costs a whole store write -- several deep clones of the
+        /// game's record, three normalizations, a serialize, a SQLite open and close, and for a
+        /// mirrored field a delete and re-insert of every override row. Applying a value across a
+        /// selection by calling it in a loop paid all of that once per row. This batches the same
+        /// edit into one write, matching the shape ClearCustomizations already uses.
+        ///
+        /// Ordering and partial failure differ deliberately: the whole set now lands or none of
+        /// it does, where a loop could leave the first rows written and the rest not.
+        /// </remarks>
+        public void SetAchievementFieldOverride(
+            Guid gameId,
+            IEnumerable<string> achievementApiNames,
+            AchievementEditableField field,
+            object value)
+        {
+            if (gameId == Guid.Empty || achievementApiNames == null)
+            {
+                return;
+            }
+
+            var targets = new List<string>();
+            var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var name in achievementApiNames)
+            {
+                var normalized = AchievementNoteHelper.NormalizeApiName(name);
+                if (!string.IsNullOrWhiteSpace(normalized) && seen.Add(normalized))
+                {
+                    targets.Add(normalized);
+                }
+            }
+
+            if (targets.Count == 0)
+            {
+                return;
+            }
+
+            // This flag gates two things: the summary memo, and the Overview's per-game delta. So
+            // it has to be true for any field a displayed row shows, not just the ones a summary
+            // aggregate sums -- otherwise the edit lands in the store and nothing on screen
+            // re-reads it, which is what left a hidden edit visible only inside the editor.
+            //
+            // Points and trophy type additionally move SQL-resolved aggregates, via the override
+            // mirror. The rest are applied in code over the rows, so they need the re-read but not
+            // the mirror. That includes the unlock time: summary rows show the overridden date, and
+            // the summary's unlock-date counts follow it (ApplyAchievementSummaryCustomization).
+            const bool affectsSummaryData = true;
+            var affectsOverrideMirror =
+                field == AchievementEditableField.Points ||
+                field == AchievementEditableField.TrophyType;
+
+            _gameCustomDataStore.Update(
+                gameId,
+                customData => MutateOverrides(customData, targets, entry => ApplyFieldToEntry(entry, field, value)),
+                affectsSummaryData,
+                affectsOverrideMirror);
+        }
+
+        /// <summary>
+        /// Writes a different value per achievement in one store update.
+        /// </summary>
+        /// <remarks>
+        /// The single-value overload above collapses N achievements into one update only when
+        /// they all take the *same* value. Undo and redo are the case where they do not: setting
+        /// one name across a selection is one value, but restoring the previous state gives every
+        /// achievement back its own. Grouping by value therefore degraded to one update per row,
+        /// and each update is a load, a deep clone, three normalizations, a serialize, a SQLite
+        /// write and a change cascade. Undoing a rename across 641 rows was measured as 215
+        /// store writes over 42 seconds, with a 5.8s UI freeze inside it.
+        /// </remarks>
+        public void SetAchievementFieldOverrides(
+            Guid gameId,
+            IReadOnlyList<(string ApiName, AchievementEditableField Field, object Value)> writes)
+        {
+            if (gameId == Guid.Empty || writes == null || writes.Count == 0)
+            {
+                return;
+            }
+
+            // Last write wins per achievement and field, matching what a sequence of individual
+            // calls would have left behind.
+            var resolved = new List<(string ApiName, AchievementEditableField Field, object Value)>();
+            var seen = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+            foreach (var write in writes)
+            {
+                var normalized = AchievementNoteHelper.NormalizeApiName(write.ApiName);
+                if (string.IsNullOrWhiteSpace(normalized))
+                {
+                    continue;
+                }
+
+                var key = normalized + "\u0000" + write.Field;
+                if (seen.TryGetValue(key, out var existing))
+                {
+                    resolved[existing] = (normalized, write.Field, write.Value);
+                    continue;
+                }
+
+                seen[key] = resolved.Count;
+                resolved.Add((normalized, write.Field, write.Value));
+            }
+
+            if (resolved.Count == 0)
+            {
+                return;
+            }
+
+            // The flags are the union over the fields written, for the reasons the single-value
+            // overload documents: a mirrored field anywhere in the batch means the batch moves
+            // the mirror.
+            // Every editable field is displayed on summary rows, so any write affects the summary.
+            var affectsSummary = true;
+            var affectsMirror = false;
+            foreach (var write in resolved)
+            {
+                affectsMirror |=
+                    write.Field == AchievementEditableField.Points ||
+                    write.Field == AchievementEditableField.TrophyType;
+            }
+
+            _gameCustomDataStore.Update(
+                gameId,
+                customData =>
+                {
+                    // Cloned once for the whole batch, not once per write. MutateOverrides
+                    // deep-copies the game's entire override map and re-stores it on every
+                    // call, so driving it per write cost N copies of an N-entry map -- and the
+                    // batch that reaches this with the most writes is a bulk edit, or an undo
+                    // of one, across every achievement in the game. Applying 641 writes to a
+                    // game with 641 overrides meant on the order of 400,000 entry clones for
+                    // one gesture.
+                    var overrides = CloneOverrides(customData);
+                    foreach (var write in resolved)
+                    {
+                        if (!overrides.TryGetValue(write.ApiName, out var entry) || entry == null)
+                        {
+                            entry = new AchievementOverride();
+                        }
+
+                        ApplyFieldToEntry(entry, write.Field, write.Value);
+                        overrides[write.ApiName] = entry;
+                    }
+
+                    StoreOverrides(customData, overrides);
+                },
+                affectsSummary,
+                affectsMirror);
+        }
+
+        private static void ApplyFieldToEntry(
+            AchievementOverride entry,
+            AchievementEditableField field,
+            object value)
+        {
+            {
+                {
+                    switch (field)
+                    {
+                        case AchievementEditableField.DisplayName:
+                            entry.DisplayName = NormalizeText(value as string);
+                            break;
+                        case AchievementEditableField.Description:
+                            entry.Description = NormalizeText(value as string);
+                            break;
+                        case AchievementEditableField.Points:
+                            entry.Points = value as int?;
+                            break;
+                        case AchievementEditableField.TrophyType:
+                            entry.TrophyType = NormalizeText(value as string);
+                            break;
+                        case AchievementEditableField.UnlockTimeUtc:
+                            // A null timestamp is an explicit clear, not "no customization":
+                            // leaving the record empty would fall straight back to the provider's
+                            // own time, which is what made an unchecked box reappear. The
+                            // provider value is still untouched, so Revert restores it.
+                            var unlockTime = value as DateTime?;
+                            entry.UnlockTimeUtc = unlockTime;
+                            entry.ClearUnlockTime = !unlockTime.HasValue;
+                            break;
+                        case AchievementEditableField.Hidden:
+                            // Either value can be a customization, so the caller passes null to
+                            // mean "back to whatever the provider says" rather than "not hidden".
+                            entry.Hidden = value as bool?;
+                            break;
+                    }
+                }
+            }
+        }
+
+        /// <summary>
+        /// Clears a game's stored customization in one store update.
+        /// </summary>
+        /// <remarks>
+        /// Reset and Revert used to walk the individual writers in turn - the override records,
+        /// the category maps, the filters, the goals, the order, and for a full reset the authored
+        /// definitions - and every one of those is its own <c>Update</c>: a load, a deep clone, a
+        /// normalize, a serialize, a SQLite write, and a <c>CacheInvalidated</c> that rebuilds the
+        /// library projection. One button press therefore paid that cascade six or seven times.
+        /// The mutations are independent of each other, so they compose into a single update, the
+        /// same way <see cref="SetIconOverridesAndCustomAchievementIcons"/> folds its two halves.
+        ///
+        /// Order matters within the mutation and matches the sequence it replaced: the override
+        /// records are dropped first, then the category maps are rewritten, so a map that still
+        /// carries an assignment re-creates that entry rather than being erased by the clear.
+        ///
+        /// Dropping the whole override record is what makes a revert structural: the provider's
+        /// own values were never overwritten, so removing the overlay is all that is needed.
+        /// Clearing field by field would not work for the unlock timestamp, where a cleared value
+        /// is itself a stored state. Icon paths on the record go with it; the files they point at
+        /// are managed elsewhere.
+        ///
+        /// Capstones stay a separate call. Clearing one has to resolve the game's capstone
+        /// candidates, refuse to materialize a set when no achievements are loaded, and decide for
+        /// itself whether summaries move - none of which is a mutation that can be inlined here.
+        /// </remarks>
+        public void ClearCustomizations(
+            Guid gameId,
+            IEnumerable<string> achievementApiNames,
+            IReadOnlyDictionary<string, string> categoryOverrides,
+            IReadOnlyDictionary<string, string> categoryTypeOverrides,
+            IEnumerable<string> filteredAchievementApiNames,
+            IEnumerable<string> summaryFilteredAchievementApiNames,
+            IReadOnlyList<string> goalApiNames,
+            IReadOnlyList<string> orderedApiNames,
+            bool clearAuthoredAchievements)
+        {
+            if (gameId == Guid.Empty)
+            {
+                return;
+            }
+
+            var targets = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var name in achievementApiNames ?? Array.Empty<string>())
+            {
+                var apiName = AchievementNoteHelper.NormalizeApiName(name);
+                if (!string.IsNullOrWhiteSpace(apiName))
+                {
+                    targets.Add(apiName);
+                }
+            }
+
+            var normalizedGoals = AchievementOrderHelper.NormalizeApiNames(goalApiNames);
+
+            // A dropped record may have carried a points or trophy-type override, both of which
+            // the summary SQL resolves through the mirror, so the rebuild is warranted.
+            _gameCustomDataStore.Update(
+                gameId,
+                customData =>
+                {
+                    if (targets.Count > 0)
+                    {
+                        var overrides = CloneOverrides(customData);
+                        foreach (var apiName in targets)
+                        {
+                            overrides.Remove(apiName);
+                        }
+
+                        StoreOverrides(customData, overrides);
+                    }
+
+                    ReplaceOverrideField(customData, categoryOverrides, (entry, value) => entry.Category = value);
+                    ReplaceOverrideField(customData, categoryTypeOverrides, (entry, value) => entry.CategoryType = value);
+
+                    customData.FilteredAchievementApiNames = CopyApiNames(filteredAchievementApiNames);
+                    customData.SummaryFilteredAchievementApiNames = CopyApiNames(summaryFilteredAchievementApiNames);
+
+                    customData.GoalAchievementApiNames = normalizedGoals.Count > 0 ? normalizedGoals : null;
+
+                    // Null leaves the stored order alone, which is what a revert wants when there
+                    // was no custom order to re-seat against; an empty list drops it outright,
+                    // which is what a full reset wants.
+                    if (orderedApiNames != null)
+                    {
+                        customData.AchievementOrder = new List<string>(orderedApiNames);
+                    }
+
+                    if (clearAuthoredAchievements)
+                    {
+                        customData.CustomAchievements = null;
+                    }
+                },
+                affectsSummaryData: true);
+        }
+
         public void SetAchievementNote(Guid gameId, string achievementApiName, string note)
         {
             if (gameId == Guid.Empty)
@@ -461,30 +1169,22 @@ namespace PlayniteAchievements.Services.Achievements
             var normalizedNote = AchievementNoteHelper.NormalizeNote(note);
             _gameCustomDataStore.Update(
                 gameId,
-                customData =>
-                {
-                    var notes = customData.AchievementNotes != null
-                        ? new Dictionary<string, string>(customData.AchievementNotes, StringComparer.OrdinalIgnoreCase)
-                        : new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-
-                    if (string.IsNullOrWhiteSpace(normalizedNote))
-                    {
-                        notes.Remove(apiName);
-                    }
-                    else
-                    {
-                        notes[apiName] = normalizedNote;
-                    }
-
-                    customData.AchievementNotes = notes.Count > 0 ? notes : null;
-                },
+                customData => MutateOverride(customData, apiName, entry => entry.Note = normalizedNote),
                 affectsSummaryData: false);
         }
 
-        public void SetAchievementIconOverrides(
+        /// <summary>
+        /// Writes both icon override maps and the custom achievements' own icon paths in one store
+        /// update. Custom achievements carry their icons on the definition rather than in the
+        /// override maps, and the Icons tab edits both halves at once. Each Update is a load,
+        /// normalize, serialize, write and change notification, so writing the halves separately
+        /// paid that twice for a single edit.
+        /// </summary>
+        public void SetIconOverridesAndCustomAchievementIcons(
             Guid gameId,
             IReadOnlyDictionary<string, string> unlockedIconOverrides,
-            IReadOnlyDictionary<string, string> lockedIconOverrides)
+            IReadOnlyDictionary<string, string> lockedIconOverrides,
+            IReadOnlyDictionary<string, (string Unlocked, string Locked)> customIconsByApiName)
         {
             if (gameId == Guid.Empty)
             {
@@ -493,9 +1193,247 @@ namespace PlayniteAchievements.Services.Achievements
 
             _gameCustomDataStore.Update(gameId, customData =>
             {
-                customData.AchievementUnlockedIconOverrides = CopyStringOverrides(unlockedIconOverrides);
-                customData.AchievementLockedIconOverrides = CopyStringOverrides(lockedIconOverrides);
+                ApplyAchievementIconOverrides(customData, unlockedIconOverrides, lockedIconOverrides);
+                ApplyCustomAchievementIcons(customData, customIconsByApiName);
             });
+        }
+
+        private static void ApplyAchievementIconOverrides(
+            GameCustomDataFile customData,
+            IReadOnlyDictionary<string, string> unlockedIconOverrides,
+            IReadOnlyDictionary<string, string> lockedIconOverrides)
+        {
+            ReplaceOverrideField(customData, unlockedIconOverrides, (entry, value) => entry.UnlockedIconPath = value);
+            ReplaceOverrideField(customData, lockedIconOverrides, (entry, value) => entry.LockedIconPath = value);
+        }
+
+        private static void ApplyCustomAchievementIcons(
+            GameCustomDataFile customData,
+            IReadOnlyDictionary<string, (string Unlocked, string Locked)> iconsByApiName)
+        {
+            if (iconsByApiName == null ||
+                iconsByApiName.Count == 0 ||
+                customData.CustomAchievements == null)
+            {
+                return;
+            }
+
+            foreach (var definition in customData.CustomAchievements)
+            {
+                var apiName = CustomAchievementProjectionService.BuildApiName(definition?.Id);
+                if (definition == null ||
+                    string.IsNullOrWhiteSpace(apiName) ||
+                    !iconsByApiName.TryGetValue(apiName, out var icons))
+                {
+                    continue;
+                }
+
+                definition.UnlockedIconPath = string.IsNullOrWhiteSpace(icons.Unlocked) ? null : icons.Unlocked.Trim();
+                definition.LockedIconPath = string.IsNullOrWhiteSpace(icons.Locked) ? null : icons.Locked.Trim();
+            }
+        }
+
+        /// <summary>
+        /// Replaces the achievements authored by the user and keeps every ApiName-keyed
+        /// customization attached when an edited custom ID changes.
+        /// </summary>
+        public void SetCustomAchievements(
+            Guid gameId,
+            IReadOnlyList<CustomAchievementDefinition> definitions,
+            IReadOnlyDictionary<string, string> renamedApiNames = null)
+        {
+            if (gameId == Guid.Empty)
+            {
+                return;
+            }
+
+            _gameCustomDataStore.Update(gameId, customData =>
+            {
+                if (renamedApiNames != null && renamedApiNames.Count > 0)
+                {
+                    MigrateCustomAchievementApiNameReferences(customData, renamedApiNames);
+                }
+
+                customData.CustomAchievements = definitions != null
+                    ? definitions.Select(definition => definition?.Clone()).Where(definition => definition != null).ToList()
+                    : null;
+            });
+        }
+
+        /// <summary>
+        /// Merges imported definitions into the game's custom achievements by ID, the same rule
+        /// the editor applies to its rows: a matching ID is replaced in place, keeping its local
+        /// unlock state and progress, and anything else is appended. For callers with no editor
+        /// rows to merge into.
+        /// </summary>
+        public void MergeCustomAchievements(
+            Guid gameId,
+            IReadOnlyList<CustomAchievementDefinition> imported,
+            out int added,
+            out int updated)
+        {
+            var addedCount = 0;
+            var updatedCount = 0;
+            if (gameId != Guid.Empty && imported != null && imported.Count > 0)
+            {
+                _gameCustomDataStore.Update(gameId, customData =>
+                {
+                    var merged = (customData.CustomAchievements ?? new List<CustomAchievementDefinition>())
+                        .Where(definition => definition != null)
+                        .ToList();
+                    foreach (var definition in imported.Where(definition => definition != null))
+                    {
+                        var id = CustomAchievementProjectionService.NormalizeId(definition.Id);
+                        var index = string.IsNullOrWhiteSpace(id)
+                            ? -1
+                            : merged.FindIndex(existing => string.Equals(
+                                CustomAchievementProjectionService.NormalizeId(existing.Id),
+                                id,
+                                StringComparison.OrdinalIgnoreCase));
+                        if (index >= 0)
+                        {
+                            var replacement = definition.Clone();
+                            PortablePersonalState.CarryLocal(merged[index], replacement);
+                            merged[index] = replacement;
+                            updatedCount++;
+                        }
+                        else
+                        {
+                            merged.Add(definition.Clone());
+                            addedCount++;
+                        }
+                    }
+
+                    customData.CustomAchievements = merged;
+                });
+            }
+
+            added = addedCount;
+            updated = updatedCount;
+        }
+
+        /// <summary>
+        /// Adds an automatically generated auto capstone, files it, and marks the game as handled,
+        /// in one store update.
+        /// </summary>
+        /// <remarks>
+        /// Nomination is left to <see cref="SetCapstone"/> afterwards, and has to come after: it
+        /// reads the capstone's category from the filing written here and its candidates from the
+        /// definitions, so nominating first would neither see the achievement nor file it.
+        /// </remarks>
+        /// <param name="category">The category to file it in, or null to leave it in the default.</param>
+        public void AddGeneratedAutoCapstone(
+            Guid gameId,
+            CustomAchievementDefinition definition,
+            string category)
+        {
+            if (gameId == Guid.Empty || definition == null)
+            {
+                return;
+            }
+
+            _gameCustomDataStore.Update(gameId, customData =>
+            {
+                var definitions = (customData.CustomAchievements ?? new List<CustomAchievementDefinition>())
+                    .Where(existing => existing != null)
+                    .Select(existing => existing.Clone())
+                    .ToList();
+                definitions.Add(definition.Clone());
+                customData.CustomAchievements = definitions;
+
+                // Placed first, so the capstone leads the list, and its category's group when it
+                // stands for one. Everything else keeps its order behind it: entries the order
+                // does not name follow those it does, in their own order.
+                var apiName = CustomAchievementProjectionService.BuildApiName(definition.Id);
+                customData.AchievementOrder = AchievementOrderHelper.NormalizeApiNames(
+                    new[] { apiName }.Concat(customData.AchievementOrder ?? new List<string>()));
+
+                var normalizedCategory = AchievementCategoryTypeHelper.NormalizeCategory(category);
+                if (!string.IsNullOrWhiteSpace(normalizedCategory))
+                {
+                    var overrides = CloneOverrides(customData);
+                    if (!overrides.TryGetValue(apiName, out var entry) || entry == null)
+                    {
+                        entry = new AchievementOverride();
+                        overrides[apiName] = entry;
+                    }
+
+                    entry.Category = normalizedCategory;
+                    StoreOverrides(customData, overrides);
+                }
+
+                customData.AutoCapstoneGenerated = true;
+            });
+        }
+
+        /// <summary>
+        /// Removes a game's auto capstones and clears its generation marker, so generation handles
+        /// it afresh. Temporary, for testing generation; a platinum that generation nominated
+        /// stays nominated, since nothing records which nominations it made.
+        /// </summary>
+        /// <returns>True when the game had anything to clear.</returns>
+        public bool ClearAutoCapstones(Guid gameId)
+        {
+            if (gameId == Guid.Empty ||
+                !_gameCustomDataStore.TryLoad(gameId, out var stored) ||
+                stored == null ||
+                (!stored.AutoCapstoneGenerated &&
+                 stored.CustomAchievements?.Any(definition => definition?.IsAutoCapstone == true) != true))
+            {
+                return false;
+            }
+
+            _gameCustomDataStore.Update(gameId, customData =>
+            {
+                var removed = new HashSet<string>(
+                    (customData.CustomAchievements ?? new List<CustomAchievementDefinition>())
+                        .Where(definition => definition?.IsAutoCapstone == true)
+                        .Select(definition => CustomAchievementProjectionService.BuildApiName(definition.Id)),
+                    StringComparer.OrdinalIgnoreCase);
+
+                if (removed.Count > 0)
+                {
+                    customData.CustomAchievements = customData.CustomAchievements
+                        .Where(definition => definition != null && !definition.IsAutoCapstone)
+                        .ToList();
+                    customData.Capstones = customData.Capstones?
+                        .Where(assignment => !removed.Contains((assignment?.ApiName ?? string.Empty).Trim()))
+                        .ToList();
+                    customData.AchievementOrder = customData.AchievementOrder?
+                        .Where(apiName => !removed.Contains((apiName ?? string.Empty).Trim()))
+                        .ToList();
+
+                    var overrides = CloneOverrides(customData);
+                    foreach (var apiName in removed)
+                    {
+                        overrides.Remove(apiName);
+                    }
+
+                    StoreOverrides(customData, overrides);
+                }
+
+                customData.AutoCapstoneGenerated = false;
+            });
+
+            return true;
+        }
+
+        /// <summary>
+        /// Marks a game as handled by automatic capstone generation without adding anything, for a
+        /// game that already had its capstone or whose platinum was nominated instead.
+        /// </summary>
+        public void MarkAutoCapstoneGenerated(Guid gameId)
+        {
+            if (gameId == Guid.Empty)
+            {
+                return;
+            }
+
+            _gameCustomDataStore.Update(
+                gameId,
+                customData => customData.AutoCapstoneGenerated = true,
+                affectsSummaryData: false,
+                affectsOverrideMirror: false);
         }
 
         public void SetSeparateLockedIconOverride(Guid gameId, bool enabled)
@@ -533,6 +1471,24 @@ namespace PlayniteAchievements.Services.Achievements
                             .OrderBy(value => value)
                             .ToList()
                         : null;
+            });
+        }
+
+        /// <summary>
+        /// Assigns the custom provider a custom-only game displays as; null or blank clears it.
+        /// </summary>
+        public void SetCustomProvider(Guid gameId, string customProviderId)
+        {
+            if (gameId == Guid.Empty)
+            {
+                return;
+            }
+
+            _gameCustomDataStore.Update(gameId, customData =>
+            {
+                customData.CustomProviderId = string.IsNullOrWhiteSpace(customProviderId)
+                    ? null
+                    : customProviderId.Trim();
             });
         }
 
@@ -598,6 +1554,225 @@ namespace PlayniteAchievements.Services.Achievements
             {
                 _cacheService.RemoveGameData(playniteGameId);
             }
+        }
+
+        /// <summary>
+        /// Replaces the manual link's recorded unlocks for a game in one store update. The map holds
+        /// only unlocked achievements, keyed by ApiName, with the unlock time or null when it is
+        /// unknown.
+        /// </summary>
+        /// <remarks>
+        /// Written as a whole map rather than one achievement at a time, matching the other
+        /// collection-shaped facets, so ticking a whole selection costs one write rather than one per
+        /// row. Locked achievements are simply absent: <c>ManualUnlockResolver</c> treats an absent
+        /// key and a stored <c>false</c> identically, so storing the false entries would only grow
+        /// the blob that every write has to serialize.
+        /// <para>
+        /// <paramref name="affectsSummaryData"/> is false on purpose. Unlocked counts and completion
+        /// are read from the cache, not from this blob, and the caller re-applies the link to the
+        /// cache itself, which raises its own invalidation. Marking this as summary-affecting would
+        /// run that cascade a second time for identical numbers.
+        /// </para>
+        /// </remarks>
+        public bool SetManualUnlockStates(
+            Guid playniteGameId,
+            IReadOnlyDictionary<string, DateTime?> unlockedApiNames)
+        {
+            if (playniteGameId == Guid.Empty)
+            {
+                return false;
+            }
+
+            var states = new Dictionary<string, bool>();
+            var times = new Dictionary<string, DateTime?>();
+            if (unlockedApiNames != null)
+            {
+                foreach (var pair in unlockedApiNames)
+                {
+                    var apiName = (pair.Key ?? string.Empty).Trim();
+                    if (string.IsNullOrWhiteSpace(apiName))
+                    {
+                        continue;
+                    }
+
+                    states[apiName] = true;
+                    if (pair.Value.HasValue)
+                    {
+                        times[apiName] = pair.Value;
+                    }
+                }
+            }
+
+            var wrote = false;
+            _gameCustomDataStore.Update(
+                playniteGameId,
+                customData =>
+                {
+                    if (customData.ManualLink == null)
+                    {
+                        return;
+                    }
+
+                    customData.ManualLink.UnlockStates = states;
+                    customData.ManualLink.UnlockTimes = times;
+                    customData.ManualLink.LastModifiedUtc = DateTime.UtcNow;
+                    wrote = true;
+                },
+                affectsSummaryData: false);
+
+            return wrote;
+        }
+
+        /// <summary>
+        /// Sets the provider key a manually tracked game presents as. Null or empty restores the
+        /// platform derived from the source game id.
+        /// </summary>
+        /// <remarks>
+        /// Only the stored override moves here. The cached game's effective platform is resolved
+        /// from it by <c>ManualDisplayPlatformResolver</c> when the link is re-applied, so the
+        /// caller re-projects rather than this writing two places.
+        /// </remarks>
+        public bool SetManualDisplayPlatform(Guid playniteGameId, string providerKey)
+        {
+            if (playniteGameId == Guid.Empty)
+            {
+                return false;
+            }
+
+            var normalized = ManualDisplayPlatformResolver.NormalizeOverride(providerKey);
+            var wrote = false;
+            _gameCustomDataStore.Update(
+                playniteGameId,
+                customData =>
+                {
+                    if (customData.ManualLink == null)
+                    {
+                        return;
+                    }
+
+                    customData.ManualLink.DisplayPlatformKeyOverride = normalized;
+                    customData.ManualLink.LastModifiedUtc = DateTime.UtcNow;
+                    wrote = true;
+                },
+                // The platform a game attributes to moves library rollups, so summaries rebuild.
+                affectsSummaryData: true);
+
+            return wrote;
+        }
+
+        /// <summary>
+        /// Marks one user-owned achievement unlocked. Returns false when the achievement is not one
+        /// the user owns, so a provider row can never be unlocked by mistake.
+        /// </summary>
+        /// <remarks>
+        /// Two kinds qualify and each stores unlock state in its own place: an authored achievement
+        /// carries it on its definition, and every achievement of a manually tracked game carries it
+        /// in the link. A real provider's achievement is refused here rather than at the call site,
+        /// so no caller can route around the rule.
+        /// </remarks>
+        public ManualUnlockWriteResult TryUnlockUserOwnedAchievement(
+            Guid playniteGameId,
+            string achievementApiName,
+            DateTime? unlockTimeUtc = null)
+        {
+            var apiName = AchievementNoteHelper.NormalizeApiName(achievementApiName);
+            if (playniteGameId == Guid.Empty || string.IsNullOrWhiteSpace(apiName))
+            {
+                return ManualUnlockWriteResult.NotApplicable;
+            }
+
+            if (!_gameCustomDataStore.TryLoad(playniteGameId, out var probe) || probe == null)
+            {
+                return ManualUnlockWriteResult.NotApplicable;
+            }
+
+            var stamp = unlockTimeUtc ?? DateTime.UtcNow;
+
+            if (CustomAchievementProjectionService.IsCustomApiName(apiName))
+            {
+                var definitions = probe.CustomAchievements;
+                if (definitions == null)
+                {
+                    return ManualUnlockWriteResult.NotApplicable;
+                }
+
+                var updated = new List<CustomAchievementDefinition>();
+                var matched = false;
+                foreach (var definition in definitions)
+                {
+                    var clone = definition?.Clone();
+                    if (clone == null)
+                    {
+                        continue;
+                    }
+
+                    if (string.Equals(
+                            CustomAchievementProjectionService.BuildApiName(clone.Id),
+                            apiName,
+                            StringComparison.OrdinalIgnoreCase))
+                    {
+                        matched = true;
+                        if (clone.Unlocked)
+                        {
+                            return ManualUnlockWriteResult.AlreadyUnlocked;
+                        }
+
+                        clone.Unlocked = true;
+                        clone.UnlockTimeUtc = stamp;
+                    }
+
+                    updated.Add(clone);
+                }
+
+                if (!matched)
+                {
+                    return ManualUnlockWriteResult.NotApplicable;
+                }
+
+                SetCustomAchievements(playniteGameId, updated);
+                return ManualUnlockWriteResult.Custom;
+            }
+
+            if (probe.ManualLink == null)
+            {
+                return ManualUnlockWriteResult.NotApplicable;
+            }
+
+            if (probe.ManualLink.UnlockStates != null &&
+                probe.ManualLink.UnlockStates.TryGetValue(apiName, out var already) &&
+                already)
+            {
+                return ManualUnlockWriteResult.AlreadyUnlocked;
+            }
+
+            _gameCustomDataStore.Update(
+                playniteGameId,
+                customData =>
+                {
+                    if (customData.ManualLink == null)
+                    {
+                        return;
+                    }
+
+                    if (customData.ManualLink.UnlockStates == null)
+                    {
+                        customData.ManualLink.UnlockStates = new Dictionary<string, bool>();
+                    }
+
+                    if (customData.ManualLink.UnlockTimes == null)
+                    {
+                        customData.ManualLink.UnlockTimes = new Dictionary<string, DateTime?>();
+                    }
+
+                    customData.ManualLink.UnlockStates[apiName] = true;
+                    customData.ManualLink.UnlockTimes[apiName] = stamp;
+                    customData.ManualLink.LastModifiedUtc = DateTime.UtcNow;
+                },
+                // Counts and completion move, but the caller re-projects the link onto the cache and
+                // that raises its own invalidation, so this write does not need to fire the cascade.
+                affectsSummaryData: false);
+
+            return ManualUnlockWriteResult.Manual;
         }
 
         private bool RemoveManualTrackingLink(Guid playniteGameId, string gameName)
@@ -705,6 +1880,99 @@ namespace PlayniteAchievements.Services.Achievements
                 }
 
                 result.Add(normalized);
+            }
+
+            return result.Count > 0 ? result : null;
+        }
+
+        private static void MigrateCustomAchievementApiNameReferences(
+            GameCustomDataFile customData,
+            IReadOnlyDictionary<string, string> renamedApiNames)
+        {
+            if (customData == null || renamedApiNames == null || renamedApiNames.Count == 0)
+            {
+                return;
+            }
+
+            customData.ManualCapstoneApiName = MigrateApiName(customData.ManualCapstoneApiName, renamedApiNames);
+            foreach (var capstone in customData.Capstones ?? Enumerable.Empty<CapstoneAssignment>())
+            {
+                if (capstone != null)
+                {
+                    capstone.ApiName = MigrateApiName(capstone.ApiName, renamedApiNames);
+                }
+            }
+
+            customData.AchievementOrder = MigrateApiNameList(customData.AchievementOrder, renamedApiNames);
+            customData.FilteredAchievementApiNames = MigrateApiNameList(customData.FilteredAchievementApiNames, renamedApiNames);
+            customData.SummaryFilteredAchievementApiNames = MigrateApiNameList(customData.SummaryFilteredAchievementApiNames, renamedApiNames);
+            customData.GoalAchievementApiNames = MigrateApiNameList(customData.GoalAchievementApiNames, renamedApiNames);
+            customData.AchievementCategoryOverrides = MigrateApiNameMap(customData.AchievementCategoryOverrides, renamedApiNames);
+            customData.AchievementCategoryTypeOverrides = MigrateApiNameMap(customData.AchievementCategoryTypeOverrides, renamedApiNames);
+            customData.AchievementUnlockedIconOverrides = MigrateApiNameMap(customData.AchievementUnlockedIconOverrides, renamedApiNames);
+            customData.AchievementLockedIconOverrides = MigrateApiNameMap(customData.AchievementLockedIconOverrides, renamedApiNames);
+            customData.AchievementNotes = MigrateApiNameMap(customData.AchievementNotes, renamedApiNames);
+            // The record is authoritative, so its keys must follow the rename or the customization
+            // is orphaned and normalization republishes the old keys into the mirror maps.
+            customData.AchievementOverrides = MigrateApiNameMap(customData.AchievementOverrides, renamedApiNames);
+        }
+
+        private static string MigrateApiName(
+            string apiName,
+            IReadOnlyDictionary<string, string> renamedApiNames)
+        {
+            var normalized = (apiName ?? string.Empty).Trim();
+            if (string.IsNullOrWhiteSpace(normalized))
+            {
+                return apiName;
+            }
+
+            return renamedApiNames.TryGetValue(normalized, out var migrated) &&
+                   !string.IsNullOrWhiteSpace(migrated)
+                ? migrated.Trim()
+                : apiName;
+        }
+
+        private static List<string> MigrateApiNameList(
+            IEnumerable<string> apiNames,
+            IReadOnlyDictionary<string, string> renamedApiNames)
+        {
+            if (apiNames == null)
+            {
+                return null;
+            }
+
+            var result = new List<string>();
+            var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var apiName in apiNames)
+            {
+                var migrated = MigrateApiName(apiName, renamedApiNames);
+                if (!string.IsNullOrWhiteSpace(migrated) && seen.Add(migrated))
+                {
+                    result.Add(migrated);
+                }
+            }
+
+            return result.Count > 0 ? result : null;
+        }
+
+        private static Dictionary<string, TValue> MigrateApiNameMap<TValue>(
+            IReadOnlyDictionary<string, TValue> source,
+            IReadOnlyDictionary<string, string> renamedApiNames)
+        {
+            if (source == null)
+            {
+                return null;
+            }
+
+            var result = new Dictionary<string, TValue>(StringComparer.OrdinalIgnoreCase);
+            foreach (var pair in source)
+            {
+                var migratedKey = MigrateApiName(pair.Key, renamedApiNames);
+                if (!string.IsNullOrWhiteSpace(migratedKey))
+                {
+                    result[migratedKey] = pair.Value;
+                }
             }
 
             return result.Count > 0 ? result : null;

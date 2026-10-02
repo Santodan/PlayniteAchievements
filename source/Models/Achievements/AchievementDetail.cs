@@ -10,7 +10,7 @@ namespace PlayniteAchievements.Models.Achievements
     /// <summary>
     /// Individual achievement detail with schema metadata and user unlock progress.
     /// </summary>
-    public sealed class AchievementDetail
+    public sealed class AchievementDetail : IAchievementOverrideTarget
     {
         private bool? _unlocked;
 
@@ -40,7 +40,7 @@ namespace PlayniteAchievements.Models.Achievements
 
         /// <summary>
         /// Optional structured category classification.
-        /// Allowed canonical values: Default, Base, DLC, Singleplayer, Multiplayer, Collectable, Missable.
+        /// Canonical values are listed in AchievementCategoryTypeHelper.AllowedCategoryTypes.
         /// </summary>
         public string CategoryType { get; set; }
 
@@ -106,6 +106,12 @@ namespace PlayniteAchievements.Models.Achievements
         /// </summary>
         [IgnoreDataMember]
         public string ProviderKey { get; set; }
+
+        /// <summary>
+        /// Runtime-only flag for achievements projected from per-game custom data.
+        /// </summary>
+        [IgnoreDataMember]
+        public bool IsCustom { get; set; }
 
         /// <summary>
         /// Runtime-only provider-assigned category label, captured by the hydrator before

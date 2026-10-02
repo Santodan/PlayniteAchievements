@@ -11,7 +11,7 @@ using PlayniteAchievements.ViewModels.Items;
 
 namespace PlayniteAchievements.ViewModels
 {
-    public sealed class GameSummaryGridControlBarAdapter : PlayniteAchievements.Common.ObservableObject
+    public sealed class GameSummaryGridControlBarAdapter : SharedControlBarAdapter
     {
         private readonly SearchTextIndex<GameSummaryItem> _searchIndex =
             new SearchTextIndex<GameSummaryItem>(item =>
@@ -21,6 +21,7 @@ namespace PlayniteAchievements.ViewModels
         private readonly HashSet<string> _selectedActivityFilters =
             new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         private string _searchText = string.Empty;
+        private List<GameSummaryItem> _optionGames;
         private ObservableCollection<ProviderFilterGroup> _providerFilterGroups =
             new ObservableCollection<ProviderFilterGroup>();
 
@@ -40,9 +41,7 @@ namespace PlayniteAchievements.ViewModels
             ControlBar = CreateControlBar();
         }
 
-        public event EventHandler FilterChanged;
-
-        public GridControlBarViewModel ControlBar { get; }
+        public override GridControlBarViewModel ControlBar { get; }
 
         public string SearchText
         {
@@ -92,11 +91,11 @@ namespace PlayniteAchievements.ViewModels
                 .Where(item => item != null)
                 .ToList();
 
-            _searchIndex.Rebuild(items);
             IEnumerable<GameSummaryItem> filtered = items;
             var searchQuery = SearchQuery.From(SearchText);
             if (searchQuery.HasValue)
             {
+                _searchIndex.Rebuild(items);
                 filtered = filtered.Where(item => _searchIndex.Matches(item, searchQuery));
             }
 
@@ -117,17 +116,94 @@ namespace PlayniteAchievements.ViewModels
 
         public void UpdateOptions(IEnumerable<GameSummaryItem> source)
         {
+            // A filter pass re-feeds the same games; rebuilding then would swap the groups out
+            // from under an open dropdown, so a toggle there would land on a discarded group.
+            var games = (source ?? Enumerable.Empty<GameSummaryItem>()).ToList();
+            if (ProviderFilterGroupBuilder.HasSameGames(_optionGames, games))
+            {
+                return;
+            }
+
+            // A new snapshot re-feeds new instances of the same games on every edit. When they
+            // would build the same groups, keep the groups and only track the new list. A pending
+            // restore still rebuilds, since it has selections to seed.
+            if (PendingPlatformSelections == null &&
+                ProviderFilterGroupBuilder.HasSameFilterOptions(_optionGames, games))
+            {
+                _optionGames = games;
+                return;
+            }
+
+            _optionGames = games;
             ProviderFilterGroups = ProviderFilterGroupBuilder.Rebuild(
-                source,
+                games,
                 ProviderFilterGroups,
-                OnProviderFilterSelectionChanged);
+                OnProviderFilterSelectionChanged,
+                PendingPlatformSelections);
+            PendingPlatformSelections = null;
             OnPropertyChanged(nameof(SelectedProviderFilterText));
             ControlBar.Refresh();
+        }
+
+        public override string StateKey => "ControlBar.Games";
+
+        public override ControlBarFilterState CaptureState()
+        {
+            return new ControlBarFilterState
+            {
+                SearchText = SearchText,
+                Platforms = CapturePlatformSelections(ProviderFilterGroups),
+                Progress = SelectedPositions(ProgressFilterOptions, _selectedProgressFilters),
+                Activity = SelectedPositions(ActivityFilterOptions, _selectedActivityFilters)
+            };
+        }
+
+        public override void RestoreState(ControlBarFilterState state)
+        {
+            if (state == null)
+            {
+                return;
+            }
+
+            _searchText = state.SearchText ?? string.Empty;
+            PendingPlatformSelections = state.Platforms;
+            RestorePositions(ProgressFilterOptions, _selectedProgressFilters, state.Progress);
+            RestorePositions(ActivityFilterOptions, _selectedActivityFilters, state.Activity);
+            OnPropertyChanged(nameof(SearchText));
+            OnPropertyChanged(nameof(SelectedProgressFilterText));
+            OnPropertyChanged(nameof(SelectedActivityFilterText));
+        }
+
+        private static List<int> SelectedPositions(IList<string> options, HashSet<string> selected)
+        {
+            var positions = new List<int>();
+            for (var i = 0; i < options.Count; i++)
+            {
+                if (selected.Contains(options[i]))
+                {
+                    positions.Add(i);
+                }
+            }
+
+            return positions;
+        }
+
+        private static void RestorePositions(IList<string> options, HashSet<string> selected, IEnumerable<int> positions)
+        {
+            selected.Clear();
+            foreach (var position in positions ?? Enumerable.Empty<int>())
+            {
+                if (position >= 0 && position < options.Count && !string.IsNullOrWhiteSpace(options[position]))
+                {
+                    selected.Add(options[position].Trim());
+                }
+            }
         }
 
         public void Clear()
         {
             _searchIndex.Clear();
+            _optionGames = null;
             UpdateOptions(null);
         }
 
@@ -222,11 +298,6 @@ namespace PlayniteAchievements.ViewModels
         {
             OnPropertyChanged(nameof(SelectedProviderFilterText));
             RaiseFilterChanged();
-        }
-
-        private void RaiseFilterChanged()
-        {
-            FilterChanged?.Invoke(this, EventArgs.Empty);
         }
 
         private static bool IsFilterSelected(HashSet<string> selectedValues, string value)

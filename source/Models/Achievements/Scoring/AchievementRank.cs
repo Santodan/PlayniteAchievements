@@ -90,17 +90,7 @@ namespace PlayniteAchievements.Models.Achievements.Scoring
                 return "BadgeCompletedGame";
             }
 
-            switch (GetRarityTier(rank))
-            {
-                case RarityTier.UltraRare:
-                    return "BadgePlatinumHexagon";
-                case RarityTier.Rare:
-                    return useUniformRarityBadges ? "BadgeGoldHexagon" : "BadgeGoldPentagon";
-                case RarityTier.Uncommon:
-                    return useUniformRarityBadges ? "BadgeSilverHexagon" : "BadgeSilverSquare";
-                default:
-                    return useUniformRarityBadges ? "BadgeBronzeHexagon" : "BadgeBronzeTriangle";
-            }
+            return GetRarityTier(rank).ToIconKey(useUniformRarityBadges);
         }
 
         public static string GetBadgeIconKey(
@@ -121,17 +111,9 @@ namespace PlayniteAchievements.Models.Achievements.Scoring
                 return "ScoreBadgeCompletedGame";
             }
 
-            switch (GetRarityTier(rank))
-            {
-                case RarityTier.UltraRare:
-                    return "ScoreBadgePlatinumHexagon";
-                case RarityTier.Rare:
-                    return useUniformRarityBadges ? "ScoreBadgeGoldHexagon" : "ScoreBadgeGoldPentagon";
-                case RarityTier.Uncommon:
-                    return useUniformRarityBadges ? "ScoreBadgeSilverHexagon" : "ScoreBadgeSilverSquare";
-                default:
-                    return useUniformRarityBadges ? "ScoreBadgeBronzeHexagon" : "ScoreBadgeBronzeTriangle";
-            }
+            // Same shape table, resolved once in ToIconKey; the score card's own resources use the
+            // "Score" prefix for the identically named keys.
+            return "Score" + GetRarityTier(rank).ToIconKey(useUniformRarityBadges);
         }
 
         public static string GetScoreCardBadgeIconKey(

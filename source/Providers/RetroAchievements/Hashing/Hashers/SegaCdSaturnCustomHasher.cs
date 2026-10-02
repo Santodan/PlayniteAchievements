@@ -13,12 +13,19 @@ namespace PlayniteAchievements.Providers.RetroAchievements.Hashing.Hashers
 
         public override string Name => "Sega CD / Saturn (sector 0 header MD5)";
 
-        protected override async Task<IReadOnlyList<string>> ComputeHashesInternalAsync(string filePath, CancellationToken cancel)
+        protected override async Task<IReadOnlyList<string>> ComputeHashesInternalAsync(RaHashSource source, CancellationToken cancel)
         {
+            var filePath = source.Path;
             var buffer = new byte[512];
-            using (var image = DiscImageReader.Open(filePath))
+            // rc_hash_sega_cd (hash_disc.c:1191-1217): the first 512 bytes of the data track.
+            using (var track = DiscImage.Open(source).OpenTrack(DiscTrackSelector.FirstData))
             {
-                var read = await HashUtils.ReadExactlyAsync(image.Stream, buffer, 0, buffer.Length, cancel).ConfigureAwait(false);
+                if (track == null)
+                {
+                    return Array.Empty<string>();
+                }
+
+                var read = await Task.Run(() => track.ReadSector(track.FirstTrackSector, buffer, 0, buffer.Length), cancel).ConfigureAwait(false);
                 if (read < buffer.Length)
                 {
                     return Array.Empty<string>();
@@ -53,7 +60,7 @@ namespace PlayniteAchievements.Providers.RetroAchievements.Hashing.Hashers
 
             if (!ok)
             {
-                Logger?.Warn($"[RA] {Name}: Not a Sega CD / Saturn image: {filePath}");
+                WarnOnce($"[RA] {Name}: Not a Sega CD / Saturn image: {filePath}");
                 return Array.Empty<string>();
             }
 

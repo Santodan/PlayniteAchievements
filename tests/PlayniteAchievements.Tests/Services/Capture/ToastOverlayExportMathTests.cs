@@ -12,13 +12,15 @@ namespace PlayniteAchievements.Services.Tests.Capture
         private const int CardW = 420;
         private const int CardH = 130;
 
-        private static ToastOverlayTrack BottomRightTrack(double gapDip = 24.0, double monitorScale = 1.0)
+        private static ToastOverlayTrack BottomRightTrack(
+            double gapDip = 24.0, double monitorScale = 1.0, double? gapYDip = null)
         {
             return new ToastOverlayTrack
             {
                 AlignRight = true,
                 AlignBottom = true,
-                GapDip = gapDip,
+                GapXDip = gapDip,
+                GapYDip = gapYDip ?? gapDip,
                 MonitorScale = monitorScale,
             };
         }
@@ -180,6 +182,22 @@ namespace PlayniteAchievements.Services.Tests.Capture
         }
 
         [TestMethod]
+        public void ComputeDestRect_AsymmetricGap_InsetsEachAxisSeparately()
+        {
+            // A theme card whose root margin is not uniform reserves different room on the two
+            // axes, so the clip's corner must inset each one by its own gap — the same split the
+            // live placer applies, or the composited card lands off the on-screen position.
+            var track = BottomRightTrack(gapDip: 24.0, gapYDip: 14.0);
+            AddSample(track, 0);
+
+            var rect = ToastOverlayExportMath.ComputeDestRect(
+                track, 0, 0.0, ClientW, ClientH);
+
+            Assert.AreEqual(ClientW - CardW - 24, rect.X);
+            Assert.AreEqual(ClientH - CardH - 14, rect.Y);
+        }
+
+        [TestMethod]
         public void ComputeDestRect_MonitorScale_ScalesTheGap()
         {
             var track = BottomRightTrack(gapDip: 24.0, monitorScale: 1.5);
@@ -312,6 +330,51 @@ namespace PlayniteAchievements.Services.Tests.Capture
 
             Assert.AreEqual(10, target[0]);
             Assert.AreEqual(20, target[1]);
+        }
+
+        // === Host-opacity scaling ===
+
+        [TestMethod]
+        public void ScaleAll_ScalesEveryChannelSoThePixelStaysPremultiplied()
+        {
+            // A half-opacity fade: colour and alpha come down together, so the result composites
+            // as the same card at half opacity rather than as a darkened opaque one.
+            var target = new byte[] { 40, 100, 200, 200 };
+
+            OverlayBlitMath.ScaleAll(target, 0.5);
+
+            Assert.AreEqual(20, target[0]);
+            Assert.AreEqual(50, target[1]);
+            Assert.AreEqual(100, target[2]);
+            Assert.AreEqual(100, target[3]);
+        }
+
+        [TestMethod]
+        public void ScaleAll_NeverExceedsTheAlphaItScales()
+        {
+            // Premultiplied means no channel may outrun alpha. Scaling must preserve that, or the
+            // blend reads a colour brighter than its coverage and the card edges bloom.
+            var target = new byte[] { 200, 200, 200, 200 };
+
+            OverlayBlitMath.ScaleAll(target, 0.37);
+
+            Assert.IsTrue(target[0] <= target[3]);
+            Assert.IsTrue(target[1] <= target[3]);
+            Assert.IsTrue(target[2] <= target[3]);
+        }
+
+        [TestMethod]
+        public void ScaleAll_FullOpacityIsANoOpAndZeroClears()
+        {
+            var opaque = new byte[] { 10, 20, 30, 40 };
+            OverlayBlitMath.ScaleAll(opaque, 1.0);
+            CollectionAssert.AreEqual(new byte[] { 10, 20, 30, 40 }, opaque);
+
+            var cleared = new byte[] { 10, 20, 30, 40 };
+            OverlayBlitMath.ScaleAll(cleared, 0.0);
+            CollectionAssert.AreEqual(new byte[4], cleared);
+
+            OverlayBlitMath.ScaleAll(null, 0.5);
         }
 
         // === ScaleRect double overload ===

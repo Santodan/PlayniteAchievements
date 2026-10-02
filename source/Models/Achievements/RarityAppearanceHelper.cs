@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Windows;
 using System.Windows.Data;
 using System.Windows.Media;
@@ -21,6 +22,55 @@ namespace PlayniteAchievements.Models.Achievements
             new Lazy<ResourceDictionary>(CreateDefaultTrophyResources);
 
         public static event EventHandler AppearanceChanged;
+
+        /// <summary>
+        /// Handlers currently attached to <see cref="AppearanceChanged"/>. This event lives for
+        /// the process, so a count that climbs run over run means subscribers are being stranded
+        /// (and rooted) instead of detaching. Diagnostics only.
+        /// </summary>
+        /// <remarks>
+        /// Checked and cleared as a leak suspect: across a reported session that grew the managed
+        /// heap by 790 MB, this count oscillated between 19 and 39 and ended where it began. Flat,
+        /// not climbing, so stranded appearance handlers were not the retainer. Worth re-reading
+        /// per session rather than assuming -- the failure mode is real, it just did not happen
+        /// there -- but do not start a hunt from this number alone.
+        /// </remarks>
+        internal static int AppearanceChangedSubscriberCount =>
+            AppearanceChanged?.GetInvocationList()?.Length ?? 0;
+
+        /// <summary>
+        /// The subscriber count broken down by declaring type, as "Type:n" joined by "+". A bare
+        /// count says the event has subscribers but not which ones, and because these handlers are
+        /// instance methods on visual elements, a stranded one roots that element's whole ancestor
+        /// chain and its DataContext. The breakdown names the type to go and look at. Diagnostics
+        /// only.
+        /// </summary>
+        internal static string DescribeAppearanceChangedSubscribers()
+        {
+            var handlers = AppearanceChanged?.GetInvocationList();
+            if (handlers == null || handlers.Length == 0)
+            {
+                return "none";
+            }
+
+            var byType = new Dictionary<string, int>(StringComparer.Ordinal);
+            foreach (var handler in handlers)
+            {
+                // A static handler has no target; name it by the method's declaring type so a
+                // deliberately permanent subscriber stays distinguishable from a stranded one.
+                var owner = handler?.Target?.GetType()
+                    ?? handler?.Method?.DeclaringType;
+                var name = owner?.Name ?? "unknown";
+                byType.TryGetValue(name, out var count);
+                byType[name] = count + 1;
+            }
+
+            return string.Join(
+                "+",
+                byType.OrderByDescending(pair => pair.Value)
+                    .ThenBy(pair => pair.Key, StringComparer.Ordinal)
+                    .Select(pair => pair.Key + ":" + pair.Value));
+        }
 
         private static PersistedSettings _activeSettings;
 
@@ -138,6 +188,31 @@ namespace PlayniteAchievements.Models.Achievements
             resources["PlayAch.Effect.CompletedGlowStart"] = GetCompletedGlow(useEndColor: false, settings);
             resources["PlayAch.Effect.CompletedGlowEnd"] = GetCompletedGlow(useEndColor: true, settings);
             resources["PlayAch.Effect.CompletedGlowEdge"] = GetCompletedEdge(settings);
+            resources["PlayAch.Brush.CompletedGlowBloom"] = CreateCompletedGlowBloomBrush(settings);
+        }
+
+        /// <summary>
+        /// Diagonal CompletedStart -> CompletedEnd sweep for surfaces whose art is too small for
+        /// the two glow shadows to read and that draw the bloom as a blurred underlay instead.
+        /// The direction mirrors those shadows' offsets (start toward 135, end toward 315), so
+        /// the underlay carries the same up-left start / down-right end color bias.
+        /// </summary>
+        private static Brush CreateCompletedGlowBloomBrush(PersistedSettings settings)
+        {
+            var brush = new LinearGradientBrush
+            {
+                StartPoint = new Point(0, 0),
+                EndPoint = new Point(1, 1)
+            };
+
+            brush.GradientStops.Add(new GradientStop(GetCompletedStartColor(settings), 0.0));
+            brush.GradientStops.Add(new GradientStop(GetCompletedEndColor(settings), 1.0));
+            if (brush.CanFreeze)
+            {
+                brush.Freeze();
+            }
+
+            return brush;
         }
 
         /// <summary>
@@ -190,6 +265,32 @@ namespace PlayniteAchievements.Models.Achievements
             }
 
             resources["PlayAch.Brush.Progress.CompletedFill"] = CreateCompletedProgressFillBrush(settings);
+        }
+
+        /// <summary>
+        /// Publishes the lock fill for locked Missable achievements in the status column: the
+        /// fixed missable red when the tint is on, otherwise the glyph brush the other locks use.
+        /// Runtime-only key with no static definition, so a control-level merge of DesignTokens
+        /// cannot shadow the application-scope value.
+        /// </summary>
+        public static void ApplyMissableLockResource(ResourceDictionary resources, PersistedSettings settings = null)
+        {
+            if (resources == null)
+            {
+                return;
+            }
+
+            var persisted = settings ?? _activeSettings;
+            var sourceKey = persisted?.TintMissableLocks == false
+                ? "PlayAch.Brush.Glyph"
+                : "PlayAch.Brush.MissableLock";
+            var brush = resources.Contains(sourceKey)
+                ? resources[sourceKey]
+                : Application.Current?.TryFindResource(sourceKey);
+            if (brush != null)
+            {
+                resources["PlayAch.Brush.Status.MissableLock"] = brush;
+            }
         }
 
         public static Color GetCompletedStartColor(PersistedSettings settings = null)
@@ -300,13 +401,13 @@ namespace PlayniteAchievements.Models.Achievements
                 });
         }
 
+        /// <summary>
+        /// The tier-colored glow at <paramref name="blurRadius"/>, for any tier including Common.
+        /// Whether a tier glows at all is the caller's decision (see
+        /// <see cref="RaritySelectionExtensions.GlowsFor"/>).
+        /// </summary>
         public static DropShadowEffect GetGlow(RarityTier tier, double blurRadius, PersistedSettings settings = null)
         {
-            if (tier == RarityTier.Common)
-            {
-                return null;
-            }
-
             var color = GetBaseColor(tier, settings);
             var effect = new DropShadowEffect
             {
@@ -412,6 +513,7 @@ namespace PlayniteAchievements.Models.Achievements
             SetGeneratedBadge(resources, RarityTier.UltraRare, "BadgePlatinumHexagon");
             ApplyCompletedGameBrushResource(resources, settings);
             ApplyCompletedProgressFillResource(resources, settings);
+            ApplyMissableLockResource(resources, settings);
             var completedBadge = CreateCompletedBadgeImage(settings);
             resources["BadgeCompletedGame"] = completedBadge;
             // Runtime-only alias with no static definition in RarityBadges.xaml, mirroring the

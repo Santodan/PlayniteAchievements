@@ -183,73 +183,27 @@
                 <!-- Collapsible Timeline Section -->
                 <StackPanel Margin="0,12,0,0"
                             Visibility="{Binding IsTimelineVisible, Converter={StaticResource BoolToVis}}">
-                    <!-- Time Range Buttons -->
-                    <StackPanel Orientation="Horizontal" Margin="{StaticResource PlayAch.Thickness.Bottom.Sm}">
-                        <RadioButton x:Name="TimelineRangeSevenDaysButton"
-                                     Content="{DynamicResource LOCPlayAch_TimeRange_7D}" GroupName="TimeRange"
-                                     Style="{StaticResource TimeRangeButtonStyle}"
-                                     IsChecked="{Binding Timeline.TimelineRange, Converter={StaticResource EnumToBool}, ConverterParameter=SevenDays}"
-                                     Command="{Binding Timeline.SetTimeRangeCommand}" CommandParameter="SevenDays"/>
-                        <RadioButton x:Name="TimelineRangeFourteenDaysButton"
-                                     Content="{DynamicResource LOCPlayAch_TimeRange_14D}" GroupName="TimeRange"
-                                     Style="{StaticResource TimeRangeButtonStyle}"
-                                     IsChecked="{Binding Timeline.TimelineRange, Converter={StaticResource EnumToBool}, ConverterParameter=FourteenDays}"
-                                     Command="{Binding Timeline.SetTimeRangeCommand}" CommandParameter="FourteenDays"/>
-                        <RadioButton x:Name="TimelineRangeOneMonthButton"
-                                     Content="{DynamicResource LOCPlayAch_TimeRange_1M}" GroupName="TimeRange"
-                                     Style="{StaticResource TimeRangeButtonStyle}"
-                                     IsChecked="{Binding Timeline.TimelineRange, Converter={StaticResource EnumToBool}, ConverterParameter=OneMonth}"
-                                     Command="{Binding Timeline.SetTimeRangeCommand}" CommandParameter="OneMonth"/>
-                        <RadioButton x:Name="TimelineRangeThreeMonthsButton"
-                                     Content="{DynamicResource LOCPlayAch_TimeRange_3M}" GroupName="TimeRange"
-                                     Style="{StaticResource TimeRangeButtonStyle}"
-                                     IsChecked="{Binding Timeline.TimelineRange, Converter={StaticResource EnumToBool}, ConverterParameter=ThreeMonths}"
-                                     Command="{Binding Timeline.SetTimeRangeCommand}" CommandParameter="ThreeMonths"/>
-                        <RadioButton x:Name="TimelineRangeOneYearButton"
-                                     Content="{DynamicResource LOCPlayAch_TimeRange_1Y}" GroupName="TimeRange"
-                                     Style="{StaticResource TimeRangeButtonStyle}"
-                                     IsChecked="{Binding Timeline.TimelineRange, Converter={StaticResource EnumToBool}, ConverterParameter=OneYear}"
-                                     Command="{Binding Timeline.SetTimeRangeCommand}" CommandParameter="OneYear"/>
-                        <RadioButton x:Name="TimelineRangeAllButton"
-                                     Content="{DynamicResource LOCPlayAch_Common_All}" GroupName="TimeRange"
-                                     Style="{StaticResource TimeRangeButtonStyle}"
-                                     IsChecked="{Binding Timeline.TimelineRange, Converter={StaticResource EnumToBool}, ConverterParameter=All}"
-                                     Command="{Binding Timeline.SetTimeRangeCommand}" CommandParameter="All"/>
-                    </StackPanel>
+                    <!-- Time window: preset chips plus a custom From/To range and the bar granularity -->
+                    <controls:TimeWindowPicker Window="{Binding Timeline.Window, Mode=TwoWay}"
+                                               Granularity="{Binding Timeline.Granularity, Mode=TwoWay}"
+                                               UnavailableGranularities="{Binding Timeline.UnavailableGranularities}"
+                                               ShowGranularity="True"
+                                               MinDate="{Binding Timeline.EarliestDate}"
+                                               Margin="{StaticResource PlayAch.Thickness.Bottom.Sm}"/>
 
-                    <!-- LiveCharts Timeline -->
-                    <lvc:CartesianChart Height="120"
-                                        Series="{Binding Timeline.TimelineSeries}"
-                                        LegendLocation="None"
-                                        Hoverable="True"
-                                        DisableAnimations="True">
-                        <lvc:CartesianChart.Resources>
-                            <Style TargetType="lvc:ColumnSeries">
-                                <Setter Property="Fill" Value="{DynamicResource PlayAch.Brush.Accent}" />
-                            </Style>
-                        </lvc:CartesianChart.Resources>
-                        <lvc:CartesianChart.AxisX>
-                            <lvc:Axis Labels="{Binding Timeline.TimelineLabels}"
-                                      ShowLabels="True"
-                                      LabelsRotation="45"
-                                      FontSize="{DynamicResource PlayAch.FontSize.Caption}"
-                                      Foreground="{DynamicResource PlayAch.Brush.Text}">
-                                <lvc:Axis.Separator>
-                                    <lvc:Separator Step="1" IsEnabled="False"/>
-                                </lvc:Axis.Separator>
-                            </lvc:Axis>
-                        </lvc:CartesianChart.AxisX>
-                        <lvc:CartesianChart.AxisY>
-                            <lvc:Axis MinValue="0"
-                                      LabelFormatter="{Binding Timeline.YAxisFormatter}"
-                                      FontSize="{DynamicResource PlayAch.FontSize.Caption}"
-                                      Foreground="{DynamicResource PlayAch.Brush.Text}">
-                                <lvc:Axis.Separator>
-                                    <lvc:Separator Stroke="{DynamicResource PlayAch.Brush.Border}" Opacity="0.2"/>
-                                </lvc:Axis.Separator>
-                            </lvc:Axis>
-                        </lvc:CartesianChart.AxisY>
-                    </lvc:CartesianChart>
+                    <!-- Shared unlocks-over-time chart -->
+                    <controls:UnlockTimelineChart Height="120"
+                                                  Series="{Binding Timeline.TimelineSeries}"
+                                                  Labels="{Binding Timeline.TimelineLabels}"
+                                                  TooltipLabels="{Binding Timeline.TooltipLabels}"
+                                                  XAxisMax="{Binding Timeline.XAxisMax}"
+                                                  YAxisMax="{Binding Timeline.YAxisMax}"
+                                                  YAxisStep="{Binding Timeline.YAxisStep}"
+                                                  YLabelFormatter="{Binding Timeline.YAxisFormatter}"
+                                                  IsEmpty="{Binding Timeline.IsEmpty}"
+                                                  MaxTickCount="{Binding Timeline.MaxTickCount, Mode=OneWayToSource}"
+                                                  MaxBarCount="{Binding Timeline.MaxBarCount, Mode=OneWayToSource}"
+                                                  RenderRevision="{Binding Timeline.RenderRevision}"/>
                 </StackPanel>
             </StackPanel>
         </Border>

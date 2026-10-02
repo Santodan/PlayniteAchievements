@@ -16,14 +16,15 @@ namespace PlayniteAchievements.Providers.RetroAchievements.Hashing.Hashers
 
         public override string Name => "Neo Geo CD (IPL.TXT PRG chain MD5)";
 
-        protected override async Task<IReadOnlyList<string>> ComputeHashesInternalAsync(string filePath, CancellationToken cancel)
+        protected override async Task<IReadOnlyList<string>> ComputeHashesInternalAsync(RaHashSource source, CancellationToken cancel)
         {
-            using (var iso = new DiscUtilsFacade(filePath))
+            var filePath = source.Path;
+            using (var iso = new DiscUtilsFacade(source))
             using (var iplStream = iso.OpenFileOrNull("IPL.TXT"))
             {
                 if (iplStream == null)
                 {
-                    Logger?.Warn($"[RA] {Name}: Not a Neo Geo CD image (missing IPL.TXT): {filePath}");
+                    WarnOnce($"[RA] {Name}: Not a Neo Geo CD image (missing IPL.TXT): {filePath}");
                     return Array.Empty<string>();
                 }
 
@@ -59,7 +60,7 @@ namespace PlayniteAchievements.Providers.RetroAchievements.Hashing.Hashers
                         {
                             if (prgStream == null)
                             {
-                                Logger?.Warn($"[RA] {Name}: Missing PRG '{prgName}': {filePath}");
+                                WarnOnce($"[RA] {Name}: Missing PRG '{prgName}': {filePath}");
                                 return Array.Empty<string>();
                             }
 

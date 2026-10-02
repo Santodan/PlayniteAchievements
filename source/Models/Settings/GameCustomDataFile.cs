@@ -97,10 +97,39 @@ namespace PlayniteAchievements.Models.Settings
 
         public string ManualCapstoneApiName { get; set; }
 
+        /// <summary>
+        /// True once the user has edited this game's capstones. From that moment the
+        /// <see cref="Capstones"/> list is the whole truth for the game and provider capstone
+        /// flags no longer apply to it, so an empty list means "this game has no capstones"
+        /// rather than "fall back to the provider".
+        /// </summary>
+        /// <remarks>
+        /// Stored rather than derived from the list being non-null because the normalizer nulls
+        /// empty collections, which would otherwise collapse a deliberately emptied set back into
+        /// an untouched one.
+        /// </remarks>
+        public bool CapstonesMaterialized { get; set; }
+
+        /// <summary>
+        /// The game's capstones once <see cref="CapstonesMaterialized"/> is set, seeded from the
+        /// provider's own capstones at the moment of the first edit.
+        /// </summary>
+        public List<CapstoneAssignment> Capstones { get; set; }
+
+        /// <summary>
+        /// True once automatic capstone generation has handled this game, whether it authored an
+        /// auto capstone, nominated an existing platinum, or found one already there. It is never
+        /// handled again, so a capstone the user deleted or reset stays gone; filtering is how a
+        /// generated capstone is set aside.
+        /// </summary>
+        public bool AutoCapstoneGenerated { get; set; }
+
         public List<string> AchievementOrder { get; set; }
 
+        /// <inheritdoc cref="AchievementUnlockedIconOverrides"/>
         public Dictionary<string, string> AchievementCategoryOverrides { get; set; }
 
+        /// <inheritdoc cref="AchievementUnlockedIconOverrides"/>
         public Dictionary<string, string> AchievementCategoryTypeOverrides { get; set; }
 
         public List<string> AchievementCategoryOrder { get; set; }
@@ -119,12 +148,24 @@ namespace PlayniteAchievements.Models.Settings
         /// </summary>
         public List<string> GoalAchievementApiNames { get; set; }
 
+        /// <summary>
+        /// Per-achievement user customization, keyed by ApiName. Schema 8 onward; the legacy
+        /// scalar maps below are folded into this on migration and then cleared.
+        /// </summary>
+        public Dictionary<string, AchievementOverride> AchievementOverrides { get; set; }
+
+        /// <summary>
+        /// Legacy (schema 7 and earlier). Migrated into <see cref="AchievementOverrides"/>.
+        /// Retained so existing records still deserialize; do not read these outside migration.
+        /// </summary>
         public Dictionary<string, string> AchievementUnlockedIconOverrides { get; set; }
 
+        /// <inheritdoc cref="AchievementUnlockedIconOverrides"/>
         public Dictionary<string, string> AchievementLockedIconOverrides { get; set; }
 
         public bool? ViewAchievementsIconFetchEnabled { get; set; }
 
+        /// <inheritdoc cref="AchievementUnlockedIconOverrides"/>
         public Dictionary<string, string> AchievementNotes { get; set; }
 
         public int? RetroAchievementsGameIdOverride { get; set; }
@@ -153,6 +194,14 @@ namespace PlayniteAchievements.Models.Settings
 
         public ManualAchievementLink ManualLink { get; set; }
 
+        public List<CustomAchievementDefinition> CustomAchievements { get; set; }
+
+        /// <summary>
+        /// Id of the user-defined custom provider a custom-only game displays as. Only meaningful
+        /// while the game has custom achievements and no cached provider data.
+        /// </summary>
+        public string CustomProviderId { get; set; }
+
         public GameCustomDataFile Clone()
         {
             return new GameCustomDataFile
@@ -163,6 +212,11 @@ namespace PlayniteAchievements.Models.Settings
                 ExcludedFromSummaries = ExcludedFromSummaries,
                 UseSeparateLockedIconsOverride = UseSeparateLockedIconsOverride,
                 ManualCapstoneApiName = ManualCapstoneApiName,
+                CapstonesMaterialized = CapstonesMaterialized,
+                AutoCapstoneGenerated = AutoCapstoneGenerated,
+                Capstones = Capstones != null
+                    ? Capstones.ConvertAll(item => item?.Clone()).FindAll(item => item != null)
+                    : null,
                 AchievementOrder = AchievementOrder != null
                     ? new List<string>(AchievementOrder)
                     : null,
@@ -196,6 +250,7 @@ namespace PlayniteAchievements.Models.Settings
                 AchievementNotes = AchievementNotes != null
                     ? new Dictionary<string, string>(AchievementNotes, StringComparer.OrdinalIgnoreCase)
                     : null,
+                AchievementOverrides = CloneAchievementOverrideMap(AchievementOverrides),
                 RetroAchievementsGameIdOverride = RetroAchievementsGameIdOverride,
                 RetroAchievementsSelectedSubsetGameIds = RetroAchievementsSelectedSubsetGameIds != null
                     ? new List<int>(RetroAchievementsSelectedSubsetGameIds)
@@ -208,7 +263,11 @@ namespace PlayniteAchievements.Models.Settings
                 SteamAccountIdOverride = SteamAccountIdOverride,
                 ProviderOverride = ProviderOverride?.Clone(),
                 ExophaseEnrichmentSlugOverride = ExophaseEnrichmentSlugOverride,
-                ManualLink = ManualLink?.Clone()
+                ManualLink = ManualLink?.Clone(),
+                CustomAchievements = CustomAchievements != null
+                    ? CustomAchievements.ConvertAll(item => item?.Clone()).FindAll(item => item != null)
+                    : null,
+                CustomProviderId = CustomProviderId
             };
         }
 
@@ -220,6 +279,11 @@ namespace PlayniteAchievements.Models.Settings
                 PlayniteGameId = PlayniteGameId,
                 UseSeparateLockedIconsOverride = UseSeparateLockedIconsOverride,
                 ManualCapstoneApiName = ManualCapstoneApiName,
+                CapstonesMaterialized = CapstonesMaterialized,
+                AutoCapstoneGenerated = AutoCapstoneGenerated,
+                Capstones = Capstones != null
+                    ? Capstones.ConvertAll(item => item?.Clone()).FindAll(item => item != null)
+                    : null,
                 AchievementOrder = AchievementOrder != null
                     ? new List<string>(AchievementOrder)
                     : null,
@@ -252,6 +316,7 @@ namespace PlayniteAchievements.Models.Settings
                 AchievementNotes = AchievementNotes != null
                     ? new Dictionary<string, string>(AchievementNotes, StringComparer.OrdinalIgnoreCase)
                     : null,
+                AchievementOverrides = CloneAchievementOverrideMap(AchievementOverrides),
                 RetroAchievementsGameIdOverride = RetroAchievementsGameIdOverride,
                 RetroAchievementsSelectedSubsetGameIds = RetroAchievementsSelectedSubsetGameIds != null
                     ? new List<int>(RetroAchievementsSelectedSubsetGameIds)
@@ -263,7 +328,13 @@ namespace PlayniteAchievements.Models.Settings
                 NotificationAppearanceOverride = NotificationAppearanceOverride?.Clone(),
                 ProviderOverride = ProviderOverride?.Clone(),
                 ExophaseEnrichmentSlugOverride = ExophaseEnrichmentSlugOverride,
-                ManualLink = ManualLink?.Clone()
+                ManualLink = ManualLink?.Clone(),
+                CustomAchievements = CustomAchievements != null
+                    ? CustomAchievements.ConvertAll(item => item?.Clone()).FindAll(item => item != null)
+                    : null,
+                // The provider snapshot is filled by the store at export time; the model has no
+                // access to the custom provider catalog.
+                CustomProviderId = CustomProviderId
             };
         }
 
@@ -281,6 +352,11 @@ namespace PlayniteAchievements.Models.Settings
                 ExcludedFromSummaries = excludedFromSummaries,
                 UseSeparateLockedIconsOverride = portable?.UseSeparateLockedIconsOverride,
                 ManualCapstoneApiName = portable?.ManualCapstoneApiName,
+                CapstonesMaterialized = portable?.CapstonesMaterialized ?? false,
+                AutoCapstoneGenerated = portable?.AutoCapstoneGenerated ?? false,
+                Capstones = portable?.Capstones != null
+                    ? portable.Capstones.ConvertAll(item => item?.Clone()).FindAll(item => item != null)
+                    : null,
                 AchievementOrder = portable?.AchievementOrder != null
                     ? new List<string>(portable.AchievementOrder)
                     : null,
@@ -313,6 +389,7 @@ namespace PlayniteAchievements.Models.Settings
                 AchievementNotes = portable?.AchievementNotes != null
                     ? new Dictionary<string, string>(portable.AchievementNotes, StringComparer.OrdinalIgnoreCase)
                     : null,
+                AchievementOverrides = CloneAchievementOverrideMap(portable?.AchievementOverrides),
                 RetroAchievementsGameIdOverride = portable?.RetroAchievementsGameIdOverride,
                 RetroAchievementsSelectedSubsetGameIds = portable?.RetroAchievementsSelectedSubsetGameIds != null
                     ? new List<int>(portable.RetroAchievementsSelectedSubsetGameIds)
@@ -324,7 +401,11 @@ namespace PlayniteAchievements.Models.Settings
                 NotificationAppearanceOverride = portable?.NotificationAppearanceOverride?.Clone(),
                 ProviderOverride = portable?.ProviderOverride?.Clone(),
                 ExophaseEnrichmentSlugOverride = portable?.ExophaseEnrichmentSlugOverride,
-                ManualLink = portable?.ManualLink?.Clone()
+                ManualLink = portable?.ManualLink?.Clone(),
+                CustomAchievements = portable?.CustomAchievements != null
+                    ? portable.CustomAchievements.ConvertAll(item => item?.Clone()).FindAll(item => item != null)
+                    : null,
+                CustomProviderId = portable?.CustomProviderId
             };
         }
 
@@ -340,6 +421,28 @@ namespace PlayniteAchievements.Models.Settings
             foreach (var pair in source)
             {
                 if (string.IsNullOrWhiteSpace(pair.Key) || pair.Value == null)
+                {
+                    continue;
+                }
+
+                clone[pair.Key] = pair.Value.Clone();
+            }
+
+            return clone.Count > 0 ? clone : null;
+        }
+
+        internal static Dictionary<string, AchievementOverride> CloneAchievementOverrideMap(
+            IReadOnlyDictionary<string, AchievementOverride> source)
+        {
+            if (source == null)
+            {
+                return null;
+            }
+
+            var clone = new Dictionary<string, AchievementOverride>(StringComparer.OrdinalIgnoreCase);
+            foreach (var pair in source)
+            {
+                if (string.IsNullOrWhiteSpace(pair.Key) || pair.Value == null || pair.Value.IsEmpty)
                 {
                     continue;
                 }

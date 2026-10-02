@@ -68,11 +68,19 @@ namespace PlayniteAchievements.Services.ThemeIntegration
 
         private GameSummaryItemBuilder GameSummaryItemBuilder =>
             _gameSummaryItemBuilder ??
-            (_gameSummaryItemBuilder = new GameSummaryItemBuilder(_refreshService.Providers, _api, _logger));
+            (_gameSummaryItemBuilder = new GameSummaryItemBuilder(_api, _logger));
 
         private readonly object _refreshLock = new object();
         private CancellationTokenSource _refreshCts;
         private static readonly TimeSpan LibraryRefreshDelay = TimeSpan.FromMilliseconds(500);
+
+        // A window that edits one game's custom data in bulk -- the Manage Achievements editor --
+        // raises a change per edit, and each one would rebuild the whole library's theme lists:
+        // roughly forty fresh collections of cloned summaries, per edit, none of it visible while
+        // that window is up. Counted rather than a flag, since one window per game can be open.
+        private int _librarySuspensionCount;
+        private bool _librarySuspensionHasPendingRefresh;
+        private bool _librarySuspensionPendingHeavyLists;
 #if TEST
         private static readonly TimeSpan FriendRefreshDelay = TimeSpan.Zero;
 #else
@@ -658,7 +666,13 @@ namespace PlayniteAchievements.Services.ThemeIntegration
                 // covered by the library refresh below.
                 if (shouldRefreshSelectedGame)
                 {
-                    RequestUpdate(resolvedGameId.Value, forceRefresh: true);
+                    // Rebuilds the selected-game theme surface, including that game's achievement
+                    // lists. In the Manage window the edited game is almost always the selected
+                    // one, so this runs on every edit burst.
+                    using (Common.PerfScope.Start(_logger, "Theme.NotifyCustomData.SelectedGame", thresholdMs: 10))
+                    {
+                        RequestUpdate(resolvedGameId.Value, forceRefresh: true);
+                    }
                 }
             }
             catch (Exception ex)
@@ -673,13 +687,20 @@ namespace PlayniteAchievements.Services.ThemeIntegration
 
             try
             {
-                if (_hasLoadedLibraryState)
+                // Suspended while the Manage window is open, so this should log nothing during
+                // an editing session. If it does, the suspension is not holding.
+                using (var scope = Common.PerfScope.Start(_logger, "Theme.NotifyCustomData.Library", thresholdMs: 10))
                 {
-                    RequestLibraryRefresh(_lastLibraryRefreshIncludedHeavyAchievementLists);
-                }
-                else if (IsFullscreen() && _fullscreenInitialized)
-                {
-                    RequestRefresh();
+                    scope?.SetContext("hasLoadedLibraryState=" + _hasLoadedLibraryState);
+
+                    if (_hasLoadedLibraryState)
+                    {
+                        RequestLibraryRefresh(_lastLibraryRefreshIncludedHeavyAchievementLists);
+                    }
+                    else if (IsFullscreen() && _fullscreenInitialized)
+                    {
+                        RequestRefresh();
+                    }
                 }
             }
             catch (Exception ex)
@@ -747,19 +768,39 @@ namespace PlayniteAchievements.Services.ThemeIntegration
             RequestRefresh();
         }
 
-        private void RefreshService_CacheInvalidated(object sender, EventArgs e)
+        // Typed, or IsFull and ChangedGameIds are invisible and every per-game edit pays for a
+        // whole-library theme refresh. A scoped invalidation names the games that moved, and a
+        // current-user achievement edit cannot move friend data at all.
+        private void RefreshService_CacheInvalidated(object sender, CacheInvalidatedEventArgs e)
         {
-            if (IsFullscreen() && _fullscreenInitialized)
+            var isScoped = e?.IsFull == false;
+
+            Guid? selectedGameId = null;
+            try
+            {
+                selectedGameId = ResolveSelectedGameIdForThemeUpdate();
+            }
+            catch (Exception ex)
+            {
+                _logger?.Debug(ex, "[ThemeIntegration] Failed to resolve the selected game after cache invalidation.");
+            }
+
+            // A scoped change repaints the whole fullscreen surface only when it touched the
+            // game that surface is showing.
+            var scopeTouchesSelectedGame =
+                !isScoped ||
+                (selectedGameId.HasValue && e.ChangedGameIds.Contains(selectedGameId.Value));
+
+            if (IsFullscreen() && _fullscreenInitialized && scopeTouchesSelectedGame)
             {
                 RequestRefresh();
             }
 
             try
             {
-                var id = ResolveSelectedGameIdForThemeUpdate();
-                if (id.HasValue)
+                if (selectedGameId.HasValue && scopeTouchesSelectedGame)
                 {
-                    RequestUpdate(id);
+                    RequestUpdate(selectedGameId);
                 }
             }
             catch (Exception ex)
@@ -767,7 +808,10 @@ namespace PlayniteAchievements.Services.ThemeIntegration
                 _logger?.Debug(ex, "[ThemeIntegration] Failed to request selected-game theme update after cache invalidation.");
             }
 
-            _friendsOverviewDataCoordinator?.Invalidate();
+            if (!isScoped)
+            {
+                _friendsOverviewDataCoordinator?.Invalidate();
+            }
         }
 
         private void FriendCache_FriendCacheInvalidated(object sender, FriendCacheInvalidatedEventArgs e)
@@ -1670,6 +1714,81 @@ namespace PlayniteAchievements.Services.ThemeIntegration
             RequestLibraryRefresh(includeHeavyAchievementLists: false, requireFullscreen: true);
         }
 
+        /// <summary>
+        /// Holds off whole-library theme rebuilds until the matching <see cref="ResumeLibraryRefresh"/>,
+        /// for a caller about to make a burst of per-game edits. Requests that arrive while held
+        /// are collapsed into one rebuild issued on release; the per-game selected surface is not
+        /// affected, so the game being edited still repaints as it changes.
+        /// </summary>
+        public void SuspendLibraryRefresh()
+        {
+            lock (_refreshLock)
+            {
+                _librarySuspensionCount++;
+            }
+        }
+
+        /// <summary>
+        /// Releases one <see cref="SuspendLibraryRefresh"/>. The last release issues the single
+        /// rebuild standing in for everything that was held.
+        /// </summary>
+        public void ResumeLibraryRefresh()
+        {
+            bool shouldRefresh;
+            bool includeHeavyAchievementLists;
+            lock (_refreshLock)
+            {
+                if (_librarySuspensionCount > 0)
+                {
+                    _librarySuspensionCount--;
+                }
+
+                if (_librarySuspensionCount > 0)
+                {
+                    return;
+                }
+
+                shouldRefresh = _librarySuspensionHasPendingRefresh;
+                includeHeavyAchievementLists = _librarySuspensionPendingHeavyLists;
+                _librarySuspensionHasPendingRefresh = false;
+                _librarySuspensionPendingHeavyLists = false;
+            }
+
+            if (shouldRefresh)
+            {
+                RequestLibraryRefresh(includeHeavyAchievementLists);
+            }
+        }
+
+#if TEST
+        internal bool HasDeferredLibraryRefreshForTests
+        {
+            get
+            {
+                lock (_refreshLock)
+                {
+                    return _librarySuspensionHasPendingRefresh;
+                }
+            }
+        }
+
+        internal bool DeferredLibraryRefreshIncludesHeavyListsForTests
+        {
+            get
+            {
+                lock (_refreshLock)
+                {
+                    return _librarySuspensionPendingHeavyLists;
+                }
+            }
+        }
+
+        internal void RequestLibraryRefreshForTests(bool includeHeavyAchievementLists)
+        {
+            RequestLibraryRefresh(includeHeavyAchievementLists);
+        }
+#endif
+
         private void RequestLibraryRefresh(
             bool includeHeavyAchievementLists,
             bool requireFullscreen = false)
@@ -1677,6 +1796,22 @@ namespace PlayniteAchievements.Services.ThemeIntegration
             if (requireFullscreen && !IsFullscreen())
             {
                 return;
+            }
+
+            lock (_refreshLock)
+            {
+                if (_librarySuspensionCount > 0)
+                {
+                    // The fullscreen gate above has already been answered for this request, so the
+                    // deferred one does not re-ask it.
+                    _librarySuspensionHasPendingRefresh = true;
+                    _librarySuspensionPendingHeavyLists |= includeHeavyAchievementLists;
+
+                    // An in-flight rebuild from just before the suspension is abandoned: it would
+                    // publish state built from data the burst is still changing.
+                    try { _refreshCts?.Cancel(); } catch { }
+                    return;
+                }
             }
 
             CancellationToken token;
@@ -1786,9 +1921,24 @@ namespace PlayniteAchievements.Services.ThemeIntegration
         private void ApplyLibraryState(LibraryRuntimeState state)
         {
             _runtimeState.Library = state ?? new LibraryRuntimeState();
+            Common.LeakWatch.Track("ThemeLibraryState", _runtimeState.Library);
             var library = _runtimeState.Library;
             PruneGameCommandCaches(library.AllGamesWithAchievements);
 
+            // One projected instance per game for this whole pass; see the memo's own note.
+            _gameSummaryProjectionMemo = new Dictionary<Guid, GameAchievementSummary>();
+            try
+            {
+                ApplyLibraryStateCore(library);
+            }
+            finally
+            {
+                _gameSummaryProjectionMemo = null;
+            }
+        }
+
+        private void ApplyLibraryStateCore(LibraryRuntimeState library)
+        {
             _settings.ModernTheme.CompletedGamesAsc = ProjectGameSummaries(library.CompletedGamesAsc);
             _settings.ModernTheme.CompletedGamesDesc = ProjectGameSummaries(library.CompletedGamesDesc);
             _settings.ModernTheme.GameSummariesAsc = ProjectGameSummaries(library.GameSummariesAsc);
@@ -1807,7 +1957,8 @@ namespace PlayniteAchievements.Services.ThemeIntegration
             _settings.ModernTheme.PrestigeLevel = library.PrestigeLevel;
             _settings.ModernTheme.PrestigeLevelProgress = library.PrestigeLevelProgress;
             _settings.ModernTheme.PrestigeRank = library.PrestigeRank;
-            PersistScoreSnapshot(library);
+            _settings.ModernTheme.CollectorMastery = library.CollectorMastery;
+            _settings.ModernTheme.PrestigeMastery = library.PrestigeMastery;
             _settings.ModernTheme.SteamGames = ProjectGameSummaries(library.SteamGames);
             _settings.ModernTheme.GOGGames = ProjectGameSummaries(library.GOGGames);
             _settings.ModernTheme.EpicGames = ProjectGameSummaries(library.EpicGames);
@@ -2056,6 +2207,7 @@ namespace PlayniteAchievements.Services.ThemeIntegration
             _settings.ModernTheme.AchievementsOldestFirst = state.AchievementsOldestFirst;
             _settings.ModernTheme.AchievementsRarityAsc = state.AchievementsRarityAsc;
             _settings.ModernTheme.AchievementsRarityDesc = state.AchievementsRarityDesc;
+            _settings.ModernTheme.LatestAchievementData = state.LatestAchievementData;
 
             _settings.LegacyTheme.HasData = true;
             _settings.LegacyTheme.Total = state.AchievementCount;
@@ -2100,6 +2252,7 @@ namespace PlayniteAchievements.Services.ThemeIntegration
             _settings.ModernTheme.AchievementsOldestFirst = EmptyAchievementList;
             _settings.ModernTheme.AchievementsRarityAsc = EmptyAchievementList;
             _settings.ModernTheme.AchievementsRarityDesc = EmptyAchievementList;
+            _settings.ModernTheme.LatestAchievementData = null;
 
             _settings.ModernTheme.Common = EmptyRarityStats;
             _settings.ModernTheme.Uncommon = EmptyRarityStats;
@@ -2133,38 +2286,90 @@ namespace PlayniteAchievements.Services.ThemeIntegration
 
         #endregion
 
+        /// <summary>
+        /// Projected summaries for the rebuild currently running, keyed by game id, so a game
+        /// appearing in several of the theme lists is projected once.
+        /// </summary>
+        /// <remarks>
+        /// <see cref="ApplyLibraryState"/> calls <see cref="ProjectGameSummaries"/> around two
+        /// dozen times over lists that overlap heavily -- the ascending and descending pairs,
+        /// the all-games list, the completed and platinum pairs, and one provider bucket all
+        /// contain the same game -- so a library of N games produced roughly 7N fresh summaries
+        /// and twice that many command instances per refresh, all with identical content.
+        ///
+        /// Sharing one instance across those lists is safe: the type is an ObservableObject
+        /// whose content is read-only after construction, and WPF is content to see the same
+        /// item in several collections. It is also what lets an edit to one game notify every
+        /// surface showing it.
+        /// </remarks>
+        private Dictionary<Guid, GameAchievementSummary> _gameSummaryProjectionMemo;
+
         private ObservableCollection<GameAchievementSummary> ProjectGameSummaries(IEnumerable<GameAchievementSummary> items)
         {
+            var memo = _gameSummaryProjectionMemo;
+            if (memo != null)
+            {
+                var reused = new List<GameAchievementSummary>();
+                var fresh = new List<GameAchievementSummary>();
+                foreach (var item in items ?? Enumerable.Empty<GameAchievementSummary>())
+                {
+                    if (item == null)
+                    {
+                        continue;
+                    }
+
+                    if (!memo.TryGetValue(item.GameId, out var projectedItem))
+                    {
+                        projectedItem = CreateProjectedGameSummary(item);
+                        memo[item.GameId] = projectedItem;
+                        fresh.Add(projectedItem);
+                    }
+
+                    reused.Add(projectedItem);
+                }
+
+                // Only the ones built here need their commands attached; the rest already have
+                // them from the list that first projected them.
+                AttachGameSummaryCommands(fresh);
+                return new ObservableCollection<GameAchievementSummary>(reused);
+            }
+
             var projected = (items ?? Enumerable.Empty<GameAchievementSummary>())
-                .Select(item => new GameAchievementSummary(
-                    item.GameId,
-                    item.Name,
-                    item.Platform,
-                    item.CoverImagePath,
-                    item.Progress,
-                    item.GoldCount,
-                    item.SilverCount,
-                    item.BronzeCount,
-                    item.IsCompleted,
-                    item.LastUnlockDate,
-                    GetOpenViewAchievementsCommand(item.GameId),
-                    item.Common,
-                    item.Uncommon,
-                    item.Rare,
-                    item.UltraRare,
-                    item.RareAndUltraRare,
-                    item.Overall,
-                    item.ProviderKey,
-                    item.ProviderName,
-                    item.LastPlayed,
-                    item.UnlockedCount,
-                    item.AchievementCount,
-                    openManageAchievementsWindow: GetOpenManageAchievementsCommand(item.GameId),
-                    sortingName: item.SortingName))
+                .Where(item => item != null)
+                .Select(CreateProjectedGameSummary)
                 .ToList();
 
             AttachGameSummaryCommands(projected);
             return new ObservableCollection<GameAchievementSummary>(projected);
+        }
+
+        private GameAchievementSummary CreateProjectedGameSummary(GameAchievementSummary item)
+        {
+            return new GameAchievementSummary(
+                item.GameId,
+                item.Name,
+                item.Platform,
+                item.CoverImagePath,
+                item.Progress,
+                item.GoldCount,
+                item.SilverCount,
+                item.BronzeCount,
+                item.IsCompleted,
+                item.LastUnlockDate,
+                GetOpenViewAchievementsCommand(item.GameId),
+                item.Common,
+                item.Uncommon,
+                item.Rare,
+                item.UltraRare,
+                item.RareAndUltraRare,
+                item.Overall,
+                item.ProviderKey,
+                item.ProviderName,
+                item.LastPlayed,
+                item.UnlockedCount,
+                item.AchievementCount,
+                openManageAchievementsWindow: GetOpenManageAchievementsCommand(item.GameId),
+                sortingName: item.SortingName);
         }
 
         private ObservableCollection<FriendGameAchievementSummary> ProjectFriendGameSummaries(
@@ -4436,9 +4641,11 @@ namespace PlayniteAchievements.Services.ThemeIntegration
                 ["DLC"] = CategoryType("DLC"),
                 ["Singleplayer"] = CategoryType("Singleplayer"),
                 ["Multiplayer"] = CategoryType("Multiplayer"),
+                ["Progression"] = CategoryType("Progression"),
+                ["WinCondition"] = CategoryType("WinCondition"),
                 ["Collectable"] = CategoryType("Collectable"),
                 ["Missable"] = CategoryType("Missable"),
-                ["Difficulty"] = CategoryType("Difficulty"),
+                [AchievementCategoryTypeHelper.UnobtainableCategoryType] = CategoryType(AchievementCategoryTypeHelper.UnobtainableCategoryType),                ["Difficulty"] = CategoryType("Difficulty"),
                 ["Stackable"] = CategoryType("Stackable"),
                 [AchievementCategoryTypeHelper.SoftcoreCategoryType] = CategoryType(AchievementCategoryTypeHelper.SoftcoreCategoryType),
                 [AchievementCategoryTypeHelper.HardcoreCategoryType] = CategoryType(AchievementCategoryTypeHelper.HardcoreCategoryType),

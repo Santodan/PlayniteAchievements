@@ -5,6 +5,25 @@ using Newtonsoft.Json;
 
 namespace PlayniteAchievements.Models.Settings
 {
+    /// <summary>
+    /// Flat per-surface accessors over <see cref="GridOptionsCatalog"/>. These look like duplication
+    /// of the catalog and are not: each one carries a job the catalog cannot do on its own.
+    ///
+    /// - They are how the window grids receive values. The grid controls do not read their own
+    ///   catalog record; their dependency properties are bound to these flat names in XAML, and
+    ///   PersistedSettings.GridCompatibility.Notifications.cs raises PropertyChanged for a flat name
+    ///   when the underlying record member changes. That bridge is what makes an edit in the grid
+    ///   display settings popup show up in the grid behind it.
+    /// - The settings migrations read old configs by these names
+    ///   (GridOptionsSettingsMigration, OverviewSettingsMigration), so a name that disappears takes
+    ///   an upgrade path with it.
+    /// - They are public on the settings object, so a user's theme can bind any of them through
+    ///   Playnite's PluginSettings markup. Nothing in this repository can prove a given name is
+    ///   unused out there.
+    ///
+    /// So do not "consolidate" these away. Replacing them means moving the window grids onto
+    /// record-reading bindings first, and even then the names have to stay for migration.
+    /// </summary>
     public partial class PersistedSettings
     {
         private AchievementGridOptions AchievementDefault => GridOptions.GetAchievement(GridOptionKeys.Achievement.Default);
@@ -50,15 +69,18 @@ namespace PlayniteAchievements.Models.Settings
         [JsonIgnore] public bool OverviewSelectedGameShowRarityGlow { get => AchievementOverviewSelectedGame.ShowRarityGlow; set => SetGridValue(OverviewSelectedGameShowRarityGlow, v => AchievementOverviewSelectedGame.ShowRarityGlow = v, value); }
         [JsonIgnore] public bool ViewAchievementsAchievementGridShowRarityGlow { get => AchievementSingleGame.ShowRarityGlow; set => SetGridValue(ViewAchievementsAchievementGridShowRarityGlow, v => AchievementSingleGame.ShowRarityGlow = v, value); }
         [JsonIgnore] public bool ModernDataGridShowRarityGlow { get => AchievementDefault.ShowRarityGlow; set => SetGridValue(ModernDataGridShowRarityGlow, v => AchievementDefault.ShowRarityGlow = v, value); }
+        [JsonIgnore] public bool DesktopThemeAchievementGridShowRarityGlow { get => AchievementDesktopTheme.ShowRarityGlow; set => SetGridValue(DesktopThemeAchievementGridShowRarityGlow, v => AchievementDesktopTheme.ShowRarityGlow = v, value); }
         [JsonIgnore] public bool OverviewRecentAchievementsColorNamesByRarity { get => AchievementOverviewRecent.ColorNamesByRarity; set => SetGridValue(OverviewRecentAchievementsColorNamesByRarity, v => AchievementOverviewRecent.ColorNamesByRarity = v, value); }
         [JsonIgnore] public bool OverviewSelectedGameColorNamesByRarity { get => AchievementOverviewSelectedGame.ColorNamesByRarity; set => SetGridValue(OverviewSelectedGameColorNamesByRarity, v => AchievementOverviewSelectedGame.ColorNamesByRarity = v, value); }
         [JsonIgnore] public bool ViewAchievementsAchievementGridColorNamesByRarity { get => AchievementSingleGame.ColorNamesByRarity; set => SetGridValue(ViewAchievementsAchievementGridColorNamesByRarity, v => AchievementSingleGame.ColorNamesByRarity = v, value); }
         [JsonIgnore] public bool ModernDataGridColorNamesByRarity { get => AchievementDefault.ColorNamesByRarity; set => SetGridValue(ModernDataGridColorNamesByRarity, v => AchievementDefault.ColorNamesByRarity = v, value); }
+        [JsonIgnore] public bool DesktopThemeAchievementGridColorNamesByRarity { get => AchievementDesktopTheme.ColorNamesByRarity; set => SetGridValue(DesktopThemeAchievementGridColorNamesByRarity, v => AchievementDesktopTheme.ColorNamesByRarity = v, value); }
         [JsonIgnore] public bool OverviewRecentAchievementsColorRarityColumnsByRarity { get => AchievementOverviewRecent.ColorRarityColumnsByRarity; set => SetGridValue(OverviewRecentAchievementsColorRarityColumnsByRarity, v => AchievementOverviewRecent.ColorRarityColumnsByRarity = v, value); }
         [JsonIgnore] public bool OverviewSelectedGameColorRarityColumnsByRarity { get => AchievementOverviewSelectedGame.ColorRarityColumnsByRarity; set => SetGridValue(OverviewSelectedGameColorRarityColumnsByRarity, v => AchievementOverviewSelectedGame.ColorRarityColumnsByRarity = v, value); }
         [JsonIgnore] public bool ViewAchievementsAchievementGridColorRarityColumnsByRarity { get => AchievementSingleGame.ColorRarityColumnsByRarity; set => SetGridValue(ViewAchievementsAchievementGridColorRarityColumnsByRarity, v => AchievementSingleGame.ColorRarityColumnsByRarity = v, value); }
         [JsonIgnore] public bool ViewFriendsAchievementsColorRarityColumnsByRarity { get => AchievementViewFriendsAchievements.ColorRarityColumnsByRarity; set => SetGridValue(ViewFriendsAchievementsColorRarityColumnsByRarity, v => AchievementViewFriendsAchievements.ColorRarityColumnsByRarity = v, value); }
         [JsonIgnore] public bool ModernDataGridColorRarityColumnsByRarity { get => AchievementDefault.ColorRarityColumnsByRarity; set => SetGridValue(ModernDataGridColorRarityColumnsByRarity, v => AchievementDefault.ColorRarityColumnsByRarity = v, value); }
+        [JsonIgnore] public bool DesktopThemeAchievementGridColorRarityColumnsByRarity { get => AchievementDesktopTheme.ColorRarityColumnsByRarity; set => SetGridValue(DesktopThemeAchievementGridColorRarityColumnsByRarity, v => AchievementDesktopTheme.ColorRarityColumnsByRarity = v, value); }
         [JsonIgnore] public bool OverviewGameSummariesColorRarityColumnsByRarity { get => GameSummariesOverview.ColorRarityColumnsByRarity; set => SetGridValue(OverviewGameSummariesColorRarityColumnsByRarity, v => GameSummariesOverview.ColorRarityColumnsByRarity = v, value); }
         [JsonIgnore] public bool StartPageGameSummariesColorRarityColumnsByRarity { get => GameSummariesStartPage.ColorRarityColumnsByRarity; set => SetGridValue(StartPageGameSummariesColorRarityColumnsByRarity, v => GameSummariesStartPage.ColorRarityColumnsByRarity = v, value); }
         [JsonIgnore] public bool ViewAchievementsGameSummariesColorRarityColumnsByRarity { get => GameSummariesViewAchievements.ColorRarityColumnsByRarity; set => SetGridValue(ViewAchievementsGameSummariesColorRarityColumnsByRarity, v => GameSummariesViewAchievements.ColorRarityColumnsByRarity = v, value); }
@@ -171,6 +193,7 @@ namespace PlayniteAchievements.Models.Settings
         [JsonIgnore] public CompactListSortMode FriendsOverviewAchievementsGridSortMode { get => AchievementFriendsOverviewRecent.SortMode; set => SetGridValue(FriendsOverviewAchievementsGridSortMode, v => AchievementFriendsOverviewRecent.SortMode = v, value); }
         [JsonIgnore] public bool FriendsOverviewAchievementsGridSortDescending { get => AchievementFriendsOverviewRecent.SortDescending; set => SetGridValue(FriendsOverviewAchievementsGridSortDescending, v => AchievementFriendsOverviewRecent.SortDescending = v, value); }
         [JsonIgnore] public double? AchievementDataGridMaxHeight { get => AchievementDefault.MaxHeight; set => SetGridValue(AchievementDataGridMaxHeight, v => AchievementDefault.MaxHeight = v, value); }
+        [JsonIgnore] public double? DesktopThemeAchievementGridMaxHeight { get => AchievementDesktopTheme.MaxHeight; set => SetGridValue(DesktopThemeAchievementGridMaxHeight, v => AchievementDesktopTheme.MaxHeight = v, value); }
         [JsonIgnore] public double? SingleGameGridRowHeight { get => AchievementSingleGame.RowHeight; set => SetGridValue(SingleGameGridRowHeight, v => AchievementSingleGame.RowHeight = v, value); }
         [JsonIgnore] public double? OverviewGameSummariesGridRowHeight { get => GameSummariesOverview.RowHeight; set => SetGridValue(OverviewGameSummariesGridRowHeight, v => GameSummariesOverview.RowHeight = v, value); }
         [JsonIgnore] public double? OverviewRecentAchievementsGridRowHeight { get => AchievementOverviewRecent.RowHeight; set => SetGridValue(OverviewRecentAchievementsGridRowHeight, v => AchievementOverviewRecent.RowHeight = v, value); }

@@ -30,23 +30,14 @@
                                TextWrapping="Wrap"/>
 
                     <!-- Theme Dropdown -->
-                    <Grid Style="{StaticResource SettingRowStyle}">
-                        <ComboBox x:Name="ThemeMigrationThemeComboBox"
-                                  ItemsSource="{Binding AvailableThemes}"
+                    <Grid Margin="{StaticResource PlayAch.Thickness.Bottom.SettingRow}">
+                        <ComboBox ItemsSource="{Binding AvailableThemes}"
                                   DisplayMemberPath="BestDisplayName"
                                   SelectedValuePath="Path"
-                                  SelectedValue="{Binding SelectedThemePath, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                  SelectionChanged="ThemeMigrationThemeComboBox_SelectionChanged"
+                                  SelectedValue="{Binding SelectedThemePath}"
                                   VerticalContentAlignment="Center"
                                   IsEnabled="{Binding HasThemesToMigrate}"/>
                     </Grid>
-
-                    <CheckBox x:Name="HighlightLatestUnlockedAchievementCheckBox"
-                              Content="{DynamicResource LOCPlayAch_ThemeMigration_HighlightLatestAchievement}"
-                              IsChecked="{Binding HighlightLatestUnlockedAchievement, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                              IsEnabled="{Binding HasThemesToMigrate}"
-                              Margin="0,8,0,0"
-                              ToolTip="{DynamicResource LOCPlayAch_ThemeMigration_HighlightLatestAchievement_Help}"/>
 
                     <!-- Migration Buttons -->
                     <StackPanel Orientation="Horizontal"
@@ -200,7 +191,7 @@
                                Margin="{StaticResource PlayAch.Thickness.Bottom.Md}"/>
 
                     <!-- Revertable Theme Dropdown and Revert Button -->
-                    <Grid Style="{StaticResource SettingRowStyle}">
+                    <Grid Margin="{StaticResource PlayAch.Thickness.Bottom.SettingRow}">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*"/>
                             <ColumnDefinition Width="Auto"/>

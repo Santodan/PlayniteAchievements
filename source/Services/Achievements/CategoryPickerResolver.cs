@@ -16,13 +16,28 @@ namespace PlayniteAchievements.Services.Achievements
             string leafDisplay,
             string pathDisplay,
             CategoryTreeShape treeShape = null,
-            bool isSelectable = true)
+            bool isSelectable = true,
+            bool isCreateNew = false)
         {
             Label = label;
             LeafDisplay = leafDisplay;
             PathDisplay = pathDisplay;
             TreeShape = treeShape;
             IsSelectable = isSelectable;
+            IsCreateNew = isCreateNew;
+        }
+
+        /// <summary>
+        /// The row that offers to create a category rather than naming one that exists. It carries no
+        /// label: picking it is a request the host answers, and the box puts the previous pick back.
+        /// </summary>
+        public static CategoryPickerOption CreateNewRow(string leafDisplay)
+        {
+            return new CategoryPickerOption(
+                label: null,
+                leafDisplay: leafDisplay,
+                pathDisplay: null,
+                isCreateNew: true);
         }
 
         /// <summary>Storage form - the value written back, never shown.</summary>
@@ -46,6 +61,12 @@ namespace PlayniteAchievements.Services.Achievements
         /// target a caller can resolve to.
         /// </summary>
         public bool IsSelectable { get; }
+
+        /// <summary>
+        /// True for the create-a-category row. It is an action rather than a target, so it never
+        /// resolves to a label and never stays selected.
+        /// </summary>
+        public bool IsCreateNew { get; }
     }
 
     /// <summary>
@@ -58,6 +79,33 @@ namespace PlayniteAchievements.Services.Achievements
     /// </summary>
     internal static class CategoryPickerResolver
     {
+        /// <summary>
+        /// Every category a game has, in tree order: the labels its achievements carry, plus the
+        /// ones that exist only as user state - an entry in the stored order, an art override, the
+        /// summary pick. The one definition of "this game's categories" every picker offers, so a
+        /// category created empty is listed wherever one can be chosen.
+        /// </summary>
+        /// <remarks>
+        /// A category is otherwise only a label some achievement carries, so a list built from the
+        /// achievements alone drops a category created to be filled later.
+        /// </remarks>
+        public static List<string> BuildGameCategoryLabels(
+            IEnumerable<string> achievementLabels,
+            IReadOnlyList<string> categoryOrder,
+            IEnumerable<string> artOverrideLabels,
+            string summaryCategoryLabel)
+        {
+            var labels = new List<string>();
+            labels.AddRange(achievementLabels ?? Enumerable.Empty<string>());
+            labels.AddRange(artOverrideLabels ?? Enumerable.Empty<string>());
+            labels.AddRange(categoryOrder ?? (IEnumerable<string>)Array.Empty<string>());
+            labels.Add(summaryCategoryLabel);
+
+            return AchievementCategoryFilterOrderHelper.BuildOrderedCategoryTree(
+                labels.Where(label => !string.IsNullOrWhiteSpace(label)),
+                categoryOrder);
+        }
+
         /// <summary>
         /// Builds the options for a set of existing labels, arranged as the tree they describe:
         /// pre-order, siblings contiguous, each row carrying the connectors that place it.
@@ -142,6 +190,7 @@ namespace PlayniteAchievements.Services.Achievements
 
             if (pickedOption != null &&
                 pickedOption.IsSelectable &&
+                !pickedOption.IsCreateNew &&
                 string.Equals(pickedOption.LeafDisplay, text, StringComparison.OrdinalIgnoreCase))
             {
                 return pickedOption.Label;
@@ -155,6 +204,7 @@ namespace PlayniteAchievements.Services.Achievements
             var matches = (options ?? new List<CategoryPickerOption>())
                 .Where(option => option != null &&
                     option.IsSelectable &&
+                    !option.IsCreateNew &&
                     string.Equals(option.LeafDisplay, text, StringComparison.OrdinalIgnoreCase))
                 .ToList();
 

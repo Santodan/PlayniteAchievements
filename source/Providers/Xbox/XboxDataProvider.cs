@@ -18,7 +18,7 @@ namespace PlayniteAchievements.Providers.Xbox
     /// Data provider for Xbox achievement data.
     /// Supports Xbox One/Series X|S, Xbox 360, and PC Game Pass games.
     /// </summary>
-    internal sealed class XboxDataProvider : DataProviderBase<XboxSettings>, IDataProvider, IProviderOverride, IDisposable
+    internal sealed class XboxDataProvider : DataProviderBase<XboxSettings>, IDataProvider, IProfileLinkProvider, IProviderOverride, IDisposable
     {
         public ProviderOverrideDescriptor OverrideDescriptor { get; } = ProviderOverrideDescriptor.Text(
             "LOCPlayAch_ManageAchievements_Overrides_ProviderValueLabel_Xbox",
@@ -54,6 +54,13 @@ namespace PlayniteAchievements.Providers.Xbox
         public string ProviderName => ResourceProvider.GetString("LOCPlayAch_Provider_Xbox");
         public string ProviderKey => "Xbox";
         public string ProviderIconKey => "ProviderIconXbox";
+
+        public string ProfileUrlPattern => "https://www.trueachievements.com/gamer/{0}";
+
+        public string BuildProfileUrl(string user) => ProfileLinkUrls.Format(ProfileUrlPattern, user);
+
+        // The stored settings carry no public profile name; the user enters it.
+        public string GetCurrentUserProfileName() => null;
         public string ProviderColorHex => "#107C10";  // Xbox green
 
         /// <summary>

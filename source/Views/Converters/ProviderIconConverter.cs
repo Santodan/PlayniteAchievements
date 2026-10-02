@@ -20,6 +20,44 @@ namespace PlayniteAchievements.Views.Converters
         // thread only, so an unlocked Dictionary is acceptable.
         private static readonly Dictionary<string, DrawingImage> IconImageCache = new Dictionary<string, DrawingImage>();
 
+        /// <summary>
+        /// Geometry for a user-defined custom provider id ("ProviderIconCustom:&lt;id&gt;" keys). Set by
+        /// the plugin from the custom provider store.
+        /// </summary>
+        public static Func<string, Geometry> CustomGeometryResolver { get; set; }
+
+        /// <summary>
+        /// Version stamp for a custom provider id, folded into the cache key so a re-imported icon
+        /// is not served from a stale entry.
+        /// </summary>
+        public static Func<string, int> CustomGeometryVersionResolver { get; set; }
+
+        /// <summary>
+        /// Drops cached images whose key starts with <paramref name="cacheKeyPrefix"/> (for
+        /// example "GeoCustom:abc123|"). UI thread only, like the converter itself.
+        /// </summary>
+        public static void Invalidate(string cacheKeyPrefix)
+        {
+            if (string.IsNullOrEmpty(cacheKeyPrefix))
+            {
+                return;
+            }
+
+            var stale = new List<string>();
+            foreach (var key in IconImageCache.Keys)
+            {
+                if (key.StartsWith(cacheKeyPrefix, StringComparison.OrdinalIgnoreCase))
+                {
+                    stale.Add(key);
+                }
+            }
+
+            foreach (var key in stale)
+            {
+                IconImageCache.Remove(key);
+            }
+        }
+
         public object Convert(object[] values, Type targetType, object parameter, CultureInfo culture)
         {
             if (values.Length >= 2 &&
@@ -50,14 +88,22 @@ namespace PlayniteAchievements.Views.Converters
             {
                 // Try to find a "Geo" + iconName resource (e.g., GeoSteam for ProviderIconSteam)
                 string geoKey = "Geo" + iconKey.Replace("ProviderIcon", "");
-                string cacheKey = geoKey + "|" + colorHex;
+                var isCustomProvider = PlayniteAchievements.Services.CustomProviders.CustomProviderKeys
+                    .TryGetIdFromIconKey(iconKey, out var customProviderId);
+                string cacheKey = isCustomProvider
+                    ? geoKey + "|v" + (CustomGeometryVersionResolver?.Invoke(customProviderId) ?? 0) + "|" + colorHex
+                    : geoKey + "|" + colorHex;
 
                 if (IconImageCache.TryGetValue(cacheKey, out var cachedImage))
                 {
                     return cachedImage;
                 }
 
-                var geometry = Application.Current.TryFindResource(geoKey) as Geometry;
+                // User-defined providers keep their geometry in the custom provider store rather
+                // than in application resources.
+                var geometry = isCustomProvider
+                    ? CustomGeometryResolver?.Invoke(customProviderId)
+                    : Application.Current.TryFindResource(geoKey) as Geometry;
                 if (geometry != null && ColorConverter.ConvertFromString(colorHex) is Color color)
                 {
                     var drawingImage = new DrawingImage

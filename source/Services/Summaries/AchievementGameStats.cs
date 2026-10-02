@@ -40,6 +40,7 @@ namespace PlayniteAchievements.Services.Summaries
 
         public DateTime? LastUnlockUtc { get; set; }
 
+        /// <summary>Unlock counts per local calendar day (keys from Overview.UnlockDayCounts.DayOf).</summary>
         public Dictionary<DateTime, int> UnlockCountsByDate { get; } =
             new Dictionary<DateTime, int>();
 

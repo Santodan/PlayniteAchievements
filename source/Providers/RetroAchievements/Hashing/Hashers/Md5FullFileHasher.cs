@@ -9,14 +9,18 @@ namespace PlayniteAchievements.Providers.RetroAchievements.Hashing.Hashers
     {
         public string Name => "MD5 (whole file)";
 
-        public async Task<IReadOnlyList<string>> ComputeHashesAsync(string filePath, CancellationToken cancel)
-        {
-            var hash = await HashUtils
-                .ComputeMd5HexFromFileAsync(filePath, startOffset: 0, maxBytes: HashUtils.MaxHashBytes, cancel)
-                .ConfigureAwait(false);
+        public bool SupportsForwardOnlyInput => true;
 
-            return new[] { hash };
+        public async Task<IReadOnlyList<string>> ComputeHashesAsync(RaHashSource source, CancellationToken cancel)
+        {
+            using (var stream = source.Open())
+            {
+                var hash = await HashUtils
+                    .ComputeMd5HexFromStreamAsync(stream, HashUtils.MaxHashBytes, cancel)
+                    .ConfigureAwait(false);
+
+                return new[] { hash };
+            }
         }
     }
 }
-

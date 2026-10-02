@@ -72,12 +72,22 @@ namespace PlayniteAchievements.Views.Helpers
         public static bool GetPhaseLock(DependencyObject element) =>
             (bool)element.GetValue(PhaseLockProperty);
 
-        // Stores the per-element settings-changed handler so it can be detached (kept only while
-        // the element is loaded and active, so it never outlives the element on the app-lifetime
-        // PersistedSettings instance).
+        // Stores the per-element settings-changed handler so it can be detached. The subscription
+        // goes through PropertyChangedEventManager (weak): recycled item containers do not
+        // reliably raise Unloaded (see RayAnimationDriver), so a strong PropertyChanged handler
+        // would let the app-lifetime PersistedSettings instance root every dead tile. The element
+        // keeps the delegate alive via this slot; the settings object holds it weakly.
         private static readonly DependencyProperty SettingsHandlerProperty =
             DependencyProperty.RegisterAttached(
-                "SettingsHandler", typeof(PropertyChangedEventHandler), typeof(RarityGlowPulse),
+                "SettingsHandler", typeof(EventHandler<PropertyChangedEventArgs>), typeof(RarityGlowPulse),
+                new PropertyMetadata(null));
+
+        // The PersistedSettings instance SettingsHandler was added on. Settings edits can replace
+        // Settings.Persisted, so removal must target the instance that was subscribed, not a
+        // re-resolved current one.
+        private static readonly DependencyProperty SettingsSourceProperty =
+            DependencyProperty.RegisterAttached(
+                "SettingsSource", typeof(PersistedSettings), typeof(RarityGlowPulse),
                 new PropertyMetadata(null));
 
         // Stores the Effect-target pulse's root clock so PauseUnder/ResumeUnder can find it on a
@@ -148,39 +158,58 @@ namespace PlayniteAchievements.Views.Helpers
             var persisted = PlayniteAchievementsPlugin.Instance?.Settings?.Persisted;
             ApplyAnimation(element, persisted);
 
-            if (persisted != null && element.GetValue(SettingsHandlerProperty) == null)
+            if (persisted == null)
             {
-                PropertyChangedEventHandler handler = (s, args) =>
-                {
-                    if (args.PropertyName == nameof(PersistedSettings.RarityGlowPulseMinOpacity) ||
-                        args.PropertyName == nameof(PersistedSettings.RarityGlowPulseMaxOpacity) ||
-                        args.PropertyName == nameof(PersistedSettings.RarityGlowPulseSpeed))
-                    {
-                        // Retune the shared clock once; every element then re-attaches to it.
-                        InvalidateSharedClock();
-                        ApplyAnimation(element, persisted);
-                    }
-                };
-
-                persisted.PropertyChanged += handler;
-                element.SetValue(SettingsHandlerProperty, handler);
+                return;
             }
+
+            if (element.GetValue(SettingsSourceProperty) is PersistedSettings previous)
+            {
+                if (ReferenceEquals(previous, persisted) &&
+                    element.GetValue(SettingsHandlerProperty) != null)
+                {
+                    // Loaded re-fired without an Unloaded (recycled/re-parented container);
+                    // the existing subscription already targets the current instance.
+                    return;
+                }
+
+                // The Persisted instance was swapped since this element subscribed.
+                DetachSettingsHandler(element);
+            }
+
+            EventHandler<PropertyChangedEventArgs> handler = (s, args) =>
+            {
+                if (args.PropertyName == nameof(PersistedSettings.RarityGlowPulseMinOpacity) ||
+                    args.PropertyName == nameof(PersistedSettings.RarityGlowPulseMaxOpacity) ||
+                    args.PropertyName == nameof(PersistedSettings.RarityGlowPulseSpeed))
+                {
+                    // Retune the shared clock once; every element then re-attaches to it.
+                    InvalidateSharedClock();
+                    ApplyAnimation(element, persisted);
+                }
+            };
+
+            PropertyChangedEventManager.AddHandler(persisted, handler, string.Empty);
+            element.SetValue(SettingsHandlerProperty, handler);
+            element.SetValue(SettingsSourceProperty, persisted);
         }
 
         private static void Deactivate(FrameworkElement element)
         {
-            if (element.GetValue(SettingsHandlerProperty) is PropertyChangedEventHandler handler)
-            {
-                var persisted = PlayniteAchievementsPlugin.Instance?.Settings?.Persisted;
-                if (persisted != null)
-                {
-                    persisted.PropertyChanged -= handler;
-                }
+            DetachSettingsHandler(element);
+            StopAnimation(element);
+        }
 
-                element.SetValue(SettingsHandlerProperty, null);
+        private static void DetachSettingsHandler(FrameworkElement element)
+        {
+            if (element.GetValue(SettingsHandlerProperty) is EventHandler<PropertyChangedEventArgs> handler &&
+                element.GetValue(SettingsSourceProperty) is PersistedSettings source)
+            {
+                PropertyChangedEventManager.RemoveHandler(source, handler, string.Empty);
             }
 
-            StopAnimation(element);
+            element.SetValue(SettingsHandlerProperty, null);
+            element.SetValue(SettingsSourceProperty, null);
         }
 
         private static (double Min, double Max, double Seconds) ResolvePulseParams(PersistedSettings persisted)

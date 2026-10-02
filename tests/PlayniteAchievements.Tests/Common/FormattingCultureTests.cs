@@ -8,10 +8,32 @@ namespace PlayniteAchievements.Tests.Common
     [DoNotParallelize]
     public class FormattingCultureTests
     {
+        private CultureInfo _osCulture;
+
+        [TestInitialize]
+        public void PinOsCulture()
+        {
+            _osCulture = CultureInfo.CurrentCulture;
+            CultureInfo.CurrentCulture = CultureInfo.GetCultureInfo("en-US");
+        }
+
         [TestCleanup]
         public void RestoreFormattingCulture()
         {
+            CultureInfo.CurrentCulture = _osCulture;
             FormattingCulture.Initialize(() => "english");
+        }
+
+        [TestMethod]
+        public void Current_UsesOsRegionalVariantOfTheSameLanguage()
+        {
+            CultureInfo.CurrentCulture = CultureInfo.GetCultureInfo("en-GB");
+
+            FormattingCulture.Initialize(() => "english");
+            Assert.AreEqual("en-GB", FormattingCulture.Current.Name);
+
+            FormattingCulture.Initialize(() => "german");
+            Assert.AreEqual("de-DE", FormattingCulture.Current.Name);
         }
 
         [TestMethod]

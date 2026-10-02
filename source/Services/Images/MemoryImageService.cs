@@ -47,7 +47,14 @@ namespace PlayniteAchievements.Services.Images
         {
             public BitmapSource Value { get; set; }
             public LinkedListNode<string> Node { get; set; }
+            public long Bytes { get; set; }
         }
+
+        // Decoded bitmaps live in native WIC memory, so the count cap alone leaves the cache
+        // unbounded in bytes (512 entries of cover-sized art is easily hundreds of MB on the
+        // 32-bit host). Evictions run past either limit.
+        private const long MaxCacheBytes = 64L * 1024 * 1024;
+        private long _cacheBytes;
 
         public MemoryImageService(
             ILogger logger,
@@ -70,6 +77,16 @@ namespace PlayniteAchievements.Services.Images
         /// <summary>Raised when the whole memory cache is dropped.</summary>
         public event Action CacheCleared;
 
+        /// <summary>Cached bitmap count and their estimated decoded size, for memory diagnostics.</summary>
+        public void GetCacheStats(out int count, out long bytes)
+        {
+            lock (_cacheLock)
+            {
+                count = _cache.Count;
+                bytes = _cacheBytes;
+            }
+        }
+
         public void Dispose()
         {
             _diskService.ImageFileOverwritten -= OnImageFileOverwritten;
@@ -81,6 +98,7 @@ namespace PlayniteAchievements.Services.Images
             {
                 _cache.Clear();
                 _lru.Clear();
+                _cacheBytes = 0;
             }
 
             CacheCleared?.Invoke();
@@ -135,6 +153,7 @@ namespace PlayniteAchievements.Services.Images
                             _lru.Remove(entry.Node);
                         }
 
+                        _cacheBytes -= entry?.Bytes ?? 0;
                         _cache.Remove(key);
                     }
                 }
@@ -398,35 +417,81 @@ namespace PlayniteAchievements.Services.Images
                 return DefaultDecodePixel;
             }
 
-            return Math.Max(MinDecodePixel, Math.Min(decodePixel, MaxDecodePixel));
+            var clamped = Math.Max(MinDecodePixel, Math.Min(decodePixel, MaxDecodePixel));
+
+            // Quantize to buckets, rounding up so the decode is never smaller than asked.
+            // AsyncImage infers sizes from live layout measurements, so the same artwork
+            // re-measured a few pixels differently across layout passes (grid row churn,
+            // column autosize, DPI overscan) would otherwise enter the cache as a separate
+            // fully decoded bitmap per distinct pixel size.
+            var bucket = clamped <= 256 ? 32 : clamped <= 1024 ? 128 : 256;
+            var quantized = (clamped + bucket - 1) / bucket * bucket;
+            return Math.Min(quantized, MaxDecodePixel);
         }
 
         private void AddToCache(string key, BitmapSource value)
         {
+            var bytes = EstimateBytes(value);
             lock (_cacheLock)
             {
+                LinkedListNode<string> currentNode;
                 if (_cache.TryGetValue(key, out var existing))
                 {
+                    _cacheBytes -= existing.Bytes;
                     existing.Value = value;
+                    existing.Bytes = bytes;
+                    _cacheBytes += bytes;
                     if (existing.Node != null)
                     {
                         _lru.Remove(existing.Node);
                         _lru.AddFirst(existing.Node);
                     }
+
+                    currentNode = existing.Node;
                 }
                 else
                 {
                     var node = new LinkedListNode<string>(key);
                     _lru.AddFirst(node);
-                    _cache[key] = new CacheEntry { Value = value, Node = node };
+                    _cache[key] = new CacheEntry { Value = value, Node = node, Bytes = bytes };
+                    _cacheBytes += bytes;
+                    currentNode = node;
                 }
 
-                while (_cache.Count > _maxItems && _lru.Last != null)
+                // Never evict the entry just added: an image larger than the whole budget
+                // would otherwise be evicted immediately and reload on every request.
+                while (_lru.Last != null &&
+                       !ReferenceEquals(_lru.Last, currentNode) &&
+                       (_cache.Count > _maxItems || _cacheBytes > MaxCacheBytes))
                 {
                     var toEvict = _lru.Last.Value;
                     _lru.RemoveLast();
+                    if (_cache.TryGetValue(toEvict, out var evicted))
+                    {
+                        _cacheBytes -= evicted?.Bytes ?? 0;
+                    }
+
                     _cache.Remove(toEvict);
                 }
+            }
+        }
+
+        private static long EstimateBytes(BitmapSource value)
+        {
+            if (value == null)
+            {
+                return 0;
+            }
+
+            try
+            {
+                // BGRA32 working assumption; close enough for budgeting regardless of the
+                // source format because WPF converts most content to 32bpp for rendering.
+                return (long)value.PixelWidth * value.PixelHeight * 4;
+            }
+            catch
+            {
+                return 0;
             }
         }
 

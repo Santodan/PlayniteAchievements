@@ -6,6 +6,15 @@ namespace PlayniteAchievements.Models.Achievements.Scoring
 
         public int DisplayLevel { get; set; }
 
+        /// <summary>
+        /// Completed passes through the rank ladder, 0 until the first cap is reached. Level and
+        /// DisplayLevel keep counting across passes; Rank restarts at the first rank each pass.
+        /// </summary>
+        public int Mastery { get; set; }
+
+        /// <summary>Level within the current pass, 0 to MaxDisplayLevel - 1 under mastery.</summary>
+        public int PassLevel { get; set; }
+
         public double LevelProgress { get; set; }
 
         public int CurrentLevelStartScore { get; set; }
@@ -27,6 +36,24 @@ namespace PlayniteAchievements.Models.Achievements.Scoring
         public int PointsUntilNextRank { get; set; }
 
         public bool IsMaxLevel { get; set; }
+
+        /// <summary>First level belonging to the current rank, per the rank threshold table.</summary>
+        public int RankStartLevel { get; set; }
+
+        /// <summary>Last level belonging to the current rank.</summary>
+        public int RankEndLevel { get; set; }
+
+        /// <summary>
+        /// How many levels the current rank spans. The default table gives every rank ten; it is
+        /// read from the thresholds rather than assumed so a custom curve stays honest.
+        /// </summary>
+        public int LevelsInRank { get; set; }
+
+        /// <summary>Levels of the current rank already behind the player, 0 to LevelsInRank.</summary>
+        public int LevelsCompletedInRank { get; set; }
+
+        /// <summary>Levels left before the next rank, 0 once the cap is reached.</summary>
+        public int LevelsUntilNextRank { get; set; }
 
         public AchievementRank RankValue { get; set; } = AchievementRank.Bronze5;
 

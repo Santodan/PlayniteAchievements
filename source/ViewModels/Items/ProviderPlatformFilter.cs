@@ -179,9 +179,21 @@ namespace PlayniteAchievements.ViewModels.Items
         public static ObservableCollection<ProviderFilterGroup> Rebuild(
             IEnumerable<GameSummaryItem> games,
             IEnumerable<ProviderFilterGroup> existingGroups,
-            Action onSelectionChanged)
+            Action onSelectionChanged,
+            IReadOnlyDictionary<string, List<string>> seedSelections = null)
         {
+            // Seed selections (restored state) apply to providers the existing groups do not
+            // cover; a live group's own selection always wins.
             var priorSelections = new Dictionary<string, HashSet<string>>(StringComparer.OrdinalIgnoreCase);
+            foreach (var seed in seedSelections ?? new Dictionary<string, List<string>>())
+            {
+                if (!string.IsNullOrWhiteSpace(seed.Key) && seed.Value?.Count > 0)
+                {
+                    priorSelections[seed.Key.Trim()] =
+                        new HashSet<string>(seed.Value.Where(name => !string.IsNullOrWhiteSpace(name)), StringComparer.OrdinalIgnoreCase);
+                }
+            }
+
             var priorExpanded = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             foreach (var existing in existingGroups ?? Enumerable.Empty<ProviderFilterGroup>())
             {
@@ -260,6 +272,96 @@ namespace PlayniteAchievements.ViewModels.Items
             }
 
             return new ObservableCollection<ProviderFilterGroup>(groups);
+        }
+
+        /// <summary>
+        /// True when <paramref name="games"/> holds the same game instances in the same order as
+        /// <paramref name="previous"/>. A filter pass re-feeds the same games, and skipping the
+        /// rebuild then keeps the group instances an open dropdown is showing.
+        /// </summary>
+        public static bool HasSameGames(
+            IReadOnlyList<GameSummaryItem> previous,
+            IReadOnlyList<GameSummaryItem> games)
+        {
+            if (previous == null || games == null || previous.Count != games.Count)
+            {
+                return false;
+            }
+
+            for (var i = 0; i < games.Count; i++)
+            {
+                if (!ReferenceEquals(previous[i], games[i]))
+                {
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        /// <summary>
+        /// True when <paramref name="games"/> would build the same groups as
+        /// <paramref name="previous"/>: the same provider key, provider name and platforms at
+        /// every position. The instances may differ.
+        /// </summary>
+        /// <remarks>
+        /// A showcase widget lists the whole library's platforms, and every snapshot carries new
+        /// game instances, so <see cref="HasSameGames"/> failed on each edit and the widget
+        /// rebuilt its groups from the whole library. The walk here allocates nothing. A reorder
+        /// reads as a change, which only costs the rebuild it replaces.
+        /// </remarks>
+        public static bool HasSameFilterOptions(
+            IReadOnlyList<GameSummaryItem> previous,
+            IReadOnlyList<GameSummaryItem> games)
+        {
+            if (previous == null || games == null || previous.Count != games.Count)
+            {
+                return false;
+            }
+
+            for (var i = 0; i < games.Count; i++)
+            {
+                var before = previous[i];
+                var after = games[i];
+                if (ReferenceEquals(before, after))
+                {
+                    continue;
+                }
+
+                if (before == null || after == null ||
+                    !string.Equals(before.ProviderFilterKey, after.ProviderFilterKey, StringComparison.Ordinal) ||
+                    !string.Equals(before.Provider, after.Provider, StringComparison.Ordinal) ||
+                    !HasSamePlatforms(before.Platforms, after.Platforms))
+                {
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        private static bool HasSamePlatforms(IReadOnlyList<string> previous, IReadOnlyList<string> platforms)
+        {
+            if (ReferenceEquals(previous, platforms))
+            {
+                return true;
+            }
+
+            var beforeCount = previous?.Count ?? 0;
+            if (beforeCount != (platforms?.Count ?? 0))
+            {
+                return false;
+            }
+
+            for (var i = 0; i < beforeCount; i++)
+            {
+                if (!string.Equals(previous[i], platforms[i], StringComparison.Ordinal))
+                {
+                    return false;
+                }
+            }
+
+            return true;
         }
 
         private static string GetProviderFilterDisplayName(string providerKey)

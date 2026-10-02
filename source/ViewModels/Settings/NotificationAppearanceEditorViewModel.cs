@@ -1186,7 +1186,7 @@ namespace PlayniteAchievements.ViewModels.Settings
         /// </summary>
         public string BackgroundImageDimensionsText =>
             HasBackgroundImage &&
-            TryReadImagePixelSize(_style.ToastBackgroundImagePath, out var w, out var h)
+            ImagePixelSize.TryRead(_style.ToastBackgroundImagePath, out var w, out var h)
                 ? string.Format(CultureInfo.CurrentCulture, "{0} × {1}", w, h)
                 : string.Empty;
 
@@ -1204,7 +1204,7 @@ namespace PlayniteAchievements.ViewModels.Settings
                 return;
             }
 
-            if (!TryReadImagePixelSize(_style.ToastBackgroundImagePath, out var imageWidth, out var imageHeight) ||
+            if (!ImagePixelSize.TryRead(_style.ToastBackgroundImagePath, out var imageWidth, out var imageHeight) ||
                 imageWidth <= 0 || imageHeight <= 0)
             {
                 return;
@@ -1214,33 +1214,6 @@ namespace PlayniteAchievements.ViewModels.Settings
             surface.CardWidth = width;
             surface.CardHeight = Math.Round(width * imageHeight / imageWidth);
             RefreshCardDimensions();
-        }
-
-        // Reads an image's pixel dimensions from its header without decoding the full bitmap.
-        // Returns the first frame's size for animated GIFs (their logical canvas size).
-        private static bool TryReadImagePixelSize(string path, out int width, out int height)
-        {
-            width = 0;
-            height = 0;
-            try
-            {
-                if (string.IsNullOrWhiteSpace(path) || !File.Exists(path))
-                {
-                    return false;
-                }
-
-                var frame = BitmapFrame.Create(
-                    new Uri(path, UriKind.Absolute),
-                    BitmapCreateOptions.DelayCreation,
-                    BitmapCacheOption.None);
-                width = frame.PixelWidth;
-                height = frame.PixelHeight;
-                return width > 0 && height > 0;
-            }
-            catch
-            {
-                return false;
-            }
         }
 
         /// <summary>
@@ -1876,36 +1849,18 @@ namespace PlayniteAchievements.ViewModels.Settings
         /// Points the editor at a new style object (global default or a provider copy).
         /// Pending edits against the previous style are flushed first.
         /// </summary>
-        public void SetStyle(NotificationStyleSettings style, string providerKey, bool isEditable)
-        {
-            SetStyle(
-                style,
-                NotificationImageOwner.ForProvider(providerKey),
-                isEditable,
-                persistStyle: null,
-                providerKey: providerKey);
-        }
-
         /// <summary>
-        /// Points the editor at an arbitrary owned style, allowing the shared editor surface to
-        /// persist provider/global settings or a per-game custom-data snapshot through the same
-        /// debounce path.
+        /// Points the editor at an owned style, allowing the shared editor surface to persist
+        /// provider/global settings or a per-game custom-data snapshot through the same
+        /// debounce path. The image owner names the slot folder the style's images live in,
+        /// which for a separately styled notification kind is that kind's own folder.
         /// </summary>
         public void SetStyle(
             NotificationStyleSettings style,
             NotificationImageOwner imageOwner,
             bool isEditable,
-            Action<NotificationStyleSettings> persistStyle)
-        {
-            SetStyle(style, imageOwner, isEditable, persistStyle, providerKey: null);
-        }
-
-        private void SetStyle(
-            NotificationStyleSettings style,
-            NotificationImageOwner imageOwner,
-            bool isEditable,
-            Action<NotificationStyleSettings> persistStyle,
-            string providerKey)
+            Action<NotificationStyleSettings> persistStyle = null,
+            string providerKey = null)
         {
             FlushPendingPersist();
             Unsubscribe();

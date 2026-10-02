@@ -22,6 +22,7 @@ namespace PlayniteAchievements.Views.Dialogs
                     ShowCloseButton = true
                 });
 
+            Helpers.WindowPlacementPersistenceService.Attach(window, "ScoreInfo");
             dialog.RequestClose += (s, args) => window.Close();
             window.ShowDialog();
         }

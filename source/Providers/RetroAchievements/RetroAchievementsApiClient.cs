@@ -1,4 +1,5 @@
 using Playnite.SDK;
+using PlayniteAchievements.Common;
 using PlayniteAchievements.Providers.RetroAchievements.Models;
 using System;
 using System.IO;
@@ -23,9 +24,15 @@ namespace PlayniteAchievements.Providers.RetroAchievements
         private readonly string _apiKey;
         private readonly string _acceptLanguage;
 
-        public RetroAchievementsApiClient(ILogger logger, string username, string apiKey, string globalLanguage = null)
+        public RetroAchievementsApiClient(
+            ILogger logger,
+            string username,
+            string apiKey,
+            string globalLanguage = null,
+            ServerClockOffset serverClock = null)
         {
             _logger = logger;
+            ServerClock = serverClock ?? new ServerClockOffset();
             _username = username?.Trim() ?? string.Empty;
             _apiKey = apiKey?.Trim() ?? string.Empty;
             _acceptLanguage = MapGlobalLanguageToRetroAchievementsLocale(globalLanguage);
@@ -156,6 +163,10 @@ namespace PlayniteAchievements.Providers.RetroAchievements
                 {
                     using (var req = requestFactory())
                     {
+                        // Read either side of the exchange so the response's Date header can be
+                        // placed on the capture timeline; ResponseHeadersRead returns as soon as
+                        // the headers arrive, which is what the Date describes.
+                        var sentUtc = CaptureTimelineClock.UtcNow;
                         var resp = await _http.SendAsync(req, HttpCompletionOption.ResponseHeadersRead, cancel).ConfigureAwait(false);
 
                         if (resp.StatusCode == (HttpStatusCode)429)
@@ -177,6 +188,7 @@ namespace PlayniteAchievements.Providers.RetroAchievements
                             continue;
                         }
 
+                        SampleServerClock(sentUtc, resp);
                         return resp;
                     }
                 }
@@ -197,6 +209,34 @@ namespace PlayniteAchievements.Providers.RetroAchievements
             }
 
             throw new HttpRequestException("Request failed after retries.", lastException);
+        }
+
+        /// <summary>
+        /// Offset between RetroAchievements' clock and this machine's capture timeline, sampled
+        /// from response Date headers. Unlock stamps the API reports are in server time, so they
+        /// must pass through this before they can anchor a recording. Supplied by the provider so
+        /// a correlated clock survives the client being rebuilt on a credential change.
+        /// </summary>
+        public ServerClockOffset ServerClock { get; }
+
+        private void SampleServerClock(DateTime sentUtc, HttpResponseMessage resp)
+        {
+            try
+            {
+                var adopted = ServerClock.Observe(
+                    sentUtc, CaptureTimelineClock.UtcNow, resp?.Headers?.Date);
+                if (adopted)
+                {
+                    _logger?.Debug(
+                        $"[RA] Server clock offset {ServerClock.Offset?.TotalSeconds:0.000}s " +
+                        $"(round trip {ServerClock.SampleRoundTrip?.TotalMilliseconds:0}ms).");
+                }
+            }
+            catch (Exception ex)
+            {
+                // Clock sampling is an optimization for clip anchoring. It must never fail a call.
+                _logger?.Debug(ex, "[RA] Server clock sampling failed.");
+            }
         }
 
         private static TimeSpan? GetRetryAfterDelay(HttpResponseMessage resp)

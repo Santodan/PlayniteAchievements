@@ -735,6 +735,7 @@ namespace PlayniteAchievements.Views
             {
             }
 
+            WindowPlacementPersistenceService.Attach(window, "PresetName");
             inputDialog.RequestClose += (s, e) => window.Close();
             window.ShowDialog();
 

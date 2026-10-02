@@ -103,6 +103,12 @@ namespace PlayniteAchievements.Views
 
         private void OverviewHostControl_Unloaded(object sender, RoutedEventArgs e)
         {
+            _logger.Debug("OverviewHostControl_Unloaded called");
+            using var perf = PerfScope.Start(
+                _logger,
+                "OverviewHost.Unloaded",
+                thresholdMs: 30,
+                context: $"overview={_overview != null} landing={_landingPage != null}");
             try
             {
                 _overview?.Deactivate();
@@ -154,8 +160,12 @@ namespace PlayniteAchievements.Views
             _logger.Info("RecreateContent called - clearing existing content");
 
             // Dispose existing content
-            _overview?.Dispose();
-            _landingPage?.Dispose();
+            using (PerfScope.Start(_logger, "OverviewHost.DisposePrevious", thresholdMs: 30))
+            {
+                _overview?.Dispose();
+                _landingPage?.Dispose();
+            }
+
             _overview = null;
             _landingPage = null;
             PART_Content.Content = null;
@@ -273,7 +283,12 @@ namespace PlayniteAchievements.Views
         {
             _logger.Info("Creating overview control.");
 
-            var control = _createView() as OverviewControl;
+            OverviewControl control;
+            using (PerfScope.Start(_logger, "OverviewHost.CreateView", thresholdMs: 30))
+            {
+                control = _createView() as OverviewControl;
+            }
+
             if (control == null)
             {
                 throw new InvalidOperationException("OverviewHostControl factory did not return OverviewControl.");
@@ -281,7 +296,10 @@ namespace PlayniteAchievements.Views
 
             _overview = control;
             PART_Content.Content = _overview;
-            _overview.Activate();
+            using (PerfScope.Start(_logger, "OverviewHost.Activate", thresholdMs: 30))
+            {
+                _overview.Activate();
+            }
         }
 
         private void LandingPage_SetupComplete(object sender, EventArgs e)

@@ -11,6 +11,7 @@ using PlayniteAchievements.Common;
 using PlayniteAchievements.Models;
 using PlayniteAchievements.Models.Settings;
 using PlayniteAchievements.ViewModels;
+using PlayniteAchievements.Views.Settings.Display.ThemeControls;
 using PlayniteAchievements.Views.Settings.Display;
 using PlayniteAchievements.Views.Settings.General;
 using PlayniteAchievements.Views.Settings.Navigation;
@@ -29,6 +30,9 @@ namespace PlayniteAchievements.Views
         private readonly ProviderRegistry _providerRegistry;
         private readonly Func<Window, string, string> _pickColor;
         private DisplaySettingsTab _displaySettingsTab;
+        private Settings.Themes.ThemesSettingsTab _themesSettingsTab;
+        // Shared by the Display and Themes copies of the migration page so the two stay in sync.
+        private ThemeMigrationController _themeMigrationController;
         private GeneralSettingsTab _generalSettingsTab;
         private Settings.Notifications.NotificationsSettingsTab _notificationsSettingsTab;
         private LegacyNotificationSettingsControl _legacyNotificationSettingsControl;
@@ -99,14 +103,29 @@ namespace PlayniteAchievements.Views
                     _logger);
             }
 
+            _themeMigrationController = new ThemeMigrationController(
+                _settingsViewModel.Settings,
+                _plugin,
+                _logger);
+
             if (DisplaySettingsContent != null)
             {
                 _displaySettingsTab = new DisplaySettingsTab(
                     _settingsViewModel.Settings,
                     _plugin,
                     _logger,
-                    _pickColor);
+                    _pickColor,
+                    _themeMigrationController,
+                    () => _themesSettingsTab?.RefreshAfterDisplaySettingsReset());
                 DisplaySettingsContent.Content = _displaySettingsTab;
+            }
+
+            if (ThemesSettingsContent != null)
+            {
+                _themesSettingsTab = new Settings.Themes.ThemesSettingsTab(
+                    _settingsViewModel.Settings,
+                    _themeMigrationController);
+                ThemesSettingsContent.Content = _themesSettingsTab;
             }
 
             if (GeneralSettingsContent != null)
@@ -432,8 +451,13 @@ namespace PlayniteAchievements.Views
                 case "Providers":
                     tab = ProvidersTab;
                     break;
+                case "Themes":
+                    tab = ThemesTab;
+                    break;
                 case "ThemeMigration":
-                    tab = ForkThemeMigrationTab;
+                    // Theme migration is listed on both Display and Themes. Display is the
+                    // canonical target because it comes first in the tab strip.
+                    tab = DisplayTab;
                     break;
                 default:
                     return;
@@ -465,6 +489,7 @@ namespace PlayniteAchievements.Views
             _settingsViewModel.Settings.PropertyChanged -= Settings_PropertyChanged;
             AttachPersistedSettings(null);
             _displaySettingsTab?.Dispose();
+            _themesSettingsTab?.Dispose();
             _generalSettingsTab?.Dispose();
             _notificationsSettingsTab?.Dispose();
             _legacyNotificationSettingsControl?.Dispose();

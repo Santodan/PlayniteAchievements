@@ -87,13 +87,21 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 .Select(row => new { Source = row.CategoryLabel, Target = row.ProviderCategoryLabel })
                 .ToList();
 
-            var renamed = false;
+            // One batch, not one rename at a time. Each ApplyCategoryMoves is a store write plus
+            // a row rebuild, and the rebuild re-probes every category's art on disk -- the same
+            // cost that made a multi-row indent slow before it was batched. The moves are still
+            // planned and chained in order inside ApplyCategoryMoves, so a rename whose target is
+            // a later rename's source resolves exactly as it did sequentially.
+            var moves = new List<KeyValuePair<string, string>>();
             foreach (var rename in renames)
             {
-                renamed |= RenameCategoryLabel(rename.Source, rename.Target);
+                if (TryPlanCategoryRename(rename.Source, rename.Target, out var move))
+                {
+                    moves.Add(move);
+                }
             }
 
-            return renamed;
+            return moves.Count > 0 && ApplyCategoryMoves(moves);
         }
 
         public bool ResetCategoryArt()
@@ -317,6 +325,20 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         /// </summary>
         public bool RenameCategoryLabel(string sourceCategoryLabel, string targetCategoryLabel)
         {
+            return TryPlanCategoryRename(sourceCategoryLabel, targetCategoryLabel, out var move) &&
+                   ApplyCategoryMoves(new[] { move });
+        }
+
+        /// <summary>
+        /// Validates one rename and yields the move it becomes, so a run of renames can be
+        /// applied as a single batch instead of one store write and row rebuild each.
+        /// </summary>
+        private bool TryPlanCategoryRename(
+            string sourceCategoryLabel,
+            string targetCategoryLabel,
+            out KeyValuePair<string, string> move)
+        {
+            move = default(KeyValuePair<string, string>);
             var normalizedSourceCategory = AchievementCategoryTypeHelper.NormalizeCategory(sourceCategoryLabel);
             if (string.IsNullOrWhiteSpace(normalizedSourceCategory) ||
                 string.Equals(
@@ -348,10 +370,8 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 return false;
             }
 
-            return ApplyCategoryMoves(new[]
-            {
-                new KeyValuePair<string, string>(normalizedSourceCategory, normalizedTargetCategory)
-            });
+            move = new KeyValuePair<string, string>(normalizedSourceCategory, normalizedTargetCategory);
+            return true;
         }
 
         /// <summary>
@@ -753,6 +773,43 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 existing,
                 parentPath: null,
                 baseLeafName: L("LOCPlayAch_ManageAchievements_Category_NewCategoryName"));
+            return PersistNewCategory(existing, label);
+        }
+
+        /// <summary>
+        /// Creates an empty top-level category under a name the user gave. A name that already names
+        /// a top-level category adopts it rather than creating a second one alongside it, so naming
+        /// something twice is not a way to end up with two of it.
+        /// </summary>
+        public string CreateCategory(string leafName)
+        {
+            if (CategoryRows.Count == 0)
+            {
+                return null;
+            }
+
+            var label = CategoryPathHelper.SanitizeSegment(leafName);
+            if (string.IsNullOrWhiteSpace(label))
+            {
+                return null;
+            }
+
+            var existing = CategoryRows
+                .Where(row => row != null && !string.IsNullOrWhiteSpace(row.CategoryLabel))
+                .Select(row => row.CategoryLabel)
+                .ToList();
+
+            var alreadyThere = existing.FirstOrDefault(candidate => CategoryPathHelper.IsSame(candidate, label));
+            if (!string.IsNullOrWhiteSpace(alreadyThere))
+            {
+                return alreadyThere;
+            }
+
+            return PersistNewCategory(existing, label);
+        }
+
+        private string PersistNewCategory(List<string> existing, string label)
+        {
             if (string.IsNullOrWhiteSpace(label))
             {
                 return null;
@@ -983,7 +1040,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
 
             // One Reset rather than a Clear plus an Add per row: the grid rebuilds a container and
             // lays it out on every notification, and each of these rows carries category art.
-            CategoryRows.ReplaceAll(nextRows);
+            CollectionHelper.Replace(CategoryRows, nextRows);
 
             RefreshAssignableCategoryOptions();
             RefreshCategoryMetadataState();
@@ -996,17 +1053,32 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         /// </summary>
         private void RefreshAssignableCategoryOptions()
         {
-            CollectionHelper.SynchronizeCollection(
-                AssignableCategoryOptions,
-                CategoryRows
-                    .Where(row => row != null && !string.IsNullOrWhiteSpace(row.CategoryLabel))
-                    .Select(row => row.CategoryLabel)
-                    .ToList());
+            var labels = CategoryRows
+                .Where(row => row != null && !string.IsNullOrWhiteSpace(row.CategoryLabel))
+                .Select(row => row.CategoryLabel)
+                .ToList();
+            CollectionHelper.SynchronizeCollection(AssignableCategoryOptions, labels);
+
+            // The Assign sub-tab's category filter orders itself by this canonical list, which
+            // only the reload used to take. A rename or re-parent then fell to the end of the
+            // filter out of tree order, and a flat drag or an order-only reset never reached the
+            // filter at all. The rendered rows are the tree order the user sees.
+            _canonicalCategoryLabelFilterOptions = labels;
+            RefreshCategoryLabelOptions();
         }
 
         private void CategoryMetadataRow_PropertyChanged(object sender, PropertyChangedEventArgs e)
         {
             if (e == null)
+            {
+                return;
+            }
+
+            // Stamping the filter scopes touches every row, and the trailing
+            // RefreshCategoryMetadataState is itself a pass over all of them, so letting the
+            // notifications through would make a stamp quadratic. Nothing is lost by skipping it:
+            // that state tracks the art values, which a filter scope does not move.
+            if (_isStampingFilterScopes)
             {
                 return;
             }
@@ -1151,6 +1223,8 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 StringComparison.OrdinalIgnoreCase));
             StampIndentAffordances(rows);
             StampCategoryTreeShapes(rows);
+            _memberApiNamesByLabel = BuildMemberApiNamesByLabel();
+            StampCategoryFilterScopes(rows);
             ReplaceCategoryRows(rows);
         }
 
@@ -1408,12 +1482,14 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
 
         /// <summary>
         /// Records whether a write skipped the library-wide passes, and passes the flag straight
-        /// back so it can wrap the argument at the call site. A write that did fan out clears the
-        /// debt rather than adding to it: it has already brought the library surfaces up to date.
+        /// back so it can wrap the argument at the call site. The debt only accumulates: a write
+        /// that did fan out reaches the summary listeners through the store, but not the surfaces
+        /// that follow the scoped cache invalidation the flush raises -- the friends views among
+        /// them -- so clearing on it dropped every earlier edit from those surfaces for good.
         /// </summary>
         private bool MarkLibraryRefreshDeferred(bool affectsSummaryData)
         {
-            _hasDeferredLibraryRefresh = !affectsSummaryData;
+            _hasDeferredLibraryRefresh |= !affectsSummaryData;
             return affectsSummaryData;
         }
 

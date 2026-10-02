@@ -82,7 +82,7 @@ namespace PlayniteAchievements.Tests.Localization
                 "Views",
                 "Settings",
                 "Display",
-                "AppearanceSection.xaml");
+                "ColorsSection.xaml");
             XNamespace xaml = "http://schemas.microsoft.com/winfx/2006/xaml";
 
             var keys = new HashSet<string>(

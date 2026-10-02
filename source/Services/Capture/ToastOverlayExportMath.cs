@@ -73,7 +73,8 @@ namespace PlayniteAchievements.Services.Capture
 
         /// <summary>
         /// The slide host's opacity at <paramref name="secondsIntoTrack"/>, interpolated like the
-        /// slide offset. Scales the ray layers at export.
+        /// slide offset. Scales the card pixels and the ray layers at export; the glow scale folds
+        /// it in already.
         /// </summary>
         public static double GetHostOpacity(ToastOverlayTrack track, int sampleIndex, double secondsIntoTrack)
         {
@@ -157,23 +158,10 @@ namespace PlayniteAchievements.Services.Capture
                 return Rectangle.Empty;
             }
 
-            int cornerX;
-            int cornerY;
-            if (track.AlignCenterHorizontally)
-            {
-                var gap = (int)Math.Round(track.GapDip * Math.Max(0.1, track.MonitorScale));
-                cornerX = (sample.ClientW - sample.CardWPhys) / 2;
-                cornerY = track.AlignBottom
-                    ? sample.ClientH - sample.CardHPhys - gap
-                    : gap;
-            }
-            else
-            {
-                ToastWindowPlacer.ComputeCorner(
-                    new Rectangle(0, 0, sample.ClientW, sample.ClientH), sample.CardWPhys, sample.CardHPhys,
-                    track.MonitorScale, track.AlignRight, track.AlignBottom, track.GapDip,
-                    out cornerX, out cornerY);
-            }
+            ToastWindowPlacer.ComputeCorner(
+                new Rectangle(0, 0, sample.ClientW, sample.ClientH), sample.CardWPhys, sample.CardHPhys,
+                track.MonitorScale, track.AlignRight, track.AlignBottom, track.GapXDip, track.GapYDip,
+                out var cornerX, out var cornerY);
             GetSlideOffset(track, sampleIndex, secondsIntoTrack, out var slideX, out var slideY);
             return OverlayBlitMath.ScaleRect(
                 cornerX + slideX, cornerY + slideY, sample.CardWPhys, sample.CardHPhys,

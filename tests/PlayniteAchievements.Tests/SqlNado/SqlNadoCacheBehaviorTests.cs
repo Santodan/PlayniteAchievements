@@ -60,6 +60,48 @@ namespace PlayniteAchievements.SqlNado.Tests
         }
 
         [TestMethod]
+        public void ReadOnlyConnection_AcceptsCacheSizePragma()
+        {
+            // The store's read connection is the one running the whole-library window-function
+            // and sort work, and it was getting no pragmas at all -- EnsureSchema applies them to
+            // the write connection and they are per-connection. This pins the assumption behind
+            // setting cache_size there: a READONLY connection accepts it and reports it back.
+            // Negative means KiB, so -16384 is 16 MB.
+            var path = Path.Combine(Path.GetTempPath(), "playach-sqlnado-pragma-" + Guid.NewGuid().ToString("N") + ".db");
+            try
+            {
+                using (var rw = new SQLiteDatabase(
+                    path,
+                    SQLiteOpenOptions.SQLITE_OPEN_READWRITE |
+                    SQLiteOpenOptions.SQLITE_OPEN_CREATE |
+                    SQLiteOpenOptions.SQLITE_OPEN_FULLMUTEX))
+                {
+                    rw.ExecuteNonQuery("CREATE TABLE Probe (Id INTEGER PRIMARY KEY AUTOINCREMENT);");
+                }
+
+                using (var ro = new SQLiteDatabase(
+                    path,
+                    SQLiteOpenOptions.SQLITE_OPEN_READONLY |
+                    SQLiteOpenOptions.SQLITE_OPEN_FULLMUTEX))
+                {
+                    ro.ExecuteNonQuery("PRAGMA cache_size = -16384;");
+
+                    Assert.AreEqual(
+                        -16384L,
+                        ro.ExecuteScalar<long>("PRAGMA cache_size;"),
+                        "A read-only connection must accept and retain the page-cache hint.");
+                }
+            }
+            finally
+            {
+                if (File.Exists(path))
+                {
+                    File.Delete(path);
+                }
+            }
+        }
+
+        [TestMethod]
         public void ReadOnlyConnection_ReadsCommittedWritesConcurrentlyUnderWal()
         {
             // Validates the assumption behind the store's dedicated read connection: a second
@@ -573,6 +615,41 @@ namespace PlayniteAchievements.SqlNado.Tests
         }
 
         [TestMethod]
+        public void CacheStore_RewritesOnlyTheOverrideRowsThatMoved()
+        {
+            var store = File.ReadAllText(FindRepoFile("source", "Services", "Database", "SqlNadoCacheStore.cs"));
+            var replace = Between(
+                store,
+                "public bool ReplaceAchievementOverrides(",
+                "public int ResyncAllAchievementOverrides(");
+
+            // ReplaceAchievementOverrides runs on the caller's thread inside the synchronous
+            // CustomDataChanged, which for an editor write is the UI thread. Deleting every one
+            // of a game's override rows and re-inserting them, to change one achievement's
+            // points or trophy grade, made that edit scale with how customized the game is.
+            Assert.IsFalse(
+                replace.Contains("DELETE FROM AchievementOverrides WHERE PlayniteGameId = ?;"),
+                "The whole-game delete must not come back: the write has to be the rows that " +
+                "actually differ, not every row the game has.");
+
+            StringAssert.Contains(
+                replace,
+                "DELETE FROM AchievementOverrides WHERE PlayniteGameId = ? AND ApiName = ?;",
+                "Rows are removed and rewritten one ApiName at a time.");
+
+            // The unchanged-save short circuit is what keeps a no-op write out of the WAL.
+            StringAssert.Contains(replace, "if (toWrite.Count == 0 && toDelete.Count == 0)");
+
+            // The insert is INSERT OR IGNORE, so a changed row must lose its stored version
+            // first or the new values are silently dropped.
+            var deleteChanged = replace.IndexOf("foreach (var entry in toWrite)", StringComparison.Ordinal);
+            var insert = replace.IndexOf("InsertAchievementOverrideRows(", StringComparison.Ordinal);
+            Assert.IsTrue(
+                deleteChanged >= 0 && insert > deleteChanged,
+                "Changed rows must be deleted before they are re-inserted.");
+        }
+
+        [TestMethod]
         public void CacheStore_FriendIdentitiesExposeAbsoluteAvatarPath()
         {
             var store = File.ReadAllText(FindRepoFile("source", "Services", "Database", "SqlNadoCacheStore.cs"));
@@ -824,6 +901,21 @@ namespace PlayniteAchievements.SqlNado.Tests
 
             StringAssert.Contains(store, "NormalizationForm.FormD");
             StringAssert.Contains(store, "UnicodeCategory.NonSpacingMark");
+        }
+
+        /// <summary>
+        /// The slice of a source file between two markers, so an assertion about one method
+        /// cannot be satisfied by text somewhere else in the file.
+        /// </summary>
+        private static string Between(string source, string start, string end)
+        {
+            var startIndex = source.IndexOf(start, StringComparison.Ordinal);
+            Assert.IsTrue(startIndex >= 0, $"Could not find '{start}'.");
+
+            var endIndex = source.IndexOf(end, startIndex, StringComparison.Ordinal);
+            Assert.IsTrue(endIndex > startIndex, $"Could not find '{end}' after '{start}'.");
+
+            return source.Substring(startIndex, endIndex - startIndex);
         }
 
         private static string FindRepoFile(params string[] parts)

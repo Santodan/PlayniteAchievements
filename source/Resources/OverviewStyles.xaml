@@ -107,9 +107,9 @@
                                                       SelectiveScrollingGrid.SelectiveScrollingOrientation="{Binding AreRowDetailsFrozen, ConverterParameter={x:Static SelectiveScrollingOrientation.Vertical}, Converter={x:Static DataGrid.RowDetailsScrollingConverter}, RelativeSource={RelativeSource AncestorType={x:Type DataGrid}}}"
                                                       Visibility="{TemplateBinding DetailsVisibility}"/>
 
-                            <DataGridRowHeader Grid.RowSpan="2"
-                                               SelectiveScrollingGrid.SelectiveScrollingOrientation="Vertical"
-                                               Visibility="{Binding HeadersVisibility, ConverterParameter={x:Static DataGridHeadersVisibility.Row}, Converter={x:Static DataGrid.HeadersVisibilityConverter}, RelativeSource={RelativeSource AncestorType={x:Type DataGrid}}}"/>
+                            <!-- No row header: no grid using this style shows one. Its visibility
+                                 was an ancestor binding to the DataGrid, and when that binding did
+                                 not resolve the header drew as a 10px box and pushed the row right. -->
 
                         </SelectiveScrollingGrid>
                       </Grid>
@@ -250,11 +250,6 @@
         </Style.Triggers>
     </Style>
 
-    <Style x:Key="OverviewProgressMetaRowStyle" TargetType="StackPanel">
-        <Setter Property="Orientation" Value="Horizontal"/>
-        <Setter Property="VerticalAlignment" Value="Center"/>
-    </Style>
-
     <Style x:Key="OverviewProgressFooterStyle" TargetType="Grid">
         <Setter Property="HorizontalAlignment" Value="Stretch"/>
         <Setter Property="Margin" Value="0,7,0,0"/>
@@ -264,14 +259,6 @@
                 <Setter Property="Visibility" Value="Collapsed"/>
             </DataTrigger>
         </Style.Triggers>
-    </Style>
-
-    <Style x:Key="OverviewMiniBadgeItemStyle" TargetType="StackPanel">
-        <Setter Property="Orientation" Value="Horizontal"/>
-        <Setter Property="Margin" Value="4,0"/>
-        <!-- Keep each badge's image+count physically left-to-right even when the badge row is
-             flipped to RightToLeft (Left progress alignment) to reverse the rarity order. -->
-        <Setter Property="FlowDirection" Value="LeftToRight"/>
     </Style>
 
     <Style x:Key="OverviewMiniBadgeImageStyle" TargetType="Image" BasedOn="{StaticResource RarityIcon}">
@@ -287,126 +274,58 @@
         <Setter Property="Margin" Value="3,0,0,0"/>
     </Style>
 
-    <!-- Per-tier variants: when the host grid's ColorRarityColumnsByRarity option is on, each
-         count label takes its tier's configured color (published by RarityAppearanceHelper),
-         mirroring the achievement grids' rarity column coloring. -->
-    <Style x:Key="OverviewMiniBadgeTextUltraRareStyle" TargetType="TextBlock" BasedOn="{StaticResource OverviewMiniBadgeTextStyle}">
+    <!-- The completion badge's count, tinted to the completed color the way each rarity count is
+         tinted to its own, and under the same grid-level coloring toggle. -->
+    <Style x:Key="OverviewMiniBadgeTextCompletedStyle" TargetType="TextBlock" BasedOn="{StaticResource OverviewMiniBadgeTextStyle}">
         <Style.Triggers>
             <DataTrigger Binding="{Binding ColorRarityColumnsByRarity, RelativeSource={RelativeSource AncestorType=controls:GameSummariesGridControl}}" Value="True">
-                <Setter Property="Foreground" Value="{DynamicResource PlayAch.Brush.Rarity.UltraRare}"/>
+                <Setter Property="Foreground" Value="{DynamicResource PlayAch.Brush.CompletedGame}"/>
             </DataTrigger>
         </Style.Triggers>
     </Style>
 
-    <Style x:Key="OverviewMiniBadgeTextRareStyle" TargetType="TextBlock" BasedOn="{StaticResource OverviewMiniBadgeTextStyle}">
-        <Style.Triggers>
-            <DataTrigger Binding="{Binding ColorRarityColumnsByRarity, RelativeSource={RelativeSource AncestorType=controls:GameSummariesGridControl}}" Value="True">
-                <Setter Property="Foreground" Value="{DynamicResource PlayAch.Brush.Rarity.Rare}"/>
-            </DataTrigger>
-        </Style.Triggers>
-    </Style>
-
-    <Style x:Key="OverviewMiniBadgeTextUncommonStyle" TargetType="TextBlock" BasedOn="{StaticResource OverviewMiniBadgeTextStyle}">
-        <Style.Triggers>
-            <DataTrigger Binding="{Binding ColorRarityColumnsByRarity, RelativeSource={RelativeSource AncestorType=controls:GameSummariesGridControl}}" Value="True">
-                <Setter Property="Foreground" Value="{DynamicResource PlayAch.Brush.Rarity.Uncommon}"/>
-            </DataTrigger>
-        </Style.Triggers>
-    </Style>
-
-    <Style x:Key="OverviewMiniBadgeTextCommonStyle" TargetType="TextBlock" BasedOn="{StaticResource OverviewMiniBadgeTextStyle}">
-        <Style.Triggers>
-            <DataTrigger Binding="{Binding ColorRarityColumnsByRarity, RelativeSource={RelativeSource AncestorType=controls:GameSummariesGridControl}}" Value="True">
-                <Setter Property="Foreground" Value="{DynamicResource PlayAch.Brush.Rarity.Common}"/>
-            </DataTrigger>
-        </Style.Triggers>
-    </Style>
-
-    <Style x:Key="OverviewMiniBadgeTextTrophyPlatinumStyle" TargetType="TextBlock" BasedOn="{StaticResource OverviewMiniBadgeTextStyle}">
-        <Style.Triggers>
-            <DataTrigger Binding="{Binding ColorRarityColumnsByRarity, RelativeSource={RelativeSource AncestorType=controls:GameSummariesGridControl}}" Value="True">
-                <Setter Property="Foreground" Value="{DynamicResource PlayAch.Brush.Trophy.Platinum}"/>
-            </DataTrigger>
-        </Style.Triggers>
-    </Style>
-
-    <Style x:Key="OverviewMiniBadgeTextTrophyGoldStyle" TargetType="TextBlock" BasedOn="{StaticResource OverviewMiniBadgeTextStyle}">
-        <Style.Triggers>
-            <DataTrigger Binding="{Binding ColorRarityColumnsByRarity, RelativeSource={RelativeSource AncestorType=controls:GameSummariesGridControl}}" Value="True">
-                <Setter Property="Foreground" Value="{DynamicResource PlayAch.Brush.Trophy.Gold}"/>
-            </DataTrigger>
-        </Style.Triggers>
-    </Style>
-
-    <Style x:Key="OverviewMiniBadgeTextTrophySilverStyle" TargetType="TextBlock" BasedOn="{StaticResource OverviewMiniBadgeTextStyle}">
-        <Style.Triggers>
-            <DataTrigger Binding="{Binding ColorRarityColumnsByRarity, RelativeSource={RelativeSource AncestorType=controls:GameSummariesGridControl}}" Value="True">
-                <Setter Property="Foreground" Value="{DynamicResource PlayAch.Brush.Trophy.Silver}"/>
-            </DataTrigger>
-        </Style.Triggers>
-    </Style>
-
-    <Style x:Key="OverviewMiniBadgeTextTrophyBronzeStyle" TargetType="TextBlock" BasedOn="{StaticResource OverviewMiniBadgeTextStyle}">
-        <Style.Triggers>
-            <DataTrigger Binding="{Binding ColorRarityColumnsByRarity, RelativeSource={RelativeSource AncestorType=controls:GameSummariesGridControl}}" Value="True">
-                <Setter Property="Foreground" Value="{DynamicResource PlayAch.Brush.Trophy.Bronze}"/>
-            </DataTrigger>
-        </Style.Triggers>
-    </Style>
-
+    <!-- The finish badge. When the row's capstones are exactly its platinum trophies and the user
+         has left trophy badges on, the badge becomes the platinum itself and the trophy row drops
+         its own platinum, so the platinum is shown once rather than twice. -->
     <Style x:Key="OverviewCompletedFooterIconStyle" TargetType="Image" BasedOn="{StaticResource OverviewMiniBadgeImageStyle}">
         <Setter Property="HorizontalAlignment" Value="Left"/>
         <Setter Property="VerticalAlignment" Value="Center"/>
         <Setter Property="Margin" Value="4,0,0,0"/>
+        <Setter Property="Source" Value="{DynamicResource BadgeRarityCompleted}"/>
+        <Setter Property="ToolTip" Value="{DynamicResource LOCPlayAch_Completed}"/>
+        <Setter Property="Visibility" Value="{Binding ShowCompletionBadge, Converter={StaticResource BoolToVis}}"/>
+        <Style.Triggers>
+            <MultiDataTrigger>
+                <MultiDataTrigger.Conditions>
+                    <Condition Binding="{Binding ShowPlatinumInCompletionSpot}" Value="True"/>
+                    <Condition Binding="{Binding PreferTrophyBadges, RelativeSource={RelativeSource AncestorType=controls:GameSummariesGridControl}}" Value="True"/>
+                </MultiDataTrigger.Conditions>
+                <Setter Property="Source" Value="{DynamicResource TrophyPlatinum}"/>
+                <Setter Property="ToolTip" Value="{DynamicResource LOCPlayAch_Trophy_Platinum}"/>
+            </MultiDataTrigger>
+        </Style.Triggers>
     </Style>
 
-    <!-- Shared rarity/trophy badge row for the Progress column footer. Only one of the two
-         panels is visible at a time (rarity vs. PlayStation trophies). The host positions and
-         (for Left alignment) flips this row; the row itself stays alignment-neutral so the same
-         markup serves every alignment without duplication. -->
-    <DataTemplate x:Key="ProgressBadgeRowTemplate">
-        <Grid VerticalAlignment="Center">
-            <StackPanel Style="{StaticResource OverviewProgressMetaRowStyle}"
-                        Visibility="{Binding HasTrophyTypes, Converter={StaticResource InverseBoolToVis}}">
-                <StackPanel Style="{StaticResource OverviewMiniBadgeItemStyle}" Visibility="{Binding UltraRareCount, Converter={StaticResource IntToVis}}" ToolTip="{DynamicResource LOCPlayAch_Rarity_UltraRare}">
-                    <Image Source="{DynamicResource BadgeRarityUltraRare}" Style="{StaticResource OverviewMiniBadgeImageStyle}"/>
-                    <TextBlock Text="{Binding UltraRareCount, StringFormat={}{0:N0}}" Style="{StaticResource OverviewMiniBadgeTextUltraRareStyle}"/>
-                </StackPanel>
-                <StackPanel Style="{StaticResource OverviewMiniBadgeItemStyle}" Visibility="{Binding RareCount, Converter={StaticResource IntToVis}}" ToolTip="{DynamicResource LOCPlayAch_Rarity_Rare}">
-                    <Image Source="{DynamicResource BadgeRarityRare}" Style="{StaticResource OverviewMiniBadgeImageStyle}"/>
-                    <TextBlock Text="{Binding RareCount, StringFormat={}{0:N0}}" Style="{StaticResource OverviewMiniBadgeTextRareStyle}"/>
-                </StackPanel>
-                <StackPanel Style="{StaticResource OverviewMiniBadgeItemStyle}" Visibility="{Binding UncommonCount, Converter={StaticResource IntToVis}}" ToolTip="{DynamicResource LOCPlayAch_Rarity_Uncommon}">
-                    <Image Source="{DynamicResource BadgeRarityUncommon}" Style="{StaticResource OverviewMiniBadgeImageStyle}"/>
-                    <TextBlock Text="{Binding UncommonCount, StringFormat={}{0:N0}}" Style="{StaticResource OverviewMiniBadgeTextUncommonStyle}"/>
-                </StackPanel>
-                <StackPanel Style="{StaticResource OverviewMiniBadgeItemStyle}" Visibility="{Binding CommonCount, Converter={StaticResource IntToVis}}" ToolTip="{DynamicResource LOCPlayAch_Rarity_Common}">
-                    <Image Source="{DynamicResource BadgeRarityCommon}" Style="{StaticResource OverviewMiniBadgeImageStyle}"/>
-                    <TextBlock Text="{Binding CommonCount, StringFormat={}{0:N0}}" Style="{StaticResource OverviewMiniBadgeTextCommonStyle}"/>
-                </StackPanel>
-            </StackPanel>
+    <!-- The finish badge's count, tinted to match whichever icon the badge is showing. -->
+    <Style x:Key="OverviewCompletedFooterTextStyle" TargetType="TextBlock" BasedOn="{StaticResource OverviewMiniBadgeTextCompletedStyle}">
+        <Setter Property="Visibility" Value="{Binding ShowCompletionCount, Converter={StaticResource BoolToVis}}"/>
+        <Setter Property="ToolTip" Value="{DynamicResource LOCPlayAch_Dynamic_Capstone}"/>
+        <Style.Triggers>
+            <MultiDataTrigger>
+                <MultiDataTrigger.Conditions>
+                    <Condition Binding="{Binding ShowPlatinumInCompletionSpot}" Value="True"/>
+                    <Condition Binding="{Binding PreferTrophyBadges, RelativeSource={RelativeSource AncestorType=controls:GameSummariesGridControl}}" Value="True"/>
+                    <Condition Binding="{Binding ColorRarityColumnsByRarity, RelativeSource={RelativeSource AncestorType=controls:GameSummariesGridControl}}" Value="True"/>
+                </MultiDataTrigger.Conditions>
+                <Setter Property="Foreground" Value="{DynamicResource PlayAch.Brush.Trophy.Platinum}"/>
+            </MultiDataTrigger>
+        </Style.Triggers>
+    </Style>
 
-            <StackPanel Style="{StaticResource OverviewProgressMetaRowStyle}"
-                        Visibility="{Binding HasTrophyTypes, Converter={StaticResource BoolToVis}}">
-                <StackPanel Style="{StaticResource OverviewMiniBadgeItemStyle}" Visibility="{Binding TrophyPlatinumCount, Converter={StaticResource IntToVis}}" ToolTip="{DynamicResource LOCPlayAch_Trophy_Platinum}">
-                    <Image Source="{DynamicResource TrophyPlatinum}" Style="{StaticResource OverviewMiniBadgeImageStyle}"/>
-                    <TextBlock Text="{Binding TrophyPlatinumCount, StringFormat={}{0:N0}}" Style="{StaticResource OverviewMiniBadgeTextTrophyPlatinumStyle}"/>
-                </StackPanel>
-                <StackPanel Style="{StaticResource OverviewMiniBadgeItemStyle}" Visibility="{Binding TrophyGoldCount, Converter={StaticResource IntToVis}}" ToolTip="{DynamicResource LOCPlayAch_Trophy_Gold}">
-                    <Image Source="{DynamicResource TrophyGold}" Style="{StaticResource OverviewMiniBadgeImageStyle}"/>
-                    <TextBlock Text="{Binding TrophyGoldCount, StringFormat={}{0:N0}}" Style="{StaticResource OverviewMiniBadgeTextTrophyGoldStyle}"/>
-                </StackPanel>
-                <StackPanel Style="{StaticResource OverviewMiniBadgeItemStyle}" Visibility="{Binding TrophySilverCount, Converter={StaticResource IntToVis}}" ToolTip="{DynamicResource LOCPlayAch_Trophy_Silver}">
-                    <Image Source="{DynamicResource TrophySilver}" Style="{StaticResource OverviewMiniBadgeImageStyle}"/>
-                    <TextBlock Text="{Binding TrophySilverCount, StringFormat={}{0:N0}}" Style="{StaticResource OverviewMiniBadgeTextTrophySilverStyle}"/>
-                </StackPanel>
-                <StackPanel Style="{StaticResource OverviewMiniBadgeItemStyle}" Visibility="{Binding TrophyBronzeCount, Converter={StaticResource IntToVis}}" ToolTip="{DynamicResource LOCPlayAch_Trophy_Bronze}">
-                    <Image Source="{DynamicResource TrophyBronze}" Style="{StaticResource OverviewMiniBadgeImageStyle}"/>
-                    <TextBlock Text="{Binding TrophyBronzeCount, StringFormat={}{0:N0}}" Style="{StaticResource OverviewMiniBadgeTextTrophyBronzeStyle}"/>
-                </StackPanel>
-            </StackPanel>
-        </Grid>
-    </DataTemplate>
+    <!-- The rarity/trophy badge row under the progress bar is one drawn element,
+         controls:ProgressBadgeStrip; it reads the same brush, glyph and font resource keys the
+         former per-badge styles used. The footer templates below position it and, for the Left
+         and Center alignments, reverse its order. -->
 
     <!-- Right alignment (default / legacy look): completed badge pinned far left, badge row
          pinned far right in descending-rarity order. -->
@@ -416,57 +335,51 @@
                 <ColumnDefinition Width="Auto"/>
                 <ColumnDefinition Width="*"/>
             </Grid.ColumnDefinitions>
-            <Image Grid.Column="0"
-                   Source="{DynamicResource BadgeRarityCompleted}"
-                   Style="{StaticResource OverviewCompletedFooterIconStyle}"
-                   ToolTip="{DynamicResource LOCPlayAch_Completed}"
-                   Visibility="{Binding ShowCompletionBadge, Converter={StaticResource BoolToVis}}"/>
-            <ContentControl Grid.Column="1"
-                            HorizontalAlignment="Right"
-                            VerticalAlignment="Center"
-                            Content="{Binding}"
-                            ContentTemplate="{StaticResource ProgressBadgeRowTemplate}"/>
+            <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
+                <Image Style="{StaticResource OverviewCompletedFooterIconStyle}"/>
+            <TextBlock Text="{Binding CompletionCountText}" Style="{StaticResource OverviewCompletedFooterTextStyle}"/>
+            </StackPanel>
+            <controls:ProgressBadgeStrip Grid.Column="1"
+                                         HorizontalAlignment="Right"
+                                         VerticalAlignment="Center"
+                                         PreferTrophyBadges="{Binding PreferTrophyBadges, RelativeSource={RelativeSource AncestorType=controls:GameSummariesGridControl}}"
+                                         ColorByRarity="{Binding ColorRarityColumnsByRarity, RelativeSource={RelativeSource AncestorType=controls:GameSummariesGridControl}}"/>
         </Grid>
     </DataTemplate>
 
-    <!-- Center alignment: a single centered row in ascending-rarity order (badge row reversed via
-         the same FlowDirection flip as the Left layout) followed by the completed badge. -->
+    <!-- Center alignment: a single centered row in ascending-rarity order (the strip reversed)
+         followed by the completed badge. -->
     <DataTemplate x:Key="ProgressFooterCenterTemplate">
         <StackPanel Orientation="Horizontal"
                     HorizontalAlignment="Center"
                     VerticalAlignment="Center">
-            <ContentControl VerticalAlignment="Center"
-                            FlowDirection="RightToLeft"
-                            Content="{Binding}"
-                            ContentTemplate="{StaticResource ProgressBadgeRowTemplate}"/>
-            <Image Source="{DynamicResource BadgeRarityCompleted}"
-                   Style="{StaticResource OverviewCompletedFooterIconStyle}"
-                   ToolTip="{DynamicResource LOCPlayAch_Completed}"
-                   Visibility="{Binding ShowCompletionBadge, Converter={StaticResource BoolToVis}}"/>
+            <controls:ProgressBadgeStrip VerticalAlignment="Center"
+                                         Reversed="True"
+                                         PreferTrophyBadges="{Binding PreferTrophyBadges, RelativeSource={RelativeSource AncestorType=controls:GameSummariesGridControl}}"
+                                         ColorByRarity="{Binding ColorRarityColumnsByRarity, RelativeSource={RelativeSource AncestorType=controls:GameSummariesGridControl}}"/>
+            <Image Style="{StaticResource OverviewCompletedFooterIconStyle}"/>
+            <TextBlock Text="{Binding CompletionCountText}" Style="{StaticResource OverviewCompletedFooterTextStyle}"/>
         </StackPanel>
     </DataTemplate>
 
     <!-- Left alignment (inverse of Right): badge row pinned far left in ascending-rarity order
-         (FlowDirection flip reverses the shared row), completed badge pinned far right. -->
+         (the strip reversed), completed badge pinned far right. -->
     <DataTemplate x:Key="ProgressFooterLeftTemplate">
         <Grid>
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="Auto"/>
                 <ColumnDefinition Width="*"/>
             </Grid.ColumnDefinitions>
-            <ContentControl Grid.Column="0"
-                            HorizontalAlignment="Left"
-                            VerticalAlignment="Center"
-                            FlowDirection="RightToLeft"
-                            Content="{Binding}"
-                            ContentTemplate="{StaticResource ProgressBadgeRowTemplate}"/>
-            <Image Grid.Column="1"
-                   Source="{DynamicResource BadgeRarityCompleted}"
-                   Style="{StaticResource OverviewCompletedFooterIconStyle}"
-                   HorizontalAlignment="Right"
-                   Margin="0,0,4,0"
-                   ToolTip="{DynamicResource LOCPlayAch_Completed}"
-                   Visibility="{Binding ShowCompletionBadge, Converter={StaticResource BoolToVis}}"/>
+            <controls:ProgressBadgeStrip Grid.Column="0"
+                                         HorizontalAlignment="Left"
+                                         VerticalAlignment="Center"
+                                         Reversed="True"
+                                         PreferTrophyBadges="{Binding PreferTrophyBadges, RelativeSource={RelativeSource AncestorType=controls:GameSummariesGridControl}}"
+                                         ColorByRarity="{Binding ColorRarityColumnsByRarity, RelativeSource={RelativeSource AncestorType=controls:GameSummariesGridControl}}"/>
+            <StackPanel Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center" Margin="0,0,4,0">
+                <Image Style="{StaticResource OverviewCompletedFooterIconStyle}"/>
+            <TextBlock Text="{Binding CompletionCountText}" Style="{StaticResource OverviewCompletedFooterTextStyle}"/>
+            </StackPanel>
         </Grid>
     </DataTemplate>
 
@@ -509,6 +422,57 @@
                         </Trigger>
                         <Trigger Property="IsKeyboardFocused" Value="True">
                             <Setter TargetName="Chrome" Property="Background" Value="{DynamicResource PlayAch.Brush.Button.Background.Hover}"/>
+                            <Setter Property="Opacity" Value="1"/>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- Header-edge chevron that shows or hides the control bar of the grid beneath a section
+         header. Tag carries the grid's current ShowControlBar value: True draws the chevron
+         pointing down (bar shown, click collapses), False pointing right (bar hidden, click
+         expands). Mouse-only so a click never pulls keyboard focus off the grid. -->
+    <Style x:Key="HeaderControlBarToggleStyle" TargetType="Button" BasedOn="{StaticResource ClearGameSelectionButtonStyle}">
+        <Setter Property="ToolTip" Value="{DynamicResource LOCPlayAch_Settings_ShowGridControlBar}"/>
+        <Setter Property="Focusable" Value="False"/>
+        <Setter Property="IsTabStop" Value="False"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Button">
+                    <Border x:Name="Chrome"
+                            Background="{TemplateBinding Background}"
+                            CornerRadius="{StaticResource PlayAch.Radius.Small}"
+                            SnapsToDevicePixels="True">
+                        <Path x:Name="Arrow"
+                              Width="8"
+                              Height="5"
+                              Data="M 0,0 L 4,4 L 8,0"
+                              Stroke="{TemplateBinding Foreground}"
+                              StrokeThickness="1.5"
+                              StrokeStartLineCap="Round"
+                              StrokeEndLineCap="Round"
+                              StrokeLineJoin="Round"
+                              HorizontalAlignment="Center"
+                              VerticalAlignment="Center"
+                              RenderTransformOrigin="0.5,0.5">
+                            <Path.RenderTransform>
+                                <RotateTransform Angle="-90"/>
+                            </Path.RenderTransform>
+                        </Path>
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <DataTrigger Binding="{Binding Tag, RelativeSource={RelativeSource Self}}" Value="True">
+                            <Setter TargetName="Arrow" Property="RenderTransform">
+                                <Setter.Value>
+                                    <RotateTransform Angle="0"/>
+                                </Setter.Value>
+                            </Setter>
+                        </DataTrigger>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Chrome" Property="Background" Value="{DynamicResource PlayAch.Brush.Button.Background.Hover}"/>
+                            <Setter Property="Foreground" Value="{DynamicResource PlayAch.Brush.Accent}"/>
                             <Setter Property="Opacity" Value="1"/>
                         </Trigger>
                     </ControlTemplate.Triggers>

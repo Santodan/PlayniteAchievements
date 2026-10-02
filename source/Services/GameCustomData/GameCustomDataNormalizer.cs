@@ -1,5 +1,7 @@
+using PlayniteAchievements.Models.Achievements;
 using PlayniteAchievements.Models.Settings;
 using PlayniteAchievements.Providers.RPCS3;
+using PlayniteAchievements.Services.CustomProviders;
 using PlayniteAchievements.Providers.ShadPS4;
 using PlayniteAchievements.Providers.Xenia;
 using PlayniteAchievements.Services.Achievements;
@@ -12,8 +14,15 @@ namespace PlayniteAchievements.Services.GameCustomData
 {
     internal static class GameCustomDataNormalizer
     {
-        // v8: per-game RetroAchievements subset selection was added.
-        internal const int CurrentSchemaVersion = 8;
+        // v7: notification badge images and header texts moved onto each surface style, and
+        // portable files became zip-only under the bare .pa extension.
+        // v8: the per-achievement parallel maps (category, category type, note, both icon
+        // overrides) fold into one AchievementOverride record per ApiName, which also carries the
+        // newly editable title, description, points and trophy type. The legacy maps are still
+        // written as a mirror until every consumer reads the record.
+        // v9: preserves the fork's per-game RetroAchievements base/subset selection alongside the
+        // upstream v8 achievement-override record migration.
+        internal const int CurrentSchemaVersion = 9;
 
         private sealed class LegacyFilterExtractionResult
         {
@@ -42,7 +51,7 @@ namespace PlayniteAchievements.Services.GameCustomData
             normalized.ExcludedFromSummaries = normalized.ExcludedFromSummaries == true ? true : (bool?)null;
             normalized.UseSeparateLockedIconsOverride = normalized.UseSeparateLockedIconsOverride == true ? true : (bool?)null;
             normalized.ForceUseExophase = normalized.ForceUseExophase == true ? true : (bool?)null;
-            normalized.ManualCapstoneApiName = NormalizeString(normalized.ManualCapstoneApiName);
+            NormalizeCapstones(normalized);
             normalized.ExophaseSlugOverride = NormalizeString(normalized.ExophaseSlugOverride);
             normalized.ExophaseEnrichmentSlugOverride = NormalizeString(normalized.ExophaseEnrichmentSlugOverride);
             normalized.XeniaTitleIdOverride = XeniaTitleIdHelper.Normalize(normalized.XeniaTitleIdOverride);
@@ -78,9 +87,26 @@ namespace PlayniteAchievements.Services.GameCustomData
             normalized.AchievementUnlockedIconOverrides = NormalizeIconOverrides(normalized.AchievementUnlockedIconOverrides);
             normalized.AchievementLockedIconOverrides = NormalizeIconOverrides(normalized.AchievementLockedIconOverrides);
             normalized.AchievementNotes = AchievementNoteHelper.NormalizeNoteMap(normalized.AchievementNotes);
+            // Schema 8 fold: the parallel maps above become one record per achievement. Both
+            // shapes are then kept in sync, so a writer targeting either is still correct.
+            normalized.AchievementOverrides = NormalizeAchievementOverrides(MergeLegacyAchievementMaps(
+                NormalizeAchievementOverrides(normalized.AchievementOverrides),
+                normalized.AchievementCategoryOverrides,
+                normalized.AchievementCategoryTypeOverrides,
+                normalized.AchievementNotes,
+                normalized.AchievementUnlockedIconOverrides,
+                normalized.AchievementLockedIconOverrides));
+            normalized.AchievementCategoryOverrides = ProjectOverrideField(normalized.AchievementOverrides, o => o.Category);
+            normalized.AchievementCategoryTypeOverrides = ProjectOverrideField(normalized.AchievementOverrides, o => o.CategoryType);
+            normalized.AchievementNotes = ProjectOverrideField(normalized.AchievementOverrides, o => o.Note);
+            normalized.AchievementUnlockedIconOverrides = ProjectOverrideField(normalized.AchievementOverrides, o => o.UnlockedIconPath);
+            normalized.AchievementLockedIconOverrides = ProjectOverrideField(normalized.AchievementOverrides, o => o.LockedIconPath);
             normalized.NotificationAppearanceOverride =
                 NormalizeNotificationAppearanceOverride(normalized.NotificationAppearanceOverride);
             normalized.ManualLink = NormalizeManualLink(normalized.ManualLink);
+            normalized.CustomAchievements = NormalizeCustomAchievements(normalized.CustomAchievements);
+            normalized.CustomProviderId = NormalizeCustomProviderId(normalized.CustomProviderId, normalized.CustomAchievements);
+            PruneOrphanedCustomAchievementReferences(normalized);
             return normalized;
         }
 
@@ -91,7 +117,7 @@ namespace PlayniteAchievements.Services.GameCustomData
             normalized.PlayniteGameId = playniteGameId;
             normalized.UseSeparateLockedIconsOverride = normalized.UseSeparateLockedIconsOverride == true ? true : (bool?)null;
             normalized.ForceUseExophase = normalized.ForceUseExophase == true ? true : (bool?)null;
-            normalized.ManualCapstoneApiName = NormalizeString(normalized.ManualCapstoneApiName);
+            NormalizeCapstones(normalized);
             normalized.ExophaseSlugOverride = NormalizeString(normalized.ExophaseSlugOverride);
             normalized.ExophaseEnrichmentSlugOverride = NormalizeString(normalized.ExophaseEnrichmentSlugOverride);
             normalized.XeniaTitleIdOverride = XeniaTitleIdHelper.Normalize(normalized.XeniaTitleIdOverride);
@@ -122,9 +148,27 @@ namespace PlayniteAchievements.Services.GameCustomData
             normalized.AchievementUnlockedIconOverrides = NormalizeIconOverrides(normalized.AchievementUnlockedIconOverrides);
             normalized.AchievementLockedIconOverrides = NormalizeIconOverrides(normalized.AchievementLockedIconOverrides);
             normalized.AchievementNotes = AchievementNoteHelper.NormalizeNoteMap(normalized.AchievementNotes);
+            // Schema 8 fold, matching NormalizeInternal, so an imported schema-7 package lands on
+            // the record and an exported package carries both shapes.
+            normalized.AchievementOverrides = NormalizeAchievementOverrides(MergeLegacyAchievementMaps(
+                NormalizeAchievementOverrides(normalized.AchievementOverrides),
+                normalized.AchievementCategoryOverrides,
+                normalized.AchievementCategoryTypeOverrides,
+                normalized.AchievementNotes,
+                normalized.AchievementUnlockedIconOverrides,
+                normalized.AchievementLockedIconOverrides));
+            normalized.AchievementCategoryOverrides = ProjectOverrideField(normalized.AchievementOverrides, o => o.Category);
+            normalized.AchievementCategoryTypeOverrides = ProjectOverrideField(normalized.AchievementOverrides, o => o.CategoryType);
+            normalized.AchievementNotes = ProjectOverrideField(normalized.AchievementOverrides, o => o.Note);
+            normalized.AchievementUnlockedIconOverrides = ProjectOverrideField(normalized.AchievementOverrides, o => o.UnlockedIconPath);
+            normalized.AchievementLockedIconOverrides = ProjectOverrideField(normalized.AchievementOverrides, o => o.LockedIconPath);
             normalized.NotificationAppearanceOverride =
                 NormalizeNotificationAppearanceOverride(normalized.NotificationAppearanceOverride);
             normalized.ManualLink = NormalizeManualLink(normalized.ManualLink);
+            normalized.CustomAchievements = NormalizeCustomAchievements(normalized.CustomAchievements);
+            normalized.CustomProviderId = NormalizeCustomProviderId(normalized.CustomProviderId, normalized.CustomAchievements);
+            normalized.CustomProvider = NormalizeCustomProviderSnapshot(normalized.CustomProvider, normalized.CustomProviderId);
+            PruneOrphanedCustomAchievementReferences(normalized);
             return normalized;
         }
 
@@ -139,6 +183,10 @@ namespace PlayniteAchievements.Services.GameCustomData
                    data.ExcludedFromSummaries == true ||
                    data.UseSeparateLockedIconsOverride == true ||
                    !string.IsNullOrWhiteSpace(data.ManualCapstoneApiName) ||
+                   data.CapstonesMaterialized ||
+                   // Kept alone as well: dropping a record that carries only this would let
+                   // generation author the capstone the user removed all over again.
+                   data.AutoCapstoneGenerated ||
                    (data.AchievementOrder != null && data.AchievementOrder.Count > 0) ||
                    (data.AchievementCategoryOverrides != null && data.AchievementCategoryOverrides.Count > 0) ||
                    (data.AchievementCategoryTypeOverrides != null && data.AchievementCategoryTypeOverrides.Count > 0) ||
@@ -151,6 +199,7 @@ namespace PlayniteAchievements.Services.GameCustomData
                    (data.AchievementUnlockedIconOverrides != null && data.AchievementUnlockedIconOverrides.Count > 0) ||
                    (data.AchievementLockedIconOverrides != null && data.AchievementLockedIconOverrides.Count > 0) ||
                    (data.AchievementNotes != null && data.AchievementNotes.Count > 0) ||
+                   (data.AchievementOverrides != null && data.AchievementOverrides.Count > 0) ||
                    data.ProviderOverride != null ||
                    !string.IsNullOrWhiteSpace(data.ExophaseEnrichmentSlugOverride) ||
                    (data.RetroAchievementsSelectedSubsetGameIds != null && data.RetroAchievementsSelectedSubsetGameIds.Count > 0) ||
@@ -160,7 +209,9 @@ namespace PlayniteAchievements.Services.GameCustomData
                    data.ForceUseExophase == true ||
                    !string.IsNullOrWhiteSpace(data.ExophaseSlugOverride) ||
                    data.NotificationAppearanceOverride != null ||
-                    data.ManualLink != null;
+                   data.ManualLink != null ||
+                   (data.CustomAchievements != null && data.CustomAchievements.Count > 0) ||
+                   !string.IsNullOrWhiteSpace(data.CustomProviderId);
         }
 
         public static bool HasPortableData(GameCustomDataFile data)
@@ -177,6 +228,7 @@ namespace PlayniteAchievements.Services.GameCustomData
 
             return data.UseSeparateLockedIconsOverride == true ||
                    !string.IsNullOrWhiteSpace(data.ManualCapstoneApiName) ||
+                   data.CapstonesMaterialized ||
                    (data.AchievementOrder != null && data.AchievementOrder.Count > 0) ||
                    (data.AchievementCategoryOverrides != null && data.AchievementCategoryOverrides.Count > 0) ||
                    (data.AchievementCategoryTypeOverrides != null && data.AchievementCategoryTypeOverrides.Count > 0) ||
@@ -189,6 +241,7 @@ namespace PlayniteAchievements.Services.GameCustomData
                    (data.AchievementUnlockedIconOverrides != null && data.AchievementUnlockedIconOverrides.Count > 0) ||
                    (data.AchievementLockedIconOverrides != null && data.AchievementLockedIconOverrides.Count > 0) ||
                    (data.AchievementNotes != null && data.AchievementNotes.Count > 0) ||
+                   (data.AchievementOverrides != null && data.AchievementOverrides.Count > 0) ||
                    data.ProviderOverride != null ||
                    !string.IsNullOrWhiteSpace(data.ExophaseEnrichmentSlugOverride) ||
                    (data.RetroAchievementsSelectedSubsetGameIds != null && data.RetroAchievementsSelectedSubsetGameIds.Count > 0) ||
@@ -198,7 +251,9 @@ namespace PlayniteAchievements.Services.GameCustomData
                    data.ForceUseExophase == true ||
                    !string.IsNullOrWhiteSpace(data.ExophaseSlugOverride) ||
                    data.NotificationAppearanceOverride != null ||
-                    data.ManualLink != null;
+                   data.ManualLink != null ||
+                   (data.CustomAchievements != null && data.CustomAchievements.Count > 0) ||
+                   !string.IsNullOrWhiteSpace(data.CustomProviderId);
         }
 
         public static bool HasVisibleCustomization(GameCustomDataFile data)
@@ -210,6 +265,7 @@ namespace PlayniteAchievements.Services.GameCustomData
 
             return data.UseSeparateLockedIconsOverride == true ||
                    !string.IsNullOrWhiteSpace(data.ManualCapstoneApiName) ||
+                   data.CapstonesMaterialized ||
                    (data.AchievementOrder != null && data.AchievementOrder.Count > 0) ||
                    (data.AchievementCategoryOverrides != null && data.AchievementCategoryOverrides.Count > 0) ||
                    (data.AchievementCategoryTypeOverrides != null && data.AchievementCategoryTypeOverrides.Count > 0) ||
@@ -222,6 +278,7 @@ namespace PlayniteAchievements.Services.GameCustomData
                    (data.AchievementUnlockedIconOverrides != null && data.AchievementUnlockedIconOverrides.Count > 0) ||
                    (data.AchievementLockedIconOverrides != null && data.AchievementLockedIconOverrides.Count > 0) ||
                    (data.AchievementNotes != null && data.AchievementNotes.Count > 0) ||
+                   (data.AchievementOverrides != null && data.AchievementOverrides.Count > 0) ||
                    data.ProviderOverride != null ||
                    !string.IsNullOrWhiteSpace(data.ExophaseEnrichmentSlugOverride) ||
                    (data.RetroAchievementsSelectedSubsetGameIds != null && data.RetroAchievementsSelectedSubsetGameIds.Count > 0) ||
@@ -231,7 +288,9 @@ namespace PlayniteAchievements.Services.GameCustomData
                    data.ForceUseExophase == true ||
                    !string.IsNullOrWhiteSpace(data.ExophaseSlugOverride) ||
                    data.NotificationAppearanceOverride != null ||
-                    data.ManualLink != null;
+                   data.ManualLink != null ||
+                   (data.CustomAchievements != null && data.CustomAchievements.Count > 0) ||
+                   !string.IsNullOrWhiteSpace(data.CustomProviderId);
         }
 
         public static GameCustomDataFile MergePreferExisting(GameCustomDataFile existing, GameCustomDataFile legacy)
@@ -256,6 +315,9 @@ namespace PlayniteAchievements.Services.GameCustomData
                 ManualCapstoneApiName = !string.IsNullOrWhiteSpace(existing.ManualCapstoneApiName)
                     ? existing.ManualCapstoneApiName
                     : legacy.ManualCapstoneApiName,
+                CapstonesMaterialized = existing.CapstonesMaterialized || legacy.CapstonesMaterialized,
+                AutoCapstoneGenerated = existing.AutoCapstoneGenerated || legacy.AutoCapstoneGenerated,
+                Capstones = NormalizeCapstoneList(existing.CapstonesMaterialized ? existing.Capstones : legacy.Capstones),
                 AchievementOrder = existing.AchievementOrder != null && existing.AchievementOrder.Count > 0
                     ? new List<string>(existing.AchievementOrder)
                     : legacy.AchievementOrder != null && legacy.AchievementOrder.Count > 0
@@ -312,6 +374,11 @@ namespace PlayniteAchievements.Services.GameCustomData
                     : legacy.AchievementNotes != null && legacy.AchievementNotes.Count > 0
                         ? new Dictionary<string, string>(legacy.AchievementNotes, StringComparer.OrdinalIgnoreCase)
                         : null,
+                AchievementOverrides = existing.AchievementOverrides != null && existing.AchievementOverrides.Count > 0
+                    ? GameCustomDataFile.CloneAchievementOverrideMap(existing.AchievementOverrides)
+                    : legacy.AchievementOverrides != null && legacy.AchievementOverrides.Count > 0
+                        ? GameCustomDataFile.CloneAchievementOverrideMap(legacy.AchievementOverrides)
+                        : null,
                 NotificationAppearanceOverride =
                     NormalizeNotificationAppearanceOverride(existing.NotificationAppearanceOverride) ??
                     NormalizeNotificationAppearanceOverride(legacy.NotificationAppearanceOverride),
@@ -325,7 +392,16 @@ namespace PlayniteAchievements.Services.GameCustomData
                     : legacy.RetroAchievementsSelectedSubsetGameIds != null && legacy.RetroAchievementsSelectedSubsetGameIds.Count > 0
                         ? new List<int>(legacy.RetroAchievementsSelectedSubsetGameIds)
                         : null,
-                ManualLink = existing.ManualLink?.Clone() ?? legacy.ManualLink?.Clone()
+                ManualLink = existing.ManualLink?.Clone() ?? legacy.ManualLink?.Clone(),
+                CustomAchievements = existing.CustomAchievements != null && existing.CustomAchievements.Count > 0
+                    ? existing.CustomAchievements.ConvertAll(item => item?.Clone()).FindAll(item => item != null)
+                    : legacy.CustomAchievements != null && legacy.CustomAchievements.Count > 0
+                        ? legacy.CustomAchievements.ConvertAll(item => item?.Clone()).FindAll(item => item != null)
+                        : null,
+                // Follows whichever side supplied the custom achievements it belongs to.
+                CustomProviderId = existing.CustomAchievements != null && existing.CustomAchievements.Count > 0
+                    ? existing.CustomProviderId
+                    : legacy.CustomProviderId
             };
         }
 
@@ -411,6 +487,9 @@ namespace PlayniteAchievements.Services.GameCustomData
 
                 case "FFXIV":
                 case "Riot":
+                case "GW2":
+                case "Hypixel":
+                case "Local":
                     return new ProviderOverrideData
                     {
                         ProviderKey = providerKey,
@@ -610,6 +689,21 @@ namespace PlayniteAchievements.Services.GameCustomData
             if (string.Equals(normalized, "Riot", StringComparison.OrdinalIgnoreCase))
             {
                 return "Riot";
+            }
+
+            if (string.Equals(normalized, "GW2", StringComparison.OrdinalIgnoreCase))
+            {
+                return "GW2";
+            }
+
+            if (string.Equals(normalized, "Hypixel", StringComparison.OrdinalIgnoreCase))
+            {
+                return "Hypixel";
+            }
+
+            if (string.Equals(normalized, "Local", StringComparison.OrdinalIgnoreCase))
+            {
+                return "Local";
             }
 
             return null;
@@ -881,6 +975,189 @@ namespace PlayniteAchievements.Services.GameCustomData
             return normalized.Count > 0 ? normalized : null;
         }
 
+        /// <summary>
+        /// Canonicalizes the per-achievement override map the same way the legacy parallel maps
+        /// are canonicalized, and drops rows that carry nothing so the "is this game customized"
+        /// predicates stay accurate.
+        /// </summary>
+        private static Dictionary<string, AchievementOverride> NormalizeAchievementOverrides(
+            Dictionary<string, AchievementOverride> values)
+        {
+            if (values == null)
+            {
+                return null;
+            }
+
+            var normalized = new Dictionary<string, AchievementOverride>(StringComparer.OrdinalIgnoreCase);
+            foreach (var pair in values)
+            {
+                var apiName = NormalizeString(pair.Key);
+                if (string.IsNullOrWhiteSpace(apiName) || pair.Value == null)
+                {
+                    continue;
+                }
+
+                var category = AchievementCategoryTypeHelper.NormalizeCategory(pair.Value.Category);
+                var entry = new AchievementOverride
+                {
+                    DisplayName = NormalizeString(pair.Value.DisplayName),
+                    Description = NormalizeString(pair.Value.Description),
+                    // A negative override is meaningless for a score total; drop rather than store.
+                    Points = pair.Value.Points.HasValue && pair.Value.Points.Value >= 0
+                        ? pair.Value.Points
+                        : null,
+                    TrophyType = NormalizeTrophyType(pair.Value.TrophyType),
+                    UnlockTimeUtc = NormalizeUtc(pair.Value.UnlockTimeUtc),
+                    // A stored timestamp and a clear flag are mutually exclusive; the timestamp wins.
+                    ClearUnlockTime = pair.Value.ClearUnlockTime && !pair.Value.UnlockTimeUtc.HasValue,
+                    Category = !string.IsNullOrWhiteSpace(category)
+                        ? CategoryPathHelper.NormalizePath(category)
+                        : null,
+                    CategoryType = AchievementCategoryTypeHelper.Normalize(pair.Value.CategoryType),
+                    Note = AchievementNoteHelper.NormalizeNote(pair.Value.Note),
+                    UnlockedIconPath = NormalizeString(pair.Value.UnlockedIconPath),
+                    LockedIconPath = NormalizeString(pair.Value.LockedIconPath),
+                    // Either value is a customization, so this is carried as stored: null means the
+                    // provider still decides. Omitting it here dropped the override on every save,
+                    // and a hidden-only record then read as empty and was discarded outright.
+                    Hidden = pair.Value.Hidden
+                };
+
+                if (!entry.IsEmpty)
+                {
+                    normalized[apiName] = entry;
+                }
+            }
+
+            return normalized.Count > 0 ? normalized : null;
+        }
+
+        /// <summary>
+        /// Folds the schema-7 parallel maps into the per-achievement record. A legacy value fills
+        /// a field only where the record has nothing, so a record written directly is never
+        /// clobbered by a stale mirror.
+        /// </summary>
+        private static Dictionary<string, AchievementOverride> MergeLegacyAchievementMaps(
+            Dictionary<string, AchievementOverride> existing,
+            Dictionary<string, string> categories,
+            Dictionary<string, string> categoryTypes,
+            Dictionary<string, string> notes,
+            Dictionary<string, string> unlockedIcons,
+            Dictionary<string, string> lockedIcons)
+        {
+            var merged = new Dictionary<string, AchievementOverride>(StringComparer.OrdinalIgnoreCase);
+            if (existing != null)
+            {
+                foreach (var pair in existing)
+                {
+                    if (!string.IsNullOrWhiteSpace(pair.Key) && pair.Value != null)
+                    {
+                        merged[pair.Key] = pair.Value.Clone();
+                    }
+                }
+            }
+
+            ApplyLegacyAchievementField(merged, categories, (entry, value) =>
+            {
+                if (string.IsNullOrWhiteSpace(entry.Category))
+                {
+                    entry.Category = value;
+                }
+            });
+            ApplyLegacyAchievementField(merged, categoryTypes, (entry, value) =>
+            {
+                if (string.IsNullOrWhiteSpace(entry.CategoryType))
+                {
+                    entry.CategoryType = value;
+                }
+            });
+            ApplyLegacyAchievementField(merged, notes, (entry, value) =>
+            {
+                if (string.IsNullOrWhiteSpace(entry.Note))
+                {
+                    entry.Note = value;
+                }
+            });
+            ApplyLegacyAchievementField(merged, unlockedIcons, (entry, value) =>
+            {
+                if (string.IsNullOrWhiteSpace(entry.UnlockedIconPath))
+                {
+                    entry.UnlockedIconPath = value;
+                }
+            });
+            ApplyLegacyAchievementField(merged, lockedIcons, (entry, value) =>
+            {
+                if (string.IsNullOrWhiteSpace(entry.LockedIconPath))
+                {
+                    entry.LockedIconPath = value;
+                }
+            });
+
+            return merged.Count > 0 ? merged : null;
+        }
+
+        private static void ApplyLegacyAchievementField(
+            Dictionary<string, AchievementOverride> target,
+            Dictionary<string, string> source,
+            Action<AchievementOverride, string> apply)
+        {
+            if (source == null)
+            {
+                return;
+            }
+
+            foreach (var pair in source)
+            {
+                var apiName = NormalizeString(pair.Key);
+                var value = NormalizeString(pair.Value);
+                if (string.IsNullOrWhiteSpace(apiName) || string.IsNullOrWhiteSpace(value))
+                {
+                    continue;
+                }
+
+                if (!target.TryGetValue(apiName, out var entry) || entry == null)
+                {
+                    entry = new AchievementOverride();
+                    target[apiName] = entry;
+                }
+
+                apply(entry, value);
+            }
+        }
+
+        /// <summary>
+        /// Projects one field of the per-achievement record back into its schema-7 map shape, so
+        /// consumers that have not been repointed to the record keep seeing current values.
+        /// </summary>
+        private static Dictionary<string, string> ProjectOverrideField(
+            Dictionary<string, AchievementOverride> overrides,
+            Func<AchievementOverride, string> selector)
+        {
+            if (overrides == null)
+            {
+                return null;
+            }
+
+            var projected = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var pair in overrides)
+            {
+                if (string.IsNullOrWhiteSpace(pair.Key) || pair.Value == null)
+                {
+                    continue;
+                }
+
+                var value = NormalizeString(selector(pair.Value));
+                if (string.IsNullOrWhiteSpace(value))
+                {
+                    continue;
+                }
+
+                projected[pair.Key] = value;
+            }
+
+            return projected.Count > 0 ? projected : null;
+        }
+
         private static Dictionary<string, CategoryImageOverrideData> NormalizeCategoryImageOverrides(
             Dictionary<string, CategoryImageOverrideData> values)
         {
@@ -985,6 +1262,359 @@ namespace PlayniteAchievements.Services.GameCustomData
                 CreatedUtc = createdUtc,
                 LastModifiedUtc = lastModifiedUtc
             };
+        }
+
+        /// <summary>
+        /// A custom provider assignment only has meaning while the game has custom achievements, so
+        /// the id is dropped otherwise and never keeps an empty row alive.
+        /// </summary>
+        private static string NormalizeCustomProviderId(
+            string customProviderId,
+            IReadOnlyCollection<CustomAchievementDefinition> customAchievements)
+        {
+            var normalized = CustomProviderKeys.NormalizeId(customProviderId);
+            return normalized != null && customAchievements != null && customAchievements.Count > 0
+                ? normalized
+                : null;
+        }
+
+        private static CustomProviderDefinition NormalizeCustomProviderSnapshot(
+            CustomProviderDefinition snapshot,
+            string customProviderId)
+        {
+            var name = NormalizeString(snapshot?.Name);
+            if (snapshot == null || customProviderId == null || name == null)
+            {
+                return null;
+            }
+
+            return new CustomProviderDefinition
+            {
+                Id = customProviderId,
+                Name = name,
+                ColorHex = NormalizeString(snapshot.ColorHex),
+                IconPathData = NormalizeString(snapshot.IconPathData),
+                IconSource = NormalizeString(snapshot.IconSource)
+            };
+        }
+
+        /// <summary>
+        /// Folds the legacy single capstone into the set and rebuilds the set itself.
+        /// </summary>
+        /// <remarks>
+        /// The fold is behaviour-preserving: a stored single capstone already suppressed every
+        /// provider capstone, which is exactly what a materialized set does.
+        ///
+        /// An empty set is stored as a null list rather than an empty one, so
+        /// <see cref="GameCustomDataFile.CapstonesMaterialized"/> is the only thing separating
+        /// "this game has no capstones" from "this game has never been touched".
+        /// </remarks>
+        private static void NormalizeCapstones(GameCustomDataFile data)
+        {
+            var legacy = NormalizeString(data.ManualCapstoneApiName);
+            if (!data.CapstonesMaterialized && !string.IsNullOrWhiteSpace(legacy))
+            {
+                data.CapstonesMaterialized = true;
+                data.Capstones = new List<CapstoneAssignment>
+                {
+                    new CapstoneAssignment { ApiName = legacy }
+                };
+            }
+
+            data.ManualCapstoneApiName = null;
+            data.Capstones = NormalizeCapstoneList(data.Capstones);
+        }
+
+        private static void NormalizeCapstones(GameCustomDataPortableFile data)
+        {
+            var legacy = NormalizeString(data.ManualCapstoneApiName);
+            if (!data.CapstonesMaterialized && !string.IsNullOrWhiteSpace(legacy))
+            {
+                data.CapstonesMaterialized = true;
+                data.Capstones = new List<CapstoneAssignment>
+                {
+                    new CapstoneAssignment { ApiName = legacy }
+                };
+            }
+
+            data.ManualCapstoneApiName = null;
+            data.Capstones = NormalizeCapstoneList(data.Capstones);
+        }
+
+        /// <summary>
+        /// Drops blank entries and keeps one assignment per achievement, the last written winning
+        /// so that re-nominating an achievement moves it rather than duplicating it.
+        /// </summary>
+        private static List<CapstoneAssignment> NormalizeCapstoneList(IEnumerable<CapstoneAssignment> assignments)
+        {
+            if (assignments == null)
+            {
+                return null;
+            }
+
+            var normalized = new List<CapstoneAssignment>();
+            var indexByApiName = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+            foreach (var assignment in assignments)
+            {
+                var apiName = NormalizeString(assignment?.ApiName);
+                if (string.IsNullOrWhiteSpace(apiName))
+                {
+                    continue;
+                }
+
+                var entry = new CapstoneAssignment { ApiName = apiName };
+                if (indexByApiName.TryGetValue(apiName, out var existingIndex))
+                {
+                    normalized[existingIndex] = entry;
+                    continue;
+                }
+
+                indexByApiName[apiName] = normalized.Count;
+                normalized.Add(entry);
+            }
+
+            return normalized.Count > 0 ? normalized : null;
+        }
+
+        /// <summary>
+        /// Drops every ApiName-keyed reference to an authored achievement the file no longer
+        /// defines: its capstone entry, order slot, goal, filters, and per-achievement overrides.
+        /// </summary>
+        /// <remarks>
+        /// An authored achievement exists only through its definition, so a reference to a
+        /// <c>custom:</c> ApiName without one can never resolve. Deleting an achievement rewrote the
+        /// definition list and left the references behind, where the resolvers hid them until a
+        /// new achievement was generated with the same ID and inherited them, capstone included.
+        /// Provider ApiNames are left alone: a provider achievement can be absent from a refresh
+        /// and come back.
+        /// </remarks>
+        private static void PruneOrphanedCustomAchievementReferences(GameCustomDataFile data)
+        {
+            var live = CollectCustomApiNames(data.CustomAchievements);
+            data.Capstones = PruneCapstones(data.Capstones, live);
+            data.AchievementOrder = PruneApiNameList(data.AchievementOrder, live);
+            data.FilteredAchievementApiNames = PruneApiNameList(data.FilteredAchievementApiNames, live);
+            data.SummaryFilteredAchievementApiNames = PruneApiNameList(data.SummaryFilteredAchievementApiNames, live);
+            data.GoalAchievementApiNames = PruneApiNameList(data.GoalAchievementApiNames, live);
+            data.AchievementOverrides = PruneApiNameMap(data.AchievementOverrides, live);
+            data.AchievementCategoryOverrides = PruneApiNameMap(data.AchievementCategoryOverrides, live);
+            data.AchievementCategoryTypeOverrides = PruneApiNameMap(data.AchievementCategoryTypeOverrides, live);
+            data.AchievementNotes = PruneApiNameMap(data.AchievementNotes, live);
+            data.AchievementUnlockedIconOverrides = PruneApiNameMap(data.AchievementUnlockedIconOverrides, live);
+            data.AchievementLockedIconOverrides = PruneApiNameMap(data.AchievementLockedIconOverrides, live);
+        }
+
+        private static void PruneOrphanedCustomAchievementReferences(GameCustomDataPortableFile data)
+        {
+            var live = CollectCustomApiNames(data.CustomAchievements);
+            data.Capstones = PruneCapstones(data.Capstones, live);
+            data.AchievementOrder = PruneApiNameList(data.AchievementOrder, live);
+            data.FilteredAchievementApiNames = PruneApiNameList(data.FilteredAchievementApiNames, live);
+            data.SummaryFilteredAchievementApiNames = PruneApiNameList(data.SummaryFilteredAchievementApiNames, live);
+            data.GoalAchievementApiNames = PruneApiNameList(data.GoalAchievementApiNames, live);
+            data.AchievementOverrides = PruneApiNameMap(data.AchievementOverrides, live);
+            data.AchievementCategoryOverrides = PruneApiNameMap(data.AchievementCategoryOverrides, live);
+            data.AchievementCategoryTypeOverrides = PruneApiNameMap(data.AchievementCategoryTypeOverrides, live);
+            data.AchievementNotes = PruneApiNameMap(data.AchievementNotes, live);
+            data.AchievementUnlockedIconOverrides = PruneApiNameMap(data.AchievementUnlockedIconOverrides, live);
+            data.AchievementLockedIconOverrides = PruneApiNameMap(data.AchievementLockedIconOverrides, live);
+        }
+
+        private static HashSet<string> CollectCustomApiNames(IEnumerable<CustomAchievementDefinition> definitions)
+        {
+            var live = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var definition in definitions ?? Enumerable.Empty<CustomAchievementDefinition>())
+            {
+                var apiName = CustomAchievementProjectionService.BuildApiName(definition?.Id);
+                if (!string.IsNullOrWhiteSpace(apiName))
+                {
+                    live.Add(apiName);
+                }
+            }
+
+            return live;
+        }
+
+        private static bool IsOrphanedCustomApiName(string apiName, HashSet<string> live)
+        {
+            return CustomAchievementProjectionService.IsCustomApiName(apiName) &&
+                   !live.Contains(apiName.Trim());
+        }
+
+        private static List<CapstoneAssignment> PruneCapstones(List<CapstoneAssignment> assignments, HashSet<string> live)
+        {
+            if (assignments == null)
+            {
+                return null;
+            }
+
+            assignments.RemoveAll(assignment => IsOrphanedCustomApiName(assignment?.ApiName, live));
+            return assignments.Count > 0 ? assignments : null;
+        }
+
+        private static List<string> PruneApiNameList(List<string> apiNames, HashSet<string> live)
+        {
+            if (apiNames == null)
+            {
+                return null;
+            }
+
+            apiNames.RemoveAll(apiName => IsOrphanedCustomApiName(apiName, live));
+            return apiNames.Count > 0 ? apiNames : null;
+        }
+
+        private static Dictionary<string, TValue> PruneApiNameMap<TValue>(
+            Dictionary<string, TValue> map,
+            HashSet<string> live)
+        {
+            if (map == null)
+            {
+                return null;
+            }
+
+            foreach (var key in map.Keys.Where(key => IsOrphanedCustomApiName(key, live)).ToList())
+            {
+                map.Remove(key);
+            }
+
+            return map.Count > 0 ? map : null;
+        }
+
+        private static List<CustomAchievementDefinition> NormalizeCustomAchievements(
+            IEnumerable<CustomAchievementDefinition> definitions)
+        {
+            if (definitions == null)
+            {
+                return null;
+            }
+
+            var normalized = new List<CustomAchievementDefinition>();
+            var usedIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var definition in definitions)
+            {
+                var displayName = NormalizeString(definition?.DisplayName);
+                if (string.IsNullOrWhiteSpace(displayName))
+                {
+                    continue;
+                }
+
+                var id = CustomAchievementProjectionService.NormalizeId(definition.Id);
+                if (string.IsNullOrWhiteSpace(id))
+                {
+                    id = CustomAchievementProjectionService.GenerateId(displayName, usedIds);
+                }
+
+                if (!usedIds.Add(id))
+                {
+                    continue;
+                }
+
+                var unlocked = definition.Unlocked;
+                normalized.Add(new CustomAchievementDefinition
+                {
+                    Id = id,
+                    DisplayName = displayName,
+                    Description = NormalizeString(definition.Description),
+                    Unlocked = unlocked,
+                    UnlockTimeUtc = unlocked ? NormalizeUtc(definition.UnlockTimeUtc) : null,
+                    UnlockedIconPath = NormalizeString(definition.UnlockedIconPath),
+                    LockedIconPath = NormalizeString(definition.LockedIconPath),
+                    Points = NormalizeNonNegativeInt(definition.Points),
+                    ScaledPoints = NormalizeNonNegativeInt(definition.ScaledPoints),
+                    Category = AchievementCategoryTypeHelper.NormalizeCategoryOrDefault(definition.Category),
+                    CategoryType = AchievementCategoryTypeHelper.NormalizeOrDefault(definition.CategoryType),
+                    TrophyType = NormalizeTrophyType(definition.TrophyType),
+                    Hidden = definition.Hidden,
+                    IsAutoCapstone = definition.IsAutoCapstone,
+                    IsWholeGameAutoCapstone = definition.IsAutoCapstone && definition.IsWholeGameAutoCapstone,
+                    IsCapstone = definition.IsCapstone,
+                    Rarity = NormalizeRarity(definition.Rarity),
+                    GlobalPercentUnlocked = NormalizePercent(definition.GlobalPercentUnlocked),
+                    ProgressNum = NormalizeProgressNum(definition.ProgressNum, definition.ProgressDenom),
+                    ProgressDenom = NormalizeProgressDenom(definition.ProgressNum, definition.ProgressDenom)
+                });
+            }
+
+            return normalized.Count > 0 ? normalized : null;
+        }
+
+        private static DateTime? NormalizeUtc(DateTime? value)
+        {
+            if (!value.HasValue || value.Value == DateTime.MinValue)
+            {
+                return null;
+            }
+
+            var date = value.Value;
+            if (date.Kind == DateTimeKind.Unspecified)
+            {
+                return DateTime.SpecifyKind(date, DateTimeKind.Utc);
+            }
+
+            return date.ToUniversalTime();
+        }
+
+        private static int? NormalizeNonNegativeInt(int? value)
+        {
+            return value.HasValue && value.Value >= 0 ? value : null;
+        }
+
+        private static double? NormalizePercent(double? value)
+        {
+            return value.HasValue && value.Value >= 0 && value.Value <= 100 ? value : null;
+        }
+
+        private static int? NormalizeProgressDenom(int? num, int? denom)
+        {
+            return denom.HasValue &&
+                   denom.Value > 0 &&
+                   (!num.HasValue || (num.Value >= 0 && num.Value <= denom.Value))
+                ? denom
+                : null;
+        }
+
+        private static int? NormalizeProgressNum(int? num, int? denom)
+        {
+            return denom.HasValue &&
+                   denom.Value > 0 &&
+                   num.HasValue &&
+                   num.Value >= 0 &&
+                   num.Value <= denom.Value
+                ? num
+                : null;
+        }
+
+        private static string NormalizeRarity(string value)
+        {
+            var normalized = NormalizeString(value);
+            if (string.IsNullOrWhiteSpace(normalized))
+            {
+                return null;
+            }
+
+            return RarityTierExtensions.TryParse(normalized, out var tier)
+                ? tier.ToString()
+                : null;
+        }
+
+        private static string NormalizeTrophyType(string value)
+        {
+            var normalized = NormalizeString(value);
+            if (string.IsNullOrWhiteSpace(normalized))
+            {
+                return null;
+            }
+
+            switch (normalized.ToLowerInvariant())
+            {
+                case "bronze":
+                case "silver":
+                case "gold":
+                case "platinum":
+                    return normalized.ToLowerInvariant();
+                default:
+                    return null;
+            }
         }
     }
 }

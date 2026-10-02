@@ -59,7 +59,7 @@ namespace PlayniteAchievements.Providers.Tests
             var settings = new PlayniteAchievementsSettings();
             var registry = new ProviderRegistry(settings, new[] { "ShadPS4" });
             var providerSettings = registry.GetSettings<ShadPS4Settings>();
-            providerSettings.GameDataPath = configuredPath;
+            providerSettings.GameDataPaths = PlayniteAchievements.Providers.Settings.ProviderPathList.FromLegacy(configuredPath);
             registry.Save(providerSettings);
 
             return new ShadPS4DataProvider(new FakeLogger(), settings, new FakePlayniteApi());

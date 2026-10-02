@@ -36,8 +36,7 @@ namespace PlayniteAchievements.Providers.EmuLibrary
 
             try
             {
-                var settingsJson = File.ReadAllText(settingsPath, Encoding.UTF8);
-                var settings = JsonConvert.DeserializeObject<EmuLibrarySettingsSnapshot>(settingsJson);
+                var settings = ReadSettings(settingsPath);
                 var mapping = settings?.Mappings?.FirstOrDefault(m => m != null && m.MappingId == mappingId);
 
                 var normalizedSource = NormalizeSourcePath(mapping?.SourcePath, playniteApplicationPath);
@@ -53,6 +52,45 @@ namespace PlayniteAchievements.Providers.EmuLibrary
             {
                 return false;
             }
+        }
+
+        // Path resolution runs once per EmuLibrary game during a refresh, so the parsed settings
+        // are kept and re-read only when the file's size or write time changes.
+        private static readonly object CacheLock = new object();
+        private static string _cachedPath;
+        private static long _cachedLength;
+        private static long _cachedWriteTicks;
+        private static EmuLibrarySettingsSnapshot _cachedSettings;
+
+        private static EmuLibrarySettingsSnapshot ReadSettings(string settingsPath)
+        {
+            var info = new FileInfo(settingsPath);
+            var length = info.Length;
+            var writeTicks = info.LastWriteTimeUtc.Ticks;
+
+            lock (CacheLock)
+            {
+                if (_cachedSettings != null &&
+                    length == _cachedLength &&
+                    writeTicks == _cachedWriteTicks &&
+                    string.Equals(settingsPath, _cachedPath, StringComparison.OrdinalIgnoreCase))
+                {
+                    return _cachedSettings;
+                }
+            }
+
+            var settingsJson = File.ReadAllText(settingsPath, Encoding.UTF8);
+            var settings = JsonConvert.DeserializeObject<EmuLibrarySettingsSnapshot>(settingsJson);
+
+            lock (CacheLock)
+            {
+                _cachedPath = settingsPath;
+                _cachedLength = length;
+                _cachedWriteTicks = writeTicks;
+                _cachedSettings = settings;
+            }
+
+            return settings;
         }
 
         private static string NormalizeSourcePath(string sourcePath, string playniteApplicationPath)

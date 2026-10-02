@@ -105,7 +105,7 @@ namespace PlayniteAchievements.Models.ThemeIntegration
         }
 
         /// <summary>
-        /// Number of ultra-rare achievements unlocked (gold trophy equivalent).
+        /// Number of rare and ultra-rare achievements unlocked (gold trophy equivalent).
         /// Writable by design for compatibility with legacy fullscreen bindings.
         /// </summary>
         public int GoldCount

@@ -129,7 +129,13 @@ namespace PlayniteAchievements.Common
             {
                 try
                 {
-                    return CultureInfo.GetCultureInfo(tag);
+                    var mapped = CultureInfo.GetCultureInfo(tag);
+                    // The language picks the culture family; the OS regional format picks the
+                    // variant within it (english on an en-GB machine formats as en-GB).
+                    var os = CultureInfo.CurrentCulture;
+                    return string.Equals(NeutralName(os), NeutralName(mapped), StringComparison.OrdinalIgnoreCase)
+                        ? os
+                        : mapped;
                 }
                 catch (CultureNotFoundException)
                 {
@@ -137,6 +143,11 @@ namespace PlayniteAchievements.Common
             }
 
             return CultureInfo.CurrentCulture;
+        }
+
+        private static string NeutralName(CultureInfo culture)
+        {
+            return culture.IsNeutralCulture ? culture.Name : culture.Parent.Name;
         }
 
         private static XmlLanguage ToXmlLanguage(CultureInfo culture)

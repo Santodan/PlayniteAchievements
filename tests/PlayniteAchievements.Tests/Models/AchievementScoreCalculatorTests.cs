@@ -157,13 +157,11 @@ namespace PlayniteAchievements.Tests.Models
         }
 
         [TestMethod]
-        public void CalculateLevel_ChangesTierEveryTenDisplayLevelsAndCapsAtTwoHundredFifty()
+        public void CalculateLevel_ChangesTierEveryTenDisplayLevels()
         {
             var bronzeFiveEnd = AchievementLevelCalculator.Calculate(2800);
             var bronzeFourStart = AchievementLevelCalculator.Calculate(2801);
             var masterOneStart = AchievementLevelCalculator.Calculate(970981);
-            var levelCapStart = AchievementLevelCalculator.Calculate(1040481);
-            var aboveCap = AchievementLevelCalculator.Calculate(int.MaxValue);
 
             Assert.AreEqual(9, bronzeFiveEnd.DisplayLevel);
             Assert.AreEqual("Bronze5", bronzeFiveEnd.Rank);
@@ -176,18 +174,103 @@ namespace PlayniteAchievements.Tests.Models
 
             Assert.AreEqual(240, masterOneStart.DisplayLevel);
             Assert.AreEqual("Master1", masterOneStart.Rank);
+            Assert.AreEqual(0, masterOneStart.Mastery);
+        }
 
-            Assert.AreEqual(250, levelCapStart.DisplayLevel);
-            Assert.AreEqual("Master1", levelCapStart.Rank);
-            Assert.AreEqual(1040481, levelCapStart.CurrentLevelStartScore);
-            Assert.AreEqual(1047540, levelCapStart.CurrentLevelEndScore);
-            Assert.IsTrue(levelCapStart.IsMaxLevel);
-            Assert.AreEqual(100, levelCapStart.LevelProgress);
-            Assert.AreEqual(0, levelCapStart.PointsUntilNextLevel);
+        [TestMethod]
+        public void CalculateLevel_ReportsTheRankLevelSpanForTheSegmentedBar()
+        {
+            var rankStart = AchievementLevelCalculator.Calculate(2801);
+            var midRank = AchievementLevelCalculator.Calculate(5371);
+            var rankEnd = AchievementLevelCalculator.Calculate(9600);
+            var passEnd = AchievementLevelCalculator.Calculate(1040480);
 
-            Assert.AreEqual(250, aboveCap.DisplayLevel);
-            Assert.AreEqual("Master1", aboveCap.Rank);
-            Assert.IsTrue(aboveCap.IsMaxLevel);
+            // Bronze IV covers levels 10-19, so a bar drawn from the span has ten cells.
+            Assert.AreEqual(10, rankStart.RankStartLevel);
+            Assert.AreEqual(19, rankStart.RankEndLevel);
+            Assert.AreEqual(10, rankStart.LevelsInRank);
+            Assert.AreEqual(0, rankStart.LevelsCompletedInRank);
+            Assert.AreEqual(10, rankStart.LevelsUntilNextRank);
+
+            Assert.AreEqual(14, midRank.DisplayLevel);
+            Assert.AreEqual(4, midRank.LevelsCompletedInRank);
+            Assert.AreEqual(6, midRank.LevelsUntilNextRank);
+
+            Assert.AreEqual(19, rankEnd.DisplayLevel);
+            Assert.AreEqual(9, rankEnd.LevelsCompletedInRank);
+            Assert.AreEqual(1, rankEnd.LevelsUntilNextRank);
+
+            // The last point of a pass is the final level of Master I, one level from mastery.
+            Assert.AreEqual(240, passEnd.RankStartLevel);
+            Assert.AreEqual(249, passEnd.RankEndLevel);
+            Assert.AreEqual(9, passEnd.LevelsCompletedInRank);
+            Assert.AreEqual(1, passEnd.LevelsUntilNextRank);
+        }
+
+        [TestMethod]
+        public void CalculateLevel_MasteryRestartsTheLadderAndKeepsCountingLevels()
+        {
+            const int cycle = 1040480;
+            var passEnd = AchievementLevelCalculator.Calculate(cycle);
+            var masteryOne = AchievementLevelCalculator.Calculate(cycle + 1);
+            var masteryOneBronzeFour = AchievementLevelCalculator.Calculate(cycle + 2801);
+            var masteryTwo = AchievementLevelCalculator.Calculate((2 * cycle) + 1);
+            var top = AchievementLevelCalculator.Calculate(int.MaxValue);
+
+            Assert.AreEqual(0, passEnd.Mastery);
+            Assert.AreEqual(249, passEnd.DisplayLevel);
+            Assert.AreEqual("Master1", passEnd.Rank);
+            Assert.AreEqual("Bronze5", passEnd.NextRank);
+            Assert.AreEqual(cycle + 1, passEnd.NextRankScoreThreshold);
+            Assert.AreEqual(1, passEnd.PointsUntilNextRank);
+            Assert.AreEqual(1, passEnd.PointsUntilNextLevel);
+            Assert.IsFalse(passEnd.IsMaxLevel);
+
+            Assert.AreEqual(1, masteryOne.Mastery);
+            Assert.AreEqual(250, masteryOne.Level);
+            Assert.AreEqual(250, masteryOne.DisplayLevel);
+            Assert.AreEqual(0, masteryOne.PassLevel);
+            Assert.AreEqual("Bronze5", masteryOne.Rank);
+            Assert.AreEqual("Bronze4", masteryOne.NextRank);
+            Assert.AreEqual(cycle + 1, masteryOne.CurrentLevelStartScore);
+            Assert.AreEqual(cycle + 100, masteryOne.CurrentLevelEndScore);
+            Assert.AreEqual(cycle + 2801, masteryOne.NextRankScoreThreshold);
+            Assert.AreEqual(0, masteryOne.LevelsCompletedInRank);
+            Assert.AreEqual(250, masteryOne.RankStartLevel);
+            Assert.IsFalse(masteryOne.IsMaxLevel);
+
+            Assert.AreEqual(1, masteryOneBronzeFour.Mastery);
+            Assert.AreEqual(260, masteryOneBronzeFour.DisplayLevel);
+            Assert.AreEqual("Bronze4", masteryOneBronzeFour.Rank);
+
+            Assert.AreEqual(2, masteryTwo.Mastery);
+            Assert.AreEqual(500, masteryTwo.DisplayLevel);
+            Assert.AreEqual("Bronze5", masteryTwo.Rank);
+
+            Assert.AreEqual((int.MaxValue - 1) / cycle, top.Mastery);
+            Assert.IsTrue(top.DisplayLevel > 0);
+            Assert.IsTrue(top.CurrentLevelEndScore >= top.CurrentLevelStartScore);
+        }
+
+        [TestMethod]
+        public void GetScoreForLevel_RoundTripsThroughCalculateAcrossMasteries()
+        {
+            foreach (var level in new[] { 0, 1, 9, 10, 98, 99, 249, 250, 251, 499, 500, 1234 })
+            {
+                var score = AchievementLevelCalculator.GetScoreForLevel(level);
+                Assert.AreEqual(level, AchievementLevelCalculator.Calculate(score).Level, "start of " + level);
+                Assert.AreEqual(Math.Max(0, level - 1), AchievementLevelCalculator.Calculate(score - 1).Level, "before " + level);
+            }
+        }
+
+        [TestMethod]
+        public void CalculateLegacy_DoesNotUseMastery()
+        {
+            var legacy = AchievementLevelCalculator.CalculateLegacy(5000000);
+
+            Assert.AreEqual(0, legacy.Mastery);
+            Assert.AreEqual(legacy.Level, legacy.PassLevel);
+            Assert.AreEqual("Master1", legacy.Rank);
         }
 
         [TestMethod]
@@ -215,6 +298,32 @@ namespace PlayniteAchievements.Tests.Models
             Assert.AreEqual("BadgeGoldHexagon", AchievementRankPresentation.GetBadgeIconKey(AchievementRank.Gold5, useUniformRarityBadges: true));
             Assert.AreEqual("BadgePlatinumHexagon", AchievementRankPresentation.GetBadgeIconKey(AchievementRank.Plat5, useUniformRarityBadges: true));
             Assert.AreEqual("BadgeCompletedGame", AchievementRankPresentation.GetBadgeIconKey(AchievementRank.Master5, useUniformRarityBadges: true));
+        }
+
+        /// <summary>
+        /// The score card keys are the badge keys under a "Score" prefix. Pinned so the two cannot
+        /// drift apart again now that both resolve through one shape table.
+        /// </summary>
+        [TestMethod]
+        public void RankPresentation_ScoreCardBadgeIconPrefixesTheRarityBadgeIcon()
+        {
+            foreach (var rank in new[]
+            {
+                AchievementRank.Bronze5,
+                AchievementRank.Silver5,
+                AchievementRank.Gold5,
+                AchievementRank.Plat5,
+                AchievementRank.Master1
+            })
+            {
+                foreach (var uniform in new[] { false, true })
+                {
+                    Assert.AreEqual(
+                        "Score" + AchievementRankPresentation.GetBadgeIconKey(rank, uniform),
+                        AchievementRankPresentation.GetScoreCardBadgeIconKey(rank, uniform),
+                        $"{rank}, uniform={uniform}");
+                }
+            }
         }
 
         private static AchievementDetail Achievement(

@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
 using Playnite.SDK.Models;
@@ -9,11 +10,13 @@ using Playnite.SDK;
 using PlayniteAchievements.Services;
 using PlayniteAchievements.Models.Settings;
 using PlayniteAchievements.Services.StartPage;
+using PlayniteAchievements.Services.Showcase;
 using PlayniteAchievements.ViewModels;
 using PlayniteAchievements.ViewModels.Items;
 using PlayniteAchievements.ViewModels.StartPage;
 using PlayniteAchievements.Views.Helpers;
 using PlayniteAchievements.Views.StartPage;
+using PlayniteAchievements.Views.Showcase;
 using StartPage.SDK;
 
 namespace PlayniteAchievements
@@ -23,6 +26,13 @@ namespace PlayniteAchievements
         private readonly Dictionary<string, IDisposable> _startPageViewModels =
             new Dictionary<string, IDisposable>(StringComparer.Ordinal);
         private StartPageDataCoordinator _startPageDataCoordinator;
+        private readonly object _startPageInvalidateSync = new object();
+        private System.Threading.Timer _startPageInvalidateTimer;
+        private const int StartPageInvalidateDelayMs = 2000;
+
+        private readonly object _retentionDiagnosticsSync = new object();
+        private System.Threading.Timer _retentionDiagnosticsTimer;
+        private string _pendingRetentionPoint;
 
         public StartPageExtensionArgs GetAvailableStartPageViews()
         {
@@ -32,17 +42,14 @@ namespace PlayniteAchievements
             {
                 ExtensionName = L("LOCPlayAch_Title_PluginName"),
                 Views = StartPageViewCatalog.Views
-                    .Where(view => view.WidgetKind != StartPageWidgetKind.FriendsRecentUnlocksGrid
-                        || Settings.Persisted.EnableFriendsFeatures)
+                    .Where(view => !view.Hidden)
                     .Select(view => new StartPageViewArgsBase
                     {
                         ViewId = view.ViewId,
                         Name = L(view.NameKey, view.ViewId),
-                        Description = string.IsNullOrWhiteSpace(view.DescriptionKey)
-                            ? string.Empty
-                            : L(view.DescriptionKey, string.Empty),
-                        HasSettings = false,
-                        AllowMultipleInstances = false
+                        Description = string.Empty,
+                        HasSettings = view.HasSettings,
+                        AllowMultipleInstances = view.AllowMultipleInstances
                     }).ToList()
             };
         }
@@ -56,13 +63,19 @@ namespace PlayniteAchievements
 
             EnsureAchievementResourcesLoaded();
 
-            var viewModel = CreateStartPageViewModel(definition.WidgetKind);
+            var sharedSettings = definition.ShowcaseWidgetKind.HasValue
+                ? GetOrCreateStartPageWidgetSettings(
+                    viewId,
+                    instanceId,
+                    definition.ShowcaseWidgetKind.Value)
+                : null;
+            var viewModel = CreateStartPageViewModel(definition, sharedSettings);
             if (viewModel == null)
             {
                 return null;
             }
 
-            var view = CreateStartPageView(definition.WidgetKind);
+            var view = CreateStartPageView(definition);
             Common.FormattingCulture.Apply(view);
             view.DataContext = viewModel;
 
@@ -79,49 +92,100 @@ namespace PlayniteAchievements
 
         public Control GetStartPageViewSettings(string viewId, Guid instanceId)
         {
-            return null;
+            if (!StartPageViewCatalog.TryGetDefinition(viewId, out var definition) ||
+                !definition.HasSettings ||
+                !definition.ShowcaseWidgetKind.HasValue)
+            {
+                return null;
+            }
+
+            var settings = GetOrCreateStartPageWidgetSettings(
+                viewId,
+                instanceId,
+                definition.ShowcaseWidgetKind.Value);
+            if (settings.Kind != ShowcaseWidgetKind.Profile)
+            {
+                return new ShowcaseWidgetOptionsControl(
+                    settings,
+                    PersistSettingsForUi);
+            }
+
+            // The profile card's identity (name, avatar, links) sits above its display options,
+            // as in the Showcase widget dialog; both persist on each edit.
+            var profile = settings.Profile ?? (settings.Profile = new ShowcaseProfileSettings());
+            var panel = new StackPanel { Margin = new Thickness(16) };
+            panel.Children.Add(new ShowcaseProfileSettingsEditor(profile, () =>
+            {
+                PersistSettingsForUi();
+                ShowcaseConfigurationEvents.RaiseChanged();
+            }));
+            panel.Children.Add(new ShowcaseWidgetOptionsControl(
+                settings,
+                PersistSettingsForUi,
+                margin: new Thickness(0),
+                loadStyles: false));
+            var host = new UserControl { Content = panel };
+            host.Resources.MergedDictionaries.Add(new ResourceDictionary
+            {
+                Source = new Uri(
+                    "pack://application:,,,/PlayniteAchievements;component/Resources/PlayAchImplicitControlStyles.xaml",
+                    UriKind.Absolute)
+            });
+            Common.FormattingCulture.Apply(host);
+            return host;
         }
 
         public void OnViewRemoved(string viewId, Guid instanceId)
         {
             DisposeStartPageViewModel(GetStartPageInstanceKey(viewId, instanceId));
+            var persisted = Settings?.Persisted;
+            if (persisted?.Showcase?.StartPageInstances?.Remove(GetStartPageInstanceKey(viewId, instanceId)) == true)
+            {
+                ShowcaseGridSurfaces.PruneOrphaned(persisted.GridOptions, persisted.Showcase);
+                PersistSettingsForUi();
+                ShowcaseConfigurationEvents.RaiseChanged();
+            }
         }
 
         internal ContextMenu BuildStartPageRowContextMenu(
             object data,
             FrameworkElement resourceOwner,
-            Action onChanged)
+            Action onChanged,
+            DependencyObject menuSource)
         {
             var menu = BuildStartPageBaseRowContextMenu(data, resourceOwner);
-            AchievementRowOptionsMenuBuilder.AppendAchievementOptions(
+            var appendedAchievementOptions = AchievementRowOptionsMenuBuilder.AppendAchievementOptions(
                 menu,
                 data,
                 resourceOwner,
-                onChanged);
+                onChanged,
+                menuSource);
+            if (!appendedAchievementOptions)
+            {
+                // Game rows get no achievement options, which is where display settings are
+                // appended for achievement rows; add the entry here so every grid row has it.
+                GridDisplaySettingsMenuBuilder.Append(menu, resourceOwner, menuSource);
+            }
 
             return menu.Items.Count > 0 ? menu : null;
         }
 
-        private IDisposable CreateStartPageViewModel(StartPageWidgetKind widgetKind)
+        private IDisposable CreateStartPageViewModel(
+            StartPageViewDefinition definition,
+            ShowcaseWidgetInstanceSettings sharedSettings)
         {
+            var widgetKind = definition.WidgetKind;
+            if (definition.ShowcaseWidgetKind.HasValue)
+            {
+                return new StartPageShowcaseWidgetViewModel(
+                    sharedSettings,
+                    GetStartPageDataCoordinator(),
+                    Settings,
+                    _logger);
+            }
+
             switch (widgetKind)
             {
-                case StartPageWidgetKind.GameSummariesGrid:
-                    return new StartPageGameSummariesGridViewModel(GetStartPageDataCoordinator(), Settings, _logger);
-                case StartPageWidgetKind.RecentUnlocksGrid:
-                    return new StartPageRecentUnlocksGridViewModel(GetStartPageDataCoordinator(), Settings, _logger);
-                case StartPageWidgetKind.FriendsRecentUnlocksGrid:
-                    return _friendsRecentUnlocksDataCoordinator == null || !Settings.Persisted.EnableFriendsFeatures
-                        ? null
-                        : new StartPageFriendsRecentUnlocksGridViewModel(
-                            _friendsRecentUnlocksDataCoordinator,
-                            Settings,
-                            _logger);
-                case StartPageWidgetKind.CompletedGamesPie:
-                case StartPageWidgetKind.ProviderPie:
-                case StartPageWidgetKind.RarityPie:
-                case StartPageWidgetKind.TrophyPie:
-                    return new StartPagePieWidgetViewModel(widgetKind, GetStartPageDataCoordinator(), Settings, _logger);
                 case StartPageWidgetKind.CollectionScoreCard:
                 case StartPageWidgetKind.PrestigeScoreCard:
                     return new StartPageScoreCardWidgetViewModel(widgetKind, GetStartPageDataCoordinator(), Settings, _logger);
@@ -130,21 +194,16 @@ namespace PlayniteAchievements
             }
         }
 
-        private static Control CreateStartPageView(StartPageWidgetKind widgetKind)
+        private static Control CreateStartPageView(StartPageViewDefinition definition)
         {
+            if (definition.ShowcaseWidgetKind.HasValue)
+            {
+                return new StartPageShowcaseWidgetView();
+            }
+
+            var widgetKind = definition.WidgetKind;
             switch (widgetKind)
             {
-                case StartPageWidgetKind.GameSummariesGrid:
-                    return new StartPageGameSummariesGridView();
-                case StartPageWidgetKind.RecentUnlocksGrid:
-                    return new StartPageRecentUnlocksGridView();
-                case StartPageWidgetKind.FriendsRecentUnlocksGrid:
-                    return new StartPageFriendsRecentUnlocksGridView();
-                case StartPageWidgetKind.CompletedGamesPie:
-                case StartPageWidgetKind.ProviderPie:
-                case StartPageWidgetKind.RarityPie:
-                case StartPageWidgetKind.TrophyPie:
-                    return new StartPagePieWidgetView();
                 case StartPageWidgetKind.CollectionScoreCard:
                 case StartPageWidgetKind.PrestigeScoreCard:
                     return new StartPageScoreCardWidgetView();
@@ -163,7 +222,8 @@ namespace PlayniteAchievements
                     Providers,
                     PlayniteApi,
                     _logger,
-                    Settings);
+                    Settings,
+                    () => FriendCacheManager?.LoadCurrentUserIdentities());
             }
 
             return _startPageDataCoordinator;
@@ -174,10 +234,241 @@ namespace PlayniteAchievements
             _startPageDataCoordinator?.Invalidate();
         }
 
+        // Reports what the process-lifetime caches still hold once a refresh has settled, so
+        // residual memory can be attributed to a specific retainer instead of inferred from
+        // the process total. Delayed past the post-refresh delta/projection work and the LOH
+        // compaction so it measures the resting state, not the peak.
+        private void ScheduleRetentionDiagnostics()
+        {
+            ScheduleRetentionDiagnostics("refresh.settled", 20);
+        }
+
+        /// <summary>
+        /// Logs a retention report once the named point has settled. The delay lets deferred
+        /// UI work (dispatcher teardown, weak-reference queues) finish, so the forced
+        /// collection measures what is genuinely still rooted.
+        /// </summary>
+        internal void ScheduleRetentionDiagnostics(string point, int delaySeconds)
+        {
+            // RetentionReportEnabled, not Enabled: this schedules two blocking gen2 collections
+            // plus a full cache-and-LeakWatch census, so a timing-only build must not arm it.
+            if (!Common.MemoryDiagnostics.RetentionReportEnabled)
+            {
+                return;
+            }
+
+            // Trailing-edge coalescer, the same shape as ScheduleStartPageInvalidate. This is
+            // scheduled off every cache invalidation, and a burst of them -- one per custom-data
+            // edit -- used to queue one independent delayed task each, so the forced collections
+            // arrived as a storm one delay later. Collapsing the burst into a single report is
+            // what the report wanted anyway: it measures the resting state after things settle.
+            var delayMs = Math.Max(1, delaySeconds) * 1000;
+            lock (_retentionDiagnosticsSync)
+            {
+                // Last writer wins. When a deliberate one-shot point ("manage.closed",
+                // "overview.closed") collides with a refresh.settled burst, that point is the
+                // later and more interesting event, so naming the report after it is correct.
+                _pendingRetentionPoint = point;
+
+                if (_retentionDiagnosticsTimer == null)
+                {
+                    _retentionDiagnosticsTimer = new System.Threading.Timer(
+                        _ => FlushRetentionDiagnostics(),
+                        null,
+                        delayMs,
+                        System.Threading.Timeout.Infinite);
+                }
+                else
+                {
+                    _retentionDiagnosticsTimer.Change(delayMs, System.Threading.Timeout.Infinite);
+                }
+            }
+        }
+
+        private void FlushRetentionDiagnostics()
+        {
+            string point;
+            lock (_retentionDiagnosticsSync)
+            {
+                point = _pendingRetentionPoint;
+                _pendingRetentionPoint = null;
+            }
+
+            if (point == null)
+            {
+                return;
+            }
+
+            try
+            {
+                LogRetentionDiagnostics(point);
+            }
+            catch (Exception ex)
+            {
+                _logger?.Debug(ex, "Retention diagnostics failed.");
+            }
+        }
+
+        private void LogRetentionDiagnostics(string point)
+        {
+            var detail = new System.Text.StringBuilder();
+
+            try
+            {
+                if (_imageService != null)
+                {
+                    _imageService.GetCacheStats(out var imageCount, out var imageBytes);
+                    detail.Append($"images={imageCount}/{imageBytes / (1024 * 1024)}MB ");
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger?.Debug(ex, "Failed to read image cache stats.");
+            }
+
+            try
+            {
+                if (_cacheManager is Services.Cache.CacheManager concreteCache)
+                {
+                    concreteCache.GetMemoryCacheStats(out var cachedGames, out var cachedAchievements);
+                    detail.Append($"gameLru={cachedGames}games/{cachedAchievements}ach ");
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger?.Debug(ex, "Failed to read game cache stats.");
+            }
+
+            try
+            {
+                detail.Append($"projections={_libraryProjectionService?.DescribeCachedProjections() ?? "n/a"} ");
+            }
+            catch (Exception ex)
+            {
+                _logger?.Debug(ex, "Failed to read projection cache stats.");
+            }
+
+            try
+            {
+                if (_achievementDataService != null)
+                {
+                    _achievementDataService.GetOverviewMemoStats(out var memoEntries, out var memoRows);
+                    detail.Append($"summaryMemo={memoEntries}/{memoRows}rows ");
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger?.Debug(ex, "Failed to read summary memo stats.");
+            }
+
+            try
+            {
+                if (_startPageDataCoordinator != null)
+                {
+                    _startPageDataCoordinator.GetRetentionStats(out var hasSnapshot, out var achRows, out var gameRows);
+                    detail.Append($"sharedSnapshot={(hasSnapshot ? "yes" : "no")}/{achRows}ach/{gameRows}games ");
+                }
+                else
+                {
+                    detail.Append("sharedSnapshot=none ");
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger?.Debug(ex, "Failed to read shared snapshot stats.");
+            }
+
+            try
+            {
+                var modern = _settingsViewModel?.Settings?.ModernTheme;
+                if (modern != null)
+                {
+                    detail.Append(
+                        $"themeLists={modern.AllAchievementsUnlockDesc?.Count ?? 0}ach/" +
+                        $"{modern.GameSummariesDesc?.Count ?? 0}games ");
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger?.Debug(ex, "Failed to read theme list stats.");
+            }
+
+            try
+            {
+                detail.Append(
+                    "appearanceSubs=" +
+                    Models.Achievements.RarityAppearanceHelper.AppearanceChangedSubscriberCount + " ");
+                // Broken down by owning type: these handlers are instance methods on visual
+                // elements, so a stranded one roots its whole ancestor chain and DataContext. The
+                // count alone cannot say which type to go and look at.
+                detail.Append(
+                    "appearanceSubsBy=" +
+                    Models.Achievements.RarityAppearanceHelper.DescribeAppearanceChangedSubscribers() + " ");
+                detail.Append(
+                    "raySubs=" + Views.Helpers.RayAnimationDriver.SubscriberCount + " ");
+            }
+            catch (Exception ex)
+            {
+                _logger?.Debug(ex, "Failed to read appearance subscriber count.");
+            }
+
+            // What each live surface is holding, reported by the surface itself. The caches above
+            // are the ones this file can reach; a reported session grew the managed heap by
+            // 790 MB with every one of them flat, so the surfaces that could not be reached were
+            // exactly where the retained memory had to be.
+            try
+            {
+                var probes = Common.RetentionProbes.Describe();
+                if (!string.IsNullOrWhiteSpace(probes))
+                {
+                    detail.Append(probes + " ");
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger?.Debug(ex, "Failed to read retention probes.");
+            }
+
+            // Live instance counts come last: they are the discriminator when every cache
+            // above reads flat but the heap still grows.
+            detail.Append($"live={Common.LeakWatch.DescribeLive()}");
+
+            Common.MemoryDiagnostics.LogRetained(_logger, point, detail.ToString().TrimEnd());
+        }
+
+        // Trailing coalescer for high-frequency invalidation sources: per-game refresh saves,
+        // playtime ItemUpdated ticks, and library-sync bursts. Each invalidation makes every
+        // live start-page widget re-pull (and, with no publisher attached, rebuild) a full
+        // library snapshot, so bursts must collapse into one. Invalidate() is thread-safe;
+        // no dispatcher marshaling is needed. Low-frequency user-driven changes keep calling
+        // InvalidateStartPageData() directly.
+        private void ScheduleStartPageInvalidate()
+        {
+            lock (_startPageInvalidateSync)
+            {
+                if (_startPageDataCoordinator == null)
+                {
+                    return;
+                }
+
+                if (_startPageInvalidateTimer == null)
+                {
+                    _startPageInvalidateTimer = new System.Threading.Timer(
+                        _ => InvalidateStartPageData(),
+                        null,
+                        StartPageInvalidateDelayMs,
+                        System.Threading.Timeout.Infinite);
+                }
+                else
+                {
+                    _startPageInvalidateTimer.Change(StartPageInvalidateDelayMs, System.Threading.Timeout.Infinite);
+                }
+            }
+        }
+
         internal void InvalidateStartPageDataForUi()
         {
             InvalidateStartPageData();
-            _friendsRecentUnlocksDataCoordinator?.Invalidate();
         }
 
         private void DisposeStartPageViews()
@@ -195,6 +486,19 @@ namespace PlayniteAchievements
             }
 
             _startPageViewModels.Clear();
+
+            lock (_startPageInvalidateSync)
+            {
+                _startPageInvalidateTimer?.Dispose();
+                _startPageInvalidateTimer = null;
+            }
+
+            lock (_retentionDiagnosticsSync)
+            {
+                _retentionDiagnosticsTimer?.Dispose();
+                _retentionDiagnosticsTimer = null;
+                _pendingRetentionPoint = null;
+            }
 
             try
             {
@@ -241,7 +545,11 @@ namespace PlayniteAchievements
 
             if (data is GameSummaryItem)
             {
-                AddStartPageGameRowMenuItems(menu, gameId, resourceOwner);
+                AddStartPageGameRowMenuItems(
+                    menu,
+                    gameId,
+                    resourceOwner,
+                    includeShowcasePin: !(data is FriendGameSummaryItem));
                 return menu;
             }
 
@@ -268,7 +576,11 @@ namespace PlayniteAchievements
             return menu;
         }
 
-        private void AddStartPageGameRowMenuItems(ContextMenu menu, Guid gameId, FrameworkElement resourceOwner)
+        private void AddStartPageGameRowMenuItems(
+            ContextMenu menu,
+            Guid gameId,
+            FrameworkElement resourceOwner,
+            bool includeShowcasePin)
         {
             menu.Items.Add(CreateStartPageMenuItem(resourceOwner, "LOCPlayAch_Menu_ViewAchievements",
                 () => OpenViewAchievementsWindow(gameId)));
@@ -289,38 +601,28 @@ namespace PlayniteAchievements
             menu.Items.Add(CreateStartPageOpenMenu(resourceOwner, gameId));
             menu.Items.Add(CreateStartPageMenuItem(resourceOwner, "LOCPlayAch_Menu_ManageAchievements",
                 () => OpenManageAchievementsView(gameId)));
+
+            if (includeShowcasePin)
+            {
+                ShowcasePinMenuBuilder.AppendGameMenu(menu, resourceOwner, gameId);
+            }
+
             menu.Items.Add(new Separator());
 
             var game = PlayniteApi?.Database?.Games?.Get(gameId);
             if (game != null)
             {
-                menu.Items.Add(CreateStartPageMenuItem(resourceOwner, "LOCPlayAch_Menu_ClearData",
-                    () => ClearSingleGameData(game)));
-
-                var excludedFromSummaries = IsGameExcludedFromSummaries(gameId);
-                menu.Items.Add(CreateStartPageMenuItem(
+                // Same Maintenance grouping as the Overview's game rows.
+                menu.Items.Add(GameRowContextMenuBuilder.CreateMaintenanceMenu(
                     resourceOwner,
-                    excludedFromSummaries
-                        ? "LOCPlayAch_Common_Action_IncludeInSummaries"
-                        : "LOCPlayAch_Common_Action_ExcludeFromSummaries",
-                    () => ToggleExcludedFromSummaries(new[] { game })));
-
-                var excludedFromRefreshes = IsGameExcluded(gameId);
-                menu.Items.Add(CreateStartPageMenuItem(
-                    resourceOwner,
-                    excludedFromRefreshes
-                        ? "LOCPlayAch_Menu_IncludeInRefreshes"
-                        : "LOCPlayAch_Menu_ExcludeFromRefreshes",
+                    IsGameExcludedFromSummaries(gameId),
+                    IsGameExcluded(gameId),
+                    () => ClearSingleGameData(game),
+                    () => ToggleExcludedFromSummaries(new[] { game }),
                     () => ToggleExcludedFromRefreshes(
                         new[] { game },
                         clearDataWhenExcluding: false,
-                        confirmWhenClearingData: false)));
-
-                menu.Items.Add(CreateStartPageMenuItem(
-                    resourceOwner,
-                    excludedFromRefreshes
-                        ? "LOCPlayAch_Menu_IncludeInRefreshesAndRefresh"
-                        : "LOCPlayAch_Menu_ExcludeFromRefreshesAndClearData",
+                        confirmWhenClearingData: false),
                     () => ToggleExcludedFromRefreshesAndRefresh(new[] { game })));
             }
         }
@@ -330,7 +632,7 @@ namespace PlayniteAchievements
             return GameRowContextMenuBuilder.CreateOpenMenu(
                 resourceOwner,
                 gameId,
-                () => OpenStartPageGameInLibrary(gameId),
+                () => OpenGameInLibrary(gameId),
                 PlayniteApi,
                 _logger);
         }
@@ -350,7 +652,8 @@ namespace PlayniteAchievements
             return item;
         }
 
-        private void OpenStartPageGameInLibrary(Guid gameId)
+        /// <summary>Restores the main window and selects the game in the library view.</summary>
+        internal void OpenGameInLibrary(Guid gameId)
         {
             if (gameId == Guid.Empty)
             {
@@ -393,6 +696,80 @@ namespace PlayniteAchievements
         private static string GetStartPageInstanceKey(string viewId, Guid instanceId)
         {
             return $"{viewId}:{instanceId:N}";
+        }
+
+        private ShowcaseWidgetInstanceSettings GetOrCreateStartPageWidgetSettings(
+            string viewId,
+            Guid instanceId,
+            ShowcaseWidgetKind kind)
+        {
+            var showcase = Settings.Persisted.Showcase;
+            var key = GetStartPageInstanceKey(viewId, instanceId);
+            if (showcase.StartPageInstances.TryGetValue(key, out var existing) &&
+                existing != null &&
+                existing.Kind == kind)
+            {
+                return existing;
+            }
+
+            var settings = ShowcaseWidgetSettingsFactory.CreateDefault(
+                kind,
+                instanceId.ToString("N"));
+
+            if (kind == ShowcaseWidgetKind.IconMosaic ||
+                kind == ShowcaseWidgetKind.RecentAchievements)
+            {
+                ShowcaseWidgetOptions.SetPinCollectionId(
+                    settings,
+                    showcase.DefaultAchievementPinCollectionId);
+            }
+            else if (kind == ShowcaseWidgetKind.GameSummaries)
+            {
+                ShowcaseWidgetOptions.SetPinCollectionId(
+                    settings,
+                    showcase.DefaultGamePinCollectionId);
+            }
+
+            // The four pie views share the showcase Pie kind; each seeds the distribution
+            // its view id has always shown.
+            if (kind == ShowcaseWidgetKind.Pie)
+            {
+                ShowcaseWidgetOptions.SetPieMode(settings, ResolvePieModeForView(viewId));
+            }
+
+            // Migration: StartPage-hosted grid widgets used to share the fixed StartPage
+            // surfaces edited on the Display tab. Seed each new per-instance surface from
+            // the matching fixed surface so already-placed widgets keep their configured
+            // display options and column layout.
+            var catalog = Settings.Persisted.GridOptions;
+            var surfaceKey = ShowcaseGridSurfaces.ResolveWidgetSurface(kind, settings.InstanceId);
+            if (kind == ShowcaseWidgetKind.RecentAchievements)
+            {
+                catalog.SeedAchievementFrom(surfaceKey, GridOptionKeys.Achievement.StartPageRecent);
+            }
+            else if (kind == ShowcaseWidgetKind.GameSummaries)
+            {
+                catalog.SeedGameSummariesFrom(surfaceKey, GridOptionKeys.GameSummaries.StartPage);
+            }
+
+            showcase.StartPageInstances[key] = settings;
+            PersistSettingsForUi();
+            return settings;
+        }
+
+        private static ShowcasePieMode ResolvePieModeForView(string viewId)
+        {
+            switch (viewId)
+            {
+                case StartPageViewCatalog.ProviderPieViewId:
+                    return ShowcasePieMode.Provider;
+                case StartPageViewCatalog.RarityPieViewId:
+                    return ShowcasePieMode.Rarity;
+                case StartPageViewCatalog.TrophyPieViewId:
+                    return ShowcasePieMode.Trophy;
+                default:
+                    return ShowcasePieMode.CompletedGames;
+            }
         }
 
         private static string L(string key)

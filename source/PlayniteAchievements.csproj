@@ -107,6 +107,22 @@
       <HintPath>packages\SharpCompress.0.26.0\lib\net46\SharpCompress.dll</HintPath>
       <Private>True</Private>
     </Reference>
+    <!-- Zstandard decoding for RVZ disc images. 0.6.5 is the newest release built against
+         System.Memory 4.0.1.1, the version Playnite ships; later releases need 4.0.1.2. -->
+    <Reference Include="ZstdSharp">
+      <HintPath>packages\ZstdSharp.Port.0.6.5\lib\net461\ZstdSharp.dll</HintPath>
+      <Private>True</Private>
+    </Reference>
+    <!-- Referenced by ZstdSharp and not shipped by Playnite. -->
+    <Reference Include="System.Threading.Tasks.Extensions">
+      <HintPath>packages\System.Threading.Tasks.Extensions.4.5.4\lib\net461\System.Threading.Tasks.Extensions.dll</HintPath>
+      <Private>True</Private>
+    </Reference>
+    <!-- Compile-time only: Playnite loads its own System.Memory 4.0.1.1 at runtime. -->
+    <Reference Include="System.Memory">
+      <HintPath>packages\System.Memory.4.5.4\lib\net461\System.Memory.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
     <!-- D3D11 device + texture read-back for WGC HDR capture (Services\Capture). -->
     <Reference Include="SharpDX">
       <HintPath>packages\SharpDX.4.2.0\lib\net45\SharpDX.dll</HintPath>

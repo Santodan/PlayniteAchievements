@@ -68,10 +68,9 @@ namespace PlayniteAchievements.ViewModels.StartPage
         public void OnDayChanged(DateTime newTime)
         {
             DataCoordinator.Invalidate();
-            _ = RefreshAsync(forceRefresh: true);
         }
 
-        public void Dispose()
+        public virtual void Dispose()
         {
             if (_disposed)
             {

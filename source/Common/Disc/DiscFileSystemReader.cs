@@ -35,6 +35,11 @@ namespace PlayniteAchievements.Common.Disc
         }
 
         public DiscFileSystemReader(Stream imageStream, bool leaveOpen)
+            : this(imageStream, leaveOpen, allowUdf: true)
+        {
+        }
+
+        private DiscFileSystemReader(Stream imageStream, bool leaveOpen, bool allowUdf)
         {
             if (imageStream == null) throw new ArgumentNullException(nameof(imageStream));
 
@@ -42,15 +47,32 @@ namespace PlayniteAchievements.Common.Disc
 
             try
             {
-                _fs = CDReader.Detect(imageStream)
-                    ? (DiscFileSystem)new CDReader(imageStream, true)
-                    : new UdfReader(imageStream);
+                if (!allowUdf)
+                {
+                    // CDReader validates the volume descriptors itself and throws for non-ISO9660 images.
+                    _fs = new CDReader(imageStream, true);
+                }
+                else
+                {
+                    _fs = CDReader.Detect(imageStream)
+                        ? (DiscFileSystem)new CDReader(imageStream, true)
+                        : new UdfReader(imageStream);
+                }
             }
             catch
             {
                 _ownedStream?.Dispose();
                 throw;
             }
+        }
+
+        /// <summary>
+        /// Opens an ISO9660 (Joliet preferred) image with no UDF fallback. RetroAchievements
+        /// hashing reads only ISO9660, as rcheevos does.
+        /// </summary>
+        public static DiscFileSystemReader OpenIso9660(Stream imageStream, bool leaveOpen)
+        {
+            return new DiscFileSystemReader(imageStream, leaveOpen, allowUdf: false);
         }
 
         public void Dispose()
@@ -64,12 +86,45 @@ namespace PlayniteAchievements.Common.Disc
             if (string.IsNullOrWhiteSpace(pathInsideImage)) return null;
 
             var normalized = NormalizeImagePath(pathInsideImage);
-            if (TryOpenExact(normalized, out var stream)) return stream;
+            var result = TryOpenExact(normalized, out var stream);
+            if (result == OpenResult.Opened) return stream;
+            if (result == OpenResult.Failed) return null;
 
             var resolved = ResolvePathCaseInsensitive(normalized);
-            if (resolved != null && TryOpenExact(resolved, out stream)) return stream;
+            if (resolved != null && TryOpenExact(resolved, out stream) == OpenResult.Opened) return stream;
 
             return null;
+        }
+
+        /// <summary>
+        /// Byte offset and length of a file's data within the image stream, resolved like
+        /// <see cref="OpenFileOrNull"/>. False when the file is absent or not stored as one
+        /// contiguous extent.
+        /// </summary>
+        public bool TryGetFileExtent(string pathInsideImage, out long startByte, out long length)
+        {
+            startByte = 0;
+            length = 0;
+            if (string.IsNullOrWhiteSpace(pathInsideImage) || !(_fs is IClusterBasedFileSystem clustered)) return false;
+
+            var normalized = NormalizeImagePath(pathInsideImage);
+            var path = _fs.FileExists(normalized) ? normalized : ResolvePathCaseInsensitive(normalized);
+            if (path == null) return false;
+
+            try
+            {
+                var extents = clustered.PathToExtents(path)?.ToList();
+                if (extents == null || extents.Count != 1) return false;
+
+                startByte = extents[0].Start;
+                length = extents[0].Length;
+                return true;
+            }
+            catch (Exception ex)
+            {
+                RecordError(ex);
+                return false;
+            }
         }
 
         public bool FileExists(string pathInsideImage)
@@ -148,25 +203,47 @@ namespace PlayniteAchievements.Common.Disc
             return new FileStream(imagePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
         }
 
-        private bool TryOpenExact(string normalizedPath, out Stream stream)
+        private enum OpenResult
+        {
+            Opened,
+            Missing,
+            Failed
+        }
+
+        /// <summary>
+        /// Opens a file with one path walk. A missing file is a miss; any other exception is a
+        /// miss when no file exists at the path (a directory, an invalid name) and a read failure
+        /// otherwise.
+        /// </summary>
+        private OpenResult TryOpenExact(string normalizedPath, out Stream stream)
         {
             stream = null;
             try
             {
-                if (!_fs.FileExists(normalizedPath))
-                {
-                    return false;
-                }
-
                 stream = _fs.OpenFile(normalizedPath, FileMode.Open);
-                return true;
+                return stream != null ? OpenResult.Opened : OpenResult.Missing;
+            }
+            catch (Exception ex) when (ex is FileNotFoundException || ex is DirectoryNotFoundException)
+            {
+                return OpenResult.Missing;
             }
             catch (Exception ex)
             {
+                try
+                {
+                    if (!_fs.FileExists(normalizedPath))
+                    {
+                        return OpenResult.Missing;
+                    }
+                }
+                catch (Exception existsEx)
+                {
+                    RecordError(existsEx);
+                    return OpenResult.Failed;
+                }
+
                 RecordError(ex);
-                stream?.Dispose();
-                stream = null;
-                return false;
+                return OpenResult.Failed;
             }
         }
 

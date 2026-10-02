@@ -153,6 +153,7 @@ namespace PlayniteAchievements.Services.UI
             RarityAppearanceHelper.ApplyCompletedGameBrushResource(resources, settings);
             RarityAppearanceHelper.ApplyCompletedGlowEffectResources(resources, settings);
             RarityAppearanceHelper.ApplyCompletedProgressFillResource(resources, settings);
+            RarityAppearanceHelper.ApplyMissableLockResource(resources, settings);
         }
 
         private static TokenDefinition Brush(

@@ -9,6 +9,7 @@ namespace PlayniteAchievements.Models
     public enum OverviewSubView
     {
         Overview,
-        Friends
+        Friends,
+        Showcase
     }
 }

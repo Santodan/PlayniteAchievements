@@ -3,72 +3,25 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
-             xmlns:converters="clr-namespace:PlayniteAchievements.Views.Converters"
+             xmlns:helpers="clr-namespace:PlayniteAchievements.Views.Helpers"
              mc:Ignorable="d"
              d:DesignHeight="600"
              d:DesignWidth="800">
 
     <UserControl.Resources>
         <ResourceDictionary>
-            <converters:BooleanConverter x:Key="BoolToVis" Mode="ToVisibility" />
-            <Style x:Key="CardBorderStyle" TargetType="Border">
-                <Setter Property="Background" Value="{DynamicResource ControlBackgroundBrush}" />
-                <Setter Property="BorderBrush" Value="{DynamicResource NormalBorderBrush}" />
-                <Setter Property="BorderThickness" Value="1" />
-                <Setter Property="CornerRadius" Value="6" />
-                <Setter Property="Padding" Value="12" />
-            </Style>
-            <Style x:Key="FieldLabelStyle" TargetType="TextBlock">
-                <Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
-                <Setter Property="Opacity" Value="0.6" />
-                <Setter Property="FontWeight" Value="SemiBold" />
-            </Style>
-            <Style x:Key="FieldValueStyle" TargetType="TextBlock">
-                <Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
+            <ResourceDictionary.MergedDictionaries>
+                <helpers:SharedResourceDictionary Source="pack://application:,,,/PlayniteAchievements;component/Resources/ManageAchievementsScopedControlStyles.xaml"/>
+            </ResourceDictionary.MergedDictionaries>
+
+            <ItemsPanelTemplate x:Key="OverviewWrapPanelTemplate">
+                <WrapPanel />
+            </ItemsPanelTemplate>
+
+            <Style x:Key="OverviewMutedTextStyle" TargetType="TextBlock">
+                <Setter Property="Foreground" Value="{DynamicResource PlayAch.Brush.Text}" />
+                <Setter Property="Opacity" Value="{StaticResource PlayAch.Opacity.Subtle}" />
                 <Setter Property="TextWrapping" Value="Wrap" />
-            </Style>
-            <Style x:Key="SectionHeaderStyle" TargetType="TextBlock">
-                <Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
-                <Setter Property="FontWeight" Value="SemiBold" />
-                <Setter Property="FontSize" Value="{DynamicResource FontSize}" />
-            </Style>
-            <Style x:Key="MetaChipStyle" TargetType="Border">
-                <Setter Property="Background" Value="#1EFFFFFF" />
-                <Setter Property="BorderBrush" Value="#2FFFFFFF" />
-                <Setter Property="BorderThickness" Value="1" />
-                <Setter Property="CornerRadius" Value="12" />
-                <Setter Property="Padding" Value="10,4" />
-                <Setter Property="Margin" Value="0,0,8,8" />
-            </Style>
-            <Style x:Key="ChipTextStyle" TargetType="TextBlock">
-                <Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
-                <Setter Property="Opacity" Value="0.92" />
-                <Setter Property="FontSize" Value="{DynamicResource FontSizeSmall}" />
-                <Setter Property="FontWeight" Value="SemiBold" />
-            </Style>
-            <Style x:Key="InlineLinkButtonStyle" TargetType="Button">
-                <Setter Property="Background" Value="Transparent" />
-                <Setter Property="BorderThickness" Value="0" />
-                <Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
-                <Setter Property="FontSize" Value="{DynamicResource FontSizeSmall}" />
-                <Setter Property="Padding" Value="0" />
-                <Setter Property="Margin" Value="12,0,0,0" />
-                <Setter Property="MinHeight" Value="0" />
-                <Setter Property="Opacity" Value="0.7" />
-                <Setter Property="Cursor" Value="Hand" />
-                <Setter Property="Template">
-                    <Setter.Value>
-                        <ControlTemplate TargetType="Button">
-                            <ContentPresenter HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
-                                              VerticalAlignment="{TemplateBinding VerticalContentAlignment}" />
-                        </ControlTemplate>
-                    </Setter.Value>
-                </Setter>
-                <Style.Triggers>
-                    <Trigger Property="IsMouseOver" Value="True">
-                        <Setter Property="Opacity" Value="1" />
-                    </Trigger>
-                </Style.Triggers>
             </Style>
         </ResourceDictionary>
     </UserControl.Resources>
@@ -77,206 +30,311 @@
                   HorizontalScrollBarVisibility="Disabled"
                   KeyboardNavigation.DirectionalNavigation="Continue">
         <StackPanel Margin="0">
-            <Border Style="{StaticResource CardBorderStyle}" Margin="0,0,0,12">
-                <Grid>
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="*" />
-                        <ColumnDefinition Width="Auto" />
-                    </Grid.ColumnDefinitions>
 
-                    <StackPanel Grid.Column="0">
-                        <WrapPanel Margin="0,0,0,0">
-                            <Border Style="{StaticResource MetaChipStyle}">
-                                <StackPanel Orientation="Horizontal">
-                                    <TextBlock Style="{StaticResource ChipTextStyle}"
-                                               Text="{DynamicResource LOCPlayAch_ManageAchievements_Overview_Provider}" />
-                                    <TextBlock Style="{StaticResource ChipTextStyle}" Text=": " />
-                                    <TextBlock Style="{StaticResource ChipTextStyle}"
-                                               Text="{Binding ProviderName, Mode=OneWay}" />
-                                </StackPanel>
-                            </Border>
-                            <Border Style="{StaticResource MetaChipStyle}">
-                                <StackPanel Orientation="Horizontal">
-                                    <TextBlock Style="{StaticResource ChipTextStyle}"
-                                               Text="{DynamicResource LOCPlayAch_ManageAchievements_Overview_LibrarySource}" />
-                                    <TextBlock Style="{StaticResource ChipTextStyle}" Text=": " />
-                                    <TextBlock Style="{StaticResource ChipTextStyle}"
-                                               Text="{Binding LibrarySourceName, Mode=OneWay}" />
-                                </StackPanel>
-                            </Border>
-                        </WrapPanel>
+            <!-- Game header: identity, source and platform override, and the everyday actions. -->
+            <Border Style="{StaticResource CardBorderStyle}" Margin="{StaticResource PlayAch.Thickness.Bottom.Md}">
+                <StackPanel>
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
 
-                        <StackPanel Orientation="Horizontal" Margin="0,2,0,0">
-                            <TextBlock Foreground="{DynamicResource TextBrush}"
-                                       Opacity="0.7"
-                                       Text="{DynamicResource LOCPlayAch_ManageAchievements_Overview_LastUpdatedLocal}" />
-                            <TextBlock Foreground="{DynamicResource TextBrush}"
-                                       Opacity="0.7"
-                                       Text=": " />
-                            <TextBlock Foreground="{DynamicResource TextBrush}"
-                                       Opacity="0.7"
-                                       Text="{Binding LastUpdatedLocalText, Mode=OneWay}" />
-                            <Button Command="{Binding OpenAchievementPageCommand}"
-                                    Style="{StaticResource InlineLinkButtonStyle}"
-                                    Visibility="{Binding HasAchievementPageLink, Converter={StaticResource BoolToVis}}">
-                                <TextBlock Text="{DynamicResource LOCPlayAch_ManageAchievements_Overview_OpenAchievementPage}"
-                                           TextDecorations="Underline" />
-                            </Button>
+                        <StackPanel Grid.Column="0" Margin="0,0,12,0">
+                            <TextBlock Text="{Binding GameName, Mode=OneWay}"
+                                       Foreground="{DynamicResource PlayAch.Brush.Text}"
+                                       FontWeight="SemiBold"
+                                       FontSize="{DynamicResource PlayAch.FontSize.Title}"
+                                       TextWrapping="Wrap" />
+
+                            <WrapPanel Margin="{StaticResource PlayAch.Thickness.Top.Sm}">
+                                <Border Style="{StaticResource MetaChipStyle}">
+                                    <TextBlock Style="{StaticResource ChipTextStyle}">
+                                        <Run Text="{DynamicResource LOCPlayAch_ManageAchievements_Overview_Provider}" /><Run Text=": " /><Run Text="{Binding ProviderName, Mode=OneWay}" />
+                                    </TextBlock>
+                                </Border>
+                                <Border Style="{StaticResource MetaChipStyle}">
+                                    <TextBlock Style="{StaticResource ChipTextStyle}">
+                                        <Run Text="{DynamicResource LOCPlayAch_ManageAchievements_Overview_LibrarySource}" /><Run Text=": " /><Run Text="{Binding LibrarySourceName, Mode=OneWay}" />
+                                    </TextBlock>
+                                </Border>
+                            </WrapPanel>
+
+                            <WrapPanel Margin="0,2,0,0">
+                                <TextBlock Style="{StaticResource OverviewMutedTextStyle}">
+                                    <Run Text="{DynamicResource LOCPlayAch_ManageAchievements_Overview_LastUpdatedLocal}" /><Run Text=": " /><Run Text="{Binding LastUpdatedLocalText, Mode=OneWay}" />
+                                </TextBlock>
+                                <Button Command="{Binding OpenAchievementPageCommand}"
+                                        Style="{StaticResource InlineLinkButtonStyle}"
+                                        Visibility="{Binding HasAchievementPageLink, Converter={StaticResource BoolToVis}}">
+                                    <TextBlock Text="{DynamicResource LOCPlayAch_ManageAchievements_Overview_OpenAchievementPage}"
+                                               TextDecorations="Underline" />
+                                </Button>
+                            </WrapPanel>
+                            <TextBlock Style="{StaticResource OverviewMutedTextStyle}"
+                                       Margin="0,2,0,0"
+                                       Visibility="{Binding HasManualTrackingLink, Converter={StaticResource BoolToVis}}">
+                                <Run Text="{DynamicResource LOCPlayAch_ManageAchievements_Tab_ManualTracking}" /><Run Text=": " /><Run Text="{Binding ManualTrackingSummary, Mode=OneWay}" />
+                            </TextBlock>
                         </StackPanel>
-                    </StackPanel>
 
-                    <StackPanel Grid.Column="1"
-                                Orientation="Horizontal"
-                                VerticalAlignment="Top">
-                        <Button Content="{DynamicResource LOCPlayAch_Button_Clear}"
-                                Command="{Binding ClearGameDataCommand}"
-                                Padding="12,6"
-                                MinWidth="100"
-                                Margin="0,0,8,0" />
-                        <Button Content="{DynamicResource LOCPlayAch_Button_Refresh}"
-                                Command="{Binding RefreshGameCommand}"
-                                Padding="12,6"
-                                MinWidth="100"
-                                Margin="0,0,8,0" />
-                        <Button Content="{DynamicResource LOCPlayAch_Menu_ViewAchievements}"
-                                Command="{Binding OpenAchievementsCommand}"
-                                Padding="12,6"
-                                MinWidth="130" />
-                    </StackPanel>
-                </Grid>
+                        <StackPanel Grid.Column="1"
+                                    Orientation="Horizontal"
+                                    VerticalAlignment="Top">
+                            <Button Content="{DynamicResource LOCPlayAch_Button_Clear}"
+                                    Command="{Binding ClearGameDataCommand}"
+                                    Padding="{StaticResource PlayAch.Thickness.ButtonPadding}"
+                                    MinWidth="100"
+                                    Margin="{StaticResource PlayAch.Thickness.Right.Sm}" />
+                            <Button Content="{DynamicResource LOCPlayAch_Button_Refresh}"
+                                    Command="{Binding RefreshGameCommand}"
+                                    Padding="{StaticResource PlayAch.Thickness.ButtonPadding}"
+                                    MinWidth="100"
+                                    Margin="{StaticResource PlayAch.Thickness.Right.Sm}" />
+                            <Button Content="{DynamicResource LOCPlayAch_Menu_ViewAchievements}"
+                                    Command="{Binding OpenAchievementsCommand}"
+                                    Padding="{StaticResource PlayAch.Thickness.ButtonPadding}"
+                                    MinWidth="130" />
+                        </StackPanel>
+                    </Grid>
+
+                    <!-- Per-game settings, one aligned row each: name on the left (hint on hover), control on the right. -->
+                    <Border BorderBrush="{DynamicResource PlayAch.Brush.ControlBorder}"
+                            BorderThickness="0,1,0,0"
+                            Margin="0,10,0,0"
+                            Padding="0,6,0,0">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                            </Grid.RowDefinitions>
+                            <Grid.Resources>
+                                <Style x:Key="SettingLabelStyle" TargetType="TextBlock" BasedOn="{StaticResource FieldLabelStyle}">
+                                    <Setter Property="VerticalAlignment" Value="Center" />
+                                    <Setter Property="Margin" Value="0,4,16,4" />
+                                </Style>
+                                <Style x:Key="SettingStatusStyle" TargetType="TextBlock" BasedOn="{StaticResource OverviewMutedTextStyle}">
+                                    <Setter Property="Margin" Value="0,0,0,4" />
+                                </Style>
+                            </Grid.Resources>
+
+                            <!-- Platform override: the platform that services the game. -->
+                            <TextBlock Grid.Row="0" Grid.Column="0"
+                                       Style="{StaticResource SettingLabelStyle}"
+                                       Text="{DynamicResource LOCPlayAch_ManageAchievements_Overrides_ProviderHeader}"
+                                       ToolTip="{DynamicResource LOCPlayAch_ManageAchievements_Overrides_ProviderHint}" />
+                            <WrapPanel Grid.Row="0" Grid.Column="1" Margin="0,2">
+                                <ComboBox ItemsSource="{Binding ProviderOverrideOptions}"
+                                          DisplayMemberPath="DisplayName"
+                                          SelectedValuePath="ProviderKey"
+                                          SelectedValue="{Binding SelectedProviderOverrideKey, Mode=TwoWay}"
+                                          Width="200"
+                                          Padding="8,4"
+                                          VerticalAlignment="Center" />
+                                <StackPanel Orientation="Horizontal"
+                                            VerticalAlignment="Center"
+                                            Visibility="{Binding IsProviderOverrideValueVisible, Converter={StaticResource BoolToVis}}">
+                                    <TextBox Text="{Binding ProviderOverrideInput, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                             ToolTip="{Binding ProviderOverrideInputLabel}"
+                                             Visibility="{Binding IsProviderOverrideTextVisible, Converter={StaticResource BoolToVis}}"
+                                             Width="200"
+                                             Padding="8,4"
+                                             Margin="{StaticResource PlayAch.Thickness.Left.Sm}" />
+                                    <ComboBox ItemsSource="{Binding ProviderOverrideChoices}"
+                                              DisplayMemberPath="DisplayName"
+                                              SelectedValuePath="Value"
+                                              SelectedValue="{Binding ProviderOverrideInput, Mode=TwoWay}"
+                                              ToolTip="{Binding ProviderOverrideInputLabel}"
+                                              Visibility="{Binding IsProviderOverrideChoiceVisible, Converter={StaticResource BoolToVis}}"
+                                              Width="200"
+                                              Padding="8,4"
+                                              Margin="{StaticResource PlayAch.Thickness.Left.Sm}" />
+                                </StackPanel>
+                                <Button Content="{DynamicResource LOCPlayAch_Button_Apply}"
+                                        Command="{Binding ApplyProviderOverrideCommand}"
+                                        Padding="{StaticResource PlayAch.Thickness.ButtonPadding}"
+                                        VerticalAlignment="Center"
+                                        Margin="{StaticResource PlayAch.Thickness.Left.Sm}" />
+                                <Button Content="{DynamicResource LOCPlayAch_Button_Clear}"
+                                        Command="{Binding ClearProviderOverrideCommand}"
+                                        Padding="{StaticResource PlayAch.Thickness.ButtonPadding}"
+                                        VerticalAlignment="Center"
+                                        Margin="{StaticResource PlayAch.Thickness.Left.Sm}" />
+                            </WrapPanel>
+                            <TextBlock Grid.Row="1" Grid.Column="1"
+                                       Style="{StaticResource SettingStatusStyle}"
+                                       Text="{Binding ProviderOverrideStatusText}" />
+
+                            <!-- Exophase rarity slug: which Exophase page enriches rarity when another
+                                 platform services the game. Separate from the override above, which
+                                 picks the servicing platform itself. -->
+                            <TextBlock Grid.Row="2" Grid.Column="0"
+                                       Style="{StaticResource SettingLabelStyle}"
+                                       Text="{DynamicResource LOCPlayAch_ManageAchievements_Overrides_ExophaseEnrichmentHeader}"
+                                       ToolTip="{DynamicResource LOCPlayAch_ManageAchievements_Overrides_ExophaseEnrichmentHint}"
+                                       Visibility="{Binding IsExophaseEnrichmentSlugSectionVisible, Converter={StaticResource BoolToVis}}" />
+                            <WrapPanel Grid.Row="2" Grid.Column="1"
+                                       Margin="0,2"
+                                       Visibility="{Binding IsExophaseEnrichmentSlugSectionVisible, Converter={StaticResource BoolToVis}}">
+                                <Grid Width="200" VerticalAlignment="Center">
+                                    <TextBox x:Name="ExophaseEnrichmentSlugTextBox"
+                                             Text="{Binding ExophaseEnrichmentSlugInput, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                             Padding="8,4" />
+                                    <TextBlock Text="{Binding ExophaseEnrichmentSlugPlaceholder}"
+                                               Tag="{Binding Text, ElementName=ExophaseEnrichmentSlugTextBox}"
+                                               Style="{StaticResource ManageAchievementsSearchPlaceholderTextStyle}" />
+                                </Grid>
+                                <Button Content="{DynamicResource LOCPlayAch_Button_Apply}"
+                                        Command="{Binding ApplyExophaseEnrichmentSlugCommand}"
+                                        Padding="{StaticResource PlayAch.Thickness.ButtonPadding}"
+                                        VerticalAlignment="Center"
+                                        Margin="{StaticResource PlayAch.Thickness.Left.Sm}" />
+                                <Button Content="{DynamicResource LOCPlayAch_Button_Clear}"
+                                        Command="{Binding ClearExophaseEnrichmentSlugCommand}"
+                                        Padding="{StaticResource PlayAch.Thickness.ButtonPadding}"
+                                        VerticalAlignment="Center"
+                                        Margin="{StaticResource PlayAch.Thickness.Left.Sm}" />
+                            </WrapPanel>
+                            <TextBlock Grid.Row="3" Grid.Column="1"
+                                       Style="{StaticResource SettingStatusStyle}"
+                                       Text="{Binding ExophaseEnrichmentSlugStatusText}"
+                                       Visibility="{Binding IsExophaseEnrichmentSlugSectionVisible, Converter={StaticResource BoolToVis}}" />
+
+                            <!-- Exclusion: one choice between the refresh and summary exclusions. -->
+                            <TextBlock Grid.Row="4" Grid.Column="0"
+                                       Style="{StaticResource SettingLabelStyle}"
+                                       Text="{DynamicResource LOCPlayAch_ManageAchievements_Overrides_ExclusionHeader}"
+                                       ToolTip="{DynamicResource LOCPlayAch_ManageAchievements_Overrides_ExclusionHint}" />
+                            <ComboBox Grid.Row="4" Grid.Column="1"
+                                      ItemsSource="{Binding ExclusionModeOptions}"
+                                      DisplayMemberPath="DisplayName"
+                                      SelectedValuePath="Mode"
+                                      SelectedValue="{Binding ExclusionMode, Mode=TwoWay}"
+                                      Width="200"
+                                      Padding="8,4"
+                                      HorizontalAlignment="Left"
+                                      Margin="0,2" />
+
+                            <!-- Separate locked icons: per-game override of the global setting. -->
+                            <TextBlock Grid.Row="5" Grid.Column="0"
+                                       Style="{StaticResource SettingLabelStyle}"
+                                       Text="{DynamicResource LOCPlayAch_ManageAchievements_Overrides_LockedIconsHeader}"
+                                       ToolTip="{DynamicResource LOCPlayAch_ManageAchievements_Overrides_LockedIconsHint}" />
+                            <StackPanel Grid.Row="5" Grid.Column="1"
+                                        Orientation="Horizontal"
+                                        Margin="0,4">
+                                <CheckBox IsChecked="{Binding UseSeparateLockedIconsOverride}"
+                                          ToolTip="{DynamicResource LOCPlayAch_ManageAchievements_Overrides_LockedIconsCheckbox}"
+                                          VerticalAlignment="Center" />
+                                <TextBlock Style="{StaticResource OverviewMutedTextStyle}"
+                                           Text="{Binding SeparateLockedIconsStatusText}"
+                                           VerticalAlignment="Center"
+                                           Margin="{StaticResource PlayAch.Thickness.Left.Sm}" />
+                            </StackPanel>
+
+                            <!-- Playnite's own id for the game, selectable for copying. -->
+                            <TextBlock Grid.Row="6" Grid.Column="0"
+                                       Style="{StaticResource SettingLabelStyle}"
+                                       Text="{DynamicResource LOCPlayAch_ManageAchievements_Overview_GameId}" />
+                            <TextBox Grid.Row="6" Grid.Column="1"
+                                     Text="{Binding GameIdText, Mode=OneWay}"
+                                     IsReadOnly="True"
+                                     BorderThickness="0"
+                                     Background="Transparent"
+                                     Foreground="{DynamicResource PlayAch.Brush.Text}"
+                                     Opacity="{StaticResource PlayAch.Opacity.Subtle}"
+                                     Padding="0"
+                                     VerticalAlignment="Center"
+                                     HorizontalAlignment="Left"
+                                     Margin="0,4" />
+                        </Grid>
+                    </Border>
+                </StackPanel>
             </Border>
 
-            <Border Style="{StaticResource CardBorderStyle}" Margin="0,0,0,12">
-                <Grid>
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="*" />
-                        <ColumnDefinition Width="*" />
-                    </Grid.ColumnDefinitions>
+            <!-- What this game's stored custom data holds, and moving it in and out. -->
+            <Border Style="{StaticResource CardBorderStyle}">
+                <StackPanel>
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Grid.Column="0"
+                                   Style="{StaticResource SectionHeaderStyle}"
+                                   Text="{DynamicResource LOCPlayAch_ManageAchievements_Overrides_CustomDataHeader}"
+                                   ToolTip="{DynamicResource LOCPlayAch_ManageAchievements_Overrides_CustomDataHint}"
+                                   VerticalAlignment="Center" />
+                        <StackPanel Grid.Column="1" Orientation="Horizontal">
+                            <Button Content="{DynamicResource LOCPlayAch_ManageAchievements_Overrides_ExportButton}"
+                                    Command="{Binding ExportCustomCommand}"
+                                    Padding="{StaticResource PlayAch.Thickness.ButtonPadding}"
+                                    Margin="{StaticResource PlayAch.Thickness.Right.Sm}" />
+                            <Button Content="{DynamicResource LOCPlayAch_ManageAchievements_Overrides_ImportButton}"
+                                    Command="{Binding ImportCustomJsonCommand}"
+                                    Padding="{StaticResource PlayAch.Thickness.ButtonPadding}"
+                                    Margin="{StaticResource PlayAch.Thickness.Right.Sm}" />
+                            <Button Content="{DynamicResource LOCPlayAch_ManageAchievements_Overrides_ClearCustomDataButton}"
+                                    Command="{Binding ClearCustomDataCommand}"
+                                    Padding="{StaticResource PlayAch.Thickness.ButtonPadding}" />
+                        </StackPanel>
+                    </Grid>
 
-                    <StackPanel Grid.Column="0" Margin="0,0,10,0">
-                        <TextBlock Style="{StaticResource FieldLabelStyle}"
-                                   Text="{DynamicResource LOCPlayAch_ManageAchievements_Overview_Completion}" />
-                        <TextBlock Text="{Binding CompletionSummary}"
-                                   Foreground="{DynamicResource TextBrush}"
-                                   FontWeight="SemiBold"
-                                   FontSize="{DynamicResource FontSizeLarge}"
-                                   Margin="0,4,0,0" />
-                        <ProgressBar Value="{Binding CompletionPercentValue, Mode=OneWay}"
-                                     Maximum="100"
-                                     Height="10"
-                                     Margin="0,10,0,0" />
-                    </StackPanel>
-
-                    <StackPanel Grid.Column="1" Margin="10,0,0,0">
-                        <TextBlock Style="{StaticResource FieldLabelStyle}"
-                                   Text="{DynamicResource LOCPlayAch_ManageAchievements_Overview_Capstone}" />
-                        <TextBlock Text="{Binding CurrentCapstoneName}"
-                                   Style="{StaticResource FieldValueStyle}"
-                                   Margin="0,4,0,0" />
-
-                        <TextBlock Style="{StaticResource FieldLabelStyle}"
-                                   Text="{DynamicResource LOCPlayAch_ManageAchievements_Tab_ManualTracking}"
-                                   Margin="0,12,0,0" />
-                        <TextBlock Text="{Binding ManualTrackingSummary}"
-                                   Style="{StaticResource FieldValueStyle}"
-                                   Margin="0,4,0,0" />
-                    </StackPanel>
-                </Grid>
-            </Border>
-
-            <Border Style="{StaticResource CardBorderStyle}" Margin="0,0,0,12">
-                <Grid>
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="220" />
-                        <ColumnDefinition Width="*" />
-                    </Grid.ColumnDefinitions>
-                    <Grid.RowDefinitions>
-                        <RowDefinition Height="Auto" />
-                        <RowDefinition Height="Auto" />
-                        <RowDefinition Height="Auto" />
-                        <RowDefinition Height="Auto" />
-                    </Grid.RowDefinitions>
-
-                    <TextBlock Grid.Row="0"
-                               Style="{StaticResource FieldLabelStyle}"
-                               Text="{DynamicResource LOCPlayAch_ManageAchievements_Overview_GameId}" />
-                    <TextBlock Grid.Row="0"
-                               Grid.Column="1"
-                               Style="{StaticResource FieldValueStyle}"
-                               Text="{Binding GameIdText}" />
-
-                    <TextBlock Grid.Row="1"
-                               Grid.Column="0"
-                               Grid.ColumnSpan="2"
-                               Style="{StaticResource FieldLabelStyle}"
-                               Text="{Binding ExclusionStatusText}"
-                               Margin="0,8,0,0" />
-
-                    <TextBlock Grid.Row="2"
-                               Style="{StaticResource FieldLabelStyle}"
-                               Text="{DynamicResource LOCPlayAch_ManageAchievements_Overrides_ProviderHeader}"
-                               Margin="0,8,0,0"
-                               Visibility="{Binding HasProviderOverrideSummary, Converter={StaticResource BoolToVis}}" />
-                    <TextBlock Grid.Row="2"
-                               Grid.Column="1"
-                               Style="{StaticResource FieldValueStyle}"
-                               Text="{Binding ProviderOverrideSummaryText}"
-                               Margin="0,8,0,0"
-                               Visibility="{Binding HasProviderOverrideSummary, Converter={StaticResource BoolToVis}}" />
-
-                    <ItemsControl Grid.Row="3"
-                                  Grid.ColumnSpan="2"
-                                  ItemsSource="{Binding OverviewOverrides}"
+                    <ItemsControl ItemsSource="{Binding OverviewSummary.Customizations}"
+                                  ItemsPanel="{StaticResource OverviewWrapPanelTemplate}"
+                                  Focusable="False"
+                                  Margin="0,8,0,0"
+                                  Visibility="{Binding OverviewSummary.HasCustomizations, Converter={StaticResource BoolToVis}}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Border Style="{StaticResource MetaChipStyle}" ToolTip="{Binding ToolTip}">
+                                    <StackPanel Orientation="Horizontal">
+                                        <TextBlock Style="{StaticResource ChipTextStyle}" Text="{Binding Label}" />
+                                        <TextBlock Style="{StaticResource ChipCountTextStyle}"
+                                                   Text="{Binding CountText}"
+                                                   Visibility="{Binding HasCount, Converter={StaticResource BoolToVis}}" />
+                                    </StackPanel>
+                                </Border>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                    <ItemsControl ItemsSource="{Binding OverviewOverrides}"
+                                  Margin="0,8,0,0"
                                   Visibility="{Binding HasOverviewOverrides, Converter={StaticResource BoolToVis}}">
                         <ItemsControl.ItemTemplate>
                             <DataTemplate>
-                                <Grid Margin="0,8,0,0">
+                                <Grid Margin="0,2">
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="220" />
                                         <ColumnDefinition Width="*" />
                                     </Grid.ColumnDefinitions>
                                     <TextBlock Grid.Column="0"
-                                               Style="{StaticResource FieldLabelStyle}"
-                                               Text="{Binding Label}" />
+                                               Style="{StaticResource OverviewMutedTextStyle}"
+                                               Text="{Binding Label}"
+                                               TextWrapping="Wrap" />
                                     <TextBlock Grid.Column="1"
-                                               Style="{StaticResource FieldValueStyle}"
-                                               Text="{Binding Value}" />
+                                               Foreground="{DynamicResource PlayAch.Brush.Text}"
+                                               Text="{Binding Value}"
+                                               TextWrapping="Wrap" />
                                 </Grid>
                             </DataTemplate>
                         </ItemsControl.ItemTemplate>
                     </ItemsControl>
-                </Grid>
-            </Border>
-
-            <Border Style="{StaticResource CardBorderStyle}">
-                <StackPanel>
-                    <TextBlock Text="{DynamicResource LOCPlayAch_ManageAchievements_Overrides_CustomDataHeader}"
-                               Style="{StaticResource SectionHeaderStyle}" />
-                    <TextBlock Text="{DynamicResource LOCPlayAch_ManageAchievements_Overrides_CustomDataHint}"
-                               Foreground="{DynamicResource TextBrush}"
-                               Opacity="0.75"
-                               TextWrapping="Wrap"
-                               Margin="0,6,0,0" />
-                    <StackPanel Orientation="Horizontal" Margin="0,10,0,0">
-                        <Button Content="{DynamicResource LOCPlayAch_ManageAchievements_Overrides_ExportPaButton}"
-                                Command="{Binding ExportCustomJsonCommand}"
-                                Padding="12,6"
-                                Margin="0,0,8,0" />
-                        <Button Content="{DynamicResource LOCPlayAch_ManageAchievements_Overrides_ExportPackageButton}"
-                                Command="{Binding ExportCustomPackageCommand}"
-                                Padding="12,6"
-                                Margin="0,0,8,0" />
-                        <Button Content="{DynamicResource LOCPlayAch_ManageAchievements_Overrides_ImportPortableButton}"
-                                Command="{Binding ImportCustomJsonCommand}"
-                                Padding="12,6"
-                                Margin="0,0,8,0" />
-                        <Button Content="{DynamicResource LOCPlayAch_ManageAchievements_Overrides_ClearCustomDataButton}"
-                                Command="{Binding ClearCustomDataCommand}"
-                                Padding="12,6" />
-                    </StackPanel>
+                    <TextBlock Style="{StaticResource OverviewMutedTextStyle}"
+                               Text="{DynamicResource LOCPlayAch_Tagging_NotCustomized}"
+                               Margin="0,8,0,0"
+                               Visibility="{Binding OverviewSummary.HasCustomizations, Converter={StaticResource InverseBoolToVis}}" />
                 </StackPanel>
             </Border>
         </StackPanel>
     </ScrollViewer>
 </UserControl>
-

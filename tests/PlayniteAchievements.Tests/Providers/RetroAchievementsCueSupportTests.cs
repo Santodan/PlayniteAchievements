@@ -48,6 +48,53 @@ namespace PlayniteAchievements.Tests.Providers
         }
 
         [TestMethod]
+        public void DiscImage_GetImageFiles_ListsEveryExistingTrackFile()
+        {
+            var dir = CreateTempDir();
+            try
+            {
+                File.WriteAllBytes(Path.Combine(dir, "Game (Track 1).bin"), new byte[2352 * 20]);
+                File.WriteAllBytes(Path.Combine(dir, "Game (Track 2).bin"), new byte[2352 * 20]);
+                var cuePath = Path.Combine(dir, "Game.cue");
+                File.WriteAllText(cuePath,
+                    "FILE \"Game (Track 1).bin\" BINARY\r\n  TRACK 01 MODE1/2352\r\n    INDEX 01 00:00:00\r\n" +
+                    "FILE \"Game (Track 2).bin\" BINARY\r\n  TRACK 02 AUDIO\r\n    INDEX 01 00:00:00\r\n" +
+                    "FILE \"Game (Track 3).bin\" BINARY\r\n  TRACK 03 AUDIO\r\n    INDEX 01 00:00:00\r\n");
+
+                var files = DiscImage.GetImageFiles(cuePath);
+
+                CollectionAssert.AreEqual(
+                    new[] { cuePath, Path.Combine(dir, "Game (Track 1).bin"), Path.Combine(dir, "Game (Track 2).bin") }.Select(Path.GetFullPath).ToArray(),
+                    files.ToArray(),
+                    "the missing track 3 file is skipped; the audio track 2 file is listed");
+            }
+            finally
+            {
+                DeleteDirectory(dir);
+            }
+        }
+
+        [TestMethod]
+        public void DiscImage_GetImageFiles_IncludesAllAudioCue()
+        {
+            // Atari Jaguar CD cues hold only AUDIO tracks; they must still reach the hasher.
+            var dir = CreateTempDir();
+            try
+            {
+                File.WriteAllBytes(Path.Combine(dir, "Jaguar.bin"), new byte[2352 * 20]);
+                var cuePath = Path.Combine(dir, "Jaguar.cue");
+                File.WriteAllText(cuePath,
+                    "REM SESSION 01\r\nFILE \"Jaguar.bin\" BINARY\r\n  TRACK 01 AUDIO\r\n    INDEX 01 00:00:00\r\n");
+
+                Assert.AreEqual(2, DiscImage.GetImageFiles(cuePath).Count);
+            }
+            finally
+            {
+                DeleteDirectory(dir);
+            }
+        }
+
+        [TestMethod]
         public void CueTrackReader_MissingTrack_ReturnsFalse()
         {
             var dir = CreateTempDir();
@@ -56,8 +103,8 @@ namespace PlayniteAchievements.Tests.Providers
                 var cuePath = Path.Combine(dir, "missing.cue");
                 WriteCue(cuePath, "missing.bin", "MODE1/2048");
 
-                Assert.IsFalse(CueTrackReader.HasReadableDataTrack(cuePath));
-                Assert.IsFalse(CueTrackReader.TryGetDataTrackDependencies(cuePath, out _, out _));
+                Assert.IsFalse(CueTrackReader.TryResolveFirstDataTrack(cuePath, out _, out _));
+                CollectionAssert.AreEqual(new[] { Path.GetFullPath(cuePath) }, DiscImage.GetImageFiles(cuePath).ToArray());
             }
             finally
             {

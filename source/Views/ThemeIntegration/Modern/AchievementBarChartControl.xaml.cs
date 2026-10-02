@@ -49,10 +49,10 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Modern
                 return;
             }
 
-            // Build counts by date from unlocked achievements
+            // Counts keyed by local calendar day, like every other unlock timeline source.
             var countsByDate = allAchievements
                 .Where(a => a.Unlocked && a.UnlockTimeUtc.HasValue)
-                .GroupBy(a => a.UnlockTimeUtc.Value.Date)
+                .GroupBy(a => Services.Overview.UnlockDayCounts.DayOf(a.UnlockTimeUtc.Value))
                 .ToDictionary(g => g.Key, g => g.Count());
 
             TimelineViewModel.SetCounts(countsByDate);

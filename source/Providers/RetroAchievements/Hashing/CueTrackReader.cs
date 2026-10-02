@@ -28,46 +28,30 @@ namespace PlayniteAchievements.Providers.RetroAchievements.Hashing
                    string.Equals(Path.GetExtension(filePath), ".cue", StringComparison.OrdinalIgnoreCase);
         }
 
-        public static bool HasReadableDataTrack(string cuePath)
-        {
-            return TryResolveFirstDataTrack(cuePath, out _, out _);
-        }
-
-        public static bool TryGetDataTrackDependencies(
-            string cuePath,
-            out IReadOnlyList<string> dependencyPaths,
-            out string error)
-        {
-            dependencyPaths = Array.Empty<string>();
-            if (!TryResolveFirstDataTrack(cuePath, out var layout, out error))
-            {
-                return false;
-            }
-
-            var paths = new[]
-                {
-                    Path.GetFullPath(cuePath),
-                    Path.GetFullPath(layout.ResolvedPath)
-                }
-                .Where(p => !string.IsNullOrWhiteSpace(p))
-                .Distinct(StringComparer.OrdinalIgnoreCase)
-                .ToList();
-
-            dependencyPaths = paths;
-            return paths.Count > 0;
-        }
-
+        /// <summary>
+        /// Opens the 2048-byte payload view of the cue's first data track. The returned stream owns
+        /// the track file.
+        /// </summary>
         public static bool TryOpenFirstDataTrackStream(string cuePath, out Stream stream, out string error)
         {
             stream = null;
-            if (!TryResolveFirstDataTrack(cuePath, out var layout, out error))
+            if (!TryResolveFirstDataTrack(cuePath, out _, out error))
             {
                 return false;
             }
 
+            DiscTrack track = null;
             try
             {
-                stream = new CueTrackPayloadStream(layout);
+                track = DiscImage.Open(RaHashSource.FromFile(cuePath)).OpenTrack(DiscTrackSelector.FirstData);
+                if (track == null || track.RawDataSize != DiscTrack.CookedSectorSize)
+                {
+                    track?.Dispose();
+                    error = "Cue sheet does not contain a readable data track.";
+                    return false;
+                }
+
+                stream = track.OpenPayloadStream(ownsTrack: true);
                 return true;
             }
             catch (Exception ex)
@@ -240,7 +224,7 @@ namespace PlayniteAchievements.Providers.RetroAchievements.Hashing
             }
         }
 
-        private static string ResolveTrackPath(string cuePath, string fileName)
+        internal static string ResolveTrackPath(string cuePath, string fileName)
         {
             if (string.IsNullOrWhiteSpace(fileName))
             {
@@ -255,126 +239,6 @@ namespace PlayniteAchievements.Providers.RetroAchievements.Hashing
 
             var cueDir = Path.GetDirectoryName(Path.GetFullPath(cuePath)) ?? string.Empty;
             return Path.GetFullPath(Path.Combine(cueDir, normalizedName));
-        }
-    }
-
-    internal sealed class CueTrackPayloadStream : Stream
-    {
-        private readonly CueTrackLayout _layout;
-        private readonly FileStream _fileStream;
-        private long _position;
-
-        public CueTrackPayloadStream(CueTrackLayout layout)
-        {
-            _layout = layout ?? throw new ArgumentNullException(nameof(layout));
-            _fileStream = new FileStream(layout.ResolvedPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
-        }
-
-        public override bool CanRead => true;
-        public override bool CanSeek => true;
-        public override bool CanWrite => false;
-        public override long Length => _layout.LogicalLength;
-
-        public override long Position
-        {
-            get => _position;
-            set => Seek(value, SeekOrigin.Begin);
-        }
-
-        public override void Flush()
-        {
-        }
-
-        public override int Read(byte[] buffer, int offset, int count)
-        {
-            if (buffer == null) throw new ArgumentNullException(nameof(buffer));
-            if (offset < 0 || count < 0 || offset + count > buffer.Length) throw new ArgumentOutOfRangeException();
-            if (count == 0 || _position >= Length) return 0;
-
-            var totalRead = 0;
-            var remaining = (int)Math.Min(count, Length - _position);
-
-            while (remaining > 0)
-            {
-                var sectorIndex = _position / _layout.LogicalSectorSize;
-                var offsetInSector = (int)(_position % _layout.LogicalSectorSize);
-                var toRead = Math.Min(remaining, _layout.LogicalSectorSize - offsetInSector);
-                var physicalOffset =
-                    _layout.StartByte +
-                    (sectorIndex * _layout.PhysicalSectorSize) +
-                    _layout.DataOffset +
-                    offsetInSector;
-
-                _fileStream.Seek(physicalOffset, SeekOrigin.Begin);
-                var read = _fileStream.Read(buffer, offset + totalRead, toRead);
-                if (read <= 0)
-                {
-                    break;
-                }
-
-                totalRead += read;
-                remaining -= read;
-                _position += read;
-
-                if (read < toRead)
-                {
-                    break;
-                }
-            }
-
-            return totalRead;
-        }
-
-        public override Task<int> ReadAsync(byte[] buffer, int offset, int count, CancellationToken cancellationToken)
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            return Task.FromResult(Read(buffer, offset, count));
-        }
-
-        public override long Seek(long offset, SeekOrigin origin)
-        {
-            long target;
-            switch (origin)
-            {
-                case SeekOrigin.Begin:
-                    target = offset;
-                    break;
-                case SeekOrigin.Current:
-                    target = _position + offset;
-                    break;
-                case SeekOrigin.End:
-                    target = Length + offset;
-                    break;
-                default:
-                    throw new ArgumentOutOfRangeException(nameof(origin));
-            }
-
-            if (target < 0)
-            {
-                throw new IOException("Cannot seek before the beginning of the cue track.");
-            }
-
-            _position = target;
-            return _position;
-        }
-
-        public override void SetLength(long value)
-        {
-            throw new NotSupportedException();
-        }
-
-        public override void Write(byte[] buffer, int offset, int count)
-        {
-            throw new NotSupportedException();
-        }
-
-        protected override void Dispose(bool disposing)
-        {
-            if (disposing)
-            {
-                _fileStream?.Dispose();
-            }
-            base.Dispose(disposing);
         }
     }
 }

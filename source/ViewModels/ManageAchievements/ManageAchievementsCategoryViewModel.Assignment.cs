@@ -398,6 +398,11 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 _gameId,
                 categoryOverrideMap,
                 categoryTypeOverrideMap);
+
+            // The Editor rebuilds and writes the whole override map from its own rows, so a
+            // membership change it is never told about is reverted by its next category edit.
+            // This event is what marks it stale when the user leaves this tab.
+            RaiseCategoryMetadataPersisted();
         }
 
         private void ApplyCategoryOverrideMapsToRows(

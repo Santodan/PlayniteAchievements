@@ -18,6 +18,24 @@ namespace PlayniteAchievements.Tests.Services
         }
 
         [TestMethod]
+        public void Normalize_CanonicalizesProgressionAliasesInCanonicalOrder()
+        {
+            Assert.AreEqual("Progression", AchievementCategoryTypeHelper.Normalize("progression"));
+            Assert.AreEqual("Progression", AchievementCategoryTypeHelper.Normalize("story"));
+            Assert.AreEqual("WinCondition", AchievementCategoryTypeHelper.Normalize("win_condition"));
+            Assert.AreEqual("WinCondition", AchievementCategoryTypeHelper.Normalize("Win Condition"));
+            Assert.AreEqual(
+                "Base|Progression|WinCondition|Missable",
+                AchievementCategoryTypeHelper.Normalize("Missable|WinCondition|Base|Progression"));
+            CollectionAssert.Contains(
+                AchievementCategoryTypeHelper.AssignableCategoryTypes.ToList(),
+                "Progression");
+            CollectionAssert.Contains(
+                AchievementCategoryTypeHelper.AssignableCategoryTypes.ToList(),
+                "WinCondition");
+        }
+
+        [TestMethod]
         public void NormalizeOrDefault_ReturnsStableResultsAcrossRepeatedCalls()
         {
             foreach (var _ in Enumerable.Range(0, 3))
@@ -122,6 +140,61 @@ namespace PlayniteAchievements.Tests.Services
             CollectionAssert.DoesNotContain(assignable, AchievementCategoryTypeHelper.HardcoreCategoryType);
             CollectionAssert.DoesNotContain(assignable, AchievementCategoryTypeHelper.SoftcoreCategoryType);
             CollectionAssert.Contains(assignable, "Base");
+        }
+
+        [TestMethod]
+        public void Normalize_CanonicalizesSideProgressionAliasesBetweenProgressionAndWinCondition()
+        {
+            Assert.AreEqual("SideProgression", AchievementCategoryTypeHelper.Normalize("sideprogression"));
+            Assert.AreEqual("SideProgression", AchievementCategoryTypeHelper.Normalize("Side Progression"));
+            Assert.AreEqual("SideProgression", AchievementCategoryTypeHelper.Normalize("side-progression"));
+            Assert.AreEqual("SideProgression", AchievementCategoryTypeHelper.Normalize("side_progression"));
+            Assert.AreEqual("SideProgression", AchievementCategoryTypeHelper.Normalize("side quest"));
+            Assert.AreEqual(
+                "Progression|SideProgression|WinCondition",
+                AchievementCategoryTypeHelper.Normalize("WinCondition|SideProgression|Progression"));
+        }
+
+        [TestMethod]
+        public void Normalize_CanonicalizesMiscellaneousAliasesBetweenDifficultyAndMissable()
+        {
+            Assert.AreEqual("Miscellaneous", AchievementCategoryTypeHelper.Normalize("miscellaneous"));
+            Assert.AreEqual("Miscellaneous", AchievementCategoryTypeHelper.Normalize("misc"));
+            Assert.AreEqual(
+                "Difficulty|Miscellaneous|Missable",
+                AchievementCategoryTypeHelper.Normalize("missable|misc|difficulty"));
+        }
+
+        [TestMethod]
+        public void Normalize_OrdersDifficultyBeforeMissableAndStackableAfterUnobtainable()
+        {
+            Assert.AreEqual(
+                "Difficulty|Missable|Unobtainable|Stackable",
+                AchievementCategoryTypeHelper.Normalize("stackable|unobtainable|missable|difficulty"));
+        }
+
+        [TestMethod]
+        public void AssignableCategoryTypes_IncludesSideProgressionAndMiscellaneous()
+        {
+            var assignable = AchievementCategoryTypeHelper.AssignableCategoryTypes.ToList();
+
+            CollectionAssert.Contains(assignable, "SideProgression");
+            CollectionAssert.Contains(assignable, "Miscellaneous");
+        }
+
+        [TestMethod]
+        public void AllowedCategoryTypes_FollowsGroupedCanonicalOrder()
+        {
+            CollectionAssert.AreEqual(
+                new[]
+                {
+                    "Default", "Base", "DLC", "Update", "Subset",
+                    "Singleplayer", "Multiplayer",
+                    "Progression", "SideProgression", "WinCondition", "Collectable", "Difficulty", "Miscellaneous",
+                    "Missable", "Unobtainable", "Stackable",
+                    "Softcore", "Hardcore"
+                },
+                AchievementCategoryTypeHelper.AllowedCategoryTypes.ToList());
         }
 
         [TestMethod]

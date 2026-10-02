@@ -9,17 +9,32 @@ namespace PlayniteAchievements.Tests.StartPage
     public class StartPageViewCatalogTests
     {
         [TestMethod]
-        public void Views_RegisterNineWidgetsWithExpectedLocalizationKeys()
+        public void Views_PreserveOriginalNineIdsAndRegisterShowcaseWidgets()
         {
             var views = StartPageViewCatalog.Views;
 
-            Assert.AreEqual(9, views.Count);
-            CollectionAssert.AreEquivalent(
+            // 8 original views plus the 8 shared showcase views. PinnedAchievements,
+            // FavoriteGames, and GameMosaic are retired (see ShowcaseWidgetKind), so they
+            // no longer contribute views of their own.
+            Assert.AreEqual(16, views.Count);
+            CollectionAssert.AreEqual(
+                new[]
+                {
+                    StartPageViewCatalog.GameSummariesGridViewId,
+                    StartPageViewCatalog.RecentUnlocksGridViewId,
+                    StartPageViewCatalog.CompletedGamesPieViewId,
+                    StartPageViewCatalog.ProviderPieViewId,
+                    StartPageViewCatalog.RarityPieViewId,
+                    StartPageViewCatalog.TrophyPieViewId,
+                    StartPageViewCatalog.CollectionScoreCardViewId,
+                    StartPageViewCatalog.PrestigeScoreCardViewId
+                },
+                views.Take(8).Select(view => view.ViewId).ToArray());
+            CollectionAssert.IsSubsetOf(
                 new[]
                 {
                     StartPageWidgetKind.GameSummariesGrid,
                     StartPageWidgetKind.RecentUnlocksGrid,
-                    StartPageWidgetKind.FriendsRecentUnlocksGrid,
                     StartPageWidgetKind.CompletedGamesPie,
                     StartPageWidgetKind.ProviderPie,
                     StartPageWidgetKind.RarityPie,
@@ -29,11 +44,38 @@ namespace PlayniteAchievements.Tests.StartPage
                 },
                 views.Select(view => view.WidgetKind).ToArray());
 
-            Assert.IsTrue(views.Any(view =>
-                view.ViewId == StartPageViewCatalog.FriendsRecentUnlocksGridViewId &&
-                view.WidgetKind == StartPageWidgetKind.FriendsRecentUnlocksGrid &&
-                view.NameKey == "LOCPlayAch_StartPage_FriendsRecentAchievements"));
-            Assert.IsTrue(views.All(view => string.IsNullOrWhiteSpace(view.DescriptionKey)));
+            // The grid and pie views ride the showcase widget path under their original ids.
+            Assert.IsTrue(views
+                .Where(view => view.ViewId == StartPageViewCatalog.RecentUnlocksGridViewId ||
+                    view.ViewId == StartPageViewCatalog.GameSummariesGridViewId ||
+                    view.ViewId == StartPageViewCatalog.CompletedGamesPieViewId ||
+                    view.ViewId == StartPageViewCatalog.ProviderPieViewId ||
+                    view.ViewId == StartPageViewCatalog.RarityPieViewId ||
+                    view.ViewId == StartPageViewCatalog.TrophyPieViewId)
+                .All(view => view.ShowcaseWidgetKind.HasValue &&
+                    view.HasSettings &&
+                    view.AllowMultipleInstances));
+            Assert.IsTrue(views.Single(view =>
+                view.ViewId == StartPageViewCatalog.ShowcaseTimelineViewId)
+                .AllowMultipleInstances);
+            Assert.IsTrue(views.Single(view =>
+                view.ViewId == StartPageViewCatalog.ShowcaseNativePointsViewId)
+                .HasSettings);
+            Assert.IsFalse(views.Single(view =>
+                view.ViewId == StartPageViewCatalog.ShowcaseProfileViewId)
+                .AllowMultipleInstances);
+            Assert.IsTrue(views.Single(view =>
+                view.ViewId == StartPageViewCatalog.ShowcaseDualScoresViewId)
+                .HasSettings);
+            Assert.IsTrue(views.Single(view =>
+                view.ViewId == StartPageViewCatalog.ShowcaseActivityCalendarViewId)
+                .HasSettings);
+            // NativePoints is the only parked view: resolvable for already-placed widgets but
+            // omitted from the add list.
+            Assert.IsTrue(views.Single(view =>
+                view.ViewId == StartPageViewCatalog.ShowcaseNativePointsViewId)
+                .Hidden);
+            Assert.AreEqual(1, views.Count(view => view.Hidden));
             Assert.AreEqual(views.Count, views.Select(view => view.ViewId).Distinct().Count());
         }
 

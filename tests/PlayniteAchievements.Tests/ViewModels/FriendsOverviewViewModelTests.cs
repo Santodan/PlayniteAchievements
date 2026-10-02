@@ -1179,6 +1179,74 @@ namespace PlayniteAchievements.Tests.ViewModels
         }
 
         [TestMethod]
+        public void FavoritesOnlyScopesFriendsGamesAndRecentUnlocksToFavorites()
+        {
+            var viewModel = CreateViewModel(CreateData(), settings =>
+            {
+                settings.AddOrUpdateFriend("Steam", "bob", "Bob", null, null, FriendSettingsSource.Manual);
+                settings.SetFriendFavorite("Steam", "bob", true);
+            });
+            viewModel.LoadAsync().GetAwaiter().GetResult();
+
+            var items = viewModel.FriendSummariesControlBar.Items;
+            var toggle = items.OfType<GridToggleFilter>().Single(item => item.Icon == GridToggleFilterIcon.Favorite);
+            var platformFilter = items.OfType<GridMultiSelectFilter>().Single();
+            Assert.IsFalse(toggle.IsChecked, "favorites only starts off");
+            Assert.IsTrue(items.IndexOf(toggle) < items.IndexOf(platformFilter), "the star sits left of the platform dropdown");
+            Assert.AreEqual(3, viewModel.FilteredFriends.Count);
+            Assert.AreEqual(3, viewModel.FilteredGames.Count);
+            Assert.AreEqual(1, viewModel.DisplayedAchievements.Count);
+
+            toggle.IsChecked = true;
+
+            CollectionAssert.AreEqual(
+                new[] { "Bob" },
+                viewModel.FilteredFriends.Select(friend => friend.DisplayName).ToArray());
+
+            // Bob has data for Game One only, and its friend columns are recomputed over him alone:
+            // the aggregate row carried Alice's later unlock and play dates.
+            var game = viewModel.FilteredGames.Single();
+            Assert.AreEqual("Game One", game.GameName);
+            Assert.AreEqual(1, game.FriendCount);
+            Assert.AreEqual(1, game.FriendUnlockedAchievementsCount);
+            Assert.AreEqual(new DateTime(2026, 1, 2, 0, 0, 0, DateTimeKind.Utc), game.LastFriendUnlockUtc);
+            Assert.AreEqual(new DateTime(2026, 1, 5, 0, 0, 0, DateTimeKind.Utc), game.LastFriendPlayedUtc);
+            Assert.AreEqual(300, game.TotalFriendPlaytimeMinutes);
+
+            // The recent-unlocks feed holds Alice's unlock only.
+            Assert.AreEqual(0, viewModel.DisplayedAchievements.Count);
+
+            toggle.IsChecked = false;
+
+            Assert.AreEqual(3, viewModel.FilteredFriends.Count);
+            Assert.AreEqual(3, viewModel.FilteredGames.Count);
+            Assert.AreEqual(1, viewModel.DisplayedAchievements.Count);
+        }
+
+        [TestMethod]
+        public void FavoritesOnlyDropsASelectedFriendWhoIsNotAFavorite()
+        {
+            var viewModel = CreateViewModel(CreateData(), settings =>
+            {
+                settings.AddOrUpdateFriend("Steam", "bob", "Bob", null, null, FriendSettingsSource.Manual);
+                settings.SetFriendFavorite("Steam", "bob", true);
+            });
+            viewModel.LoadAsync().GetAwaiter().GetResult();
+            viewModel.SelectedFriend = viewModel.FilteredFriends.Single(friend => friend.DisplayName == "Alice");
+            Assert.AreEqual(2, viewModel.FilteredGames.Count, "Alice's own games");
+
+            viewModel.FavoritesOnly = true;
+
+            Assert.IsNull(viewModel.SelectedFriend);
+            CollectionAssert.AreEqual(
+                new[] { "Bob" },
+                viewModel.FilteredFriends.Select(friend => friend.DisplayName).ToArray());
+            CollectionAssert.AreEqual(
+                new[] { "Game One" },
+                viewModel.FilteredGames.Select(item => item.GameName).ToArray());
+        }
+
+        [TestMethod]
         public void FriendProviderFilterMatchesMergedMembership()
         {
             var data = CreateData();

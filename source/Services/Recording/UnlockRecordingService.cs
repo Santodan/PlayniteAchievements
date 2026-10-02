@@ -331,6 +331,15 @@ namespace PlayniteAchievements.Services.Recording
             /// </summary>
             public double TotalDelaySeconds => NotificationDelaySeconds + CaptureDelaySeconds;
 
+            /// <summary>The clip variants this unlock produces, resolved at unlock; never none.</summary>
+            public ScreenshotVariants Variants;
+
+            /// <summary>
+            /// How long the frame shows in the framed variant, snapshotted at unlock; null keeps it
+            /// over the whole clip.
+            /// </summary>
+            public int? FramedSeconds;
+
             /// <summary>
             /// Completed with the instant this request's wave captured its base surface, or null
             /// when the wave never reached the screen or the wait gave up — either way the window
@@ -831,9 +840,18 @@ namespace PlayniteAchievements.Services.Recording
         /// would be cut from. Logs nothing and changes no state — the caller decides what to say.
         /// </summary>
         private ClipEligibility EvaluateClipEligibility(
-            AchievementUnlockedEventArgs e, out CaptureSession session)
+            AchievementUnlockedEventArgs e, out CaptureSession session) =>
+            EvaluateClipEligibility(e, out session, out _);
+
+        /// <summary>
+        /// <see cref="EvaluateClipEligibility(AchievementUnlockedEventArgs, out CaptureSession)"/>,
+        /// also returning the clip variants an eligible unlock produces (never none when eligible).
+        /// </summary>
+        private ClipEligibility EvaluateClipEligibility(
+            AchievementUnlockedEventArgs e, out CaptureSession session, out ScreenshotVariants variants)
         {
             session = null;
+            variants = ScreenshotVariants.None;
             if (_disposed || e == null || e.IsPreview || e.IsFriendUnlock || e.IsProgressUpdate)
             {
                 return ClipEligibility.NotRecordable;
@@ -863,10 +881,10 @@ namespace PlayniteAchievements.Services.Recording
                 return ClipEligibility.ProviderDisabled;
             }
 
-            if (!UnlockCaptureRarityFilter.ShouldCapture(
-                    e,
-                    persisted.UnlockRecordingRarities,
-                    persisted.UnlockRecordingAlwaysCaptureCompletion))
+            // Each variant has its own rarity threshold and per-platform switch; no variant left
+            // means no clip.
+            var resolved = UnlockClipVariantPolicy.Resolve(e, _settings.Persisted);
+            if (resolved == ScreenshotVariants.None)
             {
                 return ClipEligibility.BelowRarity;
             }
@@ -880,19 +898,29 @@ namespace PlayniteAchievements.Services.Recording
                 return ClipEligibility.DifferentGame;
             }
 
+            variants = resolved;
             return ClipEligibility.Eligible;
         }
 
         /// <summary>
-        /// Whether this unlock would produce a clip right now, so the toast pipeline can decide
-        /// that it owes an overlay track. Both sides read the same state through
+        /// Whether a clip with these variants composites anything from the overlay track: the
+        /// notification card, or the frame chrome the track carries. A clean-only clip does not.
+        /// </summary>
+        private static bool VariantsNeedTrack(ScreenshotVariants variants) =>
+            (variants & (ScreenshotVariants.WithToast | ScreenshotVariants.Framed)) != 0;
+
+        /// <summary>
+        /// Whether this unlock would produce a clip right now that composites from the overlay
+        /// track, so the toast pipeline can decide that it owes one. A clean-only clip does not.
+        /// Both sides read the same state through
         /// <see cref="EvaluateClipEligibility"/>. It is evaluated in the toast service's unlock
         /// handler, which runs before this service's own: a capture session starting or stopping
         /// in that instant can make the two disagree, which costs at most a wasted unrevealed wave
         /// or a track wait that times out as it already would.
         /// </summary>
         internal bool WouldRequestClip(AchievementUnlockedEventArgs e) =>
-            EvaluateClipEligibility(e, out _) == ClipEligibility.Eligible;
+            EvaluateClipEligibility(e, out _, out var variants) == ClipEligibility.Eligible &&
+            VariantsNeedTrack(variants);
 
         /// <summary>
         /// Decodes the frame at an unlock's video anchor out of the rolling buffer, so the unlock
@@ -1061,7 +1089,7 @@ namespace PlayniteAchievements.Services.Recording
 
         private void OnAchievementUnlocked(object sender, AchievementUnlockedEventArgs e)
         {
-            switch (EvaluateClipEligibility(e, out var session))
+            switch (EvaluateClipEligibility(e, out var session, out var variants))
             {
                 case ClipEligibility.Eligible:
                     break;
@@ -1134,12 +1162,22 @@ namespace PlayniteAchievements.Services.Recording
                     ?? Math.Max(2, persisted.ToastDurationSeconds),
                 NotificationDelaySeconds = notificationDelaySeconds,
                 CaptureDelaySeconds = captureDelaySeconds,
+                Variants = variants,
+                FramedSeconds = persisted.UnlockRecordingFramedSeconds,
                 TrackTcs = new TaskCompletionSource<ToastOverlayTrack>(
                     TaskCreationOptions.RunContinuationsAsynchronously),
                 DisplayTcs = notificationDelaySeconds + captureDelaySeconds > 0
                     ? new TaskCompletionSource<DateTime?>(TaskCreationOptions.RunContinuationsAsynchronously)
                     : null,
             };
+
+            // A clean-only clip composites nothing from a track, and the toast pipeline records
+            // none for it, so its wait resolves at once. The request still joins the list, which
+            // is also where a delayed request's display instant is matched.
+            if (!VariantsNeedTrack(variants))
+            {
+                request.TrackTcs.TrySetResult(null);
+            }
 
             lock (_gate)
             {
@@ -1314,8 +1352,8 @@ namespace PlayniteAchievements.Services.Recording
                     return;
                 }
 
-                var outputPath = BuildOutputPath(persisted, request);
-                if (outputPath == null)
+                var outputPaths = BuildOutputPaths(persisted, request);
+                if (outputPaths == null)
                 {
                     AbandonTrackWait(request);
                     return;
@@ -1354,41 +1392,57 @@ namespace PlayniteAchievements.Services.Recording
                 try
                 {
                     var track = await WaitForTrackAsync(request).ConfigureAwait(false);
-                    var finalPath = basePath;
-                    if (track != null)
+                    lock (_gate)
                     {
-                        var composited = await ReencodeWithTrackAsync(
-                                session, request, basePath, track, window, toastSlotSeconds, videoLeadSeconds,
-                                clipStartUtc)
-                            .ConfigureAwait(false);
-                        if (composited != null)
-                        {
-                            finalPath = composited;
-                        }
-                        else
+                        // A clean-only request's wait resolved at once and was never matched.
+                        _awaitingTrack.Remove(request);
+                    }
+
+                    var composition = ResolveComposition(
+                        session, request, track, window, toastSlotSeconds, videoLeadSeconds, clipStartUtc);
+                    var cleanWanted = (request.Variants & ScreenshotVariants.Clean) != 0;
+
+                    // The notification clip first: it is the one most setups ask for, and the others
+                    // re-encode more. A clip whose composite fails is saved without its notification,
+                    // unless a clean clip is being saved anyway.
+                    if ((request.Variants & ScreenshotVariants.WithToast) != 0)
+                    {
+                        var toast = MediaFoundationOverlayReencoder.CreateToastSource(
+                            track, composition.ToastStartSeconds, toastSlotSeconds);
+                        var composited = toast == null
+                            ? null
+                            : await EncodeVariantAsync(
+                                    session, basePath, new[] { toast }, videoLeadSeconds, composition, withChime: true)
+                                .ConfigureAwait(false);
+                        if (composited == null)
                         {
                             _logger?.Warn(
-                                $"[Recording] Toast composite failed for '{request.AchievementName}'; saving the clip without a toast.");
+                                $"[Recording] Toast composite failed for '{request.AchievementName}'" +
+                                (cleanWanted ? "; the clean clip is still saved." : "; saving the clip without a toast."));
                         }
+
+                        PlaceClip(request, composited ?? (cleanWanted ? null : basePath), outputPaths.WithToast,
+                            fromBase: composited == null);
                     }
 
-                    var moveTimer = Stopwatch.StartNew();
-                    var savedPath = SaveClipToUniquePath(finalPath, outputPath, copy: false);
-                    if (savedPath == null)
+                    if (cleanWanted)
                     {
-                        _logger?.Warn($"[Recording] Could not place unlock clip for '{request.AchievementName}' (destination in use).");
-                        TryDeleteFile(finalPath);
-                        return;
+                        // Cut to the same span as the composited variants; the base itself starts a
+                        // keyframe lead early and runs out the worst-case tail.
+                        var trimmed = await EncodeVariantAsync(
+                                session, basePath, new IFrameOverlaySource[0], videoLeadSeconds, composition,
+                                withChime: false)
+                            .ConfigureAwait(false);
+                        PlaceClip(request, trimmed ?? basePath, outputPaths.Clean, fromBase: trimmed == null);
                     }
 
-                    // A cross-volume move degrades to a full byte copy of the clip, so its cost is
-                    // worth seeing per clip.
-                    _logger?.Debug(
-                        $"[RecordingTiming] Placing the clip took {moveTimer.ElapsedMilliseconds}ms.");
-                    _logger?.Info($"[Recording] Saved unlock clip: {savedPath}");
-                    // Drop the cached capture scan for this game. This also raises CapturesChanged,
-                    // so grids that are already open re-stamp their rows for the new clip.
-                    PlayniteAchievementsPlugin.Instance?.CaptureLibraryService?.Invalidate(request.GameName);
+                    if ((request.Variants & ScreenshotVariants.Framed) != 0)
+                    {
+                        var framed = await EncodeFramedAsync(
+                                session, request, basePath, track, videoLeadSeconds, composition, toastSlotSeconds)
+                            .ConfigureAwait(false);
+                        PlaceClip(request, framed, outputPaths.Framed, fromBase: false);
+                    }
                 }
                 finally
                 {
@@ -1522,14 +1576,26 @@ namespace PlayniteAchievements.Services.Recording
         }
 
         /// <summary>
-        /// Re-encodes the base clip with the overlay track composited in, one at a time across
-        /// the service. The output is cut shortly after the recorded fade — the base window is
-        /// sized for the worst case before the track exists, and running it out would put the
-        /// next wave's unlock sound in the audio tail. Returns the composited temp path, or null
-        /// on failure (base clip stands).
+        /// Where one unlock's variants place the card and the chime on the base clip's timeline,
+        /// and where they all end. Shared by every variant, so they cover the same span.
         /// </summary>
-        private async Task<string> ReencodeWithTrackAsync(
-            CaptureSession session, ClipRequest request, string basePath, ToastOverlayTrack track,
+        private struct ClipComposition
+        {
+            public double ToastStartSeconds;
+            public double EndSeconds;
+            public byte[] ChimePcm;
+            public double ChimeStartSeconds;
+        }
+
+        /// <summary>
+        /// Resolves the card and chime placement for this unlock's variants. The output is cut
+        /// shortly after the recorded fade — the base window is sized for the worst case before
+        /// the track exists, and running it out would put the next wave's unlock sound in the
+        /// audio tail. With no track (a clean-only clip, or a track that never arrived) the cut
+        /// follows the full toast slot and no chime is mixed.
+        /// </summary>
+        private ClipComposition ResolveComposition(
+            CaptureSession session, ClipRequest request, ToastOverlayTrack track,
             SegmentTimeline.ClipWindow window, double toastSlotSeconds, double videoLeadSeconds,
             DateTime clipStartUtc)
         {
@@ -1554,7 +1620,7 @@ namespace PlayniteAchievements.Services.Recording
             // Either way the anchor comes from the window, never from the track's own
             // first-rendered-frame stamp. That stamp is still what the card's animation plays from, so
             // the composited card slides in exactly as it did live; only its position is the window's.
-            var overlaySeconds = Math.Min(toastSlotSeconds, track.DurationSeconds) + PostFadeTailSeconds;
+            var overlaySeconds = Math.Min(toastSlotSeconds, track?.DurationSeconds ?? toastSlotSeconds) + PostFadeTailSeconds;
             var overlayStartUtc = window.ToastAnchorUtc;
 
             var clipOriginUtc = clipStartUtc == default(DateTime) ? window.StartUtc : clipStartUtc;
@@ -1566,8 +1632,9 @@ namespace PlayniteAchievements.Services.Recording
             // launch-to-card. A file mix has no launch-to-audible latency — placed at the full
             // gap, its onset lands early by exactly the latency the toast service's
             // sound-alignment delay models — so that model is subtracted, putting the onset on
-            // the reveal, as heard live.
-            var chimePcm = TryReadChimePcm(request);
+            // the reveal, as heard live. Placed against the track, so a clip without one mixes
+            // none.
+            var chimePcm = track != null ? TryReadChimePcm(request) : null;
             bool usedFallbackTrack;
             int? alignmentMs;
             int? playbackId;
@@ -1638,17 +1705,38 @@ namespace PlayniteAchievements.Services.Recording
             // odd-looking clip readable without reasoning backwards from the window. Display-anchored,
             // the gap should be near zero — a large one there means the card was placed away from the
             // frame the screenshot captured.
+            var notificationGap = track != null
+                ? $"the notification itself appeared " +
+                  $"{(track.StartUtc - window.ToastAnchorUtc).TotalSeconds.ToString("F1", CultureInfo.InvariantCulture)}s later " +
+                  $"({Stamp(track.StartUtc)})"
+                : "no notification track";
             _logger?.Info(
                 $"[RecordingTiming] toast placed at {toastStartSeconds.ToString("F2", CultureInfo.InvariantCulture)}s " +
                 $"on the {(window.AnchoredOnDisplay ? "notification" : "unlock")} ({Stamp(window.ToastAnchorUtc)}); " +
-                $"the notification itself appeared " +
-                $"{(track.StartUtc - window.ToastAnchorUtc).TotalSeconds.ToString("F1", CultureInfo.InvariantCulture)}s later " +
-                $"({Stamp(track.StartUtc)}). lead={videoLeadSeconds.ToString("F2", CultureInfo.InvariantCulture)}s " +
+                $"{notificationGap}. lead={videoLeadSeconds.ToString("F2", CultureInfo.InvariantCulture)}s " +
                 $"end={endSeconds.ToString("F2", CultureInfo.InvariantCulture)}s " +
                 $"chimeLead={chimeLeadSeconds.ToString("F3", CultureInfo.InvariantCulture)}s " +
                 $"chimeSource={(chimePcm == null ? "none" : "file")} chimePlacement={chimePlacement}");
-            var chimeStartSeconds = toastStartSeconds - chimeLeadSeconds;
+            return new ClipComposition
+            {
+                ToastStartSeconds = toastStartSeconds,
+                EndSeconds = endSeconds,
+                ChimePcm = chimePcm,
+                ChimeStartSeconds = toastStartSeconds - chimeLeadSeconds,
+            };
+        }
+
+        /// <summary>
+        /// Re-encodes the base clip with <paramref name="overlays"/> drawn in order, one encode at
+        /// a time across the service, cut to the composition's span. The chime is mixed only when
+        /// <paramref name="withChime"/> is set. Returns the temp path, or null on failure.
+        /// </summary>
+        private async Task<string> EncodeVariantAsync(
+            CaptureSession session, string basePath, IReadOnlyList<IFrameOverlaySource> overlays,
+            double videoLeadSeconds, ClipComposition composition, bool withChime)
+        {
             var tempPath = Path.Combine(session.BufferDirectory, $"clipovl_{Guid.NewGuid():N}.mp4");
+            var chimePcm = withChime ? composition.ChimePcm : null;
             await _reencodeGate.WaitAsync().ConfigureAwait(false);
             try
             {
@@ -1659,11 +1747,15 @@ namespace PlayniteAchievements.Services.Recording
                 var capturedFps = session.EffectiveSettings?.RecordingFps ?? DefaultRecordingFps;
                 // Re-encode at the quality the segments were captured at, so compositing the toast
                 // does not quietly change the clip's bitrate.
-                var capturedQuality = session.EffectiveSettings?.RecordingQuality ?? RecordingQuality.Native;
-                var ok = await Task.Run(() => reencoder.Export(
-                        basePath, track, toastStartSeconds, toastSlotSeconds, videoLeadSeconds,
-                        endSeconds, chimePcm, chimeStartSeconds, tempPath, capturedFps, capturedQuality))
+                var capturedQuality = _settings?.Persisted?.RecordingQuality ?? RecordingQuality.Native;
+                var timer = Stopwatch.StartNew();
+                var ok = await Task.Run(() => reencoder.ExportWithOverlays(
+                        basePath, overlays, videoLeadSeconds, composition.EndSeconds, chimePcm,
+                        composition.ChimeStartSeconds, tempPath, capturedFps, capturedQuality))
                     .ConfigureAwait(false);
+                _logger?.Debug(
+                    $"[RecordingTiming] Encoding a clip variant with {overlays.Count} overlay(s) took " +
+                    $"{timer.ElapsedMilliseconds}ms (ok={ok}).");
                 if (ok)
                 {
                     return tempPath;
@@ -1680,6 +1772,90 @@ namespace PlayniteAchievements.Services.Recording
 
             TryDeleteFile(tempPath);
             return null;
+        }
+
+        /// <summary>
+        /// The framed variant: the frame chrome from the clip's first frame, fading out after the
+        /// configured hold, with the notification card on top only when the frame has gone before
+        /// the card appears. Null (no framed clip) when the track or its chrome never arrived.
+        /// </summary>
+        private async Task<string> EncodeFramedAsync(
+            CaptureSession session, ClipRequest request, string basePath, ToastOverlayTrack track,
+            double videoLeadSeconds, ClipComposition composition, double toastSlotSeconds)
+        {
+            var chrome = track?.FrameChrome;
+            if (chrome == null || !chrome.IsValid)
+            {
+                _logger?.Warn(
+                    $"[Recording] No frame chrome for '{request.AchievementName}'; the framed clip is skipped.");
+                return null;
+            }
+
+            // The output starts at the lead, so that is the clip's first frame.
+            var hold = request.FramedSeconds.HasValue ? (double?)request.FramedSeconds.Value : null;
+            var frameStart = videoLeadSeconds;
+            var frameEnd = FramedClipTiming.EndSeconds(hold, frameStart, composition.EndSeconds);
+            var overlays = new List<IFrameOverlaySource>
+            {
+                new FrameChromeOverlaySource(
+                    chrome,
+                    MediaFoundationOverlayReencoder.ToTicks(frameStart),
+                    MediaFoundationOverlayReencoder.ToTicks(frameEnd),
+                    hold),
+            };
+
+            var includesToast = FramedClipTiming.IncludesToast(hold, frameStart, composition.ToastStartSeconds);
+            if (includesToast)
+            {
+                var toast = MediaFoundationOverlayReencoder.CreateToastSource(
+                    track, composition.ToastStartSeconds, toastSlotSeconds);
+                if (toast != null)
+                {
+                    overlays.Add(toast);
+                }
+            }
+
+            _logger?.Debug(
+                $"[Recording] Framed clip for '{request.AchievementName}': frame " +
+                $"{frameStart.ToString("F2", CultureInfo.InvariantCulture)}-{frameEnd.ToString("F2", CultureInfo.InvariantCulture)}s " +
+                $"(hold={(hold.HasValue ? hold.Value.ToString("F0", CultureInfo.InvariantCulture) + "s" : "whole clip")}), " +
+                $"notification {(includesToast ? "included" : "left out")}.");
+            return await EncodeVariantAsync(session, basePath, overlays, videoLeadSeconds, composition, withChime: true)
+                .ConfigureAwait(false);
+        }
+
+        /// <summary>
+        /// Places one produced variant at its output path. The base clip is copied, because the
+        /// other variants still read it and the caller deletes it; an encoded temp is moved. Null
+        /// <paramref name="sourcePath"/> places nothing.
+        /// </summary>
+        private void PlaceClip(ClipRequest request, string sourcePath, string desiredPath, bool fromBase)
+        {
+            if (sourcePath == null || desiredPath == null)
+            {
+                return;
+            }
+
+            var moveTimer = Stopwatch.StartNew();
+            var savedPath = SaveClipToUniquePath(sourcePath, desiredPath, copy: fromBase);
+            if (savedPath == null)
+            {
+                _logger?.Warn($"[Recording] Could not place unlock clip for '{request.AchievementName}' (destination in use).");
+                if (!fromBase)
+                {
+                    TryDeleteFile(sourcePath);
+                }
+
+                return;
+            }
+
+            // A cross-volume move degrades to a full byte copy of the clip, so its cost is worth
+            // seeing per clip.
+            _logger?.Debug($"[RecordingTiming] Placing the clip took {moveTimer.ElapsedMilliseconds}ms.");
+            _logger?.Info($"[Recording] Saved unlock clip: {savedPath}");
+            // Drop the cached capture scan for this game. This also raises CapturesChanged, so
+            // grids that are already open re-stamp their rows for the new clip.
+            PlayniteAchievementsPlugin.Instance?.CaptureLibraryService?.Invalidate(request.GameName);
         }
 
         /// <summary>
@@ -2259,7 +2435,40 @@ namespace PlayniteAchievements.Services.Recording
                 : DateTime.SpecifyKind(value, DateTimeKind.Utc);
         }
 
-        private string BuildOutputPath(PersistedSettings persisted, ClipRequest request)
+        /// <summary>The output path of each requested clip variant; unrequested ones stay null.</summary>
+        private sealed class ClipOutputPaths
+        {
+            public string Clean;
+            public string WithToast;
+            public string Framed;
+        }
+
+        /// <summary>
+        /// Resolves a path for each requested variant, named with the screenshot variant suffixes
+        /// so a clip and its screenshots share one naming scheme. Null when no path can be built.
+        /// </summary>
+        private ClipOutputPaths BuildOutputPaths(PersistedSettings persisted, ClipRequest request)
+        {
+            var paths = new ClipOutputPaths();
+            if ((request.Variants & ScreenshotVariants.Clean) != 0)
+            {
+                paths.Clean = BuildOutputPath(persisted, request, persisted.UnlockScreenshotSuffixClean);
+            }
+
+            if ((request.Variants & ScreenshotVariants.WithToast) != 0)
+            {
+                paths.WithToast = BuildOutputPath(persisted, request, persisted.UnlockScreenshotSuffixWithToast);
+            }
+
+            if ((request.Variants & ScreenshotVariants.Framed) != 0)
+            {
+                paths.Framed = BuildOutputPath(persisted, request, persisted.UnlockScreenshotSuffixFramed);
+            }
+
+            return paths.Clean == null && paths.WithToast == null && paths.Framed == null ? null : paths;
+        }
+
+        private string BuildOutputPath(PersistedSettings persisted, ClipRequest request, string variantSuffix)
         {
             try
             {
@@ -2320,7 +2529,7 @@ namespace PlayniteAchievements.Services.Recording
                     request.AchievementName,
                     request.AchievementNumber,
                     request.TotalCount,
-                    variantSuffix: null,
+                    variantSuffix: string.IsNullOrWhiteSpace(variantSuffix) ? null : variantSuffix.Trim(),
                     extension: ".mp4");
                 var folder = Path.Combine(baseDir, relative.Folder);
                 Directory.CreateDirectory(folder);

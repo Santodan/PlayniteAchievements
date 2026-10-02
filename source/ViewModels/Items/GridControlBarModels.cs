@@ -356,6 +356,7 @@ namespace PlayniteAchievements.ViewModels.Items
         Unlocked,
         Locked,
         Hidden,
+        Favorite,
     }
 
     public sealed class GridToggleFilter : GridControlBarItem

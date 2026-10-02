@@ -1,6 +1,7 @@
 using Playnite.SDK;
 using PlayniteAchievements.Providers.RetroAchievements.Hashing;
 using Newtonsoft.Json;
+using Newtonsoft.Json.Converters;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -9,16 +10,57 @@ using System.Text;
 namespace PlayniteAchievements.Providers.RetroAchievements
 {
     /// <summary>
-    /// Cache entry for a previously matched ROM file.
-    /// Stores file metadata for validation and the RA game ID to fetch.
+    /// How a game's RA game ID was resolved. Entries written before this field existed
+    /// deserialize as <see cref="HashMatch"/>, which is what they recorded.
+    /// </summary>
+    internal enum RaHashCacheResolution
+    {
+        HashMatch = 0,
+        NameMatch = 1,
+        None = 2
+    }
+
+    /// <summary>
+    /// Cache entry for a game's RA resolution.
+    /// A hash match stores the matched ROM's metadata and the RA game ID to fetch.
+    /// Every entry also records the hashes computed for each candidate file, so an
+    /// unchanged file is re-matched against the current hash index without re-reading it.
     /// </summary>
     internal sealed class RaHashCacheEntry
     {
+        [JsonConverter(typeof(StringEnumConverter))]
+        public RaHashCacheResolution Resolution { get; set; }
         public string MatchedRomPath { get; set; }
         public long FileSize { get; set; }
         public long LastWriteTicksUtc { get; set; }
         public int RaGameId { get; set; }
         public List<RaHashCacheDependency> Dependencies { get; set; }
+
+        // Name matches are valid while the Playnite name and console are unchanged.
+        public string NameMatchedGameName { get; set; }
+        public int? NameMatchedConsoleId { get; set; }
+
+        public List<RaHashCacheCandidate> Candidates { get; set; }
+    }
+
+    /// <summary>
+    /// Hashes computed for one candidate file by one hasher.
+    /// <see cref="Complete"/> is false when hashing stopped at the first matching archive entry,
+    /// so the list may be missing hashes of entries that were never read.
+    /// </summary>
+    internal sealed class RaHashCacheCandidate
+    {
+        public string Path { get; set; }
+        public string HasherName { get; set; }
+        public List<RaHashCacheDependency> Dependencies { get; set; }
+        public List<string> Hashes { get; set; }
+        public bool Complete { get; set; }
+
+        /// <summary>
+        /// The hashing rules the hashes were computed under. Records from other versions are
+        /// hashed again, so a hasher fix reaches files whose bytes did not change.
+        /// </summary>
+        public int RulesVersion { get; set; }
     }
 
     internal sealed class RaHashCacheDependency
@@ -38,7 +80,7 @@ namespace PlayniteAchievements.Providers.RetroAchievements
         private readonly string _cacheFilePath;
         private Dictionary<string, RaHashCacheEntry> _cache;
         private readonly object _lock = new object();
-        private bool _dirty;
+        private int _pendingWrites;
 
         private static readonly JsonSerializerSettings JsonSettings = new JsonSerializerSettings
         {
@@ -82,9 +124,18 @@ namespace PlayniteAchievements.Providers.RetroAchievements
 
         public void Save()
         {
+            SaveIfPending(1);
+        }
+
+        /// <summary>
+        /// Saves when at least <paramref name="minPendingWrites"/> writes are unsaved.
+        /// Lets a long scan persist progress periodically instead of only at the end.
+        /// </summary>
+        public void SaveIfPending(int minPendingWrites)
+        {
             lock (_lock)
             {
-                if (!_dirty)
+                if (_pendingWrites == 0 || _pendingWrites < minPendingWrites)
                 {
                     return;
                 }
@@ -104,7 +155,7 @@ namespace PlayniteAchievements.Providers.RetroAchievements
                         File.Move(tmp, _cacheFilePath);
                     }
 
-                    _dirty = false;
+                    _pendingWrites = 0;
                     _logger?.Debug($"[RA] Saved hash cache with {_cache.Count} entries to '{_cacheFilePath}'");
                 }
                 catch (Exception ex)
@@ -127,7 +178,7 @@ namespace PlayniteAchievements.Providers.RetroAchievements
             lock (_lock)
             {
                 _cache[playniteGameId.ToString()] = entry;
-                _dirty = true;
+                _pendingWrites++;
             }
         }
 
@@ -137,7 +188,7 @@ namespace PlayniteAchievements.Providers.RetroAchievements
             {
                 if (_cache.Remove(playniteGameId.ToString()))
                 {
-                    _dirty = true;
+                    _pendingWrites++;
                 }
             }
         }
@@ -146,16 +197,10 @@ namespace PlayniteAchievements.Providers.RetroAchievements
         {
             var dependencies = new List<RaHashCacheDependency>();
 
-            IReadOnlyList<string> dependencyPaths = null;
-            if (CueTrackReader.IsCuePath(matchedPath) &&
-                CueTrackReader.TryGetDataTrackDependencies(matchedPath, out var cueDependencies, out _))
-            {
-                dependencyPaths = cueDependencies;
-            }
-            else if (!string.IsNullOrWhiteSpace(matchedPath))
-            {
-                dependencyPaths = new[] { matchedPath };
-            }
+            // Cue sheets and .gdi files list every track file, so editing any track invalidates the entry.
+            IReadOnlyList<string> dependencyPaths = CueTrackReader.IsCuePath(matchedPath) || DiscImage.IsGdiPath(matchedPath)
+                ? DiscImage.GetImageFiles(matchedPath)
+                : string.IsNullOrWhiteSpace(matchedPath) ? null : new[] { matchedPath };
 
             if (dependencyPaths == null)
             {

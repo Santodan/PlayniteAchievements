@@ -110,6 +110,13 @@ namespace PlayniteAchievements.Providers.Riot
             return GetStringAsync(uri, apiKey, cancel);
         }
 
+        /// <summary>Raw <c>challenges/config</c> JSON, which carries each challenge's state.</summary>
+        public Task<string> GetChallengeConfigJsonAsync(string platform, string apiKey, CancellationToken cancel)
+        {
+            var uri = new Uri($"{RiotRegions.GetPlatformHost(platform)}/lol/challenges/v1/challenges/config");
+            return GetStringAsync(uri, apiKey, cancel);
+        }
+
         private async Task<string> GetStringAsync(Uri uri, string apiKey, CancellationToken cancel)
         {
             var response = await SendWithRetryAsync(() =>

@@ -1,6 +1,5 @@
 using System;
-using System.Windows.Controls;
-using System.Windows.Input;
+using System.Linq;
 using System.Windows;
 using System.Threading.Tasks;
 using Playnite.SDK;
@@ -40,77 +39,57 @@ namespace PlayniteAchievements.Providers.RPCS3
             ConnectionLabel.Text = string.Format(
                 ResourceProvider.GetString("LOCPlayAch_Settings_ProviderConnection"),
                 ResourceProvider.GetString("LOCPlayAch_Provider_RPCS3"));
+            ExecutablePathsEditor.Configure(
+                Rpcs3InstallationResolver.ValidateExecutablePath,
+                () => _playniteApi?.Dialogs?.SelectFile("rpcs3.exe|rpcs3.exe|Executable files|*.exe"));
+            ExecutablePathsEditor.PathsChanged += ExecutablePathsEditor_PathsChanged;
         }
 
         public override void Initialize(IProviderSettings settings)
         {
             _rpcs3Settings = settings as Rpcs3Settings;
             base.Initialize(settings);
+            ExecutablePathsEditor.SetPaths(_rpcs3Settings?.ExecutablePaths);
             CheckRpcs3Auth();
         }
 
         public Task RefreshAuthStatusAsync()
         {
+            ExecutablePathsEditor.Revalidate();
             CheckRpcs3Auth();
             return Task.CompletedTask;
         }
 
-        private void Rpcs3ExecutablePath_KeyDown(object sender, KeyEventArgs e)
+        private void ExecutablePathsEditor_PathsChanged(object sender, EventArgs e)
         {
-            if (e.Key == Key.Enter)
+            if (_rpcs3Settings != null)
             {
-                e.Handled = true;
-                (sender as TextBox)?.GetBindingExpression(TextBox.TextProperty)?.UpdateSource();
-                CheckRpcs3Auth();
-                MoveFocusFrom((TextBox)sender);
+                _rpcs3Settings.ExecutablePaths = ExecutablePathsEditor.GetPaths();
             }
-        }
 
-        private void Rpcs3ExecutablePath_LostFocus(object sender, RoutedEventArgs e)
-        {
-            (sender as TextBox)?.GetBindingExpression(TextBox.TextProperty)?.UpdateSource();
             CheckRpcs3Auth();
-        }
-
-        private void Rpcs3_Browse_Click(object sender, RoutedEventArgs e)
-        {
-            var selectedPath = _playniteApi?.Dialogs?.SelectFile("rpcs3.exe|rpcs3.exe|Executable files|*.exe");
-            if (!string.IsNullOrWhiteSpace(selectedPath))
-            {
-                _rpcs3Settings.ExecutablePath = selectedPath;
-                CheckRpcs3Auth();
-            }
         }
 
         private void CheckRpcs3Auth()
         {
-            var exePath = _rpcs3Settings?.ExecutablePath;
-
-            if (string.IsNullOrWhiteSpace(exePath))
+            var paths = ProviderPathList.Normalize(_rpcs3Settings?.ExecutablePaths);
+            if (paths.Count == 0)
             {
                 SetAuthenticated(false);
                 SetAuthStatus(string.Format(ResourceProvider.GetString("LOCPlayAch_Settings_NotConfigured"), ResourceProvider.GetString("LOCPlayAch_Provider_RPCS3")));
                 return;
             }
 
-            var installFolder = System.IO.Path.GetDirectoryName(exePath);
-            if (string.IsNullOrWhiteSpace(installFolder) || !System.IO.Directory.Exists(installFolder))
+            var results = paths.Select(Rpcs3InstallationResolver.ValidateExecutablePath).ToList();
+            if (results.Any(result => result.IsValid))
             {
-                SetAuthenticated(false);
-                SetAuthStatusByKey("LOCPlayAch_InvalidPath");
+                SetAuthenticated(true);
+                SetAuthStatusByKey("LOCPlayAch_Status_Succeeded");
                 return;
             }
 
-            var context = Rpcs3InstallationResolver.ResolveFromRoot(installFolder, logger: null);
-            if (context == null || !System.IO.Directory.Exists(context.TrophyFolder))
-            {
-                SetAuthenticated(false);
-                SetAuthStatusByKey("LOCPlayAch_Rpcs3Validation_NoTrophyFolder");
-                return;
-            }
-
-            SetAuthenticated(true);
-            SetAuthStatusByKey("LOCPlayAch_Status_Succeeded");
+            SetAuthenticated(false);
+            SetAuthStatusByKey(results[0].MessageKey);
         }
 
         private void SetAuthStatusByKey(string key)
@@ -146,10 +125,5 @@ namespace PlayniteAchievements.Providers.RPCS3
             }
         }
 
-        private static void MoveFocusFrom(TextBox textBox)
-        {
-            var parent = textBox?.Parent as FrameworkElement;
-            parent?.MoveFocus(new TraversalRequest(FocusNavigationDirection.Next));
-        }
     }
 }

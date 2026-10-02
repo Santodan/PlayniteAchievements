@@ -15,7 +15,7 @@
     <UserControl.Resources>
         <ResourceDictionary>
             <ResourceDictionary.MergedDictionaries>
-                <ResourceDictionary Source="pack://application:,,,/PlayniteAchievements;component/Resources/ManageAchievementsScopedControlStyles.xaml"/>
+                <helpers:SharedResourceDictionary Source="pack://application:,,,/PlayniteAchievements;component/Resources/ManageAchievementsScopedControlStyles.xaml"/>
             </ResourceDictionary.MergedDictionaries>
         </ResourceDictionary>
     </UserControl.Resources>
@@ -23,7 +23,20 @@
     <TabControl x:Name="CategorySubTabs"
                 BorderThickness="0"
                 Background="Transparent">
-        <TabItem Header="{DynamicResource LOCPlayAch_ManageAchievements_Category_Tab_Assign}">
+        <!-- Only one tab is on offer while Assign is collapsed, so the strip would be a header with
+             nothing to switch to. The template renders just the selected content; deleting it puts
+             the tabs back exactly as they were. -->
+        <TabControl.Template>
+            <ControlTemplate TargetType="TabControl">
+                <ContentPresenter ContentSource="SelectedContent" />
+            </ControlTemplate>
+        </TabControl.Template>
+
+        <!-- Assigning a category is done in the merged editor now, so this half is collapsed
+             rather than deleted: the grid, its context menus and its code-behind all still work,
+             and clearing the Visibility brings it back. -->
+        <TabItem Header="{DynamicResource LOCPlayAch_ManageAchievements_Category_Tab_Assign}"
+                 Visibility="Collapsed">
     <Grid Margin="0">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
@@ -322,13 +335,16 @@
                             Margin="8,6,0,0" />
 
                     <!-- Pick any category the manager shows - user-created empty ones included,
-                         since a nested one cannot be reached by typing - or type a new one. -->
+                         since a nested one cannot be reached by typing - or create one from the
+                         row at the top of the list. -->
                     <controls:CategoryPickerBox x:Name="CategoryInputPicker"
                                                 Grid.Row="2"
                                                 Grid.Column="0"
                                                 VerticalAlignment="Center"
                                                 Categories="{Binding AssignableCategoryOptions}"
                                                 Placeholder="{DynamicResource LOCPlayAch_ManageAchievements_Category_InputPlaceholder}"
+                                                AllowCreateNew="True"
+                                                CreateNewText="{DynamicResource LOCPlayAch_ManageAchievements_Category_NewCategoryEllipsis}"
                                                 Margin="{StaticResource PlayAch.Thickness.Top.Sm}" />
 
                         <Button x:Name="ApplyBulkButton"
@@ -344,7 +360,11 @@
     </Grid>
         </TabItem>
 
-        <TabItem Header="{DynamicResource LOCPlayAch_ManageAchievements_Category_Context_ManageCategories}">
+        <!-- Selected explicitly: a collapsed TabItem is still selectable, so with Assign
+             collapsed above the control would otherwise default to it and show its content under
+             no header at all. -->
+        <TabItem Header="{DynamicResource LOCPlayAch_ManageAchievements_Category_Context_ManageCategories}"
+                 IsSelected="True">
             <Grid Margin="0">
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto" />
@@ -677,6 +697,33 @@
                                                  Focusable="True"
                                                  HorizontalAlignment="Center"
                                                  VerticalAlignment="Center" />
+                                </DataTemplate>
+                            </DataGridTemplateColumn.CellTemplate>
+                        </DataGridTemplateColumn>
+
+                        <DataGridTemplateColumn Width="Auto"
+                                                MinWidth="120"
+                                                CanUserResize="False"
+                                                CanUserSort="False"
+                                                Header="{DynamicResource LOCPlayAch_Menu_Filters}">
+                            <DataGridTemplateColumn.CellTemplate>
+                                <DataTemplate>
+                                    <!-- A button with a menu built per click, as in the Editor's
+                                         Filters column, rather than a ComboBox: a recycled combo
+                                         raises SelectionChanged while it rebinds, which wrote one
+                                         row's scope onto another during scrolling. A click only
+                                         comes from the user. Picking a scope pushes it onto this
+                                         category's own achievements, and the face then shows what
+                                         they hold, blank when they disagree. -->
+                                    <Button Content="{Binding FilterScopeDisplayText}"
+                                            Style="{StaticResource AchievementSelectorButtonStyle}"
+                                            IsEnabled="{Binding CanEditFilterScope}"
+                                            Click="CategoryFilterScopeButton_Click"
+                                            ToolTip="{DynamicResource LOCPlayAch_ManageAchievements_Category_FilterScopeTooltip}"
+                                            MinHeight="22"
+                                            HorizontalAlignment="Stretch"
+                                            VerticalAlignment="Center"
+                                            Margin="4,0" />
                                 </DataTemplate>
                             </DataGridTemplateColumn.CellTemplate>
                         </DataGridTemplateColumn>

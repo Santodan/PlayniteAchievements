@@ -33,7 +33,9 @@
 
             <controls:CategoryPickerBox x:Name="PickerBox"
                                         Categories="{Binding Categories}"
-                                        Placeholder="{DynamicResource LOCPlayAch_ManageAchievements_Category_InputPlaceholder}"/>
+                                        Placeholder="{DynamicResource LOCPlayAch_ManageAchievements_Category_InputPlaceholder}"
+                                        AllowCreateNew="True"
+                                        CreateNewText="{DynamicResource LOCPlayAch_ManageAchievements_Category_NewCategoryEllipsis}"/>
         </StackPanel>
 
         <StackPanel Grid.Row="1"

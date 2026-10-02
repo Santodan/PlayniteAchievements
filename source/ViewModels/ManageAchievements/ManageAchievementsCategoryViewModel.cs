@@ -63,6 +63,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         private bool _hasCustomSummaryCategory;
         private bool _isEnforcingSummarySelection;
         private bool _isPersistingCategoryMetadata;
+        private bool _isStampingFilterScopes;
         private bool _hasCategoryImageValidationErrors;
         private bool _hasDeferredLibraryRefresh;
         private string _categoryImageStatusText;
@@ -388,6 +389,17 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         }
 
         public void ReloadData()
+        {
+            // Rebuilds every achievement row and the category tree behind them, on the UI thread.
+            // This is the tab a bulk category session lives in, so it is the scope most likely to
+            // name the stall.
+            using (PerfScope.Start(_logger, "Manage.Category.ReloadData", thresholdMs: 25))
+            {
+                ReloadDataCore();
+            }
+        }
+
+        private void ReloadDataCore()
         {
             try
             {

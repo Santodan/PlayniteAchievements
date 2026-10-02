@@ -65,9 +65,9 @@ namespace PlayniteAchievements.Tests.Views
             AssertContainsAll(
                 code,
                 "public BulkObservableCollection<FriendAchievementDisplayItem> SelectedFriendGameAllAchievements { get; }",
-                "SelectedFriendGameAllAchievements.ReplaceAll(HasFriendGameSelection");
+                "CollectionHelper.Replace(SelectedFriendGameAllAchievements, HasFriendGameSelection");
             Assert.IsFalse(
-                code.Contains("SelectedFriendGameAllAchievements.ReplaceAll(_filteredAchievementsList"),
+                code.Contains("CollectionHelper.Replace(SelectedFriendGameAllAchievements, _filteredAchievementsList"),
                 "Friends overview category-summary source must not follow the filtered/sorted achievement list.");
         }
 
@@ -111,19 +111,6 @@ namespace PlayniteAchievements.Tests.Views
             Assert.IsFalse(
                 code.Contains("EnsureDefaultCategoryLabel("),
                 "Manage Categories must not synthesize an empty Default category row.");
-        }
-
-        [TestMethod]
-        public void ManageFiltersTab_BuildsCategoryOptionsFromCanonicalOrder()
-        {
-            var code = File.ReadAllText(FindRepoFile(
-                "source", "ViewModels", "ManageAchievements", "ManageAchievementsFiltersViewModel.cs"));
-
-            AssertContainsAll(
-                code,
-                "canonicalAchievements = orderedAchievements;",
-                "canonicalAchievements = rawAchievements;",
-                "                    canonicalAchievements,");
         }
 
         /// <summary>

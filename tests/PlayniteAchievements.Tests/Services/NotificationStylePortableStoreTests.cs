@@ -92,6 +92,72 @@ namespace PlayniteAchievements.Services.Tests
         }
 
         [TestMethod]
+        public async Task ExportSurfacePackage_CarriesEachKindStyleAndItsOwnImages()
+        {
+            var tempDir = CreateTempDirectory();
+            try
+            {
+                var store = CreateStore(tempDir, out _);
+
+                var sourceDir = Path.Combine(tempDir, "src");
+                Directory.CreateDirectory(sourceDir);
+                var sharedBadge = Path.Combine(sourceDir, "shared.png");
+                var capstoneBadge = Path.Combine(sourceDir, "capstone.png");
+                WritePlaceholderFile(sharedBadge, "shared-bytes");
+                WritePlaceholderFile(capstoneBadge, "capstone-bytes");
+
+                var style = NotificationStyleSettings.CreateDefault();
+                style.Toast.HeaderTexts.UnlockHeader = "Shared header";
+                style.Toast.BadgeImages.CommonPath = sharedBadge;
+
+                var capstone = style.EnableKindStyle(NotificationKind.Capstone);
+                capstone.Toast.HeaderTexts.UnlockHeader = "Capstone header";
+                capstone.Toast.CardWidth = 640;
+                capstone.Toast.BadgeImages.CommonPath = capstoneBadge;
+
+                var rare = style.EnableKindStyle(NotificationKind.Rare);
+                rare.Toast.ShowIcon = false;
+
+                var packagePath = Path.Combine(tempDir, "pack.panotif");
+                store.ExportSurfacePackage(isFrame: false, style, packagePath);
+
+                using (var archive = ZipFile.OpenRead(packagePath))
+                {
+                    var entryNames = archive.Entries.Select(entry => entry.FullName).ToList();
+                    CollectionAssert.Contains(entryNames, "images/badge_common.png");
+                    CollectionAssert.Contains(entryNames, "images/kind_capstone__badge_common.png");
+                }
+
+                var imported = await store.ImportAsync(
+                    packagePath, targetProviderKeyOrNull: null, CancellationToken.None);
+
+                Assert.AreEqual("Shared header", imported.Toast.HeaderTexts.UnlockHeader);
+                Assert.IsTrue(imported.HasKindStyle(NotificationKind.Capstone));
+                Assert.IsTrue(imported.HasKindStyle(NotificationKind.Rare));
+
+                var importedCapstone = imported.ResolveKind(NotificationKind.Capstone);
+                Assert.AreEqual("Capstone header", importedCapstone.Toast.HeaderTexts.UnlockHeader);
+                Assert.AreEqual(640d, importedCapstone.Toast.CardWidth);
+                Assert.IsFalse(imported.ResolveKind(NotificationKind.Rare).Toast.ShowIcon);
+
+                // The kind's image override lands in its own folder, not on the shared slot.
+                var sharedSuffix = Path.Combine("notification_images", "global", "badge_common.png");
+                var capstoneSuffix = Path.Combine(
+                    "notification_images", "global", "kinds", "capstone", "badge_common.png");
+                Assert.IsTrue(imported.Toast.BadgeImages.CommonPath.EndsWith(sharedSuffix, StringComparison.OrdinalIgnoreCase));
+                Assert.IsTrue(importedCapstone.Toast.BadgeImages.CommonPath.EndsWith(capstoneSuffix, StringComparison.OrdinalIgnoreCase));
+                Assert.IsTrue(File.Exists(imported.Toast.BadgeImages.CommonPath));
+                Assert.IsTrue(File.Exists(importedCapstone.Toast.BadgeImages.CommonPath));
+                Assert.AreEqual("shared-bytes", File.ReadAllText(imported.Toast.BadgeImages.CommonPath));
+                Assert.AreEqual("capstone-bytes", File.ReadAllText(importedCapstone.Toast.BadgeImages.CommonPath));
+            }
+            finally
+            {
+                DeleteDirectory(tempDir);
+            }
+        }
+
+        [TestMethod]
         public async Task ExportSurfacePackage_Frame_RoundTripsOnlyTheFrameSurface()
         {
             var tempDir = CreateTempDirectory();

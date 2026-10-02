@@ -15,6 +15,11 @@ namespace PlayniteAchievements.Providers.Steam
         internal const string BaseCategoryType = "Base";
         internal const string DlcCategoryType = "DLC";
         internal const string UpdateCategoryType = "Update";
+        internal const string MultiplayerCategoryType = "Multiplayer";
+
+        // The group name the includeMultiplayerGroup request flag gives base-game achievements
+        // tagged Multiplayer.
+        private const string MultiplayerGroupName = "Multiplayer";
 
         // Enrichment is best-effort: after consecutive failed fetches, stop calling out for the
         // rest of the session (until ClearCache) so an unreachable steamhunters.com cannot stall
@@ -27,6 +32,8 @@ namespace PlayniteAchievements.Providers.Steam
         private readonly object _cacheLock = new object();
         private readonly Dictionary<int, Task<SteamHuntersAchievementGroupsResponse>> _groupsByAppId =
             new Dictionary<int, Task<SteamHuntersAchievementGroupsResponse>>();
+        private readonly Dictionary<int, Task<List<SteamHuntersAchievement>>> _achievementsByAppId =
+            new Dictionary<int, Task<List<SteamHuntersAchievement>>>();
         private int _consecutiveFailures;
 
         public SteamHuntersCategoryEnricher(
@@ -44,6 +51,7 @@ namespace PlayniteAchievements.Providers.Steam
             lock (_cacheLock)
             {
                 _groupsByAppId.Clear();
+                _achievementsByAppId.Clear();
             }
 
             Interlocked.Exchange(ref _consecutiveFailures, 0);
@@ -83,6 +91,11 @@ namespace PlayniteAchievements.Providers.Steam
 
             ApplyGroups(achievements, response.Groups, response.GroupBy, gameName);
 
+            // After ApplyGroups, which resets every achievement's type, so the Unobtainable tag
+            // is re-derived on each refresh rather than accumulating.
+            var obtainability = await GetAchievementsAsync(appId, cancel).ConfigureAwait(false);
+            ApplyObtainability(achievements, obtainability);
+
             if (playniteGameId.HasValue && playniteGameId.Value != Guid.Empty)
             {
                 await DownloadCategoryArtImagesAsync(playniteGameId.Value, response, gameName, appId, cancel)
@@ -121,6 +134,12 @@ namespace PlayniteAchievements.Providers.Steam
 
             foreach (var group in groups)
             {
+                // Multiplayer achievements share the base category, which the base entry covers.
+                if (IsMultiplayerGroup(groupBy, group))
+                {
+                    continue;
+                }
+
                 // DLC art comes from the DLC's own appId whenever a group carries one -- launch or
                 // update alike -- while the "game" grouping mode always uses the base banner. Keyed
                 // on the DlcAppId signal directly so DLC-update groups ("DLC|Update") still map to
@@ -257,11 +276,18 @@ namespace PlayniteAchievements.Providers.Steam
             for (var i = 0; i < (groups?.Count ?? 0); i++)
             {
                 var group = groups[i];
-                var type = ResolveCategoryType(groupBy, group);
-                var label = NormalizeGroupLabel(group, gameName)
-                    ?? (string.Equals(type, BaseCategoryType, StringComparison.Ordinal)
-                        ? baseFallbackLabel
-                        : null);
+                var isMultiplayer = IsMultiplayerGroup(groupBy, group);
+                var type = isMultiplayer
+                    ? AchievementCategoryTypeHelper.Combine(new[] { BaseCategoryType, MultiplayerCategoryType })
+                    : ResolveCategoryType(groupBy, group);
+                // Multiplayer achievements are still base-game achievements, so they keep the
+                // base category label rather than becoming a "Multiplayer" category.
+                var label = isMultiplayer
+                    ? baseFallbackLabel
+                    : NormalizeGroupLabel(group, gameName)
+                        ?? (string.Equals(type, BaseCategoryType, StringComparison.Ordinal)
+                            ? baseFallbackLabel
+                            : null);
 
                 foreach (var apiName in group?.AchievementApiNames ?? Enumerable.Empty<string>())
                 {
@@ -284,6 +310,61 @@ namespace PlayniteAchievements.Providers.Steam
             }
 
             return updated;
+        }
+
+        // Adds Unobtainable to achievements SteamHunters' moderators mark Unobtainable or broken
+        // but obtainable. Conditionally obtainable achievements get no type.
+        internal static int ApplyObtainability(
+            IList<AchievementDetail> achievements,
+            IList<SteamHuntersAchievement> steamHuntersAchievements)
+        {
+            if (achievements == null || achievements.Count == 0 ||
+                steamHuntersAchievements == null || steamHuntersAchievements.Count == 0)
+            {
+                return 0;
+            }
+
+            var unobtainableApiNames = new HashSet<string>(
+                steamHuntersAchievements
+                    .Where(item => item?.Obtainability == SteamHuntersObtainability.Unobtainable ||
+                                   item?.Obtainability == SteamHuntersObtainability.BrokenButObtainable)
+                    .Select(item => NormalizeApiName(item.ApiName))
+                    .Where(apiName => apiName != null),
+                StringComparer.OrdinalIgnoreCase);
+            if (unobtainableApiNames.Count == 0)
+            {
+                return 0;
+            }
+
+            var updated = 0;
+            foreach (var achievement in achievements)
+            {
+                var apiName = NormalizeApiName(achievement?.ApiName);
+                if (apiName == null || !unobtainableApiNames.Contains(apiName))
+                {
+                    continue;
+                }
+
+                var combined = AchievementCategoryTypeHelper.Combine(
+                    new[] { achievement.CategoryType, AchievementCategoryTypeHelper.UnobtainableCategoryType });
+                if (!string.Equals(achievement.CategoryType, combined, StringComparison.Ordinal))
+                {
+                    achievement.CategoryType = combined;
+                    updated++;
+                }
+            }
+
+            return updated;
+        }
+
+        // The includeMultiplayerGroup group only ever holds base-game achievements, so it has no
+        // DlcAppId; the "game" grouping mode never produces it.
+        internal static bool IsMultiplayerGroup(string groupBy, SteamHuntersAchievementGroup group)
+        {
+            return group != null &&
+                   !group.DlcAppId.HasValue &&
+                   !string.Equals(groupBy, "game", StringComparison.OrdinalIgnoreCase) &&
+                   string.Equals(group.Name?.Trim(), MultiplayerGroupName, StringComparison.OrdinalIgnoreCase);
         }
 
         private static string ResolveCategoryType(string groupBy, SteamHuntersAchievementGroup group)
@@ -351,6 +432,49 @@ namespace PlayniteAchievements.Providers.Steam
             {
                 _logger?.Warn(ex, $"[SteamHunters] Group fetch failed for appId={appId}; category enrichment skipped.");
                 RecordFailure();
+                return null;
+            }
+        }
+
+        // Cached per app like the groups. Obtainability is optional enrichment on top of the
+        // groups, so a failure here is logged by the client and never counts toward the fetch
+        // backoff; the backoff does skip it once groups have stopped loading.
+        private Task<List<SteamHuntersAchievement>> GetAchievementsAsync(
+            int appId,
+            CancellationToken cancel)
+        {
+            lock (_cacheLock)
+            {
+                if (!_achievementsByAppId.TryGetValue(appId, out var task))
+                {
+                    task = FetchAchievementsAsync(appId, cancel);
+                    _achievementsByAppId[appId] = task;
+                }
+
+                return task;
+            }
+        }
+
+        private async Task<List<SteamHuntersAchievement>> FetchAchievementsAsync(
+            int appId,
+            CancellationToken cancel)
+        {
+            if (Volatile.Read(ref _consecutiveFailures) >= MaxConsecutiveFailures)
+            {
+                return null;
+            }
+
+            try
+            {
+                return await _apiClient.GetAchievementsAsync(appId, cancel).ConfigureAwait(false);
+            }
+            catch (OperationCanceledException) when (cancel.IsCancellationRequested)
+            {
+                throw;
+            }
+            catch (Exception ex)
+            {
+                _logger?.Debug(ex, $"[SteamHunters] Obtainability fetch failed for appId={appId}.");
                 return null;
             }
         }

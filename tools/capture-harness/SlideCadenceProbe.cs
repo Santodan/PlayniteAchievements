@@ -24,8 +24,26 @@ using System.Windows.Threading;
 internal static class SlideCadenceProbe
 {
     private const int SlideDurationMs = 240;
-    private const double CardWidthDip = 442d;
-    private const double CardHeightDip = 138d;
+    // Card geometry and effect weight, overridable from the command line. The defaults are the
+    // original 442x138 card with a 12-radius shadow, which on any reasonably quick display pins
+    // every Transform variant at 100% of refresh - so the BitmapCache and padding variants have no
+    // headroom in which a win could appear, and measuring them there proves nothing. A user card is
+    // configurable up to several times that width and, with the border glow on, carries a 36-radius
+    // gaussian; at 200% display scale that is ~19x the pixel area and a 72-device-pixel blur.
+    //
+    // Scale is not settable from here, so reproduce a scaled card by its device-pixel equivalent:
+    // --card-width 2328 --card-height 496 --glow 72 is the same rasterization work at 100% as a
+    // 1164x248 card with a 36-radius glow at 200%.
+    private static double CardWidthDip = 442d;
+    private static double CardHeightDip = 138d;
+    private static double CardGlowRadius = 12d;
+
+    /// <summary>
+    /// Gives each text line the real template's nested effect pair - an effect on the line's wrapper
+    /// and another on the text inside it - which costs two full-width render intermediates per line
+    /// instead of one.
+    /// </summary>
+    private static bool NestedTextShadows;
     private const double TravelPaddingDip = 40d;
 
     private const int SWP_NOSIZE = 0x0001;
@@ -116,6 +134,22 @@ internal static class SlideCadenceProbe
             else if (args[i] == "--load")
             {
                 load = i + 1 < args.Length && int.TryParse(args[i + 1], out var n) ? Math.Max(1, n) : 2;
+            }
+            else if (args[i] == "--card-width" && i + 1 < args.Length)
+            {
+                CardWidthDip = Math.Max(1d, double.Parse(args[++i], CultureInfo.InvariantCulture));
+            }
+            else if (args[i] == "--card-height" && i + 1 < args.Length)
+            {
+                CardHeightDip = Math.Max(1d, double.Parse(args[++i], CultureInfo.InvariantCulture));
+            }
+            else if (args[i] == "--glow" && i + 1 < args.Length)
+            {
+                CardGlowRadius = Math.Max(0d, double.Parse(args[++i], CultureInfo.InvariantCulture));
+            }
+            else if (args[i] == "--nested")
+            {
+                NestedTextShadows = true;
             }
         }
 
@@ -511,20 +545,9 @@ internal static class SlideCadenceProbe
     private static FrameworkElement BuildCard()
     {
         var text = new StackPanel { Margin = new Thickness(18, 12, 18, 12) };
-        text.Children.Add(new TextBlock
-        {
-            Text = "Achievement unlocked",
-            FontSize = 18,
-            Foreground = Brushes.White,
-            Effect = new DropShadowEffect { BlurRadius = 5, ShadowDepth = 4, Opacity = 0.8 },
-        });
-        text.Children.Add(new TextBlock
-        {
-            Text = "A reasonably long achievement description line",
-            FontSize = 13,
-            Foreground = Brushes.LightGray,
-            Effect = new DropShadowEffect { BlurRadius = 5, ShadowDepth = 3, Opacity = 0.7 },
-        });
+        text.Children.Add(BuildLine("Achievement unlocked", 18, Brushes.White, 4, 0.8));
+        text.Children.Add(BuildLine(
+            "A reasonably long achievement description line", 13, Brushes.LightGray, 3, 0.7));
 
         var row = new StackPanel { Orientation = Orientation.Horizontal };
         row.Children.Add(new Border
@@ -545,10 +568,40 @@ internal static class SlideCadenceProbe
             Background = new SolidColorBrush(Color.FromRgb(24, 24, 28)),
             BorderBrush = new SolidColorBrush(Color.FromRgb(70, 70, 80)),
             BorderThickness = new Thickness(1),
-            Effect = new DropShadowEffect { BlurRadius = 12, ShadowDepth = 0, Opacity = 0.9 },
+            Effect = new DropShadowEffect { BlurRadius = CardGlowRadius, ShadowDepth = 0, Opacity = 0.9 },
             Child = row,
             IsHitTestVisible = false,
         };
+    }
+
+    /// <summary>
+    /// One text line carrying the real template's shadow shape: a single effect on the text, or -
+    /// with <see cref="NestedTextShadows"/> - an effect on a wrapper as well, which is what the
+    /// template does to get a shadow denser than one feathered gaussian can produce and what costs
+    /// a second full-width render intermediate per line.
+    /// </summary>
+    private static FrameworkElement BuildLine(
+        string content, double fontSize, Brush foreground, double depth, double opacity)
+    {
+        var line = new TextBlock
+        {
+            Text = content,
+            FontSize = fontSize,
+            Foreground = foreground,
+            Effect = new DropShadowEffect { BlurRadius = 5, ShadowDepth = depth, Opacity = opacity },
+        };
+
+        if (!NestedTextShadows)
+        {
+            return line;
+        }
+
+        var wrapper = new Grid
+        {
+            Effect = new DropShadowEffect { BlurRadius = 2.5, ShadowDepth = depth, Opacity = opacity },
+        };
+        wrapper.Children.Add(line);
+        return wrapper;
     }
 
     private static async System.Threading.Tasks.Task<int> WaitFrames(int frames, int timeoutMs)

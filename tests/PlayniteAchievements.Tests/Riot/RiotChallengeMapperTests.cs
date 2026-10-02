@@ -122,7 +122,9 @@ namespace PlayniteAchievements.Riot.Tests
             ["5"] = "Collection"
         };
 
-        private static List<AchievementDetail> Build()
+        private static List<AchievementDetail> Build() => Build(Now);
+
+        private static List<AchievementDetail> Build(DateTime nowUtc)
         {
             var metadata = RiotChallengeMapper.ParseMetadata(MetadataJson);
             var playerData = RiotChallengeMapper.ParsePlayerData(PlayerDataJson);
@@ -134,10 +136,31 @@ namespace PlayniteAchievements.Riot.Tests
                 LevelPercentiles = RiotChallengeMapper.ParsePercentiles(PercentilesJson)
             };
 
-            return RiotChallengeMapper.BuildAchievements(metadata, state, CategoryNames, Now);
+            return RiotChallengeMapper.BuildAchievements(metadata, state, CategoryNames, nowUtc);
         }
 
         private static AchievementDetail Get(string apiName) => Build().Single(a => a.ApiName == apiName);
+
+        [TestMethod]
+        public void BuildCategoryArtPlan_GivesTheCapstoneCategoryItsHighestTierToken()
+        {
+            var metadata = RiotChallengeMapper.ParseMetadata(MetadataJson);
+
+            var plan = RiotChallengeMapper.BuildCategoryArtPlan(metadata, CategoryNames);
+
+            Assert.AreEqual(1, plan.Count, "Only the capstone group has art; the top-level category has none.");
+            Assert.AreEqual(Get("101001:IRON").Category, plan[0].Label);
+            Assert.AreEqual(
+                RiotChallengeMapper.BuildAssetUrl("/lol-game-data/assets/ASSETS/Challenges/Config/101000/Tokens/GOLD.png"),
+                plan[0].IconUrl);
+        }
+
+        [TestMethod]
+        public void BuildCategoryArtPlan_EmptyMetadataYieldsNothing()
+        {
+            Assert.AreEqual(0, RiotChallengeMapper.BuildCategoryArtPlan(null, CategoryNames).Count);
+            Assert.AreEqual(0, RiotChallengeMapper.BuildCategoryArtPlan(new CDragonChallengeFile(), CategoryNames).Count);
+        }
 
         [TestMethod]
         public void BuildAchievements_EmitsOneAchievementPerThresholdTier()
@@ -309,10 +332,20 @@ namespace PlayniteAchievements.Riot.Tests
         }
 
         [TestMethod]
-        public void BuildAchievements_MarksRetiredChallengesMissable()
+        public void BuildAchievements_MarksRetiredChallengesUnobtainable()
         {
-            Assert.AreEqual("Missable", Get("900001:IRON").CategoryType, "Its end timestamp has passed.");
+            Assert.AreEqual("Unobtainable", Get("900001:IRON").CategoryType, "Its end timestamp has passed.");
             Assert.IsNull(Get("101001:IRON").CategoryType, "An open-ended challenge carries no category type.");
+        }
+
+        [TestMethod]
+        public void BuildAchievements_MarksChallengesBeforeTheirEndDateMissable()
+        {
+            // 900001 ends at 1600000000000 (2020-09-13); a day earlier it can still be earned.
+            var beforeEnd = new DateTime(2020, 9, 12, 0, 0, 0, DateTimeKind.Utc);
+            var challenge = Build(beforeEnd).Single(a => a.ApiName == "900001:IRON");
+
+            Assert.AreEqual("Missable", challenge.CategoryType);
         }
 
         [TestMethod]
@@ -350,15 +383,45 @@ namespace PlayniteAchievements.Riot.Tests
         }
 
         [TestMethod]
-        public void BuildAchievements_NamesEveryTierAfterItsChallenge()
+        public void BuildAchievements_NamesEveryTierAfterItsChallengeAndItsTier()
         {
             foreach (var tier in new[] { "IRON", "BRONZE", "SILVER", "GOLD" })
             {
+                var expectedTier = tier.Substring(0, 1) + tier.Substring(1).ToLowerInvariant();
                 Assert.AreEqual(
-                    "ARAM Authority",
+                    "ARAM Authority (" + expectedTier + ")",
                     Get("101000:" + tier).DisplayName,
-                    "Tiers share the challenge name; the token art distinguishes them.");
+                    "Tiers share the challenge name, so the tier is what distinguishes the rows.");
             }
+        }
+
+        [TestMethod]
+        public void ComposeTierDisplayName_TitleCasesTheTier()
+        {
+            Assert.AreEqual(
+                "Always On Time (Grandmaster)",
+                RiotChallengeMapper.ComposeTierDisplayName("Always On Time", "GRANDMASTER"));
+        }
+
+        [TestMethod]
+        public void ComposeTierDisplayName_KeepsTheBareNameWhenEitherPartIsMissing()
+        {
+            Assert.AreEqual(
+                "Always On Time",
+                RiotChallengeMapper.ComposeTierDisplayName("Always On Time", "NONE"),
+                "NONE is not a tier, so there is nothing to append.");
+
+            Assert.AreEqual(
+                "Always On Time",
+                RiotChallengeMapper.ComposeTierDisplayName("Always On Time", "NOT_A_TIER"),
+                "An unrecognized tier must not compose an empty parenthetical.");
+
+            Assert.AreEqual(
+                "   ",
+                RiotChallengeMapper.ComposeTierDisplayName("   ", "IRON"),
+                "A blank challenge name is returned untouched rather than becoming just a tier.");
+
+            Assert.IsNull(RiotChallengeMapper.ComposeTierDisplayName(null, "IRON"));
         }
 
         [TestMethod]

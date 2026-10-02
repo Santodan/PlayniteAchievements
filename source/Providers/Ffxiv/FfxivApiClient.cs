@@ -23,6 +23,7 @@ namespace PlayniteAchievements.Providers.Ffxiv
         private const int MaxAttempts = 5;
 
         private static readonly Uri ApiBase = new Uri("https://ffxivcollect.com/api/");
+        private const string ProjectUrl = "https://github.com/justin-delano/PlayniteAchievements";
 
         private readonly ILogger _logger;
         private readonly HttpClient _http;
@@ -55,12 +56,12 @@ namespace PlayniteAchievements.Providers.Ffxiv
         /// Fetches the full achievement catalog, paging until exhausted. Results are
         /// keyed by id to dedupe defensively in case the paging parameter is ignored.
         /// </summary>
-        public async Task<List<FfxivAchievement>> FetchCatalogAsync(CancellationToken cancel)
+        public async Task<List<FfxivAchievement>> FetchCatalogAsync(long? lodestoneId, CancellationToken cancel)
         {
             // FFXIV Collect returns the full data set by default; omit limit to get
             // the entire catalog in one call (it does not support start/page paging).
             var uri = new Uri(ApiBase, "achievements");
-            var json = await GetRawAsync(uri, cancel).ConfigureAwait(false);
+            var json = await GetRawAsync(uri, lodestoneId, cancel).ConfigureAwait(false);
             var response = JsonConvert.DeserializeObject<FfxivAchievementsResponse>(json);
 
             var byId = new Dictionary<int, FfxivAchievement>();
@@ -89,7 +90,7 @@ namespace PlayniteAchievements.Providers.Ffxiv
             string json;
             try
             {
-                json = await GetRawAsync(uri, cancel).ConfigureAwait(false);
+                json = await GetRawAsync(uri, lodestoneId, cancel).ConfigureAwait(false);
             }
             catch (FfxivApiException ex) when (ex.StatusCode == HttpStatusCode.NotFound)
             {
@@ -120,7 +121,7 @@ namespace PlayniteAchievements.Providers.Ffxiv
             string html;
             try
             {
-                html = await GetRawAsync(new Uri(url), cancel).ConfigureAwait(false);
+                html = await GetRawAsync(new Uri(url), lodestoneId: null, cancel).ConfigureAwait(false);
             }
             catch (Exception ex)
             {
@@ -149,12 +150,32 @@ namespace PlayniteAchievements.Providers.Ffxiv
             }
         }
 
-        private async Task<string> GetRawAsync(Uri uri, CancellationToken cancel)
+        /// <summary>
+        /// User-Agent naming the plugin, its version and a contact URL, plus the Lodestone id of
+        /// the character the install is configured for. FFXIV Collect's operator can then limit
+        /// or block a single install instead of every user of the plugin at once.
+        /// </summary>
+        internal static string BuildUserAgent(string version, long? lodestoneId)
         {
+            var product = string.IsNullOrWhiteSpace(version)
+                ? "PlayniteAchievements"
+                : "PlayniteAchievements/" + version.Trim();
+            var comment = "+" + ProjectUrl;
+            if (lodestoneId.HasValue && lodestoneId.Value > 0)
+            {
+                comment += "; character " + lodestoneId.Value.ToString(CultureInfo.InvariantCulture);
+            }
+
+            return product + " (" + comment + ")";
+        }
+
+        private async Task<string> GetRawAsync(Uri uri, long? lodestoneId, CancellationToken cancel)
+        {
+            var userAgent = BuildUserAgent(Common.PluginManifest.Version, lodestoneId);
             var response = await SendWithRetryAsync(() =>
             {
                 var req = new HttpRequestMessage(HttpMethod.Get, uri);
-                req.Headers.TryAddWithoutValidation("User-Agent", "PlayniteAchievements/FFXIV");
+                req.Headers.TryAddWithoutValidation("User-Agent", userAgent);
                 return req;
             }, cancel).ConfigureAwait(false);
 

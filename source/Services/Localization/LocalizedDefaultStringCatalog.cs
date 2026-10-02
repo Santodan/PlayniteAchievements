@@ -78,6 +78,18 @@ namespace PlayniteAchievements.Services.Localization
         }
 
         /// <summary>
+        /// Every composed default of the definition across the shipped languages (trimmed), for
+        /// defaults that are themselves format templates and so have to be rendered before a
+        /// stored value can be compared against them. Empty for an unknown definition.
+        /// </summary>
+        public IReadOnlyCollection<string> GetKnownDefaults(string definitionId)
+        {
+            return definitionId != null && _knownDefaults.TryGetValue(definitionId, out var texts)
+                ? texts.ToList()
+                : new List<string>();
+        }
+
+        /// <summary>
         /// Returns the text a stored value should be replaced with when it is an
         /// un-customized default from any language, or null when it should be left alone
         /// (customized, blank, or already equal to the current default).

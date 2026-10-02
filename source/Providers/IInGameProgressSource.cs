@@ -1,4 +1,5 @@
 using Playnite.SDK.Models;
+using PlayniteAchievements.Common;
 using PlayniteAchievements.Models;
 using PlayniteAchievements.Models.Achievements;
 using System;
@@ -14,15 +15,63 @@ namespace PlayniteAchievements.Providers
     /// authoritative event time. SourceObservation is for persisted-state sources whose embedded
     /// timestamp is not guaranteed to share the recorder's local clock/correlation point. Steam's
     /// persisted achievement epoch versus the local StoreStats file change is the canonical example.
+    ///
+    /// A registration that states nothing is resolved from its mechanism by
+    /// <see cref="InGameUnlockAnchorSelector.ResolvePolicy"/>, so a remote source cannot silently
+    /// inherit the provider-reported default.
     /// </summary>
     internal enum InGameUnlockAnchorPolicy
     {
-        ProviderReported = 0,
-        SourceObservation = 1
+        /// <summary>
+        /// Unstated: resolved from the registration's mechanism rather than declared. This is the
+        /// default so that "never considered" stays distinguishable from a deliberate
+        /// <see cref="ProviderReported"/>.
+        /// </summary>
+        Auto = 0,
+        ProviderReported = 1,
+        SourceObservation = 2
     }
 
     internal static class InGameUnlockAnchorSelector
     {
+        /// <summary>
+        /// Resolves the effective anchor policy for a registration. An explicitly declared policy
+        /// always wins; an unstated one is derived from the registration's mechanism. A remote
+        /// source's unlock stamp is produced by the provider's server clock, which shares no
+        /// correlation point with the capture timeline, so it can only anchor on the local
+        /// observation.
+        ///
+        /// <see cref="InGameProgressRegistration.IsRemote"/> means "read over the network", which
+        /// is not literally "foreign clock", but the two coincide for every source here and both
+        /// ways they could diverge are safe: a remote source reporting a client-produced stamp is
+        /// conservatively observation-anchored, costing one poll interval of precision, and the one
+        /// local source holding a foreign stamp -- Steam's persisted epoch -- declares
+        /// <see cref="InGameUnlockAnchorPolicy.SourceObservation"/> explicitly.
+        /// </summary>
+        public static InGameUnlockAnchorPolicy ResolvePolicy(InGameProgressRegistration registration)
+        {
+            var declared = registration?.UnlockAnchorPolicy ?? InGameUnlockAnchorPolicy.Auto;
+
+            // A source that declares a foreign reported clock may only use its stamps while that
+            // clock is correlated with the capture timeline. Before the first sample the stamps
+            // are still the right value to store and show, but they cannot seek the buffer.
+            if (declared != InGameUnlockAnchorPolicy.SourceObservation &&
+                registration?.ReportedClock != null &&
+                !registration.ReportedClock.Offset.HasValue)
+            {
+                return InGameUnlockAnchorPolicy.SourceObservation;
+            }
+
+            if (declared != InGameUnlockAnchorPolicy.Auto)
+            {
+                return declared;
+            }
+
+            return registration?.IsRemote == true
+                ? InGameUnlockAnchorPolicy.SourceObservation
+                : InGameUnlockAnchorPolicy.ProviderReported;
+        }
+
         public static (DateTime? Utc, UnlockVideoAnchorSource Source) Select(
             InGameUnlockAnchorPolicy policy,
             DateTime? providerReportedUtc,
@@ -33,7 +82,13 @@ namespace PlayniteAchievements.Providers
                 !providerReportedUtc.HasValue;
             if (useObservation)
             {
-                return (observedUtc, UnlockVideoAnchorSource.SourceObservation);
+                // Discarding a stamp we cannot place on our own clock is distinct from never
+                // having had one. Both anchor on observation, but only the first says the
+                // provider's reported time is unusable for seeking the capture buffer.
+                var source = providerReportedUtc.HasValue
+                    ? UnlockVideoAnchorSource.SourceObservationForeignStamp
+                    : UnlockVideoAnchorSource.SourceObservation;
+                return (observedUtc, source);
             }
 
             // The bias compensates a provider whose reported stamp systematically precedes the
@@ -83,7 +138,16 @@ namespace PlayniteAchievements.Providers
         public bool IsRemote { get; set; }
 
         public InGameUnlockAnchorPolicy UnlockAnchorPolicy { get; set; } =
-            InGameUnlockAnchorPolicy.ProviderReported;
+            InGameUnlockAnchorPolicy.Auto;
+
+        /// <summary>
+        /// Set by a source whose reported unlock stamps originate on a provider's clock and are
+        /// converted onto the capture timeline before emission. Declaring it lets the source anchor
+        /// on its own stamps -- placing the notification on the unlock rather than on its detection
+        /// -- while keeping the guarantee that an unconverted foreign stamp never anchors a clip:
+        /// until the clock is correlated the anchor falls back to the local observation.
+        /// </summary>
+        public ServerClockOffset ReportedClock { get; set; }
 
         /// <summary>
         /// Correction added to the provider-reported timestamp when it anchors video capture, for

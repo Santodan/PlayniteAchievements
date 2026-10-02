@@ -78,7 +78,10 @@ namespace PlayniteAchievements.Services.Database
                     continue;
                 }
 
-                var incomingCategory = AchievementCategoryTypeHelper.NormalizeCategoryOrDefault(incoming.Category);
+                // Provider label first, for the reason the definition upsert gives: this table is
+                // provider data, and a hydrated payload carries the user's assignment in Category.
+                var incomingCategory = AchievementCategoryTypeHelper.NormalizeCategoryOrDefault(
+                    incoming.ProviderCategory ?? incoming.Category);
                 var incomingCategoryType = AchievementCategoryTypeHelper.NormalizeOrDefault(incoming.CategoryType);
                 var fillCategory = !IsDefaultCategoryValue(incomingCategory) && IsDefaultCategoryValue(existing.Category);
                 var fillCategoryType = !IsDefaultCategoryValue(incomingCategoryType) && IsDefaultCategoryValue(existing.CategoryType);

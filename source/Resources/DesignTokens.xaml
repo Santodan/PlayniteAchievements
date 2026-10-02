@@ -39,6 +39,7 @@
     <Color x:Key="PlayAch.Color.ActionLink">#4CC9F0</Color>
     <Color x:Key="PlayAch.Color.CompletedGame">#2196F3</Color>
     <Color x:Key="PlayAch.Color.ErrorText">#FFE07070</Color>
+    <Color x:Key="PlayAch.Color.MissableLock">#FFE04848</Color>
     <Color x:Key="PlayAch.Color.ProviderSteam">#B0B0B0</Color>
     <Color x:Key="PlayAch.Color.ProviderBattleNet">#14B8A6</Color>
     <Color x:Key="PlayAch.Color.ProviderEA">#E11D48</Color>
@@ -58,6 +59,8 @@
     <Color x:Key="PlayAch.Color.ProviderXenia">#92C83E</Color>
     <Color x:Key="PlayAch.Color.ProviderApple">#E5E5E5</Color>
     <Color x:Key="PlayAch.Color.ProviderFFXIV">#C0392B</Color>
+    <Color x:Key="PlayAch.Color.ProviderGW2">#E2601A</Color>
+    <Color x:Key="PlayAch.Color.ProviderHypixel">#F6B31E</Color>
     <Color x:Key="PlayAch.Color.MigrationAccent">#FF37A7C8</Color>
     <Color x:Key="PlayAch.Color.MigrationAccentPressed">#FF2D8FAB</Color>
 
@@ -108,7 +111,16 @@
         <GradientStop Offset="0.00" Color="#9C27B0"/>
         <GradientStop Offset="1.00" Color="#2196F3"/>
     </LinearGradientBrush>
+
+    <!-- Completed bloom underlay default; PlayAchResourceService replaces this with the user's
+         configured completed-game gradient colors at runtime. Diagonal to mirror the glow
+         shadows' 135/315 color bias. -->
+    <LinearGradientBrush x:Key="PlayAch.Brush.CompletedGlowBloom" StartPoint="0,0" EndPoint="1,1">
+        <GradientStop Offset="0.00" Color="#9C27B0"/>
+        <GradientStop Offset="1.00" Color="#2196F3"/>
+    </LinearGradientBrush>
     <SolidColorBrush x:Key="PlayAch.Brush.ErrorText" Color="{StaticResource PlayAch.Color.ErrorText}"/>
+    <SolidColorBrush x:Key="PlayAch.Brush.MissableLock" Color="{StaticResource PlayAch.Color.MissableLock}"/>
     <SolidColorBrush x:Key="PlayAch.Brush.ProviderSteam" Color="{StaticResource PlayAch.Color.ProviderSteam}"/>
     <SolidColorBrush x:Key="PlayAch.Brush.ProviderBattleNet" Color="{StaticResource PlayAch.Color.ProviderBattleNet}"/>
     <SolidColorBrush x:Key="PlayAch.Brush.ProviderEA" Color="{StaticResource PlayAch.Color.ProviderEA}"/>
@@ -128,6 +140,8 @@
     <SolidColorBrush x:Key="PlayAch.Brush.ProviderXenia" Color="{StaticResource PlayAch.Color.ProviderXenia}"/>
     <SolidColorBrush x:Key="PlayAch.Brush.ProviderApple" Color="{StaticResource PlayAch.Color.ProviderApple}"/>
     <SolidColorBrush x:Key="PlayAch.Brush.ProviderFFXIV" Color="{StaticResource PlayAch.Color.ProviderFFXIV}"/>
+    <SolidColorBrush x:Key="PlayAch.Brush.ProviderGW2" Color="{StaticResource PlayAch.Color.ProviderGW2}"/>
+    <SolidColorBrush x:Key="PlayAch.Brush.ProviderHypixel" Color="{StaticResource PlayAch.Color.ProviderHypixel}"/>
     <SolidColorBrush x:Key="PlayAch.Brush.MigrationAccent" Color="{StaticResource PlayAch.Color.MigrationAccent}"/>
     <SolidColorBrush x:Key="PlayAch.Brush.MigrationAccentPressed" Color="{StaticResource PlayAch.Color.MigrationAccentPressed}"/>
 
@@ -188,10 +202,19 @@
     <Thickness x:Key="PlayAch.Thickness.Top.Xs">0,4,0,0</Thickness>
     <Thickness x:Key="PlayAch.Thickness.Top.Sm">0,8,0,0</Thickness>
     <Thickness x:Key="PlayAch.Thickness.Top.Md">0,12,0,0</Thickness>
+    <Thickness x:Key="PlayAch.Thickness.Top.Lg">0,16,0,0</Thickness>
+    <!-- A heading that opens a group: separated from what precedes it, and not flush against
+         the first row beneath it. -->
+    <Thickness x:Key="PlayAch.Thickness.SubSectionHeading">0,12,0,8</Thickness>
     <Thickness x:Key="PlayAch.Thickness.Right.Xs">0,0,4,0</Thickness>
     <Thickness x:Key="PlayAch.Thickness.Right.Compact">0,0,6,0</Thickness>
     <Thickness x:Key="PlayAch.Thickness.Right.Sm">0,0,8,0</Thickness>
     <Thickness x:Key="PlayAch.Thickness.Right.Md">0,0,12,0</Thickness>
+    <!-- Indent for a group of settings rows that only applies when the row above it is on. One
+         value so every dependent group on every settings page steps in by the same amount; the
+         rows inside keep their own Bottom.SettingRow gap, so the group adds no vertical space. -->
+    <Thickness x:Key="PlayAch.Thickness.SettingRow.Indent">18,0,0,0</Thickness>
+
     <Thickness x:Key="PlayAch.Thickness.Left.Xs">4,0,0,0</Thickness>
     <Thickness x:Key="PlayAch.Thickness.Left.Sm">8,0,0,0</Thickness>
     <Thickness x:Key="PlayAch.Thickness.Left.Md">12,0,0,0</Thickness>

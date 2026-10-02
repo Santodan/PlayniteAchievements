@@ -574,5 +574,126 @@ namespace PlayniteAchievements.Steam.Tests
             Assert.AreEqual("Base|Update", achievements[0].CategoryType);
             Assert.AreEqual("Base Label", achievements[0].Category);
         }
+
+        [TestMethod]
+        public void ApplyGroups_MultiplayerGroup_TypesAsBaseMultiplayerUnderBaseLabel()
+        {
+            // Mirrors Portal 2 with includeMultiplayerGroup=true: the co-op achievements come
+            // back as a DlcAppId-less group named "Multiplayer" beside a real update group.
+            var achievements = new List<AchievementDetail>
+            {
+                new AchievementDetail { ApiName = "coop_ach" },
+                new AchievementDetail { ApiName = "update_ach" },
+                new AchievementDetail { ApiName = "base_ach" }
+            };
+            var groups = new List<SteamHuntersAchievementGroup>
+            {
+                new SteamHuntersAchievementGroup
+                {
+                    Name = "Multiplayer",
+                    AchievementApiNames = new List<string> { "coop_ach" }
+                },
+                new SteamHuntersAchievementGroup
+                {
+                    Name = "Steam Summer Camp",
+                    AchievementApiNames = new List<string> { "update_ach" }
+                }
+            };
+
+            SteamHuntersCategoryEnricher.ApplyGroups(achievements, groups, "dlcandupdate", "Portal 2");
+
+            Assert.AreEqual("Base|Multiplayer", achievements[0].CategoryType);
+            Assert.AreEqual("Portal 2", achievements[0].Category);
+            Assert.AreEqual("Base|Update", achievements[1].CategoryType);
+            Assert.AreEqual("Steam Summer Camp", achievements[1].Category);
+            Assert.AreEqual("Base", achievements[2].CategoryType);
+            Assert.AreEqual("Portal 2", achievements[2].Category);
+        }
+
+        [TestMethod]
+        public void ApplyGroups_MultiplayerNamedDlcGroup_StaysDlcUpdate()
+        {
+            // Only the DlcAppId-less group is the includeMultiplayerGroup group; a DLC update
+            // that happens to be named "Multiplayer" keeps its DLC typing.
+            var achievements = new List<AchievementDetail>
+            {
+                new AchievementDetail { ApiName = "dlc_ach" }
+            };
+            var groups = new List<SteamHuntersAchievementGroup>
+            {
+                new SteamHuntersAchievementGroup
+                {
+                    Name = "Multiplayer",
+                    DlcAppId = 42,
+                    DlcAppName = "Expansion",
+                    AchievementApiNames = new List<string> { "dlc_ach" }
+                }
+            };
+
+            SteamHuntersCategoryEnricher.ApplyGroups(achievements, groups, "dlcandupdate", "My Game");
+
+            Assert.AreEqual("DLC|Update", achievements[0].CategoryType);
+        }
+
+        [TestMethod]
+        public void ApplyObtainability_TagsUnobtainableAndBrokenAchievements()
+        {
+            // Mirrors Team Fortress 2's YouTube achievements (Unobtainable) beside a broken but
+            // obtainable one, which is typed Unobtainable too, and a conditionally obtainable
+            // one, which stays untagged.
+            var achievements = new List<AchievementDetail>
+            {
+                new AchievementDetail { ApiName = "TF_REPLAY_YOUTUBE_VIEWS_TIER1", CategoryType = "Base" },
+                new AchievementDetail { ApiName = "broken_ach", CategoryType = "Base|Update" },
+                new AchievementDetail { ApiName = "conditional_ach", CategoryType = "Base" },
+                new AchievementDetail { ApiName = "normal_ach", CategoryType = "Base" }
+            };
+            var steamHuntersAchievements = new List<SteamHuntersAchievement>
+            {
+                new SteamHuntersAchievement { ApiName = "tf_replay_youtube_views_tier1", Obtainability = SteamHuntersObtainability.Unobtainable },
+                new SteamHuntersAchievement { ApiName = "broken_ach", Obtainability = SteamHuntersObtainability.BrokenButObtainable },
+                new SteamHuntersAchievement { ApiName = "conditional_ach", Obtainability = SteamHuntersObtainability.ConditionallyObtainable },
+                new SteamHuntersAchievement { ApiName = "normal_ach", Obtainability = SteamHuntersObtainability.Obtainable }
+            };
+
+            var updated = SteamHuntersCategoryEnricher.ApplyObtainability(achievements, steamHuntersAchievements);
+
+            Assert.AreEqual(2, updated);
+            Assert.AreEqual("Base|Unobtainable", achievements[0].CategoryType);
+            Assert.AreEqual("Base|Update|Unobtainable", achievements[1].CategoryType);
+            Assert.AreEqual("Base", achievements[2].CategoryType);
+            Assert.AreEqual("Base", achievements[3].CategoryType);
+        }
+
+        [TestMethod]
+        public void ApplyObtainability_NoDataLeavesTypesAlone()
+        {
+            var achievements = new List<AchievementDetail>
+            {
+                new AchievementDetail { ApiName = "a", CategoryType = "DLC" }
+            };
+
+            Assert.AreEqual(0, SteamHuntersCategoryEnricher.ApplyObtainability(achievements, null));
+            Assert.AreEqual("DLC", achievements[0].CategoryType);
+        }
+
+        [TestMethod]
+        public void BuildCategoryImagePlan_MultiplayerGroup_GetsNoEntry()
+        {
+            var groups = new List<SteamHuntersAchievementGroup>
+            {
+                new SteamHuntersAchievementGroup
+                {
+                    Name = "Multiplayer",
+                    AchievementApiNames = new List<string> { "coop_ach" }
+                }
+            };
+
+            var plan = SteamHuntersCategoryEnricher.BuildCategoryImagePlan(groups, "dlcandupdate", "Portal 2", 620);
+
+            Assert.AreEqual(1, plan.Count);
+            Assert.AreEqual("Portal 2", plan[0].Key);
+            Assert.AreEqual(620, plan[0].Value);
+        }
     }
 }

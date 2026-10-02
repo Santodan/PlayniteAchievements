@@ -21,11 +21,16 @@ namespace PlayniteAchievements.Services.Images
     /// </summary>
     public sealed class NotificationImageOwner
     {
-        private NotificationImageOwner(NotificationImageOwnerKind kind, string providerKey, Guid gameId)
+        private NotificationImageOwner(
+            NotificationImageOwnerKind kind,
+            string providerKey,
+            Guid gameId,
+            NotificationKind notificationKind = NotificationKind.Base)
         {
             Kind = kind;
             ProviderKey = providerKey;
             GameId = gameId;
+            NotificationKind = notificationKind;
         }
 
         public NotificationImageOwnerKind Kind { get; }
@@ -33,6 +38,23 @@ namespace PlayniteAchievements.Services.Images
         public string ProviderKey { get; }
 
         public Guid GameId { get; }
+
+        /// <summary>
+        /// The notification kind whose own style owns these files, or Base for the scope's
+        /// shared style. A kind that has been styled separately keeps its own image slots, so
+        /// its badge and background overrides stand apart from the shared ones.
+        /// </summary>
+        public NotificationKind NotificationKind { get; }
+
+        /// <summary>
+        /// The same scope, narrowed to one notification kind's own slot folder.
+        /// </summary>
+        public NotificationImageOwner ForNotificationKind(NotificationKind notificationKind)
+        {
+            return notificationKind == NotificationKind
+                ? this
+                : new NotificationImageOwner(Kind, ProviderKey, GameId, notificationKind);
+        }
 
         public static NotificationImageOwner Global { get; } =
             new NotificationImageOwner(NotificationImageOwnerKind.Global, null, Guid.Empty);
@@ -95,6 +117,7 @@ namespace PlayniteAchievements.Services.Images
         private const string GlobalFolderName = "global";
         private const string ProvidersFolderName = "providers";
         private const string GamesFolderName = "games";
+        private const string KindsFolderName = "kinds";
 
         private static readonly Dictionary<NotificationImageSlot, string> SlotStems =
             new Dictionary<NotificationImageSlot, string>
@@ -337,6 +360,51 @@ namespace PlayniteAchievements.Services.Images
                     NotificationImageSlotMap.GetPath(styleCopy, slot), owner, slot, cancel)
                     .ConfigureAwait(false));
             }
+
+            // A kind styled separately keeps its own image overrides, so its files come along
+            // into their own folder under the new owner instead of collapsing onto the shared
+            // ones.
+            foreach (var pair in styleCopy.KindStyles)
+            {
+                if (pair.Value == null || !TryParseNotificationKind(pair.Key, out var notificationKind))
+                {
+                    continue;
+                }
+
+                var kindOwner = owner.ForNotificationKind(notificationKind);
+                foreach (var slot in NotificationImageSlotMap.Slots)
+                {
+                    NotificationImageSlotMap.SetPath(pair.Value, slot, await MaterializeAsync(
+                        NotificationImageSlotMap.GetPath(pair.Value, slot), kindOwner, slot, cancel)
+                        .ConfigureAwait(false));
+                }
+            }
+        }
+
+        /// <summary>
+        /// Parses a <see cref="NotificationStyleSettings.KindStyles"/> key. A hand-edited or
+        /// future settings file can carry a name this build does not know; its entry is skipped
+        /// rather than throwing.
+        /// </summary>
+        internal static bool TryParseNotificationKind(string key, out NotificationKind kind)
+        {
+            return Enum.TryParse(key, ignoreCase: true, result: out kind) &&
+                   Enum.IsDefined(typeof(NotificationKind), kind) &&
+                   kind != NotificationKind.Base;
+        }
+
+        /// <summary>
+        /// Deletes the managed image files a notification kind's own style owns in this scope.
+        /// </summary>
+        public void DeleteKindImages(NotificationImageOwner owner, NotificationKind notificationKind)
+        {
+            if (notificationKind == NotificationKind.Base)
+            {
+                return;
+            }
+
+            TryDeleteDirectory(GetSlotDirectory(
+                (owner ?? NotificationImageOwner.Global).ForNotificationKind(notificationKind)));
         }
 
         /// <summary>
@@ -491,6 +559,14 @@ namespace PlayniteAchievements.Services.Images
         private string GetSlotDirectory(NotificationImageOwner owner)
         {
             owner = owner ?? NotificationImageOwner.Global;
+            var scopeDirectory = GetScopeDirectory(owner);
+            return owner.NotificationKind == NotificationKind.Base
+                ? scopeDirectory
+                : Path.Combine(scopeDirectory, KindsFolderName, owner.NotificationKind.ToString().ToLowerInvariant());
+        }
+
+        private string GetScopeDirectory(NotificationImageOwner owner)
+        {
             switch (owner.Kind)
             {
                 case NotificationImageOwnerKind.Provider:
@@ -539,6 +615,21 @@ namespace PlayniteAchievements.Services.Images
             foreach (var slot in NotificationImageSlotMap.Slots)
             {
                 yield return NotificationImageSlotMap.GetPath(style, slot);
+            }
+
+            // A kind styled separately owns its own slot files; they are referenced too, so
+            // orphan pruning must not treat them as unreferenced.
+            foreach (var kindStyle in style.KindStyles.Values)
+            {
+                if (kindStyle == null)
+                {
+                    continue;
+                }
+
+                foreach (var slot in NotificationImageSlotMap.Slots)
+                {
+                    yield return NotificationImageSlotMap.GetPath(kindStyle, slot);
+                }
             }
         }
 

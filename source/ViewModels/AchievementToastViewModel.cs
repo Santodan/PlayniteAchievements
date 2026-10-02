@@ -87,7 +87,12 @@ namespace PlayniteAchievements.ViewModels
                 _args.ProviderKey,
                 _args.PlayniteGameId,
                 gameCustomDataStore);
-            _style = styleOverride ?? resolved.Style;
+            // The scope's style first, then the kind's own copy when it has one. The settings
+            // mockup passes the style it is editing as styleOverride and goes through the same
+            // narrowing, so the preview and a live notification cannot disagree.
+            _style = NotificationStyleResolver.ApplyKind(
+                styleOverride ?? resolved.Style,
+                NotificationKindResolver.Resolve(_args));
             ToastUseThemeStyling =
                 toastUseThemeStylingOverride ?? resolved.ToastUseThemeStyling;
             FrameUseThemeStyling =
@@ -140,6 +145,14 @@ namespace PlayniteAchievements.ViewModels
         /// creates the clip request, so the two cannot disagree.
         /// </summary>
         internal bool NeedsOverlayTrack { get; set; }
+
+        /// <summary>
+        /// Whether the clip cut for this unlock includes the framed variant, so the frame's chrome
+        /// must be rendered for it once its overlay track is complete. Stamped at enqueue beside
+        /// <see cref="NeedsOverlayTrack"/>, from the same clip variant policy the recording
+        /// service resolves.
+        /// </summary>
+        internal bool NeedsFramedClip { get; set; }
 
         /// <summary>
         /// The earliest instant this notification may show (the notification-delay gate). Stamped
@@ -264,9 +277,10 @@ namespace PlayniteAchievements.ViewModels
 
         /// <summary>
         /// Whether this unlock's tier is one of the tiers selected for the soft halo. The card's outer
-        /// border glow is unaffected — it is not a per-tier effect.
+        /// border glow is not a per-tier effect, except that Common takes it only when this is true
+        /// (see <see cref="BorderGlowEffect"/>).
         /// </summary>
-        public bool HasSoftGlowTier => _settings.RarityGlowSoftTiers.Contains(_rarity);
+        public bool HasSoftGlowTier => _settings.RarityGlowSoftTiers.GlowsFor(_rarity, HasRarityData);
 
         /// <summary>
         /// True on a real achievement unlock when the game is complete after it (all
@@ -316,6 +330,15 @@ namespace PlayniteAchievements.ViewModels
         // Drives the footer container's visibility so it collapses cleanly and the icon-centering
         // spacer mirrors zero height when there is no footer.
         public bool HasIconFooter => ShowBadge || ShowPercent;
+        public bool FrameHasIconFooter => FrameShowBadge || FrameShowPercent;
+
+        // The achievement artwork itself. With it hidden the icon column still carries the
+        // footer badge and percent when either is on; with nothing left to draw the column
+        // collapses whole, so no empty gutter is left before the text lines.
+        public bool ShowIcon => _style.Toast.ShowIcon;
+        public bool FrameShowIcon => _style.Frame.ShowIcon;
+        public bool ShowIconColumn => ShowIcon || HasIconFooter;
+        public bool FrameShowIconColumn => FrameShowIcon || FrameHasIconFooter;
 
         // The rarity/trophy badge drawn inline before the achievement name (an alternative to
         // the icon-column footer badge). Shares the same badge image sources.
@@ -864,7 +887,7 @@ namespace PlayniteAchievements.ViewModels
         /// </summary>
         private bool HasRaySelection => UsesCompletionColors
             ? _settings.RarityGlowRayTiers.IncludesCompleted()
-            : _settings.RarityGlowRayTiers.Contains(_rarity);
+            : _settings.RarityGlowRayTiers.GlowsFor(_rarity, HasRarityData);
 
         // Rarity-colored glow on the toast card border (replaces the default drop shadow when
         // the border-glow option is on). Toast surface only. Completion uses the completed glow.
@@ -921,12 +944,14 @@ namespace PlayniteAchievements.ViewModels
 
         // Cloned to an unfrozen copy so the card's border-glow pulse can animate its Opacity
         // (the shared GetGlow/GetCompletedGlow instances are frozen and immutable), and so its
-        // BlurRadius can be widened to the border-glow radius. Null for Common rarity (no glow).
+        // BlurRadius can be widened to the border-glow radius. Common takes it only when Common is
+        // among the soft-glow tiers (with real rarity data); every other tier takes it regardless.
         public Effect BorderGlowEffect
         {
             get
             {
-                if (!HasBorderGlow)
+                if (!HasBorderGlow ||
+                    (!UsesCompletionColors && _rarity == RarityTier.Common && !HasSoftGlowTier))
                 {
                     return null;
                 }

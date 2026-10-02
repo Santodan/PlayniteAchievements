@@ -11,12 +11,19 @@ using System.Windows.Threading;
 namespace PlayniteAchievements.Views.Helpers
 {
     /// <summary>
-    /// Collapses the right resize gripper of the last visible column so there is no orphan
-    /// gripper at the grid's trailing edge. Each header keeps its own left and right grippers
-    /// (revealed on header hover via the gripper template), which mirrors WPF's built-in
-    /// left-gripper handling: a gripper is shown only when it sits on a boundary between two
-    /// columns. The first column's left gripper is collapsed by WPF for the same reason.
+    /// Collapses the resize grippers that sit on a boundary nothing may drag: the right gripper
+    /// of the last visible column (no orphan gripper at the grid's trailing edge) and both
+    /// grippers on either side of a locked column's edges. Each header keeps its own left and
+    /// right grippers (revealed on header hover via the gripper template), which mirrors WPF's
+    /// built-in left-gripper handling: a gripper is shown only when it sits on a boundary between
+    /// two columns. The first column's left gripper is collapsed by WPF for the same reason.
     /// </summary>
+    /// <remarks>
+    /// A locked column stays CanUserResize=true (it still rescales with the grid), so WPF would
+    /// show all four grippers around it. This pass collapses the locked column's own two and the
+    /// facing gripper on each neighbour, and rewrites every gripper it can see so it stays
+    /// authoritative after WPF's own local writes on template apply and CanUserResize changes.
+    /// </remarks>
     public static class DataGridColumnGripperBehavior
     {
         public static readonly DependencyProperty IsEnabledProperty =
@@ -25,6 +32,17 @@ namespace PlayniteAchievements.Views.Helpers
                 typeof(bool),
                 typeof(DataGridColumnGripperBehavior),
                 new PropertyMetadata(false, OnIsEnabledChanged));
+
+        /// <summary>
+        /// Set on a <see cref="DataGridColumn"/> by <see cref="DataGridColumnLayoutService"/> when
+        /// the user locks its width. Read here to hide the grippers on both of its edges.
+        /// </summary>
+        public static readonly DependencyProperty IsLockedProperty =
+            DependencyProperty.RegisterAttached(
+                "IsLocked",
+                typeof(bool),
+                typeof(DataGridColumnGripperBehavior),
+                new PropertyMetadata(false));
 
         private static readonly DependencyProperty StateProperty =
             DependencyProperty.RegisterAttached(
@@ -41,6 +59,16 @@ namespace PlayniteAchievements.Views.Helpers
         public static void SetIsEnabled(DependencyObject obj, bool value)
         {
             obj.SetValue(IsEnabledProperty, value);
+        }
+
+        public static bool GetIsLocked(DependencyObject obj)
+        {
+            return obj != null && (bool)obj.GetValue(IsLockedProperty);
+        }
+
+        public static void SetIsLocked(DependencyObject obj, bool value)
+        {
+            obj?.SetValue(IsLockedProperty, value);
         }
 
         private static void OnIsEnabledChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
@@ -76,6 +104,12 @@ namespace PlayniteAchievements.Views.Helpers
 
             private static readonly DependencyPropertyDescriptor DisplayIndexDescriptor =
                 DependencyPropertyDescriptor.FromProperty(DataGridColumn.DisplayIndexProperty, typeof(DataGridColumn));
+
+            private static readonly DependencyPropertyDescriptor CanUserResizeDescriptor =
+                DependencyPropertyDescriptor.FromProperty(DataGridColumn.CanUserResizeProperty, typeof(DataGridColumn));
+
+            private static readonly DependencyPropertyDescriptor IsLockedDescriptor =
+                DependencyPropertyDescriptor.FromProperty(IsLockedProperty, typeof(DataGridColumn));
 
             private readonly DataGrid _grid;
             private readonly List<DataGridColumn> _hookedColumns = new List<DataGridColumn>();
@@ -173,6 +207,8 @@ namespace PlayniteAchievements.Views.Helpers
 
                     VisibilityDescriptor?.AddValueChanged(column, _columnChangedHandler);
                     DisplayIndexDescriptor?.AddValueChanged(column, _columnChangedHandler);
+                    CanUserResizeDescriptor?.AddValueChanged(column, _columnChangedHandler);
+                    IsLockedDescriptor?.AddValueChanged(column, _columnChangedHandler);
                     _hookedColumns.Add(column);
                 }
             }
@@ -183,6 +219,8 @@ namespace PlayniteAchievements.Views.Helpers
                 {
                     VisibilityDescriptor?.RemoveValueChanged(column, _columnChangedHandler);
                     DisplayIndexDescriptor?.RemoveValueChanged(column, _columnChangedHandler);
+                    CanUserResizeDescriptor?.RemoveValueChanged(column, _columnChangedHandler);
+                    IsLockedDescriptor?.RemoveValueChanged(column, _columnChangedHandler);
                 }
 
                 _hookedColumns.Clear();
@@ -208,10 +246,11 @@ namespace PlayniteAchievements.Views.Helpers
                     return;
                 }
 
-                var lastVisibleColumn = _grid.Columns
+                var visibleColumns = _grid.Columns
                     .Where(c => c != null && c.Visibility == Visibility.Visible)
                     .OrderBy(c => c.DisplayIndex)
-                    .LastOrDefault();
+                    .ToList();
+                var lastVisibleColumn = visibleColumns.LastOrDefault();
 
                 var collapsedLastGripper = false;
                 foreach (var header in VisualTreeHelpers.FindVisualChildren<DataGridColumnHeader>(_grid))
@@ -221,16 +260,42 @@ namespace PlayniteAchievements.Views.Helpers
                         continue;
                     }
 
-                    var rightGripper = VisualTreeHelpers.FindVisualChildren<Thumb>(header)
-                        .FirstOrDefault(t => t.Name == "PART_RightHeaderGripper");
+                    var thumbs = VisualTreeHelpers.FindVisualChildren<Thumb>(header).ToList();
+                    var rightGripper = thumbs.FirstOrDefault(t => t.Name == "PART_RightHeaderGripper");
                     if (rightGripper == null)
                     {
                         continue;
                     }
 
+                    var index = visibleColumns.IndexOf(header.Column);
+                    var isLocked = GetIsLocked(header.Column);
+                    var previousLocked = index > 0 && GetIsLocked(visibleColumns[index - 1]);
+                    var nextLocked = index >= 0 && index < visibleColumns.Count - 1 && GetIsLocked(visibleColumns[index + 1]);
+
                     var isLastVisible = ReferenceEquals(header.Column, lastVisibleColumn);
-                    rightGripper.Visibility = isLastVisible ? Visibility.Collapsed : Visibility.Visible;
+                    rightGripper.Visibility = isLastVisible || isLocked || nextLocked
+                        ? Visibility.Collapsed
+                        : Visibility.Visible;
                     collapsedLastGripper |= isLastVisible;
+
+                    // The left gripper is only forced closed; open boundaries stay under WPF's own
+                    // rule (collapsed for the first column and after a non-resizable neighbour).
+                    if (isLocked || previousLocked)
+                    {
+                        var leftGripper = thumbs.FirstOrDefault(t => t.Name == "PART_LeftHeaderGripper");
+                        if (leftGripper != null)
+                        {
+                            leftGripper.Visibility = Visibility.Collapsed;
+                        }
+                    }
+                    else if (index > 0 && visibleColumns[index - 1].CanUserResize)
+                    {
+                        var leftGripper = thumbs.FirstOrDefault(t => t.Name == "PART_LeftHeaderGripper");
+                        if (leftGripper != null && leftGripper.Visibility != Visibility.Visible)
+                        {
+                            leftGripper.Visibility = Visibility.Visible;
+                        }
+                    }
                 }
 
                 // Grippers may not be realized on the first pass; retry until the trailing one is collapsed.

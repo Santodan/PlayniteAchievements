@@ -55,7 +55,7 @@ namespace PlayniteAchievements.Services.UI
         /// </summary>
         private static bool TryGetWindowRectangle(IntPtr hwnd, out Rectangle rectangle)
         {
-            rectangle = WindowRectangles.Measure(hwnd).PreferredCaptureArea;
+            rectangle = WindowRectangles.MeasurePreferredCaptureArea(hwnd);
             return !rectangle.IsEmpty;
         }
 

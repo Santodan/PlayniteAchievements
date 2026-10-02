@@ -35,9 +35,16 @@ namespace PlayniteAchievements.ViewModels
         private readonly PlayniteAchievementsSettings _settings;
         private readonly GameSummaryItemBuilder _summaryBuilder;
         private readonly Services.Captures.CaptureLibraryService _captureLibrary;
+        private readonly Services.GameCustomData.GameCustomDataStore _customDataStore;
         private readonly Guid _gameId;
+
+        // Coalesces a burst of customization writes for this game into one reload.
+        private static readonly TimeSpan CustomDataReloadDelay = TimeSpan.FromMilliseconds(250);
+        private DispatcherTimer _customDataReloadTimer;
+        private bool _isDisposed;
         private Guid? _activeRefreshOperationId;
         private bool _isApplyingTimelineState;
+        private DispatcherTimer _timelinePersistTimer;
 
         // Standard refresh-progress UI state (mirrors OverviewViewModel). The progress bar stays
         // visible while a refresh runs, lingers at 100% briefly on completion, then auto-hides.
@@ -90,7 +97,7 @@ namespace PlayniteAchievements.ViewModels
             _playniteApi = playniteApi;
             _logger = logger;
             _settings = settings;
-            _summaryBuilder = new GameSummaryItemBuilder(_refreshService.Providers, _playniteApi, _logger);
+            _summaryBuilder = new GameSummaryItemBuilder(_playniteApi, _logger);
             FriendCompare = new FriendCompareController(friendCache, settings, logger);
             _controlBar.AttachFriendCompare(FriendCompare);
             FriendCompare.SetGame(gameId, null);
@@ -98,6 +105,7 @@ namespace PlayniteAchievements.ViewModels
             Timeline = new TimelineViewModel();
             ApplySavedTimelineState();
             Timeline.PropertyChanged += Timeline_PropertyChanged;
+            LocalDayRollover.Subscribe(OnLocalDayChanged);
             OnPropertyChanged(nameof(Timeline));
 
             _controlBar.FilterChanged += (_, __) => ApplySearchFilter();
@@ -173,6 +181,15 @@ namespace PlayniteAchievements.ViewModels
             if (_captureLibrary != null)
             {
                 _captureLibrary.CapturesChanged += OnCapturesChanged;
+            }
+
+            // Customizations - categories above all - reach this window only through the store:
+            // they are not a cache update, and most of them do not affect summary data, so
+            // neither refresh event above fires for them.
+            _customDataStore = PlayniteAchievementsPlugin.Instance?.GameCustomDataStore;
+            if (_customDataStore != null)
+            {
+                _customDataStore.CustomDataChanged += OnCustomDataChanged;
             }
 
             // Restore the previous session's sort/filter state for this game (if any) before
@@ -427,18 +444,25 @@ namespace PlayniteAchievements.ViewModels
         private void Timeline_PropertyChanged(object sender, PropertyChangedEventArgs e)
         {
             if (_isApplyingTimelineState ||
-                e?.PropertyName != nameof(TimelineViewModel.TimelineRange))
+                (e?.PropertyName != nameof(TimelineViewModel.Window) &&
+                 e?.PropertyName != nameof(TimelineViewModel.Granularity)))
             {
                 return;
             }
 
-            PersistTimelineRange();
+            PersistTimelineWindow();
+        }
+
+        private void OnLocalDayChanged(object sender, DateTime today)
+        {
+            Timeline?.UpdateTimelineData();
         }
 
         private void ApplySavedTimelineState()
         {
             var persisted = _settings?.Persisted;
-            var range = persisted?.ViewAchievementsTimelineRange ?? TimelineRange.OneYear;
+            var window = persisted?.ViewAchievementsTimeWindow ?? TimeWindow.FromPreset(TimelineRange.OneYear);
+            var granularity = persisted?.ViewAchievementsTimelineGranularity ?? TimelineGranularity.Auto;
             var isVisible = persisted?.ViewAchievementsTimelineVisible ?? false;
 
             try
@@ -451,9 +475,17 @@ namespace PlayniteAchievements.ViewModels
                     OnPropertyChanged(nameof(IsTimelineVisible));
                 }
 
-                if (Timeline != null && Timeline.TimelineRange != range)
+                if (Timeline != null)
                 {
-                    Timeline.TimelineRange = range;
+                    if (!Equals(Timeline.Window, window))
+                    {
+                        Timeline.Window = window;
+                    }
+
+                    if (Timeline.Granularity != granularity)
+                    {
+                        Timeline.Granularity = granularity;
+                    }
                 }
             }
             finally
@@ -462,19 +494,58 @@ namespace PlayniteAchievements.ViewModels
             }
         }
 
-        private void PersistTimelineRange()
+        private void PersistTimelineWindow()
         {
             if (_isApplyingTimelineState || _settings?.Persisted == null || Timeline == null)
             {
                 return;
             }
 
-            if (_settings.Persisted.ViewAchievementsTimelineRange == Timeline.TimelineRange)
+            var persisted = _settings.Persisted;
+            var changed = false;
+            if (!Equals(persisted.ViewAchievementsTimeWindow, Timeline.Window))
+            {
+                persisted.ViewAchievementsTimeWindow = Timeline.Window;
+                changed = true;
+            }
+
+            if (persisted.ViewAchievementsTimelineGranularity != Timeline.Granularity)
+            {
+                persisted.ViewAchievementsTimelineGranularity = Timeline.Granularity;
+                changed = true;
+            }
+
+            if (changed)
+            {
+                SchedulePersistTimelineSettings();
+            }
+        }
+
+        // A full settings write per chip click makes the strip feel laggy, so a burst collapses
+        // into one write; Dispose flushes a pending one.
+        private void SchedulePersistTimelineSettings()
+        {
+            if (_timelinePersistTimer == null)
+            {
+                _timelinePersistTimer = new DispatcherTimer(DispatcherPriority.Background)
+                {
+                    Interval = TimeSpan.FromMilliseconds(600)
+                };
+                _timelinePersistTimer.Tick += (_, __) => FlushTimelineSettingsPersist();
+            }
+
+            _timelinePersistTimer.Stop();
+            _timelinePersistTimer.Start();
+        }
+
+        private void FlushTimelineSettingsPersist()
+        {
+            if (_timelinePersistTimer == null || !_timelinePersistTimer.IsEnabled)
             {
                 return;
             }
 
-            _settings.Persisted.ViewAchievementsTimelineRange = Timeline.TimelineRange;
+            _timelinePersistTimer.Stop();
             PersistSettingsForUi();
         }
 
@@ -576,7 +647,7 @@ namespace PlayniteAchievements.ViewModels
                 {
                     if (ach.Unlocked && ach.UnlockTimeUtc.HasValue)
                     {
-                        var date = DateTimeUtilities.AsUtcKind(ach.UnlockTimeUtc.Value).Date;
+                        var date = Services.Overview.UnlockDayCounts.DayOf(ach.UnlockTimeUtc.Value);
                         if (unlockCounts.TryGetValue(date, out var existing))
                         {
                             unlockCounts[date] = existing + 1;
@@ -593,6 +664,20 @@ namespace PlayniteAchievements.ViewModels
                         displayItems.Add(item);
                     }
                 }
+
+                // Customization writes reload this window, so the rows it already shows are kept
+                // and updated rather than replaced: all-new instances make the grid re-realize every
+                // row. A reveal is this window's own state, which the fresh rows do not carry.
+                displayItems = CollectionHelper.MergeByKey(
+                    _allAchievements,
+                    displayItems,
+                    row => row?.ApiName,
+                    (kept, source) =>
+                    {
+                        var wasRevealed = kept.IsRevealed;
+                        kept.UpdateFrom(source);
+                        kept.IsRevealed = wasRevealed;
+                    });
 
                 _allAchievements = displayItems;
                 Services.Captures.CapturePresenceMarker.MarkAchievements(_allAchievements, _captureLibrary);
@@ -657,7 +742,7 @@ namespace PlayniteAchievements.ViewModels
                     gameData.Game = game;
                 }
 
-                item = _summaryBuilder.Build(gameData, _settings, allowEmpty: true);
+                item = _summaryBuilder.Build(gameData, _settings, forSingleGame: true);
             }
             else if (game != null)
             {
@@ -669,7 +754,7 @@ namespace PlayniteAchievements.ViewModels
                     HasAchievements = false,
                     Achievements = new List<AchievementDetail>()
                 };
-                item = _summaryBuilder.Build(stub, _settings, allowEmpty: true);
+                item = _summaryBuilder.Build(stub, _settings, forSingleGame: true);
             }
 
             var items = item != null
@@ -708,6 +793,41 @@ namespace PlayniteAchievements.ViewModels
             {
                 System.Windows.Application.Current?.Dispatcher?.Invoke(LoadGameData);
             }
+        }
+
+        private void OnCustomDataChanged(object sender, Services.GameCustomData.GameCustomDataChangedEventArgs e)
+        {
+            if (e == null || e.PlayniteGameId != _gameId)
+            {
+                return;
+            }
+
+            // Posted rather than invoked: the store raises this from inside its write.
+            System.Windows.Application.Current?.Dispatcher?.BeginInvoke(new Action(ScheduleCustomDataReload));
+        }
+
+        private void ScheduleCustomDataReload()
+        {
+            // A write posted just before the window closed still lands here.
+            if (_isDisposed)
+            {
+                return;
+            }
+
+            if (_customDataReloadTimer == null)
+            {
+                _customDataReloadTimer = new DispatcherTimer { Interval = CustomDataReloadDelay };
+                _customDataReloadTimer.Tick += OnCustomDataReloadTimerTick;
+            }
+
+            _customDataReloadTimer.Stop();
+            _customDataReloadTimer.Start();
+        }
+
+        private void OnCustomDataReloadTimerTick(object sender, EventArgs e)
+        {
+            _customDataReloadTimer?.Stop();
+            LoadGameData();
         }
 
         private void OnCacheDeltaUpdated(object sender, CacheDeltaEventArgs e)
@@ -948,7 +1068,8 @@ namespace PlayniteAchievements.ViewModels
                 return;
             }
 
-            if (e?.PropertyName == nameof(PersistedSettings.ViewAchievementsTimelineRange) ||
+            if (e?.PropertyName == nameof(PersistedSettings.ViewAchievementsTimeWindow) ||
+                e?.PropertyName == nameof(PersistedSettings.ViewAchievementsTimelineGranularity) ||
                 e?.PropertyName == nameof(PersistedSettings.ViewAchievementsTimelineVisible))
             {
                 ApplySavedTimelineState();
@@ -1022,29 +1143,18 @@ namespace PlayniteAchievements.ViewModels
         }
 
         /// <summary>
-        /// Re-stamps the capstone flag on the rows already in memory. Valid only when a capstone
-        /// is being set, where every other row becomes a non-capstone.
+        /// Re-stamps the capstone flags on the rows already in memory from the game's stored
+        /// set, so the click that changed a capstone is the one that shows it.
         /// </summary>
         public bool ApplyCapstone(string capstoneApiName)
         {
-            if (_allAchievements == null || _allAchievements.Count == 0 ||
-                string.IsNullOrWhiteSpace(capstoneApiName))
+            if (_allAchievements == null || _allAchievements.Count == 0 || _gameId == Guid.Empty)
             {
                 return false;
             }
 
-            foreach (var item in _allAchievements)
-            {
-                if (item != null)
-                {
-                    item.IsCapstone = string.Equals(
-                        (item.ApiName ?? string.Empty).Trim(),
-                        capstoneApiName.Trim(),
-                        StringComparison.OrdinalIgnoreCase);
-                }
-            }
-
-            return true;
+            return PlayniteAchievementsPlugin.Instance?.AchievementMarkerToggle?
+                .TryRestampCapstones(_gameId, _allAchievements) == true;
         }
 
         /// <summary>
@@ -1160,6 +1270,7 @@ namespace PlayniteAchievements.ViewModels
 
         public void Dispose()
         {
+            _isDisposed = true;
             SaveGridState();
 
             if (_settings != null)
@@ -1177,12 +1288,26 @@ namespace PlayniteAchievements.ViewModels
             {
                 _captureLibrary.CapturesChanged -= OnCapturesChanged;
             }
+
+            // The store outlives every window, so a missed unsubscribe roots this view model.
+            if (_customDataStore != null)
+            {
+                _customDataStore.CustomDataChanged -= OnCustomDataChanged;
+            }
+            if (_customDataReloadTimer != null)
+            {
+                _customDataReloadTimer.Stop();
+                _customDataReloadTimer.Tick -= OnCustomDataReloadTimerTick;
+                _customDataReloadTimer = null;
+            }
             if (_progressHideTimer != null)
             {
                 _progressHideTimer.Stop();
                 _progressHideTimer.Tick -= OnProgressHideTimerTick;
                 _progressHideTimer = null;
             }
+            LocalDayRollover.Unsubscribe(OnLocalDayChanged);
+            FlushTimelineSettingsPersist();
             if (Timeline != null)
             {
                 Timeline.PropertyChanged -= Timeline_PropertyChanged;

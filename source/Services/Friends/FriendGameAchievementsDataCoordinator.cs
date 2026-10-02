@@ -52,6 +52,35 @@ namespace PlayniteAchievements.Services.Friends
             SnapshotInvalidated?.Invoke(this, EventArgs.Empty);
         }
 
+        /// <summary>
+        /// Drops one game's snapshot, for a change that moved only that game's customizations -
+        /// the category labels its friend rows carry are the user's own. The other games' cached
+        /// snapshots stay valid, so the listeners the event wakes re-read them for nothing more
+        /// than a lookup.
+        /// </summary>
+        public void InvalidateGame(Guid playniteGameId)
+        {
+            if (playniteGameId == Guid.Empty)
+            {
+                return;
+            }
+
+            lock (_syncRoot)
+            {
+                if (_disposed)
+                {
+                    return;
+                }
+
+                // A build already running read the store before this change. Forgetting it here
+                // means its result is returned to whoever awaits it but never cached.
+                _snapshots.Remove(playniteGameId);
+                _buildTasks.Remove(playniteGameId);
+            }
+
+            SnapshotInvalidated?.Invoke(this, EventArgs.Empty);
+        }
+
         public async Task<FriendsOverviewSnapshot> GetSnapshotAsync(Guid playniteGameId, CancellationToken cancel)
         {
             if (playniteGameId == Guid.Empty)

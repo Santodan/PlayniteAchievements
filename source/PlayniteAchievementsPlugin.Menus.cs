@@ -989,6 +989,11 @@ namespace PlayniteAchievements
                             GC.WaitForPendingFinalizers();
                             GC.Collect();
                             Common.MemoryDiagnostics.Log(_logger, "manual.afterGC", before, "trigger=menu");
+
+                            // Process totals say memory grew; the retention report says which
+                            // graph is still rooted. It forces its own blocking collect, so the
+                            // per-cache and live= counts mean "still reachable".
+                            LogRetentionDiagnostics("manual.retention");
                         }
                         catch (Exception ex)
                         {

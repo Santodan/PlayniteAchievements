@@ -305,31 +305,4 @@ namespace PlayniteAchievements.Models.Settings
             return new StartPageFriendsRecentUnlocksGridSettings(Options.Clone());
         }
     }
-
-    public sealed class StartPagePieWidgetSettings : ObservableObject
-    {
-        private bool _showCenterPercentage = true;
-        private OverviewPieSmallSliceMode _smallSliceMode = OverviewPieSmallSliceMode.Round;
-
-        public bool ShowCenterPercentage
-        {
-            get => _showCenterPercentage;
-            set => SetValue(ref _showCenterPercentage, value);
-        }
-
-        public OverviewPieSmallSliceMode SmallSliceMode
-        {
-            get => _smallSliceMode;
-            set => SetValue(ref _smallSliceMode, value);
-        }
-
-        public StartPagePieWidgetSettings Clone()
-        {
-            return new StartPagePieWidgetSettings
-            {
-                ShowCenterPercentage = ShowCenterPercentage,
-                SmallSliceMode = SmallSliceMode
-            };
-        }
-    }
 }

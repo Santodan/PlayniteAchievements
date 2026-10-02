@@ -34,6 +34,18 @@ namespace PlayniteAchievements.Views.Settings.Display.ThemeControls
             };
         }
 
+        /// <summary>
+        /// Unhooks from the controller. The controller outlives the page and is shared by the
+        /// Display and Themes copies of this page, so each copy has to release its own handler.
+        /// </summary>
+        internal void Detach()
+        {
+            if (_controller != null)
+            {
+                _controller.PropertyChanged -= OnControllerPropertyChanged;
+            }
+        }
+
         private void OnControllerPropertyChanged(object sender, PropertyChangedEventArgs e)
         {
             if (string.Equals(e.PropertyName, nameof(ThemeMigrationController.SelectedThemePath), StringComparison.Ordinal) ||
@@ -46,23 +58,18 @@ namespace PlayniteAchievements.Views.Settings.Display.ThemeControls
         private async void MigrateThemeLimited_Click(object sender, RoutedEventArgs e)
         {
             if (_controller == null) return;
-            CommitMigrationControls();
             await _controller.MigrateAsync(MigrationMode.Limited);
         }
 
         private async void MigrateThemeFull_Click(object sender, RoutedEventArgs e)
         {
             if (_controller == null) return;
-            CommitMigrationControls();
-            await _controller.MigrateAsync(
-                MigrationMode.Full,
-                _controller.BuildFullMigrationSelection());
+            await _controller.MigrateAsync(MigrationMode.Full);
         }
 
         private async void MigrateThemeCustom_Click(object sender, RoutedEventArgs e)
         {
             if (_controller == null) return;
-            CommitMigrationControls();
             await _controller.MigrateCustomAsync();
         }
 
@@ -70,32 +77,6 @@ namespace PlayniteAchievements.Views.Settings.Display.ThemeControls
         {
             if (_controller == null) return;
             await _controller.RevertAsync();
-        }
-
-        private void ThemeMigrationThemeComboBox_SelectionChanged(
-            object sender,
-            SelectionChangedEventArgs e)
-        {
-            CommitMigrationControls();
-        }
-
-        private void CommitMigrationControls()
-        {
-            if (_controller == null)
-            {
-                return;
-            }
-
-            if (ThemeMigrationThemeComboBox?.SelectedItem is
-                ThemeDiscoveryService.ThemeInfo selectedTheme)
-            {
-                _controller.SelectedThemePath = selectedTheme.Path;
-            }
-
-            if (HighlightLatestUnlockedAchievementCheckBox?.IsChecked is bool highlightLatest)
-            {
-                _controller.HighlightLatestUnlockedAchievement = highlightLatest;
-            }
         }
 
         private void ThemeMigrationCustomExpander_Expanded(object sender, RoutedEventArgs e)

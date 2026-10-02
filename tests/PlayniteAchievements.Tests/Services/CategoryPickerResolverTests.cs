@@ -152,5 +152,65 @@ namespace PlayniteAchievements.Services.Tests
 
             Assert.IsNull(CategoryPickerResolver.Resolve("   ", null, options));
         }
+
+        [TestMethod]
+        public void CreateNewRow_CarriesItsTextAndNoLabel()
+        {
+            var row = CategoryPickerOption.CreateNewRow("New Category...");
+
+            Assert.IsTrue(row.IsCreateNew);
+            Assert.AreEqual("New Category...", row.LeafDisplay);
+            Assert.IsNull(row.Label);
+        }
+
+        [TestMethod]
+        public void Resolve_IgnoresTheCreateRow()
+        {
+            var createRow = CategoryPickerOption.CreateNewRow("Story");
+            var options = CategoryPickerResolver.BuildOptions(new[] { "Multiplayer" });
+            options.Insert(0, createRow);
+
+            // Neither picking it nor matching its text may resolve to it: the row asks for a
+            // category to be created, and naming one is the host's answer, not a label.
+            Assert.AreEqual("Story", CategoryPickerResolver.Resolve("Story", createRow, options));
+        }
+
+        [TestMethod]
+        public void BuildGameCategoryLabels_ListsAnEmptyCategoryFromTheStoredOrder()
+        {
+            // No achievement carries "Empty": it exists only because the user created it, and
+            // the stored order is what records that. A list built from achievements alone drops it.
+            var labels = CategoryPickerResolver.BuildGameCategoryLabels(
+                new[] { "Story", "Multiplayer" },
+                new[] { "Multiplayer", "Empty", "Story" },
+                artOverrideLabels: null,
+                summaryCategoryLabel: null);
+
+            CollectionAssert.AreEqual(new[] { "Multiplayer", "Empty", "Story" }, labels);
+        }
+
+        [TestMethod]
+        public void BuildGameCategoryLabels_ListsLabelsHeldOnlyByArtOrTheSummaryPick()
+        {
+            var labels = CategoryPickerResolver.BuildGameCategoryLabels(
+                new[] { "Story" },
+                categoryOrder: null,
+                artOverrideLabels: new[] { "Art Only" },
+                summaryCategoryLabel: "Summary");
+
+            CollectionAssert.AreEqual(new[] { "Story", "Art Only", "Summary" }, labels);
+        }
+
+        [TestMethod]
+        public void BuildGameCategoryLabels_DropsBlanksAndKeepsTheTree()
+        {
+            var labels = CategoryPickerResolver.BuildGameCategoryLabels(
+                new[] { "Story::Act 1", "  ", null },
+                categoryOrder: null,
+                artOverrideLabels: null,
+                summaryCategoryLabel: "  ");
+
+            CollectionAssert.AreEqual(new[] { "Story", "Story::Act 1" }, labels);
+        }
     }
 }

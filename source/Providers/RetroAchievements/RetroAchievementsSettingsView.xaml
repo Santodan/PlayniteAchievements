@@ -4,6 +4,7 @@
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:settings="clr-namespace:PlayniteAchievements.Providers.Settings"
+             xmlns:controls="clr-namespace:PlayniteAchievements.Views.Controls"
              mc:Ignorable="d"
              d:DesignHeight="600"
              d:DesignWidth="700">
@@ -29,11 +30,12 @@
             </StackPanel>
 
             <!-- Provider Enable Toggle -->
-            <Border Style="{StaticResource ProviderEnableToggleBorderStyle}">
-                <CheckBox Content="{DynamicResource LOCPlayAch_Settings_ProviderEnabled}"
-                          IsChecked="{Binding Settings.IsEnabled, Mode=TwoWay}"
-                          FontWeight="SemiBold"
-                          FontSize="{DynamicResource PlayAch.FontSize.Body}"/>
+            <Border Style="{StaticResource ProviderEnableToggleBorderStyle}" Grid.IsSharedSizeScope="True">
+                <controls:SettingRow Label="{DynamicResource LOCPlayAch_Settings_ProviderEnabled}"
+                                     FontWeight="SemiBold"
+                                     Margin="0">
+                    <CheckBox IsChecked="{Binding Settings.IsEnabled, Mode=TwoWay}"/>
+                </controls:SettingRow>
             </Border>
 
             <!-- Provider Disabled Message -->
@@ -42,7 +44,7 @@
             <!-- RetroAchievements Settings -->
             <Border Style="{StaticResource SectionBorderStyle}"
                     IsEnabled="{Binding Settings.IsEnabled}">
-                <StackPanel>
+                <StackPanel Grid.IsSharedSizeScope="True">
                     <Grid Margin="{StaticResource PlayAch.Thickness.Bottom.Lg}">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="180"/>
@@ -102,127 +104,63 @@
                     </Grid>
 
                     <!-- RetroAchievements Rarity Stats -->
-                    <Grid Style="{StaticResource SettingRowStyle}">
-                        <Grid.RowDefinitions>
-                            <RowDefinition Height="Auto"/>
-                            <RowDefinition Height="Auto"/>
-                        </Grid.RowDefinitions>
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="180"/>
-                            <ColumnDefinition Width="*"/>
-                        </Grid.ColumnDefinitions>
-
-                        <TextBlock Grid.Row="0" Grid.Column="0"
-                                   Text="{DynamicResource LOCPlayAch_Settings_RaRarityStats}"
-                                   Foreground="{DynamicResource PlayAch.Brush.Text}"
-                                   VerticalAlignment="Center"/>
-
-                        <ComboBox Grid.Row="0" Grid.Column="1"
-                                  SelectedValue="{Binding Settings.RaRarityStats, Mode=TwoWay}"
+                    <controls:SettingRow Label="{DynamicResource LOCPlayAch_Settings_RaRarityStats}"
+                                         Hint="{DynamicResource LOCPlayAch_Settings_RaRarityStats_Description}">
+                        <ComboBox SelectedValue="{Binding Settings.RaRarityStats, Mode=TwoWay}"
                                   SelectedValuePath="Tag"
                                   VerticalAlignment="Center"
-                                  MinWidth="160"
-                                  HorizontalAlignment="Left">
+                                  MinWidth="160">
                             <ComboBoxItem Content="{DynamicResource LOCPlayAch_Settings_RaRarityStats_Casual}" Tag="casual"/>
                             <ComboBoxItem Content="{DynamicResource LOCPlayAch_Settings_RaRarityStats_Hardcore}" Tag="hardcore"/>
                         </ComboBox>
-
-                        <TextBlock Grid.Row="1" Grid.Column="1"
-                                   Text="{DynamicResource LOCPlayAch_Settings_RaRarityStats_Description}"
-                                   Margin="{StaticResource PlayAch.Thickness.Top.Compact}"
-                                   Style="{StaticResource MutedTextStyle}"/>
-                    </Grid>
+                    </controls:SettingRow>
 
                     <!-- RetroAchievements Points Display Mode -->
-                    <Grid Style="{StaticResource SettingRowStyle}">
-                        <Grid.RowDefinitions>
-                            <RowDefinition Height="Auto"/>
-                            <RowDefinition Height="Auto"/>
-                        </Grid.RowDefinitions>
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="180"/>
-                            <ColumnDefinition Width="*"/>
-                        </Grid.ColumnDefinitions>
-
-                        <TextBlock Grid.Row="0" Grid.Column="0"
-                                   Text="{DynamicResource LOCPlayAch_Settings_RaPointsMode}"
-                                   Foreground="{DynamicResource PlayAch.Brush.Text}"
-                                   VerticalAlignment="Center"/>
-
-                        <ComboBox Grid.Row="0" Grid.Column="1"
-                                  SelectedValue="{Binding Settings.RaPointsMode, Mode=TwoWay}"
+                    <controls:SettingRow Label="{DynamicResource LOCPlayAch_Settings_RaPointsMode}"
+                                         Hint="{DynamicResource LOCPlayAch_Settings_RaPointsMode_Description}">
+                        <ComboBox SelectedValue="{Binding Settings.RaPointsMode, Mode=TwoWay}"
                                   SelectedValuePath="Tag"
                                   VerticalAlignment="Center"
-                                  MinWidth="160"
-                                  HorizontalAlignment="Left">
+                                  MinWidth="160">
                             <ComboBoxItem Content="{DynamicResource LOCPlayAch_Settings_RaPointsMode_Points}" Tag="points"/>
                             <ComboBoxItem Content="{DynamicResource LOCPlayAch_Settings_RaPointsMode_Scaled}" Tag="scaled"/>
                         </ComboBox>
-
-                        <TextBlock Grid.Row="1" Grid.Column="1"
-                                   Text="{DynamicResource LOCPlayAch_Settings_RaPointsMode_Description}"
-                                   Margin="{StaticResource PlayAch.Thickness.Top.Compact}"
-                                   Style="{StaticResource MutedTextStyle}"/>
-                    </Grid>
+                    </controls:SettingRow>
 
                     <TextBlock Text="{DynamicResource LOCPlayAch_Settings_ScanningHashing}"
                                Style="{StaticResource SectionHeaderStyle}"
                                Margin="0,8,0,12"/>
 
-                    <StackPanel>
-                        <CheckBox Content="{DynamicResource LOCPlayAch_Settings_EnableArchiveScanning}"
-                                  IsChecked="{Binding Settings.EnableArchiveScanning, Mode=TwoWay}"
-                                  Margin="0,0,0,10"/>
-                        <CheckBox Content="{DynamicResource LOCPlayAch_Settings_EnableDiscHashing}"
-                                  IsChecked="{Binding Settings.EnableDiscHashing, Mode=TwoWay}"
-                                  Margin="0,0,0,10"/>
-                        <CheckBox Content="{DynamicResource LOCPlayAch_Settings_RaEnableFuzzyNameMatching}"
-                                  IsChecked="{Binding Settings.EnableFuzzyNameMatching, Mode=TwoWay}"
-                                  Margin="0,0,0,10"/>
-                        <CheckBox Content="{DynamicResource LOCPlayAch_RaEnableSubsetScanning}"
-                                  IsChecked="{Binding Settings.EnableRaSubsetScanning, Mode=TwoWay}"
-                                  Margin="0,0,0,10"/>
-                        <CheckBox Content="{DynamicResource LOCPlayAch_Settings_RaEnableAutomaticCapstoneAssignment}"
-                                  IsChecked="{Binding Settings.EnableAutomaticCapstoneAssignment, Mode=TwoWay}"
-                                  Margin="0,0,0,10"/>
-                    </StackPanel>
+                    <controls:SettingRow Label="{DynamicResource LOCPlayAch_Settings_EnableArchiveScanning}">
+                        <CheckBox IsChecked="{Binding Settings.EnableArchiveScanning, Mode=TwoWay}"/>
+                    </controls:SettingRow>
 
-                    <Grid Style="{StaticResource SettingRowStyle}">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*"/>
-                            <ColumnDefinition Width="Auto"/>
-                        </Grid.ColumnDefinitions>
+                    <controls:SettingRow Label="{DynamicResource LOCPlayAch_Settings_EnableDiscHashing}">
+                        <CheckBox IsChecked="{Binding Settings.EnableDiscHashing, Mode=TwoWay}"/>
+                    </controls:SettingRow>
 
-                        <TextBlock Grid.Column="0"
-                                   Text="{DynamicResource LOCPlayAch_Settings_HashIndexMaxAgeDays}"
-                                   Foreground="{DynamicResource PlayAch.Brush.Text}"
-                                   VerticalAlignment="Center"/>
+                    <controls:SettingRow Label="{DynamicResource LOCPlayAch_Settings_RaEnableFuzzyNameMatching}">
+                        <CheckBox IsChecked="{Binding Settings.EnableFuzzyNameMatching, Mode=TwoWay}"/>
+                    </controls:SettingRow>
 
-                        <TextBox Grid.Column="1"
-                                 Text="{Binding Settings.HashIndexMaxAgeDays, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                    <controls:SettingRow Label="{DynamicResource LOCPlayAch_RaEnableSubsetScanning}">
+                        <CheckBox IsChecked="{Binding Settings.EnableRaSubsetScanning, Mode=TwoWay}"/>
+                    </controls:SettingRow>
+
+                    <controls:SettingRow Label="{DynamicResource LOCPlayAch_Settings_HashIndexMaxAgeDays}">
+                        <TextBox Text="{Binding Settings.HashIndexMaxAgeDays, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                  Width="60"
                                  TextAlignment="Right"
                                  VerticalAlignment="Center"/>
-                    </Grid>
+                    </controls:SettingRow>
 
-                    <Grid Style="{StaticResource SettingRowStyle}">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*"/>
-                            <ColumnDefinition Width="Auto"/>
-                        </Grid.ColumnDefinitions>
-
-                        <TextBlock Grid.Column="0"
-                                   Text="{DynamicResource LOCPlayAch_Settings_ForceHashIndexRebuild}"
-                                   Style="{StaticResource MutedTextStyle}"
-                                   VerticalAlignment="Center"/>
-
-                        <Button Grid.Column="1"
-                                Content="{DynamicResource LOCPlayAch_Settings_RebuildNow}"
+                    <controls:SettingRow Label="{DynamicResource LOCPlayAch_Settings_ForceHashIndexRebuild}"
+                                         Margin="0">
+                        <Button Content="{DynamicResource LOCPlayAch_Settings_RebuildNow}"
                                 Click="ForceRebuildHashIndex_Click"
                                 Padding="{StaticResource PlayAch.Thickness.ButtonPadding.Wide}"
-                                Margin="16,0,0,0"
                                 MinWidth="90"/>
-                    </Grid>
+                    </controls:SettingRow>
                 </StackPanel>
             </Border>
 

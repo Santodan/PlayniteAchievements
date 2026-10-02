@@ -43,6 +43,37 @@
     <GradientStop Offset="1.0" Color="#00FFFFFF"/>
   </RadialGradientBrush>
 
+  <!-- Unknown-grade trophy, shown in place of a grade badge while the trophy spoiler mask applies.
+       Deliberately styled after the built-in hidden cover (Resources/HiddenAchIcon.png) rather than
+       after the graded trophies: the same left-to-right slate gradient, so
+       a masked trophy and a masked icon on the same row read as one treatment. No shine and no
+       hatch, for the same reason: the cover has neither.
+
+       The rim is the one addition the cover does not need. The cover is a filled square that always
+       reads; a trophy silhouette in these colours would otherwise dissolve into a dark grid at the
+       ~20px this column renders at. -->
+  <LinearGradientBrush x:Key="FillTrophyUnknown" StartPoint="0,0" EndPoint="1,0">
+    <GradientStop Offset="0" Color="#3B414A"/>
+    <GradientStop Offset="1" Color="#2C3138"/>
+  </LinearGradientBrush>
+
+  <SolidColorBrush x:Key="RimTrophyUnknown" Color="#8A939F"/>
+
+  <DrawingImage x:Key="TrophyUnknown">
+    <DrawingImage.Drawing>
+      <DrawingGroup>
+        <GeometryDrawing Geometry="{StaticResource GeoTrophy}" Brush="{StaticResource FillTrophyUnknown}">
+          <GeometryDrawing.Pen>
+            <Pen Brush="{StaticResource RimTrophyUnknown}" Thickness="3" LineJoin="Round"/>
+          </GeometryDrawing.Pen>
+        </GeometryDrawing>
+        <!-- Same shine band the graded trophies carry, so the masked badge catches the light the
+             way they do. -->
+        <GeometryDrawing Geometry="{StaticResource GeoTrophy}" Brush="{StaticResource ShineOverlay}"/>
+      </DrawingGroup>
+    </DrawingImage.Drawing>
+  </DrawingImage>
+
   <!-- Bronze Trophy -->
   <DrawingImage x:Key="TrophyBronze">
     <DrawingImage.Drawing>

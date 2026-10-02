@@ -24,9 +24,9 @@ namespace PlayniteAchievements.Tests.Views
             var focusOrder = ReadFocusButtonOrder();
 
             Assert.AreEqual(
-                12,
+                5,
                 xamlOrder.Count,
-                "Expected 12 tabs in the nav rail; update this test if a tab was added or removed.");
+                "Expected 5 tabs in the nav rail; update this test if a tab was added or removed.");
 
             CollectionAssert.AreEqual(
                 xamlOrder,
@@ -46,75 +46,100 @@ namespace PlayniteAchievements.Tests.Views
         [TestMethod]
         public void NavRail_AchievementDataGatedTabs_MatchRequireAchievementDataSet()
         {
-            var gatedInXaml = ReadXamlAchievementDataGatedTabs();
-            var gatedInCode = ReadListedTabs(
-                File.ReadAllText(FindRepoFile(
-                    "source", "ViewModels", "ManageAchievements", "ManageAchievementsTab.cs")),
-                "RequireAchievementData =",
-                "};");
+            var tabsFile = File.ReadAllText(FindRepoFile(
+                "source", "ViewModels", "ManageAchievements", "ManageAchievementsTab.cs"));
 
-            CollectionAssert.AreEquivalent(
-                gatedInCode,
+            var gatedInXaml = ReadXamlTabsGatedOn("HasAchievementData");
+            var requireInCode = ReadListedTabs(tabsFile, "RequireAchievementData =", "};");
+
+            CollectionAssert.IsSubsetOf(
                 gatedInXaml,
-                "Every tab whose nav button binds visibility to HasAchievementData must be listed in "
-                    + "ManageAchievementsTabs.RequireAchievementData, and vice versa. "
-                    + "XAML: " + string.Join(", ", gatedInXaml)
-                    + " | RequireAchievementData: " + string.Join(", ", gatedInCode));
+                requireInCode,
+                "A tab gated on HasAchievementData must be listed in RequireAchievementData. "
+                    + "XAML: " + string.Join(", ", gatedInXaml));
         }
 
         [TestMethod]
-        public void NavRail_GroupHeaders_ReuseExistingLocalizationKeys()
+        public void NavRail_HasNoGroupHeaders()
         {
             var xaml = ReadControlXaml();
 
-            // Group headers reuse keys already defined in en_US.xaml; no new strings are introduced.
-            var headerKeys = new[]
+            // The rail is five tabs, so it lists them flat. The general Overrides tab folded into the
+            // Overview, which left each remaining group with a single entry, and the headers went
+            // with it.
+            var formerHeaderKeys = new[]
             {
                 "LOCPlayAch_Common_General",
-                "LOCPlayAch_Achievements",
                 "LOCPlayAch_Settings_Appearance",
-                "LOCPlayAch_Settings_Maintenance_Title"
+                "LOCPlayAch_Settings_Maintenance_Title",
+                "LOCPlayAch_Achievements"
             };
 
-            var english = File.ReadAllText(FindRepoFile("source", "Localization", "en_US.xaml"));
-
-            foreach (var key in headerKeys)
+            foreach (var key in formerHeaderKeys)
             {
-                Assert.IsTrue(
+                Assert.IsFalse(
                     xaml.Contains("{DynamicResource " + key + "}"),
-                    "Nav rail is missing the group header binding for " + key + ".");
-                Assert.IsTrue(
-                    english.Contains("x:Key=\"" + key + "\""),
-                    "Group header key " + key + " must already exist in en_US.xaml.");
+                    "Nav rail group header " + key + " must stay removed.");
             }
 
-            // The Achievements group collapses with its tabs, so its header is gated too.
-            Assert.IsTrue(
-                Regex.IsMatch(
-                    xaml,
-                    "LOCPlayAch_Achievements\\}\"[\\s\\S]{0,400}?Binding HasAchievementData"),
-                "The Achievements group header must bind visibility to HasAchievementData so it "
-                    + "collapses with the tabs it labels.");
+            Assert.IsFalse(
+                xaml.Contains("NavSectionHeaderStyle"),
+                "The nav rail has no group headers, so it needs no header style.");
         }
 
         [TestMethod]
-        public void CapstonesPane_DropsUnreachableEmptyState()
+        public void EveryContentHost_DeclaresItsOwnSelectedTabTrigger()
         {
+            // Each pane defaults to Collapsed and is shown by one DataTrigger on SelectedTab.
+            // Deleting a pane by line range once took the next pane's trigger with it, leaving an
+            // empty Style.Triggers over that default -- three tabs that could never render, and
+            // nothing else catches it.
             var xaml = ReadControlXaml();
-            var viewModel = File.ReadAllText(FindRepoFile(
-                "source", "ViewModels", "ManageAchievements", "ManageAchievementsViewModel.cs"));
 
-            // The empty state was gated on the same flag that hides the Capstones nav button and
-            // forces a fallback to Overview, so it could never render.
             Assert.IsFalse(
-                xaml.Contains("CapstoneEmptyMessage"),
-                "The unreachable Capstones empty-state TextBlock must stay removed.");
+                Regex.IsMatch(xaml, "<Style\\.Triggers>\\s*</Style\\.Triggers>"),
+                "A content host has an empty Style.Triggers, so its pane can never become visible.");
+
+            var triggered = Regex.Matches(xaml, "<DataTrigger Binding=\"\\{Binding SelectedTab\\}\" Value=\"(\\w+)\"")
+                .Cast<Match>()
+                .Select(match => match.Groups[1].Value)
+                .ToList();
+
+            CollectionAssert.AreEquivalent(
+                ReadXamlTabOrder(),
+                triggered,
+                "Every nav button needs a pane keyed to the same tab, and vice versa. "
+                    + "Buttons: " + string.Join(", ", ReadXamlTabOrder())
+                    + " | Panes: " + string.Join(", ", triggered));
+        }
+
+        [TestMethod]
+        public void LocalOverridesPage_ExposesFourInternalTabsWithoutLegacyOuterGate()
+        {
+            var xaml = File.ReadAllText(FindRepoFile(
+                "source", "Views", "ManageAchievements", "ManageAchievementsOverridesTab.xaml"));
+
             Assert.IsFalse(
-                viewModel.Contains("CapstoneEmptyMessage"),
-                "The unused CapstoneEmptyMessage property must stay removed.");
-            Assert.IsFalse(
-                xaml.Contains("HasCapstoneData") || viewModel.Contains("HasCapstoneData"),
-                "HasCapstoneData was renamed to HasAchievementData.");
+                xaml.Contains("Binding SelectedOverridesTab}" + "\" Value=\"Local\""),
+                "The dedicated Local Overrides page must not hide behind the legacy outer Local gate.");
+
+            foreach (var tab in new[] { "LocalSavesSchema", "Steam", "Epic", "LumaPlay" })
+            {
+                StringAssert.Contains(
+                    xaml,
+                    "ConverterParameter=" + tab + "}",
+                    "Missing Local Overrides internal tab: " + tab);
+            }
+        }
+
+        [TestMethod]
+        public void LocalOverridesPage_ConstructorInitializesItsXaml()
+        {
+            var code = File.ReadAllText(FindRepoFile(
+                "source", "Views", "ManageAchievements", "ManageAchievementsOverridesTab.xaml.cs"));
+
+            StringAssert.Contains(code, "public ManageAchievementsOverridesTab()");
+            StringAssert.Contains(code, "InitializeComponent();");
         }
 
         private static List<string> ReadXamlTabOrder()
@@ -125,13 +150,13 @@ namespace PlayniteAchievements.Tests.Views
                 .ToList();
         }
 
-        private static List<string> ReadXamlAchievementDataGatedTabs()
+        private static List<string> ReadXamlTabsGatedOn(string flagName)
         {
             // Each RadioButton is a self-closing element; capture the block to test it for the gate.
             return Regex.Matches(ReadControlXaml(), "<RadioButton\\s[\\s\\S]*?/>")
                 .Cast<Match>()
                 .Select(match => match.Value)
-                .Where(block => block.Contains("Binding HasAchievementData"))
+                .Where(block => block.Contains("Binding " + flagName))
                 .Select(block => Regex.Match(block, "x:Name=\"(\\w+)TabButton\"").Groups[1].Value)
                 .ToList();
         }

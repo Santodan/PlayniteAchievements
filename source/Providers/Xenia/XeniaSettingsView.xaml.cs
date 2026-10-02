@@ -1,7 +1,5 @@
 using System;
-using System.IO;
-using System.Windows.Controls;
-using System.Windows.Input;
+using System.Linq;
 using System.Windows;
 using System.Threading.Tasks;
 using Playnite.SDK;
@@ -41,75 +39,57 @@ namespace PlayniteAchievements.Providers.Xenia
             ConnectionLabel.Text = string.Format(
                 ResourceProvider.GetString("LOCPlayAch_Settings_ProviderConnection"),
                 ResourceProvider.GetString("LOCPlayAch_Provider_Xenia"));
+            AccountPathsEditor.Configure(
+                XeniaAccountResolver.ValidateAccountPath,
+                () => _playniteApi?.Dialogs?.SelectFolder());
+            AccountPathsEditor.PathsChanged += AccountPathsEditor_PathsChanged;
         }
 
         public override void Initialize(IProviderSettings settings)
         {
             _xeniaSettings = settings as XeniaSettings;
             base.Initialize(settings);
+            AccountPathsEditor.SetPaths(_xeniaSettings?.AccountPaths);
             CheckXeniaAuth();
         }
 
         public Task RefreshAuthStatusAsync()
         {
+            AccountPathsEditor.Revalidate();
             CheckXeniaAuth();
             return Task.CompletedTask;
         }
 
-        private void XeniaAccountPath_KeyDown(object sender, KeyEventArgs e)
+        private void AccountPathsEditor_PathsChanged(object sender, EventArgs e)
         {
-            if (e.Key == Key.Enter)
+            if (_xeniaSettings != null)
             {
-                e.Handled = true;
-                (sender as TextBox)?.GetBindingExpression(TextBox.TextProperty)?.UpdateSource();
-                CheckXeniaAuth();
-                MoveFocusFrom((TextBox)sender);
+                _xeniaSettings.AccountPaths = AccountPathsEditor.GetPaths();
             }
-        }
 
-        private void XeniaAccountPath_LostFocus(object sender, RoutedEventArgs e)
-        {
-            (sender as TextBox)?.GetBindingExpression(TextBox.TextProperty)?.UpdateSource();
             CheckXeniaAuth();
-        }
-
-        private void Xenia_Browse_Click(object sender, RoutedEventArgs e)
-        {
-            var selectedPath = _playniteApi?.Dialogs?.SelectFolder();
-            if (!string.IsNullOrWhiteSpace(selectedPath))
-            {
-                _xeniaSettings.AccountPath = selectedPath;
-                CheckXeniaAuth();
-            }
         }
 
         private void CheckXeniaAuth()
         {
-            var accountPath = (_xeniaSettings?.AccountPath ?? string.Empty).Trim();
-
-            if (string.IsNullOrWhiteSpace(accountPath))
+            var paths = ProviderPathList.Normalize(_xeniaSettings?.AccountPaths);
+            if (paths.Count == 0)
             {
                 SetAuthenticated(false);
                 SetAuthStatus(string.Format(ResourceProvider.GetString("LOCPlayAch_Settings_NotConfigured"), ResourceProvider.GetString("LOCPlayAch_Provider_Xenia")));
+                return;
             }
-            else if (Directory.Exists(accountPath))
+
+            var results = paths.Select(XeniaAccountResolver.ValidateAccountPath).ToList();
+            if (results.Any(result => result.IsValid))
             {
-                if (File.Exists(Path.Combine(accountPath, "Account")))
-                {
-                    SetAuthenticated(true);
-                    SetAuthStatusByKey("LOCPlayAch_Status_Succeeded");
-                }
-                else
-                {
-                    SetAuthenticated(false);
-                    SetAuthStatusByKey("LOCPlayAch_XeniaValidation_NoAccount");
-                }
+                SetAuthenticated(true);
+                SetAuthStatusByKey("LOCPlayAch_Status_Succeeded");
+                return;
             }
-            else
-            {
-                SetAuthenticated(false);
-                SetAuthStatusByKey("LOCPlayAch_InvalidPath");
-            }
+
+            SetAuthenticated(false);
+            SetAuthStatusByKey(results[0].MessageKey);
         }
 
         private void SetAuthStatusByKey(string key)
@@ -145,10 +125,5 @@ namespace PlayniteAchievements.Providers.Xenia
             }
         }
 
-        private static void MoveFocusFrom(TextBox textBox)
-        {
-            var parent = textBox?.Parent as FrameworkElement;
-            parent?.MoveFocus(new TraversalRequest(FocusNavigationDirection.Next));
-        }
     }
 }

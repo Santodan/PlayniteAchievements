@@ -5,16 +5,52 @@ using System.Linq;
 namespace PlayniteAchievements.Services.Captures
 {
     /// <summary>
-    /// The kinds of capture the unlock pipeline can produce for a single achievement. The three
-    /// screenshot variants mirror <c>ScreenshotVariants</c> (Clean / WithToast / Framed); Video is
-    /// the separate unlock-recording clip. Values are ordered for the gallery type selector.
+    /// The kinds of capture the unlock pipeline can produce for a single achievement. The
+    /// screenshot variants mirror <c>ScreenshotVariants</c> (Clean / WithToast / Framed), and each
+    /// has a clip counterpart; <see cref="Video"/> is the with-notification clip. Values are
+    /// ordered for the gallery type selector and are never persisted.
     /// </summary>
     public enum CaptureVariant
     {
         Clean = 0,
         Notification = 1,
         Framed = 2,
-        Video = 3
+        CleanVideo = 3,
+        Video = 4,
+        FramedVideo = 5
+    }
+
+    /// <summary>Pairs each screenshot variant with its clip counterpart.</summary>
+    public static class CaptureVariantExtensions
+    {
+        public static bool IsVideoVariant(this CaptureVariant variant) =>
+            variant == CaptureVariant.CleanVideo ||
+            variant == CaptureVariant.Video ||
+            variant == CaptureVariant.FramedVideo;
+
+        /// <summary>The clip counterpart of a screenshot variant; a clip variant maps to itself.</summary>
+        public static CaptureVariant ToVideo(this CaptureVariant variant)
+        {
+            switch (variant)
+            {
+                case CaptureVariant.Clean: return CaptureVariant.CleanVideo;
+                case CaptureVariant.Notification: return CaptureVariant.Video;
+                case CaptureVariant.Framed: return CaptureVariant.FramedVideo;
+                default: return variant;
+            }
+        }
+
+        /// <summary>The screenshot counterpart of a clip variant; a screenshot variant maps to itself.</summary>
+        public static CaptureVariant ToImage(this CaptureVariant variant)
+        {
+            switch (variant)
+            {
+                case CaptureVariant.CleanVideo: return CaptureVariant.Clean;
+                case CaptureVariant.Video: return CaptureVariant.Notification;
+                case CaptureVariant.FramedVideo: return CaptureVariant.Framed;
+                default: return variant;
+            }
+        }
     }
 
     /// <summary>
@@ -51,7 +87,7 @@ namespace PlayniteAchievements.Services.Captures
         /// <summary>The " (n)" collision counter parsed from the filename; 0 for the original file.</summary>
         public int DedupCounter { get; }
 
-        public bool IsVideo => Variant == CaptureVariant.Video;
+        public bool IsVideo => Variant.IsVideoVariant();
     }
 
     /// <summary>

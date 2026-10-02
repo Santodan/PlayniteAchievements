@@ -18,6 +18,15 @@ namespace PlayniteAchievements.Providers.RetroAchievements.Hashing
         protected readonly ILogger Logger;
 
         /// <summary>
+        /// Warnings already logged this session. Hashing is re-attempted on every refresh, and the
+        /// in-game refresh prong ticks every 15 seconds, so a disc image that cannot be hashed
+        /// would otherwise repeat the same warning for the whole session. The properties these
+        /// warnings describe belong to the image, so restating them adds nothing.
+        /// </summary>
+        private static readonly HashSet<string> WarnedOnce = new HashSet<string>(StringComparer.Ordinal);
+        private static readonly object WarnedOnceLock = new object();
+
+        /// <summary>
         /// Initializes a new instance of the <see cref="DiscBasedHasher"/> class.
         /// </summary>
         /// <param name="logger">Logger for recording hash failures and warnings.</param>
@@ -27,33 +36,70 @@ namespace PlayniteAchievements.Providers.RetroAchievements.Hashing
         }
 
         /// <summary>
+        /// Logs a hashing warning the first time this hasher produces it for a given file, and
+        /// stays silent on every repeat. See <see cref="WarnedOnce"/>.
+        /// </summary>
+        protected void WarnOnce(string message, Exception ex = null)
+        {
+            lock (WarnedOnceLock)
+            {
+                if (!WarnedOnce.Add(Name + "|" + ex?.GetType().FullName + "|" + message))
+                {
+                    return;
+                }
+            }
+
+            if (ex == null)
+            {
+                Logger?.Warn(message);
+            }
+            else
+            {
+                Logger?.Warn(ex, message);
+            }
+        }
+
+        /// <summary>
         /// Gets the name of this hasher.
         /// </summary>
         public abstract string Name { get; }
 
         /// <summary>
-        /// Computes hashes for the specified disc image file.
+        /// Disc hashers seek within the image, so they need a file or a seekable stream.
         /// </summary>
-        /// <param name="filePath">Path to the disc image file.</param>
+        public bool SupportsForwardOnlyInput => false;
+
+        /// <summary>
+        /// Computes hashes for the specified disc image.
+        /// </summary>
+        /// <param name="source">The disc image file or stream.</param>
         /// <param name="cancel">Cancellation token for async operation.</param>
         /// <returns>
         /// A list of hash strings, or an empty list if the file does not exist
-        /// or an error occurs during hashing.
+        /// or its contents cannot be hashed.
         /// </returns>
-        public async Task<IReadOnlyList<string>> ComputeHashesAsync(string filePath, CancellationToken cancel)
+        /// <remarks>
+        /// Cancellation and transient read failures (see <see cref="HashUtils.IsTransientReadFailure"/>)
+        /// propagate, so callers can retry later instead of recording the image as unhashable.
+        /// </remarks>
+        public async Task<IReadOnlyList<string>> ComputeHashesAsync(RaHashSource source, CancellationToken cancel)
         {
-            if (!File.Exists(filePath))
+            if (source == null || (source.IsFile && !File.Exists(source.Path)))
             {
                 return Array.Empty<string>();
             }
 
             try
             {
-                return await ComputeHashesInternalAsync(filePath, cancel).ConfigureAwait(false);
+                return await ComputeHashesInternalAsync(source, cancel).ConfigureAwait(false);
             }
-            catch (Exception ex)
+            catch (OperationCanceledException) when (cancel.IsCancellationRequested)
             {
-                Logger?.Warn(ex, $"[RA] {Name}: Failed to hash disc image: {filePath}");
+                throw;
+            }
+            catch (Exception ex) when (!HashUtils.IsTransientReadFailure(ex))
+            {
+                WarnOnce($"[RA] {Name}: Failed to hash disc image: {source.Path}", ex);
                 return Array.Empty<string>();
             }
         }
@@ -61,13 +107,13 @@ namespace PlayniteAchievements.Providers.RetroAchievements.Hashing
         /// <summary>
         /// Performs the actual hash computation for the disc image.
         /// </summary>
-        /// <param name="filePath">Path to the disc image file.</param>
+        /// <param name="source">The disc image file or stream.</param>
         /// <param name="cancel">Cancellation token for async operation.</param>
         /// <returns>A list of hash strings.</returns>
         /// <remarks>
         /// Implementations do not need to handle file existence checks or top-level exception handling,
         /// as these are managed by the base class.
         /// </remarks>
-        protected abstract Task<IReadOnlyList<string>> ComputeHashesInternalAsync(string filePath, CancellationToken cancel);
+        protected abstract Task<IReadOnlyList<string>> ComputeHashesInternalAsync(RaHashSource source, CancellationToken cancel);
     }
 }

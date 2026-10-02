@@ -16,6 +16,8 @@ namespace PlayniteAchievements.Services.Images
     internal static class AchievementIconCachePathBuilder
     {
         private const string FallbackStem = "achievement";
+        internal const string IconCacheFolderName = "icon_cache";
+        internal const string LockedFileNameSuffix = ".locked";
         private const int MaxStemLength = 96;
         internal const string CustomFolderName = "custom";
         internal const string ModeFolderName = "original";
@@ -129,14 +131,69 @@ namespace PlayniteAchievements.Services.Images
 
             var stem = string.IsNullOrWhiteSpace(fileStem) ? FallbackStem : fileStem.Trim();
             var fileName = variant == AchievementIconVariant.Locked
-                ? stem + ".locked.png"
+                ? stem + LockedFileNameSuffix + ".png"
                 : stem + ".png";
 
             return Path.Combine(
-                "icon_cache",
+                IconCacheFolderName,
                 gameId.Trim(),
                 modeFolder,
                 fileName);
+        }
+
+        /// <summary>
+        /// Whether a path names a file this cache wrote, and so carries the naming below.
+        /// </summary>
+        internal static bool IsCachedIconPath(string path)
+        {
+            return !string.IsNullOrWhiteSpace(path) &&
+                path.IndexOf(IconCacheFolderName, StringComparison.OrdinalIgnoreCase) >= 0;
+        }
+
+        /// <summary>
+        /// Whether a cached icon is the locked one of its pair. Every folder names it the same
+        /// way: the unlocked icon is the stem, the locked icon is the stem plus this suffix, and
+        /// the locked file is only ever written for art that is genuinely its own.
+        /// </summary>
+        internal static bool IsLockedVariantPath(string path)
+        {
+            if (string.IsNullOrWhiteSpace(path))
+            {
+                return false;
+            }
+
+            try
+            {
+                var stem = Path.GetFileNameWithoutExtension(path);
+                return !string.IsNullOrWhiteSpace(stem) &&
+                    stem.EndsWith(LockedFileNameSuffix, StringComparison.OrdinalIgnoreCase);
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
+        /// <summary>
+        /// Whether a cached icon is the user's own art rather than the provider's, which is said by
+        /// the folder it sits in.
+        /// </summary>
+        internal static bool IsCustomIconPath(string path)
+        {
+            if (!IsCachedIconPath(path))
+            {
+                return false;
+            }
+
+            try
+            {
+                var folder = Path.GetFileName(Path.GetDirectoryName(path));
+                return string.Equals(folder, CustomFolderName, StringComparison.OrdinalIgnoreCase);
+            }
+            catch
+            {
+                return false;
+            }
         }
 
         public static string BuildCustomRelativePath(
@@ -151,11 +208,11 @@ namespace PlayniteAchievements.Services.Images
 
             var stem = string.IsNullOrWhiteSpace(fileStem) ? FallbackStem : fileStem.Trim();
             var fileName = variant == AchievementIconVariant.Locked
-                ? stem + ".locked.png"
+                ? stem + LockedFileNameSuffix + ".png"
                 : stem + ".png";
 
             return Path.Combine(
-                "icon_cache",
+                IconCacheFolderName,
                 gameId.Trim(),
                 CustomFolderName,
                 fileName);
@@ -217,7 +274,7 @@ namespace PlayniteAchievements.Services.Images
             var fileName = "category_" + stem + ".png";
 
             return Path.Combine(
-                "icon_cache",
+                IconCacheFolderName,
                 gameId.Trim(),
                 CustomFolderName,
                 fileName);
@@ -243,7 +300,7 @@ namespace PlayniteAchievements.Services.Images
             var fileName = "category_" + TrimStemForSuffix(stem, suffix.Length) + suffix + ".jpg";
 
             return Path.Combine(
-                "icon_cache",
+                IconCacheFolderName,
                 gameId.Trim(),
                 DefaultCategoryFolderName,
                 fileName);

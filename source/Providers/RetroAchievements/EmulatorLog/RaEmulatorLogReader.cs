@@ -1,3 +1,4 @@
+using PlayniteAchievements.Common;
 using PlayniteAchievements.Models.Achievements;
 using System;
 using System.Collections.Generic;
@@ -174,7 +175,12 @@ namespace PlayniteAchievements.Providers.RetroAchievements.EmulatorLog
                 {
                     ApiName = achievementId,
                     Unlocked = true,
-                    UnlockTimeUtc = DateTime.UtcNow,
+
+                    // The log line carries no timestamp, so the read is the unlock time. Read it
+                    // from the capture timeline, the same clock the recorder stamps buffered
+                    // frames and observations with, so the stored time and the reported-to-observed
+                    // figure in a clip timing report share one correlation point.
+                    UnlockTimeUtc = CaptureTimelineClock.UtcNow,
                     UnlockMode = session.Hardcore ? "Hardcore" : "Softcore"
                 });
             }

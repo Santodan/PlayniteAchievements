@@ -14,6 +14,34 @@ namespace PlayniteAchievements.Views.Helpers
     {
         private const string FullscreenWindowTag = "PlayniteAchievementsFullscreen";
 
+        /// <summary>
+        /// Marks a window as one of the fullscreen-mode hosts, for the styles that give controller
+        /// focus a visible outline there and nowhere else.
+        /// </summary>
+        /// <remarks>
+        /// Inherits, so a style can read it with a plain trigger condition on the styled element.
+        /// The condition it replaced bound <c>RelativeSource AncestorType=Window</c> to read
+        /// <see cref="FrameworkElement.Tag"/>, which put a visual-tree walk up to the window on
+        /// every cell of every row a grid realized -- paid on each recycle, in desktop mode too,
+        /// where the condition can never be true because only the fullscreen path sets the tag.
+        /// An inherited property is a lookup instead of a walk, and it is a property, so the
+        /// trigger takes <c>Property=</c> rather than a binding.
+        ///
+        /// The tag is still set alongside it: it is a public-ish marker other code matches on.
+        /// </remarks>
+        public static readonly DependencyProperty IsFullscreenHostProperty =
+            DependencyProperty.RegisterAttached(
+                "IsFullscreenHost",
+                typeof(bool),
+                typeof(PlayniteUiProvider),
+                new FrameworkPropertyMetadata(false, FrameworkPropertyMetadataOptions.Inherits));
+
+        public static void SetIsFullscreenHost(DependencyObject element, bool value) =>
+            element?.SetValue(IsFullscreenHostProperty, value);
+
+        public static bool GetIsFullscreenHost(DependencyObject element) =>
+            element != null && (bool)element.GetValue(IsFullscreenHostProperty);
+
         // Matches ToastNotificationService.DpiSettleTolerance: below this the monitor scale and the
         // render scale are the same scale read through two APIs, not a real mismatch.
         private const double MonitorScaleTolerance = 0.01;
@@ -190,6 +218,7 @@ namespace PlayniteAchievements.Views.Helpers
             FormattingCulture.Apply(window);
             window.Title = title;
             window.Tag = FullscreenWindowTag;
+            SetIsFullscreenHost(window, true);
             ConfigureBorderlessFullscreenWindow(window);
             ApplyWindowThemeBrushes(window);
 

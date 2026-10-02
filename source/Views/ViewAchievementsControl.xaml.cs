@@ -372,7 +372,8 @@ namespace PlayniteAchievements.Views
                 _achievementOverridesService,
                 _cacheManager,
                 _logger,
-                includeViewCaptures: true);
+                includeViewCaptures: true,
+                menuSource: row);
             if (menu == null || menu.Items.Count == 0)
             {
                 return;
@@ -399,7 +400,9 @@ namespace PlayniteAchievements.Views
                 return;
             }
 
-            PlayniteAchievementsPlugin.Instance?.OpenLocalAchievementsEditorView(ViewModel.GameId);
+            PlayniteAchievementsPlugin.Instance?.OpenManageAchievementsView(
+                ViewModel.GameId,
+                ViewModels.ManageAchievements.ManageAchievementsTab.Editor);
         }
 
         private void AchievementRow_PreviewMouseRightButtonDown(object sender, MouseButtonEventArgs e)
@@ -457,7 +460,8 @@ namespace PlayniteAchievements.Views
                 RefreshAfterRowOptionsChanged,
                 includeViewCaptures: true,
                 onGoalChanged: ReapplyGoalOrderAfterRowOptionsChanged,
-                onCapstoneChanged: ApplyCapstoneAfterRowOptionsChanged);
+                onCapstoneChanged: ApplyCapstoneAfterRowOptionsChanged,
+                menuSource: row);
             if (menu.Items.Count == 0)
             {
                 return false;
