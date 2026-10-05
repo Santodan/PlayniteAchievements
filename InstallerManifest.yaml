@@ -1,5 +1,47 @@
 AddonId: PlayniteAchievementsSantodan
 Packages:
+  - Version: 4.0.1.1
+    RequiredApiVersion: 6.14.0
+    ReleaseDate: 2026-09-09
+    PackageUrl: https://github.com/santodan/PlayniteAchievements/releases/download/v4.0.1.1/PlayniteAchievementsSantodan_4_0_1_1.pext
+    Changelog:
+    - "v4.0.1 merge"
+      - "Hopefully I got everything fixed since there were a lot of conflicts"
+    - "New UI for the `Local Overrides` tab in the `Manage Achievements` to be equal to the `Platform` tab in the `Settings`"
+    - "RetroAchievements subnet selector was moved to the `Local Overrides` tab"
+    - "`Local` platform separated into tabs for a more user friendly UI ( General / Import / SuccessStory)"
+    - "`Custom Folders` and `Excluded Folders` are now presented side by side"
+    - "Added an option to respect the achievements cache if the new refresh ahs less achievements than the cache"
+      - "Also added to the `Local Overrides` --> `Local saves & schema` for individual game toggle"
+    - "Fixed Local achievement replay and screenshot floods"
+    - "Added epic emulator compatibility"
+    - "Fixed `SAN` transition screenshot"
+      - "There is now an option in `Memories` to choose the `SAN` view and how many ms before it ends to take the screenshot"
+    - "Added a preview of `VIew 1` and `View 2` for `SAN`transitions"
+      - "`Show Vew1` and `Show View2` buttons located under the `Show Notification` in the `Notification Style` menu"
+    - "Fix `<rarityIcon>` not taking the achievements points instead of the percentage rarity text"
+    - "Fixed the `Show Notification` not hiding on the second click"
+    - "Added a on/off background option for primary and secondary icons"
+    - "Added a color picker for the primary and secondary icon"
+    - "Builder will now populate all the element details under the `Manual Element CSS`"
+    - "Fixed the Builder not changing the preview to the correct `Position` when no `SAN` element / transition are present"
+    - "Fixed the `Cover` size after changing it size through the builder"
+    - "Added a on/off background option for the `Cover` background"
+    - "Added a color picker for the `Cover` background"
+    - "Added the possibility of attaching icons to the lines"
+    - "Corrected the height not changing in the builder with the `Auto height` enabled"
+    - "Added a center option for the cover when the `Auto height` is selected"
+    - "Added a border-aware text wrapping in both the builder and extension"
+    - "Cover element will now appear even when no `Preview Game` is selected"
+    - "Added a border size settings"
+    - "Added compatibility with `SOVEREIGN.ini`"
+    - "Added the installation folder to the Auto-scanned folders' list"
+    - "Added the file also to the `Local save folder override` shown path"
+    - "Added `<gameUnlockedCount>` and `<gameAchievementCount>` to the notification wildcards"
+    - "Added a setting for the extensions to continue to search for the local achievement file when it doesn't exist."
+      - "It will respect all the default nd custom folders, for all acceptable files"
+      - "The setting for the interval for this check is under `Local` platform in the top of the `Local Achievements Folders and Settings` (default is 5 seconds)"
+
   - Version: 3.2.1.1
     RequiredApiVersion: 6.14.0
     ReleaseDate: 2026-09-09
