@@ -81,6 +81,7 @@ namespace PlayniteAchievements.Services
             public DateTime LastConfiguredLogUtc;
             public DateTime NextFriendDueUtc;
             public DateTime RecoveryCooldownUtc;
+            public bool WaitingForLocalAchievementFile;
             public IDataProvider Provider;
             public IInGameProgressSource ProgressSource;
             public InGameProgressRegistration Registration;
@@ -567,7 +568,7 @@ namespace PlayniteAchievements.Services
                     .ToList();
                 foreach (var state in fallbackStates)
                 {
-                    state.NextFallbackDueUtc = now.Add(GetPollInterval());
+                    state.NextFallbackDueUtc = now.Add(GetFallbackInterval(state));
                 }
 
                 friendStates = _games.Values
@@ -1053,6 +1054,9 @@ namespace PlayniteAchievements.Services
 
             var nextTargets = NormalizeTargets(registration?.WatchTargets);
             var previousTargets = NormalizeTargets(state.Registration?.WatchTargets);
+            var waitingForLocalAchievementFile =
+                provider is LocalSavesProvider localProvider &&
+                !localProvider.RefreshMissingAchievementFileDiscovery(state.Game, out _);
             var equivalent =
                 preservePrimeWhenEquivalent &&
                 string.Equals(state.Provider?.ProviderKey, provider.ProviderKey, StringComparison.OrdinalIgnoreCase) &&
@@ -1080,6 +1084,7 @@ namespace PlayniteAchievements.Services
                 }
                 generation = state.Generation;
                 state.Provider = provider;
+                state.WaitingForLocalAchievementFile = waitingForLocalAchievementFile;
                 state.ProgressSource = progressSource;
                 state.Registration = registration;
                 state.CachedSchema = cached;
@@ -1090,6 +1095,14 @@ namespace PlayniteAchievements.Services
                 }
 
                 var now = CaptureTimelineClock.UtcNow;
+                if (waitingForLocalAchievementFile)
+                {
+                    var missingFileDue = now.Add(GetMissingAchievementFilePollInterval());
+                    if (state.NextFallbackDueUtc == default || state.NextFallbackDueUtc > missingFileDue)
+                    {
+                        state.NextFallbackDueUtc = missingFileDue;
+                    }
+                }
                 state.Schedule.Configure(
                     now,
                     progressSource != null,
@@ -1238,6 +1251,17 @@ namespace PlayniteAchievements.Services
                     var gameIds = batch.Select(state => state.Game.Id).ToList();
                     var timer = Stopwatch.StartNew();
                     var localProvider = batch[0].Provider as LocalSavesProvider;
+                    if (localProvider != null)
+                    {
+                        foreach (var state in batch.Where(candidate => candidate.WaitingForLocalAchievementFile))
+                        {
+                            if (localProvider.RefreshMissingAchievementFileDiscovery(state.Game, out var discoveredPath))
+                            {
+                                state.WaitingForLocalAchievementFile = false;
+                                _logger?.Info($"[InGameMonitor] Detected Local achievement file for '{state.Game.Name}': {discoveredPath}");
+                            }
+                        }
+                    }
                     using (RealtimePollingLogScope.Enter())
                     using (localProvider?.BeginRealtimeLogThrottle())
                     {
@@ -1814,6 +1838,23 @@ namespace PlayniteAchievements.Services
             }
 
             return TimeSpan.FromSeconds(Math.Max(10, _settings?.Persisted?.InGamePollIntervalSeconds ?? 15));
+        }
+
+        private TimeSpan GetFallbackInterval(GamePollState state)
+        {
+            return state?.WaitingForLocalAchievementFile == true
+                ? GetMissingAchievementFilePollInterval()
+                : GetPollInterval();
+        }
+
+        private static TimeSpan GetMissingAchievementFilePollInterval()
+        {
+            var settings = ProviderRegistry.Settings<LocalSettings>();
+            var seconds = settings?.MissingAchievementFilePollingIntervalSeconds ?? 5;
+            seconds = Math.Max(
+                LocalSettings.MinMissingAchievementFilePollingIntervalSeconds,
+                Math.Min(LocalSettings.MaxMissingAchievementFilePollingIntervalSeconds, seconds));
+            return TimeSpan.FromSeconds(seconds);
         }
 
         private TimeSpan GetFriendInterval()

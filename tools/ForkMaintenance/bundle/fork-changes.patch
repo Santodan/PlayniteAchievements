@@ -5492,7 +5492,7 @@ index bdeea89355de3690f442a8e0a891bb2e047ed49f..dfe55ec829a5056d442fc3ee9185b84e
  
      /// <summary>
 diff --git a/source/Services/InGameAchievementMonitor.cs b/source/Services/InGameAchievementMonitor.cs
-index bdf29db102ebcab0039aff256f969e562c14d8b3..e4d5523465cd83082fc65fbeda0bca0018ce1858 100644
+index bdf29db102ebcab0039aff256f969e562c14d8b3..65dd9609b75b8c37a99e8e5c857eab91520001e4 100644
 --- a/source/Services/InGameAchievementMonitor.cs
 +++ b/source/Services/InGameAchievementMonitor.cs
 @@ -12,12 +12,14 @@
@@ -5518,7 +5518,7 @@ index bdf29db102ebcab0039aff256f969e562c14d8b3..e4d5523465cd83082fc65fbeda0bca00
          private static readonly int[] StableReadRetryMilliseconds = { 100, 250, 500, 1000 };
          /// <summary>
          /// A quiet fast prong re-reads on the registration's safety cadence, so logging every
-@@ -73,6 +76,9 @@ public GamePollState()
+@@ -73,8 +76,12 @@ public GamePollState()
              /// <see cref="Schedule"/> so the two prongs cannot move each other's deadline.
              /// </summary>
              public DateTime NextFallbackDueUtc;
@@ -5527,8 +5527,20 @@ index bdf29db102ebcab0039aff256f969e562c14d8b3..e4d5523465cd83082fc65fbeda0bca00
 +            public DateTime LastConfiguredLogUtc;
              public DateTime NextFriendDueUtc;
              public DateTime RecoveryCooldownUtc;
++            public bool WaitingForLocalAchievementFile;
              public IDataProvider Provider;
-@@ -799,7 +805,8 @@ private void ApplyProgressResult(
+             public IInGameProgressSource ProgressSource;
+             public InGameProgressRegistration Registration;
+@@ -561,7 +568,7 @@ private Task RunTickAsync(CancellationToken token)
+                     .ToList();
+                 foreach (var state in fallbackStates)
+                 {
+-                    state.NextFallbackDueUtc = now.Add(GetPollInterval());
++                    state.NextFallbackDueUtc = now.Add(GetFallbackInterval(state));
+                 }
+ 
+                 friendStates = _games.Values
+@@ -799,7 +806,8 @@ private void ApplyProgressResult(
                  primed,
                  sessionStartUtc,
                  after,
@@ -5538,7 +5550,7 @@ index bdf29db102ebcab0039aff256f969e562c14d8b3..e4d5523465cd83082fc65fbeda0bca00
              AchievementUnlockedEventArgs completion = null;
              if (emittableKeys.Count > 0)
              {
-@@ -947,14 +954,15 @@ private static IReadOnlyList<string> SelectEmittableKeys(
+@@ -947,14 +955,15 @@ private static IReadOnlyList<string> SelectEmittableKeys(
              bool primed,
              DateTime sessionStartUtc,
              GameAchievementData after,
@@ -5556,7 +5568,7 @@ index bdf29db102ebcab0039aff256f969e562c14d8b3..e4d5523465cd83082fc65fbeda0bca00
              {
                  return newlyUnlockedKeys;
              }
-@@ -972,7 +980,10 @@ private static IReadOnlyList<string> SelectEmittableKeys(
+@@ -972,7 +981,10 @@ private static IReadOnlyList<string> SelectEmittableKeys(
                  .Where(key =>
                      !string.IsNullOrWhiteSpace(key) &&
                      unlockTimeByKey.TryGetValue(key, out var unlockTimeUtc) &&
@@ -5568,7 +5580,17 @@ index bdf29db102ebcab0039aff256f969e562c14d8b3..e4d5523465cd83082fc65fbeda0bca00
                  .ToList();
          }
  
-@@ -1052,6 +1063,8 @@ provider is IInGameProgressSource candidate &&
+@@ -1042,6 +1054,9 @@ provider is IInGameProgressSource candidate &&
+ 
+             var nextTargets = NormalizeTargets(registration?.WatchTargets);
+             var previousTargets = NormalizeTargets(state.Registration?.WatchTargets);
++            var waitingForLocalAchievementFile =
++                provider is LocalSavesProvider localProvider &&
++                !localProvider.RefreshMissingAchievementFileDiscovery(state.Game, out _);
+             var equivalent =
+                 preservePrimeWhenEquivalent &&
+                 string.Equals(state.Provider?.ProviderKey, provider.ProviderKey, StringComparison.OrdinalIgnoreCase) &&
+@@ -1052,6 +1067,8 @@ provider is IInGameProgressSource candidate &&
                  state.Registration?.UnlockAnchorBias == registration?.UnlockAnchorBias;
  
              List<IDisposable> oldSubscriptions = null;
@@ -5577,7 +5599,30 @@ index bdf29db102ebcab0039aff256f969e562c14d8b3..e4d5523465cd83082fc65fbeda0bca00
              int generation;
              lock (_stateLock)
              {
-@@ -1087,6 +1100,14 @@ provider is IInGameProgressSource candidate &&
+@@ -1067,6 +1084,7 @@ provider is IInGameProgressSource candidate &&
+                 }
+                 generation = state.Generation;
+                 state.Provider = provider;
++                state.WaitingForLocalAchievementFile = waitingForLocalAchievementFile;
+                 state.ProgressSource = progressSource;
+                 state.Registration = registration;
+                 state.CachedSchema = cached;
+@@ -1077,6 +1095,14 @@ provider is IInGameProgressSource candidate &&
+                 }
+ 
+                 var now = CaptureTimelineClock.UtcNow;
++                if (waitingForLocalAchievementFile)
++                {
++                    var missingFileDue = now.Add(GetMissingAchievementFilePollInterval());
++                    if (state.NextFallbackDueUtc == default || state.NextFallbackDueUtc > missingFileDue)
++                    {
++                        state.NextFallbackDueUtc = missingFileDue;
++                    }
++                }
+                 state.Schedule.Configure(
+                     now,
+                     progressSource != null,
+@@ -1087,6 +1113,14 @@ provider is IInGameProgressSource candidate &&
                  {
                      state.NextFriendDueUtc = configuredFriendDue;
                  }
@@ -5592,7 +5637,7 @@ index bdf29db102ebcab0039aff256f969e562c14d8b3..e4d5523465cd83082fc65fbeda0bca00
              }
  
              DisposeSubscriptions(oldSubscriptions);
-@@ -1123,9 +1144,13 @@ provider is IInGameProgressSource candidate &&
+@@ -1123,9 +1157,13 @@ provider is IInGameProgressSource candidate &&
                  DisposeSubscriptions(subscriptions);
              }
  
@@ -5609,21 +5654,20 @@ index bdf29db102ebcab0039aff256f969e562c14d8b3..e4d5523465cd83082fc65fbeda0bca00
              return true;
          }
  
-@@ -1212,28 +1237,33 @@ private async Task RunFallbackBatchAsync(
+@@ -1212,28 +1250,44 @@ private async Task RunFallbackBatchAsync(
                          state => _cacheManager?.LoadGameData(state.Game.Id.ToString()));
                      var gameIds = batch.Select(state => state.Game.Id).ToList();
                      var timer = Stopwatch.StartNew();
 -                    await _executeRefreshAsync(
 -                        new RefreshRequest
--                        {
++                    var localProvider = batch[0].Provider as LocalSavesProvider;
++                    if (localProvider != null)
++                    {
++                        foreach (var state in batch.Where(candidate => candidate.WaitingForLocalAchievementFile))
+                         {
 -                            GameIds = gameIds,
 -                            Options = new RefreshOptions
-+                    var localProvider = batch[0].Provider as LocalSavesProvider;
-+                    using (RealtimePollingLogScope.Enter())
-+                    using (localProvider?.BeginRealtimeLogThrottle())
-+                    {
-+                        await _executeRefreshAsync(
-+                            new RefreshRequest
++                            if (localProvider.RefreshMissingAchievementFileDiscovery(state.Game, out var discoveredPath))
                              {
 -                                Subjects = RefreshSubjects.CurrentUser,
 -                                Scope = RefreshGameScope.Explicit,
@@ -5631,7 +5675,9 @@ index bdf29db102ebcab0039aff256f969e562c14d8b3..e4d5523465cd83082fc65fbeda0bca00
 -                                PlayniteGameIds = gameIds,
 -                                PreferCachedDefinitions = true,
 -                                RespectUserExclusions = true
--                            }
++                                state.WaitingForLocalAchievementFile = false;
++                                _logger?.Info($"[InGameMonitor] Detected Local achievement file for '{state.Game.Name}': {discoveredPath}");
+                             }
 -                        },
 -                        new RefreshExecutionPolicy
 -                        {
@@ -5641,6 +5687,14 @@ index bdf29db102ebcab0039aff256f969e562c14d8b3..e4d5523465cd83082fc65fbeda0bca00
 -                            ExternalCancellationToken = token,
 -                            ErrorLogMessage = "[InGameMonitor] Provider fallback refresh failed."
 -                        }).ConfigureAwait(false);
++                        }
++                    }
++                    using (RealtimePollingLogScope.Enter())
++                    using (localProvider?.BeginRealtimeLogThrottle())
++                    {
++                        await _executeRefreshAsync(
++                            new RefreshRequest
++                            {
 +                                GameIds = gameIds,
 +                                Options = new RefreshOptions
 +                                {
@@ -5664,7 +5718,7 @@ index bdf29db102ebcab0039aff256f969e562c14d8b3..e4d5523465cd83082fc65fbeda0bca00
                      timer.Stop();
  
                      foreach (var state in batch)
-@@ -1254,7 +1284,10 @@ await _executeRefreshAsync(
+@@ -1254,7 +1308,10 @@ await _executeRefreshAsync(
                                  InGameUnlockEmissionPolicy.ShouldEmit(
                                      primed,
                                      state.SessionStartUtc,
@@ -5676,7 +5730,7 @@ index bdf29db102ebcab0039aff256f969e562c14d8b3..e4d5523465cd83082fc65fbeda0bca00
                              .Select(achievement => achievement.ApiName)
                              .ToList();
  
-@@ -1735,7 +1768,9 @@ private HashSet<string> GetToastedFriendSet(GamePollState state, FriendPollTarge
+@@ -1735,7 +1792,9 @@ private HashSet<string> GetToastedFriendSet(GamePollState state, FriendPollTarge
          private bool ShouldPollGame(Game game, bool logReason)
          {
              var persisted = _settings?.Persisted;
@@ -5687,7 +5741,7 @@ index bdf29db102ebcab0039aff256f969e562c14d8b3..e4d5523465cd83082fc65fbeda0bca00
              {
                  if (logReason) _logger?.Debug("[InGameMonitor] Disabled in settings.");
                  return false;
-@@ -1767,6 +1802,17 @@ private bool ShouldRunFriendRefresh()
+@@ -1767,9 +1826,37 @@ private bool ShouldRunFriendRefresh()
  
          private TimeSpan GetPollInterval()
          {
@@ -5705,6 +5759,26 @@ index bdf29db102ebcab0039aff256f969e562c14d8b3..e4d5523465cd83082fc65fbeda0bca00
              return TimeSpan.FromSeconds(Math.Max(10, _settings?.Persisted?.InGamePollIntervalSeconds ?? 15));
          }
  
++        private TimeSpan GetFallbackInterval(GamePollState state)
++        {
++            return state?.WaitingForLocalAchievementFile == true
++                ? GetMissingAchievementFilePollInterval()
++                : GetPollInterval();
++        }
++
++        private static TimeSpan GetMissingAchievementFilePollInterval()
++        {
++            var settings = ProviderRegistry.Settings<LocalSettings>();
++            var seconds = settings?.MissingAchievementFilePollingIntervalSeconds ?? 5;
++            seconds = Math.Max(
++                LocalSettings.MinMissingAchievementFilePollingIntervalSeconds,
++                Math.Min(LocalSettings.MaxMissingAchievementFilePollingIntervalSeconds, seconds));
++            return TimeSpan.FromSeconds(seconds);
++        }
++
+         private TimeSpan GetFriendInterval()
+         {
+             var multiplier = Math.Max(
 diff --git a/source/Services/Library/LibraryProjectionService.cs b/source/Services/Library/LibraryProjectionService.cs
 index 3de5d7a35842fcdf221a463dcc25f42ebf89d17c..88e7d765614a883e05f278fdf493342741b4eeaa 100644
 --- a/source/Services/Library/LibraryProjectionService.cs

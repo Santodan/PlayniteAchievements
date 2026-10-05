@@ -1008,6 +1008,42 @@ namespace PlayniteAchievements.Providers.Local
             return !string.IsNullOrWhiteSpace(fingerprint);
         }
 
+        internal bool RefreshMissingAchievementFileDiscovery(Game game, out string achievementFilePath)
+        {
+            achievementFilePath = null;
+            if (game == null || game.Id == Guid.Empty)
+            {
+                return false;
+            }
+
+            var appId = GetAppId(game, out _);
+            if (!string.IsNullOrWhiteSpace(appId))
+            {
+                lock (_discoveryCacheLock)
+                {
+                    _localFolderCandidatesCache.Remove(appId);
+                }
+            }
+
+            if (!TryResolveLocalFolder(game, appId, out var folderPath, out _, out _, out _) ||
+                string.IsNullOrWhiteSpace(folderPath))
+            {
+                return false;
+            }
+
+            foreach (var fileName in LocalAchievementIniFileNames.Concat(new[] { "achievements.json" }))
+            {
+                var candidate = ResolveAchievementFilePath(folderPath, fileName);
+                if (!string.IsNullOrWhiteSpace(candidate))
+                {
+                    achievementFilePath = candidate;
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
         private static void AddExistingPath(ICollection<string> paths, string path)
         {
             if (paths == null || string.IsNullOrWhiteSpace(path))

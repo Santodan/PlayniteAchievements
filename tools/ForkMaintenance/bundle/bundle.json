@@ -1,6 +1,6 @@
 {
     "schemaVersion":  1,
-    "generatedUtc":  "2026-10-05T13:35:11.3921529Z",
+    "generatedUtc":  "2026-10-05T13:53:35.1149263Z",
     "baselineRef":  "upstream/main",
     "baselineCommit":  "79108753e3f8ddc775aa569ff8f5ed0362f3f22b",
     "protectedPaths":  [
@@ -11,7 +11,7 @@
                        ],
     "patch":  {
                   "path":  "fork-changes.patch",
-                  "sha256":  "472B1EC0199840687DA5E00273AEFE8803227BFA3395452437ED41CBD0D41633"
+                  "sha256":  "7587920919763CB851767A03AAF9AEB3BBE1B6C49588717158B2BAB4486F9597"
               },
     "localizationRecipes":  {
                                 "path":  "localization-recipes.json",
@@ -138,15 +138,15 @@
                          },
                          {
                              "path":  "source/Providers/Local/LocalSavesProvider.cs",
-                             "sha256":  "48EC0F3FABDF42E4C1B01F7BCDE3D28CA077B5BCA6C6535424A5A89AB2AB5C76"
+                             "sha256":  "E5F9BCEA690E3A61975A661386698543CB3C32172AB7B3C9BCE005F217A3D459"
                          },
                          {
                              "path":  "source/Providers/Local/LocalSettings.cs",
-                             "sha256":  "A92D91E352730A2843D7EA5D2748627D656C7EA419A4954DCCB14FEF63731CFC"
+                             "sha256":  "617DBEC280687A16F1204A43BC33ACE19DBC9FAC32A2528DFCCC24BAED7516F3"
                          },
                          {
                              "path":  "source/Providers/Local/LocalSettingsView.xaml",
-                             "sha256":  "4A2BC545F01CC2E48AD04C357DB9A1A5D204EAB49DBF395AD87461278AB3DAE4"
+                             "sha256":  "CBD82F4AC5C02640A9720BA50F42092E7C9DA36AA8687606F288E8CB3516401C"
                          },
                          {
                              "path":  "source/Providers/Local/LocalSettingsView.xaml.cs",

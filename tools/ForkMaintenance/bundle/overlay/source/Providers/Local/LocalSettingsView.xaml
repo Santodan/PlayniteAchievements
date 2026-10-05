@@ -115,6 +115,22 @@
                                Style="{StaticResource SectionHeaderStyle}"
                                Margin="0,0,0,6"/>
 
+                    <DockPanel Margin="0,0,0,4">
+                        <TextBlock Text="Check for a missing achievement file every:"
+                                   VerticalAlignment="Center"/>
+                        <StackPanel Orientation="Horizontal" DockPanel.Dock="Right">
+                            <TextBox Text="{Binding Settings.MissingAchievementFilePollingIntervalSeconds, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
+                                     Width="55"
+                                     HorizontalContentAlignment="Right"
+                                     VerticalContentAlignment="Center"/>
+                            <TextBlock Text=" seconds" VerticalAlignment="Center"/>
+                        </StackPanel>
+                    </DockPanel>
+                    <TextBlock Text="While a game is running and no supported Local achievement file has been found, the configured folders are scanned again at this interval (1–300 seconds)."
+                               Style="{StaticResource MutedTextStyle}"
+                               Margin="18,0,0,12"
+                               TextWrapping="Wrap"/>
+
                     <!-- Refresh achievements when game closes -->
                     <CheckBox Content="Refresh achievements when a game closes"
                               IsChecked="{Binding Settings.RefreshAchievementsOnGameClose, Mode=TwoWay}"

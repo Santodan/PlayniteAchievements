@@ -133,6 +133,11 @@ Primary fork areas:
 
 - Local appears with its default icon and settings defaults.
 - Local folder discovery, extra/excluded paths, import, and refresh work.
+- While a game is running and its Local achievement file has not been found,
+  folder discovery bypasses cached misses and rescans all configured roots for
+  the supported JSON/INI filenames. The user-configured 1–300 second interval
+  appears above **Refresh achievements when a game closes**; normal monitoring
+  takes over after a file is detected.
 - Local settings show **Use SteamHunters for Categories** enabled by default
   immediately above **Steam path (optional)**. When enabled, Local refreshes
   use the resolved Steam schema App ID to populate SteamHunters category labels,

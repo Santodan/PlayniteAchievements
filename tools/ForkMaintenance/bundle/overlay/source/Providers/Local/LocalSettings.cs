@@ -360,6 +360,8 @@ namespace PlayniteAchievements.Providers.Local
     {
         public const int MinActiveGameMonitoringIntervalSeconds = 1;
         public const int MaxActiveGameMonitoringIntervalSeconds = 60;
+        public const int MinMissingAchievementFilePollingIntervalSeconds = 1;
+        public const int MaxMissingAchievementFilePollingIntervalSeconds = 300;
         public const int MinScreenshotDelayMilliseconds = 0;
         public const int MaxScreenshotDelayMilliseconds = 10000;
         public const double MinCustomOverlayHeight = 45;
@@ -386,6 +388,7 @@ namespace PlayniteAchievements.Providers.Local
         private bool _refreshAchievementsOnRealtimeUnlock;
         private bool _refreshAchievementsOnGameClose;
         private int _activeGameMonitoringIntervalSeconds = 5;
+        private int _missingAchievementFilePollingIntervalSeconds = 5;
         private bool _enableUnlockScreenshots;
         private string _screenshotSaveFolder = string.Empty;
         private string _screenshotFilenameTemplate = DefaultScreenshotFilenameTemplate;
@@ -660,6 +663,16 @@ namespace PlayniteAchievements.Providers.Local
             set => SetValue(
                 ref _activeGameMonitoringIntervalSeconds,
                 Math.Max(MinActiveGameMonitoringIntervalSeconds, Math.Min(MaxActiveGameMonitoringIntervalSeconds, value)));
+        }
+
+        public int MissingAchievementFilePollingIntervalSeconds
+        {
+            get => _missingAchievementFilePollingIntervalSeconds;
+            set => SetValue(
+                ref _missingAchievementFilePollingIntervalSeconds,
+                Math.Max(
+                    MinMissingAchievementFilePollingIntervalSeconds,
+                    Math.Min(MaxMissingAchievementFilePollingIntervalSeconds, value)));
         }
 
         public bool EnableUnlockScreenshots
