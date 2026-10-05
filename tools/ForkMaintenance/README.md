@@ -4,6 +4,7 @@ This directory turns the Santodan fork into a repeatable layer over an upstream
 PlayniteAchievements checkout. It intentionally does not modify or package:
 
 - `README.md`
+- `AddonDBManifest.yaml` (the fork's add-on database identity)
 - `source/extension.yaml`
 - `InstallerManifest.yaml`
 
@@ -24,6 +25,20 @@ The behavioral inventory in
 [`FORK_FEATURE_CHECKLIST.md`](FORK_FEATURE_CHECKLIST.md) is the post-merge test
 checklist for the fork features that have historically been lost during
 upstream integrations.
+
+The v4.0.1 recovery status and remaining live checks are recorded in
+[`../../UPSTREAM_V4.0.1_CONFLICT_REVIEW.md`](../../UPSTREAM_V4.0.1_CONFLICT_REVIEW.md).
+The 2026-10-05 bundle refresh captures the complete current working tree,
+including uncommitted fixes; it is not a new upstream fetch, commit, or push.
+Implementation coverage does not replace the pending live checks in that review.
+Git output and generated JSON/XML/patch reads explicitly use UTF-8, including
+under Windows PowerShell 5.1, to preserve non-ASCII text during export/application.
+
+The refreshed bundle was dry-run validated against a separate clean checkout of
+upstream v4.0.1 (`79108753e3f8ddc775aa569ff8f5ed0362f3f22b`): the three-way
+patch, 146 fork-only overlays, localization recipes, hashes, and protected-file
+checks passed. This validates replay against that baseline, not conflict-free
+application to an as-yet-unseen future upstream release.
 
 ## Refresh the bundle from the working fork
 
@@ -68,6 +83,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass `
 The changes remain uncommitted and appear immediately in the current checkout's
 VS Code Source Control panel. The action preserves `README.md`,
 `source/extension.yaml`, `InstallerManifest.yaml`, and `tools/ForkMaintenance`.
+`AddonDBManifest.yaml` is also protected to retain the fork's update identity.
 It refuses to start if other local changes exist, preventing unrelated work from
 being overwritten. When upstream is not already an ancestor, the action also
 opens a no-content merge before assembling the updated files. After review,

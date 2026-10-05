@@ -11,6 +11,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         Editor,
         Category,
         Notifications,
+        CustomSchema,
         LocalOverrides
     }
 

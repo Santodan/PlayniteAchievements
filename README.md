@@ -99,6 +99,15 @@ The entries below are fork-side changes, grouped by date. When a date includes a
 
 ## Next release - TBD
 
+## 2026-10- - v4.0.1.1
+
+- v4.0.1 merge
+- New UI for the `Local Overrides` tab in the `Manage Achievements` to be equal to the `Platform` tab in the `Settings`
+- RetroAchievements subnet selector was moved to the `Local Overrides` tab
+- `Local` platform separated into tabs for a more user friendly UI ( General / Import / SuccessStory)
+- `Custom Folders` and `Excluded Folders` are now presented side by side
+- Added an option to respect the achievements cache if the new refresh ahs less achievements than the cache
+  - Also added to the `Local Overrides` --> `Local saves & schema` for individual game toggle
 - Fixed Local achievement replay and screenshot floods
 - Added epic emulator compatibility
 - Fixed `SAN` transition screenshot
@@ -135,12 +144,12 @@ The entries below are fork-side changes, grouped by date. When a date includes a
 - Fixed video recording not working with the custom notification style
 - Changed the `[InGameMonitor] Configured...` logs to only when there are changes or every 5 minutes
 
+## Old Changelogs
+<details>
+
 ## 2026-09-09 - v3.2.0.1
 
 - v3.2.0 merge
-
-## Old Changelogs
-<details>
 
 ## 2026-09-06 - v3.1.3.3
 

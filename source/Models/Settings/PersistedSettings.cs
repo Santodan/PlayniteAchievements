@@ -25,6 +25,13 @@ namespace PlayniteAchievements.Models.Settings
     /// </summary>
     public partial class PersistedSettings : ObservableObject
     {
+        private bool _preserveCachedUnlocksOnRefresh = true;
+        public bool PreserveCachedUnlocksOnRefresh
+        {
+            get => _preserveCachedUnlocksOnRefresh;
+            set => SetValue(ref _preserveCachedUnlocksOnRefresh, value);
+        }
+
         public const double DefaultAchievementDataGridMaxHeight = 600d;
         public const double MinimumGridRowHeight = 32d;
         public const int DefaultStartPageGridMaxRows = 25;

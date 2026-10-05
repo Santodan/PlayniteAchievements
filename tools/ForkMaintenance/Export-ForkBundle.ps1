@@ -151,7 +151,7 @@ foreach ($relativePath in $localizationPaths)
         $baseXml = ($baseResult.Output -join "`n")
     }
 
-    $currentXml = Get-Content -LiteralPath $currentPath -Raw
+    $currentXml = Get-Content -LiteralPath $currentPath -Raw -Encoding UTF8
     $baseElements = Get-FmKeyedXmlElements $baseXml
     $currentElements = Get-FmKeyedXmlElements $currentXml
     $entries = @()

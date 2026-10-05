@@ -397,8 +397,19 @@ namespace PlayniteAchievements.ViewModels.Items
 
             if (!TryParseTimeText(_timeText, _selectedTimeMode, out var parsedHour, out var parsedMinute))
             {
-                _isValidTime = false;
-                return;
+                // The dedicated local-file editor displays 24-hour values without a mode
+                // selector. Accept an explicitly entered 13:00-23:59 value even if the row's
+                // previous internal mode was AM/PM, and switch the row to 24-hour mode.
+                if (_selectedTimeMode == TimeMode.TwentyFourHour ||
+                    !TryParseTimeText(_timeText, TimeMode.TwentyFourHour, out parsedHour, out parsedMinute) ||
+                    parsedHour <= 12)
+                {
+                    _isValidTime = false;
+                    return;
+                }
+
+                _selectedTimeMode = TimeMode.TwentyFourHour;
+                OnPropertyChanged(nameof(SelectedTimeModeText));
             }
 
             _selectedHour = parsedHour;

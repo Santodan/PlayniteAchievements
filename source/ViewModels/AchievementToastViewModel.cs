@@ -126,6 +126,8 @@ namespace PlayniteAchievements.ViewModels
 
         // Raw fields consumed by the unlock-screenshot feature (not shown in the toast UI).
         public bool IsPreview => _args.IsPreview;
+        public bool SuppressStandardToast => _args.SuppressStandardToast;
+        public FrameworkElement CustomCaptureContent { get; internal set; }
 
         // Real manual fire from the test-notification hotkey: capture still runs, but is routed
         // to a separate "Test" folder. Read by the notification service's screenshot planner.

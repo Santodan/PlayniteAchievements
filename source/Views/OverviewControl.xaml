@@ -469,67 +469,6 @@
                                        VerticalAlignment="Center"/>
                         </Button>
 
-                        <Button x:Name="DefaultSortModeButton"
-                                Style="{StaticResource AchievementSelectorButtonStyle}"
-                                Content="{Binding DefaultAchievementSortModeText}"
-                                ToolTip="{DynamicResource LOCPlayAch_Settings_DefaultAchievementSort}"
-                                Click="DefaultSortModeButton_Click"
-                                HorizontalContentAlignment="Center"
-                                MinWidth="120"
-                                MaxWidth="200"
-                                MinHeight="24"
-                                Margin="8,0,6,0"
-                                VerticalAlignment="Center">
-                            <Button.ContextMenu>
-                                <ContextMenu x:Name="DefaultSortModeContextMenu"/>
-                            </Button.ContextMenu>
-                        </Button>
-
-                        <Button ToolTip="{DynamicResource LOCPlayAch_Settings_SortDirection_Tooltip}"
-                                Click="ToggleDefaultAchievementSortDescending_Click">
-                            <Button.Style>
-                                <Style TargetType="Button" BasedOn="{StaticResource RefreshButtonStyle}">
-                                    <Setter Property="Padding" Value="8,6"/>
-                                    <Setter Property="MinWidth" Value="0"/>
-                                    <Setter Property="Margin" Value="0,0,6,0"/>
-                                    <Style.Triggers>
-                                        <DataTrigger Binding="{Binding DefaultAchievementSortMode}" Value="{x:Static settings:CompactListSortMode.None}">
-                                            <Setter Property="Visibility" Value="Collapsed"/>
-                                        </DataTrigger>
-                                        <DataTrigger Binding="{Binding DefaultAchievementSortMode}" Value="{x:Static settings:CompactListSortMode.Custom}">
-                                            <Setter Property="Visibility" Value="Collapsed"/>
-                                        </DataTrigger>
-                                    </Style.Triggers>
-                                </Style>
-                            </Button.Style>
-                            <TextBlock FontFamily="{DynamicResource CommonFont}" FontSize="18">
-                                <TextBlock.Style>
-                                    <Style TargetType="TextBlock">
-                                        <Setter Property="Text" Value="&#xea65;"/>
-                                        <Style.Triggers>
-                                            <DataTrigger Binding="{Binding DefaultAchievementSortDescending}" Value="True">
-                                                <Setter Property="Text" Value="&#xea66;"/>
-                                            </DataTrigger>
-                                        </Style.Triggers>
-                                    </Style>
-                                </TextBlock.Style>
-                            </TextBlock>
-                        </Button>
-
-                        <Button Content="{DynamicResource LOCPlayAch_Button_Configure}"
-                                Click="ConfigureDefaultAchievementSort_Click">
-                            <Button.Style>
-                                <Style TargetType="Button" BasedOn="{StaticResource RefreshButtonStyle}">
-                                    <Setter Property="Visibility" Value="Collapsed"/>
-                                    <Setter Property="Margin" Value="0"/>
-                                    <Style.Triggers>
-                                        <DataTrigger Binding="{Binding IsDefaultAchievementSortCustom}" Value="True">
-                                            <Setter Property="Visibility" Value="Visible"/>
-                                        </DataTrigger>
-                                    </Style.Triggers>
-                                </Style>
-                            </Button.Style>
-                        </Button>
                     </StackPanel>
                 </StackPanel>
 
@@ -757,18 +696,85 @@
                                     <ColumnDefinition Width="*"/>
                                     <ColumnDefinition Width="Auto"/>
                                 </Grid.ColumnDefinitions>
-                                <TextBlock Grid.Column="0"
-                                           Text="{DynamicResource LOCPlayAch_RecentAchievements}"
-                                           Style="{DynamicResource PlayAch.TextBlock.BaseStyle}"
-                                           FontWeight="Bold"
-                                           Foreground="{DynamicResource PlayAch.Brush.Text}"
-                                           VerticalAlignment="Center"
-                                           TextTrimming="CharacterEllipsis"/>
-                                <Button Grid.Column="1"
-                                        Style="{StaticResource HeaderControlBarToggleStyle}"
-                                        Tag="{Binding ShowOverviewRecentAchievementsGridControlBar}"
-                                        Click="ToggleRecentAchievementsControlBar_Click"
-                                        Margin="{StaticResource PlayAch.Thickness.Left.Sm}"/>
+
+                                <TabControl Grid.Column="0"
+                                            SelectedIndex="{Binding SelectedRightTabIndex, Mode=TwoWay}"
+                                            VerticalAlignment="Stretch"
+                                            BorderThickness="0"
+                                            Background="Transparent">
+                                    <TabItem Header="{DynamicResource LOCPlayAch_RecentAchievements}"/>
+                                    <TabItem Header="All Achievements"/>
+                                </TabControl>
+
+                                <StackPanel Grid.Column="1"
+                                            Orientation="Horizontal"
+                                            VerticalAlignment="Center">
+                                    <Button x:Name="DefaultSortModeButton"
+                                            Style="{StaticResource AchievementSelectorButtonStyle}"
+                                            Content="{Binding DefaultAchievementSortModeText}"
+                                            ToolTip="{DynamicResource LOCPlayAch_Settings_DefaultAchievementSort}"
+                                            Click="DefaultSortModeButton_Click"
+                                            HorizontalContentAlignment="Center"
+                                            MinWidth="112"
+                                            MaxWidth="180"
+                                            MinHeight="24"
+                                            VerticalAlignment="Center">
+                                        <Button.ContextMenu>
+                                            <ContextMenu x:Name="DefaultSortModeContextMenu"/>
+                                        </Button.ContextMenu>
+                                    </Button>
+
+                                    <Button ToolTip="{DynamicResource LOCPlayAch_Settings_SortDirection_Tooltip}"
+                                            Click="ToggleDefaultAchievementSortDescending_Click">
+                                        <Button.Style>
+                                            <Style TargetType="Button" BasedOn="{StaticResource RefreshButtonStyle}">
+                                                <Setter Property="Padding" Value="8,6"/>
+                                                <Setter Property="MinWidth" Value="0"/>
+                                                <Setter Property="Margin" Value="6,0,0,0"/>
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding DefaultAchievementSortMode}" Value="{x:Static settings:CompactListSortMode.None}">
+                                                        <Setter Property="Visibility" Value="Collapsed"/>
+                                                    </DataTrigger>
+                                                    <DataTrigger Binding="{Binding DefaultAchievementSortMode}" Value="{x:Static settings:CompactListSortMode.Custom}">
+                                                        <Setter Property="Visibility" Value="Collapsed"/>
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </Button.Style>
+                                        <TextBlock FontFamily="{DynamicResource CommonFont}" FontSize="18">
+                                            <TextBlock.Style>
+                                                <Style TargetType="TextBlock">
+                                                    <Setter Property="Text" Value="&#xea65;"/>
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding DefaultAchievementSortDescending}" Value="True">
+                                                            <Setter Property="Text" Value="&#xea66;"/>
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </TextBlock.Style>
+                                        </TextBlock>
+                                    </Button>
+
+                                    <Button Content="{DynamicResource LOCPlayAch_Button_Configure}"
+                                            Click="ConfigureDefaultAchievementSort_Click">
+                                        <Button.Style>
+                                            <Style TargetType="Button" BasedOn="{StaticResource RefreshButtonStyle}">
+                                                <Setter Property="Visibility" Value="Collapsed"/>
+                                                <Setter Property="Margin" Value="6,0,0,0"/>
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding IsDefaultAchievementSortCustom}" Value="True">
+                                                        <Setter Property="Visibility" Value="Visible"/>
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </Button.Style>
+                                    </Button>
+
+                                    <Button Style="{StaticResource HeaderControlBarToggleStyle}"
+                                            Tag="{Binding ShowOverviewRecentAchievementsGridControlBar}"
+                                            Click="ToggleRecentAchievementsControlBar_Click"
+                                            Margin="{StaticResource PlayAch.Thickness.Left.Sm}"/>
+                                </StackPanel>
                             </Grid>
                         </Border>
 

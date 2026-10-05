@@ -182,6 +182,7 @@ namespace PlayniteAchievements.Models.Settings
 
         public GameNotificationAppearanceOverride NotificationAppearanceOverride { get; set; }
         public string SteamAccountIdOverride { get; set; }
+        public bool? PreserveCachedUnlocksOnRefreshOverride { get; set; }
 
         public ProviderOverrideData ProviderOverride { get; set; }
 
@@ -261,6 +262,7 @@ namespace PlayniteAchievements.Models.Settings
                 ExophaseSlugOverride = ExophaseSlugOverride,
                 NotificationAppearanceOverride = NotificationAppearanceOverride?.Clone(),
                 SteamAccountIdOverride = SteamAccountIdOverride,
+                PreserveCachedUnlocksOnRefreshOverride = PreserveCachedUnlocksOnRefreshOverride,
                 ProviderOverride = ProviderOverride?.Clone(),
                 ExophaseEnrichmentSlugOverride = ExophaseEnrichmentSlugOverride,
                 ManualLink = ManualLink?.Clone(),

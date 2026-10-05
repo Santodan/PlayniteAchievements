@@ -137,15 +137,30 @@ namespace PlayniteAchievements.Providers.Steam
                     onGameStarting,
                     async (game, token) =>
                     {
+                        var selectedAccount = ProviderRegistry.Settings<SteamSettings>().GetDefaultAccount();
+                        if (SteamDataProvider.TryGetSteamAccountOverride(game.Id, out var accountId))
+                            selectedAccount = ProviderRegistry.Settings<SteamSettings>().GetAccountById(accountId) ?? selectedAccount;
+                        var gameUserId = !string.IsNullOrWhiteSpace(selectedAccount?.SteamWebApiKey)
+                            ? selectedAccount.SteamUserId : steamUserId;
+                        var gameToken = !string.IsNullOrWhiteSpace(selectedAccount?.SteamWebApiKey)
+                            ? selectedAccount.SteamWebApiKey : accessToken;
+                        if (selectedAccount != null && string.IsNullOrWhiteSpace(selectedAccount.SteamWebApiKey) &&
+                            !string.IsNullOrWhiteSpace(ProviderRegistry.Settings<SteamSettings>().GetDefaultAccount()?.SteamWebApiKey))
+                        {
+                            var browser = await _tokenResolver.ResolveBrowserAsync(token).ConfigureAwait(false);
+                            gameUserId = browser.UserId;
+                            gameToken = browser.Token;
+                        }
+                        var gameWebAvailable = !string.IsNullOrWhiteSpace(gameToken) && !string.IsNullOrWhiteSpace(gameUserId);
                         if (!TryGetPlatformAppId(game, out var appId))
                         {
                             _logger?.Warn($"Skipping game without valid AppId: {game?.Name}");
                             return ProviderRefreshExecutor.ProviderGameResult.Skipped();
                         }
 
-                        if (!webAvailable)
+                        if (!gameWebAvailable)
                         {
-                            var localData = TryBuildGameDataFromLocal(game, steamUserId);
+                            var localData = TryBuildGameDataFromLocal(game, gameUserId);
                             if (localData == null)
                             {
                                 Interlocked.Increment(ref localFailures);
@@ -165,7 +180,7 @@ namespace PlayniteAchievements.Providers.Steam
                         try
                         {
                             data = await rateLimiter.ExecuteWithRetryAsync(
-                                () => FetchGameDataAsync(game, steamUserId, accessToken, token),
+                                () => FetchGameDataAsync(game, gameUserId, gameToken, token),
                                 IsTransientError,
                                 token).ConfigureAwait(false);
                         }
@@ -177,7 +192,7 @@ namespace PlayniteAchievements.Providers.Steam
                         {
                             // Last-chance local recovery after web retries. A failed local read
                             // returns null, preserving the existing cache via the normal skip path.
-                            data = TryBuildGameDataFromLocal(game, steamUserId);
+                            data = TryBuildGameDataFromLocal(game, gameUserId);
                             if (data == null)
                             {
                                 throw;
@@ -188,7 +203,7 @@ namespace PlayniteAchievements.Providers.Steam
 
                         if (data == null)
                         {
-                            data = TryBuildGameDataFromLocal(game, steamUserId);
+                            data = TryBuildGameDataFromLocal(game, gameUserId);
                         }
 
                         return new ProviderRefreshExecutor.ProviderGameResult
@@ -563,6 +578,11 @@ namespace PlayniteAchievements.Providers.Steam
                     ProgressNum = new Dictionary<string, int?>(StringComparer.OrdinalIgnoreCase),
                     ProgressDenom = new Dictionary<string, int?>(StringComparer.OrdinalIgnoreCase)
                 };
+            }
+
+            if (!string.IsNullOrWhiteSpace(accessToken) && accessToken.Length == 32 && accessToken.All(Uri.IsHexDigit))
+            {
+                return await _steamApiClient.GetPlayerAchievementsByKeyAsync(accessToken, steamUserId, appId, cancel).ConfigureAwait(false);
             }
 
             AchievementsScrapeResponse scraped = null;

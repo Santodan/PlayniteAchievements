@@ -449,7 +449,11 @@ namespace PlayniteAchievements
                 };
             }
 
-            var preferredProvider = _achievementOverridesService?.GetPreferredProviderOverride(game.Id);
+            var preferredProvider = GameCustomDataLookup.TryGetProviderOverride(
+                game.Id,
+                out var providerOverride)
+                    ? providerOverride?.ProviderKey
+                    : null;
             var providerSection = PluginLocalGameMenuSection + "|" +
                 ResourceProvider.GetString("LOCPlayAch_Menu_LocalProvider_Change");
             yield return new GameMenuItem

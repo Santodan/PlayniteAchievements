@@ -5,6 +5,8 @@ namespace PlayniteAchievements.Models.Settings
         BottomRight,
         BottomLeft,
         TopRight,
-        TopLeft
+        TopLeft,
+        TopCenter,
+        BottomCenter
     }
 }

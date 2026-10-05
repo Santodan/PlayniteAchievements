@@ -1624,7 +1624,13 @@ namespace PlayniteAchievements.Services.Refresh
             // achievement overwrites an unlocked one. A payload that is empty or reports no unlocks
             // for a game that already has some would erase them, so keep the cached data and let a
             // later refresh supply a complete result.
-            if (AchievementWriteGuard.ShouldRejectWrite(previous, data, out var rejectionReason))
+            var preserveCachedUnlocks = _settings?.Persisted?.PreserveCachedUnlocksOnRefresh ?? true;
+            var customDataStore = PlayniteAchievementsPlugin.Instance?.GameCustomDataStore;
+            if (customDataStore != null && customDataStore.TryLoad(data.PlayniteGameId.Value, out var customData) &&
+                customData.PreserveCachedUnlocksOnRefreshOverride.HasValue)
+                preserveCachedUnlocks = customData.PreserveCachedUnlocksOnRefreshOverride.Value;
+
+            if (AchievementWriteGuard.ShouldRejectWrite(previous, data, out var rejectionReason, preserveCachedUnlocks))
             {
                 var incomingTotal = data.Achievements?.Count ?? 0;
                 var incomingUnlockedCount = data.Achievements?.Count(a => a != null && a.Unlocked) ?? 0;
@@ -1645,7 +1651,11 @@ namespace PlayniteAchievements.Services.Refresh
             // Restore unlocks the payload reports as locked before anything downstream reads it: the
             // payload is what lands in the memory cache and what the unlocked aggregate is counted
             // from, so correcting it here keeps the memory cache, the rows, and the count in step.
-            var preservedUnlocks = AchievementWriteGuard.PreserveCachedUnlocks(previous, data);
+            var preservedUnlocks = preserveCachedUnlocks ? AchievementWriteGuard.PreserveCachedUnlocks(previous, data) : 0;
+            if (!preserveCachedUnlocks)
+            {
+                _logger?.Info($"Refresh for '{game?.Name}' accepts provider unlock states; cached-unlock protection is disabled.");
+            }
             if (preservedUnlocks > 0)
             {
                 _logger?.Debug(
@@ -1688,7 +1698,7 @@ namespace PlayniteAchievements.Services.Refresh
                 // refresh pipeline (or a provider) is retaining per-game payloads.
                 Common.LeakWatch.Track("ProviderPayload", data);
 
-                var writeResult = _cacheService.SaveGameData(key, data);
+                var writeResult = _cacheService.SaveGameData(key, data, allowLocalRelock: !preserveCachedUnlocks);
                 if (writeResult == null || !writeResult.Success)
                 {
                     var errorCode = writeResult?.ErrorCode ?? "unknown";

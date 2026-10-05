@@ -41,6 +41,7 @@ namespace PlayniteAchievements.Services.UI
         // when the buffer cannot answer). Supplied by the recording service; lets the screenshot
         // depict the true unlock moment instead of the instant the toast fired.
         private readonly Func<AchievementUnlockedEventArgs, int, System.Drawing.Bitmap> _captureAnchorFrame;
+        private readonly Func<AchievementUnlockedEventArgs, FrameworkElement> _createCustomCaptureContent;
         private readonly Services.Sound.UnlockSoundService _unlockSounds;
         private readonly UnlockScreenshotService _screenshotService;
         private readonly ScreenshotFrameCompositor _frameCompositor;
@@ -87,6 +88,7 @@ namespace PlayniteAchievements.Services.UI
         // The corner the current wave uses, resolved once per wave (theme override or plugin
         // setting). Read by the per-frame positioning path so it isn't re-resolved every frame.
         private ToastScreenCorner _activePosition = ToastScreenCorner.BottomRight;
+        private bool _activeUsesCustomCapture;
         // The transparent room the wave's stack reserves outside its card bodies, measured from
         // the laid-out cards once per wave (ToastSurfaceFactory.ApplyMeasuredCardGaps).
         // Positioning subtracts the two edges the active corner uses from CornerGapDip, so the
@@ -188,6 +190,7 @@ namespace PlayniteAchievements.Services.UI
             GameCustomDataStore gameCustomDataStore = null,
             Func<AchievementUnlockedEventArgs, bool> needsOverlayTrack = null,
             Func<AchievementUnlockedEventArgs, int, System.Drawing.Bitmap> captureAnchorFrame = null,
+            Func<AchievementUnlockedEventArgs, FrameworkElement> createCustomCaptureContent = null,
             Services.Sound.UnlockSoundService unlockSounds = null)
         {
             _api = api;
@@ -199,6 +202,7 @@ namespace PlayniteAchievements.Services.UI
             _gameCustomDataStore = gameCustomDataStore;
             _needsOverlayTrack = needsOverlayTrack;
             _captureAnchorFrame = captureAnchorFrame;
+            _createCustomCaptureContent = createCustomCaptureContent;
             _unlockSounds = unlockSounds;
             _screenshotService = new UnlockScreenshotService(logger);
             _frameCompositor = new ScreenshotFrameCompositor(logger);
@@ -371,7 +375,7 @@ namespace PlayniteAchievements.Services.UI
                 return false;
             }
 
-            if (ShouldToast(args.IsPreview, args.IsFriendUnlock, args.IsProgressUpdate, args.ProviderKey))
+            if (ShouldToast(args.IsPreview, args.IsFriendUnlock, args.IsProgressUpdate, args.ProviderKey, args.SuppressStandardToast))
             {
                 return true;
             }
@@ -390,7 +394,7 @@ namespace PlayniteAchievements.Services.UI
                 return true;
             }
 
-            var persisted = _settings?.Persisted;
+            var persisted = ResolveEffectiveScreenshotSettings();
             if (persisted?.EnableUnlockScreenshots != true ||
                 string.IsNullOrWhiteSpace(persisted.UnlockScreenshotDirectory))
             {
@@ -418,15 +422,88 @@ namespace PlayniteAchievements.Services.UI
             args.IsGameCompleted || args.IsCompletionAchievement || args.IsCapstone;
 
         /// <summary>
+        /// Memories is an independent screenshot configuration. Adapt it to the upstream capture
+        /// policy so live unlocks use the controls the user actually selected on that page.
+        /// </summary>
+        private PersistedSettings ResolveEffectiveScreenshotSettings()
+        {
+            var custom = Providers.ProviderRegistry.Settings<Providers.Local.LocalSettings>();
+            if (custom?.EnableUnlockScreenshots != true)
+            {
+                return _settings?.Persisted;
+            }
+
+            var effective = _settings?.Persisted?.Clone() ?? new PersistedSettings();
+            effective.EnableUnlockScreenshots = true;
+            effective.UnlockScreenshotDirectory = ResolveCustomScreenshotRoot(custom.EffectiveScreenshotSaveFolder);
+            effective.UnlockScreenshotClean = custom.ScreenshotClean;
+            effective.UnlockScreenshotWithToast = custom.ScreenshotWithNotification;
+            effective.UnlockScreenshotFramed = custom.ScreenshotFramed;
+            effective.UnlockScreenshotSuffixClean = custom.ScreenshotSuffixClean;
+            effective.UnlockScreenshotSuffixWithToast = custom.ScreenshotSuffixWithNotification;
+            effective.UnlockScreenshotSuffixFramed = custom.ScreenshotSuffixFramed;
+            effective.UnlockScreenshotCleanRarities = custom.ScreenshotCleanRarities;
+            effective.UnlockScreenshotCleanAlwaysCaptureCompletion = custom.ScreenshotCleanAlwaysCaptureCompletion;
+            effective.UnlockScreenshotWithToastRarities = custom.ScreenshotWithNotificationRarities;
+            effective.UnlockScreenshotWithToastAlwaysCaptureCompletion = custom.ScreenshotWithNotificationAlwaysCaptureCompletion;
+            effective.UnlockScreenshotFramedRarities = custom.ScreenshotFramedRarities;
+            effective.UnlockScreenshotFramedAlwaysCaptureCompletion = custom.ScreenshotFramedAlwaysCaptureCompletion;
+            return effective;
+        }
+
+        private static string ResolveCustomScreenshotRoot(string configuredDirectory)
+        {
+            var directory = configuredDirectory?.Trim();
+            if (string.IsNullOrWhiteSpace(directory))
+            {
+                return directory;
+            }
+
+            // The Memories writer accepts a tokenized per-game directory. The upstream writer
+            // receives a library root and appends the sanitized game folder itself, so remove the
+            // final game token instead of passing an illegal '<gameName>' path to Path.Combine.
+            const string gameToken = "<gameName>";
+            if (directory.EndsWith(gameToken, StringComparison.OrdinalIgnoreCase))
+            {
+                directory = directory.Substring(0, directory.Length - gameToken.Length)
+                    .TrimEnd(System.IO.Path.DirectorySeparatorChar, System.IO.Path.AltDirectorySeparatorChar);
+            }
+
+            return directory;
+        }
+
+        private static DataTemplate CreateCustomCaptureTemplate()
+        {
+            var presenter = new FrameworkElementFactory(typeof(ContentPresenter));
+            presenter.SetBinding(
+                ContentPresenter.ContentProperty,
+                new System.Windows.Data.Binding(nameof(AchievementToastViewModel.CustomCaptureContent)));
+            return new DataTemplate(typeof(AchievementToastViewModel))
+            {
+                VisualTree = presenter
+            };
+        }
+
+        /// <summary>
         /// Whether this notification shows an on-screen toast. Previews always toast; otherwise the
         /// policy ANDs the EnableNotifications master switch into every toast flag and resolves
         /// all-false for null settings. Progress notifications have their own flag.
         /// </summary>
-        private bool ShouldToast(bool isPreview, bool isFriendUnlock, bool isProgressUpdate, string providerKey)
+        private bool ShouldToast(
+            bool isPreview,
+            bool isFriendUnlock,
+            bool isProgressUpdate,
+            string providerKey,
+            bool suppressStandardToast = false)
         {
             if (isPreview)
             {
                 return true;
+            }
+
+            if (suppressStandardToast)
+            {
+                return false;
             }
 
             var effective = ProviderNotificationPolicy.Resolve(_settings?.Persisted, providerKey);
@@ -472,7 +549,7 @@ namespace PlayniteAchievements.Services.UI
 
             // PreviewStyleOverride is set only by settings fire-tests, so the fired notification
             // renders the exact style the editor mockup shows; real unlocks resolve normally.
-            _queue.Enqueue(new AchievementToastViewModel(
+            var viewModel = new AchievementToastViewModel(
                 args,
                 _settings?.Persisted,
                 styleOverride: args.PreviewStyleOverride,
@@ -482,7 +559,13 @@ namespace PlayniteAchievements.Services.UI
                 NeedsFramedClip = needsOverlayTrack &&
                     (UnlockClipVariantPolicy.Resolve(args, _settings?.Persisted) & ScreenshotVariants.Framed) != 0,
                 NotifyReadyAtUtc = notifyReadyAtUtc,
-            });
+            };
+            if (args.SuppressStandardToast)
+            {
+                viewModel.CustomCaptureContent = _createCustomCaptureContent?.Invoke(args);
+            }
+
+            _queue.Enqueue(viewModel);
             if (!_processing)
             {
                 _processing = true;
@@ -772,11 +855,30 @@ namespace PlayniteAchievements.Services.UI
                     if (container != null)
                     {
                         overlay = TryRenderToastItemOverlay(window, container, out var physSize);
+                        if (vm.CustomCaptureContent?.Tag is Func<Task<System.Windows.Media.Imaging.BitmapSource>> captureSanScreenshot)
+                        {
+                            var browserFrame = await captureSanScreenshot();
+                            if (browserFrame != null)
+                            {
+                                using (var stream = new System.IO.MemoryStream())
+                                {
+                                    var encoder = new System.Windows.Media.Imaging.PngBitmapEncoder();
+                                    encoder.Frames.Add(System.Windows.Media.Imaging.BitmapFrame.Create(browserFrame));
+                                    encoder.Save(stream);
+                                    stream.Position = 0;
+                                    using (var decoded = new System.Drawing.Bitmap(stream))
+                                    {
+                                        overlay?.Dispose();
+                                        overlay = new System.Drawing.Bitmap(decoded);
+                                    }
+                                }
+                            }
+                        }
                         if (overlay != null)
                         {
                             ToastWindowPlacer.ComputeCorner(
                                 anchorPhys, physSize.Width, physSize.Height, _activeMonitorScale,
-                                AlignRight(), AlignBottom(), EffectiveGapDipX(), EffectiveGapDipY(),
+                                AlignRight(), AlignCenterHorizontally(), AlignBottom(), EffectiveGapDipX(), EffectiveGapDipY(),
                                 out var ix, out var iy);
                             rect = new System.Drawing.Rectangle(ix, iy, physSize.Width, physSize.Height);
                         }
@@ -1888,7 +1990,7 @@ namespace PlayniteAchievements.Services.UI
 
             ToastWindowPlacer.ComputeCorner(
                 clientPhys, physW, physH, _activeMonitorScale,
-                AlignRight(), AlignBottom(), EffectiveGapDipX(), EffectiveGapDipY(),
+                AlignRight(), AlignCenterHorizontally(), AlignBottom(), EffectiveGapDipX(), EffectiveGapDipY(),
                 out var cornerX, out var cornerY);
             WarnOnSettledCardDrift(toastItems.Count, cornerX - clientPhys.X, cornerY - clientPhys.Y,
                 settledRelX, settledRelY);
@@ -2135,8 +2237,8 @@ namespace PlayniteAchievements.Services.UI
                    items[end].IsGameCompleted == anchor.IsGameCompleted &&
                    items[end].IsCapstone == anchor.IsCapstone &&
                    items[end].IsProgressUpdate == anchor.IsProgressUpdate &&
-                   ShouldToast(items[end].IsPreview, items[end].IsFriendUnlock, items[end].IsProgressUpdate, items[end].ProviderKey) ==
-                       ShouldToast(anchor.IsPreview, anchor.IsFriendUnlock, anchor.IsProgressUpdate, anchor.ProviderKey))
+                   ShouldToast(items[end].IsPreview, items[end].IsFriendUnlock, items[end].IsProgressUpdate, items[end].ProviderKey, items[end].SuppressStandardToast) ==
+                       ShouldToast(anchor.IsPreview, anchor.IsFriendUnlock, anchor.IsProgressUpdate, anchor.ProviderKey, anchor.SuppressStandardToast))
             {
                 result.Add(items[end]);
                 end++;
@@ -2240,7 +2342,7 @@ namespace PlayniteAchievements.Services.UI
             // toast, items that only produce capture output, or a mix (waves batch by friend/own
             // only).
             var toastItems = wave
-                .Where(vm => ShouldToast(vm.IsPreview, vm.IsFriendUnlock, vm.IsProgressUpdate, vm.ProviderKey))
+                .Where(vm => ShouldToast(vm.IsPreview, vm.IsFriendUnlock, vm.IsProgressUpdate, vm.ProviderKey, vm.SuppressStandardToast))
                 .ToList();
             if (toastItems.Count > 0)
             {
@@ -2279,6 +2381,7 @@ namespace PlayniteAchievements.Services.UI
             _ensureResourcesLoaded?.Invoke();
 
             var waveIsTestFire = wave[0].IsTestFire;
+            _activeUsesCustomCapture = wave[0].SuppressStandardToast;
             _activeToastThemeStylingEnabled = wave[0].ToastUseThemeStyling;
             // Resolve the corner once for this wave: a theme override wins, otherwise the plugin
             // setting. Positioning (including the per-frame game-window follow) and slide direction
@@ -2291,6 +2394,7 @@ namespace PlayniteAchievements.Services.UI
             // previous wave's. Only the storyboards' shape is resolved here; each is bound to this
             // wave's slide host at the slide itself, since the window does not exist yet.
             ResolveWaveSlideTiming();
+            ApplyCustomCaptureTransition();
             // Zero until the cards are laid out and measured; the pre-show placement pass has no
             // card to measure either, so the two agree.
             _activeCardInset = default(Thickness);
@@ -2415,8 +2519,10 @@ namespace PlayniteAchievements.Services.UI
                 return;
             }
 
-            var template = ToastSurfaceFactory.ResolveToastTemplate(
-                _templateResolver, cardItems, ToastThemeStylingEnabled, waveProviderKey, waveScopeGameId);
+            var template = cardItems.All(vm => vm.CustomCaptureContent != null)
+                ? CreateCustomCaptureTemplate()
+                : ToastSurfaceFactory.ResolveToastTemplate(
+                    _templateResolver, cardItems, ToastThemeStylingEnabled, waveProviderKey, waveScopeGameId);
             var items = ToastSurfaceFactory.BuildToastSurface(cardItems, template);
 
             LogWaveDiagnostics(cardItems, template, wavePlan.Mode);
@@ -2687,11 +2793,11 @@ namespace PlayniteAchievements.Services.UI
                 // anchor only — a test fire out of game has no video — and only with recordings
                 // enabled, since nothing else consumes a track.
                 if (_activeIsGame && _activeReferenceHwnd != IntPtr.Zero &&
-                    (_settings?.Persisted?.EnableUnlockRecordings ?? false))
+                    cardItems.Any(vm => vm.NeedsOverlayTrack))
                 {
                     trackRecorder = new ToastOverlayTrackRecorder(
                         _logger, TrackSampleIntervalMs(),
-                        AlignRight(), AlignBottom(), EffectiveGapDipX(), EffectiveGapDipY(),
+                        AlignRight(), AlignCenterHorizontally(), AlignBottom(), EffectiveGapDipX(), EffectiveGapDipY(),
                         _activeMonitorScale);
                     _trackRenderScratch = new Dictionary<AchievementToastViewModel, CardRenderScratch>();
                     trackSampleCount = 0;
@@ -3136,7 +3242,7 @@ namespace PlayniteAchievements.Services.UI
                 return null;
             }
 
-            var persisted = _settings?.Persisted;
+            var persisted = ResolveEffectiveScreenshotSettings();
             var baseDir = persisted?.UnlockScreenshotDirectory;
             if (persisted?.EnableUnlockScreenshots != true || string.IsNullOrWhiteSpace(baseDir))
             {
@@ -3641,9 +3747,17 @@ namespace PlayniteAchievements.Services.UI
             return _activePosition == ToastScreenCorner.TopRight || _activePosition == ToastScreenCorner.BottomRight;
         }
 
+        private bool AlignCenterHorizontally()
+        {
+            return _activePosition == ToastScreenCorner.TopCenter ||
+                _activePosition == ToastScreenCorner.BottomCenter;
+        }
+
         private bool AlignBottom()
         {
-            return _activePosition == ToastScreenCorner.BottomLeft || _activePosition == ToastScreenCorner.BottomRight;
+            return _activePosition == ToastScreenCorner.BottomLeft ||
+                _activePosition == ToastScreenCorner.BottomRight ||
+                _activePosition == ToastScreenCorner.BottomCenter;
         }
 
         // The window-edge gap in DIPs on each axis: the visible-body gap (CornerGapDip) less the
@@ -4927,6 +5041,21 @@ namespace PlayniteAchievements.Services.UI
         /// </summary>
         private ToastScreenCorner EffectivePosition()
         {
+            if (_activeUsesCustomCapture)
+            {
+                var localPosition = Providers.ProviderRegistry.Settings<Providers.Local.LocalSettings>()?
+                    .UnlockOverlayPosition ?? Providers.Local.LocalUnlockOverlayPosition.TopRight;
+                switch (localPosition)
+                {
+                    case Providers.Local.LocalUnlockOverlayPosition.TopLeft: return ToastScreenCorner.TopLeft;
+                    case Providers.Local.LocalUnlockOverlayPosition.TopCenter: return ToastScreenCorner.TopCenter;
+                    case Providers.Local.LocalUnlockOverlayPosition.BottomLeft: return ToastScreenCorner.BottomLeft;
+                    case Providers.Local.LocalUnlockOverlayPosition.BottomCenter: return ToastScreenCorner.BottomCenter;
+                    case Providers.Local.LocalUnlockOverlayPosition.BottomRight: return ToastScreenCorner.BottomRight;
+                    default: return ToastScreenCorner.TopRight;
+                }
+            }
+
             var setting = _settings?.Persisted?.ToastPosition ?? ToastScreenCorner.BottomRight;
             try
             {
@@ -4949,6 +5078,57 @@ namespace PlayniteAchievements.Services.UI
             return setting;
         }
 
+        private void ApplyCustomCaptureTransition()
+        {
+            if (!_activeUsesCustomCapture)
+            {
+                return;
+            }
+
+            var local = Providers.ProviderRegistry.Settings<Providers.Local.LocalSettings>();
+            if (local == null)
+            {
+                return;
+            }
+
+            if (local.UnlockOverlayTransitionStyle >= Providers.Local.LocalUnlockOverlayTransitionStyle.SanDefault)
+            {
+                // SAN animates inside WebView2. Keep the outer WPF capture host stationary and
+                // transparent to animation so it does not add the upstream slide on top.
+                _activeSlideInStoryboard = null;
+                _activeSlideOutStoryboard = null;
+                _activeSlideInMs = 0;
+                _activeSlideOutMs = 0;
+                _activeSlideInTravels = false;
+                _activeSlideOutTravels = false;
+                return;
+            }
+
+            if (local.UnlockOverlayTransitionStyle != Providers.Local.LocalUnlockOverlayTransitionStyle.Fade)
+            {
+                return;
+            }
+
+            _activeSlideInStoryboard = CreateOpacityStoryboard(0d, 1d, local.UnlockOverlayFadeInMilliseconds);
+            _activeSlideOutStoryboard = CreateOpacityStoryboard(1d, 0d, local.UnlockOverlayFadeOutMilliseconds);
+            _activeSlideInMs = local.UnlockOverlayFadeInMilliseconds;
+            _activeSlideOutMs = local.UnlockOverlayFadeOutMilliseconds;
+            _activeSlideInTravels = false;
+            _activeSlideOutTravels = false;
+        }
+
+        private static Storyboard CreateOpacityStoryboard(double from, double to, int durationMs)
+        {
+            var animation = new DoubleAnimation(
+                from,
+                to,
+                new Duration(TimeSpan.FromMilliseconds(Math.Max(0, durationMs))));
+            Storyboard.SetTargetProperty(animation, new PropertyPath(UIElement.OpacityProperty));
+            var storyboard = new Storyboard();
+            storyboard.Children.Add(animation);
+            return storyboard;
+        }
+
         /// <summary>
         /// The toast display time in seconds: a theme override (numeric or string resource
         /// <see cref="AchievementToastTemplateResolver.DurationSecondsResourceKey"/>) when present and
@@ -4957,6 +5137,16 @@ namespace PlayniteAchievements.Services.UI
         /// </summary>
         private int EffectiveDurationSeconds()
         {
+            if (_activeUsesCustomCapture)
+            {
+                var local = Providers.ProviderRegistry.Settings<Providers.Local.LocalSettings>();
+                if (local?.UnlockOverlayTransitionStyle >= Providers.Local.LocalUnlockOverlayTransitionStyle.SanDefault)
+                {
+                    return Math.Max(2, (int)Math.Ceiling(
+                        (local.OverlayCustomSanView1DurationMilliseconds + local.OverlayCustomSanView2DurationMilliseconds) / 1000d));
+                }
+            }
+
             var setting = Math.Max(2, _settings?.Persisted?.ToastDurationSeconds ?? 6);
             try
             {

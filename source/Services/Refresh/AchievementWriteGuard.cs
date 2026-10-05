@@ -24,6 +24,29 @@ namespace PlayniteAchievements.Services.Refresh
     /// </summary>
     internal static class AchievementWriteGuard
     {
+        // Only a complete Local snapshot may replace deliberate locks during a user refresh.
+        public static bool IsCompleteLocalSnapshot(GameAchievementData previous, GameAchievementData incoming)
+        {
+            if (!string.Equals(incoming?.ProviderKey, "Local", StringComparison.OrdinalIgnoreCase) ||
+                incoming.Achievements == null || incoming.Achievements.Count == 0)
+            {
+                return false;
+            }
+
+            var names = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var achievement in incoming.Achievements)
+            {
+                if (achievement == null || string.IsNullOrWhiteSpace(achievement.ApiName) ||
+                    !names.Add(achievement.ApiName.Trim()))
+                {
+                    return false;
+                }
+            }
+
+            return previous?.Achievements == null || previous.Achievements.All(a =>
+                a != null && !string.IsNullOrWhiteSpace(a.ApiName) && names.Contains(a.ApiName.Trim()));
+        }
+
         /// <summary>
         /// Determines whether persisting <paramref name="incoming"/> over <paramref name="previous"/>
         /// would discard achievement data. Returns false when there is nothing to lose, so first
@@ -33,7 +56,8 @@ namespace PlayniteAchievements.Services.Refresh
         public static bool ShouldRejectWrite(
             GameAchievementData previous,
             GameAchievementData incoming,
-            out string reason)
+            out string reason,
+            bool preserveCachedUnlocks = true)
         {
             reason = null;
 
@@ -52,7 +76,7 @@ namespace PlayniteAchievements.Services.Refresh
 
             var previousUnlocked = CountUnlocked(previous);
             var incomingUnlocked = CountUnlocked(incoming);
-            if (previousUnlocked > 0 && incomingUnlocked == 0)
+            if (preserveCachedUnlocks && previousUnlocked > 0 && incomingUnlocked == 0)
             {
                 reason = $"payload reports no unlocks (cached unlocked={previousUnlocked})";
                 return true;

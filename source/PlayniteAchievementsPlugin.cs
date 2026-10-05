@@ -362,6 +362,7 @@ namespace PlayniteAchievements
                         localSettings?.UnlockSoundPath,
                         notificationProviderKey: args.ProviderKey,
                         game: game);
+                    args.SuppressStandardToast = true;
                     _logger?.Info(
                         $"[AchievementNotification] Upstream poll detection routed to custom notification: game={args.GameName}, provider={args.ProviderKey}, achievement={args.DisplayName ?? args.ApiName}.");
                     AchievementNotificationDebugLog.Info(
@@ -929,6 +930,7 @@ namespace PlayniteAchievements
                         // the field is assigned.
                         e => _unlockRecordings?.WouldRequestClip(e) ?? false,
                         (e, capHeight) => _unlockRecordings?.TryCaptureAnchorFrame(e, capHeight),
+                        e => _notifications?.CreateAchievementCaptureContent(e),
                         _unlockSounds);
                     _unlockRecordings = new Services.Recording.UnlockRecordingService(
                         PlayniteApi,
@@ -960,7 +962,7 @@ namespace PlayniteAchievements
                         _cacheManager,
                         _refreshService,
                         (request, policy) => _refreshCoordinator.ExecuteAsync(request, policy),
-                        NotifyAchievementUnlocked);
+                        HandlePolledAchievementUnlocked);
 
                     // A running game's unlocks are announced by the monitor once its write or
                     // refresh returns, so a capstone that write finished is held for the monitor

@@ -387,6 +387,10 @@
                                      Content="{DynamicResource LOCPlayAch_Settings_TabNotifications}"
                                      Style="{StaticResource NavTabRadioStyle}"
                                      IsChecked="{Binding SelectedTab, Mode=TwoWay, Converter={StaticResource EnumToBool}, ConverterParameter=Notifications}" />
+                        <RadioButton x:Name="CustomSchemaTabButton"
+                                     Content="{DynamicResource LOCPlayAch_GameOptions_Tab_CustomSchema}"
+                                     Style="{StaticResource NavTabRadioStyle}"
+                                     IsChecked="{Binding SelectedTab, Mode=TwoWay, Converter={StaticResource EnumToBool}, ConverterParameter=CustomSchema}" />
                         <RadioButton x:Name="LocalOverridesTabButton"
                                      Content="Local Overrides"
                                      Style="{StaticResource NavTabRadioStyle}"
@@ -471,6 +475,20 @@
                         </Style>
                     </Grid.Style>
                     <ContentControl x:Name="NotificationsHost" />
+                </Grid>
+
+                <Grid>
+                    <Grid.Style>
+                        <Style TargetType="{x:Type Grid}">
+                            <Setter Property="Visibility" Value="Hidden" />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding SelectedTab}" Value="CustomSchema">
+                                    <Setter Property="Visibility" Value="Visible" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </Grid.Style>
+                    <ContentControl x:Name="CustomSchemaHost" />
                 </Grid>
 
                 <Grid>

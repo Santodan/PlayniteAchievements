@@ -16,6 +16,18 @@ namespace PlayniteAchievements.Services.Tests
     public class GameCustomDataNormalizerTests
     {
         [TestMethod]
+        public void SteamAccountOverrideAlone_IsRetainedAndVisible()
+        {
+            var gameId = Guid.NewGuid();
+            var normalized = GameCustomDataNormalizer.NormalizeInternal(
+                new GameCustomDataFile { SteamAccountIdOverride = " secondary-account " }, gameId);
+            Assert.AreEqual("secondary-account", normalized.SteamAccountIdOverride);
+            Assert.IsTrue(GameCustomDataNormalizer.HasInternalData(normalized));
+            Assert.IsTrue(GameCustomDataNormalizer.HasVisibleCustomization(normalized));
+            Assert.IsTrue(GameCustomDataNormalizer.HasPortableData(normalized));
+        }
+
+        [TestMethod]
         public void HasVisibleCustomization_EmptyData_ReturnsFalse()
         {
             Assert.IsFalse(GameCustomDataNormalizer.HasVisibleCustomization(new GameCustomDataFile()));

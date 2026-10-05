@@ -52,6 +52,7 @@ namespace PlayniteAchievements.Services.GameCustomData
             normalized.UseSeparateLockedIconsOverride = normalized.UseSeparateLockedIconsOverride == true ? true : (bool?)null;
             normalized.ForceUseExophase = normalized.ForceUseExophase == true ? true : (bool?)null;
             NormalizeCapstones(normalized);
+            normalized.SteamAccountIdOverride = NormalizeString(normalized.SteamAccountIdOverride);
             normalized.ExophaseSlugOverride = NormalizeString(normalized.ExophaseSlugOverride);
             normalized.ExophaseEnrichmentSlugOverride = NormalizeString(normalized.ExophaseEnrichmentSlugOverride);
             normalized.XeniaTitleIdOverride = XeniaTitleIdHelper.Normalize(normalized.XeniaTitleIdOverride);
@@ -201,6 +202,8 @@ namespace PlayniteAchievements.Services.GameCustomData
                    (data.AchievementNotes != null && data.AchievementNotes.Count > 0) ||
                    (data.AchievementOverrides != null && data.AchievementOverrides.Count > 0) ||
                    data.ProviderOverride != null ||
+                   !string.IsNullOrWhiteSpace(data.SteamAccountIdOverride) ||
+                   data.PreserveCachedUnlocksOnRefreshOverride.HasValue ||
                    !string.IsNullOrWhiteSpace(data.ExophaseEnrichmentSlugOverride) ||
                    (data.RetroAchievementsSelectedSubsetGameIds != null && data.RetroAchievementsSelectedSubsetGameIds.Count > 0) ||
                    (data.RetroAchievementsGameIdOverride.HasValue && data.RetroAchievementsGameIdOverride.Value > 0) ||
@@ -280,6 +283,8 @@ namespace PlayniteAchievements.Services.GameCustomData
                    (data.AchievementNotes != null && data.AchievementNotes.Count > 0) ||
                    (data.AchievementOverrides != null && data.AchievementOverrides.Count > 0) ||
                    data.ProviderOverride != null ||
+                   !string.IsNullOrWhiteSpace(data.SteamAccountIdOverride) ||
+                   data.PreserveCachedUnlocksOnRefreshOverride.HasValue ||
                    !string.IsNullOrWhiteSpace(data.ExophaseEnrichmentSlugOverride) ||
                    (data.RetroAchievementsSelectedSubsetGameIds != null && data.RetroAchievementsSelectedSubsetGameIds.Count > 0) ||
                    (data.RetroAchievementsGameIdOverride.HasValue && data.RetroAchievementsGameIdOverride.Value > 0) ||

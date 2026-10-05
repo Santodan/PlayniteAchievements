@@ -19,7 +19,7 @@ namespace PlayniteAchievements.Services.Cache
         // Per-game achievement cache
         List<string> GetCachedGameIds();
         GameAchievementData LoadGameData(string key);
-        CacheWriteResult SaveGameData(string key, GameAchievementData data);
+        CacheWriteResult SaveGameData(string key, GameAchievementData data, bool allowLocalRelock = false);
         void RemoveGameData(Guid playniteGameId);
         void RemoveGameCache(Guid playniteGameId);
         void NotifyCacheInvalidated();

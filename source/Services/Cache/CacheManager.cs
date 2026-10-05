@@ -991,7 +991,7 @@ namespace PlayniteAchievements.Services.Cache
             return LoadGameData(key);
         }
 
-        public CacheWriteResult SaveGameData(string key, GameAchievementData data)
+        public CacheWriteResult SaveGameData(string key, GameAchievementData data, bool allowLocalRelock = false)
         {
             using (PerfScope.Start(_logger, "Cache.SaveGameData", thresholdMs: 25, context: key))
             {
@@ -1037,7 +1037,7 @@ namespace PlayniteAchievements.Services.Cache
                             toWrite.PlayniteGameId = parsedId;
                         }
 
-                        renamedApiNames = _store.SaveCurrentUserGameData(normalizedKey, toWrite);
+                        renamedApiNames = _store.SaveCurrentUserGameData(normalizedKey, toWrite, allowLocalRelock);
                         renamedPlayniteGameId = toWrite.PlayniteGameId;
 
                         scopeChanged = RefreshScopeToken_Locked(clearMemoryOnChange: true);

@@ -43,6 +43,21 @@ namespace PlayniteAchievements.Providers.Steam
 
         public async Task<SteamWebApiTokenResolution> ResolveAsync(CancellationToken ct)
         {
+#if !TEST
+            var account = ProviderRegistry.Settings<SteamSettings>().GetDefaultAccount();
+            if (!string.IsNullOrWhiteSpace(account?.SteamWebApiKey))
+            {
+                ct.ThrowIfCancellationRequested();
+                if (string.IsNullOrWhiteSpace(account.SteamUserId))
+                    return SteamWebApiTokenResolution.Fail(AuthProbeResult.NotAuthenticated());
+                return SteamWebApiTokenResolution.Success(AuthProbeResult.AlreadyAuthenticated(account.SteamUserId), account.SteamWebApiKey);
+            }
+#endif
+            return await ResolveBrowserAsync(ct).ConfigureAwait(false);
+        }
+
+        internal async Task<SteamWebApiTokenResolution> ResolveBrowserAsync(CancellationToken ct)
+        {
             var scoped = TryResolveFromScopedAuthContext();
             if (scoped != null)
             {

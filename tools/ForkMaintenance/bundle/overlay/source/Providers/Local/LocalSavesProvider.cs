@@ -29,10 +29,11 @@ using PlayniteAchievements.Models.Settings;
 using PlayniteAchievements.Services;
 using PlayniteAchievements.Services.Cache;
 using PlayniteAchievements.Services.GameCustomData;
+using PlayniteAchievements.Providers.Overrides;
 
 namespace PlayniteAchievements.Providers.Local
 {
-    public class LocalSavesProvider : IDataProvider
+    public class LocalSavesProvider : IDataProvider, IProviderOverride
     {
         private static readonly HashSet<Guid> ReportedAmbiguousFolderGames = new HashSet<Guid>();
         private static readonly Regex GenericAchievementNamePattern = new Regex(
@@ -149,6 +150,7 @@ namespace PlayniteAchievements.Providers.Local
 
         public string ProviderKey => "Local";
         public string ProviderName => "Local"; 
+        public ProviderOverrideDescriptor OverrideDescriptor { get; } = ProviderOverrideDescriptor.None();
         public string ProviderIconKey => ResolvedProviderIconKey;
         public string ProviderColorHex
         {
@@ -1224,6 +1226,68 @@ namespace PlayniteAchievements.Providers.Local
             var settings = ProviderRegistry.Settings<LocalSettings>();
             return settings?.RefreshOnGameCloseOverrides != null &&
                    settings.RefreshOnGameCloseOverrides.TryGetValue(gameId, out shouldRefresh);
+        }
+
+        internal static bool HasAnyGameOverride(Guid gameId)
+        {
+            if (gameId == Guid.Empty)
+            {
+                return false;
+            }
+
+            var settings = ProviderRegistry.Settings<LocalSettings>();
+            return settings != null &&
+                   (settings.SteamAppIdOverrides?.ContainsKey(gameId) == true ||
+                    settings.LocalFolderOverrides?.ContainsKey(gameId) == true ||
+                    settings.CustomSchemaPathOverrides?.ContainsKey(gameId) == true ||
+                    settings.CustomSchemaEnabledOverrides?.ContainsKey(gameId) == true ||
+                    settings.SteamAppCacheUserOverrides?.ContainsKey(gameId) == true ||
+                    settings.RefreshOnGameCloseOverrides?.ContainsKey(gameId) == true ||
+                    settings.EpicSchemaPathOverrides?.ContainsKey(gameId) == true ||
+                    settings.EpicSavePathOverrides?.ContainsKey(gameId) == true ||
+                    settings.EpicProductIdOverrides?.ContainsKey(gameId) == true ||
+                    settings.LumaPlayAppIdOverrides?.ContainsKey(gameId) == true ||
+                    settings.LumaPlayIniPathOverrides?.ContainsKey(gameId) == true);
+        }
+
+        internal static bool TryClearAllGameOverrides(
+            Guid gameId,
+            string gameName,
+            Action persistSettingsForUi,
+            ILogger logger)
+        {
+            if (gameId == Guid.Empty)
+            {
+                return false;
+            }
+
+            var settings = ProviderRegistry.Settings<LocalSettings>();
+            if (settings == null)
+            {
+                return false;
+            }
+
+            var removed = false;
+            removed |= settings.SteamAppIdOverrides?.Remove(gameId) == true;
+            removed |= settings.LocalFolderOverrides?.Remove(gameId) == true;
+            removed |= settings.CustomSchemaPathOverrides?.Remove(gameId) == true;
+            removed |= settings.CustomSchemaEnabledOverrides?.Remove(gameId) == true;
+            removed |= settings.SteamAppCacheUserOverrides?.Remove(gameId) == true;
+            removed |= settings.RefreshOnGameCloseOverrides?.Remove(gameId) == true;
+            removed |= settings.EpicSchemaPathOverrides?.Remove(gameId) == true;
+            removed |= settings.EpicSavePathOverrides?.Remove(gameId) == true;
+            removed |= settings.EpicProductIdOverrides?.Remove(gameId) == true;
+            removed |= settings.LumaPlayAppIdOverrides?.Remove(gameId) == true;
+            removed |= settings.LumaPlayIniPathOverrides?.Remove(gameId) == true;
+            if (!removed)
+            {
+                return false;
+            }
+
+            ProviderRegistry.Write(settings);
+            persistSettingsForUi?.Invoke();
+            logger?.Info($"Cleared all Local overrides for '{gameName}'.");
+            return true;
         }
 
         internal static bool ShouldRefreshAchievementsOnGameClose(Guid gameId)
@@ -8469,7 +8533,9 @@ namespace PlayniteAchievements.Providers.Local
                     $"PlayAch-LocalFolderAmbiguous-{game.Id}",
                     $"{ResourceProvider.GetString("LOCPlayAch_Title_PluginName")}\n{message}",
                     NotificationType.Info,
-                    () => PlayniteAchievementsPlugin.Instance?.OpenManageAchievementsLocalFolderOverrideView(game.Id)));
+                    () => PlayniteAchievementsPlugin.Instance?.OpenManageAchievementsView(
+                        game.Id,
+                        ViewModels.ManageAchievements.ManageAchievementsTab.Editor)));
             }
             catch (Exception ex)
             {

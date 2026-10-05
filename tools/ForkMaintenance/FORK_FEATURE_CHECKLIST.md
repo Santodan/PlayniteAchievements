@@ -4,6 +4,60 @@ Use this checklist after applying the bundle to a new upstream release. The
 bundle captures the source automatically; this list records the behavior that
 must still be verified in Playnite.
 
+## v4.0.1 recovery update — 2026-10-05
+
+These items describe the current integration, not a promise that every older
+fork feature below has been restored. See `UPSTREAM_V4.0.1_CONFLICT_REVIEW.md`
+at the repository root for remaining missing features and live-verification tasks.
+
+- Manage Achievements preserves the upstream shell and provides Local in
+  Platform Override, a dedicated Local Overrides page, and a separate Custom
+  Schema tab. Local Overrides uses a left-side platform-icon sidebar with
+  Local Saves & Schema, Steam, Epic, LumaPlay, and RetroAchievements pages.
+  Local icons use the configured provider color and custom/borrowed icon.
+- Overview Custom Data shows override values, including RetroAchievements
+  base/subset names and IDs. The top-level Clear clears cache, custom data,
+  platform routing, and local overrides; upstream's Clear Custom Data label stays.
+- Custom Schema loads JSON or accepts manual schema editing and correlates with
+  the Local achievement file before updating the unified Editor. Legacy manual
+  navigation and portable-package entry points still require review.
+- View Achievements retains the upstream editor action and adds Edit Local File
+  plus the title-bar refresh button. The separate file editor accepts 24-hour
+  times, writes intentional relocks to disk/cache, and has Open File Location.
+  Verify save/restart persistence in Playnite.
+- Local settings have General, Import, and SuccessStory tabs; General shows
+  custom folders on the left and excluded folders on the right.
+- Steam settings have Original (upstream browser controls) and Secondary
+  (API-key account management/imports). Profile recognition uses an API key
+  plus Steam ID/profile URL; secondary accounts do not require another login.
+  Selected-account credentials and per-game account overrides drive refreshes.
+  Override-only custom records persist; Apply/Clear start a single-game refresh.
+  Verify real-account switching and imports. Family-sharing discovery remains
+  Original-browser-session-only, not secondary-account parity.
+- Preserve cached unlocks on refresh is enabled by default under General >
+  Maintenance. The per-game three-state control in Local Saves & Schema applies
+  to every provider: keep cached unlocks, accept refreshed states, or use global.
+  Apply refreshes immediately. Disabled protection allows valid lower/zero
+  unlock counts; failed/empty payloads remain protected. Explicit editor saves
+  still permit intentional relocks regardless of normal-refresh protection.
+- The upstream Overview layout includes the fork's All Achievements tab,
+  Custom (Manual) selector, and working Configure/manual ordering actions.
+- Desktop scrollable-plus-highlight migration, compact migration, and Fullscreen
+  migration were user-confirmed working. Score-snapshot persistence still needs review.
+- Live custom notifications and Memories captures use the fork template and
+  settings. WPF and WebView/SAN frames, top/bottom-center placement, custom
+  transitions, shared sanitized folder names, and SAN Screenshot View 1/2 were
+  restored; captures were user-confirmed working. Active-card glow, effective
+  quality selection, and recorder reconfiguration still need comparison.
+- Locale-dependent score and Guild Wars 2 separator differences are accepted
+  by the user; they are not outstanding fork-restoration tasks. Historical test
+  expectations may still need alignment, without forcing a display change.
+- Latest verification: required Release rebuild passed; 19 Steam-focused tests
+  and 93 cache/custom-data-focused tests passed. The historical full suite has
+  not been rerun since these fixes; do not treat its old failures as current.
+- Preserve AddonDBManifest.yaml, source/extension.yaml, InstallerManifest.yaml,
+  and README.md during bundle application. No commit/push without user approval.
+
 ## Achievement notifications
 
 - The separate Achievement Notification settings page is populated with its
@@ -105,8 +159,8 @@ Primary fork areas:
   restarting Playnite, the saved selection remains active and stale achievements
   from previously included sets do not return from the SQLite cache.
 - Custom schema loading, editing, creation, and per-game enable/disable work.
-- Manage Achievements contains Overrides → Main/Local and Local →
-  Local Saves & Schema/Steam/Epic/LumaPlay.
+- Manage Achievements contains a dedicated Local Overrides page with a left
+  sidebar: Local Saves & Schema/Steam/Epic/LumaPlay/RetroAchievements.
 - In Manage Achievements, selecting Automatic or Clear under Change Provider
   removes both the preferred-provider selection and any higher-priority forced
   provider override.
@@ -208,7 +262,9 @@ Primary fork areas:
   language rather than English, the Windows locale, or the Playnite UI
   language, while already-localized visible achievement text remains intact.
 - Per-game Steam-account overrides use the correct account.
-- Owned-games and family-sharing import retain their fork behavior.
+- Owned-game imports retain metadata-source and overwrite/skip controls.
+  Family-sharing discovery requires the Original browser account; API-key
+  imports read the selected secondary account's owned games only.
 - Imported-game metadata source selection works for Steam and Local imports.
 
 Primary fork areas:

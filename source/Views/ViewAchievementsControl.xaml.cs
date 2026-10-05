@@ -400,6 +400,16 @@ namespace PlayniteAchievements.Views
                 return;
             }
 
+            PlayniteAchievementsPlugin.Instance?.OpenLocalAchievementsEditorView(ViewModel.GameId);
+        }
+
+        private void OpenAchievementsEditor_Click(object sender, RoutedEventArgs e)
+        {
+            if (ViewModel == null)
+            {
+                return;
+            }
+
             PlayniteAchievementsPlugin.Instance?.OpenManageAchievementsView(
                 ViewModel.GameId,
                 ViewModels.ManageAchievements.ManageAchievementsTab.Editor);

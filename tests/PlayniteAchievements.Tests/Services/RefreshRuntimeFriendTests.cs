@@ -2833,7 +2833,7 @@ namespace PlayniteAchievements.Services.Tests
                 !string.IsNullOrWhiteSpace(key) && CachedGameData.TryGetValue(key, out var data)
                     ? data
                     : null;
-            public CacheWriteResult SaveGameData(string key, GameAchievementData data) => null;
+            public CacheWriteResult SaveGameData(string key, GameAchievementData data, bool allowLocalRelock = false) => null;
             public void RemoveGameData(Guid playniteGameId) { }
             public void RemoveGameCache(Guid playniteGameId) { }
             public void NotifyCacheInvalidated() =>

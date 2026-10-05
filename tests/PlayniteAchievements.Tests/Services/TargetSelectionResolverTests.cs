@@ -877,7 +877,7 @@ namespace PlayniteAchievements.Services.Tests
             public DateTime? GetMostRecentLastUpdatedUtc() => null;
             public List<string> GetCachedGameIds() => new List<string>();
             public GameAchievementData LoadGameData(string key) => null;
-            public CacheWriteResult SaveGameData(string key, GameAchievementData data) => null;
+            public CacheWriteResult SaveGameData(string key, GameAchievementData data, bool allowLocalRelock = false) => null;
             public void RemoveGameData(Guid playniteGameId) { }
             public void RemoveGameCache(Guid playniteGameId) { }
             public void NotifyCacheInvalidated() { }

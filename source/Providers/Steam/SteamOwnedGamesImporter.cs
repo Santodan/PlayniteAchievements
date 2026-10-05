@@ -94,16 +94,18 @@ namespace PlayniteAchievements.Providers.Steam
             var result = new ImportResult();
             ReportProgress(progress, "Checking Steam authentication...", isIndeterminate: true);
 
-            var probe = await _sessionManager.ProbeAuthStateAsync(ct).ConfigureAwait(false);
-            var steamUserId = probe?.UserId?.Trim();
-            if (!probe.IsSuccess || string.IsNullOrWhiteSpace(steamUserId))
+            steamSettings = steamSettings ?? ProviderRegistry.Settings<SteamSettings>();
+            var account = steamSettings.GetDefaultAccount()?.Clone();
+            var useApiKey = !string.IsNullOrWhiteSpace(account?.SteamWebApiKey);
+            var probe = useApiKey ? null : await _sessionManager.ProbeAuthStateAsync(ct).ConfigureAwait(false);
+            var steamUserId = useApiKey ? account.SteamUserId.Trim() : probe?.UserId?.Trim();
+            if ((!useApiKey && probe?.IsSuccess != true) || string.IsNullOrWhiteSpace(steamUserId))
             {
                 _logger?.Warn("[SteamAch] Owned-games import skipped because Steam web auth is not available.");
                 return result;
             }
 
             result.IsAuthenticated = true;
-            steamSettings = steamSettings ?? ProviderRegistry.Settings<SteamSettings>();
             result.FamilyShareEnabled = steamSettings?.IncludeFamilySharedGames == true;
             var metadataSourceId = ImportedGameMetadataSourceCatalog.NormalizeMetadataSourceId(
                 _api,
@@ -143,7 +145,7 @@ namespace PlayniteAchievements.Providers.Steam
                     steamUserId,
                     ct,
                     progress,
-                    steamSettings).ConfigureAwait(false);
+                    steamSettings, useApiKey ? account.SteamWebApiKey : null).ConfigureAwait(false);
                 var ownedGames = resolveResult.Games;
                 result.WasCanceled = resolveResult.WasCanceled;
                 result.OwnedCount = ownedGames.Count;
@@ -203,6 +205,11 @@ namespace PlayniteAchievements.Providers.Steam
                             {
                                 result.FailedCount++;
                                 continue;
+                            }
+
+                            if (useApiKey)
+                            {
+                                SteamDataProvider.TrySetSteamAccountOverride(imported.Id, account.AccountId, imported.Name, null, _logger);
                             }
 
                             ApplyImportedMetadata(
@@ -300,14 +307,17 @@ namespace PlayniteAchievements.Providers.Steam
             string steamUserId,
             CancellationToken ct,
             IProgress<ImportProgressInfo> progress,
-            SteamSettings steamSettings)
+            SteamSettings steamSettings,
+            string apiKey = null)
         {
             var resolvedGames = new ResolveOwnedGamesResult();
 
             SteamHttpClient.OwnedGamesResolutionResult ownedResolution;
             try
             {
-                ownedResolution = await steamClient
+                ownedResolution = !string.IsNullOrWhiteSpace(apiKey)
+                    ? await steamClient.GetOwnedGamesByApiKeyAsync(steamUserId, apiKey, ct).ConfigureAwait(false)
+                    : await steamClient
                     .GetOwnedGamesFromSessionAsync(ct, CreateResolutionProgress(progress, "owned Steam games"))
                     .ConfigureAwait(false);
             }
@@ -321,7 +331,8 @@ namespace PlayniteAchievements.Providers.Steam
             resolvedGames.Games.AddRange(ownedResolution.Games);
             resolvedGames.WasCanceled = ownedResolution.WasCanceled;
 
-            if (!resolvedGames.WasCanceled && steamSettings?.IncludeFamilySharedGames == true)
+            // The browser's family-sharing permissions belong to the Original account only.
+            if (string.IsNullOrWhiteSpace(apiKey) && !resolvedGames.WasCanceled && steamSettings?.IncludeFamilySharedGames == true)
             {
                 try
                 {

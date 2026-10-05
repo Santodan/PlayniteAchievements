@@ -242,6 +242,8 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 result,
                 ProviderOverrideLabelKey,
                 data.ProviderOverride != null ||
+                HasText(data.SteamAccountIdOverride) ||
+                data.PreserveCachedUnlocksOnRefreshOverride.HasValue ||
                 data.RetroAchievementsGameIdOverride.HasValue ||
                 HasText(data.XeniaTitleIdOverride) ||
                 HasText(data.ShadPS4MatchIdOverride) ||

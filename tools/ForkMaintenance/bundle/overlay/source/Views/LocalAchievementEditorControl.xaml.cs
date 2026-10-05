@@ -50,5 +50,29 @@ namespace PlayniteAchievements.Views
         {
             Window.GetWindow(this)?.Close();
         }
+
+        private void OpenFileLocationButton_Click(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                var path = ViewModel?.FilePath;
+                if (string.IsNullOrWhiteSpace(path) || !System.IO.File.Exists(path))
+                {
+                    MessageBox.Show("The local achievement file could not be found.", WindowTitle);
+                    return;
+                }
+
+                System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+                {
+                    FileName = "explorer.exe",
+                    Arguments = "/select,\"" + System.IO.Path.GetFullPath(path) + "\"",
+                    UseShellExecute = true
+                });
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show("Could not open the file location: " + ex.Message, WindowTitle);
+            }
+        }
     }
 }

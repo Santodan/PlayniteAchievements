@@ -14,6 +14,32 @@ namespace PlayniteAchievements.Steam.Tests
     public class SteamApiClientTests
     {
         [TestMethod]
+        public async Task SecondaryAchievements_UsesSelectedIdentityAndReadsUnlockTimes()
+        {
+            Uri captured = null;
+            using var http = new HttpClient(new StubHttpMessageHandler(request =>
+            {
+                captured = request.RequestUri;
+                return new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(
+                    "{\"playerstats\":{\"success\":true,\"achievements\":[{\"apiname\":\"ONE\",\"achieved\":1,\"unlocktime\":1700000000},{\"apiname\":\"TWO\",\"achieved\":0,\"unlocktime\":0}]}}") };
+            }));
+            var result = await new SteamApiClient(http, null).GetPlayerAchievementsByKeyAsync("test-key", "76561198000000001", 123, CancellationToken.None);
+            StringAssert.Contains(captured.Query, "key=test-key");
+            StringAssert.Contains(captured.Query, "steamid=76561198000000001");
+            Assert.IsTrue(result.UnlockedApiNames.SetEquals(new[] { "ONE" }));
+            Assert.AreEqual(DateTimeOffset.FromUnixTimeSeconds(1700000000).UtcDateTime, result.UnlockTimesUtc["ONE"]);
+        }
+
+        [TestMethod]
+        public async Task SecondaryAchievements_PrivateOrFailedPayloadDoesNotBecomeZeroUnlocks()
+        {
+            using var http = new HttpClient(new StubHttpMessageHandler(_ => new HttpResponseMessage(HttpStatusCode.OK)
+            { Content = new StringContent("{\"playerstats\":{\"success\":false}}") }));
+            await Assert.ThrowsExceptionAsync<InvalidOperationException>(() => new SteamApiClient(http, null)
+                .GetPlayerAchievementsByKeyAsync("test-key", "76561198000000001", 123, CancellationToken.None));
+        }
+
+        [TestMethod]
         public async Task GetGameHasAchievementsAsync_UsesGetGameAchievementsEndpoint()
         {
             Uri capturedUri = null;

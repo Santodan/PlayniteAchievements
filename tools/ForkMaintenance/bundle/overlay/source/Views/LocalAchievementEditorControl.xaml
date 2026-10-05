@@ -252,6 +252,10 @@
                 </StackPanel>
 
                 <StackPanel Grid.Column="1" Orientation="Horizontal">
+                    <Button Content="Open File Location"
+                            Click="OpenFileLocationButton_Click"
+                            Padding="12,6"
+                            Margin="0,0,8,0" />
                     <Button Content="Cancel"
                             Click="CancelButton_Click"
                             Padding="12,6"

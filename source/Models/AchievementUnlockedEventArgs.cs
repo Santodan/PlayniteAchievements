@@ -153,6 +153,13 @@ namespace PlayniteAchievements.Models
         public bool IsTestFire { get; set; }
 
         /// <summary>
+        /// The fork's custom live-unlock renderer owns the visible notification for this event.
+        /// The upstream event still flows to capture and cache consumers, but its standard toast
+        /// must remain hidden so the user does not receive two notifications.
+        /// </summary>
+        public bool SuppressStandardToast { get; set; }
+
+        /// <summary>
         /// For fire-test previews only: forces which template renders this notification (the
         /// plugin's own template, or a specific theme mode's override). Null for real unlocks,
         /// which resolve the template normally.

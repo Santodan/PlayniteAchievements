@@ -15,8 +15,11 @@
         </ResourceDictionary>
     </UserControl.Resources>
 
-    <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
-        <StackPanel Margin="20">
+    <TabControl SelectedIndex="0">
+        <TabItem Header="General">
+            <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                <StackPanel Margin="20">
+
             <Border Style="{StaticResource SectionBorderStyle}" Margin="0,0,0,16">
                 <StackPanel>
                     <CheckBox Content="{DynamicResource LOCPlayAch_Settings_ProviderEnabled}"
@@ -278,6 +281,13 @@
                                Style="{StaticResource MutedTextStyle}"
                                Margin="0,0,0,12"/>
 
+                    <Grid Margin="0,8,0,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="20" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <StackPanel Grid.Column="0">
                     <TextBlock Text="Custom folders"
                                Foreground="{DynamicResource TextBrush}"
                                FontWeight="SemiBold"
@@ -288,6 +298,10 @@
                                FontWeight="SemiBold"
                                Margin="0,0,0,4"/>
                     <Grid Margin="0,0,0,6">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                        </Grid.RowDefinitions>
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*" />
                             <ColumnDefinition Width="Auto" />
@@ -296,15 +310,19 @@
 
                         <TextBox x:Name="PendingExtraLocalPathTextBox"
                                  Grid.Column="0"
+                                 Grid.ColumnSpan="3"
+                                 Margin="0,0,0,6"
                                  VerticalContentAlignment="Center"
                                  TextChanged="PendingExtraLocalPathTextBox_TextChanged" />
                         <Button Grid.Column="1"
+                                Grid.Row="1"
                                 Content="{DynamicResource LOCPlayAch_Button_Browse}"
                                 Width="90"
                                 Margin="8,0,0,0"
                                 Click="BrowseExtraLocalPath_Click" />
                         <Button x:Name="AddExtraLocalPathButton"
                                 Grid.Column="2"
+                                Grid.Row="1"
                                 Content="{DynamicResource LOCPlayAch_Button_Apply}"
                                 Width="90"
                                 Margin="8,0,0,0"
@@ -336,11 +354,23 @@
                                TextWrapping="Wrap"
                                Margin="0,0,0,10"/>
 
-                        <TextBlock Text="Excluded folders from scan:"
+                        </StackPanel>
+                        <Border Grid.Column="1" BorderBrush="{DynamicResource NormalBorderBrush}"
+                                BorderThickness="1,0,0,0" HorizontalAlignment="Center" />
+                        <StackPanel Grid.Column="2">
+                        <TextBlock Text="Excluded folders"
                                Foreground="{DynamicResource TextBrush}"
                                FontWeight="SemiBold"
                                Margin="0,0,0,4"/>
+                        <TextBlock Text="Folders to skip when scanning:"
+                                   Foreground="{DynamicResource TextBrush}"
+                                   FontWeight="SemiBold"
+                                   Margin="0,0,0,4" />
                         <Grid Margin="0,0,0,6">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                        </Grid.RowDefinitions>
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*" />
                             <ColumnDefinition Width="Auto" />
@@ -349,15 +379,19 @@
 
                         <TextBox x:Name="PendingExcludedLocalPathTextBox"
                              Grid.Column="0"
+                             Grid.ColumnSpan="3"
+                             Margin="0,0,0,6"
                              VerticalContentAlignment="Center"
                              TextChanged="PendingExcludedLocalPathTextBox_TextChanged" />
                         <Button Grid.Column="1"
+                            Grid.Row="1"
                             Content="{DynamicResource LOCPlayAch_Button_Browse}"
                             Width="90"
                             Margin="8,0,0,0"
                             Click="BrowseExcludedLocalPath_Click" />
                         <Button x:Name="AddExcludedLocalPathButton"
                             Grid.Column="2"
+                            Grid.Row="1"
                             Content="{DynamicResource LOCPlayAch_Button_Apply}"
                             Width="90"
                             Margin="8,0,0,0"
@@ -387,7 +421,22 @@
                         <TextBlock Text="Excluded folders are skipped during Local achievement detection scans, including nested paths under those folders."
                                Style="{StaticResource MutedTextStyle}"
                                TextWrapping="Wrap"/>
+                        </StackPanel>
+                    </Grid>
 
+                </StackPanel>
+            </Border>
+
+
+                </StackPanel>
+            </ScrollViewer>
+        </TabItem>
+        <TabItem Header="Import">
+            <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                <StackPanel Margin="20">
+                    <Border Style="{StaticResource SectionBorderStyle}" Margin="0,0,0,16" IsEnabled="{Binding Settings.IsEnabled}">
+                        <StackPanel>
+                            <TextBlock Text="Import games from Local folders" Style="{StaticResource SectionHeaderStyle}" Margin="0,0,0,12" />
                         <TextBlock Text="Imported game target library:"
                                Foreground="{DynamicResource TextBrush}"
                                FontWeight="SemiBold"
@@ -448,14 +497,20 @@
                                Style="{StaticResource MutedTextStyle}" />
                         </DockPanel>
 
-                    <TextBlock Text="The importer scans the built-in default Local roots and any additional roots listed here for numeric App ID folders with Local achievement files, imports missing games with Steam metadata, and binds them to the Local provider automatically."
+                    <TextBlock Text="The importer scans the built-in default Local roots and any additional roots configured in the General tab for numeric App ID folders with Local achievement files, imports missing games with Steam metadata, and binds them to the Local provider automatically."
                                Style="{StaticResource MutedTextStyle}"
                                Margin="0,6,0,0"
                                TextWrapping="Wrap"/>
 
-                </StackPanel>
-            </Border>
 
+                        </StackPanel>
+                    </Border>
+                </StackPanel>
+            </ScrollViewer>
+        </TabItem>
+        <TabItem Header="SuccessStory">
+            <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                <StackPanel Margin="20">
             <Border Style="{StaticResource SectionBorderStyle}" Margin="0,0,0,16" IsEnabled="{Binding Settings.IsEnabled}">
                 <StackPanel>
                     <TextBlock Text="SuccessStory Import"
@@ -611,6 +666,9 @@
                                TextWrapping="Wrap"/>
                 </StackPanel>
             </Border>
-        </StackPanel>
-    </ScrollViewer>
+
+                </StackPanel>
+            </ScrollViewer>
+        </TabItem>
+    </TabControl>
 </settings:ProviderSettingsViewBase>

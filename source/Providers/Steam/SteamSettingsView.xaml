@@ -4,6 +4,7 @@
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:settings="clr-namespace:PlayniteAchievements.Providers.Settings"
+             xmlns:steam="clr-namespace:PlayniteAchievements.Providers.Steam"
              xmlns:controls="clr-namespace:PlayniteAchievements.Views.Controls"
              mc:Ignorable="d"
              d:DesignHeight="600"
@@ -17,6 +18,8 @@
         </ResourceDictionary>
     </UserControl.Resources>
 
+    <TabControl>
+        <TabItem Header="Original">
     <ScrollViewer VerticalScrollBarVisibility="Auto"
                   HorizontalScrollBarVisibility="Disabled">
         <StackPanel Margin="20">
@@ -121,5 +124,202 @@
 
         </StackPanel>
     </ScrollViewer>
+        </TabItem>
+        <TabItem Header="Secondary">
+            <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                <StackPanel Margin="20">
+                    <StackPanel.Style>
+                        <Style TargetType="StackPanel">
+                            <Setter Property="IsEnabled" Value="{Binding Settings.IsEnabled}" />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding AuthBusy, RelativeSource={RelativeSource AncestorType=UserControl}}" Value="True">
+                                    <Setter Property="IsEnabled" Value="False" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </StackPanel.Style>
+<TextBlock Text="Active account" Style="{StaticResource SectionHeaderStyle}" />
+<ComboBox x:Name="DefaultSteamAccountComboBox" DisplayMemberPath="DisplayLabel" SelectedValuePath="AccountId" SelectedValue="{Binding DefaultSteamAccountId, RelativeSource={RelativeSource AncestorType=UserControl}, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Margin="0,8,0,8" />
+<TextBlock Text="Select the account used for achievement refreshes and imports. Add a secondary account using its API key and Steam ID/profile URL; no additional browser login is needed." TextWrapping="Wrap" Style="{StaticResource MutedTextStyle}" />
+<ItemsControl ItemsSource="{Binding SteamAccounts, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                              Margin="0,10,0,0">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <Border Background="{DynamicResource ControlBackgroundBrush}"
+                                                    BorderBrush="{DynamicResource NormalBorderBrush}"
+                                                    BorderThickness="1"
+                                                    CornerRadius="6"
+                                                    Padding="10"
+                                                    Margin="0,0,0,8">
+                                                <StackPanel>
+                                                    <Grid>
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="*"/>
+                                                            <ColumnDefinition Width="Auto"/>
+                                                        </Grid.ColumnDefinitions>
+
+                                                        <TextBlock Grid.Column="0"
+                                                                   Text="{Binding DisplayLabel}"
+                                                                   FontWeight="SemiBold"
+                                                                   VerticalAlignment="Center"/>
+
+                                                        <Button Grid.Column="1"
+                                                                Content="{DynamicResource LOCPlayAch_Button_Remove}"
+                                                                Click="RemoveSteamAccount_Click"
+                                                                Tag="{Binding AccountId}"
+                                                                Padding="10,4"
+                                                                Margin="8,0,0,0"/>
+                                                    </Grid>
+
+                                                    <Grid Margin="0,8,0,0">
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="180"/>
+                                                            <ColumnDefinition Width="*"/>
+                                                        </Grid.ColumnDefinitions>
+                                                        <TextBlock Grid.Column="0"
+                                                                   Text="{DynamicResource LOCPlayAch_Settings_Steam_AccountDisplayName}"
+                                                                   VerticalAlignment="Center"/>
+                                                        <TextBox Grid.Column="1"
+                                                                 Text="{Binding DisplayName, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                                 Padding="4"
+                                                                 TextChanged="SteamAccountField_TextChanged"/>
+                                                    </Grid>
+                                                    <Button Content="Recognize account" Click="RecognizeSteamAccount_Click"
+                                                            Tag="{Binding AccountId}" HorizontalAlignment="Left" Margin="0,8,0,0" />
+
+                                                    <Grid Margin="0,8,0,0">
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="180"/>
+                                                            <ColumnDefinition Width="*"/>
+                                                        </Grid.ColumnDefinitions>
+                                                        <TextBlock Grid.Column="0"
+                                                                   Text="{DynamicResource LOCPlayAch_Settings_SteamUserId}"
+                                                                   VerticalAlignment="Center"/>
+                                                        <TextBox Grid.Column="1"
+                                                                 Text="{Binding SteamUserId, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                                 Padding="4"
+                                                                 TextChanged="SteamAccountField_TextChanged"/>
+                                                    </Grid>
+
+                                                    <Grid Margin="0,8,0,0">
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="180"/>
+                                                            <ColumnDefinition Width="*"/>
+                                                        </Grid.ColumnDefinitions>
+                                                        <TextBlock Grid.Column="0"
+                                                                   Text="{DynamicResource LOCPlayAch_Settings_SteamWebApiKey}"
+                                                                   VerticalAlignment="Center"/>
+                                                        <TextBox Grid.Column="1"
+                                                                 Text="{Binding SteamWebApiKey, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                                 Padding="4"
+                                                                 TextChanged="SteamAccountField_TextChanged"/>
+                                                    </Grid>
+                                                </StackPanel>
+                                            </Border>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+
+                                <StackPanel Orientation="Horizontal" Margin="0,2,0,0">
+                                    <Button Content="{DynamicResource LOCPlayAch_Settings_Steam_AddApiKey}"
+                                        Click="AddSteamApiKey_Click"
+                                        Style="{StaticResource AuthActionButtonStyle}"
+                                        HorizontalAlignment="Left"/>
+                                </StackPanel>
+<!-- Steam Import Section -->
+                    <Grid Margin="0,14,0,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="180"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+
+                        <TextBlock Grid.Column="0"
+                                   Text="{DynamicResource LOCPlayAch_Settings_Steam_ImportOwnedGames}"
+                                   Foreground="{DynamicResource TextBrush}"
+                                   VerticalAlignment="Top"
+                                   Margin="0,8,0,0"/>
+
+                        <Border Grid.Column="1"
+                                Background="{DynamicResource PanelBackgroundBrush}"
+                                CornerRadius="8"
+                                Padding="16"
+                                BorderThickness="1"
+                                BorderBrush="{DynamicResource NormalBorderBrush}">
+                            <StackPanel>
+                                <TextBlock Style="{StaticResource MutedTextStyle}"
+                                           Text="{DynamicResource LOCPlayAch_Settings_Steam_ImportOwnedGamesHint}"
+                                           TextWrapping="Wrap"/>
+
+                                <Grid Margin="0,10,0,0">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="180"/>
+                                        <ColumnDefinition Width="*"/>
+                                    </Grid.ColumnDefinitions>
+
+                                    <TextBlock Grid.Column="0"
+                                               Text="{DynamicResource LOCPlayAch_Settings_ImportedGameMetadataSource}"
+                                               VerticalAlignment="Center"
+                                               Margin="0,8,12,0"/>
+
+                                    <StackPanel Grid.Column="1">
+                                        <ComboBox x:Name="ImportedGameMetadataSourceComboBox"
+                                                  DisplayMemberPath="DisplayName"
+                                                  SelectedValuePath="Id"
+                                                  SelectedValue="{Binding Settings.ImportedGameMetadataSourceId, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                  Padding="4"/>
+                                        <TextBlock Style="{StaticResource MutedTextStyle}"
+                                                   Margin="0,6,0,0"
+                                                   Text="{DynamicResource LOCPlayAch_Settings_ImportedGameMetadataSourceHint}"
+                                                   TextWrapping="Wrap"/>
+                                    </StackPanel>
+                                </Grid>
+
+                                <Grid Margin="0,10,0,0">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="180"/>
+                                        <ColumnDefinition Width="*"/>
+                                    </Grid.ColumnDefinitions>
+
+                                    <TextBlock Grid.Column="0"
+                                               Text="{DynamicResource LOCPlayAch_Settings_Steam_ExistingGameHandling}"
+                                               VerticalAlignment="Center"
+                                               Margin="0,8,12,0"/>
+
+                                    <ComboBox Grid.Column="1"
+                                              SelectedValue="{Binding Settings.ExistingGameImportBehavior, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                              SelectedValuePath="Tag"
+                                              Padding="4">
+                                        <ComboBoxItem Content="{DynamicResource LOCPlayAch_Settings_Steam_OverwriteExistingGame}"
+                                                      Tag="{x:Static steam:SteamExistingGameImportBehavior.OverwriteExisting}" />
+                                        <ComboBoxItem Content="{DynamicResource LOCPlayAch_Settings_Steam_SkipExistingGame}"
+                                                      Tag="{x:Static steam:SteamExistingGameImportBehavior.SkipExisting}" />
+                                    </ComboBox>
+                                </Grid>
+
+                                <CheckBox Content="{DynamicResource LOCPlayAch_Settings_Steam_IncludeFamilySharedGames}"
+                                          IsChecked="{Binding Settings.IncludeFamilySharedGames, Mode=TwoWay}"
+                                          Margin="0,10,0,0"/>
+
+                                <TextBlock Style="{StaticResource MutedTextStyle}"
+                                           Margin="0,6,0,0"
+                                           Text="{DynamicResource LOCPlayAch_Settings_Steam_IncludeFamilySharedGamesHint}"
+                                           TextWrapping="Wrap"/>
+                                <TextBlock Text="Family-sharing discovery requires the Original browser session; API-key imports read only the selected account's owned games."
+                                           Style="{StaticResource MutedTextStyle}" TextWrapping="Wrap" Margin="0,6,0,0" />
+
+                                <Button Content="{DynamicResource LOCPlayAch_Settings_Steam_ImportOwnedGames}"
+                                        Click="ImportOwnedGames_Click"
+                                        Style="{StaticResource AuthActionButtonStyle}"
+                                        Margin="0,10,0,0"
+                                        HorizontalAlignment="Left"/>
+                            </StackPanel>
+                        </Border>
+                    </Grid>
+
+
+                </StackPanel>
+            </ScrollViewer>
+        </TabItem>
+    </TabControl>
 </settings:ProviderSettingsViewBase>
 

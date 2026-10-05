@@ -661,6 +661,28 @@ namespace PlayniteAchievements.Services.UI
             y = alignBottom ? gameClientPhys.Bottom - physH - gapY : gameClientPhys.Top + gapY;
         }
 
+        public static void ComputeCorner(
+            Rectangle gameClientPhys,
+            int physW,
+            int physH,
+            double monitorScale,
+            bool alignRight,
+            bool alignCenterHorizontally,
+            bool alignBottom,
+            double gapDipX,
+            double gapDipY,
+            out int x,
+            out int y)
+        {
+            ComputeCorner(
+                gameClientPhys, physW, physH, monitorScale, alignRight, alignBottom,
+                gapDipX, gapDipY, out x, out y);
+            if (alignCenterHorizontally)
+            {
+                x = gameClientPhys.Left + ((gameClientPhys.Width - physW) / 2);
+            }
+        }
+
         /// <summary>
         /// Moves the window's HWND to a physical desktop position without resizing it. The
         /// <c>SetWindowPos</c> call runs inside a Per-Monitor-V2 thread scope so the coordinates are

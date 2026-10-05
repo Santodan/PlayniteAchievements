@@ -5538,7 +5538,7 @@ namespace PlayniteAchievements.Services.Database
 
         // Returns the ApiName renames applied while upserting definitions (old -> new), so the
         // caller can rewrite ApiName-keyed per-game custom data (notes, order, filters, overrides).
-        public Dictionary<string, string> SaveCurrentUserGameData(string key, GameAchievementData data)
+        public Dictionary<string, string> SaveCurrentUserGameData(string key, GameAchievementData data, bool allowLocalRelock = false)
         {
             var renamedApiNames = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
             if (string.IsNullOrWhiteSpace(key))
@@ -5688,7 +5688,8 @@ namespace PlayniteAchievements.Services.Database
                         // GSE can expose an incomplete save while it is being rewritten. A Local
                         // refresh must not turn an earned achievement back into a locked one:
                         // the next file-watch read would otherwise announce the whole backlog.
-                        if (string.Equals(effectiveProviderKey, "Local", StringComparison.OrdinalIgnoreCase) &&
+                        // Explicit editor saves may intentionally relock; normal refreshes stay protected.
+                        if (!allowLocalRelock && string.Equals(effectiveProviderKey, "Local", StringComparison.OrdinalIgnoreCase) &&
                             existing.Unlocked != 0 && unlocked == 0)
                         {
                             unlocked = 1;

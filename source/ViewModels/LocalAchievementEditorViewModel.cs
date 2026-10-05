@@ -249,7 +249,13 @@ namespace PlayniteAchievements.ViewModels
                 }
 
                 StatusMessage = result.Message;
+                FilePath = result.FilePath;
                 var cacheRefreshed = await RefreshLocalCacheAfterSaveAsync(game, token).ConfigureAwait(false);
+                if (!cacheRefreshed)
+                {
+                    ErrorMessage = "The local file was saved, but refreshing the saved cache failed. See the log for details.";
+                    return false;
+                }
                 _cacheManager?.NotifyCacheInvalidated();
                 _logger?.Info($"Local achievement editor save completed gameId={_gameId} updated={result.UpdatedCount} cacheRefreshed={cacheRefreshed} file={result.FilePath}");
 
@@ -370,7 +376,7 @@ namespace PlayniteAchievements.ViewModels
                     refreshedData.ProviderKey = "Local";
                 }
 
-                var writeResult = _cacheManager?.SaveGameData(_gameId.ToString(), refreshedData);
+                var writeResult = _cacheManager?.SaveGameData(_gameId.ToString(), refreshedData, allowLocalRelock: true);
                 if (writeResult?.Success == true)
                 {
                     return true;

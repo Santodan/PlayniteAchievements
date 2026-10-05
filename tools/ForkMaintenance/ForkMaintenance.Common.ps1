@@ -9,7 +9,7 @@ function Get-FmConfig
         throw "Fork maintenance configuration was not found: $configPath"
     }
 
-    return Get-Content -LiteralPath $configPath -Raw | ConvertFrom-Json
+    return Get-Content -LiteralPath $configPath -Raw -Encoding UTF8 | ConvertFrom-Json
 }
 
 function Get-FmRepositoryRoot
@@ -54,6 +54,8 @@ function Invoke-FmGit
     $startInfo.WindowStyle = [Diagnostics.ProcessWindowStyle]::Hidden
     $startInfo.RedirectStandardOutput = $true
     $startInfo.RedirectStandardError = $true
+    $startInfo.StandardOutputEncoding = [Text.UTF8Encoding]::new($false)
+    $startInfo.StandardErrorEncoding = [Text.UTF8Encoding]::new($false)
 
     $process = [Diagnostics.Process]::new()
     $process.StartInfo = $startInfo

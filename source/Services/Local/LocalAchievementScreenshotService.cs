@@ -217,7 +217,9 @@ namespace PlayniteAchievements.Services.Local
                 switch (match.Groups[1].Value.ToLowerInvariant())
                 {
                     case "gamename":
-                        value = game?.Name ?? string.Empty;
+                        value = sanitizeValues
+                            ? PlayniteAchievements.Services.UI.UnlockScreenshotService.SanitizeCaptureGameName(game?.Name)
+                            : game?.Name ?? string.Empty;
                         break;
                     case "achievementname":
                         value = achievementName ?? string.Empty;

@@ -329,7 +329,7 @@ namespace PlayniteAchievements.Services.Captures
             var screenshotDir = persisted?.UnlockScreenshotDirectory;
             if (!string.IsNullOrWhiteSpace(screenshotDir))
             {
-                dirs.Add(screenshotDir.Trim());
+                dirs.Add(ResolveLibraryRoot(screenshotDir));
             }
 
             // Recording dir falls back to the screenshot dir at write time; mirror that here.
@@ -337,7 +337,7 @@ namespace PlayniteAchievements.Services.Captures
             recordingDir = string.IsNullOrWhiteSpace(recordingDir) ? screenshotDir : recordingDir;
             if (!string.IsNullOrWhiteSpace(recordingDir))
             {
-                recordingDir = recordingDir.Trim();
+                recordingDir = ResolveLibraryRoot(recordingDir);
                 if (!dirs.Any(d => string.Equals(d, recordingDir, StringComparison.OrdinalIgnoreCase)))
                 {
                     dirs.Add(recordingDir);
@@ -352,6 +352,20 @@ namespace PlayniteAchievements.Services.Captures
                     !string.Equals(parent, candidate, StringComparison.OrdinalIgnoreCase) &&
                     IsSamePath(candidate, Path.Combine(parent, UnlockScreenshotService.TestFolderName))))
                 .ToList();
+        }
+
+        private static string ResolveLibraryRoot(string configuredDirectory)
+        {
+            var directory = configuredDirectory?.Trim();
+            const string gameToken = "<gameName>";
+            if (!string.IsNullOrWhiteSpace(directory) &&
+                directory.EndsWith(gameToken, StringComparison.OrdinalIgnoreCase))
+            {
+                directory = directory.Substring(0, directory.Length - gameToken.Length)
+                    .TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+            }
+
+            return directory;
         }
 
         private void EnsureWatchers()

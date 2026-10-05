@@ -10,6 +10,40 @@ namespace PlayniteAchievements.Services.Tests
     [TestClass]
     public class AchievementWriteGuardTests
     {
+        [TestMethod]
+        public void ProtectionDisabled_AllowsZeroUnlocksButStillRejectsEmptyPayload()
+        {
+            Assert.IsFalse(AchievementWriteGuard.ShouldRejectWrite(Data(23, 23), Data(23, 0), out _, preserveCachedUnlocks: false));
+            Assert.IsTrue(AchievementWriteGuard.ShouldRejectWrite(Data(23, 23), Data(23, 0), out _));
+            Assert.IsTrue(AchievementWriteGuard.ShouldRejectWrite(Data(23, 23), Data(0, 0), out _, preserveCachedUnlocks: false));
+        }
+
+        [TestMethod]
+        public void CompleteLocalSnapshot_AllowsOneOrZeroUnlocks()
+        {
+            foreach (var unlocked in new[] { 0, 1 })
+            {
+                var incoming = Data(100, unlocked);
+                incoming.ProviderKey = "Local";
+                Assert.IsTrue(AchievementWriteGuard.IsCompleteLocalSnapshot(Data(100, 33), incoming));
+            }
+        }
+
+        [TestMethod]
+        public void CompleteLocalSnapshot_RejectsMissingDuplicateAndOtherProvider()
+        {
+            var previous = Data(100, 33);
+            var incoming = Data(99, 1);
+            incoming.ProviderKey = "Local";
+            Assert.IsFalse(AchievementWriteGuard.IsCompleteLocalSnapshot(previous, incoming));
+            incoming = Data(100, 1);
+            incoming.ProviderKey = "Steam";
+            Assert.IsFalse(AchievementWriteGuard.IsCompleteLocalSnapshot(previous, incoming));
+            incoming.ProviderKey = "Local";
+            incoming.Achievements[99].ApiName = incoming.Achievements[0].ApiName;
+            Assert.IsFalse(AchievementWriteGuard.IsCompleteLocalSnapshot(previous, incoming));
+        }
+
         private static GameAchievementData Data(
             int total,
             int unlocked,

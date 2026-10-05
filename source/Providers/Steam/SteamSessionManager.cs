@@ -60,6 +60,11 @@ namespace PlayniteAchievements.Providers.Steam
 
         private void PersistSteamUserId(string steamId)
         {
+            // Browser probes must not replace an API-key account selected in Secondary.
+            if (!string.IsNullOrWhiteSpace(ProviderRegistry.Settings<SteamSettings>().GetDefaultAccount()?.SteamWebApiKey))
+            {
+                return;
+            }
             var normalizedSteamId = string.IsNullOrWhiteSpace(steamId)
                 ? null
                 : steamId.Trim();
@@ -80,6 +85,13 @@ namespace PlayniteAchievements.Providers.Steam
 
         public async Task<AuthProbeResult> ProbeAuthStateAsync(CancellationToken ct)
         {
+            ct.ThrowIfCancellationRequested();
+            var account = ProviderRegistry.Settings<SteamSettings>().GetDefaultAccount();
+            if (!string.IsNullOrWhiteSpace(account?.SteamWebApiKey))
+            {
+                if (string.IsNullOrWhiteSpace(account.SteamUserId)) return AuthProbeResult.NotAuthenticated();
+                return AuthProbeResult.AlreadyAuthenticated(account.SteamUserId);
+            }
             using (PerfScope.Start(_logger, "Steam.ProbeAuthStateAsync", thresholdMs: 50))
             {
                 try

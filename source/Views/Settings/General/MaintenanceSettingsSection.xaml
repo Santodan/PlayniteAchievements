@@ -43,6 +43,11 @@
                                         MinWidth="130"/>
                             </controls:SettingRow>
 
+                            <controls:SettingRow Label="Preserve cached unlocks on refresh"
+                                                 Hint="When enabled, refreshes keep previously unlocked achievements even if the provider reports them locked. Disable to accept the selected account's current unlock states, including zero unlocks. Failed or empty responses remain protected.">
+                                <CheckBox IsChecked="{Binding Persisted.PreserveCachedUnlocksOnRefresh, Mode=TwoWay}" />
+                            </controls:SettingRow>
+
                             <controls:SettingRow Label="{DynamicResource LOCPlayAch_Settings_ClearUnownedFriendData_Description}"
                                                  Margin="0">
                                 <Button Content="{DynamicResource LOCPlayAch_Button_Clear}"

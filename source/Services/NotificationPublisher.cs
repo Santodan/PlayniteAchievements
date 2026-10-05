@@ -628,10 +628,31 @@ namespace PlayniteAchievements.Services
             WebView2 activeWebView = null;
             string activeHtmlPath = null;
             var loadGeneration = 0;
+            EventHandler captureRendering = null;
+            var captureInFlight = false;
+            var lastCaptureUtc = DateTime.MinValue;
+            var captureReady = new TaskCompletionSource<bool>();
+            var captureMirror = isInlinePreview
+                ? null
+                : new Image
+                {
+                    Width = outerWidth,
+                    Height = outerHeight,
+                    HorizontalAlignment = HorizontalAlignment.Left,
+                    VerticalAlignment = VerticalAlignment.Top,
+                    Stretch = Stretch.Fill,
+                    IsHitTestVisible = false
+                };
 
             void DisposeActivePreview()
             {
                 loadGeneration++;
+                if (captureRendering != null)
+                {
+                    CompositionTarget.Rendering -= captureRendering;
+                    captureRendering = null;
+                }
+
                 if (activeWebView != null)
                 {
                     try
@@ -669,6 +690,11 @@ namespace PlayniteAchievements.Services
                     DefaultBackgroundColor = System.Drawing.Color.Transparent
                 };
                 activeWebView = webView;
+                if (captureMirror != null)
+                {
+                    captureMirror.Height = host.Height;
+                    host.Children.Add(captureMirror);
+                }
                 host.Children.Add(webView);
 
                 try
@@ -728,6 +754,65 @@ namespace PlayniteAchievements.Services
                             var resizedHeight = Math.Max(outerHeight, Math.Min(2000, Math.Ceiling(measuredHeight)));
                             host.Height = resizedHeight;
                             webView.Height = resizedHeight;
+                            if (captureMirror != null)
+                            {
+                                captureMirror.Height = resizedHeight;
+                            }
+                        };
+                    }
+
+                    if (captureMirror != null)
+                    {
+                        webView.CoreWebView2.NavigationCompleted += (_, navigationArgs) =>
+                        {
+                            if (!navigationArgs.IsSuccess || generation != loadGeneration)
+                            {
+                                return;
+                            }
+
+                            captureReady.TrySetResult(true);
+
+                            captureRendering = async (sender, renderingArgs) =>
+                            {
+                                var now = DateTime.UtcNow;
+                                if (captureInFlight || generation != loadGeneration ||
+                                    (now - lastCaptureUtc).TotalMilliseconds < 30)
+                                {
+                                    return;
+                                }
+
+                                captureInFlight = true;
+                                lastCaptureUtc = now;
+                                try
+                                {
+                                    using (var stream = new MemoryStream())
+                                    {
+                                        await webView.CoreWebView2.CapturePreviewAsync(
+                                            CoreWebView2CapturePreviewImageFormat.Png,
+                                            stream);
+                                        stream.Position = 0;
+                                        var frame = new BitmapImage();
+                                        frame.BeginInit();
+                                        frame.CacheOption = BitmapCacheOption.OnLoad;
+                                        frame.StreamSource = stream;
+                                        frame.EndInit();
+                                        frame.Freeze();
+                                        if (generation == loadGeneration)
+                                        {
+                                            captureMirror.Source = frame;
+                                        }
+                                    }
+                                }
+                                catch (Exception ex)
+                                {
+                                    _logger?.Debug(ex, "[LocalOverlay] SAN capture mirror frame failed.");
+                                }
+                                finally
+                                {
+                                    captureInFlight = false;
+                                }
+                            };
+                            CompositionTarget.Rendering += captureRendering;
                         };
                     }
 
@@ -759,6 +844,52 @@ namespace PlayniteAchievements.Services
             };
 
             host.Unloaded += (_, __) => DisposeActivePreview();
+            if (!isInlinePreview)
+            {
+                host.Tag = new Func<Task<BitmapSource>>(async () =>
+                {
+                    if (settings.SanScreenshotView == Models.Settings.SanScreenshotView.Automatic)
+                    {
+                        return null;
+                    }
+
+                    await Task.WhenAny(captureReady.Task, Task.Delay(5000));
+                    if (!captureReady.Task.IsCompleted || activeWebView?.CoreWebView2 == null)
+                    {
+                        return null;
+                    }
+
+                    var browser = activeWebView.CoreWebView2;
+                    var view = settings.SanScreenshotView == Models.Settings.SanScreenshotView.View2 ? 2 : 1;
+                    var delayJson = await browser.ExecuteScriptAsync(
+                        $"window.playniteSanScreenshotDelay && window.playniteSanScreenshotDelay({view}, {settings.SanScreenshotMillisecondsBeforeEnd});");
+                    if (double.TryParse(delayJson, NumberStyles.Float, CultureInfo.InvariantCulture, out var delay))
+                    {
+                        await Task.Delay((int)Math.Max(0, Math.Min(60000, delay)));
+                    }
+
+                    await browser.ExecuteScriptAsync("window.playnitePauseSanScreenshot && window.playnitePauseSanScreenshot();");
+                    try
+                    {
+                        using (var stream = new MemoryStream())
+                        {
+                            await browser.CapturePreviewAsync(CoreWebView2CapturePreviewImageFormat.Png, stream);
+                            stream.Position = 0;
+                            var frame = new BitmapImage();
+                            frame.BeginInit();
+                            frame.CacheOption = BitmapCacheOption.OnLoad;
+                            frame.StreamSource = stream;
+                            frame.EndInit();
+                            frame.Freeze();
+                            return frame;
+                        }
+                    }
+                    finally
+                    {
+                        await browser.ExecuteScriptAsync("window.playniteResumeSanScreenshot && window.playniteResumeSanScreenshot();");
+                    }
+                });
+            }
             return host;
         }
 

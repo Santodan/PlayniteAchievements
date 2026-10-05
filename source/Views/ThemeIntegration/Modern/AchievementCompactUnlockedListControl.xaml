@@ -7,7 +7,7 @@
                    xmlns:modern="clr-namespace:PlayniteAchievements.Views.ThemeIntegration.Modern"
                    xmlns:controls="clr-namespace:PlayniteAchievements.Views.Controls"
                    mc:Ignorable="d"
-                   d:DesignHeight="82" d:DesignWidth="600"
+                   d:DesignHeight="140" d:DesignWidth="600"
                    UseLayoutRounding="True"
                    SnapsToDevicePixels="True"
                    ShowRarityGlow="{Binding Persisted.ModernUnlockedListShowRarityGlow}">
@@ -31,8 +31,61 @@
         </Style>
     </modern:AchievementCompactListControlBase.Style>
 
-    <Grid>
-    <!-- Virtualized horizontal compact list -->
+    <StackPanel ClipToBounds="False">
+    <!-- Optional newest-achievement highlight above the scrollable row. -->
+    <Border Padding="0,0,0,8">
+        <Border.Style>
+            <Style TargetType="Border">
+                <Setter Property="Visibility" Value="Visible"/>
+                <Style.Triggers>
+                    <DataTrigger Binding="{Binding FeaturedItem, RelativeSource={RelativeSource AncestorType=modern:AchievementCompactUnlockedListControl}}"
+                                 Value="{x:Null}">
+                        <Setter Property="Visibility" Value="Collapsed"/>
+                    </DataTrigger>
+                    <DataTrigger Binding="{Binding ShowFeaturedItem, RelativeSource={RelativeSource AncestorType=modern:AchievementCompactUnlockedListControl}}"
+                                 Value="False">
+                        <Setter Property="Visibility" Value="Collapsed"/>
+                    </DataTrigger>
+                </Style.Triggers>
+            </Style>
+        </Border.Style>
+        <Grid>
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+
+            <controls:AchievementCompactItemControl Grid.Column="0"
+                                                    DataContext="{Binding FeaturedItem, RelativeSource={RelativeSource AncestorType=modern:AchievementCompactUnlockedListControl}}"
+                                                    IconSize="44"
+                                                    ShowRarityGlow="{Binding ShowRarityGlow, RelativeSource={RelativeSource AncestorType=modern:AchievementCompactUnlockedListControl}}"
+                                                    AnimateRarityGlows="{Binding AnimateRarityGlows, RelativeSource={RelativeSource AncestorType=modern:AchievementCompactUnlockedListControl}}"
+                                                    Margin="4,0,10,0"/>
+
+            <StackPanel Grid.Column="1"
+                        VerticalAlignment="Center"
+                        DataContext="{Binding FeaturedItem, RelativeSource={RelativeSource AncestorType=modern:AchievementCompactUnlockedListControl}}">
+                <TextBlock Text="{Binding DisplayNameResolved}"
+                           FontWeight="SemiBold"
+                           Foreground="{DynamicResource TextBrush}"
+                           TextWrapping="Wrap"/>
+                <TextBlock Text="{Binding DescriptionResolved}"
+                           Foreground="{DynamicResource TextBrushDarker}"
+                           TextWrapping="Wrap"
+                           TextTrimming="CharacterEllipsis"/>
+            </StackPanel>
+
+            <TextBlock Grid.Column="2"
+                       Margin="10,0,0,0"
+                       VerticalAlignment="Top"
+                       Foreground="{DynamicResource TextBrush}"
+                       DataContext="{Binding FeaturedItem, RelativeSource={RelativeSource AncestorType=modern:AchievementCompactUnlockedListControl}}"
+                       Text="{Binding UnlockTimeText}"/>
+        </Grid>
+    </Border>
+
+    <!-- Virtualized horizontal compact list. -->
     <ItemsControl x:Name="AchievementsList"
                   ItemsSource="{Binding DisplayItems, Mode=OneWay, RelativeSource={RelativeSource AncestorType=modern:AchievementCompactListControlBase}}"
                   VirtualizingPanel.IsVirtualizing="True"
@@ -85,7 +138,7 @@
         </ItemsControl.ItemTemplate>
     </ItemsControl>
 
-    <!-- Empty state message, sized to the icon row height like the legacy control -->
+    <!-- Empty state message, sized to the icon row height like the legacy control. -->
     <Border MinHeight="{Binding IconSize, RelativeSource={RelativeSource AncestorType=modern:AchievementCompactListControlBase}}"
             Margin="4">
         <Border.Style>
@@ -104,7 +157,7 @@
                    VerticalAlignment="Center"
                    Foreground="{DynamicResource TextBrushDarker}"/>
     </Border>
-    </Grid>
+    </StackPanel>
 </modern:AchievementCompactListControlBase>
 
 

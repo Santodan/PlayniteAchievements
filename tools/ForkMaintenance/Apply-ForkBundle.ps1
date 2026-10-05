@@ -26,7 +26,7 @@ if (-not (Test-Path -LiteralPath $manifestPath -PathType Leaf))
     throw "Fork bundle manifest was not found: $manifestPath"
 }
 
-$manifest = Get-Content -LiteralPath $manifestPath -Raw | ConvertFrom-Json
+$manifest = Get-Content -LiteralPath $manifestPath -Raw -Encoding UTF8 | ConvertFrom-Json
 if ([int]$manifest.schemaVersion -ne 1)
 {
     throw "Unsupported fork bundle schema: $($manifest.schemaVersion)"
@@ -66,7 +66,7 @@ if ((Get-FmSha256 $localizationPath) -ne [string]$manifest.localizationRecipes.s
     throw "Localization recipe hash does not match bundle.json."
 }
 
-$patchText = Get-Content -LiteralPath $patchPath -Raw
+$patchText = Get-Content -LiteralPath $patchPath -Raw -Encoding UTF8
 foreach ($protectedPath in $protectedPaths)
 {
     $escaped = [Regex]::Escape((ConvertTo-FmGitPath $protectedPath))
@@ -115,7 +115,7 @@ if (Test-Path -LiteralPath $localizationPath -PathType Leaf)
     # Windows PowerShell 5.1 returns a top-level JSON array as one Object[]
     # pipeline object. Assign it directly so foreach enumerates its entries.
     $localizationRecipes =
-        Get-Content -LiteralPath $localizationPath -Raw |
+        Get-Content -LiteralPath $localizationPath -Raw -Encoding UTF8 |
         ConvertFrom-Json
 }
 

@@ -48,6 +48,9 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         private int _loadedRetroAchievementsSubsetGameId;
         private int _persistedRetroAchievementsSubsetGameId;
         private List<int> _persistedRetroAchievementsSubsetIds = new List<int>();
+        private readonly Dictionary<int, string> _retroAchievementsSetTitles = new Dictionary<int, string>();
+        private int _resolvingRetroAchievementsSetTitleGameId;
+        private int _resolvedRetroAchievementsSetTitleGameId;
         private bool _isLoadingRetroAchievementsSubsets;
         private string _retroAchievementsSubsetStatusText;
 
@@ -58,6 +61,21 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
 
         public bool IsRetroAchievementsOverrideSelected =>
             string.Equals(SelectedProviderOverrideKey, "RetroAchievements", StringComparison.OrdinalIgnoreCase);
+
+        public string RetroAchievementsGameIdInput
+        {
+            get => IsRetroAchievementsOverrideSelected ? ProviderOverrideInput : string.Empty;
+            set
+            {
+                if (!IsRetroAchievementsOverrideSelected)
+                {
+                    SelectedProviderOverrideKey = "RetroAchievements";
+                }
+
+                ProviderOverrideInput = value ?? string.Empty;
+                OnPropertyChanged();
+            }
+        }
 
         public bool HasRetroAchievementsSubsetOptions => RetroAchievementsSubsetOptions.Count > 0;
 
@@ -122,6 +140,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
 
                 foreach (var subset in subsets)
                 {
+                    _retroAchievementsSetTitles[subset.Id] = subset.Title ?? string.Empty;
                     RetroAchievementsSubsetOptions.Add(new RetroAchievementsSubsetOption(
                         subset.Id,
                         string.IsNullOrWhiteSpace(subset.Title) ? $"Subset {subset.Id}" : subset.Title,
@@ -175,6 +194,69 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                     L("LOCPlayAch_ManageAchievements_Overrides_RaSubsets_SavedStatus"),
                     _persistedRetroAchievementsSubsetIds.Count)
                 : L("LOCPlayAch_ManageAchievements_Overrides_RaSubsets_DefaultStatus");
+
+            if (_persistedRetroAchievementsSubsetIds.Count > 0 &&
+                _persistedRetroAchievementsSubsetGameId > 0)
+            {
+                _ = ResolveRetroAchievementsSetTitlesAsync(_persistedRetroAchievementsSubsetGameId);
+            }
+        }
+
+        private async Task ResolveRetroAchievementsSetTitlesAsync(int baseGameId)
+        {
+            if (baseGameId <= 0 ||
+                _resolvedRetroAchievementsSetTitleGameId == baseGameId ||
+                _resolvingRetroAchievementsSetTitleGameId == baseGameId)
+            {
+                return;
+            }
+
+            var game = _playniteApi?.Database?.Games?.Get(_gameId);
+            var provider = ProviderRegistry.Instance?.GetProvider("RetroAchievements") as RetroAchievementsDataProvider;
+            if (game == null || provider == null)
+            {
+                return;
+            }
+
+            _resolvingRetroAchievementsSetTitleGameId = baseGameId;
+            try
+            {
+                var sets = await provider
+                    .GetAvailableSubsetsAsync(game, baseGameId, CancellationToken.None)
+                    .ConfigureAwait(true);
+                foreach (var set in sets ?? Array.Empty<PlayniteAchievements.Providers.RetroAchievements.Models.RaSubsetEntry>())
+                {
+                    if (set != null && set.Id > 0)
+                    {
+                        _retroAchievementsSetTitles[set.Id] = set.Title ?? string.Empty;
+                    }
+                }
+
+                _resolvedRetroAchievementsSetTitleGameId = baseGameId;
+                RefreshOverviewOverrides();
+            }
+            catch (Exception ex)
+            {
+                _logger?.Debug(ex, $"[RA] Failed resolving saved achievement-set titles for gameId={baseGameId}.");
+            }
+            finally
+            {
+                if (_resolvingRetroAchievementsSetTitleGameId == baseGameId)
+                {
+                    _resolvingRetroAchievementsSetTitleGameId = 0;
+                }
+            }
+        }
+
+        private string FormatRetroAchievementsSetSelection(IEnumerable<int> setIds)
+        {
+            return string.Join(", ", (setIds ?? Enumerable.Empty<int>()).Select(setId =>
+            {
+                return _retroAchievementsSetTitles.TryGetValue(setId, out var title) &&
+                       !string.IsNullOrWhiteSpace(title)
+                    ? $"{title.Trim()} ({setId})"
+                    : setId.ToString();
+            }));
         }
 
         private IReadOnlyCollection<int> GetRetroAchievementsSubsetIdsForSave(ProviderOverrideData providerOverride)

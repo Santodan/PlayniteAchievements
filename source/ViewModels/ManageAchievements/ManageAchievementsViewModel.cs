@@ -1677,6 +1677,12 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
 
             try
             {
+                var store = _plugin?.GameCustomDataStore;
+                GameCustomDataFile currentData = null;
+                var hasStoredData = store != null &&
+                                    store.TryLoad(_gameId, out currentData) &&
+                                    currentData != null;
+
                 if (_achievementOverridesService != null)
                 {
                     _achievementOverridesService.ClearGameData(_gameId, GameName);
@@ -1684,6 +1690,29 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 else
                 {
                     _refreshService?.Cache?.RemoveGameCache(_gameId);
+                }
+
+                if (hasStoredData)
+                {
+                    store.Delete(_gameId);
+                }
+
+                var clearedLocalOverrides = ClearAllLocalPageOverrides();
+                var transitionEffects = AnalyzeCustomDataTransition(currentData, null);
+                if (hasStoredData)
+                {
+                    NotifyCustomDataChanged(
+                        transitionEffects.RequiresRefresh,
+                        transitionEffects.ForceIconRefresh);
+                }
+                else
+                {
+                    Reload();
+                }
+
+                if (clearedLocalOverrides)
+                {
+                    TriggerRefreshForProvider(LocalProviderKey);
                 }
 
                 _playniteApi?.Dialogs?.ShowMessage(
@@ -1694,7 +1723,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             }
             catch (Exception ex)
             {
-                _logger?.Error(ex, $"Failed to clear cached data for gameId={_gameId}");
+                _logger?.Error(ex, $"Failed to clear game data and overrides for gameId={_gameId}");
                 _playniteApi?.Dialogs?.ShowMessage(
                     string.Format(L("LOCPlayAch_Status_Failed"), ex.Message),
                     L("LOCPlayAch_Title_PluginName"),
@@ -2019,6 +2048,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             OnPropertyChanged(nameof(ProviderOverrideInputLabel));
             OnPropertyChanged(nameof(ProviderOverrideStatusText));
             OnPropertyChanged(nameof(IsRetroAchievementsOverrideSelected));
+            OnPropertyChanged(nameof(RetroAchievementsGameIdInput));
             RaiseCommandStates();
         }
 

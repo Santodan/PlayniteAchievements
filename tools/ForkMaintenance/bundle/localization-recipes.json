@@ -853,11 +853,6 @@
                             "desiredXml":  "\u003csys:String x:Key=\"LOCPlayAch_ManageAchievements_ExophaseSlugLabel\" xmlns:x=\"http://schemas.microsoft.com/winfx/2006/xaml\" xmlns:sys=\"clr-namespace:System;assembly=mscorlib\"\u003eExophase Game ID Override\u003c/sys:String\u003e"
                         },
                         {
-                            "key":  "LOCPlayAch_ManageAchievements_Filters_Header",
-                            "baseXml":  null,
-                            "desiredXml":  "\u003csys:String x:Key=\"LOCPlayAch_ManageAchievements_Filters_Header\" xmlns:x=\"http://schemas.microsoft.com/winfx/2006/xaml\" xmlns:sys=\"clr-namespace:System;assembly=mscorlib\"\u003eFilters\u003c/sys:String\u003e"
-                        },
-                        {
                             "key":  "LOCPlayAch_ManageAchievements_Manual_ReplaceProviderWarning",
                             "baseXml":  "\u003csys:String x:Key=\"LOCPlayAch_ManageAchievements_Manual_ReplaceProviderWarning\" xmlns:x=\"http://schemas.microsoft.com/winfx/2006/xaml\" xmlns:sys=\"clr-namespace:System;assembly=mscorlib\"\u003eEnable manual tracking?\n\nManual tracking can replace this game\u0027s cached achievement data from {0}.\u003c/sys:String\u003e",
                             "desiredXml":  "\u003csys:String x:Key=\"LOCPlayAch_ManageAchievements_Manual_ReplaceProviderWarning\" xmlns:x=\"http://schemas.microsoft.com/winfx/2006/xaml\" xmlns:sys=\"clr-namespace:System;assembly=mscorlib\"\u003eEnable manual tracking?\r\n\r\nManual tracking can replace this game\u0027s cached achievement data from {0}.\u003c/sys:String\u003e"

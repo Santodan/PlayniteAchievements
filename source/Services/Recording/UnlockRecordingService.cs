@@ -883,7 +883,7 @@ namespace PlayniteAchievements.Services.Recording
 
             // Each variant has its own rarity threshold and per-platform switch; no variant left
             // means no clip.
-            var resolved = UnlockClipVariantPolicy.Resolve(e, _settings.Persisted);
+            var resolved = UnlockClipVariantPolicy.Resolve(e, persisted);
             if (resolved == ScreenshotVariants.None)
             {
                 return ClipEligibility.BelowRarity;
@@ -2875,6 +2875,12 @@ namespace PlayniteAchievements.Services.Recording
                 effective.RecordingIncludeMicrophone = customSettings.RecordingIncludeMicrophone;
                 effective.UnlockRecordingRarities = customSettings.RecordingRarities;
                 effective.UnlockRecordingAlwaysCaptureCompletion = customSettings.RecordingAlwaysCaptureCompletion;
+                // Memories exposes one recording output rather than upstream's three clip
+                // variants. Preserve that contract by treating it as the with-notification
+                // variant regardless of unrelated choices in the upstream settings page.
+                effective.UnlockRecordingClean = false;
+                effective.UnlockRecordingWithToast = true;
+                effective.UnlockRecordingFramed = false;
                 return effective;
             }
 

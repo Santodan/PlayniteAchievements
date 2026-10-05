@@ -24,6 +24,47 @@ namespace PlayniteAchievements.Services.Tests
     public class GameCustomDataStoreTests
     {
         [TestMethod]
+        public void CachedUnlockProtectionOverride_PreservesFalseTrueAndInheritance()
+        {
+            var tempDir = CreateTempDirectory();
+            var gameId = Guid.NewGuid();
+            try
+            {
+                foreach (var value in new[] { false, true })
+                {
+                    var store = new GameCustomDataStore(tempDir);
+                    store.Update(gameId, data => data.PreserveCachedUnlocksOnRefreshOverride = value);
+                    Assert.IsTrue(new GameCustomDataStore(tempDir).TryLoad(gameId, out var reloaded));
+                    Assert.AreEqual(value, reloaded.PreserveCachedUnlocksOnRefreshOverride.Value);
+                }
+                var finalStore = new GameCustomDataStore(tempDir);
+                finalStore.Update(gameId, data => data.PreserveCachedUnlocksOnRefreshOverride = null);
+                Assert.IsFalse(finalStore.TryLoad(gameId, out _));
+            }
+            finally { DeleteDirectory(tempDir); }
+        }
+
+        [TestMethod]
+        public void SteamAccountOverrideAlone_SurvivesSaveAndStoreReload()
+        {
+            var tempDir = CreateTempDirectory();
+            var gameId = Guid.NewGuid();
+            try
+            {
+                var store = new GameCustomDataStore(tempDir);
+                store.Update(gameId, data => data.SteamAccountIdOverride = "secondary-account");
+                Assert.IsTrue(store.TryLoad(gameId, out var saved));
+                Assert.AreEqual("secondary-account", saved.SteamAccountIdOverride);
+                var reopened = new GameCustomDataStore(tempDir);
+                Assert.IsTrue(reopened.TryLoad(gameId, out var reloaded));
+                Assert.AreEqual("secondary-account", reloaded.SteamAccountIdOverride);
+                reopened.Update(gameId, data => data.SteamAccountIdOverride = null);
+                Assert.IsFalse(reopened.TryLoad(gameId, out _));
+            }
+            finally { DeleteDirectory(tempDir); }
+        }
+
+        [TestMethod]
         public void Save_BlankPayloadDoesNotCreateDatabase()
         {
             var tempDir = CreateTempDirectory();

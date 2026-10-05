@@ -5,6 +5,7 @@ using System.Net.Http;
 using System.Threading;
 using System.Threading.Tasks;
 using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
 using PlayniteAchievements.Providers.Steam.Models;
 using Playnite.SDK;
 
@@ -19,6 +20,38 @@ namespace PlayniteAchievements.Providers.Steam
         {
             _apiHttp = apiHttp ?? throw new ArgumentNullException(nameof(apiHttp));
             _logger = logger;
+        }
+
+        public async Task<PlayniteAchievements.Models.UserUnlockedAchievements> GetPlayerAchievementsByKeyAsync(
+            string apiKey, string steamId, int appId, CancellationToken ct)
+        {
+            var url = "https://api.steampowered.com/ISteamUserStats/GetPlayerAchievements/v1/?key="
+                + Uri.EscapeDataString(apiKey) + "&steamid=" + Uri.EscapeDataString(steamId) + "&appid=" + appId;
+            using (var response = await _apiHttp.GetAsync(url, ct).ConfigureAwait(false))
+            {
+                if (!response.IsSuccessStatusCode)
+                    throw new InvalidOperationException("Steam secondary achievement request failed (HTTP " + (int)response.StatusCode + ").");
+                var json = Newtonsoft.Json.Linq.JObject.Parse(await response.Content.ReadAsStringAsync().ConfigureAwait(false));
+                var stats = json["playerstats"];
+                if (stats?["success"]?.Value<bool>() != true || !(stats["achievements"] is Newtonsoft.Json.Linq.JArray rows))
+                    throw new InvalidOperationException("Steam did not return readable achievements for the selected secondary account.");
+                var result = new PlayniteAchievements.Models.UserUnlockedAchievements
+                {
+                    AppId = appId,
+                    LastUpdatedUtc = DateTime.UtcNow,
+                    UnlockedApiNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase),
+                    UnlockTimesUtc = new Dictionary<string, DateTime>(StringComparer.OrdinalIgnoreCase)
+                };
+                foreach (var row in rows)
+                {
+                    var name = row["apiname"]?.Value<string>();
+                    if (string.IsNullOrWhiteSpace(name) || row["achieved"]?.Value<int>() != 1) continue;
+                    result.UnlockedApiNames.Add(name);
+                    var time = row["unlocktime"]?.Value<long>() ?? 0;
+                    if (time > 0) result.UnlockTimesUtc[name] = DateTimeOffset.FromUnixTimeSeconds(time).UtcDateTime;
+                }
+                return result;
+            }
         }
 
         public async Task<SchemaAndPercentages> GetSchemaForGameDetailedAsync(string accessToken, int appId, string language, CancellationToken ct)

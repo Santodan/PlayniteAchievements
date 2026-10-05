@@ -35,6 +35,7 @@ namespace PlayniteAchievements.Views.ManageAchievements
             ManageAchievementsTab.Editor,
             ManageAchievementsTab.Category,
             ManageAchievementsTab.Notifications,
+            ManageAchievementsTab.CustomSchema,
             ManageAchievementsTab.LocalOverrides
         };
 
@@ -53,6 +54,7 @@ namespace PlayniteAchievements.Views.ManageAchievements
         private ManageAchievementsEditorTab _editorControl;
         private ManageAchievementsCategoryTab _categoryControl;
         private NotificationAppearanceSection _notificationsControl;
+        private ManageAchievementsCustomSchemaTab _customSchemaControl;
         private ManageAchievementsOverridesTab _localOverridesControl;
         private System.Windows.Threading.DispatcherTimer _iconOverridesChangedDebounce;
         private readonly HashSet<string> _pendingIconOverrideApiNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -208,6 +210,7 @@ namespace PlayniteAchievements.Views.ManageAchievements
             CleanupEditor();
             CleanupCategory();
             CleanupNotifications();
+            CleanupCustomSchema();
             CleanupLocalOverrides();
 
             // A deferred shell reload must not be dropped on the way out: it is what leaves the
@@ -352,6 +355,10 @@ namespace PlayniteAchievements.Views.ManageAchievements
                     _notificationsRefreshPending = false;
                     _notificationsRefreshDiscardPending = false;
                 }
+            }
+            else if (_viewModel.SelectedTab == ManageAchievementsTab.CustomSchema)
+            {
+                EnsureCustomSchemaControl();
             }
             else if (_viewModel.SelectedTab == ManageAchievementsTab.LocalOverrides)
             {
@@ -519,6 +526,7 @@ namespace PlayniteAchievements.Views.ManageAchievements
                     EditorTabButton,
                     CategoryTabButton,
                     NotificationsTabButton,
+                    CustomSchemaTabButton,
                     LocalOverridesTabButton
                 }
                 .Where(button => button != null && button.IsVisible && button.IsEnabled)
@@ -560,6 +568,9 @@ namespace PlayniteAchievements.Views.ManageAchievements
                     return _categoryControl?.GetControllerElements() ?? new List<UIElement>();
                 case ManageAchievementsTab.Notifications:
                     root = _notificationsControl ?? (DependencyObject)NotificationsHost;
+                    break;
+                case ManageAchievementsTab.CustomSchema:
+                    root = _customSchemaControl ?? (DependencyObject)CustomSchemaHost;
                     break;
                 case ManageAchievementsTab.LocalOverrides:
                     root = _localOverridesControl ?? (DependencyObject)LocalOverridesHost;
@@ -998,6 +1009,18 @@ namespace PlayniteAchievements.Views.ManageAchievements
             Common.LeakWatch.Track("ManageAchievementsLocalOverridesTab", _localOverridesControl);
         }
 
+        private void EnsureCustomSchemaControl()
+        {
+            if (_customSchemaControl != null)
+            {
+                return;
+            }
+
+            _customSchemaControl = new ManageAchievementsCustomSchemaTab();
+            CustomSchemaHost.Content = _customSchemaControl;
+            Common.LeakWatch.Track("ManageAchievementsCustomSchemaTab", _customSchemaControl);
+        }
+
         // The overview and overrides tabs take no constructor arguments and read everything
         // from the shared DataContext, so hosting them costs nothing beyond the instance.
         private void EnsureOverviewControl()
@@ -1332,6 +1355,15 @@ namespace PlayniteAchievements.Views.ManageAchievements
             if (LocalOverridesHost != null)
             {
                 LocalOverridesHost.Content = null;
+            }
+        }
+
+        private void CleanupCustomSchema()
+        {
+            _customSchemaControl = null;
+            if (CustomSchemaHost != null)
+            {
+                CustomSchemaHost.Content = null;
             }
         }
 

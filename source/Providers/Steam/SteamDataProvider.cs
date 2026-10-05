@@ -480,7 +480,7 @@ namespace PlayniteAchievements.Providers.Steam
         }
 
         /// <inheritdoc />
-        public ProviderSettingsViewBase CreateSettingsView() => new SteamSettingsView(_sessionManager);
+        public ProviderSettingsViewBase CreateSettingsView() => new SteamSettingsView(_sessionManager, _api);
 
         public void Dispose()
         {

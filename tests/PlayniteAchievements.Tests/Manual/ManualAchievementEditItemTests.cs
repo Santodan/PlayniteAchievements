@@ -94,6 +94,26 @@ namespace PlayniteAchievements.Manual.Tests
             Assert.AreEqual(0, item.UnlockTimeLocal.Value.Minute);
         }
 
+        [TestMethod]
+        public void TwentyFourHourText_AfterAmPmState_SwitchesModeAndAcceptsAfternoonHour()
+        {
+            var localThreePm = DateTime.SpecifyKind(DateTime.Now.Date.AddHours(15), DateTimeKind.Local);
+            var item = new ManualAchievementEditItem(
+                CreateDetail("hidden-mode"),
+                isUnlocked: true,
+                unlockTime: localThreePm.ToUniversalTime());
+
+            Assert.AreEqual("PM", item.SelectedTimeModeText);
+
+            item.TimeText = "15:22";
+
+            Assert.IsTrue(item.IsValidTime);
+            Assert.AreEqual("24hr", item.SelectedTimeModeText);
+            Assert.IsTrue(item.UnlockTimeLocal.HasValue);
+            Assert.AreEqual(15, item.UnlockTimeLocal.Value.Hour);
+            Assert.AreEqual(22, item.UnlockTimeLocal.Value.Minute);
+        }
+
         private static AchievementDetail CreateDetail(string apiName)
         {
             return new AchievementDetail

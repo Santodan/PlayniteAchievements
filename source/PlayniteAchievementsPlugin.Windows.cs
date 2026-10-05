@@ -76,6 +76,11 @@ namespace PlayniteAchievements
             _windowService.OpenManageAchievementsView(gameId, initialTab, selectManageCategoriesSubTab);
         }
 
+        public void OpenLocalAchievementsEditorView(Guid gameId)
+        {
+            _windowService.OpenLocalAchievementsEditorView(gameId);
+        }
+
         internal void ReconfigureUnlockRecordingForSettingsSave()
         {
             ReconfigureUnlockRecording();

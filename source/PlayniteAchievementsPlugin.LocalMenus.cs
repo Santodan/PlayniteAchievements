@@ -4,6 +4,7 @@ using System.IO;
 using System.Linq;
 using System.Windows;
 using PlayniteAchievements.Models;
+using PlayniteAchievements.Models.Settings;
 using PlayniteAchievements.Providers.Local;
 using PlayniteAchievements.Services.Refresh;
 using Playnite.SDK;
@@ -254,14 +255,25 @@ namespace PlayniteAchievements
 
         private void ChangePreferredProvider(Game game, string providerKey)
         {
-            if (game == null || game.Id == Guid.Empty)
+            if (game == null || game.Id == Guid.Empty || _achievementOverridesService == null)
             {
                 return;
             }
 
-            var result = string.IsNullOrWhiteSpace(providerKey)
-                ? _achievementOverridesService?.ClearPreferredProviderOverride(game.Id)
-                : _achievementOverridesService?.SetPreferredProviderOverride(game.Id, providerKey);
+            var normalizedProviderKey = providerKey?.Trim();
+            _achievementOverridesService.SetProviderOverride(
+                game.Id,
+                string.IsNullOrWhiteSpace(normalizedProviderKey)
+                    ? null
+                    : new ProviderOverrideData
+                    {
+                        ProviderKey = normalizedProviderKey,
+                        Value = null
+                    });
+
+            // Remove the obsolete settings-based value so it cannot disagree with the
+            // canonical custom-data Platform Override used by Manage Achievements.
+            var result = _achievementOverridesService.ClearPreferredProviderOverride(game.Id);
             if (result?.Success != true)
             {
                 ShowLocalMenuFailure(string.IsNullOrWhiteSpace(providerKey)
