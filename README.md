@@ -132,6 +132,7 @@ The entries below are fork-side changes, grouped by date. When a date includes a
 - Added compatibility with `SOVEREIGN.ini`
 - Added the installation folder to the Auto-scanned folders' list
 - Added the file also to the `Local save folder override` shown path
+- Added `<gameUnlockedCount>` and `<gameAchievementCount>` to the notification wildcards
 
 ## 2026-09-14 - v3.2.1.1
 

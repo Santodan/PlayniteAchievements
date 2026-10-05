@@ -70,6 +70,10 @@ at the repository root for remaining missing features and live-verification task
   Exophase.
 - Custom templates, custom sounds, screenshots, recordings, and test
   notifications still work.
+- The Achievement wildcard group includes `<gameUnlockedCount>` and
+  `<gameAchievementCount>`. Custom notification text resolves them to the
+  current game's unlocked and total achievement counts in live notifications,
+  previews, WebView/SAN overlays, and captures.
 - Custom notification primary and secondary icon backgrounds can each be
   enabled or disabled and assigned an independent color. The settings survive
   style-slot save/load and JSON template export/import, and the HTML builder

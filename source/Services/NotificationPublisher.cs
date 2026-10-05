@@ -7684,6 +7684,8 @@ if ({JsBool(settings?.OverlayCustomAutoResizeToContent == true)}) {{
             public string PrestigeNextTier { get; set; } = string.Empty;
             public string AchievementType { get; set; } = string.Empty;
             public string AchievementCategory { get; set; } = string.Empty;
+            public int GameUnlockedCount { get; set; }
+            public int GameAchievementCount { get; set; }
             public int GamePoints { get; set; }
             public int GamePointsTotal { get; set; }
             public int TotalPoints { get; set; }
@@ -7717,6 +7719,8 @@ if ({JsBool(settings?.OverlayCustomAutoResizeToContent == true)}) {{
                 case "prestigenexttier":
                 case "type":
                 case "category":
+                case "gameunlockedcount":
+                case "gameachievementcount":
                 case "gamepoints":
                 case "gamepointstotal":
                 case "totalpoints":
@@ -7801,6 +7805,12 @@ if ({JsBool(settings?.OverlayCustomAutoResizeToContent == true)}) {{
                     break;
                 case "prestigeexpuntilnexttier":
                     value = scores.PrestigeExpUntilNextTier;
+                    break;
+                case "gameunlockedcount":
+                    value = scores.GameUnlockedCount;
+                    break;
+                case "gameachievementcount":
+                    value = scores.GameAchievementCount;
                     break;
                 case "gamepoints":
                     value = scores.GamePoints;
@@ -7974,6 +7984,8 @@ if ({JsBool(settings?.OverlayCustomAutoResizeToContent == true)}) {{
         {
             var achievements = gameData?.Achievements ?? new List<AchievementDetail>();
             var unlocked = achievements.Where(item => item?.Unlocked == true).ToList();
+            context.GameUnlockedCount = unlocked.Count;
+            context.GameAchievementCount = achievements.Count(item => item != null);
             context.GameCollectionScore = SumNotificationValues(unlocked.Select(item => item.CollectionScore));
             context.GameCollectionScoreTotal = SumNotificationValues(achievements.Where(item => item != null).Select(item => item.CollectionScore));
             context.GamePrestigeScore = SumNotificationValues(unlocked.Select(item => item.PrestigeScore));

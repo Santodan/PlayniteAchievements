@@ -3365,6 +3365,8 @@
                                                              <Button Content="&lt;trophyIcon&gt;" Tag="&lt;trophyIcon&gt;" Click="NotificationTemplateToken_Click" Margin="0,0,6,6"/>
                                                              <Button Content="&lt;type&gt;" Tag="&lt;type&gt;" Click="NotificationTemplateToken_Click" Margin="0,0,6,6"/>
                                                              <Button Content="&lt;category&gt;" Tag="&lt;category&gt;" Click="NotificationTemplateToken_Click" Margin="0,0,6,6"/>
+                                                             <Button Content="&lt;gameUnlockedCount&gt;" Tag="&lt;gameUnlockedCount&gt;" Click="NotificationTemplateToken_Click" Margin="0,0,6,6"/>
+                                                             <Button Content="&lt;gameAchievementCount&gt;" Tag="&lt;gameAchievementCount&gt;" Click="NotificationTemplateToken_Click" Margin="0,0,6,6"/>
                                                              </WrapPanel>
 
                                                              <TextBlock Text="Collection score" FontWeight="SemiBold" Margin="0,0,0,4"/>
