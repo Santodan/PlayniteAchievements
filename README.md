@@ -1,5 +1,19 @@
 <p align="center">
-  <img src="Images/big-icon.png" alt="Playnite Achievements icon" width="128" height="128">
+  <picture>
+    <source
+      media="(prefers-color-scheme: dark)"
+      srcset="BrandingPackage/01-logo-dark-backgrounds/pa-stacked-master-crest-wordmark-spaced-gold.png"
+    >
+    <source
+      media="(prefers-color-scheme: light)"
+      srcset="BrandingPackage/02-logo-light-backgrounds/pa-stacked-master-crest-wordmark-spaced-blue.png"
+    >
+    <img
+      src="BrandingPackage/01-logo-dark-backgrounds/pa-stacked-master-crest-wordmark-spaced-gold.png"
+      alt="Playnite Achievements"
+      width="400"
+    >
+  </picture>
 </p>
 
 <h1 align="center">Playnite Achievements - Santodan Fork</h1>
@@ -99,7 +113,7 @@ The entries below are fork-side changes, grouped by date. When a date includes a
 
 ## Next release - TBD
 
-## 2026-10- - v4.0.1.1
+## 2026-10-05 - v4.0.1.1
 
 - v4.0.1 merge
 - New UI for the `Local Overrides` tab in the `Manage Achievements` to be equal to the `Platform` tab in the `Settings`
