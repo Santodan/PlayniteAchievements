@@ -250,6 +250,13 @@ Primary fork areas:
   round-trip tests still report the pre-existing missing
   `PreserveCachedUnlocksOnRefresh` clone/copy handling; this is separate from
   the Theme Migration settings.
+- Clicking an automatic theme migration notification restarts Playnite directly
+  through the host's built-in `PlayniteApplication.Current.Restart(true)` path
+  on the UI thread. The English notification explains the click action. Verify
+  in Playnite that activation restarts in the current mode and applies the theme;
+  notification creation alone must not restart it. If restart is unavailable,
+  the failure is logged and an error asks for a manual restart. Release rebuild
+  passed; live activation remains pending.
 - The non-scrollable legacy option, scrollable option, revert, and StartPage
   compatibility apply/revert actions work.
 - Fullscreen library summaries normalize legacy `Local` rows whose platform was

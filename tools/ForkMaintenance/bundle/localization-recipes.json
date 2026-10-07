@@ -1868,6 +1868,11 @@
                             "desiredXml":  "\u003csys:String x:Key=\"LOCPlayAch_Targeted_RefreshingGameWithIcons\" xmlns:x=\"http://schemas.microsoft.com/winfx/2006/xaml\" xmlns:sys=\"clr-namespace:System;assembly=mscorlib\"\u003eRefreshing achievements for {0} ({1}) - Downloading icons {2}/{3}\u003c/sys:String\u003e"
                         },
                         {
+                            "key":  "LOCPlayAch_ThemeMigration_AutoMigratedRestart",
+                            "baseXml":  "\u003csys:String x:Key=\"LOCPlayAch_ThemeMigration_AutoMigratedRestart\" xmlns:x=\"http://schemas.microsoft.com/winfx/2006/xaml\" xmlns:sys=\"clr-namespace:System;assembly=mscorlib\"\u003eRestart Playnite to apply the changes.\u003c/sys:String\u003e",
+                            "desiredXml":  "\u003csys:String x:Key=\"LOCPlayAch_ThemeMigration_AutoMigratedRestart\" xmlns:x=\"http://schemas.microsoft.com/winfx/2006/xaml\" xmlns:sys=\"clr-namespace:System;assembly=mscorlib\"\u003eClick this notification to restart Playnite and apply the changes.\u003c/sys:String\u003e"
+                        },
+                        {
                             "key":  "LOCPlayAch_ThemeMigration_Custom",
                             "baseXml":  null,
                             "desiredXml":  "\u003csys:String x:Key=\"LOCPlayAch_ThemeMigration_Custom\" xmlns:x=\"http://schemas.microsoft.com/winfx/2006/xaml\" xmlns:sys=\"clr-namespace:System;assembly=mscorlib\"\u003eCustom\u003c/sys:String\u003e"

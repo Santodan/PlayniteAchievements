@@ -136,11 +136,45 @@ namespace PlayniteAchievements.Services
                 _api.Notifications.Add(new NotificationMessage(
                     $"PlayniteAchievements-ThemeAutoMigrated-{Guid.NewGuid()}",
                     $"{title}\n{text}",
-                    NotificationType.Info));
+                    NotificationType.Info,
+                    RestartAfterThemeAutoMigration));
             }
             catch (Exception ex)
             {
                 _logger?.Debug(ex, "Failed to show theme auto-migrated notification.");
+            }
+        }
+
+        private void RestartAfterThemeAutoMigration()
+        {
+            var dispatcher = _api.MainView?.UIDispatcher ?? Application.Current?.Dispatcher;
+            if (dispatcher != null && !dispatcher.CheckAccess())
+            {
+                dispatcher.BeginInvoke(new Action(RestartAfterThemeAutoMigration));
+                return;
+            }
+
+            try
+            {
+                // Restart is not exposed by the SDK. Use the host's own restart path
+                // so settings are saved, extensions shut down, and the current mode is retained.
+                var applicationType = AppDomain.CurrentDomain.GetAssemblies()
+                    .Select(assembly => assembly.GetType("Playnite.PlayniteApplication", false))
+                    .FirstOrDefault(type => type != null);
+                var application = applicationType?.GetProperty("Current", BindingFlags.Public | BindingFlags.Static)
+                    ?.GetValue(null);
+                var restart = applicationType?.GetMethod("Restart", new[] { typeof(bool) });
+                if (application == null || restart == null)
+                {
+                    throw new InvalidOperationException("Playnite's restart function is unavailable.");
+                }
+
+                restart.Invoke(application, new object[] { true });
+            }
+            catch (Exception ex)
+            {
+                _logger?.Error(ex, "Failed to restart Playnite after automatic theme migration.");
+                _api.Dialogs.ShowErrorMessage("Playnite could not restart automatically. Please restart Playnite to apply the migrated theme.");
             }
         }
 

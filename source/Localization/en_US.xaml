@@ -1279,7 +1279,7 @@ This deletes cached data for {0:N0} games that only your friends own. Data for g
     <sys:String x:Key="LOCPlayAch_ThemeMigration_AllLegacy">All Legacy</sys:String>
     <sys:String x:Key="LOCPlayAch_ThemeMigration_AllModern">All Modern</sys:String>
     <sys:String x:Key="LOCPlayAch_ThemeMigration_AutoMigratedMessage">{0} has been automatically updated for PlayniteAchievements.</sys:String>
-    <sys:String x:Key="LOCPlayAch_ThemeMigration_AutoMigratedRestart">Restart Playnite to apply the changes.</sys:String>
+    <sys:String x:Key="LOCPlayAch_ThemeMigration_AutoMigratedRestart">Click this notification to restart Playnite and apply the changes.</sys:String>
     <sys:String x:Key="LOCPlayAch_ThemeMigration_AutoMigratedTitle">Theme Auto-Migrated</sys:String>
     <sys:String x:Key="LOCPlayAch_ThemeMigration_Description">Migrate a theme from SuccessStory to PlayniteAchievements.</sys:String>
     <sys:String x:Key="LOCPlayAch_ThemeMigration_MigrateLabel">Migrate Theme</sys:String>

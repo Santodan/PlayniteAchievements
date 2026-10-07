@@ -54,6 +54,10 @@ per-control choices, the automatic Limited/Full/Custom mode selector, and use of
 those saved options for first-time and upgraded themes. Desktop defaults to Full;
 Fullscreen retains Limited migration. The 15 targeted regression tests and
 Release rebuild passed; live settings-dialog/startup checks remain to be verified.
+Automatic theme migration notifications now restart Playnite when clicked, using
+Playnite's built-in restart method on the UI thread. The English notification
+explains this action. The Release rebuild passed; a live notification-click
+restart check remains pending.
 Git output and generated JSON/XML/patch reads explicitly use UTF-8, including
 under Windows PowerShell 5.1, to preserve non-ASCII text during export/application.
 

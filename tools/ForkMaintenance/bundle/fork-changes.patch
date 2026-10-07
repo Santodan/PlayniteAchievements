@@ -5885,7 +5885,7 @@ index 3de5d7a35842fcdf221a463dcc25f42ebf89d17c..88e7d765614a883e05f278fdf4933427
          {
              token.ThrowIfCancellationRequested();
 diff --git a/source/Services/NotificationPublisher.cs b/source/Services/NotificationPublisher.cs
-index 44ae3dd84cc37e070ab9e77a4800b18c9646d63a..3b63f4915a78e20934d84d01b7ba781f7520341f 100644
+index 44ae3dd84cc37e070ab9e77a4800b18c9646d63a..2087579951bbc5c021690e8e5a2ead937b32ccb5 100644
 --- a/source/Services/NotificationPublisher.cs
 +++ b/source/Services/NotificationPublisher.cs
 @@ -1,23 +1,82 @@
@@ -5971,10 +5971,53 @@ index 44ae3dd84cc37e070ab9e77a4800b18c9646d63a..3b63f4915a78e20934d84d01b7ba781f
          }
  
          /// <summary>
-@@ -85,6 +144,785 @@ public void ShowThemeAutoMigrated(string themeName)
+@@ -77,7 +136,8 @@ public void ShowThemeAutoMigrated(string themeName)
+                 _api.Notifications.Add(new NotificationMessage(
+                     $"PlayniteAchievements-ThemeAutoMigrated-{Guid.NewGuid()}",
+                     $"{title}\n{text}",
+-                    NotificationType.Info));
++                    NotificationType.Info,
++                    RestartAfterThemeAutoMigration));
+             }
+             catch (Exception ex)
+             {
+@@ -85,6 +145,818 @@ public void ShowThemeAutoMigrated(string themeName)
              }
          }
  
++        private void RestartAfterThemeAutoMigration()
++        {
++            var dispatcher = _api.MainView?.UIDispatcher ?? Application.Current?.Dispatcher;
++            if (dispatcher != null && !dispatcher.CheckAccess())
++            {
++                dispatcher.BeginInvoke(new Action(RestartAfterThemeAutoMigration));
++                return;
++            }
++
++            try
++            {
++                // Restart is not exposed by the SDK. Use the host's own restart path
++                // so settings are saved, extensions shut down, and the current mode is retained.
++                var applicationType = AppDomain.CurrentDomain.GetAssemblies()
++                    .Select(assembly => assembly.GetType("Playnite.PlayniteApplication", false))
++                    .FirstOrDefault(type => type != null);
++                var application = applicationType?.GetProperty("Current", BindingFlags.Public | BindingFlags.Static)
++                    ?.GetValue(null);
++                var restart = applicationType?.GetMethod("Restart", new[] { typeof(bool) });
++                if (application == null || restart == null)
++                {
++                    throw new InvalidOperationException("Playnite's restart function is unavailable.");
++                }
++
++                restart.Invoke(application, new object[] { true });
++            }
++            catch (Exception ex)
++            {
++                _logger?.Error(ex, "Failed to restart Playnite after automatic theme migration.");
++                _api.Dialogs.ShowErrorMessage("Playnite could not restart automatically. Please restart Playnite to apply the migrated theme.");
++            }
++        }
++
 +        public void ShowUpstreamReleaseAvailable(string upstreamVersion, string releaseUrl)
 +        {
 +            if (_settings?.Persisted?.EnableNotifications != true)
@@ -6757,7 +6800,7 @@ index 44ae3dd84cc37e070ab9e77a4800b18c9646d63a..3b63f4915a78e20934d84d01b7ba781f
          private static string AuthNotificationId(string providerKey) => $"PlayAch-AuthFailed-{providerKey}";
  
          public void ShowProviderAuthFailed(List<string> providerKeys)
-@@ -163,5 +1001,7936 @@ private void OpenPluginSettingsForProvider(string providerKey)
+@@ -163,5 +1035,7936 @@ private void OpenPluginSettingsForProvider(string providerKey)
                  _logger?.Debug(ex, "Failed to open plugin settings from notification click.");
              }
          }
