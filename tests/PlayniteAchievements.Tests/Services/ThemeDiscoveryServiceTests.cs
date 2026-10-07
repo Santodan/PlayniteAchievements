@@ -13,6 +13,52 @@ namespace PlayniteAchievements.ThemeMigration.Tests
     [TestClass]
     public class ThemeDiscoveryServiceTests
     {
+        [DataTestMethod]
+        [DataRow(MigrationMode.Limited, true, false)]
+        [DataRow(MigrationMode.Full, false, false)]
+        [DataRow(MigrationMode.Full, true, true)]
+        [DataRow(MigrationMode.Full, true, false)]
+        [DataRow(MigrationMode.Custom, true, false)]
+        public async Task MigrateThemeAsync_AppliesPersistedOptions(
+            MigrationMode mode, bool scrollable, bool highlight)
+        {
+            var themesRoot = CreateThemesRoot();
+            try
+            {
+                var themePath = Path.Combine(themesRoot, "Desktop", "OptionsTest");
+                Directory.CreateDirectory(themePath);
+                var viewPath = Path.Combine(themePath, "View.xaml");
+                File.WriteAllText(viewPath,
+                    "<StackPanel><ContentControl x:Name='SuccessStory_PluginButton'/>" +
+                    "<ContentControl x:Name='SuccessStory_PluginCompactUnlocked'/></StackPanel>");
+                var settings = new PlayniteAchievements.Models.Settings.PersistedSettings
+                {
+                    ThemeMigrationMode = mode,
+                    ThemeMigrationUseScrollableAchievements = scrollable,
+                    ThemeMigrationHighlightLatestAchievement = highlight,
+                    ThemeMigrationControlOptions = new System.Collections.Generic.Dictionary<string, bool>
+                    {
+                        ["PluginButton"] = false,
+                        ["PluginCompactUnlocked"] = true
+                    }
+                };
+                var result = await new ThemeMigrationService(new FakeLogger()).MigrateThemeAsync(
+                    themePath, settings.ThemeMigrationMode, CustomMigrationSelection.FromSettings(settings));
+                Assert.IsTrue(result.Success, result.Message);
+                var migrated = File.ReadAllText(viewPath);
+                StringAssert.Contains(migrated, mode == MigrationMode.Full
+                    ? "PlayniteAchievements_AchievementButton" : "PlayniteAchievements_PluginButton");
+                var expectedUnlocked = mode == MigrationMode.Limited || !scrollable
+                    ? "PluginCompactUnlocked"
+                    : highlight ? "AchievementCompactUnlockedList" : "AchievementCompactUnlockedScrollableList";
+                StringAssert.Contains(migrated, "PlayniteAchievements_" + expectedUnlocked);
+            }
+            finally
+            {
+                DeleteDirectory(themesRoot);
+            }
+        }
+
         [TestMethod]
         public async Task MigrateThemeAsync_PreservesDistinctSolarisNamesAndReferences()
         {

@@ -2837,6 +2837,35 @@ namespace PlayniteAchievements.Models.Settings
             set => SetValue(ref _seenThemeMigration, value);
         }
 
+        private bool _themeMigrationUseScrollableAchievements;
+        public bool ThemeMigrationUseScrollableAchievements
+        {
+            get => _themeMigrationUseScrollableAchievements;
+            set => SetValue(ref _themeMigrationUseScrollableAchievements, value);
+        }
+
+        private bool _themeMigrationHighlightLatestAchievement = true;
+        public bool ThemeMigrationHighlightLatestAchievement
+        {
+            get => _themeMigrationHighlightLatestAchievement;
+            set => SetValue(ref _themeMigrationHighlightLatestAchievement, value);
+        }
+
+        private Services.ThemeMigration.MigrationMode _themeMigrationMode = Services.ThemeMigration.MigrationMode.Full;
+        public Services.ThemeMigration.MigrationMode ThemeMigrationMode
+        {
+            get => _themeMigrationMode;
+            set => SetValue(ref _themeMigrationMode, value);
+        }
+
+        private Dictionary<string, bool> _themeMigrationControlOptions = new Dictionary<string, bool>();
+        public Dictionary<string, bool> ThemeMigrationControlOptions
+        {
+            get => _themeMigrationControlOptions;
+            set => SetValue(ref _themeMigrationControlOptions,
+                value != null ? new Dictionary<string, bool>(value) : new Dictionary<string, bool>());
+        }
+
         /// <summary>
         /// Whether newly discovered and upgraded themes are migrated automatically at startup.
         /// </summary>
@@ -3416,6 +3445,10 @@ namespace PlayniteAchievements.Models.Settings
                 FirstTimeSetupCompleted = this.FirstTimeSetupCompleted,
                 SeenThemeMigration = this.SeenThemeMigration,
                 EnableAutomaticThemeMigration = this.EnableAutomaticThemeMigration,
+                ThemeMigrationUseScrollableAchievements = this.ThemeMigrationUseScrollableAchievements,
+                ThemeMigrationHighlightLatestAchievement = this.ThemeMigrationHighlightLatestAchievement,
+                ThemeMigrationMode = this.ThemeMigrationMode,
+                ThemeMigrationControlOptions = this.ThemeMigrationControlOptions,
                 UsePlayniteContextMenuOnStartPage = this.UsePlayniteContextMenuOnStartPage,
                 ThemeMigrationVersionCache = this.ThemeMigrationVersionCache != null
                     ? this.ThemeMigrationVersionCache.ToDictionary(

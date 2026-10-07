@@ -236,6 +236,20 @@ Primary fork areas:
 - Automatic migration handles first-time themes and upgraded themes when its
   Theme Migration toggle is enabled, and skips both when disabled. The toggle
   remains persisted and defaults to enabled.
+- Scrollable achievements, highlight-latest, per-control Legacy/Modern choices,
+  and automatic migration mode survive settings saves, reopening, JSON
+  serialization, cloning, and copying. Custom control dictionaries are independent
+  in cloned/copied settings.
+- Automatic migration uses the saved Limited/Full/Custom mode and options for
+  both first-time and upgraded desktop themes. Full is the desktop default;
+  Fullscreen always uses Limited. Full respects scrollable/highlight choices;
+  Custom also respects each control choice. Verify the mode selector reflects
+  manual migration buttons and changes to custom choices.
+- Theme Migration regression coverage: 15 targeted settings and migration tests
+  passed and the Release rebuild succeeded on 2026-10-07. Broader settings
+  round-trip tests still report the pre-existing missing
+  `PreserveCachedUnlocksOnRefresh` clone/copy handling; this is separate from
+  the Theme Migration settings.
 - The non-scrollable legacy option, scrollable option, revert, and StartPage
   compatibility apply/revert actions work.
 - Fullscreen library summaries normalize legacy `Local` rows whose platform was

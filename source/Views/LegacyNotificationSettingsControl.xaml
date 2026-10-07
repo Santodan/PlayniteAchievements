@@ -4,6 +4,7 @@
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:migration="clr-namespace:PlayniteAchievements.Services.ThemeMigration"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:conv="clr-namespace:PlayniteAchievements.Views.Converters"
              xmlns:base="clr-namespace:PlayniteAchievements.Views.ThemeIntegration.Base"
@@ -4682,6 +4683,16 @@
                                           IsChecked="{Binding Persisted.EnableAutomaticThemeMigration, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                           Margin="0,8,0,0"
                                           ToolTip="Automatically migrate newly discovered themes and re-migrate themes after they are updated."/>
+
+                                <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
+                                    <TextBlock Text="Automatic migration mode" VerticalAlignment="Center" Margin="0,0,12,0"/>
+                                    <ComboBox SelectedValue="{Binding Persisted.ThemeMigrationMode, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                              SelectedValuePath="Tag" MinWidth="140">
+                                        <ComboBoxItem Content="Limited" Tag="{x:Static migration:MigrationMode.Limited}"/>
+                                        <ComboBoxItem Content="Full" Tag="{x:Static migration:MigrationMode.Full}"/>
+                                        <ComboBoxItem Content="Custom" Tag="{x:Static migration:MigrationMode.Custom}"/>
+                                    </ComboBox>
+                                </StackPanel>
 
                                 <CheckBox x:Name="LegacyUseScrollableAchievementsCheckBox"
                                           Content="Scrollable achievements"

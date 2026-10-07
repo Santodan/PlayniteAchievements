@@ -1,6 +1,6 @@
 {
     "schemaVersion":  1,
-    "generatedUtc":  "2026-10-08T15:18:16.8442444Z",
+    "generatedUtc":  "2026-10-08T15:18:46.7503337Z",
     "baselineRef":  "79108753e3f8ddc775aa569ff8f5ed0362f3f22b",
     "baselineCommit":  "79108753e3f8ddc775aa569ff8f5ed0362f3f22b",
     "protectedPaths":  [
@@ -11,7 +11,7 @@
                        ],
     "patch":  {
                   "path":  "fork-changes.patch",
-                  "sha256":  "BCFB2BB27B286F75CC226B28D947B80CA7C46B625C799FF65D05B21A8CDE3562"
+                  "sha256":  "F7A7ECFF70BB544821460BB5CBC5D75AA5B33936524A1EADEB30359723645FFD"
               },
     "localizationRecipes":  {
                                 "path":  "localization-recipes.json",
@@ -326,11 +326,11 @@
                          },
                          {
                              "path":  "source/Views/LegacyNotificationSettingsControl.xaml",
-                             "sha256":  "30BC0E49E6F4EA99820867CA9A568FC70946DB47F6764A313797832D11916E72"
+                             "sha256":  "6CF44E49E72F295515FC25C2960CAB2F154230199EB60699EF9DA8EF54CFE232"
                          },
                          {
                              "path":  "source/Views/LegacyNotificationSettingsControl.xaml.cs",
-                             "sha256":  "F05C25339613E6F1A78BC96457D31E506C7B70F99200D4C3E23D122EAEBDE5F4"
+                             "sha256":  "09AE24AAC4B722DD76F9C64111CAEE84851F73A252BD17C438D0E6843548A3BA"
                          },
                          {
                              "path":  "source/Views/LocalAchievementEditorControl.xaml",
@@ -367,6 +367,10 @@
                          {
                              "path":  "tests/PlayniteAchievements.Tests/Models/LocalNotificationTypographySettingsTests.cs",
                              "sha256":  "A17794A597B882860E303D07AE29E2EE564C73EC7B6930A19A8505F1673FD37A"
+                         },
+                         {
+                             "path":  "tests/PlayniteAchievements.Tests/Models/ThemeMigrationSettingsTests.cs",
+                             "sha256":  "D43DCF4CA916AC97AE819E1850BDECDE217229F4E22409EF89C2D4723E7F35BE"
                          },
                          {
                              "path":  "tests/PlayniteAchievements.Tests/Services/NewGameAutoRefreshPolicyTests.cs",

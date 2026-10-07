@@ -31,7 +31,7 @@ namespace PlayniteAchievements.Views.Settings.Display.ThemeControls
         private bool _hasRevertableThemes;
         private bool _showNoThemesMessage = true;
         private bool _showNoRevertableThemesMessage = true;
-        private bool _highlightLatestUnlockedAchievement = true;
+        public Models.Settings.PersistedSettings MigrationSettings => _settings.Persisted;
 
         public ThemeMigrationController(
             PlayniteAchievementsSettings settings,
@@ -96,10 +96,29 @@ namespace PlayniteAchievements.Views.Settings.Display.ThemeControls
             private set => SetValue(ref _showNoRevertableThemesMessage, value);
         }
 
+        public bool UseScrollableAchievements
+        {
+            get => MigrationSettings.ThemeMigrationUseScrollableAchievements;
+            set
+            {
+                MigrationSettings.ThemeMigrationUseScrollableAchievements = value;
+                foreach (var option in CustomOptions.Where(option =>
+                    ControlMappings.CompactAchievementListControlNames.Contains(option.Key)))
+                {
+                    option.IsModern = value;
+                }
+                OnPropertyChanged();
+            }
+        }
+
         public bool HighlightLatestUnlockedAchievement
         {
-            get => _highlightLatestUnlockedAchievement;
-            set => SetValue(ref _highlightLatestUnlockedAchievement, value);
+            get => MigrationSettings.ThemeMigrationHighlightLatestAchievement;
+            set
+            {
+                MigrationSettings.ThemeMigrationHighlightLatestAchievement = value;
+                OnPropertyChanged();
+            }
         }
 
         /// <summary>
@@ -180,6 +199,11 @@ namespace PlayniteAchievements.Views.Settings.Display.ThemeControls
 
         public async Task MigrateAsync(MigrationMode mode, CustomMigrationSelection customSelection = null)
         {
+            MigrationSettings.ThemeMigrationMode = mode;
+            if (mode == MigrationMode.Full && customSelection == null)
+            {
+                customSelection = BuildFullMigrationSelection();
+            }
             var selectedThemePath = SelectedThemePath;
             if (string.IsNullOrWhiteSpace(selectedThemePath))
             {
@@ -310,8 +334,8 @@ namespace PlayniteAchievements.Views.Settings.Display.ThemeControls
 
             return new CustomMigrationSelection(modernControlNames, modernizeBindings: true)
             {
-                HighlightLatestUnlockedAchievement =
-                    HighlightLatestUnlockedAchievement
+                ModernizeCompactAchievementLists = MigrationSettings.ThemeMigrationUseScrollableAchievements,
+                HighlightLatestUnlockedAchievement = HighlightLatestUnlockedAchievement
             };
         }
 
@@ -364,7 +388,7 @@ namespace PlayniteAchievements.Views.Settings.Display.ThemeControls
                 ControlMappings.LegacyToModernControlNames.Keys,
                 modernizeBindings: true)
             {
-                ModernizeCompactAchievementLists = true,
+                ModernizeCompactAchievementLists = MigrationSettings.ThemeMigrationUseScrollableAchievements,
                 HighlightLatestUnlockedAchievement = HighlightLatestUnlockedAchievement
             };
         }
@@ -402,15 +426,26 @@ namespace PlayniteAchievements.Views.Settings.Display.ThemeControls
                 "LOCPlayAch_Settings_ViewItemPreview"));
         }
 
-        private static ThemeMigrationElementOption CreateControlOption(
+        private ThemeMigrationElementOption CreateControlOption(
             string key,
             string resourceKey)
         {
-            return new ThemeMigrationElementOption(
+            var option = new ThemeMigrationElementOption(
                 key,
                 L(resourceKey),
                 isBindingOption: false,
-                isModern: true);
+                isModern: MigrationSettings.ThemeMigrationControlOptions.TryGetValue(key, out var saved)
+                    ? saved
+                    : !ControlMappings.CompactAchievementListControlNames.Contains(key) ||
+                      MigrationSettings.ThemeMigrationUseScrollableAchievements);
+            option.PropertyChanged += (sender, args) =>
+            {
+                var options = new System.Collections.Generic.Dictionary<string, bool>(MigrationSettings.ThemeMigrationControlOptions);
+                options[key] = option.IsModern;
+                MigrationSettings.ThemeMigrationControlOptions = options;
+                MigrationSettings.ThemeMigrationMode = MigrationMode.Custom;
+            };
+            return option;
         }
 
         private static string L(string key)

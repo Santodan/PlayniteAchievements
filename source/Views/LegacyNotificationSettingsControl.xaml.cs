@@ -404,7 +404,7 @@ namespace PlayniteAchievements.Views
                 nameof(HighlightLatestAchievementForThemeMigration),
                 typeof(bool),
                 typeof(LegacyNotificationSettingsControl),
-                new PropertyMetadata(true));
+                new PropertyMetadata(true, OnHighlightLatestAchievementForThemeMigrationChanged));
 
         public bool HighlightLatestAchievementForThemeMigration
         {
@@ -811,6 +811,8 @@ namespace PlayniteAchievements.Views
             // Initialize theme collections
             AvailableThemes = new System.Collections.ObjectModel.ObservableCollection<ThemeDiscoveryService.ThemeInfo>();
             RevertableThemes = new System.Collections.ObjectModel.ObservableCollection<ThemeDiscoveryService.ThemeInfo>();
+            UseScrollableAchievementsForThemeMigration = _settingsViewModel.Settings.Persisted.ThemeMigrationUseScrollableAchievements;
+            HighlightLatestAchievementForThemeMigration = _settingsViewModel.Settings.Persisted.ThemeMigrationHighlightLatestAchievement;
             InitializeThemeMigrationCustomOptions();
 
             // Subscribe to settings property changes to refresh mock previews
@@ -6560,18 +6562,21 @@ namespace PlayniteAchievements.Views
         private async void MigrateThemeLimited_Click(object sender, RoutedEventArgs e)
         {
             CommitThemeMigrationControls();
+            _settingsViewModel.Settings.Persisted.ThemeMigrationMode = MigrationMode.Limited;
             await ExecuteThemeMigrationAsync(MigrationMode.Limited);
         }
 
         private async void MigrateThemeFull_Click(object sender, RoutedEventArgs e)
         {
             CommitThemeMigrationControls();
+            _settingsViewModel.Settings.Persisted.ThemeMigrationMode = MigrationMode.Full;
             await ExecuteThemeMigrationAsync(MigrationMode.Full, BuildFullMigrationSelection());
         }
 
         private async void MigrateThemeCustom_Click(object sender, RoutedEventArgs e)
         {
             CommitThemeMigrationControls();
+            _settingsViewModel.Settings.Persisted.ThemeMigrationMode = MigrationMode.Custom;
             await ExecuteThemeMigrationAsync(MigrationMode.Custom, BuildCustomMigrationSelection());
         }
 
@@ -7016,11 +7021,21 @@ namespace PlayniteAchievements.Views
             string fallback,
             bool isModern = true)
         {
-            return new ThemeMigrationElementOption(
+            var persisted = _settingsViewModel.Settings.Persisted;
+            var option = new ThemeMigrationElementOption(
                 key,
                 L(resourceKey, fallback),
                 isBindingOption: false,
-                isModern: isModern);
+                isModern: persisted.ThemeMigrationControlOptions.TryGetValue(key, out var saved) ? saved : isModern);
+            option.PropertyChanged += (sender, args) =>
+            {
+                var settings = _settingsViewModel.Settings.Persisted;
+                var options = new Dictionary<string, bool>(settings.ThemeMigrationControlOptions);
+                options[key] = option.IsModern;
+                settings.ThemeMigrationControlOptions = options;
+                settings.ThemeMigrationMode = MigrationMode.Custom;
+            };
+            return option;
         }
 
         private static void OnUseScrollableAchievementsForThemeMigrationChanged(
@@ -7029,7 +7044,20 @@ namespace PlayniteAchievements.Views
         {
             if (d is LegacyNotificationSettingsControl control)
             {
+                if (control._settingsViewModel != null)
+                {
+                    control._settingsViewModel.Settings.Persisted.ThemeMigrationUseScrollableAchievements = (bool)e.NewValue;
+                }
                 control.SetCompactAchievementMigrationOptions((bool)e.NewValue);
+            }
+        }
+
+        private static void OnHighlightLatestAchievementForThemeMigrationChanged(
+            DependencyObject d, DependencyPropertyChangedEventArgs e)
+        {
+            if (d is LegacyNotificationSettingsControl control && control._settingsViewModel != null)
+            {
+                control._settingsViewModel.Settings.Persisted.ThemeMigrationHighlightLatestAchievement = (bool)e.NewValue;
             }
         }
 

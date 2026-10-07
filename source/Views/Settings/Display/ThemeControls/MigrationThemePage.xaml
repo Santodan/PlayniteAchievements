@@ -3,6 +3,7 @@
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:migration="clr-namespace:PlayniteAchievements.Services.ThemeMigration"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              mc:Ignorable="d"
              d:DesignHeight="600"
@@ -38,6 +39,19 @@
                                   VerticalContentAlignment="Center"
                                   IsEnabled="{Binding HasThemesToMigrate}"/>
                     </Grid>
+
+                    <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
+                        <TextBlock Text="Automatic migration mode" VerticalAlignment="Center" Margin="0,0,12,0"/>
+                        <ComboBox SelectedValue="{Binding MigrationSettings.ThemeMigrationMode, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                  SelectedValuePath="Tag" MinWidth="140">
+                            <ComboBoxItem Content="Limited" Tag="{x:Static migration:MigrationMode.Limited}"/>
+                            <ComboBoxItem Content="Full" Tag="{x:Static migration:MigrationMode.Full}"/>
+                            <ComboBoxItem Content="Custom" Tag="{x:Static migration:MigrationMode.Custom}"/>
+                        </ComboBox>
+                    </StackPanel>
+                    <CheckBox Content="Automatically migrate new themes" IsChecked="{Binding MigrationSettings.EnableAutomaticThemeMigration, Mode=TwoWay}" Margin="0,8,0,0"/>
+                    <CheckBox Content="Scrollable achievements" IsChecked="{Binding UseScrollableAchievements, Mode=TwoWay}" Margin="0,8,0,0"/>
+                    <CheckBox Content="{DynamicResource LOCPlayAch_ThemeMigration_HighlightLatestAchievement}" IsChecked="{Binding HighlightLatestUnlockedAchievement, Mode=TwoWay}" IsEnabled="{Binding UseScrollableAchievements}" Margin="0,8,0,0"/>
 
                     <!-- Migration Buttons -->
                     <StackPanel Orientation="Horizontal"

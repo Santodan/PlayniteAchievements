@@ -40,6 +40,21 @@ namespace PlayniteAchievements.Services.ThemeMigration
         /// </summary>
         public bool HighlightLatestUnlockedAchievement { get; set; } = true;
 
+        public static CustomMigrationSelection FromSettings(Models.Settings.PersistedSettings settings)
+        {
+            var controls = ControlMappings.LegacyToModernControlNames.Keys.Where(key =>
+                settings?.ThemeMigrationMode != MigrationMode.Custom ||
+                (settings.ThemeMigrationControlOptions.TryGetValue(key, out var modern)
+                    ? modern
+                    : !ControlMappings.CompactAchievementListControlNames.Contains(key) ||
+                      settings.ThemeMigrationUseScrollableAchievements));
+            return new CustomMigrationSelection(controls, modernizeBindings: true)
+            {
+                ModernizeCompactAchievementLists = settings?.ThemeMigrationUseScrollableAchievements == true,
+                HighlightLatestUnlockedAchievement = settings?.ThemeMigrationHighlightLatestAchievement != false
+            };
+        }
+
         public bool ShouldModernizeControl(string legacyControlName)
         {
             return !string.IsNullOrWhiteSpace(legacyControlName) &&

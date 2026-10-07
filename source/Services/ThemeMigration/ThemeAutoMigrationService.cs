@@ -110,7 +110,12 @@ namespace PlayniteAchievements.Services.ThemeMigration
                         {
                             try
                             {
-                                var result = await migrationService.MigrateThemeAsync(theme.Path);
+                                var result = await migrationService.MigrateThemeAsync(
+                                    theme.Path,
+                                    ThemeMigrationService.IsFullscreenThemePath(theme.Path)
+                                        ? MigrationMode.Limited
+                                        : persisted.ThemeMigrationMode,
+                                    CustomMigrationSelection.FromSettings(persisted));
                                 if (result.Success)
                                 {
                                     _logger.Info($"Auto-migrated upgraded theme: {theme.Name}");
@@ -131,7 +136,12 @@ namespace PlayniteAchievements.Services.ThemeMigration
                         {
                             try
                             {
-                                var result = await migrationService.MigrateThemeAsync(theme.Path);
+                                var result = await migrationService.MigrateThemeAsync(
+                                    theme.Path,
+                                    ThemeMigrationService.IsFullscreenThemePath(theme.Path)
+                                        ? MigrationMode.Limited
+                                        : persisted.ThemeMigrationMode,
+                                    CustomMigrationSelection.FromSettings(persisted));
                                 if (result.Success)
                                 {
                                     _logger.Info($"Auto-migrated first-time theme: {theme.Name}");

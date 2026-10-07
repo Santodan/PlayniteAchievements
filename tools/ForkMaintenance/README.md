@@ -49,6 +49,11 @@ name. The adapter refreshes PS5Core filtering/sorting and notifies
 after synchronization. The user confirmed the progress and filter fixes on
 2026-10-08. Regression coverage includes actual PS5Core 0.7.4 objects and a live
 WPF filter-button binding.
+The refresh also captures persistent Theme Migration scrollable/highlight and
+per-control choices, the automatic Limited/Full/Custom mode selector, and use of
+those saved options for first-time and upgraded themes. Desktop defaults to Full;
+Fullscreen retains Limited migration. The 15 targeted regression tests and
+Release rebuild passed; live settings-dialog/startup checks remain to be verified.
 Git output and generated JSON/XML/patch reads explicitly use UTF-8, including
 under Windows PowerShell 5.1, to preserve non-ASCII text during export/application.
 

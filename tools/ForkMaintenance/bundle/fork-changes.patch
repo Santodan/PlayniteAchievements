@@ -377,7 +377,7 @@ index b2d526505801ada79c13c1c57ee6f6b8255badea..0696626a227726a7d4300ef30444e86a
                  ShadPS4MatchIdOverride = ShadPS4MatchIdOverride,
                  ForceUseExophase = ForceUseExophase,
 diff --git a/source/Models/Settings/PersistedSettings.cs b/source/Models/Settings/PersistedSettings.cs
-index bc252bea7b0611f9db7c70ca5359b970a2e32102..2772b363a051807791d7b7bc0d39717d2d1dba06 100644
+index bc252bea7b0611f9db7c70ca5359b970a2e32102..a46dbca1668ee401219f6b26beac8cd89fdce9c2 100644
 --- a/source/Models/Settings/PersistedSettings.cs
 +++ b/source/Models/Settings/PersistedSettings.cs
 @@ -25,6 +25,13 @@ namespace PlayniteAchievements.Models.Settings
@@ -403,10 +403,39 @@ index bc252bea7b0611f9db7c70ca5359b970a2e32102..2772b363a051807791d7b7bc0d39717d
          private HashSet<Guid> _excludedGameIds = new HashSet<Guid>();
          private HashSet<Guid> _excludedFromSummariesGameIds = new HashSet<Guid>();
          private Dictionary<Guid, string> _manualCapstones = new Dictionary<Guid, string>();
-@@ -2828,6 +2837,25 @@ public bool SeenThemeMigration
+@@ -2828,6 +2837,54 @@ public bool SeenThemeMigration
              set => SetValue(ref _seenThemeMigration, value);
          }
  
++        private bool _themeMigrationUseScrollableAchievements;
++        public bool ThemeMigrationUseScrollableAchievements
++        {
++            get => _themeMigrationUseScrollableAchievements;
++            set => SetValue(ref _themeMigrationUseScrollableAchievements, value);
++        }
++
++        private bool _themeMigrationHighlightLatestAchievement = true;
++        public bool ThemeMigrationHighlightLatestAchievement
++        {
++            get => _themeMigrationHighlightLatestAchievement;
++            set => SetValue(ref _themeMigrationHighlightLatestAchievement, value);
++        }
++
++        private Services.ThemeMigration.MigrationMode _themeMigrationMode = Services.ThemeMigration.MigrationMode.Full;
++        public Services.ThemeMigration.MigrationMode ThemeMigrationMode
++        {
++            get => _themeMigrationMode;
++            set => SetValue(ref _themeMigrationMode, value);
++        }
++
++        private Dictionary<string, bool> _themeMigrationControlOptions = new Dictionary<string, bool>();
++        public Dictionary<string, bool> ThemeMigrationControlOptions
++        {
++            get => _themeMigrationControlOptions;
++            set => SetValue(ref _themeMigrationControlOptions,
++                value != null ? new Dictionary<string, bool>(value) : new Dictionary<string, bool>());
++        }
++
 +        /// <summary>
 +        /// Whether newly discovered and upgraded themes are migrated automatically at startup.
 +        /// </summary>
@@ -429,7 +458,7 @@ index bc252bea7b0611f9db7c70ca5359b970a2e32102..2772b363a051807791d7b7bc0d39717d
          /// <summary>
          /// Cache mapping ThemePath -> last migrated theme.yaml Version.
          /// Used to detect themes that have been upgraded since migration and may need re-migration.
-@@ -3213,6 +3241,66 @@ public PersistedSettings Clone()
+@@ -3213,6 +3270,66 @@ public PersistedSettings Clone()
                          StringComparer.OrdinalIgnoreCase)
                      : new Dictionary<string, ProviderNotificationOverride>(StringComparer.OrdinalIgnoreCase),
  
@@ -496,29 +525,37 @@ index bc252bea7b0611f9db7c70ca5359b970a2e32102..2772b363a051807791d7b7bc0d39717d
                  // Display Preferences
                  ShowHiddenIcon = this.ShowHiddenIcon,
                  ShowHiddenTitle = this.ShowHiddenTitle,
-@@ -3327,6 +3415,8 @@ public PersistedSettings Clone()
+@@ -3327,6 +3444,12 @@ public PersistedSettings Clone()
                  // General Settings
                  FirstTimeSetupCompleted = this.FirstTimeSetupCompleted,
                  SeenThemeMigration = this.SeenThemeMigration,
 +                EnableAutomaticThemeMigration = this.EnableAutomaticThemeMigration,
++                ThemeMigrationUseScrollableAchievements = this.ThemeMigrationUseScrollableAchievements,
++                ThemeMigrationHighlightLatestAchievement = this.ThemeMigrationHighlightLatestAchievement,
++                ThemeMigrationMode = this.ThemeMigrationMode,
++                ThemeMigrationControlOptions = this.ThemeMigrationControlOptions,
 +                UsePlayniteContextMenuOnStartPage = this.UsePlayniteContextMenuOnStartPage,
                  ThemeMigrationVersionCache = this.ThemeMigrationVersionCache != null
                      ? this.ThemeMigrationVersionCache.ToDictionary(
                          kvp => kvp.Key,
 diff --git a/source/Models/Settings/SettingsExtensions.cs b/source/Models/Settings/SettingsExtensions.cs
-index 49d7996997a7b1bb7d890e3e886ed1fcf28e6066..275a1f8015ba82cc459d6db407c898b3b3303c7f 100644
+index 49d7996997a7b1bb7d890e3e886ed1fcf28e6066..688ed02d110928c51b817d1becfa9cf9fe71b7e7 100644
 --- a/source/Models/Settings/SettingsExtensions.cs
 +++ b/source/Models/Settings/SettingsExtensions.cs
-@@ -284,6 +284,8 @@ public static void CopyFrom(this PersistedSettings target, PersistedSettings sou
+@@ -284,6 +284,12 @@ public static void CopyFrom(this PersistedSettings target, PersistedSettings sou
              // General Settings
              target.FirstTimeSetupCompleted = source.FirstTimeSetupCompleted;
              target.SeenThemeMigration = source.SeenThemeMigration;
 +            target.EnableAutomaticThemeMigration = source.EnableAutomaticThemeMigration;
++            target.ThemeMigrationUseScrollableAchievements = source.ThemeMigrationUseScrollableAchievements;
++            target.ThemeMigrationHighlightLatestAchievement = source.ThemeMigrationHighlightLatestAchievement;
++            target.ThemeMigrationMode = source.ThemeMigrationMode;
++            target.ThemeMigrationControlOptions = source.ThemeMigrationControlOptions;
 +            target.UsePlayniteContextMenuOnStartPage = source.UsePlayniteContextMenuOnStartPage;
              target.ThemeMigrationVersionCache = source.ThemeMigrationVersionCache != null
                  ? source.ThemeMigrationVersionCache.ToDictionary(
                      kvp => kvp.Key,
-@@ -333,6 +335,62 @@ public static void CopyFrom(this PersistedSettings target, PersistedSettings sou
+@@ -333,6 +339,62 @@ public static void CopyFrom(this PersistedSettings target, PersistedSettings sou
  
              // Tagging Settings
              target.TaggingSettings = source.TaggingSettings?.Clone() ?? new TaggingSettings();
@@ -15622,10 +15659,10 @@ index f659926db5c2789296137446c66c6819afab711c..a402b6c26b966810fe13d2c7ad0e3c76
              { "PluginProgressBar", "AchievementProgressBar" },
              { "PluginUserStats", "AchievementStats" },
 diff --git a/source/Services/ThemeMigration/CustomMigrationSelection.cs b/source/Services/ThemeMigration/CustomMigrationSelection.cs
-index 7aa5493030e6e24468154d40ea153dc70295f35d..ba0c78afe90f5e6bab50e440842bdf5e19c6fa28 100644
+index 7aa5493030e6e24468154d40ea153dc70295f35d..eca4e49576e3f7279f11ed923f2c1dc6a3070e6d 100644
 --- a/source/Services/ThemeMigration/CustomMigrationSelection.cs
 +++ b/source/Services/ThemeMigration/CustomMigrationSelection.cs
-@@ -28,10 +28,24 @@ public CustomMigrationSelection(IEnumerable<string> modernControlNames = null, b
+@@ -28,10 +28,39 @@ public CustomMigrationSelection(IEnumerable<string> modernControlNames = null, b
          /// </summary>
          public bool ModernizeBindings { get; set; }
  
@@ -15641,6 +15678,21 @@ index 7aa5493030e6e24468154d40ea153dc70295f35d..ba0c78afe90f5e6bab50e440842bdf5e
 +        /// </summary>
 +        public bool HighlightLatestUnlockedAchievement { get; set; } = true;
 +
++        public static CustomMigrationSelection FromSettings(Models.Settings.PersistedSettings settings)
++        {
++            var controls = ControlMappings.LegacyToModernControlNames.Keys.Where(key =>
++                settings?.ThemeMigrationMode != MigrationMode.Custom ||
++                (settings.ThemeMigrationControlOptions.TryGetValue(key, out var modern)
++                    ? modern
++                    : !ControlMappings.CompactAchievementListControlNames.Contains(key) ||
++                      settings.ThemeMigrationUseScrollableAchievements));
++            return new CustomMigrationSelection(controls, modernizeBindings: true)
++            {
++                ModernizeCompactAchievementLists = settings?.ThemeMigrationUseScrollableAchievements == true,
++                HighlightLatestUnlockedAchievement = settings?.ThemeMigrationHighlightLatestAchievement != false
++            };
++        }
++
          public bool ShouldModernizeControl(string legacyControlName)
          {
              return !string.IsNullOrWhiteSpace(legacyControlName) &&
@@ -15652,7 +15704,7 @@ index 7aa5493030e6e24468154d40ea153dc70295f35d..ba0c78afe90f5e6bab50e440842bdf5e
      }
  }
 diff --git a/source/Services/ThemeMigration/ThemeAutoMigrationService.cs b/source/Services/ThemeMigration/ThemeAutoMigrationService.cs
-index c7907bc5645ba8d00ad195bca1cdac14cd243297..fa2595d627dcbdaaf71f77b54d93fd8e044c388e 100644
+index c7907bc5645ba8d00ad195bca1cdac14cd243297..8fe0ddbb51bb9910a134ed33e623dcb27277f5fe 100644
 --- a/source/Services/ThemeMigration/ThemeAutoMigrationService.cs
 +++ b/source/Services/ThemeMigration/ThemeAutoMigrationService.cs
 @@ -33,6 +33,12 @@ public ThemeAutoMigrationService(
@@ -15703,7 +15755,21 @@ index c7907bc5645ba8d00ad195bca1cdac14cd243297..fa2595d627dcbdaaf71f77b54d93fd8e
                          {
                              return;
                          }
-@@ -117,6 +127,27 @@ public void ScheduleAutoMigration()
+@@ -100,7 +110,12 @@ public void ScheduleAutoMigration()
+                         {
+                             try
+                             {
+-                                var result = await migrationService.MigrateThemeAsync(theme.Path);
++                                var result = await migrationService.MigrateThemeAsync(
++                                    theme.Path,
++                                    ThemeMigrationService.IsFullscreenThemePath(theme.Path)
++                                        ? MigrationMode.Limited
++                                        : persisted.ThemeMigrationMode,
++                                    CustomMigrationSelection.FromSettings(persisted));
+                                 if (result.Success)
+                                 {
+                                     _logger.Info($"Auto-migrated upgraded theme: {theme.Name}");
+@@ -117,6 +132,32 @@ public void ScheduleAutoMigration()
                              }
                          }
  
@@ -15711,7 +15777,12 @@ index c7907bc5645ba8d00ad195bca1cdac14cd243297..fa2595d627dcbdaaf71f77b54d93fd8e
 +                        {
 +                            try
 +                            {
-+                                var result = await migrationService.MigrateThemeAsync(theme.Path);
++                                var result = await migrationService.MigrateThemeAsync(
++                                    theme.Path,
++                                    ThemeMigrationService.IsFullscreenThemePath(theme.Path)
++                                        ? MigrationMode.Limited
++                                        : persisted.ThemeMigrationMode,
++                                    CustomMigrationSelection.FromSettings(persisted));
 +                                if (result.Success)
 +                                {
 +                                    _logger.Info($"Auto-migrated first-time theme: {theme.Name}");
@@ -20183,8 +20254,40 @@ index 323b834e10a8cdf5b9f976a03909c68fec92f560..fdcb168df102e569364587ae3d905ea4
          }
  
          private void ResetRecentAchievementsToDefaultSort()
+diff --git a/source/Views/Settings/Display/ThemeControls/MigrationThemePage.xaml b/source/Views/Settings/Display/ThemeControls/MigrationThemePage.xaml
+index b2912de1e1e87c462709850db740b35fa27d5b0b..4d7cc9a57692e3d20009637e23640fab15784707 100644
+--- a/source/Views/Settings/Display/ThemeControls/MigrationThemePage.xaml
++++ b/source/Views/Settings/Display/ThemeControls/MigrationThemePage.xaml
+@@ -3,6 +3,7 @@
+              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
++             xmlns:migration="clr-namespace:PlayniteAchievements.Services.ThemeMigration"
+              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+              mc:Ignorable="d"
+              d:DesignHeight="600"
+@@ -39,6 +40,19 @@
+                                   IsEnabled="{Binding HasThemesToMigrate}"/>
+                     </Grid>
+ 
++                    <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
++                        <TextBlock Text="Automatic migration mode" VerticalAlignment="Center" Margin="0,0,12,0"/>
++                        <ComboBox SelectedValue="{Binding MigrationSettings.ThemeMigrationMode, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
++                                  SelectedValuePath="Tag" MinWidth="140">
++                            <ComboBoxItem Content="Limited" Tag="{x:Static migration:MigrationMode.Limited}"/>
++                            <ComboBoxItem Content="Full" Tag="{x:Static migration:MigrationMode.Full}"/>
++                            <ComboBoxItem Content="Custom" Tag="{x:Static migration:MigrationMode.Custom}"/>
++                        </ComboBox>
++                    </StackPanel>
++                    <CheckBox Content="Automatically migrate new themes" IsChecked="{Binding MigrationSettings.EnableAutomaticThemeMigration, Mode=TwoWay}" Margin="0,8,0,0"/>
++                    <CheckBox Content="Scrollable achievements" IsChecked="{Binding UseScrollableAchievements, Mode=TwoWay}" Margin="0,8,0,0"/>
++                    <CheckBox Content="{DynamicResource LOCPlayAch_ThemeMigration_HighlightLatestAchievement}" IsChecked="{Binding HighlightLatestUnlockedAchievement, Mode=TwoWay}" IsEnabled="{Binding UseScrollableAchievements}" Margin="0,8,0,0"/>
++
+                     <!-- Migration Buttons -->
+                     <StackPanel Orientation="Horizontal"
+                                 HorizontalAlignment="Right"
 diff --git a/source/Views/Settings/Display/ThemeControls/ThemeMigrationController.cs b/source/Views/Settings/Display/ThemeControls/ThemeMigrationController.cs
-index f380a0c8f2e4d0168462c3a8ab921737dafb2d7b..afbba282d0cb6e10ba038e1555ca7d301ca0e4d5 100644
+index f380a0c8f2e4d0168462c3a8ab921737dafb2d7b..69cc88bd85b350373041d291c4cf5513991f1e77 100644
 --- a/source/Views/Settings/Display/ThemeControls/ThemeMigrationController.cs
 +++ b/source/Views/Settings/Display/ThemeControls/ThemeMigrationController.cs
 @@ -1,8 +1,10 @@
@@ -20202,24 +20305,43 @@ index f380a0c8f2e4d0168462c3a8ab921737dafb2d7b..afbba282d0cb6e10ba038e1555ca7d30
          private bool _hasRevertableThemes;
          private bool _showNoThemesMessage = true;
          private bool _showNoRevertableThemesMessage = true;
-+        private bool _highlightLatestUnlockedAchievement = true;
++        public Models.Settings.PersistedSettings MigrationSettings => _settings.Persisted;
  
          public ThemeMigrationController(
              PlayniteAchievementsSettings settings,
-@@ -93,6 +96,12 @@ public bool ShowNoRevertableThemesMessage
+@@ -93,6 +96,31 @@ public bool ShowNoRevertableThemesMessage
              private set => SetValue(ref _showNoRevertableThemesMessage, value);
          }
  
++        public bool UseScrollableAchievements
++        {
++            get => MigrationSettings.ThemeMigrationUseScrollableAchievements;
++            set
++            {
++                MigrationSettings.ThemeMigrationUseScrollableAchievements = value;
++                foreach (var option in CustomOptions.Where(option =>
++                    ControlMappings.CompactAchievementListControlNames.Contains(option.Key)))
++                {
++                    option.IsModern = value;
++                }
++                OnPropertyChanged();
++            }
++        }
++
 +        public bool HighlightLatestUnlockedAchievement
 +        {
-+            get => _highlightLatestUnlockedAchievement;
-+            set => SetValue(ref _highlightLatestUnlockedAchievement, value);
++            get => MigrationSettings.ThemeMigrationHighlightLatestAchievement;
++            set
++            {
++                MigrationSettings.ThemeMigrationHighlightLatestAchievement = value;
++                OnPropertyChanged();
++            }
 +        }
 +
          /// <summary>
          /// Loads the theme lists on first use. Called from each page's Loaded event so whichever
          /// page is shown first triggers the discovery.
-@@ -126,8 +135,10 @@ private void LoadThemes()
+@@ -126,8 +154,10 @@ private void LoadThemes()
                  var cache = _settings?.Persisted?.ThemeMigrationVersionCache;
                  var themes = _themeDiscovery.DiscoverThemes(themesPath, cache);
  
@@ -20232,7 +20354,7 @@ index f380a0c8f2e4d0168462c3a8ab921737dafb2d7b..afbba282d0cb6e10ba038e1555ca7d30
                  {
                      AvailableThemes.Add(theme);
                  }
-@@ -138,6 +149,8 @@ private void LoadThemes()
+@@ -138,6 +168,8 @@ private void LoadThemes()
                      RevertableThemes.Add(theme);
                  }
  
@@ -20241,11 +20363,16 @@ index f380a0c8f2e4d0168462c3a8ab921737dafb2d7b..afbba282d0cb6e10ba038e1555ca7d30
                  UpdateThemeMigrationState();
                  _themesLoaded = true;
  
-@@ -167,21 +180,28 @@ public Task MigrateCustomAsync()
+@@ -167,21 +199,33 @@ public Task MigrateCustomAsync()
  
          public async Task MigrateAsync(MigrationMode mode, CustomMigrationSelection customSelection = null)
          {
 -            if (string.IsNullOrWhiteSpace(SelectedThemePath))
++            MigrationSettings.ThemeMigrationMode = mode;
++            if (mode == MigrationMode.Full && customSelection == null)
++            {
++                customSelection = BuildFullMigrationSelection();
++            }
 +            var selectedThemePath = SelectedThemePath;
 +            if (string.IsNullOrWhiteSpace(selectedThemePath))
              {
@@ -20274,15 +20401,15 @@ index f380a0c8f2e4d0168462c3a8ab921737dafb2d7b..afbba282d0cb6e10ba038e1555ca7d30
  
                      // Only show restart dialog if files were actually modified
                      if (result.FilesBackedUp > 0)
-@@ -288,7 +308,65 @@ private CustomMigrationSelection BuildCustomMigrationSelection()
+@@ -288,7 +332,65 @@ private CustomMigrationSelection BuildCustomMigrationSelection()
                  .Select(option => option.Key)
                  .ToList();
  
 -            return new CustomMigrationSelection(modernControlNames, modernizeBindings: true);
 +            return new CustomMigrationSelection(modernControlNames, modernizeBindings: true)
 +            {
-+                HighlightLatestUnlockedAchievement =
-+                    HighlightLatestUnlockedAchievement
++                ModernizeCompactAchievementLists = MigrationSettings.ThemeMigrationUseScrollableAchievements,
++                HighlightLatestUnlockedAchievement = HighlightLatestUnlockedAchievement
 +            };
 +        }
 +
@@ -20335,12 +20462,42 @@ index f380a0c8f2e4d0168462c3a8ab921737dafb2d7b..afbba282d0cb6e10ba038e1555ca7d30
 +                ControlMappings.LegacyToModernControlNames.Keys,
 +                modernizeBindings: true)
 +            {
-+                ModernizeCompactAchievementLists = true,
++                ModernizeCompactAchievementLists = MigrationSettings.ThemeMigrationUseScrollableAchievements,
 +                HighlightLatestUnlockedAchievement = HighlightLatestUnlockedAchievement
 +            };
          }
  
          private void InitializeCustomOptions()
+@@ -324,15 +426,26 @@ private void InitializeCustomOptions()
+                 "LOCPlayAch_Settings_ViewItemPreview"));
+         }
+ 
+-        private static ThemeMigrationElementOption CreateControlOption(
++        private ThemeMigrationElementOption CreateControlOption(
+             string key,
+             string resourceKey)
+         {
+-            return new ThemeMigrationElementOption(
++            var option = new ThemeMigrationElementOption(
+                 key,
+                 L(resourceKey),
+                 isBindingOption: false,
+-                isModern: true);
++                isModern: MigrationSettings.ThemeMigrationControlOptions.TryGetValue(key, out var saved)
++                    ? saved
++                    : !ControlMappings.CompactAchievementListControlNames.Contains(key) ||
++                      MigrationSettings.ThemeMigrationUseScrollableAchievements);
++            option.PropertyChanged += (sender, args) =>
++            {
++                var options = new System.Collections.Generic.Dictionary<string, bool>(MigrationSettings.ThemeMigrationControlOptions);
++                options[key] = option.IsModern;
++                MigrationSettings.ThemeMigrationControlOptions = options;
++                MigrationSettings.ThemeMigrationMode = MigrationMode.Custom;
++            };
++            return option;
+         }
+ 
+         private static string L(string key)
 diff --git a/source/Views/Settings/General/MaintenanceSettingsSection.xaml b/source/Views/Settings/General/MaintenanceSettingsSection.xaml
 index 32c027583995e2f2d0359ca989604ce792b5b80d..43c2472b5502f0e9234063b943ffc475ff13644e 100644
 --- a/source/Views/Settings/General/MaintenanceSettingsSection.xaml
@@ -21796,12 +21953,59 @@ index 60160aef932e3b17f6cbab12c9f857b7c173c166..40ac2ba9fe34f1457c8854e3f92f71f5
              public void RemoveGameCache(Guid playniteGameId) { }
              public void NotifyCacheInvalidated() { }
 diff --git a/tests/PlayniteAchievements.Tests/Services/ThemeDiscoveryServiceTests.cs b/tests/PlayniteAchievements.Tests/Services/ThemeDiscoveryServiceTests.cs
-index 6d4695ba4e4ec7df1f79cfa27c7639cba5a30d6b..dccf22ccbb7d85c418222966e21690f9100a48b6 100644
+index 6d4695ba4e4ec7df1f79cfa27c7639cba5a30d6b..f171e84c8aaf4698101f5b8d93d85845bfadec54 100644
 --- a/tests/PlayniteAchievements.Tests/Services/ThemeDiscoveryServiceTests.cs
 +++ b/tests/PlayniteAchievements.Tests/Services/ThemeDiscoveryServiceTests.cs
-@@ -14,7 +14,40 @@ namespace PlayniteAchievements.ThemeMigration.Tests
+@@ -13,8 +13,87 @@ namespace PlayniteAchievements.ThemeMigration.Tests
+     [TestClass]
      public class ThemeDiscoveryServiceTests
      {
++        [DataTestMethod]
++        [DataRow(MigrationMode.Limited, true, false)]
++        [DataRow(MigrationMode.Full, false, false)]
++        [DataRow(MigrationMode.Full, true, true)]
++        [DataRow(MigrationMode.Full, true, false)]
++        [DataRow(MigrationMode.Custom, true, false)]
++        public async Task MigrateThemeAsync_AppliesPersistedOptions(
++            MigrationMode mode, bool scrollable, bool highlight)
++        {
++            var themesRoot = CreateThemesRoot();
++            try
++            {
++                var themePath = Path.Combine(themesRoot, "Desktop", "OptionsTest");
++                Directory.CreateDirectory(themePath);
++                var viewPath = Path.Combine(themePath, "View.xaml");
++                File.WriteAllText(viewPath,
++                    "<StackPanel><ContentControl x:Name='SuccessStory_PluginButton'/>" +
++                    "<ContentControl x:Name='SuccessStory_PluginCompactUnlocked'/></StackPanel>");
++                var settings = new PlayniteAchievements.Models.Settings.PersistedSettings
++                {
++                    ThemeMigrationMode = mode,
++                    ThemeMigrationUseScrollableAchievements = scrollable,
++                    ThemeMigrationHighlightLatestAchievement = highlight,
++                    ThemeMigrationControlOptions = new System.Collections.Generic.Dictionary<string, bool>
++                    {
++                        ["PluginButton"] = false,
++                        ["PluginCompactUnlocked"] = true
++                    }
++                };
++                var result = await new ThemeMigrationService(new FakeLogger()).MigrateThemeAsync(
++                    themePath, settings.ThemeMigrationMode, CustomMigrationSelection.FromSettings(settings));
++                Assert.IsTrue(result.Success, result.Message);
++                var migrated = File.ReadAllText(viewPath);
++                StringAssert.Contains(migrated, mode == MigrationMode.Full
++                    ? "PlayniteAchievements_AchievementButton" : "PlayniteAchievements_PluginButton");
++                var expectedUnlocked = mode == MigrationMode.Limited || !scrollable
++                    ? "PluginCompactUnlocked"
++                    : highlight ? "AchievementCompactUnlockedList" : "AchievementCompactUnlockedScrollableList";
++                StringAssert.Contains(migrated, "PlayniteAchievements_" + expectedUnlocked);
++            }
++            finally
++            {
++                DeleteDirectory(themesRoot);
++            }
++        }
++
          [TestMethod]
 -        public void DiscoverThemes_DoesNotFlagThemeForMigration_WhenThemeFilesContainPlayniteAchievements()
 +        public async Task MigrateThemeAsync_PreservesDistinctSolarisNamesAndReferences()
@@ -21841,7 +22045,7 @@ index 6d4695ba4e4ec7df1f79cfa27c7639cba5a30d6b..dccf22ccbb7d85c418222966e21690f9
          {
              var themesRoot = CreateThemesRoot();
  
-@@ -25,7 +58,7 @@ public void DiscoverThemes_DoesNotFlagThemeForMigration_WhenThemeFilesContainPla
+@@ -25,7 +104,7 @@ public void DiscoverThemes_DoesNotFlagThemeForMigration_WhenThemeFilesContainPla
                  File.WriteAllText(Path.Combine(themePath, "theme.yaml"), "Name: Aniki ReMake\nVersion: 2.5.5\n");
                  File.WriteAllText(
                      Path.Combine(themePath, "View.xaml"),
@@ -21850,7 +22054,7 @@ index 6d4695ba4e4ec7df1f79cfa27c7639cba5a30d6b..dccf22ccbb7d85c418222966e21690f9
  
                  var service = new ThemeDiscoveryService(new FakeLogger(), new FakePlayniteApi());
                  var themes = service.DiscoverThemes(themesRoot);
-@@ -121,6 +154,79 @@ public async Task MigrateThemeAsync_AllowsLimitedModeForFullscreenThemes()
+@@ -121,6 +200,79 @@ public async Task MigrateThemeAsync_AllowsLimitedModeForFullscreenThemes()
              }
          }
  

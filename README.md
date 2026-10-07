@@ -114,6 +114,8 @@ The entries below are fork-side changes, grouped by date. When a date includes a
 ## Next release - TBD
 
 - `PS5-Experience` theme now available in the `Theme Migration`
+- `Automatically migrate new themes` will respect the selected settings
+- Clicking the `New Theme Migrated` popup will restart playnite automatically
 
 ## 2026-10-05 - v4.0.1.1
 
