@@ -248,6 +248,39 @@ Primary fork areas:
   `PlayniteAchievements` panel/toggle names and their references, while migrating
   plugin bindings and custom-control prefixes. Restore the migration backup
   before migrating themes whose names were merged by the old migration.
+- PS5 Experience Limited migration marks the PS5Core trophy list with
+  `Uid="PlayAch.Ps5TrophyProgress"`. The fork's runtime adapter corrects Local
+  rows from their unlocked trophy counts and refreshes percentage, counter,
+  and progress-bar bindings after PS5Core replaces rows or resets totals.
+- The adapter discovers live trophy windows after startup, including copied
+  templates that lose their marker or miss the initial Loaded event. Named-list
+  discovery is enabled only when the active fullscreen theme contains the
+  migration marker. Reverting the theme and restarting disables it.
+- PS5 migration introduces no plugin assembly or converter-resource dependency
+  into theme XAML: Playnite loads themes before plugins. It does not modify
+  PS5Core.dll or the achievement database. `[PS5Progress]` log entries record
+  adapter activation, live-list attachment, and corrected Local counts.
+- Re-migration removes the earlier failed markup extensions, inline converters,
+  and compiled-dictionary imports before enabling the runtime adapter.
+- Opening a game from the PS5 trophy list keeps its detail header consistent
+  with the list: four unlocked trophies out of 100 display `4%` and `4/100`.
+  Cover both `AchievementsViewModel.SelectedGame` and `OverlayTrophyGame`.
+  PS5Core 0.7.4 can omit Provider; the adapter must derive progress for those
+  rows rather than falling back to stale zero totals. Provider can also contain
+  platform labels such as `PC (Windows)`; do not use it to gate correction.
+  Both list and detail progress derive from trophy counts. Navigation and refreshed
+  selected-game objects update percentage, earned count and progress bar.
+  The empty-provider regression and actual PS5Core tests pass; the user
+  confirmed the detail-header correction on 2026-10-07.
+- PS5 achievement detail items synchronize unlock states and dates from the
+  fork's cached game data using the Playnite game ID and exact achievement API
+  name, without rewriting the database or PS5Core.dll. Unmatched or ambiguous
+  API names are left untouched. Reapply PS5Core's filter/sorting after changes,
+  and notify `CanSelectUnlocked` and `CanSelectLocked` so the filter buttons update.
+- With 11 unlocked achievements out of 100, All shows the correct states,
+  Unlocked is enabled and lists the 11 earned achievements, and Locked lists
+  the remaining 89. The user confirmed the fix on 2026-10-08. Cover changed
+  cached states, unlock dates, idempotence and the bound button's enabled state.
 - The StartPage add-on's Recent Achievements widget sorts achievements globally
   by unlock time while still respecting both its total maximum and its
   maximum-per-game setting.
@@ -290,6 +323,24 @@ Primary fork areas:
   are never exported or applied by the fork bundle.
 
 ## Minimum validation
+
+- PS5 Experience shows consistent Local-game trophy counts and completion:
+  four unlocked achievements out of 100 display `4%` and `4/100`.
+  The obsolete schema-v19 database reconciliation was removed; preserve the
+  Theme Migration/runtime adapter instead. Release rebuild and recovery/adapter
+  tests passed on 2026-10-07, including actual PS5Core 0.7.4 Local rows, row
+  replacement, reset counts, unload cleanup, theme loading
+  before the plugin, and late discovery. The user confirmed corrected progress
+  in fullscreen Playnite on 2026-10-07.
+  Run `tools/ThemeMigration/Test-Ps5TrophyProgress.ps1` for migration recovery and
+  `tools/ThemeMigration/Test-Ps5TrophyProgressBridge.ps1` with PowerShell `-STA`
+  for the runtime adapter. These scripts use the local Playnite/PS5Core paths;
+  adjust those paths when testing on another installation.
+- On 2026-10-08, the progress adapter and achievement-state regression tests
+  passed against PS5Core 0.7.4, including the `PC (Windows)` provider label and
+  actual WPF Unlocked-button availability updates. Run
+  `tools/ThemeMigration/Test-Ps5AchievementStates.ps1` with PowerShell `-STA`.
+  Release rebuild passed; the user confirmed working progress and filters.
 
 1. Run `Apply-ForkBundle.ps1 -DryRun` against a clean upstream worktree.
 2. Apply the bundle.

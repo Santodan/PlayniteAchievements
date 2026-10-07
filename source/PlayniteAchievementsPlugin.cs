@@ -623,6 +623,7 @@ namespace PlayniteAchievements
             // Before the first scope below, so a traced session covers startup too.
             PerfScope.ConfigureTracing(pluginUserDataPath);
             _logger = PluginLogger.GetLogger(nameof(PlayniteAchievementsPlugin));
+            Services.ThemeMigration.Ps5TrophyProgressBridge.Register();
             _themeControlRegistry = new ThemeControlRegistry();
             _resourceService = new AchievementResourceService(_logger);
 
@@ -1424,6 +1425,8 @@ namespace PlayniteAchievements
             using (PerfScope.StartStartup(_logger, "OnApplicationStarted", thresholdMs: 50))
             {
                 _applicationStarted = true;
+                Services.ThemeMigration.Ps5TrophyProgressBridge.SetAchievementDataResolver(id => _achievementDataService?.GetGameAchievementData(id));
+                Services.ThemeMigration.Ps5TrophyProgressBridge.Start(PlayniteApi, _logger);
 
                 // Measures the symptom rather than a suspected cause: every other timing here is
                 // a scope around code someone already suspected, and a reported freeze was
@@ -1922,6 +1925,7 @@ namespace PlayniteAchievements
         public override void OnApplicationStopped(OnApplicationStoppedEventArgs args)
         {
             _logger.Info("OnApplicationStopped called.");
+            Services.ThemeMigration.Ps5TrophyProgressBridge.Stop();
             _applicationStarted = false;
             // A control bar edit in the last second before exit is still waiting on its save.
             Services.Showcase.ShowcaseControlBarStateStore.Instance.Flush();

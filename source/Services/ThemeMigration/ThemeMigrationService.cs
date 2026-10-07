@@ -411,6 +411,7 @@ namespace PlayniteAchievements.Services.ThemeMigration
                     content,
                     "PlayniteAchievementsSantodanSantodan");
                 int localProviderCompatibilityCount = NeedsLocalProviderCompatibility(content) ? 1 : 0;
+                if (NeedsPs5TrophyProgressMigration(content)) localProviderCompatibilityCount++;
 
                 int totalCount = fullscreenHelperCount
                     + pluginIdCount
@@ -551,6 +552,7 @@ namespace PlayniteAchievements.Services.ThemeMigration
             else
             {
                 content = ProcessStandardFile(content, originalContent, ref textReplacements);
+                content = MigratePs5TrophyProgress(content, ref textReplacements);
             }
 
             // Apply selected modernization replacements if enabled
@@ -797,6 +799,53 @@ namespace PlayniteAchievements.Services.ThemeMigration
 
             return result;
         }
+
+        internal static bool NeedsPs5TrophyProgressMigration(string content)
+        {
+            return !string.IsNullOrEmpty(content) &&
+                (content.Contains(":Ps5TrophyProgress") || content.Contains("xmlns:playAchProgress=") ||
+                 content.Contains("PlayAch.Ps5TrophyProgress.") || content.Contains(";component/Resources/Ps5TrophyProgress.xaml") ||
+                 Regex.Matches(content, @"<ListBox\b[\s\S]*?</ListBox>").Cast<Match>().Any(match =>
+                     match.Value.Contains("AchievementsViewModel.Games") && match.Value.Contains("Plugin=PS5Core") &&
+                     !match.Value.Contains("Uid=\"PlayAch.Ps5TrophyProgress\"")));
+        }
+
+        private static string MigratePs5TrophyProgress(string content, ref int replacements)
+        {
+            if (!NeedsPs5TrophyProgressMigration(content)) return content;
+            var count = 0;
+            content = Regex.Replace(content,
+                @"<ResourceDictionary\s+Source=""[^""]*;component/Resources/Ps5TrophyProgress\.xaml""\s*/>",
+                match => { count++; return string.Empty; });
+            content = Regex.Replace(content,
+                @"<(?<element>TextBlock|Rectangle)\b(?<attributes>[^<>]*?)>\s*<\k<element>\.(?<property>Text|Width)><MultiBinding\b[\s\S]*?</MultiBinding></\k<element>\.\k<property>>",
+                match =>
+                {
+                    if (!match.Value.Contains("Ps5TrophyProgress")) return match.Value;
+                    count++;
+                    var path = match.Value.Contains("Ps5TrophyProgress.Counter}") || match.Value.Contains("Counter=\"True\"")
+                        ? "ProgressText" : "ProgressPercent";
+                    return "<" + match.Groups["element"].Value + match.Groups["attributes"].Value +
+                        " " + match.Groups["property"].Value + "=\"{Binding " + path + "}\">";
+                });
+            content = Regex.Replace(content, @"\{playAchProgress:Ps5TrophyProgress Counter=(?<counter>True|False)\}",
+                match => { count++; return "{Binding " + (match.Groups["counter"].Value == "True" ? "ProgressText" : "ProgressPercent") + "}"; });
+            content = Regex.Replace(content, @"\s+xmlns:playAchProgress=""[^""]*""",
+                match => { count++; return string.Empty; });
+            content = Regex.Replace(content, @"<ListBox\b[\s\S]*?</ListBox>", match =>
+            {
+                if (!match.Value.Contains("AchievementsViewModel.Games") || !match.Value.Contains("Plugin=PS5Core") ||
+                    match.Value.Contains("Uid=\"PlayAch.Ps5TrophyProgress\"")) return match.Value;
+                // Do not overwrite a theme's own Tag value.
+                var opening = Regex.Match(match.Value, @"<ListBox\b[^>]*>").Value;
+                if (Regex.IsMatch(opening, @"\bUid\s*=")) return match.Value;
+                count++;
+                return match.Value.Insert("<ListBox".Length, " Uid=\"PlayAch.Ps5TrophyProgress\"");
+            });
+            replacements += count;
+            return content;
+        }
+
 
         private static bool NeedsLocalProviderCompatibility(string content)
         {

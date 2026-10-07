@@ -955,7 +955,7 @@ index 3c2f7ebdcb2266fe7a653061062b1b2fa55d9a05..c4f1d6387e3e03ac1af406667350efbb
          {
              _resourceService.EnsureAchievementResourcesLoaded(_settingsViewModel.Settings);
 diff --git a/source/PlayniteAchievementsPlugin.cs b/source/PlayniteAchievementsPlugin.cs
-index 512376cde92327eab147d81dccc949b523b838b7..fc1131cd4df52cfa9624f0269825c180c1818c4f 100644
+index 512376cde92327eab147d81dccc949b523b838b7..91c2733a01cedbdb34e7e3e26a9e66945be852d9 100644
 --- a/source/PlayniteAchievementsPlugin.cs
 +++ b/source/PlayniteAchievementsPlugin.cs
 @@ -1,4 +1,4 @@
@@ -1122,7 +1122,15 @@ index 512376cde92327eab147d81dccc949b523b838b7..fc1131cd4df52cfa9624f0269825c180
          }
  
          // Public bridge method for external helpers/themes that used to target SuccessStory via reflection.
-@@ -559,6 +662,7 @@ public PlayniteAchievementsPlugin(IPlayniteAPI api) : base(api)
+@@ -520,6 +623,7 @@ public PlayniteAchievementsPlugin(IPlayniteAPI api) : base(api)
+             // Before the first scope below, so a traced session covers startup too.
+             PerfScope.ConfigureTracing(pluginUserDataPath);
+             _logger = PluginLogger.GetLogger(nameof(PlayniteAchievementsPlugin));
++            Services.ThemeMigration.Ps5TrophyProgressBridge.Register();
+             _themeControlRegistry = new ThemeControlRegistry();
+             _resourceService = new AchievementResourceService(_logger);
+ 
+@@ -559,6 +663,7 @@ public PlayniteAchievementsPlugin(IPlayniteAPI api) : base(api)
                      _settingsViewModel?.Settings?.Persisted?.RoundRarityPercentages ?? false;
  
                  FormattingCulture.Initialize(() => _settingsViewModel?.Settings?.Persisted?.GlobalLanguage);
@@ -1130,7 +1138,7 @@ index 512376cde92327eab147d81dccc949b523b838b7..fc1131cd4df52cfa9624f0269825c180
  
                  // NECESSARY TO MAKE SURE CHARTS WORK
                  var Circle = LiveCharts.Wpf.DefaultGeometries.Circle;
-@@ -581,8 +685,22 @@ public PlayniteAchievementsPlugin(IPlayniteAPI api) : base(api)
+@@ -581,8 +686,22 @@ public PlayniteAchievementsPlugin(IPlayniteAPI api) : base(api)
                  Views.Converters.ProviderIconConverter.CustomGeometryVersionResolver = id => _customProviderStore?.GetVersion(id) ?? 0;
  
                  // Create provider registry
@@ -1154,7 +1162,7 @@ index 512376cde92327eab147d81dccc949b523b838b7..fc1131cd4df52cfa9624f0269825c180
                  settings.Persisted?.MigrateLegacyProviderFriends();
                  _gameCustomDataStore = _settingsViewModel.GameCustomDataStore;
                  _gameCustomDataStore.AttachRuntimeSettings(settings);
-@@ -597,6 +715,13 @@ public PlayniteAchievementsPlugin(IPlayniteAPI api) : base(api)
+@@ -597,6 +716,13 @@ public PlayniteAchievementsPlugin(IPlayniteAPI api) : base(api)
                      providers = _providerRegistry.CreateProviders(settings, PlayniteApi, pluginUserDataPath);
                  }
  
@@ -1168,7 +1176,7 @@ index 512376cde92327eab147d81dccc949b523b838b7..fc1131cd4df52cfa9624f0269825c180
                  // Phase 3: Wire core services, refresh pipeline, and tagging.
                  using (PerfScope.StartStartup(_logger, "PluginCtor.RefreshServiceCreation", thresholdMs: 50))
                  {
-@@ -805,6 +930,7 @@ public PlayniteAchievementsPlugin(IPlayniteAPI api) : base(api)
+@@ -805,6 +931,7 @@ public PlayniteAchievementsPlugin(IPlayniteAPI api) : base(api)
                          // the field is assigned.
                          e => _unlockRecordings?.WouldRequestClip(e) ?? false,
                          (e, capHeight) => _unlockRecordings?.TryCaptureAnchorFrame(e, capHeight),
@@ -1176,7 +1184,7 @@ index 512376cde92327eab147d81dccc949b523b838b7..fc1131cd4df52cfa9624f0269825c180
                          _unlockSounds);
                      _unlockRecordings = new Services.Recording.UnlockRecordingService(
                          PlayniteApi,
-@@ -836,7 +962,7 @@ public PlayniteAchievementsPlugin(IPlayniteAPI api) : base(api)
+@@ -836,7 +963,7 @@ public PlayniteAchievementsPlugin(IPlayniteAPI api) : base(api)
                          _cacheManager,
                          _refreshService,
                          (request, policy) => _refreshCoordinator.ExecuteAsync(request, policy),
@@ -1185,7 +1193,16 @@ index 512376cde92327eab147d81dccc949b523b838b7..fc1131cd4df52cfa9624f0269825c180
  
                      // A running game's unlocks are announced by the monitor once its write or
                      // refresh returns, so a capstone that write finished is held for the monitor
-@@ -1761,6 +1887,38 @@ private void ReconfigureInGameMonitor()
+@@ -1298,6 +1425,8 @@ public override void OnApplicationStarted(OnApplicationStartedEventArgs args)
+             using (PerfScope.StartStartup(_logger, "OnApplicationStarted", thresholdMs: 50))
+             {
+                 _applicationStarted = true;
++                Services.ThemeMigration.Ps5TrophyProgressBridge.SetAchievementDataResolver(id => _achievementDataService?.GetGameAchievementData(id));
++                Services.ThemeMigration.Ps5TrophyProgressBridge.Start(PlayniteApi, _logger);
+ 
+                 // Measures the symptom rather than a suspected cause: every other timing here is
+                 // a scope around code someone already suspected, and a reported freeze was
+@@ -1761,9 +1890,42 @@ private void ReconfigureInGameMonitor()
              }
          }
  
@@ -1224,7 +1241,11 @@ index 512376cde92327eab147d81dccc949b523b838b7..fc1131cd4df52cfa9624f0269825c180
          public override void OnApplicationStopped(OnApplicationStoppedEventArgs args)
          {
              _logger.Info("OnApplicationStopped called.");
-@@ -1803,6 +1961,7 @@ public override void OnApplicationStopped(OnApplicationStoppedEventArgs args)
++            Services.ThemeMigration.Ps5TrophyProgressBridge.Stop();
+             _applicationStarted = false;
+             // A control bar edit in the last second before exit is still waiting on its save.
+             Services.Showcase.ShowcaseControlBarStateStore.Instance.Flush();
+@@ -1803,6 +1965,7 @@ public override void OnApplicationStopped(OnApplicationStoppedEventArgs args)
              DisposeStartPageViews();
  
              // Shutdown logging system
@@ -1232,7 +1253,7 @@ index 512376cde92327eab147d81dccc949b523b838b7..fc1131cd4df52cfa9624f0269825c180
              try { PluginLogger.Shutdown(); } catch (Exception ex) { System.Diagnostics.Trace.TraceError($"Failed to shutdown logger: {ex}"); }
          }
  
-@@ -2392,6 +2551,11 @@ private void Games_ItemCollectionChanged(object sender, ItemCollectionChangedEve
+@@ -2392,6 +2555,11 @@ private void Games_ItemCollectionChanged(object sender, ItemCollectionChangedEve
                          continue;
                      }
  
@@ -15711,7 +15732,7 @@ index c7907bc5645ba8d00ad195bca1cdac14cd243297..fa2595d627dcbdaaf71f77b54d93fd8e
                      }
                      catch (Exception ex)
 diff --git a/source/Services/ThemeMigration/ThemeDiscoveryService.cs b/source/Services/ThemeMigration/ThemeDiscoveryService.cs
-index 3060a8f3b0919e794e8988fdb08c9ff41126556b..13cfcd60019034621b70dbc493f425ba8ba4f2c8 100644
+index 3060a8f3b0919e794e8988fdb08c9ff41126556b..78a91630c60e0eb0d4bccd26d6461f33b9d02985 100644
 --- a/source/Services/ThemeMigration/ThemeDiscoveryService.cs
 +++ b/source/Services/ThemeMigration/ThemeDiscoveryService.cs
 @@ -16,6 +16,8 @@ public sealed class ThemeDiscoveryService
@@ -15773,7 +15794,7 @@ index 3060a8f3b0919e794e8988fdb08c9ff41126556b..13cfcd60019034621b70dbc493f425ba
 -                _logger.Error(ex, "Failed to get default themes path.");
 -                return null;
 +                _logger.Error(ex, "Failed to get default themes paths.");
-             }
++            }
 +
 +            return roots
 +                .Where(path => !string.IsNullOrWhiteSpace(path))
@@ -15802,7 +15823,7 @@ index 3060a8f3b0919e794e8988fdb08c9ff41126556b..13cfcd60019034621b70dbc493f425ba
 +
 +                    discoveredThemes[theme.Path] = theme;
 +                }
-+            }
+             }
 +
 +            return discoveredThemes.Values
 +                .OrderBy(theme => theme.BestDisplayName ?? theme.Name)
@@ -15818,7 +15839,7 @@ index 3060a8f3b0919e794e8988fdb08c9ff41126556b..13cfcd60019034621b70dbc493f425ba
                          }
  
                          if (ContainsMigratableReference(content))
-@@ -331,6 +375,34 @@ private static bool ContainsMigratableReference(string content)
+@@ -331,6 +375,36 @@ private static bool ContainsMigratableReference(string content)
                  return false;
              }
  
@@ -15850,10 +15871,12 @@ index 3060a8f3b0919e794e8988fdb08c9ff41126556b..13cfcd60019034621b70dbc493f425ba
 +                return true;
 +            }
 +
++            if (ThemeMigrationService.NeedsPs5TrophyProgressMigration(content)) return true;
++
              if (content.IndexOf("SuccessStoryFullscreenHelper", StringComparison.OrdinalIgnoreCase) >= 0 ||
                  content.IndexOf("playnite-successstory-plugin", StringComparison.OrdinalIgnoreCase) >= 0 ||
                  content.IndexOf("SSHelper", StringComparison.OrdinalIgnoreCase) >= 0 ||
-@@ -368,7 +440,9 @@ private static bool ContainsNativePlayniteAchievementsSupport(string content)
+@@ -368,7 +442,9 @@ private static bool ContainsNativePlayniteAchievementsSupport(string content)
                  return false;
              }
  
@@ -15865,7 +15888,7 @@ index 3060a8f3b0919e794e8988fdb08c9ff41126556b..13cfcd60019034621b70dbc493f425ba
  
          private static string GetStandaloneControlNamePattern(string controlName)
 diff --git a/source/Services/ThemeMigration/ThemeMigrationService.cs b/source/Services/ThemeMigration/ThemeMigrationService.cs
-index e99832f053dc6d8c7c954f48ce6980c4cb61eeee..541c6b8bc7f556e82915e64fb93871027dfb45e6 100644
+index e99832f053dc6d8c7c954f48ce6980c4cb61eeee..3c85044c0f839e5bc09e949bda75fcbb260ddff0 100644
 --- a/source/Services/ThemeMigration/ThemeMigrationService.cs
 +++ b/source/Services/ThemeMigration/ThemeMigrationService.cs
 @@ -24,6 +24,17 @@ public sealed class ThemeMigrationService
@@ -16025,7 +16048,7 @@ index e99832f053dc6d8c7c954f48ce6980c4cb61eeee..541c6b8bc7f556e82915e64fb9387102
          /// <summary>
          /// Gets the relative path from themePath to fullPath.
          /// </summary>
-@@ -345,7 +399,29 @@ private string GetRelativePath(string fullPath, string themePath)
+@@ -345,7 +399,30 @@ private string GetRelativePath(string fullPath, string themePath)
                  int successStoryCount = CountOccurrences(content, "SuccessStory");
                  int iconCount = CountOccurrences(content, "\uE820");  // SuccessStory trophy icon (U+E820)
                  int iconEntityCount = CountOccurrences(content, "&#xE820;");
@@ -16042,6 +16065,7 @@ index e99832f053dc6d8c7c954f48ce6980c4cb61eeee..541c6b8bc7f556e82915e64fb9387102
 +                    content,
 +                    "PlayniteAchievementsSantodanSantodan");
 +                int localProviderCompatibilityCount = NeedsLocalProviderCompatibility(content) ? 1 : 0;
++                if (NeedsPs5TrophyProgressMigration(content)) localProviderCompatibilityCount++;
 +
 +                int totalCount = fullscreenHelperCount
 +                    + pluginIdCount
@@ -16056,7 +16080,7 @@ index e99832f053dc6d8c7c954f48ce6980c4cb61eeee..541c6b8bc7f556e82915e64fb9387102
  
                  foreach (var mapping in GetSelectedControlMappings(mode, customSelection))
                  {
-@@ -354,6 +430,13 @@ private string GetRelativePath(string fullPath, string themePath)
+@@ -354,6 +431,13 @@ private string GetRelativePath(string fullPath, string themePath)
                      totalCount += CountOccurrences(content, $"PlayniteAchievements_{mapping.Key}");
                  }
  
@@ -16070,7 +16094,15 @@ index e99832f053dc6d8c7c954f48ce6980c4cb61eeee..541c6b8bc7f556e82915e64fb9387102
                  if (ShouldModernizeBindings(mode, customSelection))
                  {
                      foreach (var bindingPath in ControlMappings.LegacyToModernBindingPaths.Keys)
-@@ -552,7 +635,45 @@ private string ProcessYamlFile(string content, string originalContent, ref int r
+@@ -468,6 +552,7 @@ private List<string> ReadManifest(string backupPath)
+             else
+             {
+                 content = ProcessStandardFile(content, originalContent, ref textReplacements);
++                content = MigratePs5TrophyProgress(content, ref textReplacements);
+             }
+ 
+             // Apply selected modernization replacements if enabled
+@@ -552,7 +637,45 @@ private string ProcessYamlFile(string content, string originalContent, ref int r
          /// </summary>
          private string ProcessStandardFile(string content, string originalContent, ref int replacements)
          {
@@ -16117,7 +16149,7 @@ index e99832f053dc6d8c7c954f48ce6980c4cb61eeee..541c6b8bc7f556e82915e64fb9387102
          }
  
          /// <summary>
-@@ -563,27 +684,75 @@ private string ApplyReplacements(string content, string originalContent, ref int
+@@ -563,27 +686,75 @@ private string ApplyReplacements(string content, string originalContent, ref int
              string result = content;
  
              // Replace SuccessStoryFullscreenHelper first (most specific - fullscreen installation checks)
@@ -16202,7 +16234,7 @@ index e99832f053dc6d8c7c954f48ce6980c4cb61eeee..541c6b8bc7f556e82915e64fb9387102
  
              // Convert DataContext bindings to use PluginSettings with our exposed properties
              // {Binding SelectedGame.DisplayBackgroundImageObject} -> {PluginSettings Plugin=PlayniteAchievements, Path=SelectedGameBackgroundPath}
-@@ -613,9 +782,157 @@ private string ApplyReplacements(string content, string originalContent, ref int
+@@ -613,9 +784,204 @@ private string ApplyReplacements(string content, string originalContent, ref int
              result = result.Replace("&#xE820;", "&#xEDD7;");
              replacements += CountOccurrences(originalContent, "&#xE820;");
  
@@ -16219,9 +16251,56 @@ index e99832f053dc6d8c7c954f48ce6980c4cb61eeee..541c6b8bc7f556e82915e64fb9387102
 +
 +            result = ApplyLocalProviderCompatibility(result, ref replacements);
 +
-             return result;
-         }
- 
++            return result;
++        }
++
++        internal static bool NeedsPs5TrophyProgressMigration(string content)
++        {
++            return !string.IsNullOrEmpty(content) &&
++                (content.Contains(":Ps5TrophyProgress") || content.Contains("xmlns:playAchProgress=") ||
++                 content.Contains("PlayAch.Ps5TrophyProgress.") || content.Contains(";component/Resources/Ps5TrophyProgress.xaml") ||
++                 Regex.Matches(content, @"<ListBox\b[\s\S]*?</ListBox>").Cast<Match>().Any(match =>
++                     match.Value.Contains("AchievementsViewModel.Games") && match.Value.Contains("Plugin=PS5Core") &&
++                     !match.Value.Contains("Uid=\"PlayAch.Ps5TrophyProgress\"")));
++        }
++
++        private static string MigratePs5TrophyProgress(string content, ref int replacements)
++        {
++            if (!NeedsPs5TrophyProgressMigration(content)) return content;
++            var count = 0;
++            content = Regex.Replace(content,
++                @"<ResourceDictionary\s+Source=""[^""]*;component/Resources/Ps5TrophyProgress\.xaml""\s*/>",
++                match => { count++; return string.Empty; });
++            content = Regex.Replace(content,
++                @"<(?<element>TextBlock|Rectangle)\b(?<attributes>[^<>]*?)>\s*<\k<element>\.(?<property>Text|Width)><MultiBinding\b[\s\S]*?</MultiBinding></\k<element>\.\k<property>>",
++                match =>
++                {
++                    if (!match.Value.Contains("Ps5TrophyProgress")) return match.Value;
++                    count++;
++                    var path = match.Value.Contains("Ps5TrophyProgress.Counter}") || match.Value.Contains("Counter=\"True\"")
++                        ? "ProgressText" : "ProgressPercent";
++                    return "<" + match.Groups["element"].Value + match.Groups["attributes"].Value +
++                        " " + match.Groups["property"].Value + "=\"{Binding " + path + "}\">";
++                });
++            content = Regex.Replace(content, @"\{playAchProgress:Ps5TrophyProgress Counter=(?<counter>True|False)\}",
++                match => { count++; return "{Binding " + (match.Groups["counter"].Value == "True" ? "ProgressText" : "ProgressPercent") + "}"; });
++            content = Regex.Replace(content, @"\s+xmlns:playAchProgress=""[^""]*""",
++                match => { count++; return string.Empty; });
++            content = Regex.Replace(content, @"<ListBox\b[\s\S]*?</ListBox>", match =>
++            {
++                if (!match.Value.Contains("AchievementsViewModel.Games") || !match.Value.Contains("Plugin=PS5Core") ||
++                    match.Value.Contains("Uid=\"PlayAch.Ps5TrophyProgress\"")) return match.Value;
++                // Do not overwrite a theme's own Tag value.
++                var opening = Regex.Match(match.Value, @"<ListBox\b[^>]*>").Value;
++                if (Regex.IsMatch(opening, @"\bUid\s*=")) return match.Value;
++                count++;
++                return match.Value.Insert("<ListBox".Length, " Uid=\"PlayAch.Ps5TrophyProgress\"");
++            });
++            replacements += count;
++            return content;
++        }
++
++
 +        private static bool NeedsLocalProviderCompatibility(string content)
 +        {
 +            if (string.IsNullOrWhiteSpace(content))
@@ -16331,9 +16410,9 @@ index e99832f053dc6d8c7c954f48ce6980c4cb61eeee..541c6b8bc7f556e82915e64fb9387102
 +                }
 +            }
 +
-+            return result;
-+        }
-+
+             return result;
+         }
+ 
 +        private static string DuplicateMatchingBlock(
 +            string content,
 +            string pattern,
@@ -16360,7 +16439,7 @@ index e99832f053dc6d8c7c954f48ce6980c4cb61eeee..541c6b8bc7f556e82915e64fb9387102
          /// <summary>
          /// Applies modernization replacements: selected control element names and binding paths.
          /// </summary>
-@@ -637,6 +954,21 @@ private string ApplyModernizationReplacements(
+@@ -637,6 +1003,21 @@ private string ApplyModernizationReplacements(
                  controlReplacements += ReplaceStandaloneControlName(ref result, mapping.Key, mapping.Value);
              }
  
@@ -16382,7 +16461,7 @@ index e99832f053dc6d8c7c954f48ce6980c4cb61eeee..541c6b8bc7f556e82915e64fb9387102
              // Replace LegacyData binding paths with Theme binding paths
              // These appear in XAML as {Binding LegacyData.HasData} etc.
              if (ShouldModernizeBindings(mode, customSelection))
-@@ -675,7 +1007,16 @@ private static IEnumerable<KeyValuePair<string, string>> GetSelectedControlMappi
+@@ -675,7 +1056,16 @@ private static IEnumerable<KeyValuePair<string, string>> GetSelectedControlMappi
          {
              if (mode == MigrationMode.Full)
              {
@@ -16400,7 +16479,7 @@ index e99832f053dc6d8c7c954f48ce6980c4cb61eeee..541c6b8bc7f556e82915e64fb9387102
              }
  
              if (mode != MigrationMode.Custom || customSelection == null)
-@@ -684,7 +1025,54 @@ private static IEnumerable<KeyValuePair<string, string>> GetSelectedControlMappi
+@@ -684,7 +1074,54 @@ private static IEnumerable<KeyValuePair<string, string>> GetSelectedControlMappi
              }
  
              return ControlMappings.LegacyToModernControlNames
