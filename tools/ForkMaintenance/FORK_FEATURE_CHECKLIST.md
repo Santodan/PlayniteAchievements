@@ -115,6 +115,13 @@ at the repository root for remaining missing features and live-verification task
 
 Primary fork areas:
 
+- In-game monitoring remembers starting-cache unlocks, silent baseline reads,
+  and notification claims for the whole game session. With cached-unlock
+  protection disabled, a refresh that relocks achievements followed by a local
+  Steam read restoring them must not replay notifications. New achievements
+  still notify once across both monitoring sources; stopping the game clears
+  session tracking. Regression coverage: `InGameSessionUnlocksTests`.
+
 - `source/Services/NotificationPublisher.cs`
 - `source/Services/Logging/AchievementNotificationDebugLog.cs`
 - `source/Services/InGameAchievementPoller.cs`

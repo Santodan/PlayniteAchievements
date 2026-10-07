@@ -5550,7 +5550,7 @@ index bdeea89355de3690f442a8e0a891bb2e047ed49f..dfe55ec829a5056d442fc3ee9185b84e
  
      /// <summary>
 diff --git a/source/Services/InGameAchievementMonitor.cs b/source/Services/InGameAchievementMonitor.cs
-index bdf29db102ebcab0039aff256f969e562c14d8b3..65dd9609b75b8c37a99e8e5c857eab91520001e4 100644
+index bdf29db102ebcab0039aff256f969e562c14d8b3..e885c2048fcc7a44a4cf5bb315b4aa35e121f4db 100644
 --- a/source/Services/InGameAchievementMonitor.cs
 +++ b/source/Services/InGameAchievementMonitor.cs
 @@ -12,12 +12,14 @@
@@ -5589,7 +5589,26 @@ index bdf29db102ebcab0039aff256f969e562c14d8b3..65dd9609b75b8c37a99e8e5c857eab91
              public IDataProvider Provider;
              public IInGameProgressSource ProgressSource;
              public InGameProgressRegistration Registration;
-@@ -561,7 +568,7 @@ private Task RunTickAsync(CancellationToken token)
+@@ -93,8 +100,8 @@ public GamePollState()
+             public readonly CancellationToken SessionToken;
+             public readonly InGameReadSchedule Schedule = new InGameReadSchedule();
+             public readonly List<IDisposable> WatchSubscriptions = new List<IDisposable>();
+-            public readonly HashSet<string> ToastedUserKeys =
+-                new HashSet<string>(StringComparer.OrdinalIgnoreCase);
++            // Includes baseline unlocks as well as notification claims, independently of the cache.
++            public readonly InGameSessionUnlocks ToastedUserKeys = new InGameSessionUnlocks();
+             /// <summary>
+             /// Progress twin of <see cref="ToastedUserKeys"/>: the highest progress numerator
+             /// announced per achievement this session, so the two prongs never announce the same
+@@ -213,6 +220,7 @@ public void Start(Game game)
+                     NextFallbackDueUtc = now.AddSeconds(StartupDelaySeconds),
+                     NextFriendDueUtc = now.AddSeconds(StartupDelaySeconds).Add(GetFriendInterval())
+                 };
++                RememberUserUnlocks(state, _cacheManager?.LoadGameData(game.Id.ToString()));
+                 _games[game.Id] = state;
+ 
+             }
+@@ -561,7 +569,7 @@ private Task RunTickAsync(CancellationToken token)
                      .ToList();
                  foreach (var state in fallbackStates)
                  {
@@ -5598,17 +5617,36 @@ index bdf29db102ebcab0039aff256f969e562c14d8b3..65dd9609b75b8c37a99e8e5c857eab91
                  }
  
                  friendStates = _games.Values
-@@ -799,7 +806,8 @@ private void ApplyProgressResult(
+@@ -799,7 +807,12 @@ private void ApplyProgressResult(
                  primed,
                  sessionStartUtc,
                  after,
 -                write.NewlyUnlockedKeys);
 +                write.NewlyUnlockedKeys,
 +                state.Provider?.ProviderKey);
++            lock (_stateLock)
++            {
++                emittableKeys = emittableKeys.Where(key => !state.ToastedUserKeys.Contains(key)).ToList();
++            }
              AchievementUnlockedEventArgs completion = null;
              if (emittableKeys.Count > 0)
              {
-@@ -947,14 +955,15 @@ private static IReadOnlyList<string> SelectEmittableKeys(
+@@ -814,6 +827,14 @@ private void ApplyProgressResult(
+                     anchorBias);
+             }
+ 
++            // Silent baseline observations must also be remembered: a later refresh may relock
++            // the cache, but restoring those unlocks must not turn backlog into notifications.
++            lock (_stateLock)
++            {
++                state.ToastedUserKeys.Remember(query.Achievements
++                    .Where(a => a?.Unlocked == true).Select(a => a.ApiName));
++            }
++
+             AnnounceHeldCapstones(state.Game.Id, emittableKeys.Count > 0, observedUtc, anchorPolicy, anchorBias);
+ 
+             if (completion != null)
+@@ -947,14 +968,15 @@ private static IReadOnlyList<string> SelectEmittableKeys(
              bool primed,
              DateTime sessionStartUtc,
              GameAchievementData after,
@@ -5626,7 +5664,7 @@ index bdf29db102ebcab0039aff256f969e562c14d8b3..65dd9609b75b8c37a99e8e5c857eab91
              {
                  return newlyUnlockedKeys;
              }
-@@ -972,7 +981,10 @@ private static IReadOnlyList<string> SelectEmittableKeys(
+@@ -972,7 +994,10 @@ private static IReadOnlyList<string> SelectEmittableKeys(
                  .Where(key =>
                      !string.IsNullOrWhiteSpace(key) &&
                      unlockTimeByKey.TryGetValue(key, out var unlockTimeUtc) &&
@@ -5638,7 +5676,7 @@ index bdf29db102ebcab0039aff256f969e562c14d8b3..65dd9609b75b8c37a99e8e5c857eab91
                  .ToList();
          }
  
-@@ -1042,6 +1054,9 @@ provider is IInGameProgressSource candidate &&
+@@ -1042,6 +1067,9 @@ provider is IInGameProgressSource candidate &&
  
              var nextTargets = NormalizeTargets(registration?.WatchTargets);
              var previousTargets = NormalizeTargets(state.Registration?.WatchTargets);
@@ -5648,7 +5686,7 @@ index bdf29db102ebcab0039aff256f969e562c14d8b3..65dd9609b75b8c37a99e8e5c857eab91
              var equivalent =
                  preservePrimeWhenEquivalent &&
                  string.Equals(state.Provider?.ProviderKey, provider.ProviderKey, StringComparison.OrdinalIgnoreCase) &&
-@@ -1052,6 +1067,8 @@ provider is IInGameProgressSource candidate &&
+@@ -1052,6 +1080,8 @@ provider is IInGameProgressSource candidate &&
                  state.Registration?.UnlockAnchorBias == registration?.UnlockAnchorBias;
  
              List<IDisposable> oldSubscriptions = null;
@@ -5657,7 +5695,7 @@ index bdf29db102ebcab0039aff256f969e562c14d8b3..65dd9609b75b8c37a99e8e5c857eab91
              int generation;
              lock (_stateLock)
              {
-@@ -1067,6 +1084,7 @@ provider is IInGameProgressSource candidate &&
+@@ -1067,6 +1097,7 @@ provider is IInGameProgressSource candidate &&
                  }
                  generation = state.Generation;
                  state.Provider = provider;
@@ -5665,7 +5703,7 @@ index bdf29db102ebcab0039aff256f969e562c14d8b3..65dd9609b75b8c37a99e8e5c857eab91
                  state.ProgressSource = progressSource;
                  state.Registration = registration;
                  state.CachedSchema = cached;
-@@ -1077,6 +1095,14 @@ provider is IInGameProgressSource candidate &&
+@@ -1077,6 +1108,14 @@ provider is IInGameProgressSource candidate &&
                  }
  
                  var now = CaptureTimelineClock.UtcNow;
@@ -5680,7 +5718,7 @@ index bdf29db102ebcab0039aff256f969e562c14d8b3..65dd9609b75b8c37a99e8e5c857eab91
                  state.Schedule.Configure(
                      now,
                      progressSource != null,
-@@ -1087,6 +1113,14 @@ provider is IInGameProgressSource candidate &&
+@@ -1087,6 +1126,14 @@ provider is IInGameProgressSource candidate &&
                  {
                      state.NextFriendDueUtc = configuredFriendDue;
                  }
@@ -5695,7 +5733,7 @@ index bdf29db102ebcab0039aff256f969e562c14d8b3..65dd9609b75b8c37a99e8e5c857eab91
              }
  
              DisposeSubscriptions(oldSubscriptions);
-@@ -1123,9 +1157,13 @@ provider is IInGameProgressSource candidate &&
+@@ -1123,9 +1170,13 @@ provider is IInGameProgressSource candidate &&
                  DisposeSubscriptions(subscriptions);
              }
  
@@ -5712,7 +5750,7 @@ index bdf29db102ebcab0039aff256f969e562c14d8b3..65dd9609b75b8c37a99e8e5c857eab91
              return true;
          }
  
-@@ -1212,28 +1250,44 @@ private async Task RunFallbackBatchAsync(
+@@ -1212,28 +1263,44 @@ private async Task RunFallbackBatchAsync(
                          state => _cacheManager?.LoadGameData(state.Game.Id.ToString()));
                      var gameIds = batch.Select(state => state.Game.Id).ToList();
                      var timer = Stopwatch.StartNew();
@@ -5776,7 +5814,7 @@ index bdf29db102ebcab0039aff256f969e562c14d8b3..65dd9609b75b8c37a99e8e5c857eab91
                      timer.Stop();
  
                      foreach (var state in batch)
-@@ -1254,7 +1308,10 @@ await _executeRefreshAsync(
+@@ -1254,12 +1321,16 @@ await _executeRefreshAsync(
                                  InGameUnlockEmissionPolicy.ShouldEmit(
                                      primed,
                                      state.SessionStartUtc,
@@ -5788,7 +5826,38 @@ index bdf29db102ebcab0039aff256f969e562c14d8b3..65dd9609b75b8c37a99e8e5c857eab91
                              .Select(achievement => achievement.ApiName)
                              .ToList();
  
-@@ -1735,7 +1792,9 @@ private HashSet<string> GetToastedFriendSet(GamePollState state, FriendPollTarge
+                         lock (_stateLock)
+                         {
++                            keys = keys.Where(key => !state.ToastedUserKeys.Contains(key)).ToList();
+                             state.CachedSchema = after;
+                             state.Schedule.MarkPrimed();
+                         }
+@@ -1281,6 +1352,8 @@ await _executeRefreshAsync(
+                                 InGameUnlockAnchorSelector.ResolvePolicy(state.Registration),
+                                 state.Registration?.UnlockAnchorBias ?? TimeSpan.Zero);
+ 
++                        RememberUserUnlocks(state, after);
++
+                         // The refresh above already brought the capstone up to date; its unlock
+                         // was held so it lands here, after the achievement that earned it.
+                         AnnounceHeldCapstones(
+@@ -1380,6 +1453,15 @@ private static void DisposeSubscriptions(IEnumerable<IDisposable> subscriptions)
+             }
+         }
+ 
++        private void RememberUserUnlocks(GamePollState state, GameAchievementData data)
++        {
++            lock (_stateLock)
++            {
++                state.ToastedUserKeys.Remember(data?.Achievements?
++                    .Where(a => a?.Unlocked == true).Select(a => a.ApiName));
++            }
++        }
++
+         private AchievementUnlockedEventArgs EmitUserUnlocks(
+             GamePollState state,
+             GameAchievementData before,
+@@ -1735,7 +1817,9 @@ private HashSet<string> GetToastedFriendSet(GamePollState state, FriendPollTarge
          private bool ShouldPollGame(Game game, bool logReason)
          {
              var persisted = _settings?.Persisted;
@@ -5799,7 +5868,7 @@ index bdf29db102ebcab0039aff256f969e562c14d8b3..65dd9609b75b8c37a99e8e5c857eab91
              {
                  if (logReason) _logger?.Debug("[InGameMonitor] Disabled in settings.");
                  return false;
-@@ -1767,9 +1826,37 @@ private bool ShouldRunFriendRefresh()
+@@ -1767,9 +1851,37 @@ private bool ShouldRunFriendRefresh()
  
          private TimeSpan GetPollInterval()
          {
@@ -21452,7 +21521,7 @@ index 6540186542539bcacc888b91ed1ce24e769c43c9..ba52642bc7e5f16cc77de687c3cefca0
          public void CloneAndCopyFrom_PreserveEnableFriendsFeatures()
          {
 diff --git a/tests/PlayniteAchievements.Tests/PlayniteAchievements.Tests.csproj b/tests/PlayniteAchievements.Tests/PlayniteAchievements.Tests.csproj
-index e9fc83236c2e7c882a93dd50d6efba38ad2da142..da2ad120365569081d119404efeb4ab0f117aa88 100644
+index e9fc83236c2e7c882a93dd50d6efba38ad2da142..77365cfc8191fccb7d435ee3cfb5ec8bce1ffb2b 100644
 --- a/tests/PlayniteAchievements.Tests/PlayniteAchievements.Tests.csproj
 +++ b/tests/PlayniteAchievements.Tests/PlayniteAchievements.Tests.csproj
 @@ -1,4 +1,4 @@
@@ -21461,7 +21530,15 @@ index e9fc83236c2e7c882a93dd50d6efba38ad2da142..da2ad120365569081d119404efeb4ab0
    <PropertyGroup>
      <TargetFramework>net462</TargetFramework>
      <IsPackable>false</IsPackable>
-@@ -106,6 +106,7 @@
+@@ -86,6 +86,7 @@
+     <Compile Include="..\..\source\Services\Cache\IInGameProgressCacheWriter.cs" Link="Source\Services\Cache\IInGameProgressCacheWriter.cs" />
+     <Compile Include="..\..\source\Services\InGameMonitoring\InGameReadSchedule.cs" Link="Source\Services\InGameMonitoring\InGameReadSchedule.cs" />
+     <Compile Include="..\..\source\Services\InGameMonitoring\InGameUnlockEmissionPolicy.cs" Link="Source\Services\InGameMonitoring\InGameUnlockEmissionPolicy.cs" />
++    <Compile Include="..\..\source\Services\InGameMonitoring\InGameSessionUnlocks.cs" Link="Source\Services\InGameMonitoring\InGameSessionUnlocks.cs" />
+     <Compile Include="..\..\source\Services\InGameMonitoring\InGameUnlockEmissionOrder.cs" Link="Source\Services\InGameMonitoring\InGameUnlockEmissionOrder.cs" />
+     <Compile Include="..\..\source\Providers\Steam\SteamTimeParser.cs" Link="Source\Providers\Steam\SteamTimeParser.cs" />
+     <Compile Include="..\..\source\Providers\Steam\SteamStatsPageClassifier.cs" Link="Source\Providers\Steam\SteamStatsPageClassifier.cs" />
+@@ -106,6 +107,7 @@
      <Compile Include="..\..\source\Models\CustomRefreshOptions.cs" Link="Source\Models\CustomRefreshOptions.cs" />
      <Compile Include="..\..\source\Models\RefreshRequest.cs" Link="Source\Models\RefreshRequest.cs" />
      <Compile Include="..\..\source\Services\Refresh\RefreshEntryPoint.cs" Link="Source\Services\Refresh\RefreshEntryPoint.cs" />
@@ -21469,7 +21546,7 @@ index e9fc83236c2e7c882a93dd50d6efba38ad2da142..da2ad120365569081d119404efeb4ab0
      <Compile Include="..\..\source\Services\LegacyManualLinkImporter.cs" Link="Source\Services\LegacyManualLinkImporter.cs" />
      <Compile Include="..\..\source\Services\GameCustomData\GameCustomDataStore.cs" Link="Source\Services\GameCustomData\GameCustomDataStore.cs" />
      <Compile Include="..\..\source\Services\GameCustomData\GameCustomDataStore.CustomAchievementsPackage.cs" Link="Source\Services\GameCustomData\GameCustomDataStore.CustomAchievementsPackage.cs" />
-@@ -195,6 +196,7 @@
+@@ -195,6 +197,7 @@
      <Compile Include="..\..\source\Services\GameSummariesSortHelper.cs" Link="Source\Services\GameSummariesSortHelper.cs" />
      <Compile Include="..\..\source\Services\FriendSummarySortHelper.cs" Link="Source\Services\FriendSummarySortHelper.cs" />
      <Compile Include="..\..\source\Services\DisplayGridRowLimitHelper.cs" Link="Source\Services\DisplayGridRowLimitHelper.cs" />
@@ -21477,7 +21554,7 @@ index e9fc83236c2e7c882a93dd50d6efba38ad2da142..da2ad120365569081d119404efeb4ab0
      <Compile Include="..\..\source\Services\Search\SearchQuery.cs" Link="Source\Services\Search\SearchQuery.cs" />
      <Compile Include="..\..\source\Services\Search\SearchTextBuilder.cs" Link="Source\Services\Search\SearchTextBuilder.cs" />
      <Compile Include="..\..\source\Services\Search\SearchTextIndex.cs" Link="Source\Services\Search\SearchTextIndex.cs" />
-@@ -428,6 +430,7 @@
+@@ -428,6 +431,7 @@
      <Compile Include="..\..\source\Models\Settings\PersistedSettings.cs" Link="Source\Models\Settings\PersistedSettings.cs" />
      <Compile Include="..\..\source\Models\Settings\PersistedSettings.GridCompatibility.cs" Link="Source\Models\Settings\PersistedSettings.GridCompatibility.cs" />
      <Compile Include="..\..\source\Models\Settings\PersistedSettings.GridCompatibility.Notifications.cs" Link="Source\Models\Settings\PersistedSettings.GridCompatibility.Notifications.cs" />
@@ -21485,7 +21562,7 @@ index e9fc83236c2e7c882a93dd50d6efba38ad2da142..da2ad120365569081d119404efeb4ab0
      <Compile Include="..\..\source\Models\Settings\ProgressBadgeSource.cs" Link="Source\Models\Settings\ProgressBadgeSource.cs" />
      <Compile Include="..\..\source\Models\Settings\ProviderNotificationOverride.cs" Link="Source\Models\Settings\ProviderNotificationOverride.cs" />
      <Compile Include="..\..\source\Models\Settings\FrameVignetteStyle.cs" Link="Source\Models\Settings\FrameVignetteStyle.cs" />
-@@ -437,6 +440,7 @@
+@@ -437,6 +441,7 @@
      <Compile Include="..\..\source\Models\Settings\NotificationStyleSettingsMigration.cs" Link="Source\Models\Settings\NotificationStyleSettingsMigration.cs" />
      <Compile Include="..\..\source\Models\Settings\RecordingEnums.cs" Link="Source\Models\Settings\RecordingEnums.cs" />
      <Compile Include="..\..\source\Models\Settings\ScreenshotResolution.cs" Link="Source\Models\Settings\ScreenshotResolution.cs" />
@@ -21493,7 +21570,7 @@ index e9fc83236c2e7c882a93dd50d6efba38ad2da142..da2ad120365569081d119404efeb4ab0
      <Compile Include="..\..\source\Models\Settings\RarityColorSettings.cs" Link="Source\Models\Settings\RarityColorSettings.cs" />
      <Compile Include="..\..\source\Models\Settings\UnlockSoundSettings.cs" Link="Source\Models\Settings\UnlockSoundSettings.cs" />
      <Compile Include="..\..\source\Models\Settings\ResourceOverrideDescriptor.cs" Link="Source\Models\Settings\ResourceOverrideDescriptor.cs" />
-@@ -455,6 +459,7 @@
+@@ -455,6 +460,7 @@
      <Compile Include="..\..\source\Models\Settings\GridVerticalAlignment.cs" Link="Source\Models\Settings\GridVerticalAlignment.cs" />
      <Compile Include="..\..\source\Models\Settings\CompactListSortMode.cs" Link="Source\Models\Settings\CompactListSortMode.cs" />
      <Compile Include="..\..\source\Models\Settings\GameSummariesSortMode.cs" Link="Source\Models\Settings\GameSummariesSortMode.cs" />
@@ -21501,7 +21578,7 @@ index e9fc83236c2e7c882a93dd50d6efba38ad2da142..da2ad120365569081d119404efeb4ab0
      <Compile Include="..\..\source\Models\Settings\FriendSummariesSortMode.cs" Link="Source\Models\Settings\FriendSummariesSortMode.cs" />
      <Compile Include="..\..\source\Models\Settings\GridOptions.cs" Link="Source\Models\Settings\GridOptions.cs" />
      <Compile Include="..\..\source\Views\Settings\Controls\GridDisplaySurfaces.cs" Link="Source\Views\Settings\Controls\GridDisplaySurfaces.cs" />
-@@ -576,6 +581,7 @@
+@@ -576,6 +582,7 @@
      <Compile Include="..\..\source\Services\Refresh\FriendRefreshWorkPolicy.cs" Link="Source\Services\Refresh\FriendRefreshWorkPolicy.cs" />
      <Compile Include="..\..\source\Services\Refresh\RefreshStateManager.cs" Link="Source\Services\Refresh\RefreshStateManager.cs" />
      <Compile Include="..\..\source\Services\Refresh\TargetSelectionResolver.cs" Link="Source\Services\Refresh\TargetSelectionResolver.cs" />
@@ -21509,7 +21586,7 @@ index e9fc83236c2e7c882a93dd50d6efba38ad2da142..da2ad120365569081d119404efeb4ab0
      <Compile Include="..\..\source\Services\ProgressReporting\ProgressReportingService.cs" Link="Source\Services\ProgressReporting\ProgressReportingService.cs" />
      <Compile Include="..\..\source\Services\ProgressReporting\RefreshProgressReporter.cs" Link="Source\Services\ProgressReporting\RefreshProgressReporter.cs" />
      <Compile Include="..\..\source\Services\Friends\FriendCacheModels.cs" Link="Source\Services\Friends\FriendCacheModels.cs" />
-@@ -630,6 +636,9 @@
+@@ -630,6 +637,9 @@
      <Compile Include="..\..\source\Services\UI\UnlockClipVariantPolicy.cs" Link="Source\Services\UI\UnlockClipVariantPolicy.cs" />
      <Compile Include="..\..\source\Services\UI\ToastWindowPlacer.cs" Link="Source\Services\UI\ToastWindowPlacer.cs" />
      <Compile Include="..\..\source\Services\UI\UnlockScreenshotService.cs" Link="Source\Services\UI\UnlockScreenshotService.cs" />

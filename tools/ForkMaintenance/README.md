@@ -60,6 +60,10 @@ explains this action. The Release rebuild passed; a live notification-click
 restart check remains pending.
 Git output and generated JSON/XML/patch reads explicitly use UTF-8, including
 under Windows PowerShell 5.1, to preserve non-ASCII text during export/application.
+The bundle also captures session unlock tracking to prevent cached achievements
+from replaying notifications after a refresh relocks them. Starting-cache unlocks,
+silent baseline observations, and announced unlocks remain remembered until the
+game stops. Seven targeted tests passed and the Release rebuild succeeded.
 
 The refreshed bundle was dry-run validated against a separate clean checkout of
 upstream v4.0.1 (`79108753e3f8ddc775aa569ff8f5ed0362f3f22b`): the three-way

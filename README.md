@@ -116,6 +116,7 @@ The entries below are fork-side changes, grouped by date. When a date includes a
 - `PS5-Experience` theme now available in the `Theme Migration`
 - `Automatically migrate new themes` will respect the selected settings
 - Clicking the `New Theme Migrated` popup will restart playnite automatically
+- Fixed achievement notification replay after cache relocks and update fork bundle
 
 ## 2026-10-05 - v4.0.1.1
 

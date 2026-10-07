@@ -100,8 +100,8 @@ namespace PlayniteAchievements.Services
             public readonly CancellationToken SessionToken;
             public readonly InGameReadSchedule Schedule = new InGameReadSchedule();
             public readonly List<IDisposable> WatchSubscriptions = new List<IDisposable>();
-            public readonly HashSet<string> ToastedUserKeys =
-                new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            // Includes baseline unlocks as well as notification claims, independently of the cache.
+            public readonly InGameSessionUnlocks ToastedUserKeys = new InGameSessionUnlocks();
             /// <summary>
             /// Progress twin of <see cref="ToastedUserKeys"/>: the highest progress numerator
             /// announced per achievement this session, so the two prongs never announce the same
@@ -220,6 +220,7 @@ namespace PlayniteAchievements.Services
                     NextFallbackDueUtc = now.AddSeconds(StartupDelaySeconds),
                     NextFriendDueUtc = now.AddSeconds(StartupDelaySeconds).Add(GetFriendInterval())
                 };
+                RememberUserUnlocks(state, _cacheManager?.LoadGameData(game.Id.ToString()));
                 _games[game.Id] = state;
 
             }
@@ -808,6 +809,10 @@ namespace PlayniteAchievements.Services
                 after,
                 write.NewlyUnlockedKeys,
                 state.Provider?.ProviderKey);
+            lock (_stateLock)
+            {
+                emittableKeys = emittableKeys.Where(key => !state.ToastedUserKeys.Contains(key)).ToList();
+            }
             AchievementUnlockedEventArgs completion = null;
             if (emittableKeys.Count > 0)
             {
@@ -820,6 +825,14 @@ namespace PlayniteAchievements.Services
                     observedUtc,
                     anchorPolicy,
                     anchorBias);
+            }
+
+            // Silent baseline observations must also be remembered: a later refresh may relock
+            // the cache, but restoring those unlocks must not turn backlog into notifications.
+            lock (_stateLock)
+            {
+                state.ToastedUserKeys.Remember(query.Achievements
+                    .Where(a => a?.Unlocked == true).Select(a => a.ApiName));
             }
 
             AnnounceHeldCapstones(state.Game.Id, emittableKeys.Count > 0, observedUtc, anchorPolicy, anchorBias);
@@ -1317,6 +1330,7 @@ namespace PlayniteAchievements.Services
 
                         lock (_stateLock)
                         {
+                            keys = keys.Where(key => !state.ToastedUserKeys.Contains(key)).ToList();
                             state.CachedSchema = after;
                             state.Schedule.MarkPrimed();
                         }
@@ -1337,6 +1351,8 @@ namespace PlayniteAchievements.Services
                                 // resolves to ProviderReported.
                                 InGameUnlockAnchorSelector.ResolvePolicy(state.Registration),
                                 state.Registration?.UnlockAnchorBias ?? TimeSpan.Zero);
+
+                        RememberUserUnlocks(state, after);
 
                         // The refresh above already brought the capstone up to date; its unlock
                         // was held so it lands here, after the achievement that earned it.
@@ -1434,6 +1450,15 @@ namespace PlayniteAchievements.Services
                 catch
                 {
                 }
+            }
+        }
+
+        private void RememberUserUnlocks(GamePollState state, GameAchievementData data)
+        {
+            lock (_stateLock)
+            {
+                state.ToastedUserKeys.Remember(data?.Achievements?
+                    .Where(a => a?.Unlocked == true).Select(a => a.ApiName));
             }
         }
 

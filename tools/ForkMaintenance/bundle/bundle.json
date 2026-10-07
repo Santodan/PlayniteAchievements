@@ -1,6 +1,6 @@
 {
     "schemaVersion":  1,
-    "generatedUtc":  "2026-10-08T15:19:08.0816237Z",
+    "generatedUtc":  "2026-10-08T15:19:13.8287488Z",
     "baselineRef":  "79108753e3f8ddc775aa569ff8f5ed0362f3f22b",
     "baselineCommit":  "79108753e3f8ddc775aa569ff8f5ed0362f3f22b",
     "protectedPaths":  [
@@ -11,7 +11,7 @@
                        ],
     "patch":  {
                   "path":  "fork-changes.patch",
-                  "sha256":  "FE558163059F66CE862E01ED5FA77571F247BE426158305556EC7FAEE748BDD3"
+                  "sha256":  "D8EA66B4FC5823441CE34E45A2C93FDBF5CDA1356E065CCFBC56A8C2F5F83B91"
               },
     "localizationRecipes":  {
                                 "path":  "localization-recipes.json",
@@ -233,6 +233,10 @@
                              "sha256":  "5C374747F81C18BBF25CB9EEE90673C5772B0E49097AF5A9EAEB0E1AD6834E4D"
                          },
                          {
+                             "path":  "source/Services/InGameMonitoring/InGameSessionUnlocks.cs",
+                             "sha256":  "54D67C990B952F138678157869090CBD3D4DA4F8E43F0F187D519776EB2FF519"
+                         },
+                         {
                              "path":  "source/Services/Local/ActiveGameAchievementMonitor.cs",
                              "sha256":  "034590F9631AA7399E1DC62327B75166421C4A045C3ED1CA1613173F77DC6652"
                          },
@@ -371,6 +375,10 @@
                          {
                              "path":  "tests/PlayniteAchievements.Tests/Models/ThemeMigrationSettingsTests.cs",
                              "sha256":  "D43DCF4CA916AC97AE819E1850BDECDE217229F4E22409EF89C2D4723E7F35BE"
+                         },
+                         {
+                             "path":  "tests/PlayniteAchievements.Tests/Services/InGameSessionUnlocksTests.cs",
+                             "sha256":  "B3B2B5C94EE6FEE0A9E7B7D6B47EC2818D3422055A34E56E2D6A07FF0ADDB0E2"
                          },
                          {
                              "path":  "tests/PlayniteAchievements.Tests/Services/NewGameAutoRefreshPolicyTests.cs",
