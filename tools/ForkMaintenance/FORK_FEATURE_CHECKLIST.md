@@ -58,6 +58,19 @@ at the repository root for remaining missing features and live-verification task
 - Preserve AddonDBManifest.yaml, source/extension.yaml, InstallerManifest.yaml,
   and README.md during bundle application. No commit/push without user approval.
 
+## Maintenance logs
+
+- General > Maintenance ends with Open logs, Copy Logs, and Delete Logs.
+- Each action lets the user select playnite.log, extensions.log, and/or
+  playniteachievements.log. Copy then asks for a destination folder and confirms
+  overwrites; Delete confirms the selected files before deleting them.
+- Playnite logs resolve from the application folder; the achievement log resolves
+  from the plugin user data folder. Missing or locked files are reported individually.
+- Selection dialog instructions follow the theme text color, and Cancel uses the
+  plugin localization key. Successful Open operations show no completion dialog.
+- Verify these dialogs in Playnite, including cancellation, copying active logs,
+  and log recreation after deletion. The Release rebuild passed.
+
 ## Achievement notifications
 
 - The separate Achievement Notification settings page is populated with its

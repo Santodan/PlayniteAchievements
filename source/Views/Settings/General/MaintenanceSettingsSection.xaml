@@ -162,6 +162,19 @@
                             </controls:SettingRow>
                         </StackPanel>
                     </Border>
+                    <Border Style="{StaticResource SettingGroupCardStyle}">
+                        <StackPanel>
+                            <TextBlock Text="Logs" Style="{StaticResource SubSectionHeaderStyle}"/>
+                            <WrapPanel Margin="0,8,0,0">
+                                <Button Content="Open logs" Click="OpenLogs_Click" MinWidth="130" Margin="0,0,8,8"
+                                        Padding="{StaticResource PlayAch.Thickness.ButtonPadding.Wide}"/>
+                                <Button Content="Copy Logs" Click="CopyLogs_Click" MinWidth="130" Margin="0,0,8,8"
+                                        Padding="{StaticResource PlayAch.Thickness.ButtonPadding.Wide}"/>
+                                <Button Content="Delete Logs" Click="DeleteLogs_Click" MinWidth="130" Margin="0,0,0,8"
+                                        Padding="{StaticResource PlayAch.Thickness.ButtonPadding.Wide}"/>
+                            </WrapPanel>
+                        </StackPanel>
+                    </Border>
                 </StackPanel>
             </Border>
 

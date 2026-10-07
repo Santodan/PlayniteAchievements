@@ -20611,7 +20611,7 @@ index f380a0c8f2e4d0168462c3a8ab921737dafb2d7b..69cc88bd85b350373041d291c4cf5513
  
          private static string L(string key)
 diff --git a/source/Views/Settings/General/MaintenanceSettingsSection.xaml b/source/Views/Settings/General/MaintenanceSettingsSection.xaml
-index 32c027583995e2f2d0359ca989604ce792b5b80d..43c2472b5502f0e9234063b943ffc475ff13644e 100644
+index 32c027583995e2f2d0359ca989604ce792b5b80d..16d164be81b52e2c30fb416258800721ea1a7ccd 100644
 --- a/source/Views/Settings/General/MaintenanceSettingsSection.xaml
 +++ b/source/Views/Settings/General/MaintenanceSettingsSection.xaml
 @@ -43,6 +43,11 @@
@@ -20626,6 +20626,171 @@ index 32c027583995e2f2d0359ca989604ce792b5b80d..43c2472b5502f0e9234063b943ffc475
                              <controls:SettingRow Label="{DynamicResource LOCPlayAch_Settings_ClearUnownedFriendData_Description}"
                                                   Margin="0">
                                  <Button Content="{DynamicResource LOCPlayAch_Button_Clear}"
+@@ -157,6 +162,19 @@
+                             </controls:SettingRow>
+                         </StackPanel>
+                     </Border>
++                    <Border Style="{StaticResource SettingGroupCardStyle}">
++                        <StackPanel>
++                            <TextBlock Text="Logs" Style="{StaticResource SubSectionHeaderStyle}"/>
++                            <WrapPanel Margin="0,8,0,0">
++                                <Button Content="Open logs" Click="OpenLogs_Click" MinWidth="130" Margin="0,0,8,8"
++                                        Padding="{StaticResource PlayAch.Thickness.ButtonPadding.Wide}"/>
++                                <Button Content="Copy Logs" Click="CopyLogs_Click" MinWidth="130" Margin="0,0,8,8"
++                                        Padding="{StaticResource PlayAch.Thickness.ButtonPadding.Wide}"/>
++                                <Button Content="Delete Logs" Click="DeleteLogs_Click" MinWidth="130" Margin="0,0,0,8"
++                                        Padding="{StaticResource PlayAch.Thickness.ButtonPadding.Wide}"/>
++                            </WrapPanel>
++                        </StackPanel>
++                    </Border>
+                 </StackPanel>
+             </Border>
+ 
+diff --git a/source/Views/Settings/General/MaintenanceSettingsSection.xaml.cs b/source/Views/Settings/General/MaintenanceSettingsSection.xaml.cs
+index 5c5a5b6752466b5d8b6b60736cdb5f57989391d3..975ffad00313b28f551a5cfcfd5bd01014b0fe65 100644
+--- a/source/Views/Settings/General/MaintenanceSettingsSection.xaml.cs
++++ b/source/Views/Settings/General/MaintenanceSettingsSection.xaml.cs
+@@ -727,6 +727,140 @@ private void ExportDatabase_Click(object sender, RoutedEventArgs e)
+             }
+         }
+ 
++        private List<string> GetLogPaths()
++        {
++            var root = _plugin.PlayniteApi.Paths.ApplicationPath;
++            return new List<string>
++            {
++                Path.Combine(root, "playnite.log"),
++                Path.Combine(root, "extensions.log"),
++                Path.Combine(_plugin.GetPluginUserDataPath(), "playniteachievements.log")
++            };
++        }
++
++        private List<string> SelectLogs(string title)
++        {
++            var window = _plugin.PlayniteApi.Dialogs.CreateWindow(new WindowCreationOptions
++            {
++                ShowMinimizeButton = false,
++                ShowMaximizeButton = false
++            });
++            window.Title = title;
++            window.Owner = Window.GetWindow(this);
++            window.SizeToContent = SizeToContent.WidthAndHeight;
++            window.ResizeMode = ResizeMode.NoResize;
++            window.WindowStartupLocation = WindowStartupLocation.CenterOwner;
++            var panel = new StackPanel { Margin = new Thickness(20), MinWidth = 320 };
++            var description = new TextBlock
++            {
++                Text = title == "Delete Logs"
++                    ? "Select logs to delete. Active logs may be recreated by Playnite."
++                    : title == "Copy Logs" ? "Select logs to copy." : "Select logs to open.",
++                TextWrapping = TextWrapping.Wrap,
++                MaxWidth = 400,
++                Margin = new Thickness(0, 0, 0, 12)
++            };
++            description.SetResourceReference(TextBlock.ForegroundProperty, "TextBrush");
++            panel.Children.Add(description);
++            var choices = new List<CheckBox>();
++            foreach (var path in GetLogPaths())
++            {
++                var choice = new CheckBox
++                {
++                    Content = Path.GetFileName(path), Tag = path,
++                    ToolTip = path, Margin = new Thickness(0, 0, 0, 8)
++                };
++                choices.Add(choice);
++                panel.Children.Add(choice);
++            }
++            var buttons = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right };
++            var accept = new Button { Content = title, IsDefault = true, IsEnabled = false, MinWidth = 100, Margin = new Thickness(0, 8, 8, 0) };
++            var cancel = new Button { Content = L("LOCPlayAch_Button_Cancel"), IsCancel = true, MinWidth = 100, Margin = new Thickness(0, 8, 0, 0) };
++            foreach (var choice in choices)
++            {
++                RoutedEventHandler update = (s, args) => accept.IsEnabled = choices.Exists(c => c.IsChecked == true);
++                choice.Checked += update;
++                choice.Unchecked += update;
++            }
++            accept.Click += (s, args) => window.DialogResult = true;
++            cancel.Click += (s, args) => window.DialogResult = false;
++            buttons.Children.Add(accept);
++            buttons.Children.Add(cancel);
++            panel.Children.Add(buttons);
++            window.Content = panel;
++            if (window.ShowDialog() != true) return null;
++            return choices.FindAll(c => c.IsChecked == true).ConvertAll(c => (string)c.Tag);
++        }
++
++        private void OpenLogs_Click(object sender, RoutedEventArgs e)
++        {
++            var paths = SelectLogs("Open logs");
++            if (paths == null) return;
++            RunLogAction(paths, "Open logs", path => Process.Start(new ProcessStartInfo
++            {
++                FileName = path, UseShellExecute = true, Verb = "open"
++            }), showSuccess: false);
++        }
++
++        private void CopyLogs_Click(object sender, RoutedEventArgs e)
++        {
++            var paths = SelectLogs("Copy Logs");
++            if (paths == null) return;
++            var folder = _plugin.PlayniteApi.Dialogs.SelectFolder();
++            if (string.IsNullOrWhiteSpace(folder)) return;
++            RunLogAction(paths, "Copy Logs", path =>
++            {
++                var destination = Path.Combine(folder, Path.GetFileName(path));
++                if (string.Equals(Path.GetFullPath(path), Path.GetFullPath(destination), StringComparison.OrdinalIgnoreCase))
++                    throw new IOException("The destination is the original log file. Select another folder.");
++                if (File.Exists(destination) && _plugin.PlayniteApi.Dialogs.ShowMessage(
++                    "Replace the existing file?\n" + destination, "Copy Logs",
++                    MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes)
++                    throw new OperationCanceledException("Existing file was kept.");
++                // Allow copying logs while their writers are active.
++                using (var input = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete))
++                using (var output = new FileStream(destination, FileMode.Create, FileAccess.Write, FileShare.None))
++                    input.CopyTo(output);
++            });
++        }
++
++        private void DeleteLogs_Click(object sender, RoutedEventArgs e)
++        {
++            var paths = SelectLogs("Delete Logs");
++            if (paths == null) return;
++            if (_plugin.PlayniteApi.Dialogs.ShowMessage("Delete these log files?\n" +
++                string.Join("\n", paths.ConvertAll(Path.GetFileName)), "Delete Logs",
++                MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes) return;
++            RunLogAction(paths, "Delete Logs", File.Delete);
++        }
++
++        private void RunLogAction(List<string> paths, string title, Action<string> action, bool showSuccess = true)
++        {
++            var results = new List<string>();
++            var failed = false;
++            foreach (var path in paths)
++            {
++                try
++                {
++                    if (!File.Exists(path)) throw new FileNotFoundException("Log file was not found.", path);
++                    action(path);
++                    if (showSuccess) results.Add(Path.GetFileName(path) + ": Completed.");
++                }
++                catch (OperationCanceledException ex)
++                {
++                    results.Add(Path.GetFileName(path) + ": " + ex.Message);
++                }
++                catch (Exception ex)
++                {
++                    failed = true;
++                    results.Add(Path.GetFileName(path) + ": " + ex.Message);
++                }
++            }
++            if (!showSuccess && !failed) return;
++            _plugin.PlayniteApi.Dialogs.ShowMessage(string.Join("\n", results), title,
++                MessageBoxButton.OK, failed ? MessageBoxImage.Warning : MessageBoxImage.Information);
++        }
++
+         private void OpenDataFolder_Click(object sender, RoutedEventArgs e)
+         {
+             try
 diff --git a/source/Views/SettingsControl.xaml b/source/Views/SettingsControl.xaml
 index 1ddde3fb82cd755dc614586ca8a8ae05a08506f7..f14b5c43a655b418c943be2f8345d9f09953724a 100644
 --- a/source/Views/SettingsControl.xaml

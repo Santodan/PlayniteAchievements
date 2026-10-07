@@ -117,6 +117,7 @@ The entries below are fork-side changes, grouped by date. When a date includes a
 - `Automatically migrate new themes` will respect the selected settings
 - Clicking the `New Theme Migrated` popup will restart playnite automatically
 - Fixed achievement notification replay after cache relocks and update fork bundle
+- Added some log management buttons in the `General`--> `Maintenance` window
 
 ## 2026-10-05 - v4.0.1.1
 
