@@ -155,6 +155,7 @@
     <Compile Include="..\..\source\Services\Hydration\AchievementOverlayPipeline.cs" Link="Source\Services\Hydration\AchievementOverlayPipeline.cs" />
     <Compile Include="..\..\source\Services\Achievements\AutoCapstoneCalculator.cs" Link="Source\Services\Achievements\AutoCapstoneCalculator.cs" />
     <Compile Include="..\..\source\Services\Achievements\AutoCapstoneEligibility.cs" Link="Source\Services\Achievements\AutoCapstoneEligibility.cs" />
+    <Compile Include="..\..\source\Services\Metadata\CrossSourceAchievementMatcher.cs" Link="Source\Services\Metadata\CrossSourceAchievementMatcher.cs" />
     <Compile Include="..\..\source\Services\Achievements\AutoCapstoneScope.cs" Link="Source\Services\Achievements\AutoCapstoneScope.cs" />
     <Compile Include="..\..\source\Services\Achievements\AutoCapstoneTemplate.cs" Link="Source\Services\Achievements\AutoCapstoneTemplate.cs" />
     <Compile Include="..\..\source\Services\Achievements\AutoCapstoneText.cs" Link="Source\Services\Achievements\AutoCapstoneText.cs" />
