@@ -249,6 +249,7 @@
     <Compile Include="..\..\source\Providers\Settings\ProviderPathList.cs" Link="Source\Providers\Settings\ProviderPathList.cs" />
     <Compile Include="..\..\source\Providers\Settings\ProviderSettingsViewBase.cs" Link="Source\Providers\Settings\ProviderSettingsViewBase.cs" />
     <Compile Include="..\..\source\Providers\ProviderRegistry.cs" Link="Source\Providers\ProviderRegistry.cs" />
+    <Compile Include="..\..\source\Providers\Metadata\IMetadataProvider.cs" Link="Source\Providers\Metadata\IMetadataProvider.cs" />
     <Compile Include="..\..\source\Providers\DataProviderBase.cs" Link="Source\Providers\DataProviderBase.cs" />
     <Compile Include="..\..\source\Providers\ProviderUiPolicies.cs" Link="Source\Providers\ProviderUiPolicies.cs" />
     <Compile Include="..\..\source\Providers\AchievementPageLinkContext.cs" Link="Source\Providers\AchievementPageLinkContext.cs" />
