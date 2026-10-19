@@ -20,9 +20,24 @@ namespace PlayniteAchievements.Tests.Providers
         }
 
         [TestMethod]
-        public void TrophyPage_WithoutNpwrInTitle_IsRejected()
+        public void TrophyPage_WithoutAnyNpwr_IsRejected()
         {
             Assert.IsNull(PsPricesPageParser.ParseTrophyPage("<html><head><title>God of War — Trophies</title></head></html>"));
+        }
+
+        [TestMethod]
+        public void TrophyPage_WithoutNpwrInTitle_TakesItFromTheIcons()
+        {
+            const string html = "<html><head><title>Blasphemous 2 — Trophies</title></head><body>" +
+                                "<img src=\"https://psnobj.prod.dl.playstation.net/psnobj/NPWR31234_00/a.png\">" +
+                                "<img src=\"https://psnobj.prod.dl.playstation.net/psnobj/NPWR31234_00/b.png\">" +
+                                "<a href=\"/game-trophies/1-other\"><img src=\"https://psnobj.prod.dl.playstation.net/psnobj/NPWR99999_00/c.png\"></a>" +
+                                "</body></html>";
+
+            var page = PsPricesPageParser.ParseTrophyPage(html);
+
+            Assert.AreEqual("NPWR31234_00", page.NpCommunicationId);
+            Assert.AreEqual("Blasphemous 2", page.Title);
         }
 
         [TestMethod]
