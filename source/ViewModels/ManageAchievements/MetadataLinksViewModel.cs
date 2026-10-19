@@ -46,7 +46,13 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                     .Where(provider => !provider.IsNativeFor(servicingProviderKey)))
                 {
                     store.TryGet(gameId, provider.Key, out var record);
-                    Rows.Add(new MetadataLinkRow(this, gameId, provider.Key, ResourceProvider.GetString(provider.DisplayNameKey), record));
+                    Rows.Add(new MetadataLinkRow(
+                        this,
+                        gameId,
+                        provider.Key,
+                        ResourceProvider.GetString(provider.DisplayNameKey),
+                        record,
+                        store.GetCoverage(gameId, provider.Key)));
                 }
             }
 
@@ -70,13 +76,19 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
     {
         private string _input;
 
-        internal MetadataLinkRow(MetadataLinksViewModel owner, Guid gameId, string sourceKey, string sourceName, MetadataLinkRecord record)
+        internal MetadataLinkRow(
+            MetadataLinksViewModel owner,
+            Guid gameId,
+            string sourceKey,
+            string sourceName,
+            MetadataLinkRecord record,
+            MetadataCoverage coverage)
         {
             GameId = gameId;
             SourceKey = sourceKey;
             SourceName = string.IsNullOrWhiteSpace(sourceName) ? sourceKey : sourceName;
             _input = record?.Id ?? string.Empty;
-            StatusText = BuildStatus(record);
+            StatusText = BuildStatus(record, coverage);
             HasLink = record != null;
             ApplyCommand = new RelayCommand(_ => owner.Apply(this));
             ClearCommand = new RelayCommand(_ => owner.Clear(this), _ => HasLink);
@@ -102,7 +114,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
 
         public ICommand ClearCommand { get; }
 
-        private static string BuildStatus(MetadataLinkRecord record)
+        private static string BuildStatus(MetadataLinkRecord record, MetadataCoverage coverage)
         {
             if (record == null || record.IsNoMatch)
             {
@@ -112,9 +124,22 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             var origin = record.Origin == MetadataLinkOrigin.User
                 ? ResourceProvider.GetString("LOCPlayAch_ManageAchievements_Overview_MetadataLink_SetByYou")
                 : ResourceProvider.GetString("LOCAutomatic");
-            return string.IsNullOrWhiteSpace(record.Label)
-                ? $"{record.Id} · {origin}"
-                : $"{record.Label} ({record.Id}) · {origin}";
+            var parts = new List<string>
+            {
+                string.IsNullOrWhiteSpace(record.Label) ? record.Id : $"{record.Label} ({record.Id})",
+                origin
+            };
+
+            // Absent until the next refresh runs the source for this game.
+            if (coverage != null && coverage.Total > 0)
+            {
+                parts.Add(string.Format(
+                    ResourceProvider.GetString("LOCPlayAch_ManageAchievements_Overview_MetadataLink_Matched"),
+                    coverage.Matched,
+                    coverage.Total));
+            }
+
+            return string.Join(" · ", parts);
         }
     }
 }
