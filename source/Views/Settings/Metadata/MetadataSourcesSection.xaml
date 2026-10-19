@@ -37,9 +37,7 @@
         </ResourceDictionary>
     </UserControl.Resources>
     <Grid Background="{DynamicResource PlayAch.Brush.Panel}">
-        <ScrollViewer VerticalScrollBarVisibility="Auto"
-                      HorizontalScrollBarVisibility="Disabled">
-            <StackPanel Margin="20">
+        <!-- Scrolled by the Metadata tab, which stacks this above the auto capstone section. -->
                 <Border Style="{StaticResource SectionBorderStyle}">
                     <StackPanel>
                         <TextBlock Text="{DynamicResource LOCPlayAch_Settings_Metadata_Sources}"
@@ -156,7 +154,5 @@
                         </DataGrid>
                     </StackPanel>
                 </Border>
-            </StackPanel>
-        </ScrollViewer>
     </Grid>
 </UserControl>
