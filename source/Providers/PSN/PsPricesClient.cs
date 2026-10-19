@@ -20,12 +20,12 @@ namespace PlayniteAchievements.Providers.PSN
         private const int ChallengeWaitMs = 15000;
         private const int ChallengePollMs = 500;
         private const int RequestGapMs = 1000;
-        private const int MaxGamePagesPerSearch = 3;
+        private const int MaxGamePagesPerSearch = 4;
 
         private readonly OffscreenViewLeaseSource _views;
         private readonly ILogger _logger;
         private readonly SemaphoreSlim _gate = new SemaphoreSlim(1, 1);
-        private readonly Dictionary<string, string> _pathByName = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        private readonly Dictionary<string, string> _trophyPathByGamePage = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         private readonly Dictionary<string, PsPricesTrophyPage> _pageByPath = new Dictionary<string, PsPricesTrophyPage>(StringComparer.OrdinalIgnoreCase);
         private DateTime _lastRequestUtc = DateTime.MinValue;
 
@@ -45,53 +45,55 @@ namespace PlayniteAchievements.Providers.PSN
         }
 
         /// <summary>
-        /// The trophy page path for the PlayStation game whose title matches <paramref name="gameName"/>
-        /// once normalized, or null. Only PlayStation result cards are considered, in result order.
+        /// Game page paths of the PlayStation results whose title matches <paramref name="gameName"/>
+        /// once normalized, PS5 cards first, then result order.
         /// </summary>
-        public async Task<string> FindTrophyPagePathAsync(string gameName, CancellationToken ct)
+        public async Task<IReadOnlyList<string>> FindGamePagePathsAsync(string gameName, CancellationToken ct)
         {
             var normalized = GameNameNormalizer.StripDiacritics(ExophaseGameNameMatcher.NormalizeGameName(gameName));
             if (string.IsNullOrWhiteSpace(normalized) || _views == null)
             {
-                return null;
-            }
-
-            lock (_pathByName)
-            {
-                if (_pathByName.TryGetValue(normalized, out var cached))
-                {
-                    return cached;
-                }
+                return Array.Empty<string>();
             }
 
             var searchHtml = await GetPageSourceAsync(PsPricesPageParser.BuildSearchUrl(gameName), ct).ConfigureAwait(false);
-            var candidates = PsPricesPageParser.ParseSearchResults(searchHtml)
+            var paths = PsPricesPageParser.ParseSearchResults(searchHtml)
                 .Where(result => result.IsPlayStation &&
                                  string.Equals(
                                      GameNameNormalizer.StripDiacritics(ExophaseGameNameMatcher.NormalizeGameName(result.Title)),
                                      normalized,
                                      StringComparison.OrdinalIgnoreCase))
+                .OrderBy(result => result.IsPs5 ? 0 : 1)
+                .Select(result => result.Path)
                 .Take(MaxGamePagesPerSearch)
                 .ToList();
 
-            string path = null;
-            foreach (var candidate in candidates)
+            _logger?.Debug($"[PsPrices] '{gameName}': {paths.Count} matching PlayStation results.");
+            return paths;
+        }
+
+        /// <summary>The trophy page path a game page links to, or null.</summary>
+        public async Task<string> FindTrophyPagePathAsync(string gamePagePath, CancellationToken ct)
+        {
+            if (string.IsNullOrWhiteSpace(gamePagePath) || _views == null)
             {
-                var gameHtml = await GetPageSourceAsync(PsPricesPageParser.BaseUrl + candidate.Path, ct).ConfigureAwait(false);
-                path = PsPricesPageParser.FindTrophyPagePath(gameHtml);
-                if (path != null)
+                return null;
+            }
+
+            lock (_trophyPathByGamePage)
+            {
+                if (_trophyPathByGamePage.TryGetValue(gamePagePath, out var cached))
                 {
-                    break;
+                    return cached;
                 }
             }
 
-            _logger?.Debug(path == null
-                ? $"[PsPrices] No trophy page for '{gameName}' ({candidates.Count} matching PlayStation results)."
-                : $"[PsPrices] '{gameName}' -> {path}.");
-
-            lock (_pathByName)
+            var gameHtml = await GetPageSourceAsync(PsPricesPageParser.BaseUrl + gamePagePath, ct).ConfigureAwait(false);
+            var path = PsPricesPageParser.FindTrophyPagePath(gameHtml);
+            _logger?.Debug($"[PsPrices] {gamePagePath} -> {path ?? "no trophy page"}.");
+            lock (_trophyPathByGamePage)
             {
-                _pathByName[normalized] = path;
+                _trophyPathByGamePage[gamePagePath] = path;
             }
 
             return path;
@@ -178,9 +180,9 @@ namespace PlayniteAchievements.Providers.PSN
 
         private void ClearRunMemo()
         {
-            lock (_pathByName)
+            lock (_trophyPathByGamePage)
             {
-                _pathByName.Clear();
+                _trophyPathByGamePage.Clear();
             }
 
             lock (_pageByPath)
