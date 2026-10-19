@@ -117,7 +117,7 @@ namespace PlayniteAchievements.Providers.ShadPS4
 
         private async Task<ExophaseMetadataEnricher> CreateRarityEnricherAsync(CancellationToken cancel)
         {
-            if (_providerSettings?.UseExophaseForRarity != true)
+            if (_settings?.Persisted?.UsesExophaseRarity("ShadPS4") != true)
             {
                 return null;
             }
