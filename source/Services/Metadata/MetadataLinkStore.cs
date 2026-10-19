@@ -49,6 +49,23 @@ namespace PlayniteAchievements.Services.Metadata
         /// <summary>Image URL an authored auto capstone uses, or null for the game's own art.</summary>
         [JsonProperty("capstoneArt")]
         public string CapstoneArtUrl { get; set; }
+
+        /// <summary>How many of the game's achievements each source matched, by source key.</summary>
+        [JsonProperty("coverage")]
+        public Dictionary<string, MetadataCoverage> Coverage { get; set; }
+    }
+
+    /// <summary>One source's match count for a game at its last overlay.</summary>
+    public sealed class MetadataCoverage
+    {
+        [JsonProperty("matched")]
+        public int Matched { get; set; }
+
+        [JsonProperty("total")]
+        public int Total { get; set; }
+
+        public bool SameAs(MetadataCoverage other) =>
+            other != null && other.Matched == Matched && other.Total == Total;
     }
 
     /// <summary>
@@ -207,7 +224,11 @@ namespace PlayniteAchievements.Services.Metadata
         /// Records what an overlay applied to the game. Returns true when the icon source differs
         /// from the one recorded last, so the caller re-downloads icons kept under the same names.
         /// </summary>
-        public bool RecordApplied(Guid gameId, string iconSourceKey, string capstoneArtUrl)
+        public bool RecordApplied(
+            Guid gameId,
+            string iconSourceKey,
+            string capstoneArtUrl,
+            IReadOnlyDictionary<string, MetadataCoverage> coverage = null)
         {
             if (gameId == Guid.Empty)
             {
@@ -216,28 +237,74 @@ namespace PlayniteAchievements.Services.Metadata
 
             var icon = string.IsNullOrWhiteSpace(iconSourceKey) ? null : iconSourceKey.Trim();
             var art = string.IsNullOrWhiteSpace(capstoneArtUrl) ? null : capstoneArtUrl.Trim();
+            var counts = coverage == null || coverage.Count == 0
+                ? null
+                : coverage.ToDictionary(pair => pair.Key, pair => pair.Value, StringComparer.OrdinalIgnoreCase);
             bool iconChanged;
             lock (_sync)
             {
                 _applied.TryGetValue(gameId, out var previous);
                 iconChanged = !string.Equals(previous?.IconSourceKey, icon, StringComparison.OrdinalIgnoreCase);
-                if (!iconChanged && string.Equals(previous?.CapstoneArtUrl, art, StringComparison.Ordinal))
+                if (!iconChanged &&
+                    string.Equals(previous?.CapstoneArtUrl, art, StringComparison.Ordinal) &&
+                    SameCoverage(previous?.Coverage, counts))
                 {
                     return false;
                 }
 
-                if (icon == null && art == null)
+                if (icon == null && art == null && counts == null)
                 {
                     _applied.Remove(gameId);
                 }
                 else
                 {
-                    _applied[gameId] = new MetadataAppliedState { IconSourceKey = icon, CapstoneArtUrl = art };
+                    _applied[gameId] = new MetadataAppliedState { IconSourceKey = icon, CapstoneArtUrl = art, Coverage = counts };
                 }
             }
 
             Save();
             return iconChanged;
+        }
+
+        /// <summary>A source's match count for the game at the last overlay, or null when it did not run.</summary>
+        public MetadataCoverage GetCoverage(Guid gameId, string sourceKey)
+        {
+            if (string.IsNullOrWhiteSpace(sourceKey))
+            {
+                return null;
+            }
+
+            lock (_sync)
+            {
+                return _applied.TryGetValue(gameId, out var state) &&
+                       state?.Coverage != null &&
+                       state.Coverage.TryGetValue(sourceKey.Trim(), out var counts)
+                    ? new MetadataCoverage { Matched = counts.Matched, Total = counts.Total }
+                    : null;
+            }
+        }
+
+        private static MetadataAppliedState NormalizeLoaded(MetadataAppliedState state)
+        {
+            if (state.Coverage != null)
+            {
+                state.Coverage = new Dictionary<string, MetadataCoverage>(state.Coverage, StringComparer.OrdinalIgnoreCase);
+            }
+
+            return state;
+        }
+
+        private static bool SameCoverage(
+            IReadOnlyDictionary<string, MetadataCoverage> previous,
+            IReadOnlyDictionary<string, MetadataCoverage> next)
+        {
+            if ((previous?.Count ?? 0) != (next?.Count ?? 0))
+            {
+                return false;
+            }
+
+            return next == null || next.All(pair =>
+                previous.TryGetValue(pair.Key, out var counts) && pair.Value.SameAs(counts));
         }
 
         private bool Write(Guid gameId, string sourceKey, Func<MetadataLinkRecord, MetadataLinkRecord> build)
@@ -319,7 +386,7 @@ namespace PlayniteAchievements.Services.Metadata
                     _links = loaded;
                     _applied = (parsed?.Applied ?? new Dictionary<Guid, MetadataAppliedState>())
                         .Where(pair => pair.Key != Guid.Empty && pair.Value != null)
-                        .ToDictionary(pair => pair.Key, pair => pair.Value);
+                        .ToDictionary(pair => pair.Key, pair => NormalizeLoaded(pair.Value));
                 }
             }
             catch (Exception ex)
