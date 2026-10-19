@@ -26,6 +26,9 @@ namespace PlayniteAchievements.Providers.PSN
 
         public bool IsPlayStation => Platforms.Any(platform =>
             platform.StartsWith("PlayStation", StringComparison.OrdinalIgnoreCase));
+
+        public bool IsPs5 => Platforms.Any(platform =>
+            string.Equals(platform, "PlayStation 5", StringComparison.OrdinalIgnoreCase));
     }
 
     /// <summary>A parsed PSPrices trophy page: the trophy set's NPWR id and title.</summary>
