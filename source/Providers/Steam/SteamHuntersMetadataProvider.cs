@@ -8,6 +8,7 @@ using PlayniteAchievements.Providers.Manual;
 using PlayniteAchievements.Providers.Metadata;
 using PlayniteAchievements.Services.GameCustomData;
 using System;
+using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
 using System.Text.RegularExpressions;
@@ -148,7 +149,13 @@ namespace PlayniteAchievements.Providers.Steam
             return false;
         }
 
-        /// <summary>Accepts a store search only when exactly one result has the game's normalized name.</summary>
+        /// <summary>
+        /// Accepts a store search only when exactly one result has the game's name. When none does,
+        /// searches again with the loose name ("Deus Ex - Mankind Divided" as "deus ex mankind
+        /// divided"), since the store finds nothing for some punctuated titles and names editions
+        /// differently. Either way the link is marked found by name, so the overlay confirms it
+        /// against the achievements.
+        /// </summary>
         private async Task<MetadataSourceLink> SearchByNameAsync(string name, CancellationToken ct)
         {
             var normalized = GameNameNormalizer.StripDiacritics(ExophaseGameNameMatcher.NormalizeGameName(name));
@@ -157,25 +164,48 @@ namespace PlayniteAchievements.Providers.Steam
                 return null;
             }
 
-            var results = await SteamSchema.SearchGamesAsync(name, Language, ct).ConfigureAwait(false);
-            var exact = results?
-                .Where(result => result != null &&
-                                 !string.IsNullOrWhiteSpace(result.SourceGameId) &&
-                                 string.Equals(
-                                     GameNameNormalizer.StripDiacritics(ExophaseGameNameMatcher.NormalizeGameName(result.Name)),
-                                     normalized,
-                                     StringComparison.OrdinalIgnoreCase))
-                .GroupBy(result => result.SourceGameId)
-                .Select(group => group.First())
-                .ToList();
-
-            if (exact == null || exact.Count != 1)
+            var exact = await SearchAsync(
+                name,
+                result => string.Equals(
+                    GameNameNormalizer.StripDiacritics(ExophaseGameNameMatcher.NormalizeGameName(result)),
+                    normalized,
+                    StringComparison.OrdinalIgnoreCase),
+                ct).ConfigureAwait(false);
+            if (exact.Count == 1)
             {
-                _logger?.Debug($"[SteamHuntersMetadata] Name search for '{name}' found {exact?.Count ?? 0} exact matches; no link.");
+                return new MetadataSourceLink(exact[0].SourceGameId, exact[0].Name, foundByName: true);
+            }
+
+            var loose = GameNameNormalizer.ToLooseKey(name);
+            if (exact.Count > 1 || loose.Length == 0)
+            {
+                _logger?.Debug($"[SteamHuntersMetadata] Name search for '{name}' found {exact.Count} exact matches; no link.");
                 return null;
             }
 
-            return new MetadataSourceLink(exact[0].SourceGameId, exact[0].Name);
+            var close = await SearchAsync(
+                loose,
+                result => string.Equals(GameNameNormalizer.ToLooseKey(result), loose, StringComparison.Ordinal),
+                ct).ConfigureAwait(false);
+            if (close.Count != 1)
+            {
+                _logger?.Debug($"[SteamHuntersMetadata] Name search for '{name}' found {close.Count} close matches; no link.");
+                return null;
+            }
+
+            return new MetadataSourceLink(close[0].SourceGameId, close[0].Name, foundByName: true);
+        }
+
+        private async Task<List<ManualGameSearchResult>> SearchAsync(string query, Func<string, bool> accepts, CancellationToken ct)
+        {
+            var results = await SteamSchema.SearchGamesAsync(query, Language, ct).ConfigureAwait(false);
+            return (results ?? new List<ManualGameSearchResult>())
+                .Where(result => result != null &&
+                                 !string.IsNullOrWhiteSpace(result.SourceGameId) &&
+                                 accepts(result.Name))
+                .GroupBy(result => result.SourceGameId)
+                .Select(group => group.First())
+                .ToList();
         }
     }
 }
