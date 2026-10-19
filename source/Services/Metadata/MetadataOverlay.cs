@@ -107,7 +107,7 @@ namespace PlayniteAchievements.Services.Metadata
             }
 
             var iconSource = ApplyIcons(plan.IconKeys, sets);
-            ApplyCategories(plan.CategoryKeys, sets);
+            ApplyCategories(plan.CategoryKeys, plan.CategoryMode, sets);
             var capstoneArt = ResolveCapstoneArt(plan.CapstoneArtKeys, sets);
             var coverage = sets.ToDictionary(
                 pair => pair.Key,
@@ -146,23 +146,17 @@ namespace PlayniteAchievements.Services.Metadata
                 (provider.SupportedFields & field) == field &&
                 !provider.IsNativeFor(servicingProviderKey);
 
-            List<string> Ordered(IEnumerable<string> keys, MetadataField field) =>
-                (keys ?? Enumerable.Empty<string>())
-                    .Where(key => !string.IsNullOrWhiteSpace(key))
-                    .Select(key => key.Trim())
-                    .Distinct(StringComparer.OrdinalIgnoreCase)
-                    .Where(key => Usable(key, field))
-                    .ToList();
+            List<string> Chosen(string key, MetadataField field) =>
+                !string.IsNullOrWhiteSpace(key) && Usable(key.Trim(), field)
+                    ? new List<string> { key.Trim() }
+                    : new List<string>();
 
-            var categoryKeys = _providersByKey.Values
-                .Where(provider => provider.CategoryMode != MetadataCategoryMode.Off)
-                .Select(provider => provider.Key)
-                .OrderBy(key => key, StringComparer.OrdinalIgnoreCase);
-
+            var choices = (_settings ?? new PersistedSettings()).ResolveMetadataChoices(servicingProviderKey);
             return new OverlayPlan(
-                Ordered(_settings?.MetadataIconSources, MetadataField.Icons),
-                Ordered(categoryKeys, MetadataField.Categories),
-                Ordered(_settings?.MetadataCapstoneArtSources, MetadataField.CapstoneArt));
+                Chosen(choices.Icons, MetadataField.Icons),
+                Chosen(choices.Categories, MetadataField.Categories),
+                choices.CategoryMode ?? MetadataCategoryMode.Merge,
+                Chosen(choices.CapstoneArt, MetadataField.CapstoneArt));
         }
 
         private async Task<MatchedSet> LoadMatchedSetAsync(
@@ -285,7 +279,10 @@ namespace PlayniteAchievements.Services.Metadata
         /// Applies each achievement's category and types from the first source that matched it.
         /// Merge keeps a category the provider named and adds the source's types; Override replaces both.
         /// </summary>
-        private void ApplyCategories(IReadOnlyList<string> keys, IReadOnlyDictionary<string, MatchedSet> sets)
+        private static void ApplyCategories(
+            IReadOnlyList<string> keys,
+            MetadataCategoryMode mode,
+            IReadOnlyDictionary<string, MatchedSet> sets)
         {
             var done = new HashSet<AchievementDetail>();
             foreach (var key in keys)
@@ -295,7 +292,6 @@ namespace PlayniteAchievements.Services.Metadata
                     continue;
                 }
 
-                var mode = _providersByKey[key].CategoryMode;
                 foreach (var match in set.Matches)
                 {
                     if (!done.Add(match.Target))
@@ -372,10 +368,15 @@ namespace PlayniteAchievements.Services.Metadata
 
         private sealed class OverlayPlan
         {
-            public OverlayPlan(List<string> iconKeys, List<string> categoryKeys, List<string> capstoneArtKeys)
+            public OverlayPlan(
+                List<string> iconKeys,
+                List<string> categoryKeys,
+                MetadataCategoryMode categoryMode,
+                List<string> capstoneArtKeys)
             {
                 IconKeys = iconKeys;
                 CategoryKeys = categoryKeys;
+                CategoryMode = categoryMode;
                 CapstoneArtKeys = capstoneArtKeys;
                 AllKeys = iconKeys.Concat(categoryKeys).Concat(capstoneArtKeys)
                     .Distinct(StringComparer.OrdinalIgnoreCase)
@@ -385,6 +386,8 @@ namespace PlayniteAchievements.Services.Metadata
             public List<string> IconKeys { get; }
 
             public List<string> CategoryKeys { get; }
+
+            public MetadataCategoryMode CategoryMode { get; }
 
             public List<string> CapstoneArtKeys { get; }
 
