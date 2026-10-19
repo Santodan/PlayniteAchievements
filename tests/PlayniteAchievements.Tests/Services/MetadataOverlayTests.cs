@@ -4,6 +4,7 @@ using PlayniteAchievements.Models;
 using PlayniteAchievements.Models.Achievements;
 using PlayniteAchievements.Models.Settings;
 using PlayniteAchievements.Providers.Metadata;
+using PlayniteAchievements.Services.GameCustomData;
 using PlayniteAchievements.Services.Metadata;
 using System;
 using System.Collections.Generic;
@@ -249,7 +250,7 @@ namespace PlayniteAchievements.Tests.Services
 
         private MetadataOverlay Overlay(IReadOnlyList<IMetadataProvider> providers, PersistedSettings settings)
         {
-            return new MetadataOverlay(() => providers, () => settings, new MetadataLinkStore(_directory, null), null);
+            return new MetadataOverlay(() => providers, () => settings, new MetadataLinkStore(_directory, new GameCustomDataStore(_directory), null), null);
         }
 
         private static GameAchievementData Game(string providerKey, params AchievementDetail[] rows)
