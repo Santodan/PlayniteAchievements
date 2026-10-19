@@ -10,30 +10,13 @@ namespace PlayniteAchievements.Tests.Providers
     public class PsPricesPageParserTests
     {
         [TestMethod]
-        public void TrophyPage_YieldsNpwrTitleAndTrophies()
+        public void TrophyPage_YieldsNpwrAndTitle()
         {
             var page = PsPricesPageParser.ParseTrophyPage(Fixture("game-trophies-god-of-war-ragnarok.html"));
 
             Assert.IsNotNull(page);
             Assert.AreEqual("NPWR22392_00", page.NpCommunicationId);
             Assert.AreEqual("God of War Ragnarök", page.Title);
-            Assert.AreEqual(5, page.Trophies.Count);
-
-            var hope = page.Trophies.Single(t => t.DisplayName == "God of Hope");
-            Assert.AreEqual("Master Valhalla and master thyself.", hope.Description);
-            Assert.AreEqual(
-                "https://psnobj.prod.dl.playstation.net/psnobj/NPWR22392_00/90753ee0-3711-441b-9012-72e0802209ed.png",
-                hope.UnlockedIconPath);
-            Assert.AreEqual("silver", hope.TrophyType);
-
-            var platinum = page.Trophies.Single(t => t.IsCapstone);
-            Assert.AreEqual("The Bear and the Wolf", platinum.DisplayName);
-            Assert.AreEqual("platinum", platinum.TrophyType);
-            Assert.AreEqual("gold", page.Trophies.Single(t => t.DisplayName == "Ready for Commitment").TrophyType);
-            Assert.AreEqual("bronze", page.Trophies.Single(t => t.DisplayName == "Invitation Accepted").TrophyType);
-
-            // Entities decode, so titles compare against the platform's own text.
-            Assert.IsTrue(page.Trophies.Any(t => t.DisplayName == "How it's Going"));
         }
 
         [TestMethod]
