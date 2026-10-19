@@ -50,7 +50,7 @@ namespace PlayniteAchievements.Providers.PSN
         /// </summary>
         public async Task<string> FindTrophyPagePathAsync(string gameName, CancellationToken ct)
         {
-            var normalized = ExophaseGameNameMatcher.NormalizeGameName(gameName);
+            var normalized = GameNameNormalizer.StripDiacritics(ExophaseGameNameMatcher.NormalizeGameName(gameName));
             if (string.IsNullOrWhiteSpace(normalized) || _views == null)
             {
                 return null;
@@ -68,7 +68,7 @@ namespace PlayniteAchievements.Providers.PSN
             var candidates = PsPricesPageParser.ParseSearchResults(searchHtml)
                 .Where(result => result.IsPlayStation &&
                                  string.Equals(
-                                     ExophaseGameNameMatcher.NormalizeGameName(result.Title),
+                                     GameNameNormalizer.StripDiacritics(ExophaseGameNameMatcher.NormalizeGameName(result.Title)),
                                      normalized,
                                      StringComparison.OrdinalIgnoreCase))
                 .Take(MaxGamePagesPerSearch)
