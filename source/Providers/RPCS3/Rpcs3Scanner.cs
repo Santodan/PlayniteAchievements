@@ -157,7 +157,7 @@ namespace PlayniteAchievements.Providers.RPCS3
 
         private async Task<ExophaseMetadataEnricher> CreateRarityEnricherAsync(CancellationToken cancel)
         {
-            if (_providerSettings?.UseExophaseForRarity != true)
+            if (_settings?.Persisted?.UsesExophaseRarity("RPCS3") != true)
             {
                 return null;
             }
