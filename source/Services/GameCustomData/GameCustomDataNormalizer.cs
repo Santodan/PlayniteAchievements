@@ -54,6 +54,7 @@ namespace PlayniteAchievements.Services.GameCustomData
             NormalizeCapstones(normalized);
             normalized.ExophaseSlugOverride = NormalizeString(normalized.ExophaseSlugOverride);
             normalized.ExophaseEnrichmentSlugOverride = NormalizeString(normalized.ExophaseEnrichmentSlugOverride);
+            normalized.MetadataLinks = NormalizeMetadataLinks(normalized.MetadataLinks);
             normalized.XeniaTitleIdOverride = XeniaTitleIdHelper.Normalize(normalized.XeniaTitleIdOverride);
             normalized.ShadPS4MatchIdOverride = ShadPS4MatchIdHelper.Normalize(normalized.ShadPS4MatchIdOverride);
             normalized.RetroAchievementsGameIdOverride =
@@ -114,6 +115,7 @@ namespace PlayniteAchievements.Services.GameCustomData
             NormalizeCapstones(normalized);
             normalized.ExophaseSlugOverride = NormalizeString(normalized.ExophaseSlugOverride);
             normalized.ExophaseEnrichmentSlugOverride = NormalizeString(normalized.ExophaseEnrichmentSlugOverride);
+            normalized.MetadataLinks = NormalizeMetadataLinks(normalized.MetadataLinks);
             normalized.XeniaTitleIdOverride = XeniaTitleIdHelper.Normalize(normalized.XeniaTitleIdOverride);
             normalized.ShadPS4MatchIdOverride = ShadPS4MatchIdHelper.Normalize(normalized.ShadPS4MatchIdOverride);
             normalized.RetroAchievementsGameIdOverride =
@@ -202,6 +204,7 @@ namespace PlayniteAchievements.Services.GameCustomData
                    data.UnlockSounds != null ||
                    data.NotificationBehaviorOverride != null ||
                    data.CaptureOverride != null ||
+                   HasAnyMetadataLink(data.MetadataLinks) ||
                    data.ManualLink != null ||
                    (data.CustomAchievements != null && data.CustomAchievements.Count > 0) ||
                    !string.IsNullOrWhiteSpace(data.CustomProviderId);
@@ -219,7 +222,8 @@ namespace PlayniteAchievements.Services.GameCustomData
                 return false;
             }
 
-            return data.UseSeparateLockedIconsOverride == true ||
+            return HasAnyMetadataLink(data.MetadataLinks) ||
+                   data.UseSeparateLockedIconsOverride == true ||
                    !string.IsNullOrWhiteSpace(data.ManualCapstoneApiName) ||
                    data.CapstonesMaterialized ||
                    (data.AchievementOrder != null && data.AchievementOrder.Count > 0) ||
@@ -255,7 +259,9 @@ namespace PlayniteAchievements.Services.GameCustomData
                 return false;
             }
 
-            return data.UseSeparateLockedIconsOverride == true ||
+            // Only links the user set: an automatic match is not a customization.
+            return HasUserMetadataLink(data.MetadataLinks) ||
+                   data.UseSeparateLockedIconsOverride == true ||
                    !string.IsNullOrWhiteSpace(data.ManualCapstoneApiName) ||
                    data.CapstonesMaterialized ||
                    (data.AchievementOrder != null && data.AchievementOrder.Count > 0) ||
@@ -388,6 +394,8 @@ namespace PlayniteAchievements.Services.GameCustomData
                 ExophaseEnrichmentSlugOverride = !string.IsNullOrWhiteSpace(existing.ExophaseEnrichmentSlugOverride)
                     ? existing.ExophaseEnrichmentSlugOverride
                     : legacy.ExophaseEnrichmentSlugOverride,
+                MetadataLinks = MetadataLinkData.CloneMap(
+                    HasAnyMetadataLink(existing.MetadataLinks) ? existing.MetadataLinks : legacy.MetadataLinks),
                 ManualLink = existing.ManualLink?.Clone() ?? legacy.ManualLink?.Clone(),
                 CustomAchievements = existing.CustomAchievements != null && existing.CustomAchievements.Count > 0
                     ? existing.CustomAchievements.ConvertAll(item => item?.Clone()).FindAll(item => item != null)
@@ -1269,6 +1277,48 @@ namespace PlayniteAchievements.Services.GameCustomData
                     ? normalizedLabel
                     : CategoryPathHelper.NormalizePath(providerLabel)
             };
+        }
+
+        /// <summary>
+        /// Trimmed keys and values; an automatic link without an id carries nothing and is dropped,
+        /// while a user's empty link is kept as their "no match".
+        /// </summary>
+        private static Dictionary<string, MetadataLinkData> NormalizeMetadataLinks(Dictionary<string, MetadataLinkData> links)
+        {
+            if (links == null)
+            {
+                return null;
+            }
+
+            var normalized = new Dictionary<string, MetadataLinkData>(StringComparer.OrdinalIgnoreCase);
+            foreach (var pair in links)
+            {
+                var key = NormalizeString(pair.Key);
+                var id = NormalizeString(pair.Value?.Id);
+                if (key == null || pair.Value == null || (id == null && !pair.Value.IsUserSet))
+                {
+                    continue;
+                }
+
+                normalized[key] = new MetadataLinkData
+                {
+                    Id = id,
+                    Label = NormalizeString(pair.Value.Label),
+                    IsUserSet = pair.Value.IsUserSet
+                };
+            }
+
+            return normalized.Count > 0 ? normalized : null;
+        }
+
+        private static bool HasAnyMetadataLink(Dictionary<string, MetadataLinkData> links)
+        {
+            return links != null && links.Values.Any(link => link != null);
+        }
+
+        private static bool HasUserMetadataLink(Dictionary<string, MetadataLinkData> links)
+        {
+            return links != null && links.Values.Any(link => link?.IsUserSet == true);
         }
 
         private static ManualAchievementLink NormalizeManualLink(ManualAchievementLink link)

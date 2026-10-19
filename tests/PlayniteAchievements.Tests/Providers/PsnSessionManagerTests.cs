@@ -61,6 +61,38 @@ namespace PlayniteAchievements.Providers.Tests
         }
 
         [TestMethod]
+        public async Task ProbeAuthStateAsync_WhenStoreCookiesWorkButNoTokenCanBeMinted_IsNotAuthenticated()
+        {
+            var context = CreateContext("valid-npsso");
+            context.Runtime.EnqueueBootstrapResult(new PsnBootstrapAttempt(
+                AuthOutcome.Authenticated,
+                CreateCookieContainer(),
+                "https://www.playstation.com/home"));
+            context.Runtime.ProbeSessionResponses.Enqueue(true);
+
+            try
+            {
+                await context.Manager.ValidateNpssoAsync(CancellationToken.None, "Test.ExplicitValidation");
+
+                // Sony's account sign-in lapsed: the store cookies pass, the token step does not.
+                context.Runtime.ProbeSessionResponses.Enqueue(true);
+                context.Runtime.MobileTokensResponse = null;
+                var expired = await context.Manager.ProbeAuthStateAsync(CancellationToken.None);
+                Assert.AreEqual(AuthOutcome.NotAuthenticated, expired.Outcome);
+                Assert.AreEqual(1, context.Runtime.MobileTokenCalls);
+
+                context.Runtime.ProbeSessionResponses.Enqueue(true);
+                context.Runtime.MobileTokensResponse = CreateMobileTokens();
+                var renewed = await context.Manager.ProbeAuthStateAsync(CancellationToken.None);
+                Assert.IsTrue(renewed.IsSuccess);
+            }
+            finally
+            {
+                context.Dispose();
+            }
+        }
+
+        [TestMethod]
         public async Task ValidateNpssoAsync_ReusesCooldownForSameFailingNpsso()
         {
             var context = CreateContext("failing-npsso");

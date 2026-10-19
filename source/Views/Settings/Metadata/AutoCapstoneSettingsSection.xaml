@@ -40,9 +40,8 @@
             </DataTemplate>
         </ResourceDictionary>
     </UserControl.Resources>
-    <ScrollViewer VerticalScrollBarVisibility="Auto"
-                  HorizontalScrollBarVisibility="Disabled">
-        <StackPanel Margin="20">
+    <!-- Scrolled by the Metadata tab, which stacks this below the sources grid. -->
+        <StackPanel>
 
             <!-- ================== AUTO CAPSTONE ================== -->
             <Border Style="{StaticResource SectionBorderStyle}">
@@ -86,5 +85,4 @@
                 </StackPanel>
             </Border>
         </StackPanel>
-    </ScrollViewer>
 </UserControl>

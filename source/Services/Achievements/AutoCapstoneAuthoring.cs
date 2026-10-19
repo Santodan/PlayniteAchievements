@@ -3,8 +3,10 @@ using PlayniteAchievements.Models.Achievements;
 using PlayniteAchievements.Models.Settings;
 using PlayniteAchievements.Services.GameCustomData;
 using PlayniteAchievements.Services.Images;
+using PlayniteAchievements.Services.Metadata;
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -24,15 +26,18 @@ namespace PlayniteAchievements.Services.Achievements
         private readonly Func<Guid, GameAchievementData> _resolveGameData;
         private readonly Func<ManagedCustomIconService> _iconService;
         private readonly Func<AutoCapstoneTemplates> _templates;
+        private readonly Func<MetadataLinkStore> _metadataLinks;
         private readonly ILogger _logger;
 
         /// <param name="templates">The text templates in effect, read at each authoring.</param>
+        /// <param name="metadataLinks">Where the art written into each capstone is recorded.</param>
         public AutoCapstoneAuthoring(
             GameCustomDataStore store,
             AchievementOverridesService overridesService,
             Func<Guid, GameAchievementData> resolveGameData,
             Func<ManagedCustomIconService> iconService,
             Func<AutoCapstoneTemplates> templates,
+            Func<MetadataLinkStore> metadataLinks,
             ILogger logger)
         {
             _store = store;
@@ -40,7 +45,134 @@ namespace PlayniteAchievements.Services.Achievements
             _resolveGameData = resolveGameData;
             _iconService = iconService;
             _templates = templates;
+            _metadataLinks = metadataLinks;
             _logger = logger;
+        }
+
+        /// <summary>
+        /// Brings each refreshed game's auto capstone art in line with the art it should now use
+        /// (a newly matched platinum, a PS5 set replacing a PS4 one, or a changed Capstone art
+        /// choice). An icon the user replaced is left alone: the file no longer matches what the
+        /// plugin recorded writing.
+        /// </summary>
+        public async Task RefreshArtAsync(IEnumerable<Guid> gameIds)
+        {
+            foreach (var gameId in (gameIds ?? Enumerable.Empty<Guid>()).Distinct())
+            {
+                try
+                {
+                    await RefreshArtAsync(gameId).ConfigureAwait(false);
+                }
+                catch (Exception ex)
+                {
+                    _logger?.Warn(ex, $"Failed refreshing auto capstone art for gameId={gameId}.");
+                }
+            }
+        }
+
+        private async Task RefreshArtAsync(Guid gameId)
+        {
+            var links = _metadataLinks?.Invoke();
+            // An open editor saves its own rows over this write; the next refresh catches up.
+            if (gameId == Guid.Empty || links == null || _store == null || _overridesService == null ||
+                OpenEditorRegistry.IsOpen(gameId))
+            {
+                return;
+            }
+
+            var definitions = _store.LoadOrDefault(gameId)?.CustomAchievements;
+            if (definitions == null || !definitions.Any(definition => definition?.IsAutoCapstone == true))
+            {
+                return;
+            }
+
+            var game = API.Instance?.Database?.Games?.Get(gameId);
+            var source = AutoCapstoneTemplate.ResolveIconSource(game, _logger);
+            if (string.IsNullOrWhiteSpace(source))
+            {
+                return;
+            }
+
+            var borrowedArt = AutoCapstoneTemplate.MetadataArtAccessor?.Invoke(gameId);
+            var existing = definitions.Where(definition => definition != null).ToList();
+            var replacement = existing.Select(definition => definition.Clone()).ToList();
+            var changed = false;
+            foreach (var definition in replacement.Where(definition => definition.IsAutoCapstone))
+            {
+                var apiName = CustomAchievementProjectionService.BuildApiName(definition.Id);
+                var record = links.GetCapstoneArtRecord(gameId, apiName);
+                if (record != null)
+                {
+                    if (string.Equals(record.Source, source, StringComparison.Ordinal))
+                    {
+                        continue;
+                    }
+
+                    if (!IsRecordedFile(definition.UnlockedIconPath, record))
+                    {
+                        // Replaced by the user since; theirs from here on.
+                        links.SetCapstoneArtRecord(gameId, apiName, null);
+                        continue;
+                    }
+                }
+                else if (!string.Equals(source, borrowedArt, StringComparison.Ordinal))
+                {
+                    // Authored before art was recorded: only a borrowed platinum, which the
+                    // platform's Capstone art choice asked for, replaces what it has.
+                    continue;
+                }
+
+                var path = await MaterializeIconAsync(gameId, source, existing, apiName).ConfigureAwait(false);
+                if (string.IsNullOrWhiteSpace(path))
+                {
+                    continue;
+                }
+
+                RecordArt(links, gameId, apiName, source, path);
+                if (!string.Equals(path, definition.UnlockedIconPath, StringComparison.OrdinalIgnoreCase))
+                {
+                    definition.UnlockedIconPath = path;
+                    changed = true;
+                }
+
+                _logger?.Debug($"[AutoCapstone] Art for gameId={gameId} {apiName} now from {source}.");
+            }
+
+            if (changed)
+            {
+                _overridesService.SetCustomAchievements(gameId, replacement);
+            }
+        }
+
+        private static bool IsRecordedFile(string path, CapstoneArtRecord record)
+        {
+            if (string.IsNullOrWhiteSpace(path) ||
+                !string.Equals(path, record.Path, StringComparison.OrdinalIgnoreCase) ||
+                !File.Exists(path))
+            {
+                return false;
+            }
+
+            var info = new FileInfo(path);
+            return info.Length == record.Length &&
+                   Math.Abs((info.LastWriteTimeUtc - record.WriteTimeUtc).TotalSeconds) < 2;
+        }
+
+        private static void RecordArt(MetadataLinkStore links, Guid gameId, string apiName, string source, string path)
+        {
+            if (links == null || !File.Exists(path))
+            {
+                return;
+            }
+
+            var info = new FileInfo(path);
+            links.SetCapstoneArtRecord(gameId, apiName, new CapstoneArtRecord
+            {
+                Source = source,
+                Path = path,
+                Length = info.Length,
+                WriteTimeUtc = info.LastWriteTimeUtc
+            });
         }
 
         /// <summary>
@@ -123,6 +255,8 @@ namespace PlayniteAchievements.Services.Achievements
             var id = ResolveUniqueId(existing);
             var apiName = CustomAchievementProjectionService.BuildApiName(id);
             var (title, description) = AutoCapstoneText.Describe(_templates?.Invoke(), name, normalizedCategory);
+            var iconSource = AutoCapstoneTemplate.ResolveIconSource(game, _logger);
+            var iconPath = await MaterializeIconAsync(gameId, iconSource, existing, apiName).ConfigureAwait(false);
 
             var definition = new CustomAchievementDefinition
             {
@@ -131,7 +265,7 @@ namespace PlayniteAchievements.Services.Achievements
                 Description = description,
                 Unlocked = derived.Unlocked,
                 UnlockTimeUtc = derived.Unlocked ? derived.UnlockTimeUtc : null,
-                UnlockedIconPath = await MaterializeIconAsync(gameId, game, existing, apiName).ConfigureAwait(false),
+                UnlockedIconPath = iconPath,
                 TrophyType = AutoCapstoneTemplate.PlatinumTrophyType,
                 Hidden = false,
                 Rarity = derived.Rarity ?? "Common",
@@ -142,6 +276,7 @@ namespace PlayniteAchievements.Services.Achievements
 
             // A chosen category is filed outright; the whole game is filed with the main game.
             _overridesService.AddGeneratedAutoCapstone(gameId, definition, normalizedCategory ?? derived.Category);
+            RecordArt(_metadataLinks?.Invoke(), gameId, apiName, iconSource, iconPath);
 
             var nominated = _overridesService.SetCapstone(gameId, apiName, true);
             if (nominated?.Success != true)
@@ -179,11 +314,10 @@ namespace PlayniteAchievements.Services.Achievements
         /// </summary>
         private async Task<string> MaterializeIconAsync(
             Guid gameId,
-            Playnite.SDK.Models.Game game,
+            string source,
             IReadOnlyList<CustomAchievementDefinition> existing,
             string apiName)
         {
-            var source = AutoCapstoneTemplate.ResolveIconSource(game, _logger);
             var iconService = _iconService?.Invoke();
             if (string.IsNullOrWhiteSpace(source) || iconService == null)
             {
@@ -191,10 +325,12 @@ namespace PlayniteAchievements.Services.Achievements
             }
 
             // Stems for every authored achievement, not only this one, because a collision between
-            // two of them is what decides the suffix each gets.
+            // two of them is what decides the suffix each gets. Distinct, since a capstone whose art
+            // is being refreshed is already among them.
             var stems = AchievementIconCachePathBuilder.BuildFileStems(
                 existing.Select(definition => CustomAchievementProjectionService.BuildApiName(definition.Id))
-                    .Concat(new[] { apiName }));
+                    .Concat(new[] { apiName })
+                    .Distinct(StringComparer.OrdinalIgnoreCase));
             if (!stems.TryGetValue(apiName, out var stem) || string.IsNullOrWhiteSpace(stem))
             {
                 return source;

@@ -1,5 +1,7 @@
 using Newtonsoft.Json;
 using Playnite.SDK;
+using PlayniteAchievements.Models.Settings;
+using PlayniteAchievements.Services.GameCustomData;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -21,19 +23,12 @@ namespace PlayniteAchievements.Services.Metadata
     /// <summary>A game's stored link to one metadata source. A null <see cref="Id"/> is an explicit "no match".</summary>
     public sealed class MetadataLinkRecord
     {
-        [JsonProperty("id")]
         public string Id { get; set; }
 
-        [JsonProperty("label")]
         public string Label { get; set; }
 
-        [JsonProperty("origin")]
         public MetadataLinkOrigin Origin { get; set; }
 
-        [JsonProperty("updatedUtc")]
-        public DateTime UpdatedUtc { get; set; }
-
-        [JsonIgnore]
         public bool IsNoMatch => string.IsNullOrWhiteSpace(Id);
 
         public MetadataLinkRecord Clone() => (MetadataLinkRecord)MemberwiseClone();
@@ -53,6 +48,10 @@ namespace PlayniteAchievements.Services.Metadata
         /// <summary>How many of the game's achievements each source matched, by source key.</summary>
         [JsonProperty("coverage")]
         public Dictionary<string, MetadataCoverage> Coverage { get; set; }
+
+        /// <summary>ApiNames of the achievements whose icons came from <see cref="IconSourceKey"/>.</summary>
+        [JsonProperty("iconApiNames")]
+        public List<string> IconApiNames { get; set; }
     }
 
     /// <summary>One source's match count for a game at its last overlay.</summary>
@@ -69,41 +68,62 @@ namespace PlayniteAchievements.Services.Metadata
     }
 
     /// <summary>
-    /// Per-game links to metadata sources (a Steam appId, a PlayStation NPWR id, an Exophase slug),
-    /// keyed by game and source key. Both automatic matches and user edits live here so every caller
-    /// reads one record per (game, source). Kept outside game custom data: an automatic match written
-    /// during a refresh must not count as a user customization or trigger another refresh.
+    /// The art the plugin last wrote into an auto capstone's icon file: where it came from and the
+    /// file it left, so a later refresh can tell its own file from one the user replaced.
+    /// </summary>
+    public sealed class CapstoneArtRecord
+    {
+        [JsonProperty("source")]
+        public string Source { get; set; }
+
+        [JsonProperty("path")]
+        public string Path { get; set; }
+
+        [JsonProperty("length")]
+        public long Length { get; set; }
+
+        [JsonProperty("writeUtc")]
+        public DateTime WriteTimeUtc { get; set; }
+    }
+
+    /// <summary>
+    /// Per-game links to metadata sources (a Steam appId, a PlayStation NPWR id), keyed by game and
+    /// source key, plus a local record of what the last overlay applied. Links are stored with the
+    /// game's custom data so they travel with exports and the Workshop; the applied record and the
+    /// capstone art record describe this machine's files and stay in a local file.
     /// </summary>
     public sealed class MetadataLinkStore
     {
         private const string FileName = "links.json";
-        private const int FileVersion = 1;
+        private const int FileVersion = 2;
 
         private readonly object _sync = new object();
         private readonly object _fileSync = new object();
+        private readonly GameCustomDataStore _customData;
         private readonly ILogger _logger;
         private readonly string _path;
-        private Dictionary<Guid, Dictionary<string, MetadataLinkRecord>> _links =
-            new Dictionary<Guid, Dictionary<string, MetadataLinkRecord>>();
         private Dictionary<Guid, MetadataAppliedState> _applied = new Dictionary<Guid, MetadataAppliedState>();
+        private Dictionary<Guid, Dictionary<string, CapstoneArtRecord>> _capstoneArt =
+            new Dictionary<Guid, Dictionary<string, CapstoneArtRecord>>();
 
-        private sealed class LinkFile
+        private sealed class AppliedFile
         {
             [JsonProperty("version")]
             public int Version { get; set; } = FileVersion;
 
-            [JsonProperty("games")]
-            public Dictionary<Guid, Dictionary<string, MetadataLinkRecord>> Games { get; set; }
-
             [JsonProperty("applied")]
             public Dictionary<Guid, MetadataAppliedState> Applied { get; set; }
+
+            [JsonProperty("capstoneArt")]
+            public Dictionary<Guid, Dictionary<string, CapstoneArtRecord>> CapstoneArt { get; set; }
         }
 
         /// <summary>Raised after a link is added, changed or removed, with the game id.</summary>
         public event Action<Guid> LinkChanged;
 
-        public MetadataLinkStore(string pluginUserDataPath, ILogger logger)
+        public MetadataLinkStore(string pluginUserDataPath, GameCustomDataStore customData, ILogger logger)
         {
+            _customData = customData;
             _logger = logger;
             if (!string.IsNullOrWhiteSpace(pluginUserDataPath))
             {
@@ -122,29 +142,22 @@ namespace PlayniteAchievements.Services.Metadata
                 return false;
             }
 
-            lock (_sync)
+            var links = ReadLinks(gameId);
+            if (links == null || !links.TryGetValue(sourceKey.Trim(), out var stored) || stored == null)
             {
-                if (_links.TryGetValue(gameId, out var bySource) &&
-                    bySource.TryGetValue(sourceKey.Trim(), out var stored) &&
-                    stored != null)
-                {
-                    record = stored.Clone();
-                    return true;
-                }
+                return false;
             }
 
-            return false;
+            record = ToRecord(stored);
+            return true;
         }
 
         /// <summary>All of a game's links, by source key.</summary>
         public IReadOnlyDictionary<string, MetadataLinkRecord> GetAll(Guid gameId)
         {
-            lock (_sync)
-            {
-                return _links.TryGetValue(gameId, out var bySource)
-                    ? bySource.ToDictionary(pair => pair.Key, pair => pair.Value.Clone(), StringComparer.OrdinalIgnoreCase)
-                    : new Dictionary<string, MetadataLinkRecord>(StringComparer.OrdinalIgnoreCase);
-            }
+            return (ReadLinks(gameId) ?? new Dictionary<string, MetadataLinkData>())
+                .Where(pair => pair.Value != null)
+                .ToDictionary(pair => pair.Key, pair => ToRecord(pair.Value), StringComparer.OrdinalIgnoreCase);
         }
 
         /// <summary>Stores an automatic match unless the user already set this link.</summary>
@@ -155,20 +168,9 @@ namespace PlayniteAchievements.Services.Metadata
                 return false;
             }
 
-            return Write(gameId, sourceKey, existing =>
-            {
-                if (existing?.Origin == MetadataLinkOrigin.User)
-                {
-                    return null;
-                }
-
-                return new MetadataLinkRecord
-                {
-                    Id = id.Trim(),
-                    Label = NormalizeLabel(label),
-                    Origin = MetadataLinkOrigin.Auto
-                };
-            });
+            return Write(gameId, sourceKey, existing => existing?.IsUserSet == true
+                ? null
+                : new MetadataLinkData { Id = id.Trim(), Label = NormalizeLabel(label) });
         }
 
         /// <summary>
@@ -177,38 +179,41 @@ namespace PlayniteAchievements.Services.Metadata
         /// </summary>
         public bool SetUser(Guid gameId, string sourceKey, string id, string label = null)
         {
-            return Write(gameId, sourceKey, existing => new MetadataLinkRecord
+            return Write(gameId, sourceKey, existing => new MetadataLinkData
             {
                 Id = string.IsNullOrWhiteSpace(id) ? null : id.Trim(),
                 Label = NormalizeLabel(label),
-                Origin = MetadataLinkOrigin.User
+                IsUserSet = true
             });
         }
 
         public bool Clear(Guid gameId, string sourceKey)
         {
-            if (gameId == Guid.Empty || string.IsNullOrWhiteSpace(sourceKey))
+            if (gameId == Guid.Empty || string.IsNullOrWhiteSpace(sourceKey) || _customData == null)
             {
                 return false;
             }
 
-            bool removed;
-            lock (_sync)
+            var key = sourceKey.Trim();
+            if (ReadLinks(gameId)?.ContainsKey(key) != true)
             {
-                removed = _links.TryGetValue(gameId, out var bySource) && bySource.Remove(sourceKey.Trim());
-                if (removed && bySource.Count == 0)
+                return false;
+            }
+
+            _customData.Update(
+                gameId,
+                data =>
                 {
-                    _links.Remove(gameId);
-                }
-            }
-
-            if (removed)
-            {
-                Save();
-                LinkChanged?.Invoke(gameId);
-            }
-
-            return removed;
+                    data.MetadataLinks?.Remove(key);
+                    if (data.MetadataLinks?.Count == 0)
+                    {
+                        data.MetadataLinks = null;
+                    }
+                },
+                affectsSummaryData: false,
+                affectsOverrideMirror: false);
+            LinkChanged?.Invoke(gameId);
+            return true;
         }
 
         /// <summary>The capstone art URL the last overlay recorded for the game, or null.</summary>
@@ -228,7 +233,8 @@ namespace PlayniteAchievements.Services.Metadata
             Guid gameId,
             string iconSourceKey,
             string capstoneArtUrl,
-            IReadOnlyDictionary<string, MetadataCoverage> coverage = null)
+            IReadOnlyDictionary<string, MetadataCoverage> coverage = null,
+            IEnumerable<string> iconApiNames = null)
         {
             if (gameId == Guid.Empty)
             {
@@ -240,6 +246,13 @@ namespace PlayniteAchievements.Services.Metadata
             var counts = coverage == null || coverage.Count == 0
                 ? null
                 : coverage.ToDictionary(pair => pair.Key, pair => pair.Value, StringComparer.OrdinalIgnoreCase);
+            var borrowed = icon == null
+                ? null
+                : (iconApiNames ?? Enumerable.Empty<string>())
+                    .Where(apiName => !string.IsNullOrWhiteSpace(apiName))
+                    .Distinct(StringComparer.OrdinalIgnoreCase)
+                    .OrderBy(apiName => apiName, StringComparer.OrdinalIgnoreCase)
+                    .ToList();
             bool iconChanged;
             lock (_sync)
             {
@@ -247,7 +260,8 @@ namespace PlayniteAchievements.Services.Metadata
                 iconChanged = !string.Equals(previous?.IconSourceKey, icon, StringComparison.OrdinalIgnoreCase);
                 if (!iconChanged &&
                     string.Equals(previous?.CapstoneArtUrl, art, StringComparison.Ordinal) &&
-                    SameCoverage(previous?.Coverage, counts))
+                    SameCoverage(previous?.Coverage, counts) &&
+                    (previous?.IconApiNames ?? new List<string>()).SequenceEqual(borrowed ?? new List<string>(), StringComparer.OrdinalIgnoreCase))
                 {
                     return false;
                 }
@@ -258,7 +272,13 @@ namespace PlayniteAchievements.Services.Metadata
                 }
                 else
                 {
-                    _applied[gameId] = new MetadataAppliedState { IconSourceKey = icon, CapstoneArtUrl = art, Coverage = counts };
+                    _applied[gameId] = new MetadataAppliedState
+                    {
+                        IconSourceKey = icon,
+                        CapstoneArtUrl = art,
+                        Coverage = counts,
+                        IconApiNames = borrowed?.Count > 0 ? borrowed : null
+                    };
                 }
             }
 
@@ -284,14 +304,138 @@ namespace PlayniteAchievements.Services.Metadata
             }
         }
 
-        private static MetadataAppliedState NormalizeLoaded(MetadataAppliedState state)
+        /// <summary>The source key whose icon the last overlay gave this achievement, or null for its own.</summary>
+        public string GetBorrowedIconSource(Guid gameId, string apiName)
         {
-            if (state.Coverage != null)
+            if (string.IsNullOrWhiteSpace(apiName))
             {
-                state.Coverage = new Dictionary<string, MetadataCoverage>(state.Coverage, StringComparer.OrdinalIgnoreCase);
+                return null;
             }
 
-            return state;
+            lock (_sync)
+            {
+                return _applied.TryGetValue(gameId, out var state) &&
+                       state?.IconApiNames?.Contains(apiName.Trim(), StringComparer.OrdinalIgnoreCase) == true
+                    ? state.IconSourceKey
+                    : null;
+            }
+        }
+
+        /// <summary>The art the plugin last wrote for an auto capstone, or null.</summary>
+        public CapstoneArtRecord GetCapstoneArtRecord(Guid gameId, string apiName)
+        {
+            if (string.IsNullOrWhiteSpace(apiName))
+            {
+                return null;
+            }
+
+            lock (_sync)
+            {
+                return _capstoneArt.TryGetValue(gameId, out var byApiName) &&
+                       byApiName.TryGetValue(apiName.Trim(), out var record)
+                    ? record
+                    : null;
+            }
+        }
+
+        /// <summary>Records (or, with null, forgets) the art the plugin wrote for an auto capstone.</summary>
+        public void SetCapstoneArtRecord(Guid gameId, string apiName, CapstoneArtRecord record)
+        {
+            if (gameId == Guid.Empty || string.IsNullOrWhiteSpace(apiName))
+            {
+                return;
+            }
+
+            lock (_sync)
+            {
+                if (!_capstoneArt.TryGetValue(gameId, out var byApiName))
+                {
+                    if (record == null)
+                    {
+                        return;
+                    }
+
+                    byApiName = new Dictionary<string, CapstoneArtRecord>(StringComparer.OrdinalIgnoreCase);
+                    _capstoneArt[gameId] = byApiName;
+                }
+
+                if (record == null)
+                {
+                    byApiName.Remove(apiName.Trim());
+                    if (byApiName.Count == 0)
+                    {
+                        _capstoneArt.Remove(gameId);
+                    }
+                }
+                else
+                {
+                    byApiName[apiName.Trim()] = record;
+                }
+            }
+
+            Save();
+        }
+
+        private Dictionary<string, MetadataLinkData> ReadLinks(Guid gameId)
+        {
+            if (gameId == Guid.Empty || _customData == null)
+            {
+                return null;
+            }
+
+            var links = _customData.TryLoad(gameId, out var data) ? data?.MetadataLinks : null;
+            return links == null
+                ? null
+                : new Dictionary<string, MetadataLinkData>(links, StringComparer.OrdinalIgnoreCase);
+        }
+
+        private bool Write(Guid gameId, string sourceKey, Func<MetadataLinkData, MetadataLinkData> build)
+        {
+            if (gameId == Guid.Empty || string.IsNullOrWhiteSpace(sourceKey) || _customData == null)
+            {
+                return false;
+            }
+
+            var key = sourceKey.Trim();
+            MetadataLinkData existing = null;
+            ReadLinks(gameId)?.TryGetValue(key, out existing);
+            var next = build(existing);
+            if (next == null ||
+                (existing != null &&
+                 existing.IsUserSet == next.IsUserSet &&
+                 string.Equals(existing.Id, next.Id, StringComparison.Ordinal) &&
+                 string.Equals(existing.Label, next.Label, StringComparison.Ordinal)))
+            {
+                return false;
+            }
+
+            _customData.Update(
+                gameId,
+                data =>
+                {
+                    data.MetadataLinks = data.MetadataLinks ??
+                                         new Dictionary<string, MetadataLinkData>(StringComparer.OrdinalIgnoreCase);
+                    data.MetadataLinks[key] = next;
+                },
+                affectsSummaryData: false,
+                affectsOverrideMirror: false);
+            LinkChanged?.Invoke(gameId);
+            return true;
+        }
+
+        private static MetadataLinkRecord ToRecord(MetadataLinkData link)
+        {
+            return new MetadataLinkRecord
+            {
+                Id = link.Id,
+                Label = link.Label,
+                Origin = link.IsUserSet ? MetadataLinkOrigin.User : MetadataLinkOrigin.Auto
+            };
+        }
+
+        private static string NormalizeLabel(string label)
+        {
+            return string.IsNullOrWhiteSpace(label) ? null : label.Trim();
         }
 
         private static bool SameCoverage(
@@ -307,47 +451,6 @@ namespace PlayniteAchievements.Services.Metadata
                 previous.TryGetValue(pair.Key, out var counts) && pair.Value.SameAs(counts));
         }
 
-        private bool Write(Guid gameId, string sourceKey, Func<MetadataLinkRecord, MetadataLinkRecord> build)
-        {
-            if (gameId == Guid.Empty || string.IsNullOrWhiteSpace(sourceKey))
-            {
-                return false;
-            }
-
-            var key = sourceKey.Trim();
-            lock (_sync)
-            {
-                if (!_links.TryGetValue(gameId, out var bySource))
-                {
-                    bySource = new Dictionary<string, MetadataLinkRecord>(StringComparer.OrdinalIgnoreCase);
-                }
-
-                bySource.TryGetValue(key, out var existing);
-                var next = build(existing);
-                if (next == null ||
-                    (existing != null &&
-                     existing.Origin == next.Origin &&
-                     string.Equals(existing.Id, next.Id, StringComparison.Ordinal) &&
-                     string.Equals(existing.Label, next.Label, StringComparison.Ordinal)))
-                {
-                    return false;
-                }
-
-                next.UpdatedUtc = DateTime.UtcNow;
-                bySource[key] = next;
-                _links[gameId] = bySource;
-            }
-
-            Save();
-            LinkChanged?.Invoke(gameId);
-            return true;
-        }
-
-        private static string NormalizeLabel(string label)
-        {
-            return string.IsNullOrWhiteSpace(label) ? null : label.Trim();
-        }
-
         private void Load()
         {
             if (string.IsNullOrWhiteSpace(_path) || !File.Exists(_path))
@@ -357,42 +460,33 @@ namespace PlayniteAchievements.Services.Metadata
 
             try
             {
-                var parsed = JsonConvert.DeserializeObject<LinkFile>(File.ReadAllText(_path, Encoding.UTF8));
-                var loaded = new Dictionary<Guid, Dictionary<string, MetadataLinkRecord>>();
-                foreach (var game in parsed?.Games ?? new Dictionary<Guid, Dictionary<string, MetadataLinkRecord>>())
-                {
-                    if (game.Key == Guid.Empty || game.Value == null)
-                    {
-                        continue;
-                    }
-
-                    var bySource = new Dictionary<string, MetadataLinkRecord>(StringComparer.OrdinalIgnoreCase);
-                    foreach (var link in game.Value)
-                    {
-                        if (!string.IsNullOrWhiteSpace(link.Key) && link.Value != null)
-                        {
-                            bySource[link.Key.Trim()] = link.Value;
-                        }
-                    }
-
-                    if (bySource.Count > 0)
-                    {
-                        loaded[game.Key] = bySource;
-                    }
-                }
-
+                var parsed = JsonConvert.DeserializeObject<AppliedFile>(File.ReadAllText(_path, Encoding.UTF8));
                 lock (_sync)
                 {
-                    _links = loaded;
                     _applied = (parsed?.Applied ?? new Dictionary<Guid, MetadataAppliedState>())
                         .Where(pair => pair.Key != Guid.Empty && pair.Value != null)
                         .ToDictionary(pair => pair.Key, pair => NormalizeLoaded(pair.Value));
+                    _capstoneArt = (parsed?.CapstoneArt ?? new Dictionary<Guid, Dictionary<string, CapstoneArtRecord>>())
+                        .Where(pair => pair.Key != Guid.Empty && pair.Value != null)
+                        .ToDictionary(
+                            pair => pair.Key,
+                            pair => new Dictionary<string, CapstoneArtRecord>(pair.Value, StringComparer.OrdinalIgnoreCase));
                 }
             }
             catch (Exception ex)
             {
-                _logger?.Warn(ex, $"[Metadata] Failed to read metadata links; starting empty: {_path}");
+                _logger?.Warn(ex, $"[Metadata] Failed to read the metadata applied state; starting empty: {_path}");
             }
+        }
+
+        private static MetadataAppliedState NormalizeLoaded(MetadataAppliedState state)
+        {
+            if (state.Coverage != null)
+            {
+                state.Coverage = new Dictionary<string, MetadataCoverage>(state.Coverage, StringComparer.OrdinalIgnoreCase);
+            }
+
+            return state;
         }
 
         private void Save()
@@ -405,7 +499,9 @@ namespace PlayniteAchievements.Services.Metadata
             string json;
             lock (_sync)
             {
-                json = JsonConvert.SerializeObject(new LinkFile { Games = _links, Applied = _applied }, Formatting.None);
+                json = JsonConvert.SerializeObject(
+                    new AppliedFile { Applied = _applied, CapstoneArt = _capstoneArt },
+                    Formatting.None);
             }
 
             var temporaryPath = _path + ".tmp";
@@ -426,7 +522,7 @@ namespace PlayniteAchievements.Services.Metadata
             }
             catch (Exception ex)
             {
-                _logger?.Warn(ex, $"[Metadata] Failed to save metadata links: {_path}");
+                _logger?.Warn(ex, $"[Metadata] Failed to save the metadata applied state: {_path}");
             }
         }
     }
