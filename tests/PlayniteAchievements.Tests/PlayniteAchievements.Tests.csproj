@@ -497,6 +497,7 @@
     <Compile Include="..\..\source\Models\Settings\PersistedSettings.Metadata.cs" Link="Source\Models\Settings\PersistedSettings.Metadata.cs" />
     <Compile Include="..\..\source\Services\Metadata\MetadataLinkStore.cs" Link="Source\Services\Metadata\MetadataLinkStore.cs" />
     <Compile Include="..\..\source\Services\Metadata\MetadataOverlay.cs" Link="Source\Services\Metadata\MetadataOverlay.cs" />
+    <Compile Include="..\..\source\Providers\PSN\PsPricesPageParser.cs" Link="Source\Providers\PSN\PsPricesPageParser.cs" />
     <Compile Include="..\..\source\Models\Settings\PersistedSettings.GridCompatibility.Notifications.cs" Link="Source\Models\Settings\PersistedSettings.GridCompatibility.Notifications.cs" />
     <Compile Include="..\..\source\Models\Settings\ProgressBadgeSource.cs" Link="Source\Models\Settings\ProgressBadgeSource.cs" />
     <Compile Include="..\..\source\Models\Settings\ProviderNotificationOverride.cs" Link="Source\Models\Settings\ProviderNotificationOverride.cs" />
@@ -811,6 +812,9 @@
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
     <None Include="Fixtures\Steam\Achievements\*.*">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Include="Fixtures\PsPrices\*.html">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
     <None Include="Fixtures\Webm\*.webm">
