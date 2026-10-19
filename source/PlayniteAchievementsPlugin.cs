@@ -1104,6 +1104,7 @@ namespace PlayniteAchievements
                         gameId => _achievementDataService?.GetGameAchievementData(gameId),
                         () => _managedCustomIconService,
                         () => AutoCapstoneText.Resolve(_settingsViewModel?.Settings?.Persisted),
+                        () => _metadataLinkStore,
                         _logger);
                     _autoCapstoneTextService = new AutoCapstoneTextService(
                         _gameCustomDataStore,
@@ -1127,8 +1128,16 @@ namespace PlayniteAchievements
                         _autoCapstoneMaintainer?.Maintain(gameIds);
                         if (_autoCapstoneGenerator != null && gameIds != null)
                         {
+                            // Art after generation, so a capstone authored now is not refreshed twice.
                             var ids = gameIds.ToList();
-                            _ = Task.Run(() => _autoCapstoneGenerator.GenerateAsync(ids));
+                            _ = Task.Run(async () =>
+                            {
+                                await _autoCapstoneGenerator.GenerateAsync(ids).ConfigureAwait(false);
+                                if (_autoCapstoneAuthoring != null)
+                                {
+                                    await _autoCapstoneAuthoring.RefreshArtAsync(ids).ConfigureAwait(false);
+                                }
+                            });
                         }
                     };
                     _windowTracker = new ActiveGameWindowTracker(_logger);
