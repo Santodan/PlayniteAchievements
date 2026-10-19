@@ -21,12 +21,15 @@ namespace PlayniteAchievements.Providers.PSN
         private const int ChallengePollMs = 500;
         private const int RequestGapMs = 1000;
         private const int MaxGamePagesPerSearch = 4;
+        private const int MaxRelatedPages = 8;
 
         private readonly OffscreenViewLeaseSource _views;
         private readonly ILogger _logger;
         private readonly SemaphoreSlim _gate = new SemaphoreSlim(1, 1);
         private readonly Dictionary<string, string> _trophyPathByGamePage = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         private readonly Dictionary<string, PsPricesTrophyPage> _pageByPath = new Dictionary<string, PsPricesTrophyPage>(StringComparer.OrdinalIgnoreCase);
+        private readonly Dictionary<string, IReadOnlyList<PsPricesSearchResult>> _searchByQuery =
+            new Dictionary<string, IReadOnlyList<PsPricesSearchResult>>(StringComparer.OrdinalIgnoreCase);
         private DateTime _lastRequestUtc = DateTime.MinValue;
 
         public PsPricesClient(IPlayniteAPI api, ILogger logger)
@@ -45,32 +48,119 @@ namespace PlayniteAchievements.Providers.PSN
         }
 
         /// <summary>
-        /// Game page paths of the PlayStation results whose title matches <paramref name="gameName"/>
-        /// once normalized, PS5 cards first, then result order.
+        /// Game page paths of the PlayStation results for the first of <paramref name="gameNames"/>
+        /// that finds any, PS5 cards first. Exact titles are tried for every name before loose ones
+        /// ("Deus Ex - Mankind Divided" for "Deus Ex: Mankind Divided"), and a loose name is also
+        /// searched in its own right, since the site finds nothing for some punctuated titles.
         /// </summary>
-        public async Task<IReadOnlyList<string>> FindGamePagePathsAsync(string gameName, CancellationToken ct)
+        public async Task<IReadOnlyList<string>> FindGamePagePathsAsync(IEnumerable<string> gameNames, CancellationToken ct)
         {
-            var normalized = GameNameNormalizer.StripDiacritics(ExophaseGameNameMatcher.NormalizeGameName(gameName));
-            if (string.IsNullOrWhiteSpace(normalized) || _views == null)
+            var names = (gameNames ?? Enumerable.Empty<string>())
+                .Where(name => !string.IsNullOrWhiteSpace(name))
+                .GroupBy(GameNameNormalizer.ToLooseKey, StringComparer.Ordinal)
+                .Select(group => group.First())
+                .ToList();
+            if (names.Count == 0 || _views == null)
             {
                 return Array.Empty<string>();
             }
 
-            var searchHtml = await GetPageSourceAsync(PsPricesPageParser.BuildSearchUrl(gameName), ct).ConfigureAwait(false);
-            var paths = PsPricesPageParser.ParseSearchResults(searchHtml)
-                .Where(result => result.IsPlayStation &&
-                                 string.Equals(
-                                     GameNameNormalizer.StripDiacritics(ExophaseGameNameMatcher.NormalizeGameName(result.Title)),
-                                     normalized,
-                                     StringComparison.OrdinalIgnoreCase))
+            foreach (var name in names)
+            {
+                var normalized = Normalize(name);
+                var exact = await FindAsync(name, title => string.Equals(Normalize(title), normalized, StringComparison.OrdinalIgnoreCase), ct)
+                    .ConfigureAwait(false);
+                if (exact.Count > 0)
+                {
+                    _logger?.Debug($"[PsPrices] '{name}': {exact.Count} matching PlayStation results.");
+                    return exact;
+                }
+            }
+
+            foreach (var name in names)
+            {
+                var loose = GameNameNormalizer.ToLooseKey(name);
+                if (loose.Length == 0)
+                {
+                    continue;
+                }
+
+                bool Close(string title) => string.Equals(GameNameNormalizer.ToLooseKey(title), loose, StringComparison.Ordinal);
+                var close = await FindAsync(name, Close, ct).ConfigureAwait(false);
+                if (close.Count == 0)
+                {
+                    close = await FindAsync(loose, Close, ct).ConfigureAwait(false);
+                }
+
+                if (close.Count > 0)
+                {
+                    _logger?.Debug($"[PsPrices] '{name}': {close.Count} close PlayStation results.");
+                    return close;
+                }
+            }
+
+            _logger?.Debug($"[PsPrices] '{names[0]}': 0 matching PlayStation results.");
+            return Array.Empty<string>();
+        }
+
+        /// <summary>
+        /// Game pages of PlayStation results whose title starts with <paramref name="baseName"/>, for
+        /// trophy sets sold separately from the base game: DLC lists and collection parts.
+        /// </summary>
+        public async Task<IReadOnlyList<string>> FindRelatedGamePagePathsAsync(string baseName, CancellationToken ct)
+        {
+            var prefix = GameNameNormalizer.ToLooseKey(baseName);
+            if (prefix.Length == 0 || _views == null)
+            {
+                return Array.Empty<string>();
+            }
+
+            var related = await FindAsync(
+                baseName,
+                title =>
+                {
+                    var key = GameNameNormalizer.ToLooseKey(title);
+                    return key == prefix || key.StartsWith(prefix + " ", StringComparison.Ordinal);
+                },
+                ct,
+                MaxRelatedPages).ConfigureAwait(false);
+            _logger?.Debug($"[PsPrices] '{baseName}': {related.Count} related PlayStation results.");
+            return related;
+        }
+
+        private async Task<List<string>> FindAsync(string query, Func<string, bool> accepts, CancellationToken ct, int take = MaxGamePagesPerSearch)
+        {
+            return (await SearchAsync(query, ct).ConfigureAwait(false))
+                .Where(result => result.IsPlayStation && accepts(result.Title))
                 .OrderBy(result => result.IsPs5 ? 0 : 1)
                 .Select(result => result.Path)
-                .Take(MaxGamePagesPerSearch)
+                .Take(take)
                 .ToList();
-
-            _logger?.Debug($"[PsPrices] '{gameName}': {paths.Count} matching PlayStation results.");
-            return paths;
         }
+
+        /// <summary>Search results for a query, fetched once per run.</summary>
+        private async Task<IReadOnlyList<PsPricesSearchResult>> SearchAsync(string query, CancellationToken ct)
+        {
+            lock (_searchByQuery)
+            {
+                if (_searchByQuery.TryGetValue(query, out var cached))
+                {
+                    return cached;
+                }
+            }
+
+            var html = await GetPageSourceAsync(PsPricesPageParser.BuildSearchUrl(query), ct).ConfigureAwait(false);
+            var results = PsPricesPageParser.ParseSearchResults(html);
+            lock (_searchByQuery)
+            {
+                _searchByQuery[query] = results;
+            }
+
+            return results;
+        }
+
+        private static string Normalize(string name) =>
+            GameNameNormalizer.StripDiacritics(ExophaseGameNameMatcher.NormalizeGameName(name));
 
         /// <summary>The trophy page path a game page links to, or null.</summary>
         public async Task<string> FindTrophyPagePathAsync(string gamePagePath, CancellationToken ct)
@@ -188,6 +278,11 @@ namespace PlayniteAchievements.Providers.PSN
             lock (_pageByPath)
             {
                 _pageByPath.Clear();
+            }
+
+            lock (_searchByQuery)
+            {
+                _searchByQuery.Clear();
             }
         }
 
