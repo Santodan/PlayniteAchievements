@@ -950,7 +950,7 @@ namespace PlayniteAchievements
                 {
                     providers = _providerRegistry.CreateProviders(settings, PlayniteApi, pluginUserDataPath);
                     _providerRegistry.CreateMetadataProviders(settings, PlayniteApi, pluginUserDataPath);
-                    _metadataLinkStore = new Services.Metadata.MetadataLinkStore(pluginUserDataPath, _logger);
+                    _metadataLinkStore = new Services.Metadata.MetadataLinkStore(pluginUserDataPath, _gameCustomDataStore, _logger);
                     Services.Achievements.AutoCapstoneTemplate.MetadataArtAccessor = _metadataLinkStore.GetCapstoneArtUrl;
                 }
 
