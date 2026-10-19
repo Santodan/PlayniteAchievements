@@ -91,7 +91,7 @@ namespace PlayniteAchievements.Services.Metadata
                 return false;
             }
 
-            var request = new MetadataLinkRequest(game, data);
+            var request = CreateRequest(game, data, gameId);
             var plan = BuildPlan(request.ServicingProviderKey);
             if (plan.IsEmpty)
             {
@@ -185,9 +185,21 @@ namespace PlayniteAchievements.Services.Metadata
             }
 
             result.Outcome = MetadataProbeOutcome.NotFound;
-            await LoadMatchedSetAsync(sourceKey, gameId, new MetadataLinkRequest(game, data), data.Achievements, ct, result)
+            await LoadMatchedSetAsync(sourceKey, gameId, CreateRequest(game, data, gameId), data.Achievements, ct, result)
                 .ConfigureAwait(false);
             return result;
+        }
+
+        /// <summary>A link request carrying the labels of the game's saved links as alternate names.</summary>
+        private MetadataLinkRequest CreateRequest(Game game, GameAchievementData data, Guid gameId)
+        {
+            return new MetadataLinkRequest(game, data)
+            {
+                AlternateNames = (_links?.GetAll(gameId)?.Values ?? Enumerable.Empty<MetadataLinkRecord>())
+                    .Select(link => link?.Label)
+                    .Where(label => !string.IsNullOrWhiteSpace(label))
+                    .ToList()
+            };
         }
 
         /// <param name="probe">When set, a dry run: nothing is stored and the outcome is written here.</param>
