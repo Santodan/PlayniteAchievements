@@ -44,6 +44,7 @@ namespace PlayniteAchievements.Tests.Providers
             Assert.AreEqual("God Of War Ragnarök", results[0].Title);
             CollectionAssert.AreEqual(new[] { "PlayStation 4", "PlayStation 5" }, results[0].Platforms.ToList());
             Assert.IsTrue(results[0].IsPlayStation);
+            Assert.IsTrue(results[0].IsPs5);
             Assert.IsFalse(results[3].IsPlayStation);
             Assert.IsFalse(results[4].IsPlayStation);
         }
