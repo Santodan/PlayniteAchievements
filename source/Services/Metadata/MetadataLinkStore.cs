@@ -48,6 +48,10 @@ namespace PlayniteAchievements.Services.Metadata
         /// <summary>How many of the game's achievements each source matched, by source key.</summary>
         [JsonProperty("coverage")]
         public Dictionary<string, MetadataCoverage> Coverage { get; set; }
+
+        /// <summary>ApiNames of the achievements whose icons came from <see cref="IconSourceKey"/>.</summary>
+        [JsonProperty("iconApiNames")]
+        public List<string> IconApiNames { get; set; }
     }
 
     /// <summary>One source's match count for a game at its last overlay.</summary>
@@ -229,7 +233,8 @@ namespace PlayniteAchievements.Services.Metadata
             Guid gameId,
             string iconSourceKey,
             string capstoneArtUrl,
-            IReadOnlyDictionary<string, MetadataCoverage> coverage = null)
+            IReadOnlyDictionary<string, MetadataCoverage> coverage = null,
+            IEnumerable<string> iconApiNames = null)
         {
             if (gameId == Guid.Empty)
             {
@@ -241,6 +246,13 @@ namespace PlayniteAchievements.Services.Metadata
             var counts = coverage == null || coverage.Count == 0
                 ? null
                 : coverage.ToDictionary(pair => pair.Key, pair => pair.Value, StringComparer.OrdinalIgnoreCase);
+            var borrowed = icon == null
+                ? null
+                : (iconApiNames ?? Enumerable.Empty<string>())
+                    .Where(apiName => !string.IsNullOrWhiteSpace(apiName))
+                    .Distinct(StringComparer.OrdinalIgnoreCase)
+                    .OrderBy(apiName => apiName, StringComparer.OrdinalIgnoreCase)
+                    .ToList();
             bool iconChanged;
             lock (_sync)
             {
@@ -248,7 +260,8 @@ namespace PlayniteAchievements.Services.Metadata
                 iconChanged = !string.Equals(previous?.IconSourceKey, icon, StringComparison.OrdinalIgnoreCase);
                 if (!iconChanged &&
                     string.Equals(previous?.CapstoneArtUrl, art, StringComparison.Ordinal) &&
-                    SameCoverage(previous?.Coverage, counts))
+                    SameCoverage(previous?.Coverage, counts) &&
+                    (previous?.IconApiNames ?? new List<string>()).SequenceEqual(borrowed ?? new List<string>(), StringComparer.OrdinalIgnoreCase))
                 {
                     return false;
                 }
@@ -259,7 +272,13 @@ namespace PlayniteAchievements.Services.Metadata
                 }
                 else
                 {
-                    _applied[gameId] = new MetadataAppliedState { IconSourceKey = icon, CapstoneArtUrl = art, Coverage = counts };
+                    _applied[gameId] = new MetadataAppliedState
+                    {
+                        IconSourceKey = icon,
+                        CapstoneArtUrl = art,
+                        Coverage = counts,
+                        IconApiNames = borrowed?.Count > 0 ? borrowed : null
+                    };
                 }
             }
 
@@ -281,6 +300,23 @@ namespace PlayniteAchievements.Services.Metadata
                        state?.Coverage != null &&
                        state.Coverage.TryGetValue(sourceKey.Trim(), out var counts)
                     ? new MetadataCoverage { Matched = counts.Matched, Total = counts.Total }
+                    : null;
+            }
+        }
+
+        /// <summary>The source key whose icon the last overlay gave this achievement, or null for its own.</summary>
+        public string GetBorrowedIconSource(Guid gameId, string apiName)
+        {
+            if (string.IsNullOrWhiteSpace(apiName))
+            {
+                return null;
+            }
+
+            lock (_sync)
+            {
+                return _applied.TryGetValue(gameId, out var state) &&
+                       state?.IconApiNames?.Contains(apiName.Trim(), StringComparer.OrdinalIgnoreCase) == true
+                    ? state.IconSourceKey
                     : null;
             }
         }
