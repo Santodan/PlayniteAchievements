@@ -18,7 +18,6 @@ namespace PlayniteAchievements.Views.Settings.General
         private GeneralOverviewSection _overviewSection;
         private SyncUpdatesSection _syncUpdatesSection;
         private HotkeySettingsSection _hotkeySection;
-        private EditorSettingsSection _editorSection;
         private TaggingSettingsSection _taggingSection;
         private MaintenanceSettingsSection _maintenanceSection;
 
@@ -58,12 +57,6 @@ namespace PlayniteAchievements.Views.Settings.General
                     iconGlyph: "\uEA40",
                     viewFactory: () => _hotkeySection =
                         new HotkeySettingsSection(settings)),
-                new SettingsNavigationItem(
-                    "Editor",
-                    ResourceProvider.GetString("LOCPlayAch_ManageAchievements_Tab_Editor"),
-                    iconGlyph: "\uEF10",
-                    viewFactory: () => _editorSection =
-                        new EditorSettingsSection(settings, plugin)),
                 new SettingsNavigationItem(
                     "Tagging",
                     ResourceProvider.GetString("LOCPlayAch_Settings_TaggingHeader"),
