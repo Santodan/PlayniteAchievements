@@ -117,6 +117,25 @@ namespace PlayniteAchievements.Tests.Services
             Assert.AreSame(byTitle, matches.Single(m => m.Target == second).Source);
         }
 
+        [TestMethod]
+        public void ApiNameOverlap_CountsOnlyIdsWithLetters()
+        {
+            var targets = new[] { Achievement("ACH_A", "x"), Achievement("ACH_B", "y"), Achievement("1", "z"), Achievement("2", "w") };
+            var sources = new[] { Achievement("ach_a", "a"), Achievement("1", "b"), Achievement("2", "c") };
+
+            // Of the two distinctive target IDs, one appears; the numeric IDs are ignored.
+            Assert.AreEqual(0.5, CrossSourceAchievementMatcher.ApiNameOverlap(targets, sources), 0.0001);
+        }
+
+        [TestMethod]
+        public void ApiNameOverlap_IsZeroForNumericOnlyIds()
+        {
+            var targets = new[] { Achievement("1", "x"), Achievement("2", "y") };
+            var sources = new[] { Achievement("1", "a"), Achievement("2", "b") };
+
+            Assert.AreEqual(0, CrossSourceAchievementMatcher.ApiNameOverlap(targets, sources));
+        }
+
         private static AchievementDetail Achievement(string apiName, string title, string description = null)
         {
             return new AchievementDetail
