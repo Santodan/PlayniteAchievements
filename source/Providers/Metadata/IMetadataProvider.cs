@@ -20,6 +20,18 @@ namespace PlayniteAchievements.Providers.Metadata
         CapstoneArt = 16
     }
 
+    /// <summary>How a metadata source's categories combine with the servicing provider's.</summary>
+    public enum MetadataCategoryMode
+    {
+        Off = 0,
+
+        /// <summary>Categories the provider named are kept; the source categorizes the rest.</summary>
+        Merge = 1,
+
+        /// <summary>The source's categories replace the provider's.</summary>
+        Override = 2
+    }
+
     /// <summary>
     /// A secondary source of achievement metadata. It never services a game; the overlay stage asks
     /// it for its rows for a game the servicing provider just refreshed, matches them to that game's
@@ -35,6 +47,15 @@ namespace PlayniteAchievements.Providers.Metadata
         string DisplayNameKey { get; }
 
         MetadataField SupportedFields { get; }
+
+        /// <summary>
+        /// True when this source's data is already the servicing provider's own (SteamHunters for
+        /// Steam, PlayStation for PSN and the PlayStation emulators), so the overlay skips it.
+        /// </summary>
+        bool IsNativeFor(string servicingProviderKey);
+
+        /// <summary>How this source's categories combine with the provider's; Off for sources without categories.</summary>
+        MetadataCategoryMode CategoryMode { get; }
 
         /// <summary>
         /// Opens whatever session the provider needs for one refresh run (auth probe, cookie
