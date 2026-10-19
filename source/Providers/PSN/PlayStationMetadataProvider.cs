@@ -97,7 +97,7 @@ namespace PlayniteAchievements.Providers.PSN
                 var played = await _psn.Scanner.FindPlayedTrophySetByNameAsync(name, ct).ConfigureAwait(false);
                 if (!string.IsNullOrWhiteSpace(played?.NpCommunicationId))
                 {
-                    var link = new MetadataSourceLink(played.NpCommunicationId, played.Title);
+                    var link = new MetadataSourceLink(played.NpCommunicationId, played.Title, foundByName: true);
                     if (await IsPs5SetAsync(link.Id, ct).ConfigureAwait(false))
                     {
                         return link;
@@ -115,7 +115,7 @@ namespace PlayniteAchievements.Providers.PSN
                         continue;
                     }
 
-                    var link = new MetadataSourceLink(page.NpCommunicationId, page.Title);
+                    var link = new MetadataSourceLink(page.NpCommunicationId, page.Title, foundByName: true);
                     if (await IsPs5SetAsync(link.Id, ct).ConfigureAwait(false))
                     {
                         return link;
