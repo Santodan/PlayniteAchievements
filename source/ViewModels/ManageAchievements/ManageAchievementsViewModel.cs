@@ -2138,7 +2138,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             // Raw ProviderKey (not EffectiveProviderKey): Exophase-serviced games report their
             // proxied platform as the effective key but never run the enricher.
             IsExophaseEnrichmentSlugSectionVisible =
-                HasGame && ExophaseRarityEnrichment.IsEnabledForProvider(_cachedProviderKey);
+                HasGame && _settings?.Persisted?.UsesExophaseRarity(_cachedProviderKey) == true;
         }
 
         private void OnProviderOverrideSelectionChanged()
