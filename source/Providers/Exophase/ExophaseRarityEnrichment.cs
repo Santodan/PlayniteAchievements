@@ -1,41 +1,15 @@
 using Playnite.SDK.Models;
-using PlayniteAchievements.Providers.EA;
-using PlayniteAchievements.Providers.RPCS3;
-using PlayniteAchievements.Providers.ShadPS4;
-using PlayniteAchievements.Providers.Vita3K;
+using PlayniteAchievements.Models.Settings;
 using PlayniteAchievements.Providers.Xbox;
-using PlayniteAchievements.Providers.Xenia;
 
 namespace PlayniteAchievements.Providers.Exophase
 {
     /// <summary>
-    /// Maps servicing providers to their Exophase rarity enrichment opt-in. The provider set and
-    /// per-provider flag mirror the scanner gates that construct <see cref="ExophaseMetadataEnricher"/>
-    /// (e.g. XboxScanner.CreateRarityEnricherAsync); keep them in sync when a provider gains or
-    /// loses enrichment support.
+    /// Exophase rarity enrichment helpers. Whether a platform uses it is
+    /// <see cref="PersistedSettings.UsesExophaseRarity"/>.
     /// </summary>
     internal static class ExophaseRarityEnrichment
     {
-        public static bool IsEnabledForProvider(string providerKey)
-        {
-            switch ((providerKey ?? string.Empty).Trim().ToUpperInvariant())
-            {
-                case "XBOX":
-                    return ProviderRegistry.Settings<XboxSettings>().UseExophaseForRarity;
-                case "XENIA":
-                    return ProviderRegistry.Settings<XeniaSettings>().UseExophaseForRarity;
-                case "EA":
-                    return ProviderRegistry.Settings<EASettings>().UseExophaseForRarity;
-                case "RPCS3":
-                    return ProviderRegistry.Settings<Rpcs3Settings>().UseExophaseForRarity;
-                case "SHADPS4":
-                    return ProviderRegistry.Settings<ShadPS4Settings>().UseExophaseForRarity;
-                case "VITA3K":
-                    return ProviderRegistry.Settings<Vita3KSettings>().UseExophaseForRarity;
-                default:
-                    return false;
-            }
-        }
 
         /// <summary>
         /// The name-derived slug the enricher would try for this game, mirroring
