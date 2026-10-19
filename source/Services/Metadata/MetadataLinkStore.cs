@@ -39,6 +39,18 @@ namespace PlayniteAchievements.Services.Metadata
         public MetadataLinkRecord Clone() => (MetadataLinkRecord)MemberwiseClone();
     }
 
+    /// <summary>What the last metadata overlay applied to a game, read by later steps of the same or a later run.</summary>
+    public sealed class MetadataAppliedState
+    {
+        /// <summary>Key of the metadata provider whose icons replaced the provider's, or null for the provider's own.</summary>
+        [JsonProperty("iconSource")]
+        public string IconSourceKey { get; set; }
+
+        /// <summary>Image URL an authored auto capstone uses, or null for the game's own art.</summary>
+        [JsonProperty("capstoneArt")]
+        public string CapstoneArtUrl { get; set; }
+    }
+
     /// <summary>
     /// Per-game links to metadata sources (a Steam appId, a PlayStation NPWR id, an Exophase slug),
     /// keyed by game and source key. Both automatic matches and user edits live here so every caller
@@ -56,6 +68,7 @@ namespace PlayniteAchievements.Services.Metadata
         private readonly string _path;
         private Dictionary<Guid, Dictionary<string, MetadataLinkRecord>> _links =
             new Dictionary<Guid, Dictionary<string, MetadataLinkRecord>>();
+        private Dictionary<Guid, MetadataAppliedState> _applied = new Dictionary<Guid, MetadataAppliedState>();
 
         private sealed class LinkFile
         {
@@ -64,6 +77,9 @@ namespace PlayniteAchievements.Services.Metadata
 
             [JsonProperty("games")]
             public Dictionary<Guid, Dictionary<string, MetadataLinkRecord>> Games { get; set; }
+
+            [JsonProperty("applied")]
+            public Dictionary<Guid, MetadataAppliedState> Applied { get; set; }
         }
 
         /// <summary>Raised after a link is added, changed or removed, with the game id.</summary>
@@ -178,6 +194,52 @@ namespace PlayniteAchievements.Services.Metadata
             return removed;
         }
 
+        /// <summary>The capstone art URL the last overlay recorded for the game, or null.</summary>
+        public string GetCapstoneArtUrl(Guid gameId)
+        {
+            lock (_sync)
+            {
+                return _applied.TryGetValue(gameId, out var state) ? state?.CapstoneArtUrl : null;
+            }
+        }
+
+        /// <summary>
+        /// Records what an overlay applied to the game. Returns true when the icon source differs
+        /// from the one recorded last, so the caller re-downloads icons kept under the same names.
+        /// </summary>
+        public bool RecordApplied(Guid gameId, string iconSourceKey, string capstoneArtUrl)
+        {
+            if (gameId == Guid.Empty)
+            {
+                return false;
+            }
+
+            var icon = string.IsNullOrWhiteSpace(iconSourceKey) ? null : iconSourceKey.Trim();
+            var art = string.IsNullOrWhiteSpace(capstoneArtUrl) ? null : capstoneArtUrl.Trim();
+            bool iconChanged;
+            lock (_sync)
+            {
+                _applied.TryGetValue(gameId, out var previous);
+                iconChanged = !string.Equals(previous?.IconSourceKey, icon, StringComparison.OrdinalIgnoreCase);
+                if (!iconChanged && string.Equals(previous?.CapstoneArtUrl, art, StringComparison.Ordinal))
+                {
+                    return false;
+                }
+
+                if (icon == null && art == null)
+                {
+                    _applied.Remove(gameId);
+                }
+                else
+                {
+                    _applied[gameId] = new MetadataAppliedState { IconSourceKey = icon, CapstoneArtUrl = art };
+                }
+            }
+
+            Save();
+            return iconChanged;
+        }
+
         private bool Write(Guid gameId, string sourceKey, Func<MetadataLinkRecord, MetadataLinkRecord> build)
         {
             if (gameId == Guid.Empty || string.IsNullOrWhiteSpace(sourceKey))
@@ -255,6 +317,9 @@ namespace PlayniteAchievements.Services.Metadata
                 lock (_sync)
                 {
                     _links = loaded;
+                    _applied = (parsed?.Applied ?? new Dictionary<Guid, MetadataAppliedState>())
+                        .Where(pair => pair.Key != Guid.Empty && pair.Value != null)
+                        .ToDictionary(pair => pair.Key, pair => pair.Value);
                 }
             }
             catch (Exception ex)
@@ -273,7 +338,7 @@ namespace PlayniteAchievements.Services.Metadata
             string json;
             lock (_sync)
             {
-                json = JsonConvert.SerializeObject(new LinkFile { Games = _links }, Formatting.None);
+                json = JsonConvert.SerializeObject(new LinkFile { Games = _links, Applied = _applied }, Formatting.None);
             }
 
             var temporaryPath = _path + ".tmp";
