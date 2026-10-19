@@ -30,6 +30,7 @@ namespace PlayniteAchievements.Providers.PSN
         private readonly Dictionary<string, List<AchievementDetail>> _definitions =
             new Dictionary<string, List<AchievementDetail>>(StringComparer.OrdinalIgnoreCase);
         private IDisposable _psPricesRun;
+        private volatile bool _runSignedIn;
 
         public PlayStationMetadataProvider(PsnDataProvider psn, IPlayniteAPI api, ILogger logger)
         {
@@ -44,24 +45,51 @@ namespace PlayniteAchievements.Providers.PSN
 
         public MetadataField SupportedFields => MetadataField.Icons | MetadataField.CapstoneArt;
 
-        private bool PsnSignedIn => _psn?.Scanner != null && _psn.IsAuthenticated;
+        // Set by this run's session probe, not the cached flag, which can outlive the token.
+        private bool PsnSignedIn => _psn?.Scanner != null && _runSignedIn;
 
         public bool IsNativeFor(string servicingProviderKey) =>
             !string.IsNullOrWhiteSpace(servicingProviderKey) && NativeProviders.Contains(servicingProviderKey);
 
-        public Task<bool> BeginRunAsync(CancellationToken ct)
+        /// <summary>
+        /// Probes the PSN session once per run, as the refresh preflight does for servicing
+        /// providers, so a lapsed token is renewed from the stored cookies before any lookup.
+        /// </summary>
+        public async Task<bool> BeginRunAsync(CancellationToken ct)
         {
-            if (!PsnSignedIn)
+            var session = _psn?.AuthSession;
+            if (session == null || _psn.Scanner == null)
             {
-                return Task.FromResult(false);
+                return false;
             }
 
+            try
+            {
+                var probe = await session.ProbeAuthStateAsync(ct).ConfigureAwait(false);
+                if (probe?.IsSuccess != true)
+                {
+                    _logger?.Info($"[PlayStationMetadata] PSN not signed in ({probe?.Outcome}); PlayStation art skipped this run.");
+                    return false;
+                }
+            }
+            catch (OperationCanceledException) when (ct.IsCancellationRequested)
+            {
+                throw;
+            }
+            catch (Exception ex)
+            {
+                _logger?.Warn(ex, "[PlayStationMetadata] PSN session probe failed; PlayStation art skipped this run.");
+                return false;
+            }
+
+            _runSignedIn = true;
             _psPricesRun = _psPrices.BeginRun();
-            return Task.FromResult(true);
+            return true;
         }
 
         public void EndRun()
         {
+            _runSignedIn = false;
             Interlocked.Exchange(ref _psPricesRun, null)?.Dispose();
             lock (_definitions)
             {
