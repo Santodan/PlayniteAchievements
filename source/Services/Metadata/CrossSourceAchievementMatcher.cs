@@ -1,3 +1,4 @@
+using PlayniteAchievements.Common;
 using PlayniteAchievements.Models.Achievements;
 using System;
 using System.Collections.Generic;
@@ -151,7 +152,10 @@ namespace PlayniteAchievements.Services.Metadata
             return !string.IsNullOrEmpty(apiName) && apiName.Any(char.IsLetter);
         }
 
-        /// <summary>Lowercase letters and digits, with each run of anything else collapsed to one space.</summary>
+        /// <summary>
+        /// Lowercase letters and digits without accents, with each run of anything else collapsed
+        /// to one space.
+        /// </summary>
         public static string NormalizeText(string value)
         {
             if (string.IsNullOrWhiteSpace(value))
@@ -159,11 +163,12 @@ namespace PlayniteAchievements.Services.Metadata
                 return null;
             }
 
-            var chars = new char[value.Length];
+            var folded = GameNameNormalizer.StripDiacritics(value.Trim()).ToLowerInvariant();
+            var chars = new char[folded.Length];
             var index = 0;
             var lastWasSpace = false;
 
-            foreach (var c in value.Trim().ToLowerInvariant())
+            foreach (var c in folded)
             {
                 if (char.IsLetterOrDigit(c))
                 {
