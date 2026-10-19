@@ -142,6 +142,7 @@ namespace PlayniteAchievements.Providers.Steam
 
             return new AchievementSourceSet(Key, linkId, rows)
             {
+                ApiNamesMayBeShared = true,
                 SharesApiNames = gameId.HasValue && TryGetManualSteamAppId(gameId.Value, out var manualAppId) &&
                                  string.Equals(manualAppId, linkId, StringComparison.Ordinal)
             };
