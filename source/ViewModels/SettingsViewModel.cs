@@ -91,7 +91,8 @@ namespace PlayniteAchievements.ViewModels
                     appearanceMigratedJson,
                     UnlockSoundSettingsMigration.GetUniPlaySongConfigPath(_plugin.PlayniteApi?.Paths?.ExtensionsDataPath));
                 var notificationStyleMigratedJson = NotificationStyleSettingsMigration.MigrateFromJson(unlockSoundMigratedJson);
-                var fullyMigratedJson = GameCustomDataStore.MigrateLegacyConfig(notificationStyleMigratedJson);
+                var metadataMigratedJson = MetadataSettingsMigration.MigrateFromJson(notificationStyleMigratedJson);
+                var fullyMigratedJson = GameCustomDataStore.MigrateLegacyConfig(metadataMigratedJson);
 
                 // If migration changed the JSON, save the migrated version
                 if (fullyMigratedJson != rawJson)
