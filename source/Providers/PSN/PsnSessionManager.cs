@@ -746,6 +746,7 @@ namespace PlayniteAchievements.Providers.PSN
                                     isTimeout: false);
                             }
 
+                            _logger?.Debug($"[PSNAuth] Mobile code request returned {(int)response.StatusCode} instead of a redirect.");
                             return null;
                         }
 
@@ -753,6 +754,8 @@ namespace PlayniteAchievements.Providers.PSN
                         mobileCode = location == null ? null : GetQueryParam(location.Query, "code");
                         if (string.IsNullOrWhiteSpace(mobileCode))
                         {
+                            // Sony redirects with an error instead of a code when its sign-in has lapsed.
+                            _logger?.Debug($"[PSNAuth] Mobile code redirect carried no code (error={GetQueryParam(location?.Query, "error") ?? "none"}).");
                             return null;
                         }
                     }
