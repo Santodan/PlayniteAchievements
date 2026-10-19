@@ -191,6 +191,9 @@ namespace PlayniteAchievements
         public PlayniteAchievementsSettings Settings => _settingsViewModel.Settings;
         public ProviderRegistry ProviderRegistry => _providerRegistry;
 
+        /// <summary>Per-game links to metadata sources, edited on the Manage Achievements Overview.</summary>
+        public Services.Metadata.MetadataLinkStore MetadataLinks => _metadataLinkStore;
+
         /// <summary>
         /// True while a settings window holds a pending edit snapshot. Editors that write straight
         /// to the live persisted tree suppress their own save while this is true, leaving the
