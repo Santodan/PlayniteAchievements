@@ -147,6 +147,31 @@ namespace PlayniteAchievements.Common
             return builder.ToString().Normalize(NormalizationForm.FormC);
         }
 
+        private static readonly Regex LooseEditionWordRegex = new Regex(
+            @"\b(definitive|complete|goty|game of the year|ultimate|gold|deluxe|standard|remastered|director s cut|edition|pack|re elected|enhanced|anniversary|\d+th)\b",
+            RegexOptions.Compiled | RegexOptions.CultureInvariant);
+
+        /// <summary>
+        /// A forgiving form for comparing names across stores: lowercase letters and digits only,
+        /// without accents, parenthesized text or edition words, so "Deus Ex - Mankind Divided"
+        /// equals "Deus Ex: Mankind Divided" and "Fallout: New Vegas Ultimate Edition" equals
+        /// "Fallout: New Vegas". Loose enough to pair different releases, so a match on it needs
+        /// confirming.
+        /// </summary>
+        public static string ToLooseKey(string name)
+        {
+            if (string.IsNullOrWhiteSpace(name))
+            {
+                return string.Empty;
+            }
+
+            var text = StripDiacritics(StripTrademarkSymbols(name)).ToLowerInvariant();
+            text = ParentheticalContentRegex.Replace(text, " ");
+            text = Regex.Replace(text, @"[^a-z0-9]+", " ");
+            text = LooseEditionWordRegex.Replace(text, " ");
+            return WhitespaceRunRegex.Replace(text, " ").Trim();
+        }
+
         /// <summary>Collapses runs of whitespace to single spaces.</summary>
         public static string CollapseWhitespace(string name)
         {
