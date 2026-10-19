@@ -11,24 +11,24 @@ using PlayniteAchievements.Services.Achievements;
 using ObservableObject = PlayniteAchievements.Common.ObservableObject;
 using RelayCommand = PlayniteAchievements.Common.RelayCommand;
 
-namespace PlayniteAchievements.Views.Settings.General
+namespace PlayniteAchievements.Views.Settings.Metadata
 {
     /// <summary>
-    /// General settings: Editor section. Hosts the auto capstone generation toggle and the text
+    /// Metadata settings: Auto capstone section. Hosts the auto capstone generation toggle and the text
     /// templates auto capstones are titled and described with, plus the Apply action that brings
     /// existing capstones in line.
     /// </summary>
-    public partial class EditorSettingsSection : UserControl
+    public partial class AutoCapstoneSettingsSection : UserControl
     {
         private readonly PlayniteAchievementsSettings _settings;
         private readonly PlayniteAchievementsPlugin _plugin;
 
-        public EditorSettingsSection()
+        public AutoCapstoneSettingsSection()
         {
             InitializeComponent();
         }
 
-        internal EditorSettingsSection(PlayniteAchievementsSettings settings, PlayniteAchievementsPlugin plugin)
+        internal AutoCapstoneSettingsSection(PlayniteAchievementsSettings settings, PlayniteAchievementsPlugin plugin)
             : this()
         {
             _settings = settings ?? throw new ArgumentNullException(nameof(settings));
@@ -109,11 +109,11 @@ namespace PlayniteAchievements.Views.Settings.General
         /// <summary>One template's text box, pending until committed on focus loss or Enter.</summary>
         public sealed class AutoCapstoneTemplateRow : ObservableObject
         {
-            private readonly EditorSettingsSection _owner;
+            private readonly AutoCapstoneSettingsSection _owner;
             private string _text;
             private bool _isInvalid;
 
-            internal AutoCapstoneTemplateRow(AutoCapstoneTextField field, string labelKey, EditorSettingsSection owner)
+            internal AutoCapstoneTemplateRow(AutoCapstoneTextField field, string labelKey, AutoCapstoneSettingsSection owner)
             {
                 Field = field;
                 Label = ResourceProvider.GetString(labelKey);
