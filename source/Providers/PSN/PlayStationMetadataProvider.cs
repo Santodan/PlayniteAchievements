@@ -25,19 +25,13 @@ namespace PlayniteAchievements.Providers.PSN
 
         private readonly PsnDataProvider _psn;
         private readonly PsPricesClient _psPrices;
-        private readonly PlayniteAchievementsSettings _settings;
         private readonly ILogger _logger;
         private IDisposable _psPricesRun;
 
-        public PlayStationMetadataProvider(
-            PsnDataProvider psn,
-            IPlayniteAPI api,
-            PlayniteAchievementsSettings settings,
-            ILogger logger)
+        public PlayStationMetadataProvider(PsnDataProvider psn, IPlayniteAPI api, ILogger logger)
         {
             _psn = psn;
             _psPrices = new PsPricesClient(api, logger);
-            _settings = settings;
             _logger = logger;
         }
 
@@ -46,8 +40,6 @@ namespace PlayniteAchievements.Providers.PSN
         public string DisplayNameKey => "LOCPlayAch_Metadata_Source_PlayStation";
 
         public MetadataField SupportedFields => MetadataField.Icons | MetadataField.CapstoneArt;
-
-        public MetadataCategoryMode CategoryMode => MetadataCategoryMode.Off;
 
         private bool PsnSignedIn => _psn?.Scanner != null && _psn.IsAuthenticated;
 
@@ -73,7 +65,7 @@ namespace PlayniteAchievements.Providers.PSN
         public async Task<MetadataSourceLink> ResolveLinkAsync(MetadataLinkRequest request, CancellationToken ct)
         {
             var name = request?.Game?.Name;
-            if (string.IsNullOrWhiteSpace(name) || _settings?.Persisted?.MetadataAllowNameSearch == false)
+            if (string.IsNullOrWhiteSpace(name))
             {
                 return null;
             }

@@ -96,7 +96,7 @@ namespace PlayniteAchievements.Providers.Vita3K
 
         private async Task<ExophaseMetadataEnricher> CreateRarityEnricherAsync(CancellationToken cancel)
         {
-            if (_providerSettings?.UseExophaseForRarity != true)
+            if (_settings?.Persisted?.UsesExophaseRarity("Vita3K") != true)
             {
                 return null;
             }

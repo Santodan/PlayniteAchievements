@@ -240,7 +240,7 @@ namespace PlayniteAchievements.Providers.Xbox
 
         private async Task<ExophaseMetadataEnricher> CreateRarityEnricherAsync(CancellationToken cancel)
         {
-            if (_providerSettings?.UseExophaseForRarity != true)
+            if (_settings?.Persisted?.UsesExophaseRarity("Xbox") != true)
             {
                 return null;
             }

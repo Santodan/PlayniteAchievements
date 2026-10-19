@@ -122,6 +122,7 @@ namespace PlayniteAchievements.Views
             {
                 MetadataSettingsContent.Content = new Settings.Metadata.MetadataSettingsTab(
                     _settingsViewModel.Settings,
+                    _plugin,
                     _providerRegistry);
             }
 

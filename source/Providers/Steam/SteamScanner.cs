@@ -1,6 +1,8 @@
 using PlayniteAchievements.Common;
 using PlayniteAchievements.Models;
 using PlayniteAchievements.Models.Achievements;
+using PlayniteAchievements.Models.Settings;
+using PlayniteAchievements.Providers.Metadata;
 using PlayniteAchievements.Providers.Steam.Models;
 using PlayniteAchievements.Providers.Steam.Local;
 using PlayniteAchievements.Services;
@@ -471,13 +473,14 @@ namespace PlayniteAchievements.Providers.Steam
                     .ConfigureAwait(false);
             }
 
-            var mode = ProviderRegistry.Settings<SteamSettings>()?.SteamHuntersCategoryMode ?? SteamHuntersCategoryMode.Off;
-            if (_steamHuntersCategoryEnricher == null || mode == SteamHuntersCategoryMode.Off)
+            var choices = _settings?.Persisted?.ResolveMetadataChoices("Steam");
+            if (_steamHuntersCategoryEnricher == null ||
+                !string.Equals(choices?.Categories, MetadataChoices.SteamHunters, StringComparison.OrdinalIgnoreCase))
             {
                 return;
             }
 
-            var preserveApiNames = mode == SteamHuntersCategoryMode.Merge ? namedSetApiNames : null;
+            var preserveApiNames = choices.CategoryMode == MetadataCategoryMode.Merge ? namedSetApiNames : null;
             var applied = !preferCachedDefinitions &&
                 await _steamHuntersCategoryEnricher
                     .EnrichAsync(appId, gameName, achievements, playniteGameId, cancel, preserveApiNames)

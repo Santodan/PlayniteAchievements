@@ -206,7 +206,7 @@ namespace PlayniteAchievements.Providers.EA
 
         private async Task<ExophaseMetadataEnricher> CreateMetadataEnricherAsync(CancellationToken cancel)
         {
-            if (_providerSettings?.UseExophaseForRarity != true)
+            if (_settings?.Persisted?.UsesExophaseRarity("EA") != true)
             {
                 return null;
             }

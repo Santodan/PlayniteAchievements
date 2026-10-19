@@ -54,9 +54,6 @@ namespace PlayniteAchievements.Providers.Metadata
         /// </summary>
         bool IsNativeFor(string servicingProviderKey);
 
-        /// <summary>How this source's categories combine with the provider's; Off for sources without categories.</summary>
-        MetadataCategoryMode CategoryMode { get; }
-
         /// <summary>
         /// Opens whatever session the provider needs for one refresh run (auth probe, cookie
         /// session). Called at most once per run, before the first link or fetch.

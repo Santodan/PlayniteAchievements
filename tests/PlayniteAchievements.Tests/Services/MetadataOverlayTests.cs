@@ -41,7 +41,7 @@ namespace PlayniteAchievements.Tests.Services
                 Rows = { Row("p1", "Dragon Slayer", icon: "https://psn/dragon.png") }
             };
             var data = Game("Steam", Row("ACH_DRAGON", "Dragon Slayer", icon: "steam.png", locked: "steam_gray.png"));
-            var overlay = Overlay(new[] { playstation }, new PersistedSettings { MetadataIconSources = new List<string> { "PlayStation" } });
+            var overlay = Overlay(new[] { playstation }, Choices(icons: "PlayStation"));
 
             bool changed;
             using (var run = overlay.BeginRun())
@@ -71,7 +71,7 @@ namespace PlayniteAchievements.Tests.Services
             var playstation = new FakeSource("PlayStation", MetadataField.Icons) { NativeFor = "PSN" };
             playstation.Rows.Add(Row("p1", "Dragon Slayer", icon: "https://psn/dragon.png"));
             var data = Game("PSN", Row("1", "Dragon Slayer", icon: "psn.png"));
-            var overlay = Overlay(new[] { playstation }, new PersistedSettings { MetadataIconSources = new List<string> { "PlayStation" } });
+            var overlay = Overlay(new[] { playstation }, Choices(icons: "PlayStation"));
 
             using (var run = overlay.BeginRun())
             {
@@ -91,7 +91,7 @@ namespace PlayniteAchievements.Tests.Services
             var named = Row("e1", "One", category: "Chapter 1");
             var plain = Row("e2", "Two");
             var data = Game("Epic", named, plain);
-            var overlay = Overlay(new[] { hunters }, new PersistedSettings());
+            var overlay = Overlay(new[] { hunters }, Choices(categories: hunters.Mode));
 
             using (var run = overlay.BeginRun())
             {
@@ -112,7 +112,7 @@ namespace PlayniteAchievements.Tests.Services
             var named = Row("e1", "One", category: "Chapter 1", type: "Missable");
             var data = Game("Epic", named);
 
-            using (var run = Overlay(new[] { hunters }, new PersistedSettings()).BeginRun())
+            using (var run = Overlay(new[] { hunters }, Choices(categories: hunters.Mode)).BeginRun())
             {
                 await run.ApplyAsync(data.Game, data, CancellationToken.None);
             }
@@ -130,7 +130,7 @@ namespace PlayniteAchievements.Tests.Services
             playstation.Rows.Add(platinum);
             playstation.Rows.Add(Row("p1", "One", icon: "https://psn/one.png"));
             var data = Game("Xbox", Row("x1", "One"));
-            var overlay = Overlay(new[] { playstation }, new PersistedSettings { MetadataCapstoneArtSources = new List<string> { "PlayStation" } });
+            var overlay = Overlay(new[] { playstation }, Choices(capstoneArt: "PlayStation"));
 
             using (var run = overlay.BeginRun())
             {
@@ -145,7 +145,7 @@ namespace PlayniteAchievements.Tests.Services
         {
             var playstation = new FakeSource("PlayStation", MetadataField.Icons);
             var data = Game("Steam", Row("a", "One"));
-            var overlay = Overlay(new[] { playstation }, new PersistedSettings { MetadataIconSources = new List<string> { "PlayStation" } });
+            var overlay = Overlay(new[] { playstation }, Choices(icons: "PlayStation"));
             overlay.Links.SetUser(data.PlayniteGameId.Value, "PlayStation", null);
 
             using (var run = overlay.BeginRun())
@@ -169,7 +169,7 @@ namespace PlayniteAchievements.Tests.Services
             var coins = Row("ACH_COINS", "Sammler");
             var unknown = Row("GOG_ONLY", "Nur auf GOG");
             var data = Game("GOG", dragon, coins, unknown);
-            var overlay = Overlay(new[] { hunters }, new PersistedSettings());
+            var overlay = Overlay(new[] { hunters }, Choices(categories: hunters.Mode));
 
             using (var run = overlay.BeginRun())
             {
@@ -197,7 +197,7 @@ namespace PlayniteAchievements.Tests.Services
             var three = Row("e_three", "Two");
             var data = Game("Epic", one, two, three);
 
-            using (var run = Overlay(new[] { hunters }, new PersistedSettings()).BeginRun())
+            using (var run = Overlay(new[] { hunters }, Choices(categories: hunters.Mode)).BeginRun())
             {
                 await run.ApplyAsync(data.Game, data, CancellationToken.None);
             }
@@ -205,6 +205,46 @@ namespace PlayniteAchievements.Tests.Services
             Assert.AreEqual("Story", one.Category);
             Assert.IsNull(two.Category);
             Assert.AreEqual("Side", three.Category);
+        }
+
+        [TestMethod]
+        public async Task PlatformChoice_OverridesTheDefaults()
+        {
+            var hunters = new FakeSource("SteamHunters", MetadataField.Categories);
+            hunters.Rows.Add(Row("A", "One", category: "Story"));
+            var settings = new PersistedSettings();
+            settings.MetadataPlatformChoices = new Dictionary<string, MetadataChoices>
+            {
+                ["Xbox"] = new MetadataChoices { Categories = "SteamHunters", CategoryMode = MetadataCategoryMode.Override }
+            };
+            var xbox = Game("Xbox", Row("x1", "One"));
+            var epic = Game("Epic", Row("e1", "One"));
+
+            using (var run = Overlay(new[] { hunters }, settings).BeginRun())
+            {
+                await run.ApplyAsync(xbox.Game, xbox, CancellationToken.None);
+                await run.ApplyAsync(epic.Game, epic, CancellationToken.None);
+            }
+
+            Assert.AreEqual("Story", xbox.Achievements[0].Category);
+            Assert.IsNull(epic.Achievements[0].Category);
+        }
+
+        private static PersistedSettings Choices(
+            string icons = null,
+            MetadataCategoryMode? categories = null,
+            string capstoneArt = null)
+        {
+            var settings = new PersistedSettings();
+            settings.MetadataDefaults = new MetadataChoices
+            {
+                Icons = icons ?? string.Empty,
+                Categories = categories.HasValue ? "SteamHunters" : string.Empty,
+                CategoryMode = categories ?? MetadataCategoryMode.Merge,
+                Rarity = string.Empty,
+                CapstoneArt = capstoneArt ?? string.Empty
+            };
+            return settings;
         }
 
         private MetadataOverlay Overlay(IReadOnlyList<IMetadataProvider> providers, PersistedSettings settings)
@@ -257,9 +297,8 @@ namespace PlayniteAchievements.Tests.Services
 
             public MetadataField SupportedFields { get; }
 
+            /// <summary>The category mode the test's settings choose for this source.</summary>
             public MetadataCategoryMode Mode { get; set; }
-
-            public MetadataCategoryMode CategoryMode => Mode;
 
             public bool IdsMayBeShared { get; set; }
 

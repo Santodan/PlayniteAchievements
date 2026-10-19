@@ -2819,8 +2819,14 @@ BCUS98246: 'D:\RPCS3\Other Collection.iso' # trailing comment
             var registry = new ProviderRegistry(settings, new[] { "RPCS3" });
             var providerSettings = registry.GetSettings<Rpcs3Settings>();
             providerSettings.ExecutablePaths = new List<string> { Path.Combine(rpcs3Root, "rpcs3.exe") };
-            providerSettings.UseExophaseForRarity = useExophaseForRarity;
             registry.Save(providerSettings);
+            if (useExophaseForRarity)
+            {
+                settings.Persisted.MetadataPlatformChoices = new Dictionary<string, MetadataChoices>
+                {
+                    ["RPCS3"] = new MetadataChoices { Rarity = MetadataChoices.Exophase }
+                };
+            }
 
             return new Rpcs3DataProvider(
                 new FakeLogger(),

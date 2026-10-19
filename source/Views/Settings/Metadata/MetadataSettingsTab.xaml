@@ -3,112 +3,11 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-             xmlns:controls="clr-namespace:PlayniteAchievements.Views.Controls"
-             xmlns:steam="clr-namespace:PlayniteAchievements.Providers.Steam"
+             xmlns:nav="clr-namespace:PlayniteAchievements.Views.Settings.Navigation"
              mc:Ignorable="d"
              d:DesignHeight="600"
              d:DesignWidth="700">
-    <UserControl.Resources>
-        <ResourceDictionary>
-            <ResourceDictionary.MergedDictionaries>
-                <ResourceDictionary Source="pack://application:,,,/PlayniteAchievements;component/Resources/SettingsScopedControlStyles.xaml"/>
-                <ResourceDictionary Source="pack://application:,,,/PlayniteAchievements;component/Resources/CommonResources.xaml"/>
-            </ResourceDictionary.MergedDictionaries>
-        </ResourceDictionary>
-    </UserControl.Resources>
-    <ScrollViewer VerticalScrollBarVisibility="Auto"
-                  HorizontalScrollBarVisibility="Disabled">
-        <StackPanel Margin="20">
-
-            <!-- ================== ICONS ================== -->
-            <Border Style="{StaticResource SectionBorderStyle}">
-                <StackPanel Grid.IsSharedSizeScope="True">
-                    <TextBlock Text="{DynamicResource LOCPlayAch_Settings_Metadata_Icons}"
-                               Style="{StaticResource SectionHeaderStyle}"/>
-                    <controls:SettingRow Label="{DynamicResource LOCPlayAch_Settings_Metadata_IconSource}"
-                                         Hint="{DynamicResource LOCPlayAch_Settings_Metadata_IconSource_Help}"
-                                         Margin="0">
-                        <ComboBox ItemsSource="{Binding IconSourceOptions}"
-                                  DisplayMemberPath="Label"
-                                  SelectedValuePath="Key"
-                                  SelectedValue="{Binding SelectedIconSource, Mode=TwoWay}"
-                                  MinWidth="200"
-                                  HorizontalAlignment="Left"/>
-                    </controls:SettingRow>
-                </StackPanel>
-            </Border>
-
-            <!-- ================== CATEGORIES AND TYPES ================== -->
-            <Border Style="{StaticResource SectionBorderStyle}">
-                <StackPanel Grid.IsSharedSizeScope="True">
-                    <TextBlock Text="{DynamicResource LOCPlayAch_Settings_Metadata_Categories}"
-                               Style="{StaticResource SectionHeaderStyle}"/>
-                    <controls:SettingRow Label="{DynamicResource LOCPlayAch_Settings_SteamHuntersCategories}"
-                                         Hint="{DynamicResource LOCPlayAch_Settings_SteamHuntersCategories_Help}"
-                                         Margin="0">
-                        <ComboBox SelectedValue="{Binding Steam.SteamHuntersCategoryMode, Mode=TwoWay}"
-                                  SelectedValuePath="Tag"
-                                  MinWidth="200"
-                                  HorizontalAlignment="Left">
-                            <ComboBoxItem Content="{DynamicResource LOCPlayAch_Settings_Override_Off}" Tag="{x:Static steam:SteamHuntersCategoryMode.Off}"/>
-                            <ComboBoxItem Content="{DynamicResource LOCPlayAch_Common_Merge}" Tag="{x:Static steam:SteamHuntersCategoryMode.Merge}"/>
-                            <ComboBoxItem Content="{DynamicResource LOCPlayAch_Settings_SteamHuntersCategories_Override}" Tag="{x:Static steam:SteamHuntersCategoryMode.Override}"/>
-                        </ComboBox>
-                    </controls:SettingRow>
-                </StackPanel>
-            </Border>
-
-            <!-- ================== RARITY ================== -->
-            <Border Style="{StaticResource SectionBorderStyle}">
-                <StackPanel Grid.IsSharedSizeScope="True">
-                    <TextBlock Text="{DynamicResource LOCPlayAch_Column_Rarity}"
-                               Style="{StaticResource SectionHeaderStyle}"/>
-                    <controls:SettingRow Label="{DynamicResource LOCPlayAch_Settings_UseExophaseForMetadata}"
-                                         Hint="{DynamicResource LOCPlayAch_Settings_Metadata_Rarity_Help}"
-                                         Margin="0">
-                        <ItemsControl ItemsSource="{Binding ExophaseRarityRows}" Focusable="False">
-                            <ItemsControl.ItemTemplate>
-                                <DataTemplate>
-                                    <CheckBox Content="{Binding Label}"
-                                              IsChecked="{Binding Settings.UseExophaseForRarity, Mode=TwoWay}"
-                                              Margin="{StaticResource PlayAch.Thickness.Bottom.Sm}"/>
-                                </DataTemplate>
-                            </ItemsControl.ItemTemplate>
-                        </ItemsControl>
-                    </controls:SettingRow>
-                </StackPanel>
-            </Border>
-
-            <!-- ================== AUTO CAPSTONE ART ================== -->
-            <Border Style="{StaticResource SectionBorderStyle}">
-                <StackPanel Grid.IsSharedSizeScope="True">
-                    <TextBlock Text="{DynamicResource LOCPlayAch_Settings_Metadata_CapstoneArtHeader}"
-                               Style="{StaticResource SectionHeaderStyle}"/>
-                    <controls:SettingRow Label="{DynamicResource LOCPlayAch_Settings_Metadata_CapstoneArt}"
-                                         Hint="{DynamicResource LOCPlayAch_Settings_Metadata_CapstoneArt_Help}"
-                                         Margin="0">
-                        <ComboBox ItemsSource="{Binding CapstoneArtOptions}"
-                                  DisplayMemberPath="Label"
-                                  SelectedValuePath="Key"
-                                  SelectedValue="{Binding SelectedCapstoneArtSource, Mode=TwoWay}"
-                                  MinWidth="200"
-                                  HorizontalAlignment="Left"/>
-                    </controls:SettingRow>
-                </StackPanel>
-            </Border>
-
-            <!-- ================== MATCHING ================== -->
-            <Border Style="{StaticResource SectionBorderStyle}">
-                <StackPanel Grid.IsSharedSizeScope="True">
-                    <TextBlock Text="{DynamicResource LOCPlayAch_Settings_Metadata_Matching}"
-                               Style="{StaticResource SectionHeaderStyle}"/>
-                    <controls:SettingRow Label="{DynamicResource LOCPlayAch_Settings_Metadata_MatchByName}"
-                                         Hint="{DynamicResource LOCPlayAch_Settings_Metadata_MatchByName_Help}"
-                                         Margin="0">
-                        <CheckBox IsChecked="{Binding Persisted.MetadataAllowNameSearch, Mode=TwoWay}"/>
-                    </controls:SettingRow>
-                </StackPanel>
-            </Border>
-        </StackPanel>
-    </ScrollViewer>
+    <nav:SettingsMasterDetailControl x:Name="MasterDetail"
+                                     ShowSearch="False"
+                                     EnableGrouping="False"/>
 </UserControl>

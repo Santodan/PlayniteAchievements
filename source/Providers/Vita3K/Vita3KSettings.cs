@@ -9,7 +9,6 @@ namespace PlayniteAchievements.Providers.Vita3K
     public class Vita3KSettings : ProviderSettingsBase
     {
         private List<string> _executablePaths = new List<string>();
-        private bool _useExophaseForRarity;
 
         /// <inheritdoc />
         public override string ProviderKey => "Vita3K";
@@ -22,15 +21,6 @@ namespace PlayniteAchievements.Providers.Vita3K
         {
             get => _executablePaths;
             set => SetValue(ref _executablePaths, ProviderPathList.Normalize(value));
-        }
-
-        /// <summary>
-        /// When true, enriches Vita3K trophy rarity from Exophase after native scanning.
-        /// </summary>
-        public bool UseExophaseForRarity
-        {
-            get => _useExophaseForRarity;
-            set => SetValue(ref _useExophaseForRarity, value);
         }
     }
 }

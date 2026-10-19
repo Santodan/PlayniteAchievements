@@ -219,7 +219,7 @@ namespace PlayniteAchievements.Providers.Xenia
 
         private async Task<ExophaseMetadataEnricher> CreateRarityEnricherAsync(CancellationToken cancel)
         {
-            if (_providerSettings?.UseExophaseForRarity != true)
+            if (_settings?.Persisted?.UsesExophaseRarity("Xenia") != true)
             {
                 return null;
             }

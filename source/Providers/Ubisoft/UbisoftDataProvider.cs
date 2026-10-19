@@ -217,7 +217,7 @@ namespace PlayniteAchievements.Providers.Ubisoft
 
         private async Task<ExophaseMetadataEnricher> CreateMetadataEnricherAsync(CancellationToken cancel)
         {
-            if (!ProviderSettings.UseExophaseForRarity)
+            if (_settings?.Persisted?.UsesExophaseRarity("Ubisoft") != true)
             {
                 return null;
             }

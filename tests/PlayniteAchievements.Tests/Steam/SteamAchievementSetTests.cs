@@ -613,52 +613,6 @@ namespace PlayniteAchievements.Steam.Tests
         }
 
         // ------------------------------------------------------------------
-        // Settings
-        // ------------------------------------------------------------------
-
-        [TestMethod]
-        public void Settings_SteamHuntersModeDefaultsToMerge_AndSerializesByName()
-        {
-            var settings = new SteamSettings();
-            Assert.AreEqual(SteamHuntersCategoryMode.Merge, settings.SteamHuntersCategoryMode);
-            Assert.IsTrue(settings.UseSteamHuntersForCategories);
-
-            settings.SteamHuntersCategoryMode = SteamHuntersCategoryMode.Off;
-            Assert.IsFalse(settings.UseSteamHuntersForCategories);
-
-            var json = JsonConvert.SerializeObject(settings);
-            StringAssert.Contains(json, "\"SteamHuntersCategoryMode\":\"Off\"");
-            Assert.IsFalse(json.Contains("UseSteamHuntersForCategories"));
-
-            var restored = JsonConvert.DeserializeObject<SteamSettings>(
-                "{\"UseSteamHuntersForCategories\":true,\"SteamHuntersCategoryMode\":\"Override\"}");
-            Assert.AreEqual(SteamHuntersCategoryMode.Override, restored.SteamHuntersCategoryMode);
-        }
-
-        [TestMethod]
-        public void Settings_LegacyCheckbox_CarriesOverToMode()
-        {
-            SteamHuntersCategoryMode Load(string json)
-            {
-                var settings = new SteamSettings();
-                settings.DeserializeFromJson(json);
-                return settings.SteamHuntersCategoryMode;
-            }
-
-            Assert.AreEqual(SteamHuntersCategoryMode.Off, Load("{\"UseSteamHuntersForCategories\":false}"));
-            Assert.AreEqual(SteamHuntersCategoryMode.Merge, Load("{\"UseSteamHuntersForCategories\":true}"));
-            Assert.AreEqual(SteamHuntersCategoryMode.Merge, Load("{\"IsEnabled\":true}"));
-            Assert.AreEqual(SteamHuntersCategoryMode.Override,
-                Load("{\"SteamHuntersCategoryMode\":\"Override\",\"UseSteamHuntersForCategories\":false}"));
-
-            // A migrated value survives the save and reload round trip.
-            var migrated = new SteamSettings();
-            migrated.DeserializeFromJson("{\"UseSteamHuntersForCategories\":false}");
-            var copy = (SteamSettings)migrated.Clone();
-            Assert.AreEqual(SteamHuntersCategoryMode.Off, copy.SteamHuntersCategoryMode);
-        }
-
-        // ------------------------------------------------------------------
         // Helpers
         // ------------------------------------------------------------------
 
