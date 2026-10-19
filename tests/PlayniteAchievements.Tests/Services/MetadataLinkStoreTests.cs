@@ -1,6 +1,9 @@
 using Microsoft.VisualStudio.TestTools.UnitTesting;
+using PlayniteAchievements.Models.Settings;
+using PlayniteAchievements.Services.GameCustomData;
 using PlayniteAchievements.Services.Metadata;
 using System;
+using System.Collections.Generic;
 using System.IO;
 
 namespace PlayniteAchievements.Tests.Services
@@ -16,6 +19,11 @@ namespace PlayniteAchievements.Tests.Services
             _directory = Path.Combine(Path.GetTempPath(), "pa-metadata-links-" + Guid.NewGuid().ToString("N"));
         }
 
+        private MetadataLinkStore Store()
+        {
+            return new MetadataLinkStore(_directory, new GameCustomDataStore(_directory), null);
+        }
+
         [TestCleanup]
         public void TearDown()
         {
@@ -29,9 +37,9 @@ namespace PlayniteAchievements.Tests.Services
         public void AutoLink_RoundTripsThroughDisk()
         {
             var game = Guid.NewGuid();
-            new MetadataLinkStore(_directory, null).SetAuto(game, "PlayStation", "NPWR22392_00", "God of War Ragnarök");
+            Store().SetAuto(game, "PlayStation", "NPWR22392_00", "God of War Ragnarök");
 
-            Assert.IsTrue(new MetadataLinkStore(_directory, null).TryGet(game, "playstation", out var record));
+            Assert.IsTrue(Store().TryGet(game, "playstation", out var record));
             Assert.AreEqual("NPWR22392_00", record.Id);
             Assert.AreEqual("God of War Ragnarök", record.Label);
             Assert.AreEqual(MetadataLinkOrigin.Auto, record.Origin);
@@ -40,7 +48,7 @@ namespace PlayniteAchievements.Tests.Services
         [TestMethod]
         public void AutoLink_DoesNotReplaceUserLink()
         {
-            var store = new MetadataLinkStore(_directory, null);
+            var store = Store();
             var game = Guid.NewGuid();
             store.SetUser(game, "Steam", "1593500");
 
@@ -53,7 +61,7 @@ namespace PlayniteAchievements.Tests.Services
         [TestMethod]
         public void BlankUserLink_IsAnExplicitNoMatch_AndClearRemovesIt()
         {
-            var store = new MetadataLinkStore(_directory, null);
+            var store = Store();
             var game = Guid.NewGuid();
             store.SetUser(game, "Steam", "  ");
 
@@ -67,9 +75,51 @@ namespace PlayniteAchievements.Tests.Services
         }
 
         [TestMethod]
+        public void Links_TravelWithTheGamesPortableData()
+        {
+            var game = Guid.NewGuid();
+            var store = Store();
+            store.SetAuto(game, "PlayStation", "NPWR24695_00", "Cyberpunk 2077");
+            store.SetUser(game, "SteamHunters", "1091500");
+
+            var stored = new GameCustomDataStore(_directory).LoadOrDefault(game);
+            var portable = GameCustomDataNormalizer.NormalizePortable(stored.ToPortable(), game);
+            var imported = GameCustomDataNormalizer.NormalizeInternal(GameCustomDataFile.FromPortable(portable, game, null, null), game);
+
+            Assert.AreEqual("NPWR24695_00", imported.MetadataLinks["PlayStation"].Id);
+            Assert.IsFalse(imported.MetadataLinks["PlayStation"].IsUserSet);
+            Assert.IsTrue(imported.MetadataLinks["SteamHunters"].IsUserSet);
+        }
+
+        [TestMethod]
+        public void OnlyUserLinks_CountAsCustomization()
+        {
+            var auto = new GameCustomDataFile
+            {
+                MetadataLinks = new Dictionary<string, MetadataLinkData> { ["PlayStation"] = new MetadataLinkData { Id = "NPWR1" } }
+            };
+            Assert.IsTrue(GameCustomDataNormalizer.HasInternalData(auto));
+            Assert.IsFalse(GameCustomDataNormalizer.HasVisibleCustomization(auto));
+
+            auto.MetadataLinks["PlayStation"].IsUserSet = true;
+            Assert.IsTrue(GameCustomDataNormalizer.HasVisibleCustomization(auto));
+        }
+
+        [TestMethod]
+        public void CapstoneArtRecord_RoundTripsThroughDisk()
+        {
+            var game = Guid.NewGuid();
+            Store().SetCapstoneArtRecord(game, "custom:auto-capstone", new CapstoneArtRecord { Source = "https://psn/plat.png", Length = 42 });
+
+            var record = Store().GetCapstoneArtRecord(game, "custom:auto-capstone");
+            Assert.AreEqual("https://psn/plat.png", record.Source);
+            Assert.AreEqual(42, record.Length);
+        }
+
+        [TestMethod]
         public void UnchangedWrite_RaisesNoEvent()
         {
-            var store = new MetadataLinkStore(_directory, null);
+            var store = Store();
             var game = Guid.NewGuid();
             var raised = 0;
             store.LinkChanged += _ => raised++;
