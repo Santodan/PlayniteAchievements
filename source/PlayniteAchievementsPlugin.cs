@@ -2092,10 +2092,15 @@ namespace PlayniteAchievements
                 .Where(pair => pair.Game != null)
                 .OrderBy(pair => pair.Game.Name, StringComparer.CurrentCultureIgnoreCase)
                 .ToList();
-            var csvPath = Path.Combine(GetPluginUserDataPath(), "metadata", "icon-match-test.csv");
+            // A file per run, so results left open from an earlier run never block a new one.
+            var csvPath = Path.Combine(
+                GetPluginUserDataPath(),
+                "metadata",
+                $"icon-match-test-{DateTime.Now:yyyyMMdd-HHmmss}.csv");
             var progressFormat = ResourceProvider.GetString("LOCPlayAch_Settings_Metadata_TestIcons_Progress");
 
             Services.Metadata.MetadataMatchTestSummary summary = null;
+            Exception failure = null;
             PlayniteApi.Dialogs.ActivateGlobalProgress(
                 progress =>
                 {
@@ -2117,6 +2122,7 @@ namespace PlayniteAchievements
                     catch (Exception ex)
                     {
                         _logger?.Error(ex, "Icon match test failed.");
+                        failure = ex;
                     }
                 },
                 new GlobalProgressOptions(string.Format(progressFormat, 0, games.Count, string.Empty))
@@ -2125,12 +2131,17 @@ namespace PlayniteAchievements
                     IsIndeterminate = false
                 });
 
+            var title = ResourceProvider.GetString("LOCPlayAch_Title_PluginName");
+            if (failure != null)
+            {
+                PlayniteApi.Dialogs.ShowErrorMessage(failure.Message, title);
+                return;
+            }
+
             if (summary == null)
             {
                 return;
             }
-
-            var title = ResourceProvider.GetString("LOCPlayAch_Title_PluginName");
             if (summary.SourceUnavailable)
             {
                 PlayniteApi.Dialogs.ShowMessage(
