@@ -1,6 +1,7 @@
 using Playnite.SDK;
 using Playnite.SDK.Models;
 using PlayniteAchievements.Models;
+using PlayniteAchievements.Common;
 using PlayniteAchievements.Models.Achievements;
 using PlayniteAchievements.Providers.Exophase;
 using PlayniteAchievements.Providers.Manual;
@@ -166,7 +167,7 @@ namespace PlayniteAchievements.Providers.Steam
         /// <summary>Accepts a store search only when exactly one result has the game's normalized name.</summary>
         private async Task<MetadataSourceLink> SearchByNameAsync(string name, CancellationToken ct)
         {
-            var normalized = ExophaseGameNameMatcher.NormalizeGameName(name);
+            var normalized = GameNameNormalizer.StripDiacritics(ExophaseGameNameMatcher.NormalizeGameName(name));
             if (string.IsNullOrWhiteSpace(normalized))
             {
                 return null;
@@ -177,7 +178,7 @@ namespace PlayniteAchievements.Providers.Steam
                 .Where(result => result != null &&
                                  !string.IsNullOrWhiteSpace(result.SourceGameId) &&
                                  string.Equals(
-                                     ExophaseGameNameMatcher.NormalizeGameName(result.Name),
+                                     GameNameNormalizer.StripDiacritics(ExophaseGameNameMatcher.NormalizeGameName(result.Name)),
                                      normalized,
                                      StringComparison.OrdinalIgnoreCase))
                 .GroupBy(result => result.SourceGameId)
