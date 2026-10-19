@@ -22,6 +22,29 @@ namespace PlayniteAchievements.Tests.Services
         }
 
         [TestMethod]
+        public void UniqueTitle_MatchesIgnoringAccents()
+        {
+            var target = Achievement("xbox_1", "Pokemon Master of Ragnarok");
+            var source = Achievement("NPWR:1", "Pokémon Master of Ragnarök");
+
+            var matches = CrossSourceAchievementMatcher.Match(new[] { target }, new[] { source });
+
+            Assert.AreEqual(1, matches.Count);
+            Assert.AreSame(source, matches[0].Source);
+        }
+
+        [TestMethod]
+        public void NormalizeText_KeepsMarksThatChangeJapaneseLetters()
+        {
+            Assert.AreNotEqual(
+                CrossSourceAchievementMatcher.NormalizeText("が"),
+                CrossSourceAchievementMatcher.NormalizeText("か"));
+            Assert.AreEqual("cafe", CrossSourceAchievementMatcher.NormalizeText("Café"));
+            // Russian text often writes ё as е.
+            Assert.AreEqual("ежик", CrossSourceAchievementMatcher.NormalizeText("Ёжик"));
+        }
+
+        [TestMethod]
         public void DuplicateTitles_AreSeparatedByDescription()
         {
             var first = Achievement("a", "Collector", "Find all coins");
