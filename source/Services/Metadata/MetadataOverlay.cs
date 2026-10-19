@@ -106,7 +106,8 @@ namespace PlayniteAchievements.Services.Metadata
                 }
             }
 
-            var iconSource = ApplyIcons(plan.IconKeys, sets);
+            var borrowedIconApiNames = new List<string>();
+            var iconSource = ApplyIcons(plan.IconKeys, sets, borrowedIconApiNames);
             ApplyCategories(plan.CategoryKeys, plan.CategoryMode, sets);
             var capstoneArt = ResolveCapstoneArt(plan.CapstoneArtKeys, sets);
             var coverage = sets.ToDictionary(
@@ -114,7 +115,7 @@ namespace PlayniteAchievements.Services.Metadata
                 pair => new MetadataCoverage { Matched = pair.Value.Matches.Count, Total = data.Achievements.Count },
                 StringComparer.OrdinalIgnoreCase);
 
-            return _links?.RecordApplied(gameId, iconSource, capstoneArt, coverage) ?? false;
+            return _links?.RecordApplied(gameId, iconSource, capstoneArt, coverage, borrowedIconApiNames) ?? false;
         }
 
         public void Dispose()
@@ -244,8 +245,14 @@ namespace PlayniteAchievements.Services.Metadata
             return resolved.Id.Trim();
         }
 
-        /// <summary>Replaces each achievement's icons with the first preferred source that matched it.</summary>
-        private static string ApplyIcons(IReadOnlyList<string> keys, IReadOnlyDictionary<string, MatchedSet> sets)
+        /// <summary>
+        /// Replaces each achievement's icons with the first preferred source that matched it,
+        /// adding the ApiName of each one replaced to <paramref name="replacedApiNames"/>.
+        /// </summary>
+        private static string ApplyIcons(
+            IReadOnlyList<string> keys,
+            IReadOnlyDictionary<string, MatchedSet> sets,
+            ICollection<string> replacedApiNames)
         {
             string firstApplied = null;
             var done = new HashSet<AchievementDetail>();
@@ -268,6 +275,7 @@ namespace PlayniteAchievements.Services.Metadata
                     match.Target.LockedIconPath = string.IsNullOrWhiteSpace(match.Source.LockedIconPath)
                         ? null
                         : match.Source.LockedIconPath;
+                    replacedApiNames.Add(match.Target.ApiName);
                     firstApplied = firstApplied ?? key;
                 }
             }
