@@ -1081,6 +1081,10 @@
     <sys:String x:Key="LOCPlayAch_Settings_Metadata_Sources">Sources</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Metadata_SourcesHint">Default follows the top row. PlayStation needs a PSN sign-in. Fix a game's match in Manage Achievements.</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Metadata_SourceMode">{0} ({1})</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_Metadata_TestIcons">Test icon matching</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_Metadata_TestIcons_Help">Matches every game to PlayStation trophies without saving anything. Can take an hour.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_Metadata_TestIcons_Progress">Testing icon matching ({0}/{1}) {2}</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_Metadata_TestIcons_Summary">Tested {0} games.&#10;Matched: {1}&#10;Rejected: {2}&#10;Not found: {3}&#10;Achievements matched: {4}/{5}&#10;&#10;Open the results?</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Metadata_Source_Own">Own</sys:String>
     <sys:String x:Key="LOCPlayAch_Metadata_Source_PlayStation">PlayStation</sys:String>
     <sys:String x:Key="LOCPlayAch_Metadata_Source_SteamHunters">SteamHunters</sys:String>
