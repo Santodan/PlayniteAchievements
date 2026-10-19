@@ -152,6 +152,14 @@
                                 </DataGridTemplateColumn>
                             </DataGrid.Columns>
                         </DataGrid>
+
+                        <!-- A dry run over the whole library; changes nothing. -->
+                        <Button Content="{DynamicResource LOCPlayAch_Settings_Metadata_TestIcons}"
+                                ToolTip="{DynamicResource LOCPlayAch_Settings_Metadata_TestIcons_Help}"
+                                Padding="{StaticResource PlayAch.Thickness.ButtonPadding}"
+                                Margin="{StaticResource PlayAch.Thickness.Top.Md}"
+                                HorizontalAlignment="Left"
+                                Click="TestIconMatching_Click"/>
                     </StackPanel>
                 </Border>
     </Grid>
