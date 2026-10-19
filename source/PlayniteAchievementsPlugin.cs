@@ -946,6 +946,7 @@ namespace PlayniteAchievements
                     providers = _providerRegistry.CreateProviders(settings, PlayniteApi, pluginUserDataPath);
                     _providerRegistry.CreateMetadataProviders(settings, PlayniteApi, pluginUserDataPath);
                     _metadataLinkStore = new Services.Metadata.MetadataLinkStore(pluginUserDataPath, _logger);
+                    Services.Achievements.AutoCapstoneTemplate.MetadataArtAccessor = _metadataLinkStore.GetCapstoneArtUrl;
                 }
 
                 // Phase 3: Wire core services, refresh pipeline, and tagging.
