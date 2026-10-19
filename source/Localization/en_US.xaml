@@ -379,6 +379,9 @@
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Overview_OpenAchievementPage">Source page</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Overview_AchievementPageUnavailable">No source page link is available for this game.</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Overview_LibrarySource">Library Source</sys:String>
+    <sys:String x:Key="LOCPlayAch_ManageAchievements_Overview_MetadataLinks">Metadata links</sys:String>
+    <sys:String x:Key="LOCPlayAch_ManageAchievements_Overview_MetadataLinks_Help">Which game each source uses. Clear a link to match again, or enter none to stop matching.</sys:String>
+    <sys:String x:Key="LOCPlayAch_ManageAchievements_Overview_MetadataLink_SetByYou">Set by you</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Status_Excluded">Excluded</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Status_ExcludedFromRefreshes">Excluded from Bulk Refreshes</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Status_ExcludedFromSummaries">Excluded from Summaries</sys:String>
@@ -943,9 +946,6 @@
     <sys:String x:Key="LOCPlayAch_Settings_RiotId_Help">Your in-game name and tag, for example Faker and KR1. The tag is the part after the # on your profile.</sys:String>
 
     <!-- Provider: Steam -->
-    <sys:String x:Key="LOCPlayAch_Settings_SteamHuntersCategories">SteamHunters Categories</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_SteamHuntersCategories_Help">Categories and Base/DLC types come from Steam's achievement sets. Merge keeps those and fills the rest from SteamHunters, Override uses SteamHunters for every achievement, Off uses Steam's sets only. Category art defaults to Steam store banners (changeable per game in Manage Achievements).</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_SteamHuntersCategories_Override">Override</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_SteamInstallPathOverride">Steam Install Path Override</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_SteamInstallPathOverride_Help">Optional. Leave empty to detect Steam from the current-user registry. Used for instant in-game monitoring and local offline refreshes.</sys:String>
     <!-- Provider: RPCS3 -->
@@ -1075,6 +1075,26 @@
     <sys:String x:Key="LOCPlayAch_Settings_Appearance_Resource_BodySize">Normal text size</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Appearance_Resource_TitleSize">Large text size</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Appearance_Resource_BodyFont">Text font</sys:String>
+
+    <!-- Metadata tab (tab title reuses Playnite's LOCSettingsMetadataLabel) -->
+    <sys:String x:Key="LOCPlayAch_Settings_Metadata_Icons">Achievement icons</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_Metadata_IconSource">Icon source</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_Metadata_IconSource_Help">Replaces each achievement's icon with the matching one from another source when the game is linked to it.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_Metadata_Source_Own">Platform's own</sys:String>
+    <sys:String x:Key="LOCPlayAch_Metadata_Source_PlayStation">PlayStation trophies</sys:String>
+    <sys:String x:Key="LOCPlayAch_Metadata_Source_SteamHunters">SteamHunters</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_Metadata_Categories">Categories and types</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_SteamHuntersCategories">SteamHunters Categories</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_SteamHuntersCategories_Help">Groups achievements by SteamHunters categories and types, for Steam games and for games on other platforms matched to a Steam app.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_SteamHuntersCategories_Override">Override</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_Metadata_Rarity_Help">Uses Exophase rarity for these platforms.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_Metadata_CapstoneArtHeader">Auto capstone art</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_Metadata_CapstoneArt">Capstone art</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_Metadata_CapstoneArt_Help">Uses the matched PlayStation platinum's art for capstones the plugin authors.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_Metadata_CapstoneArt_GameIcon">Game icon</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_Metadata_Matching">Matching</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_Metadata_MatchByName">Match games by name</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_Metadata_MatchByName_Help">Lets sources search by game name when the game carries no id for them.</sys:String>
 
     <!-- ================================================================= -->
     <!-- 11 Authentication -->
