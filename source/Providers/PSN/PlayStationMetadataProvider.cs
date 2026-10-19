@@ -52,33 +52,13 @@ namespace PlayniteAchievements.Providers.PSN
             !string.IsNullOrWhiteSpace(servicingProviderKey) && NativeProviders.Contains(servicingProviderKey);
 
         /// <summary>
-        /// Probes the PSN session once per run, as the refresh preflight does for servicing
-        /// providers, so a lapsed token is renewed from the stored cookies before any lookup.
+        /// Acquires the PSN access token once per run, as the PSN provider's own refresh does, so a
+        /// lapsed token is renewed before any lookup and a missing sign-in skips the source.
         /// </summary>
         public async Task<bool> BeginRunAsync(CancellationToken ct)
         {
-            var session = _psn?.AuthSession;
-            if (session == null || _psn.Scanner == null)
+            if (_psn?.Scanner == null || !await _psn.Scanner.TryAcquireAccessTokenAsync(ct).ConfigureAwait(false))
             {
-                return false;
-            }
-
-            try
-            {
-                var probe = await session.ProbeAuthStateAsync(ct).ConfigureAwait(false);
-                if (probe?.IsSuccess != true)
-                {
-                    _logger?.Info($"[PlayStationMetadata] PSN not signed in ({probe?.Outcome}); PlayStation art skipped this run.");
-                    return false;
-                }
-            }
-            catch (OperationCanceledException) when (ct.IsCancellationRequested)
-            {
-                throw;
-            }
-            catch (Exception ex)
-            {
-                _logger?.Warn(ex, "[PlayStationMetadata] PSN session probe failed; PlayStation art skipped this run.");
                 return false;
             }
 
