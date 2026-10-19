@@ -73,9 +73,9 @@ namespace PlayniteAchievements.Models.Settings
             target.AutoCapstoneCategoryDescriptionTemplate = source.AutoCapstoneCategoryDescriptionTemplate;
             target.AutoCapstoneTemplateHistory = new List<string>(source.AutoCapstoneTemplateHistory ?? new List<string>());
             target.AutoCapstoneAppliedTemplates = source.AutoCapstoneAppliedTemplates;
-            target.MetadataIconSources = new List<string>(source.MetadataIconSources ?? new List<string>());
-            target.MetadataCapstoneArtSources = new List<string>(source.MetadataCapstoneArtSources ?? new List<string>());
-            target.MetadataAllowNameSearch = source.MetadataAllowNameSearch;
+            target.MetadataDefaults = (source.MetadataDefaults ?? MetadataChoices.CreateDefaults()).Clone();
+            target.MetadataPlatformChoices = PersistedSettings.ClonePlatformChoices(source.MetadataPlatformChoices);
+            target.MetadataChoicesSeeded = source.MetadataChoicesSeeded;
             target.InGamePollIntervalSeconds = source.InGamePollIntervalSeconds;
             target.InGamePollRefreshFriends = source.InGamePollRefreshFriends;
             target.InGameFriendRefreshMultiplier = source.InGameFriendRefreshMultiplier;
