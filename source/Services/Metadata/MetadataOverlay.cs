@@ -257,9 +257,11 @@ namespace PlayniteAchievements.Services.Metadata
 
                 // A game found by name is a different release when too few achievements line up
                 // ("Thief: Definitive Edition" against "Thief Gold"), so it is neither kept nor used.
+                // Measured against the shorter list: a console version with fewer trophies than
+                // the PC version's achievements can still match all of its own.
                 if (unconfirmed != null)
                 {
-                    if (matches.Count < targets.Count * MinNameMatchShare)
+                    if (matches.Count < Math.Min(targets.Count, set.Achievements.Count) * MinNameMatchShare)
                     {
                         _logger?.Debug(
                             $"[Metadata] {key} name match '{unconfirmed.Label ?? linkId}' rejected for '{request.Game?.Name}': " +
