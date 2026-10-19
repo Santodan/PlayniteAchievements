@@ -109,8 +109,12 @@ namespace PlayniteAchievements.Services.Metadata
             var iconSource = ApplyIcons(plan.IconKeys, sets);
             ApplyCategories(plan.CategoryKeys, sets);
             var capstoneArt = ResolveCapstoneArt(plan.CapstoneArtKeys, sets);
+            var coverage = sets.ToDictionary(
+                pair => pair.Key,
+                pair => new MetadataCoverage { Matched = pair.Value.Matches.Count, Total = data.Achievements.Count },
+                StringComparer.OrdinalIgnoreCase);
 
-            return _links?.RecordApplied(gameId, iconSource, capstoneArt) ?? false;
+            return _links?.RecordApplied(gameId, iconSource, capstoneArt, coverage) ?? false;
         }
 
         public void Dispose()
@@ -188,8 +192,16 @@ namespace PlayniteAchievements.Services.Metadata
                     return null;
                 }
 
-                var matches = CrossSourceAchievementMatcher.Match(targets, set.Achievements, matchApiNames: set.SharesApiNames);
-                _logger?.Debug($"[Metadata] {key} matched {matches.Count}/{targets.Count} achievements for '{request.Game?.Name}' ({linkId}).");
+                // A port that reused the developer's achievement IDs pairs exactly by ID, in any
+                // language; titles only decide what the IDs leave unmatched.
+                var overlap = set.ApiNamesMayBeShared
+                    ? CrossSourceAchievementMatcher.ApiNameOverlap(targets, set.Achievements)
+                    : 0;
+                var matchApiNames = set.SharesApiNames || overlap >= CrossSourceAchievementMatcher.SharedApiNameThreshold;
+                var matches = CrossSourceAchievementMatcher.Match(targets, set.Achievements, matchApiNames: matchApiNames);
+                _logger?.Debug(
+                    $"[Metadata] {key} matched {matches.Count}/{targets.Count} achievements for '{request.Game?.Name}' " +
+                    $"({linkId}, idOverlap={overlap:P0}, byId={matchApiNames}).");
                 return new MatchedSet(set, matches);
             }
             catch (OperationCanceledException)
