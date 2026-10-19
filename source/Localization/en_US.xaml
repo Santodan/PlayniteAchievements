@@ -382,6 +382,7 @@
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Overview_MetadataLinks">Metadata links</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Overview_MetadataLinks_Help">Which game each source uses. Clear a link to match again, or apply an empty box to stop matching.</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Overview_MetadataLink_SetByYou">Set by you</sys:String>
+    <sys:String x:Key="LOCPlayAch_ManageAchievements_Overview_MetadataLink_Matched">{0}/{1} matched</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Status_Excluded">Excluded</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Status_ExcludedFromRefreshes">Excluded from Bulk Refreshes</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Status_ExcludedFromSummaries">Excluded from Summaries</sys:String>
