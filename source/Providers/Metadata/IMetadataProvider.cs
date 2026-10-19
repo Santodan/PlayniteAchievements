@@ -130,6 +130,13 @@ namespace PlayniteAchievements.Providers.Metadata
         /// <summary>True when the rows carry the servicing provider's ApiNames, so an exact join runs first.</summary>
         public bool SharesApiNames { get; set; }
 
+        /// <summary>
+        /// True when the rows use developer-chosen achievement IDs that a port to another platform
+        /// may reuse (Steam's), so the overlay checks the overlap and joins by ID when most coincide.
+        /// False for generated IDs such as trophy numbers.
+        /// </summary>
+        public bool ApiNamesMayBeShared { get; set; }
+
         /// <summary>Category label to image URL, for sources that supply category art.</summary>
         public IDictionary<string, string> CategoryArtUrls { get; } =
             new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
