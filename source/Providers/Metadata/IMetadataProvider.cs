@@ -3,6 +3,7 @@ using PlayniteAchievements.Models;
 using PlayniteAchievements.Models.Achievements;
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -89,6 +90,18 @@ namespace PlayniteAchievements.Providers.Metadata
         public GameAchievementData Data { get; }
 
         public string ServicingProviderKey => Data?.ProviderKey;
+
+        /// <summary>
+        /// Other names the game is known by: the servicing provider's own, and the labels of its
+        /// links to other sources (such as Steam's name from a SteamHunters link). Name searches
+        /// try these after the Playnite name.
+        /// </summary>
+        public IReadOnlyList<string> AlternateNames { get; internal set; } = Array.Empty<string>();
+
+        /// <summary>The Playnite name, then each alternate name.</summary>
+        public IEnumerable<string> SearchNames =>
+            new[] { Game?.Name, Data?.GameName }.Concat(AlternateNames ?? Array.Empty<string>())
+                .Where(name => !string.IsNullOrWhiteSpace(name));
     }
 
     /// <summary>A resolved source id with a label for display.</summary>
