@@ -53,22 +53,6 @@ namespace PlayniteAchievements.Providers.Steam
 
         public MetadataField SupportedFields => MetadataField.Categories | MetadataField.CategoryArt;
 
-        public MetadataCategoryMode CategoryMode
-        {
-            get
-            {
-                switch (ProviderRegistry.Settings<SteamSettings>()?.SteamHuntersCategoryMode ?? SteamHuntersCategoryMode.Off)
-                {
-                    case SteamHuntersCategoryMode.Merge:
-                        return MetadataCategoryMode.Merge;
-                    case SteamHuntersCategoryMode.Override:
-                        return MetadataCategoryMode.Override;
-                    default:
-                        return MetadataCategoryMode.Off;
-                }
-            }
-        }
-
         private IManualSource SteamSchema => _manualSources?.GetSourceByKey("Steam");
 
         private string Language => _settings?.Persisted?.GlobalLanguage;
@@ -111,7 +95,7 @@ namespace PlayniteAchievements.Providers.Steam
                 return new MetadataSourceLink(linked.Groups[1].Value);
             }
 
-            if (_settings?.Persisted?.MetadataAllowNameSearch == false || string.IsNullOrWhiteSpace(game.Name))
+            if (string.IsNullOrWhiteSpace(game.Name))
             {
                 return null;
             }
