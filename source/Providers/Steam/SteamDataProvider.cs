@@ -55,6 +55,9 @@ namespace PlayniteAchievements.Providers.Steam
         private readonly SteamSessionManager _sessionManager;
         private readonly SteamWebApiTokenResolver _tokenResolver;
         private readonly SteamHuntersCategoryEnricher _steamHuntersCategoryEnricher;
+
+        /// <summary>The scan's SteamHunters enricher, shared with the SteamHunters metadata provider so both use one cache and backoff.</summary>
+        internal SteamHuntersCategoryEnricher SteamHuntersEnricher => _steamHuntersCategoryEnricher;
         private readonly IFriendsProvider _friendsProvider;
         private readonly SteamLocalStatsReader _localStatsReader = new SteamLocalStatsReader();
         private readonly ILogger _logger;
