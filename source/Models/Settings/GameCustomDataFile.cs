@@ -220,6 +220,12 @@ namespace PlayniteAchievements.Models.Settings
         /// </summary>
         public string ExophaseEnrichmentSlugOverride { get; set; }
 
+        /// <summary>
+        /// Per metadata source key, which game that source supplies data from. Stored here rather
+        /// than locally so links travel with exports and the Workshop.
+        /// </summary>
+        public Dictionary<string, MetadataLinkData> MetadataLinks { get; set; }
+
         public ManualAchievementLink ManualLink { get; set; }
 
         public List<CustomAchievementDefinition> CustomAchievements { get; set; }
@@ -293,6 +299,7 @@ namespace PlayniteAchievements.Models.Settings
                 CaptureOverride = CaptureOverride?.Clone(),
                 ProviderOverride = ProviderOverride?.Clone(),
                 ExophaseEnrichmentSlugOverride = ExophaseEnrichmentSlugOverride,
+                MetadataLinks = MetadataLinkData.CloneMap(MetadataLinks),
                 ManualLink = ManualLink?.Clone(),
                 CustomAchievements = CustomAchievements != null
                     ? CustomAchievements.ConvertAll(item => item?.Clone()).FindAll(item => item != null)
@@ -355,6 +362,7 @@ namespace PlayniteAchievements.Models.Settings
                 NotificationAppearanceOverride = NotificationAppearanceOverride?.Clone(),
                 ProviderOverride = ProviderOverride?.Clone(),
                 ExophaseEnrichmentSlugOverride = ExophaseEnrichmentSlugOverride,
+                MetadataLinks = MetadataLinkData.CloneMap(MetadataLinks),
                 ManualLink = ManualLink?.Clone(),
                 CustomAchievements = CustomAchievements != null
                     ? CustomAchievements.ConvertAll(item => item?.Clone()).FindAll(item => item != null)
@@ -425,6 +433,7 @@ namespace PlayniteAchievements.Models.Settings
                 NotificationAppearanceOverride = portable?.NotificationAppearanceOverride?.Clone(),
                 ProviderOverride = portable?.ProviderOverride?.Clone(),
                 ExophaseEnrichmentSlugOverride = portable?.ExophaseEnrichmentSlugOverride,
+                MetadataLinks = MetadataLinkData.CloneMap(portable?.MetadataLinks),
                 ManualLink = portable?.ManualLink?.Clone(),
                 CustomAchievements = portable?.CustomAchievements != null
                     ? portable.CustomAchievements.ConvertAll(item => item?.Clone()).FindAll(item => item != null)
