@@ -249,6 +249,32 @@ namespace PlayniteAchievements.Tests.Services
         }
 
         [TestMethod]
+        public async Task Probe_ReportsTheMatch_AndStoresNothing()
+        {
+            var playstation = new FakeSource("PlayStation", MetadataField.Icons) { NativeFor = "PSN" };
+            playstation.Rows.Add(Row("p1", "Dragon Slayer", icon: "https://psn/dragon.png"));
+            var dragon = Row("ACH_DRAGON", "Dragon Slayer", icon: "steam.png");
+            var steamGame = Game("Steam", dragon, Row("ACH_OTHER", "Other"));
+            var psnGame = Game("PSN", Row("p1", "Dragon Slayer"));
+            var overlay = Overlay(new[] { playstation }, new PersistedSettings());
+
+            MetadataProbeResult steam;
+            MetadataProbeResult psn;
+            using (var run = overlay.BeginRun())
+            {
+                steam = await run.ProbeAsync(steamGame.Game, steamGame, "PlayStation", CancellationToken.None);
+                psn = await run.ProbeAsync(psnGame.Game, psnGame, "PlayStation", CancellationToken.None);
+            }
+
+            Assert.AreEqual(MetadataProbeOutcome.Matched, steam.Outcome);
+            Assert.AreEqual(1, steam.Matched);
+            Assert.AreEqual(2, steam.Total);
+            Assert.AreEqual(MetadataProbeOutcome.Native, psn.Outcome);
+            Assert.AreEqual("steam.png", dragon.UnlockedIconPath);
+            Assert.IsFalse(overlay.Links.TryGet(steamGame.PlayniteGameId.Value, "PlayStation", out _));
+        }
+
+        [TestMethod]
         public void LooseKey_ForgivesPunctuationAndEditions()
         {
             Assert.AreEqual(GameNameNormalizer.ToLooseKey("Deus Ex: Mankind Divided"), GameNameNormalizer.ToLooseKey("Deus Ex - Mankind Divided"));
