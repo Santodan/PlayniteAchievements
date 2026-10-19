@@ -47,7 +47,8 @@ namespace PlayniteAchievements.Services.GameCustomData
                    !string.IsNullOrWhiteSpace(data?.ShadPS4MatchIdOverride) ||
                    data?.ForceUseExophase == true ||
                    !string.IsNullOrWhiteSpace(data?.ExophaseSlugOverride) ||
-                   !string.IsNullOrWhiteSpace(data?.ExophaseEnrichmentSlugOverride);
+                   !string.IsNullOrWhiteSpace(data?.ExophaseEnrichmentSlugOverride) ||
+                   data?.MetadataLinks?.Count > 0;
         }
 
         private static bool HaveIconOverridesChanged(GameCustomDataFile previousData, GameCustomDataFile currentData)
