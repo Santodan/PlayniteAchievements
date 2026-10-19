@@ -10,7 +10,6 @@ namespace PlayniteAchievements.Providers.Xenia
     public class XeniaSettings : ProviderSettingsBase
     {
         private List<string> _accountPaths = new List<string>();
-        private bool _useExophaseForRarity;
 
         /// <inheritdoc />
         public override string ProviderKey => "Xenia";
@@ -32,15 +31,6 @@ namespace PlayniteAchievements.Providers.Xenia
         private string LegacyAccountPath
         {
             set => AccountPaths = ProviderPathList.FromLegacy(value);
-        }
-
-        /// <summary>
-        /// When true, enriches Xenia achievement rarity from Exophase after native scanning.
-        /// </summary>
-        public bool UseExophaseForRarity
-        {
-            get => _useExophaseForRarity;
-            set => SetValue(ref _useExophaseForRarity, value);
         }
     }
 }
