@@ -66,7 +66,16 @@ namespace PlayniteAchievements.Tests.Providers
         }
 
         [TestMethod]
-        public void GamePage_LinkToTrophyPageIsFound()
+        public void GamePage_LinksToItsTrophyPage()
+        {
+            // The first PlayStation search card for "god of war ragn" opens this page.
+            Assert.AreEqual(
+                "/game-trophies/17141-god-of-war-ragnarok",
+                PsPricesPageParser.FindTrophyPagePath(Fixture("game-god-of-war-ragnarok.html")));
+        }
+
+        [TestMethod]
+        public void GamePage_AbsoluteTrophyLinkIsFound()
         {
             const string html = "<html><body><a href=\"/region-us/game/5352717/god-of-war-ragnarok\">x</a>" +
                                 "<a href=\"https://psprices.com/game-trophies/17141-god-of-war-ragnarok\">Trophies</a></body></html>";
