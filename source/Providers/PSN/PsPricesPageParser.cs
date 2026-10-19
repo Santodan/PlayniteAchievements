@@ -1,5 +1,4 @@
 using HtmlAgilityPack;
-using PlayniteAchievements.Models.Achievements;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -29,21 +28,18 @@ namespace PlayniteAchievements.Providers.PSN
             platform.StartsWith("PlayStation", StringComparison.OrdinalIgnoreCase));
     }
 
-    /// <summary>A parsed PSPrices trophy page: the trophy set's NPWR id and its trophies.</summary>
+    /// <summary>A parsed PSPrices trophy page: the trophy set's NPWR id and title.</summary>
     internal sealed class PsPricesTrophyPage
     {
         public string NpCommunicationId { get; set; }
 
         public string Title { get; set; }
-
-        public List<AchievementDetail> Trophies { get; } = new List<AchievementDetail>();
     }
 
     /// <summary>
-    /// Reads PSPrices pages. The trophy page carries the NPWR id in its title
-    /// ("God of War Ragnarök (NPWR22392_00) — Trophies") and links each trophy's icon on Sony's
-    /// own image servers at full size, so it serves both as the name-to-NPWR lookup and, without
-    /// a PSN sign-in, as the trophy list itself.
+    /// Reads PSPrices pages to find a game's trophy set id. The trophy page carries the NPWR id in
+    /// its title ("God of War Ragnarök (NPWR22392_00) — Trophies"); the trophies themselves come
+    /// from the PSN API.
     /// </summary>
     internal static class PsPricesPageParser
     {
@@ -60,17 +56,6 @@ namespace PlayniteAchievements.Providers.PSN
         private static readonly Regex TrophyPagePath = new Regex(
             @"^/game-trophies/\d+-[^?#""'/]+$",
             RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
-
-        // Trophy types are drawn as small cached images; their file names identify the type.
-        // Unknown names leave the type blank, which only costs the platinum lookup.
-        private static readonly Dictionary<string, string> TypeIconNames =
-            new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
-            {
-                ["18097f983b35f53c58d956accbf2b7ba"] = "platinum",
-                ["57fc024b481d7fb41fe6cc4a3ba78d43"] = "gold",
-                ["b60a264f036a64de1335690fee9c2f15"] = "silver",
-                ["c50466dc7ae9aa89376e835639b2d614"] = "bronze"
-            };
 
         public static string BuildSearchUrl(string query) =>
             $"{BaseUrl}/region-us/games/?q={Uri.EscapeDataString(query ?? string.Empty)}";
@@ -126,37 +111,11 @@ namespace PlayniteAchievements.Providers.PSN
                 return null;
             }
 
-            var page = new PsPricesTrophyPage
+            return new PsPricesTrophyPage
             {
                 NpCommunicationId = npwr.Groups[1].Value,
                 Title = Clean(titleText.Substring(0, npwr.Index))
             };
-
-            foreach (var row in document.DocumentNode.SelectNodes("//tbody/tr") ?? Enumerable.Empty<HtmlNode>())
-            {
-                var icon = row.SelectSingleNode(".//img[contains(@src,'psnobj') or contains(@src,'image.api.playstation.com')]");
-                var name = Clean(icon?.GetAttributeValue("alt", null));
-                if (icon == null || name == null)
-                {
-                    continue;
-                }
-
-                var type = row.SelectNodes(".//img[starts-with(@src,'/cache/')]")?
-                    .Select(img => TypeFromIcon(img.GetAttributeValue("src", string.Empty)))
-                    .FirstOrDefault(value => value != null);
-
-                page.Trophies.Add(new AchievementDetail
-                {
-                    ApiName = $"{page.NpCommunicationId}:{page.Trophies.Count}",
-                    DisplayName = name,
-                    Description = Clean(row.SelectSingleNode(".//div[contains(concat(' ', normalize-space(@class), ' '), ' mt-1 ')]")?.InnerText),
-                    UnlockedIconPath = icon.GetAttributeValue("src", null),
-                    TrophyType = type,
-                    IsCapstone = string.Equals(type, "platinum", StringComparison.OrdinalIgnoreCase)
-                });
-            }
-
-            return page;
         }
 
         /// <summary>True for Cloudflare's interstitial rather than the requested page.</summary>
@@ -166,18 +125,6 @@ namespace PlayniteAchievements.Providers.PSN
                    html.IndexOf("<title>Just a moment", StringComparison.OrdinalIgnoreCase) >= 0 ||
                    html.IndexOf("challenge-platform/h/", StringComparison.OrdinalIgnoreCase) >= 0 ||
                    html.IndexOf("Verifying you are human", StringComparison.OrdinalIgnoreCase) >= 0;
-        }
-
-        private static string TypeFromIcon(string src)
-        {
-            var fileName = System.IO.Path.GetFileNameWithoutExtension(src ?? string.Empty);
-            var at = fileName.IndexOf('@');
-            if (at >= 0)
-            {
-                fileName = fileName.Substring(0, at);
-            }
-
-            return TypeIconNames.TryGetValue(fileName, out var type) ? type : null;
         }
 
         private static string ToPath(string href)
