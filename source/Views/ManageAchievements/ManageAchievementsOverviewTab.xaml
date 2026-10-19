@@ -64,6 +64,16 @@
             <!-- Game header: identity, source and platform override, and the everyday actions. -->
             <Border Style="{StaticResource CardBorderStyle}" Margin="{StaticResource PlayAch.Thickness.Bottom.Md}">
                 <StackPanel>
+                    <!-- Shared by the per-game settings rows and the metadata link rows. -->
+                    <StackPanel.Resources>
+                        <Style x:Key="SettingLabelStyle" TargetType="TextBlock" BasedOn="{StaticResource FieldLabelStyle}">
+                            <Setter Property="VerticalAlignment" Value="Center" />
+                            <Setter Property="Margin" Value="0,4,16,4" />
+                        </Style>
+                        <Style x:Key="SettingStatusStyle" TargetType="TextBlock" BasedOn="{StaticResource OverviewMutedTextStyle}">
+                            <Setter Property="Margin" Value="0,0,0,4" />
+                        </Style>
+                    </StackPanel.Resources>
                     <Grid>
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*" />
@@ -147,16 +157,6 @@
                                 <RowDefinition Height="Auto" />
                                 <RowDefinition Height="Auto" />
                             </Grid.RowDefinitions>
-                            <Grid.Resources>
-                                <Style x:Key="SettingLabelStyle" TargetType="TextBlock" BasedOn="{StaticResource FieldLabelStyle}">
-                                    <Setter Property="VerticalAlignment" Value="Center" />
-                                    <Setter Property="Margin" Value="0,4,16,4" />
-                                </Style>
-                                <Style x:Key="SettingStatusStyle" TargetType="TextBlock" BasedOn="{StaticResource OverviewMutedTextStyle}">
-                                    <Setter Property="Margin" Value="0,0,0,4" />
-                                </Style>
-                            </Grid.Resources>
-
                             <!-- Platform override: the platform that services the game. -->
                             <TextBlock Grid.Row="0" Grid.Column="0"
                                        Style="{StaticResource SettingLabelStyle}"
