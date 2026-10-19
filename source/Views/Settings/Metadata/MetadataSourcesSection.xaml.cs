@@ -29,6 +29,11 @@ namespace PlayniteAchievements.Views.Settings.Metadata
                 settings ?? throw new ArgumentNullException(nameof(settings)),
                 registry ?? throw new ArgumentNullException(nameof(registry)));
         }
+
+        private void TestIconMatching_Click(object sender, System.Windows.RoutedEventArgs e)
+        {
+            PlayniteAchievementsPlugin.Instance?.RunIconMatchTest();
+        }
     }
 
     public sealed class MetadataSourcesViewModel
