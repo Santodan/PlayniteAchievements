@@ -1,5 +1,6 @@
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Playnite.SDK.Models;
+using PlayniteAchievements.Common;
 using PlayniteAchievements.Models;
 using PlayniteAchievements.Models.Achievements;
 using PlayniteAchievements.Models.Settings;
@@ -209,6 +210,55 @@ namespace PlayniteAchievements.Tests.Services
         }
 
         [TestMethod]
+        public async Task NameFoundLink_WithFewMatches_IsNeitherKeptNorUsed()
+        {
+            // "Thief: Definitive Edition" found as "Thief Gold": a different game's achievements.
+            var hunters = new FakeSource("SteamHunters", MetadataField.Categories) { Mode = MetadataCategoryMode.Override, FoundByName = true };
+            hunters.Rows.Add(Row("A", "Keeper of Secrets", category: "Story"));
+            var first = Row("g1", "Ghost");
+            var second = Row("g2", "Opportunist");
+            var data = Game("GOG", first, second);
+            var overlay = Overlay(new[] { hunters }, Choices(categories: hunters.Mode));
+
+            using (var run = overlay.BeginRun())
+            {
+                await run.ApplyAsync(data.Game, data, CancellationToken.None);
+            }
+
+            Assert.IsNull(first.Category);
+            Assert.IsFalse(overlay.Links.TryGet(data.PlayniteGameId.Value, "SteamHunters", out _));
+        }
+
+        [TestMethod]
+        public async Task NameFoundLink_ThatMatches_IsKept()
+        {
+            var hunters = new FakeSource("SteamHunters", MetadataField.Categories) { Mode = MetadataCategoryMode.Override, FoundByName = true };
+            hunters.Rows.Add(Row("A", "Ghost", category: "Story"));
+            hunters.Rows.Add(Row("B", "Opportunist", category: "Side"));
+            var data = Game("GOG", Row("g1", "Ghost"), Row("g2", "Opportunist"));
+            var overlay = Overlay(new[] { hunters }, Choices(categories: hunters.Mode));
+
+            using (var run = overlay.BeginRun())
+            {
+                await run.ApplyAsync(data.Game, data, CancellationToken.None);
+            }
+
+            Assert.AreEqual("Story", data.Achievements[0].Category);
+            Assert.IsTrue(overlay.Links.TryGet(data.PlayniteGameId.Value, "SteamHunters", out var link));
+            Assert.AreEqual("link-SteamHunters", link.Id);
+        }
+
+        [TestMethod]
+        public void LooseKey_ForgivesPunctuationAndEditions()
+        {
+            Assert.AreEqual(GameNameNormalizer.ToLooseKey("Deus Ex: Mankind Divided"), GameNameNormalizer.ToLooseKey("Deus Ex - Mankind Divided"));
+            Assert.AreEqual("fallout new vegas", GameNameNormalizer.ToLooseKey("Fallout: New Vegas Ultimate Edition"));
+            Assert.AreEqual("doom", GameNameNormalizer.ToLooseKey("DOOM (2016)"));
+            Assert.AreEqual("marvel s spider man miles morales", GameNameNormalizer.ToLooseKey("Marvel’s Spider-Man™: Miles Morales"));
+            Assert.AreEqual(string.Empty, GameNameNormalizer.ToLooseKey("ゼルダの伝説"));
+        }
+
+        [TestMethod]
         public async Task PlatformChoice_OverridesTheDefaults()
         {
             var hunters = new FakeSource("SteamHunters", MetadataField.Categories);
@@ -303,6 +353,8 @@ namespace PlayniteAchievements.Tests.Services
 
             public bool IdsMayBeShared { get; set; }
 
+            public bool FoundByName { get; set; }
+
             public string NativeFor { get; set; }
 
             public List<AchievementDetail> Rows { get; } = new List<AchievementDetail>();
@@ -329,7 +381,7 @@ namespace PlayniteAchievements.Tests.Services
             public Task<MetadataSourceLink> ResolveLinkAsync(MetadataLinkRequest request, CancellationToken ct)
             {
                 ResolveCount++;
-                return Task.FromResult(new MetadataSourceLink("link-" + Key));
+                return Task.FromResult(new MetadataSourceLink("link-" + Key, null, FoundByName));
             }
 
             public Task<AchievementSourceSet> FetchAsync(MetadataLinkRequest request, string linkId, CancellationToken ct)
