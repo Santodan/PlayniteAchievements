@@ -10,8 +10,9 @@ namespace PlayniteAchievements.Providers.PSN
 {
     /// <summary>
     /// PlayStation trophy icons (512px for PS5, 240px for PS4) and platinum art for games another
-    /// provider services. A game is linked to a trophy set (NPWR id); the trophy list is
-    /// title-scoped, so any set can be fetched once its id is known, played or not.
+    /// provider services. A game links to either a trophy set id (NPWR, fetched from the PSN API)
+    /// or a PSPrices trophy page path (read from the page, which links Sony's full-size icons, so
+    /// no PSN sign-in is needed). Matching tries the sets the user played first, then PSPrices.
     /// </summary>
     internal sealed class PlayStationMetadataProvider : IMetadataProvider
     {
@@ -23,12 +24,19 @@ namespace PlayniteAchievements.Providers.PSN
         };
 
         private readonly PsnDataProvider _psn;
+        private readonly PsPricesClient _psPrices;
         private readonly PlayniteAchievementsSettings _settings;
         private readonly ILogger _logger;
+        private IDisposable _psPricesRun;
 
-        public PlayStationMetadataProvider(PsnDataProvider psn, PlayniteAchievementsSettings settings, ILogger logger)
+        public PlayStationMetadataProvider(
+            PsnDataProvider psn,
+            IPlayniteAPI api,
+            PlayniteAchievementsSettings settings,
+            ILogger logger)
         {
             _psn = psn;
+            _psPrices = new PsPricesClient(api, logger);
             _settings = settings;
             _logger = logger;
         }
@@ -41,22 +49,22 @@ namespace PlayniteAchievements.Providers.PSN
 
         public MetadataCategoryMode CategoryMode => MetadataCategoryMode.Off;
 
+        private bool PsnSignedIn => _psn?.Scanner != null && _psn.IsAuthenticated;
+
         public bool IsNativeFor(string servicingProviderKey) =>
             !string.IsNullOrWhiteSpace(servicingProviderKey) && NativeProviders.Contains(servicingProviderKey);
 
         public Task<bool> BeginRunAsync(CancellationToken ct)
         {
-            return Task.FromResult(_psn?.Scanner != null && _psn.IsAuthenticated);
+            _psPricesRun = _psPrices.BeginRun();
+            return Task.FromResult(PsnSignedIn || _psPrices.IsAvailable);
         }
 
         public void EndRun()
         {
+            Interlocked.Exchange(ref _psPricesRun, null)?.Dispose();
         }
 
-        /// <summary>
-        /// Matches the game to a trophy set the user has played under the same name. Sets the user
-        /// never played need a link entered on the game until a name-to-NPWR source is added.
-        /// </summary>
         public async Task<MetadataSourceLink> ResolveLinkAsync(MetadataLinkRequest request, CancellationToken ct)
         {
             var name = request?.Game?.Name;
@@ -65,22 +73,49 @@ namespace PlayniteAchievements.Providers.PSN
                 return null;
             }
 
-            try
+            if (PsnSignedIn)
             {
-                var set = await _psn.Scanner.FindPlayedTrophySetByNameAsync(name, ct).ConfigureAwait(false);
-                return string.IsNullOrWhiteSpace(set?.NpCommunicationId)
-                    ? null
-                    : new MetadataSourceLink(set.NpCommunicationId, set.Title);
+                try
+                {
+                    var played = await _psn.Scanner.FindPlayedTrophySetByNameAsync(name, ct).ConfigureAwait(false);
+                    if (!string.IsNullOrWhiteSpace(played?.NpCommunicationId))
+                    {
+                        return new MetadataSourceLink(played.NpCommunicationId, played.Title);
+                    }
+                }
+                catch (PsnAuthRequiredException)
+                {
+                    _logger?.Debug($"[PlayStationMetadata] PSN sign-in expired while matching '{name}'.");
+                }
             }
-            catch (PsnAuthRequiredException)
+
+            var path = await _psPrices.FindTrophyPagePathAsync(name, ct).ConfigureAwait(false);
+            if (path == null)
             {
-                _logger?.Debug($"[PlayStationMetadata] PSN sign-in required to match '{name}'.");
                 return null;
             }
+
+            var page = await _psPrices.GetTrophyPageAsync(path, ct).ConfigureAwait(false);
+            var label = page == null ? null : $"{page.Title} · {page.NpCommunicationId}";
+            return new MetadataSourceLink(path, label);
         }
 
         public async Task<AchievementSourceSet> FetchAsync(MetadataLinkRequest request, string linkId, CancellationToken ct)
         {
+            if (IsPsPricesPath(linkId))
+            {
+                var page = await _psPrices.GetTrophyPageAsync(linkId.Trim(), ct).ConfigureAwait(false);
+                return page == null || page.Trophies.Count == 0
+                    ? null
+                    : new AchievementSourceSet(Key, linkId, page.Trophies);
+            }
+
+            if (!PsnSignedIn)
+            {
+                _logger?.Debug($"[PlayStationMetadata] {linkId} needs a PSN sign-in; link a PSPrices trophy page instead to use it signed out.");
+                return null;
+            }
+
             try
             {
                 var rows = await _psn.Scanner.FetchTrophyDefinitionsAsync(linkId, ct).ConfigureAwait(false);
@@ -91,6 +126,13 @@ namespace PlayniteAchievements.Providers.PSN
                 _logger?.Debug($"[PlayStationMetadata] PSN sign-in required to fetch {linkId}.");
                 return null;
             }
+        }
+
+        /// <summary>A link entered as a PSPrices trophy page (path or full URL) rather than an NPWR id.</summary>
+        internal static bool IsPsPricesPath(string linkId)
+        {
+            return !string.IsNullOrWhiteSpace(linkId) &&
+                   linkId.IndexOf("/game-trophies/", StringComparison.OrdinalIgnoreCase) >= 0;
         }
     }
 }
