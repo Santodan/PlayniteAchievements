@@ -53,6 +53,9 @@ namespace PlayniteAchievements.Services.Metadata
 
     internal sealed class MetadataOverlayRun : IDisposable
     {
+        /// <summary>Share of a game's achievements a name-found link must match to be kept.</summary>
+        internal const double MinNameMatchShare = 0.5;
+
         private readonly Dictionary<string, IMetadataProvider> _providersByKey;
         private readonly PersistedSettings _settings;
         private readonly MetadataLinkStore _links;
@@ -175,7 +178,7 @@ namespace PlayniteAchievements.Services.Metadata
                     return null;
                 }
 
-                var linkId = await ResolveLinkIdAsync(provider, gameId, request, ct).ConfigureAwait(false);
+                var (linkId, unconfirmed) = await ResolveLinkIdAsync(provider, gameId, request, ct).ConfigureAwait(false);
                 if (string.IsNullOrWhiteSpace(linkId))
                 {
                     return null;
@@ -197,6 +200,22 @@ namespace PlayniteAchievements.Services.Metadata
                 _logger?.Debug(
                     $"[Metadata] {key} matched {matches.Count}/{targets.Count} achievements for '{request.Game?.Name}' " +
                     $"({linkId}, idOverlap={overlap:P0}, byId={matchApiNames}).");
+
+                // A game found by name is a different release when too few achievements line up
+                // ("Thief: Definitive Edition" against "Thief Gold"), so it is neither kept nor used.
+                if (unconfirmed != null)
+                {
+                    if (matches.Count < targets.Count * MinNameMatchShare)
+                    {
+                        _logger?.Debug(
+                            $"[Metadata] {key} name match '{unconfirmed.Label ?? linkId}' rejected for '{request.Game?.Name}': " +
+                            $"{matches.Count}/{targets.Count} achievements matched.");
+                        return null;
+                    }
+
+                    _links?.SetAuto(gameId, provider.Key, linkId, unconfirmed.Label);
+                }
+
                 return new MatchedSet(set, matches);
             }
             catch (OperationCanceledException)
@@ -224,7 +243,12 @@ namespace PlayniteAchievements.Services.Metadata
             }
         }
 
-        private async Task<string> ResolveLinkIdAsync(
+        /// <summary>
+        /// The stored link, or a newly resolved one. One resolved from an id the game carries is
+        /// stored at once; one found by name comes back as <c>Unconfirmed</c> and is stored only
+        /// after its achievements match.
+        /// </summary>
+        private async Task<(string Id, MetadataSourceLink Unconfirmed)> ResolveLinkIdAsync(
             IMetadataProvider provider,
             Guid gameId,
             MetadataLinkRequest request,
@@ -232,17 +256,22 @@ namespace PlayniteAchievements.Services.Metadata
         {
             if (_links != null && _links.TryGet(gameId, provider.Key, out var stored))
             {
-                return stored.IsNoMatch ? null : stored.Id;
+                return (stored.IsNoMatch ? null : stored.Id, null);
             }
 
             var resolved = await provider.ResolveLinkAsync(request, ct).ConfigureAwait(false);
             if (resolved == null || string.IsNullOrWhiteSpace(resolved.Id))
             {
-                return null;
+                return (null, null);
+            }
+
+            if (resolved.FoundByName)
+            {
+                return (resolved.Id.Trim(), resolved);
             }
 
             _links?.SetAuto(gameId, provider.Key, resolved.Id, resolved.Label);
-            return resolved.Id.Trim();
+            return (resolved.Id.Trim(), null);
         }
 
         /// <summary>
