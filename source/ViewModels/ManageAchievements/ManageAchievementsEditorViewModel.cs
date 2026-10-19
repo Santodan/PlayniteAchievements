@@ -2102,6 +2102,25 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         /// what lets a row tell an edited field from one the provider supplied, for the icon
         /// override writes and for the grid's customization marker alike.
         /// </summary>
+        /// <summary>A metadata source's display name, looked up once per key for the pass.</summary>
+        private static string ResolveMetadataSourceName(string sourceKey, IDictionary<string, string> cache)
+        {
+            if (string.IsNullOrWhiteSpace(sourceKey))
+            {
+                return null;
+            }
+
+            if (!cache.TryGetValue(sourceKey, out var name))
+            {
+                var provider = PlayniteAchievementsPlugin.Instance?.ProviderRegistry?.GetMetadataProviders()?
+                    .FirstOrDefault(candidate => string.Equals(candidate.Key, sourceKey, StringComparison.OrdinalIgnoreCase));
+                name = provider == null ? sourceKey : ResourceProvider.GetString(provider.DisplayNameKey);
+                cache[sourceKey] = name;
+            }
+
+            return name;
+        }
+
         private void ApplyProviderBaselines()
         {
             var fileStems = AchievementIconCachePathBuilder.BuildFileStems(
@@ -2123,6 +2142,8 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             // that directory while it runs, and it is discarded before anything can.
             var iconCacheSnapshot = PlayniteAchievementsPlugin.Instance?.DiskImageService?
                 .ScanAchievementIconCacheDirectory(_gameIdText);
+            var metadataLinks = PlayniteAchievementsPlugin.Instance?.MetadataLinks;
+            var sourceNames = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 
             foreach (var row in AchievementRows)
             {
@@ -2133,6 +2154,9 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 }
 
                 row.IconFileStem = fileStems.TryGetValue(apiName, out var stem) ? stem : null;
+                row.BorrowedIconSourceName = ResolveMetadataSourceName(
+                    metadataLinks?.GetBorrowedIconSource(_gameId, row.OriginalApiName),
+                    sourceNames);
                 if (rawByApiName.TryGetValue(apiName, out var raw))
                 {
                     row.ProviderUnlockedIconPath = ResolveProviderIconBaseline(
@@ -7603,6 +7627,8 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             // them to decide whether they are showing the user's art or the provider's.
             OnPropertyChanged(nameof(HasUnlockedIconOverride));
             OnPropertyChanged(nameof(HasLockedIconOverride));
+            OnPropertyChanged(nameof(HasBorrowedUnlockedIcon));
+            OnPropertyChanged(nameof(BorrowedIconSourceName));
 
             AchievementEditorFieldRules.TryParsePoints(PointsText, out var points);
             CustomizationFacets = AchievementCustomizationRules.Resolve(new AchievementCustomizationInputs
@@ -8345,6 +8371,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 if (SetValueAndReturn(ref _unlockedIconPath, value))
                 {
                     OnPropertyChanged(nameof(HasUnlockedIconOverride));
+                    OnPropertyChanged(nameof(HasBorrowedUnlockedIcon));
                     OnPropertyChanged(nameof(UnlockedPreviewPath));
                     OnPropertyChanged(nameof(LockedPreviewPath));
                     OnPropertyChanged(nameof(DisplayIcon));
@@ -8375,6 +8402,16 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
 
         /// <inheritdoc cref="HasUnlockedIconOverride"/>
         public bool HasLockedIconOverride => IsIconOverride(LockedIconPath, ProviderLockedIconPath);
+
+        /// <summary>
+        /// The metadata source the unlocked icon came from (such as PlayStation), or null when it is
+        /// the platform's own. Set from the last overlay with the provider baselines.
+        /// </summary>
+        public string BorrowedIconSourceName { get; internal set; }
+
+        /// <summary>The slot shows a borrowed icon the user has not replaced, so it names the source.</summary>
+        public bool HasBorrowedUnlockedIcon =>
+            !HasUnlockedIconOverride && !string.IsNullOrWhiteSpace(BorrowedIconSourceName);
 
         /// <summary>
         /// Whether a slot holds the user's art rather than the provider's. The same test the
