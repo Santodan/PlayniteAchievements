@@ -1,16 +1,13 @@
 using System;
-using System.Collections.ObjectModel;
 using System.Windows.Controls;
-using Playnite.SDK;
 using PlayniteAchievements.Models;
 using PlayniteAchievements.Providers;
-using PlayniteAchievements.Views.Settings.Navigation;
 
 namespace PlayniteAchievements.Views.Settings.Metadata
 {
     /// <summary>
-    /// Metadata settings tab: which sources supply icons, categories, rarity and capstone art per
-    /// platform, and how auto capstones are generated. Sections are created when first selected.
+    /// Metadata settings tab: one page with the per-platform sources grid and, below it, the auto
+    /// capstone settings that use the borrowed platinum art.
     /// </summary>
     public partial class MetadataSettingsTab : UserControl
     {
@@ -29,22 +26,8 @@ namespace PlayniteAchievements.Views.Settings.Metadata
             if (plugin == null) throw new ArgumentNullException(nameof(plugin));
             if (registry == null) throw new ArgumentNullException(nameof(registry));
 
-            var items = new ObservableCollection<SettingsNavigationItem>
-            {
-                new SettingsNavigationItem(
-                    "Sources",
-                    ResourceProvider.GetString("LOCPlayAch_Settings_Metadata_Sources"),
-                    iconGlyph: "",
-                    viewFactory: () => new MetadataSourcesSection(settings, registry)),
-                new SettingsNavigationItem(
-                    "AutoCapstone",
-                    ResourceProvider.GetString("LOCPlayAch_ManageAchievements_Custom_AutoCapstone"),
-                    iconGlyph: "",
-                    viewFactory: () => new AutoCapstoneSettingsSection(settings, plugin))
-            };
-
-            MasterDetail.ItemsSource = items;
-            MasterDetail.SelectedItem = items[0];
+            Sections.Children.Add(new MetadataSourcesSection(settings, registry));
+            Sections.Children.Add(new AutoCapstoneSettingsSection(settings, plugin));
         }
     }
 }
