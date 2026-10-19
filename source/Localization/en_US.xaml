@@ -1080,7 +1080,7 @@
     <!-- Metadata tab (tab title reuses Playnite's LOCSettingsMetadataLabel) -->
     <sys:String x:Key="LOCPlayAch_Settings_Metadata_Icons">Achievement icons</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Metadata_IconSource">Icon source</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_Metadata_IconSource_Help">Replaces each achievement's icon with the matching one from another source when the game is linked to it.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_Metadata_IconSource_Help">Replaces each achievement's icon with the matching one from another source when the game is linked to it. PlayStation trophies need a PlayStation Network sign-in.</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Metadata_Source_Own">Platform's own</sys:String>
     <sys:String x:Key="LOCPlayAch_Metadata_Source_PlayStation">PlayStation trophies</sys:String>
     <sys:String x:Key="LOCPlayAch_Metadata_Source_SteamHunters">SteamHunters</sys:String>
