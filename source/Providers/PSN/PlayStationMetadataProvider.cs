@@ -19,6 +19,9 @@ namespace PlayniteAchievements.Providers.PSN
     {
         public const string MetadataKey = "PlayStation";
 
+        /// <summary>Separates the sets of a link that spans several (a game and its DLC lists).</summary>
+        internal const char SetSeparator = ',';
+
         private static readonly HashSet<string> NativeProviders = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
         {
             "PSN", "RPCS3", "ShadPS4", "Vita3K"
@@ -90,47 +93,155 @@ namespace PlayniteAchievements.Providers.PSN
                 return null;
             }
 
-            // PS5 sets carry 512px art, so the first PS5 candidate wins; otherwise the first that loads.
-            MetadataSourceLink fallback = null;
             try
             {
-                var played = await _psn.Scanner.FindPlayedTrophySetByNameAsync(name, ct).ConfigureAwait(false);
-                if (!string.IsNullOrWhiteSpace(played?.NpCommunicationId))
+                var main = await FindMainSetAsync(request, name, ct).ConfigureAwait(false);
+                if (main == null)
                 {
-                    var link = new MetadataSourceLink(played.NpCommunicationId, played.Title, foundByName: true);
-                    if (await IsPs5SetAsync(link.Id, ct).ConfigureAwait(false))
-                    {
-                        return link;
-                    }
-
-                    fallback = link;
+                    return null;
                 }
 
-                foreach (var gamePage in await _psPrices.FindGamePagePathsAsync(name, ct).ConfigureAwait(false))
-                {
-                    var trophyPath = await _psPrices.FindTrophyPagePathAsync(gamePage, ct).ConfigureAwait(false);
-                    var page = trophyPath == null ? null : await _psPrices.GetTrophyPageAsync(trophyPath, ct).ConfigureAwait(false);
-                    if (page == null || string.Equals(page.NpCommunicationId, fallback?.Id, StringComparison.OrdinalIgnoreCase))
-                    {
-                        continue;
-                    }
-
-                    var link = new MetadataSourceLink(page.NpCommunicationId, page.Title, foundByName: true);
-                    if (await IsPs5SetAsync(link.Id, ct).ConfigureAwait(false))
-                    {
-                        return link;
-                    }
-
-                    fallback = fallback ?? link;
-                }
+                var extras = await FindExtraSetsAsync(request, main.Id, ct).ConfigureAwait(false);
+                return extras.Count == 0
+                    ? main
+                    : new MetadataSourceLink(
+                        string.Join(SetSeparator + " ", new[] { main.Id }.Concat(extras)),
+                        $"{main.Label} (+{extras.Count})",
+                        foundByName: true);
             }
             catch (PsnAuthRequiredException)
             {
                 _logger?.Debug($"[PlayStationMetadata] PSN sign-in expired while matching '{name}'.");
                 return null;
             }
+        }
+
+        /// <summary>
+        /// The game's own trophy set: the set the user played under its name, else the sets behind
+        /// its PSPrices results. PS5 sets carry 512px art, so the first PS5 one wins; otherwise the
+        /// first that loads.
+        /// </summary>
+        private async Task<MetadataSourceLink> FindMainSetAsync(MetadataLinkRequest request, string name, CancellationToken ct)
+        {
+            MetadataSourceLink fallback = null;
+            var played = await _psn.Scanner.FindPlayedTrophySetByNameAsync(name, ct).ConfigureAwait(false);
+            if (!string.IsNullOrWhiteSpace(played?.NpCommunicationId))
+            {
+                var link = new MetadataSourceLink(played.NpCommunicationId, played.Title, foundByName: true);
+                if (await IsPs5SetAsync(link.Id, ct).ConfigureAwait(false))
+                {
+                    return link;
+                }
+
+                fallback = link;
+            }
+
+            foreach (var gamePage in await _psPrices.FindGamePagePathsAsync(request.SearchNames, ct).ConfigureAwait(false))
+            {
+                var page = await ReadTrophyPageAsync(gamePage, ct).ConfigureAwait(false);
+                if (page == null || string.Equals(page.NpCommunicationId, fallback?.Id, StringComparison.OrdinalIgnoreCase))
+                {
+                    continue;
+                }
+
+                var link = new MetadataSourceLink(page.NpCommunicationId, page.Title, foundByName: true);
+                if (await IsPs5SetAsync(link.Id, ct).ConfigureAwait(false))
+                {
+                    return link;
+                }
+
+                fallback = fallback ?? link;
+            }
 
             return fallback;
+        }
+
+        /// <summary>
+        /// Trophy sets sold apart from the main one (DLC lists such as The Binding of Isaac's
+        /// Afterbirth+ and Repentance, or the parts of a collection), looked for whenever the main
+        /// set leaves achievements unmatched. A related set is kept when at least half of its
+        /// trophies match achievements nothing matched yet, which keeps out sequels that only share
+        /// the name.
+        /// </summary>
+        private async Task<List<string>> FindExtraSetsAsync(MetadataLinkRequest request, string mainId, CancellationToken ct)
+        {
+            var extras = new List<string>();
+            var targets = request.Data?.Achievements;
+            var mainRows = await GetDefinitionsAsync(mainId, ct).ConfigureAwait(false);
+            if (targets == null || targets.Count == 0 || mainRows == null)
+            {
+                return extras;
+            }
+
+            var matched = new HashSet<AchievementDetail>(
+                Services.Metadata.CrossSourceAchievementMatcher.Match(targets, mainRows).Select(match => match.Target));
+            var unmatched = targets.Where(target => !matched.Contains(target)).ToList();
+            if (unmatched.Count == 0)
+            {
+                return extras;
+            }
+
+            var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { mainId };
+            foreach (var gamePage in await _psPrices.FindRelatedGamePagePathsAsync(BaseName(request.Game?.Name), ct).ConfigureAwait(false))
+            {
+                var page = await ReadTrophyPageAsync(gamePage, ct).ConfigureAwait(false);
+                if (page == null || !seen.Add(page.NpCommunicationId))
+                {
+                    continue;
+                }
+
+                var rows = await GetDefinitionsAsync(page.NpCommunicationId, ct).ConfigureAwait(false);
+                if (rows == null || rows.Count == 0)
+                {
+                    continue;
+                }
+
+                var matches = Services.Metadata.CrossSourceAchievementMatcher.Match(unmatched, rows);
+                _logger?.Debug(
+                    $"[PlayStationMetadata] Extra set {page.NpCommunicationId} ('{page.Title}') matched {matches.Count}/{rows.Count} " +
+                    $"of the {unmatched.Count} achievements still unmatched for '{request.Game?.Name}'.");
+                if (matches.Count == 0 || matches.Count < rows.Count * 0.5)
+                {
+                    continue;
+                }
+
+                extras.Add(page.NpCommunicationId);
+                var newlyMatched = new HashSet<AchievementDetail>(matches.Select(match => match.Target));
+                unmatched = unmatched.Where(target => !newlyMatched.Contains(target)).ToList();
+                if (unmatched.Count == 0)
+                {
+                    break;
+                }
+            }
+
+            return extras;
+        }
+
+        private async Task<PsPricesTrophyPage> ReadTrophyPageAsync(string gamePage, CancellationToken ct)
+        {
+            var trophyPath = await _psPrices.FindTrophyPagePathAsync(gamePage, ct).ConfigureAwait(false);
+            return trophyPath == null ? null : await _psPrices.GetTrophyPageAsync(trophyPath, ct).ConfigureAwait(false);
+        }
+
+        /// <summary>The franchise part of a name: "The Binding of Isaac: Rebirth" gives "The Binding of Isaac".</summary>
+        internal static string BaseName(string name)
+        {
+            if (string.IsNullOrWhiteSpace(name))
+            {
+                return name;
+            }
+
+            var cut = name.Length;
+            foreach (var separator in new[] { ":", " - ", " – " })
+            {
+                var at = name.IndexOf(separator, StringComparison.Ordinal);
+                if (at > 0 && at < cut)
+                {
+                    cut = at;
+                }
+            }
+
+            return name.Substring(0, cut).Trim();
         }
 
         /// <summary>PS5 trophy art is served from psnobj; PS4 and older from the trophy/np image path.</summary>
@@ -175,29 +286,47 @@ namespace PlayniteAchievements.Providers.PSN
                 return null;
             }
 
-            var npCommunicationId = linkId?.Trim();
-            if (IsPsPricesPath(npCommunicationId))
+            // One set, or the main set then its extra ones, comma-separated. Rows keep that order,
+            // so the main set's platinum is the capstone art.
+            var rows = new List<AchievementDetail>();
+            foreach (var part in SplitSets(linkId))
             {
-                // A user may paste a PSPrices trophy page; it only supplies the NPWR.
-                var page = await _psPrices.GetTrophyPageAsync(npCommunicationId, ct).ConfigureAwait(false);
-                npCommunicationId = page?.NpCommunicationId;
+                var npCommunicationId = part;
+                if (IsPsPricesPath(npCommunicationId))
+                {
+                    // A user may paste a PSPrices trophy page; it only supplies the NPWR.
+                    var page = await _psPrices.GetTrophyPageAsync(npCommunicationId, ct).ConfigureAwait(false);
+                    npCommunicationId = page?.NpCommunicationId;
+                }
+
+                if (string.IsNullOrWhiteSpace(npCommunicationId))
+                {
+                    continue;
+                }
+
+                try
+                {
+                    rows.AddRange(await GetDefinitionsAsync(npCommunicationId, ct).ConfigureAwait(false) ?? new List<AchievementDetail>());
+                }
+                catch (PsnAuthRequiredException)
+                {
+                    _logger?.Debug($"[PlayStationMetadata] PSN sign-in required to fetch {npCommunicationId}.");
+                    return null;
+                }
             }
 
-            if (string.IsNullOrWhiteSpace(npCommunicationId))
-            {
-                return null;
-            }
+            return rows.Count == 0 ? null : new AchievementSourceSet(Key, linkId, rows);
+        }
 
-            try
-            {
-                var rows = await GetDefinitionsAsync(npCommunicationId, ct).ConfigureAwait(false);
-                return rows == null || rows.Count == 0 ? null : new AchievementSourceSet(Key, linkId, rows);
-            }
-            catch (PsnAuthRequiredException)
-            {
-                _logger?.Debug($"[PlayStationMetadata] PSN sign-in required to fetch {npCommunicationId}.");
-                return null;
-            }
+        /// <summary>The sets in a link: one id, or several separated by commas.</summary>
+        internal static IReadOnlyList<string> SplitSets(string linkId)
+        {
+            return (linkId ?? string.Empty)
+                .Split(new[] { SetSeparator }, StringSplitOptions.RemoveEmptyEntries)
+                .Select(part => part.Trim())
+                .Where(part => part.Length > 0)
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
         }
 
         /// <summary>A link entered as a PSPrices trophy page (path or full URL) rather than an NPWR id.</summary>
