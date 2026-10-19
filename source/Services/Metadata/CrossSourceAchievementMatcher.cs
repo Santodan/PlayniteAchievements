@@ -115,6 +115,42 @@ namespace PlayniteAchievements.Services.Metadata
             return matches;
         }
 
+        /// <summary>
+        /// Share of IDs at which a cross-platform source is treated as reusing the provider's
+        /// achievement IDs, so the exact ID pass runs before titles.
+        /// </summary>
+        public const double SharedApiNameThreshold = 0.6;
+
+        /// <summary>
+        /// The fraction of targets whose ID appears among the sources. Only IDs containing a letter
+        /// count, on both sides: numeric IDs ("1", "2", ...) coincide between unrelated games.
+        /// </summary>
+        public static double ApiNameOverlap(IList<AchievementDetail> targets, IList<AchievementDetail> sources)
+        {
+            var sourceNames = new HashSet<string>(
+                (sources ?? new List<AchievementDetail>())
+                    .Select(source => source?.ApiName?.Trim())
+                    .Where(IsDistinctiveApiName),
+                StringComparer.OrdinalIgnoreCase);
+            if (sourceNames.Count == 0)
+            {
+                return 0;
+            }
+
+            var candidates = (targets ?? new List<AchievementDetail>())
+                .Select(target => target?.ApiName?.Trim())
+                .Where(IsDistinctiveApiName)
+                .ToList();
+            return candidates.Count == 0
+                ? 0
+                : (double)candidates.Count(sourceNames.Contains) / candidates.Count;
+        }
+
+        private static bool IsDistinctiveApiName(string apiName)
+        {
+            return !string.IsNullOrEmpty(apiName) && apiName.Any(char.IsLetter);
+        }
+
         /// <summary>Lowercase letters and digits, with each run of anything else collapsed to one space.</summary>
         public static string NormalizeText(string value)
         {
