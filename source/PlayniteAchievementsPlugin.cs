@@ -2072,6 +2072,90 @@ namespace PlayniteAchievements
         }
 
         /// <summary>
+        /// Matches every cached game against PlayStation trophies the way a refresh would, without
+        /// storing links or changing data, then summarizes and offers the per-game CSV.
+        /// </summary>
+        public void RunIconMatchTest()
+        {
+            var overlay = _refreshService?.MetadataOverlay;
+            if (overlay == null || _achievementDataService == null)
+            {
+                return;
+            }
+
+            const string sourceKey = PlayniteAchievements.Providers.PSN.PlayStationMetadataProvider.MetadataKey;
+            var games = _achievementDataService.GetAllCachedGameDataForLookup()
+                .Where(data => data?.PlayniteGameId != null &&
+                               data.Achievements?.Count > 0 &&
+                               !string.Equals(data.ProviderKey, CustomAchievementProjectionService.ProviderKey, StringComparison.OrdinalIgnoreCase))
+                .Select(data => (Game: PlayniteApi.Database.Games.Get(data.PlayniteGameId.Value), Data: data))
+                .Where(pair => pair.Game != null)
+                .OrderBy(pair => pair.Game.Name, StringComparer.CurrentCultureIgnoreCase)
+                .ToList();
+            var csvPath = Path.Combine(GetPluginUserDataPath(), "metadata", "icon-match-test.csv");
+            var progressFormat = ResourceProvider.GetString("LOCPlayAch_Settings_Metadata_TestIcons_Progress");
+
+            Services.Metadata.MetadataMatchTestSummary summary = null;
+            PlayniteApi.Dialogs.ActivateGlobalProgress(
+                progress =>
+                {
+                    progress.ProgressMaxValue = games.Count;
+                    try
+                    {
+                        summary = Services.Metadata.MetadataMatchTest.RunAsync(
+                            overlay,
+                            games,
+                            sourceKey,
+                            csvPath,
+                            (done, total, name) =>
+                            {
+                                progress.CurrentProgressValue = done;
+                                progress.Text = string.Format(progressFormat, done, total, name);
+                            },
+                            progress.CancelToken).GetAwaiter().GetResult();
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger?.Error(ex, "Icon match test failed.");
+                    }
+                },
+                new GlobalProgressOptions(string.Format(progressFormat, 0, games.Count, string.Empty))
+                {
+                    Cancelable = true,
+                    IsIndeterminate = false
+                });
+
+            if (summary == null)
+            {
+                return;
+            }
+
+            var title = ResourceProvider.GetString("LOCPlayAch_Title_PluginName");
+            if (summary.SourceUnavailable)
+            {
+                PlayniteApi.Dialogs.ShowMessage(
+                    string.Format(
+                        ResourceProvider.GetString("LOCPlayAch_ManualAchievements_SignInRequired"),
+                        ProviderRegistry.GetLocalizedName("PSN")),
+                    title);
+                return;
+            }
+
+            var text = string.Format(
+                ResourceProvider.GetString("LOCPlayAch_Settings_Metadata_TestIcons_Summary"),
+                summary.Tested,
+                summary.Matched,
+                summary.Rejected,
+                summary.NotFound + summary.Failed,
+                summary.AchievementsMatched,
+                summary.AchievementsTotal);
+            if (PlayniteApi.Dialogs.ShowMessage(text, title, MessageBoxButton.YesNo, MessageBoxImage.Information) == MessageBoxResult.Yes)
+            {
+                System.Diagnostics.Process.Start(csvPath);
+            }
+        }
+
+        /// <summary>
         /// Remembers a template the user set, in the live settings and any open edit snapshot, so
         /// capstone text written with it still reads as default after a Cancel or a later change.
         /// </summary>
