@@ -1,8 +1,9 @@
 using Playnite.SDK;
-using PlayniteAchievements.Models;
+using PlayniteAchievements.Models.Achievements;
 using PlayniteAchievements.Providers.Metadata;
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -11,8 +12,8 @@ namespace PlayniteAchievements.Providers.PSN
     /// <summary>
     /// PlayStation trophy icons (512px for PS5, 240px for PS4) and platinum art for games another
     /// provider services. A game links to a trophy set id (NPWR) and its trophies come from the PSN
-    /// API in the user's language, so a PSN sign-in is required. Matching tries the sets the user
-    /// played first, then reads the NPWR from the game's PSPrices trophy page.
+    /// API in the user's language, so a PSN sign-in is required. Matching considers the set the user
+    /// played and the sets behind the game's PSPrices results, preferring a PS5 set.
     /// </summary>
     internal sealed class PlayStationMetadataProvider : IMetadataProvider
     {
@@ -26,6 +27,8 @@ namespace PlayniteAchievements.Providers.PSN
         private readonly PsnDataProvider _psn;
         private readonly PsPricesClient _psPrices;
         private readonly ILogger _logger;
+        private readonly Dictionary<string, List<AchievementDetail>> _definitions =
+            new Dictionary<string, List<AchievementDetail>>(StringComparer.OrdinalIgnoreCase);
         private IDisposable _psPricesRun;
 
         public PlayStationMetadataProvider(PsnDataProvider psn, IPlayniteAPI api, ILogger logger)
@@ -60,6 +63,10 @@ namespace PlayniteAchievements.Providers.PSN
         public void EndRun()
         {
             Interlocked.Exchange(ref _psPricesRun, null)?.Dispose();
+            lock (_definitions)
+            {
+                _definitions.Clear();
+            }
         }
 
         public async Task<MetadataSourceLink> ResolveLinkAsync(MetadataLinkRequest request, CancellationToken ct)
@@ -75,12 +82,38 @@ namespace PlayniteAchievements.Providers.PSN
                 return null;
             }
 
+            // PS5 sets carry 512px art, so the first PS5 candidate wins; otherwise the first that loads.
+            MetadataSourceLink fallback = null;
             try
             {
                 var played = await _psn.Scanner.FindPlayedTrophySetByNameAsync(name, ct).ConfigureAwait(false);
                 if (!string.IsNullOrWhiteSpace(played?.NpCommunicationId))
                 {
-                    return new MetadataSourceLink(played.NpCommunicationId, played.Title);
+                    var link = new MetadataSourceLink(played.NpCommunicationId, played.Title);
+                    if (await IsPs5SetAsync(link.Id, ct).ConfigureAwait(false))
+                    {
+                        return link;
+                    }
+
+                    fallback = link;
+                }
+
+                foreach (var gamePage in await _psPrices.FindGamePagePathsAsync(name, ct).ConfigureAwait(false))
+                {
+                    var trophyPath = await _psPrices.FindTrophyPagePathAsync(gamePage, ct).ConfigureAwait(false);
+                    var page = trophyPath == null ? null : await _psPrices.GetTrophyPageAsync(trophyPath, ct).ConfigureAwait(false);
+                    if (page == null || string.Equals(page.NpCommunicationId, fallback?.Id, StringComparison.OrdinalIgnoreCase))
+                    {
+                        continue;
+                    }
+
+                    var link = new MetadataSourceLink(page.NpCommunicationId, page.Title);
+                    if (await IsPs5SetAsync(link.Id, ct).ConfigureAwait(false))
+                    {
+                        return link;
+                    }
+
+                    fallback = fallback ?? link;
                 }
             }
             catch (PsnAuthRequiredException)
@@ -89,9 +122,42 @@ namespace PlayniteAchievements.Providers.PSN
                 return null;
             }
 
-            var path = await _psPrices.FindTrophyPagePathAsync(name, ct).ConfigureAwait(false);
-            var page = path == null ? null : await _psPrices.GetTrophyPageAsync(path, ct).ConfigureAwait(false);
-            return page == null ? null : new MetadataSourceLink(page.NpCommunicationId, page.Title);
+            return fallback;
+        }
+
+        /// <summary>PS5 trophy art is served from psnobj; PS4 and older from the trophy/np image path.</summary>
+        internal static bool IsPs5Icon(string url)
+        {
+            return !string.IsNullOrWhiteSpace(url) &&
+                   url.IndexOf("psnobj.prod.dl.playstation.net", StringComparison.OrdinalIgnoreCase) >= 0;
+        }
+
+        private async Task<bool> IsPs5SetAsync(string npCommunicationId, CancellationToken ct)
+        {
+            var rows = await GetDefinitionsAsync(npCommunicationId, ct).ConfigureAwait(false);
+            var ps5 = rows?.Any(row => IsPs5Icon(row.UnlockedIconPath)) == true;
+            _logger?.Debug($"[PlayStationMetadata] {npCommunicationId}: {(rows == null ? "unavailable" : ps5 ? "PS5" : "PS4 or older")}.");
+            return ps5;
+        }
+
+        /// <summary>A set's definitions, fetched once per run so matching and the overlay share them.</summary>
+        private async Task<List<AchievementDetail>> GetDefinitionsAsync(string npCommunicationId, CancellationToken ct)
+        {
+            lock (_definitions)
+            {
+                if (_definitions.TryGetValue(npCommunicationId, out var cached))
+                {
+                    return cached;
+                }
+            }
+
+            var rows = await _psn.Scanner.FetchTrophyDefinitionsAsync(npCommunicationId, ct).ConfigureAwait(false);
+            lock (_definitions)
+            {
+                _definitions[npCommunicationId] = rows;
+            }
+
+            return rows;
         }
 
         public async Task<AchievementSourceSet> FetchAsync(MetadataLinkRequest request, string linkId, CancellationToken ct)
@@ -116,7 +182,7 @@ namespace PlayniteAchievements.Providers.PSN
 
             try
             {
-                var rows = await _psn.Scanner.FetchTrophyDefinitionsAsync(npCommunicationId, ct).ConfigureAwait(false);
+                var rows = await GetDefinitionsAsync(npCommunicationId, ct).ConfigureAwait(false);
                 return rows == null || rows.Count == 0 ? null : new AchievementSourceSet(Key, linkId, rows);
             }
             catch (PsnAuthRequiredException)
