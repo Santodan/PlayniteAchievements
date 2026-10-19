@@ -28,6 +28,14 @@ namespace PlayniteAchievements.Tests.Services
         }
 
         [TestMethod]
+        public void CategoryNamedAfterTheGame_TakesTheGameTitle()
+        {
+            var (title, description) = AutoCapstoneText.Describe(AutoCapstoneText.Defaults(), "Cyberpunk 2077", "Cyberpunk 2077");
+            Assert.AreEqual("Cyberpunk 2077", title);
+            Assert.AreEqual("Obtain every achievement in Cyberpunk 2077.", description);
+        }
+
+        [TestMethod]
         public void ToCategoryTemplate_MovesTheCategoryToTheSecondPlaceholder()
         {
             Assert.AreEqual("Schalte jeden Erfolg in {1} frei.", AutoCapstoneText.ToCategoryTemplate(GermanCategoryDescription));
