@@ -5,6 +5,7 @@ using PlayniteAchievements.Models;
 using PlayniteAchievements.Models.Achievements;
 using PlayniteAchievements.Services;
 using PlayniteAchievements.Services.GameCustomData;
+using PlayniteAchievements.Services.Metadata;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -362,47 +363,16 @@ namespace PlayniteAchievements.Providers.Exophase
             IList<AchievementDetail> exophaseAchievements,
             ExophaseMetadataFields fields)
         {
-            var exophaseByTitle = exophaseAchievements
-                .Where(achievement =>
-                    achievement != null &&
-                    ShouldConsiderExophaseAchievement(achievement, fields))
-                .GroupBy(achievement => NormalizeAchievementTitle(achievement.DisplayName), StringComparer.OrdinalIgnoreCase)
-                .Where(group => !string.IsNullOrWhiteSpace(group.Key))
-                .ToDictionary(group => group.Key, group => group.ToList(), StringComparer.OrdinalIgnoreCase);
+            var matches = CrossSourceAchievementMatcher.Match(
+                nativeAchievements,
+                exophaseAchievements,
+                achievement => ShouldConsiderExophaseAchievement(achievement, fields));
 
-            if (exophaseByTitle.Count == 0)
-            {
-                return 0;
-            }
-
-            var nativeTitleCounts = nativeAchievements
-                .Where(achievement => achievement != null)
-                .GroupBy(achievement => NormalizeAchievementTitle(achievement.DisplayName), StringComparer.OrdinalIgnoreCase)
-                .Where(group => !string.IsNullOrWhiteSpace(group.Key))
-                .ToDictionary(group => group.Key, group => group.Count(), StringComparer.OrdinalIgnoreCase);
-
-            var usedExophase = new HashSet<AchievementDetail>();
             var updated = 0;
-
-            foreach (var nativeAchievement in nativeAchievements)
+            foreach (var pair in matches)
             {
-                if (nativeAchievement == null)
-                {
-                    continue;
-                }
-
-                var title = NormalizeAchievementTitle(nativeAchievement.DisplayName);
-                if (string.IsNullOrWhiteSpace(title) || !exophaseByTitle.TryGetValue(title, out var candidates))
-                {
-                    continue;
-                }
-
-                var match = ResolveAchievementMatch(nativeAchievement, title, nativeTitleCounts, candidates, usedExophase);
-                if (match == null)
-                {
-                    continue;
-                }
-
+                var nativeAchievement = pair.Target;
+                var match = pair.Source;
                 var changed = false;
 
                 if (fields.HasFlag(ExophaseMetadataFields.Rarity) &&
@@ -421,8 +391,6 @@ namespace PlayniteAchievements.Providers.Exophase
                 {
                     changed |= ApplyIconPaths(nativeAchievement, match);
                 }
-
-                usedExophase.Add(match);
 
                 if (changed)
                 {
@@ -499,79 +467,6 @@ namespace PlayniteAchievements.Providers.Exophase
             return "metadata";
         }
 
-        private static AchievementDetail ResolveAchievementMatch(
-            AchievementDetail nativeAchievement,
-            string title,
-            IDictionary<string, int> nativeTitleCounts,
-            IList<AchievementDetail> candidates,
-            ISet<AchievementDetail> usedExophase)
-        {
-            var available = candidates
-                .Where(candidate => candidate != null && !usedExophase.Contains(candidate))
-                .ToList();
-
-            if (available.Count == 0)
-            {
-                return null;
-            }
-
-            var nativeTitleCount = nativeTitleCounts.TryGetValue(title, out var count) ? count : 0;
-            if (nativeTitleCount == 1 && available.Count == 1)
-            {
-                return available[0];
-            }
-
-            var scored = available
-                .Select(candidate => new
-                {
-                    Candidate = candidate,
-                    Score = ScoreAchievementMatch(nativeAchievement, candidate)
-                })
-                .Where(item => item.Score > 0)
-                .OrderByDescending(item => item.Score)
-                .ToList();
-
-            if (scored.Count == 0)
-            {
-                return null;
-            }
-
-            if (scored.Count > 1 && scored[0].Score == scored[1].Score)
-            {
-                return null;
-            }
-
-            return scored[0].Candidate;
-        }
-
-        private static int ScoreAchievementMatch(AchievementDetail nativeAchievement, AchievementDetail exophaseAchievement)
-        {
-            var score = 0;
-
-            var nativeDescription = NormalizeAchievementText(nativeAchievement?.Description);
-            var exophaseDescription = NormalizeAchievementText(exophaseAchievement?.Description);
-            if (!string.IsNullOrWhiteSpace(nativeDescription) &&
-                string.Equals(nativeDescription, exophaseDescription, StringComparison.OrdinalIgnoreCase))
-            {
-                score += 4;
-            }
-
-            if (!string.IsNullOrWhiteSpace(nativeAchievement?.TrophyType) &&
-                string.Equals(nativeAchievement.TrophyType, exophaseAchievement?.TrophyType, StringComparison.OrdinalIgnoreCase))
-            {
-                score += 3;
-            }
-
-            if (nativeAchievement?.Points != null &&
-                exophaseAchievement?.Points != null &&
-                nativeAchievement.Points == exophaseAchievement.Points)
-            {
-                score += 2;
-            }
-
-            return score;
-        }
-
         private static string ResolvePlatformSlug(Game game, string platformSlugHint)
         {
             return NormalizePlatformSlug(platformSlugHint) ??
@@ -641,44 +536,6 @@ namespace PlayniteAchievements.Providers.Exophase
             return string.IsNullOrWhiteSpace(normalizedName)
                 ? null
                 : $"{normalizedName}-{platformSlug}";
-        }
-
-        private static string NormalizeAchievementTitle(string value)
-        {
-            return NormalizeAchievementText(value);
-        }
-
-        private static string NormalizeAchievementText(string value)
-        {
-            if (string.IsNullOrWhiteSpace(value))
-            {
-                return null;
-            }
-
-            var chars = new char[value.Length];
-            var index = 0;
-            var lastWasSpace = false;
-
-            foreach (var c in value.Trim().ToLowerInvariant())
-            {
-                if (char.IsLetterOrDigit(c))
-                {
-                    chars[index++] = c;
-                    lastWasSpace = false;
-                }
-                else if (!lastWasSpace)
-                {
-                    chars[index++] = ' ';
-                    lastWasSpace = true;
-                }
-            }
-
-            if (index > 0 && chars[index - 1] == ' ')
-            {
-                index--;
-            }
-
-            return new string(chars, 0, index);
         }
     }
 }

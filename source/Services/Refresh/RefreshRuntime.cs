@@ -74,6 +74,12 @@ namespace PlayniteAchievements.Services.Refresh
         private readonly RefreshProgressReporter _refreshProgressReporter;
         private readonly PlayniteAchievements.Providers.ProviderRegistry _providerRegistry;
         private readonly Action<RebuildPayload> _onRefreshCompleted;
+
+        /// <summary>
+        /// Copies metadata from secondary sources onto each refreshed game before it is cached.
+        /// Null leaves provider data as fetched.
+        /// </summary>
+        internal Metadata.MetadataOverlay MetadataOverlay { get; set; }
         private int _savedGamesInCurrentRun;
 
         // A refresh that saves many games or scrapes many friend rows fetches many provider web
@@ -1046,11 +1052,15 @@ namespace PlayniteAchievements.Services.Refresh
             var timer = Stopwatch.StartNew();
             _logger?.Debug(
                 $"[RefreshPerf] phase=current.start mode={mode} providers={plans.Count} games={totalGames} parallel={runProvidersInParallel}");
-            var providerResults = await ProviderRefreshExecutor.ExecuteProvidersAsync(
-                plans,
-                runProvidersInParallel,
-                plan => ExecuteCurrentProviderPlanAsync(plan, progressScope, forceIconRefresh, preferCachedDefinitions, cancel),
-                cancel).ConfigureAwait(false);
+            IReadOnlyList<ProviderRefreshExecutor.ProviderExecutionResult> providerResults;
+            using (var metadataRun = MetadataOverlay?.BeginRun())
+            {
+                providerResults = await ProviderRefreshExecutor.ExecuteProvidersAsync(
+                    plans,
+                    runProvidersInParallel,
+                    plan => ExecuteCurrentProviderPlanAsync(plan, progressScope, forceIconRefresh, preferCachedDefinitions, metadataRun, cancel),
+                    cancel).ConfigureAwait(false);
+            }
 
             var payload = CreateCurrentRefreshPayload(providerResults);
             timer.Stop();
@@ -1064,6 +1074,7 @@ namespace PlayniteAchievements.Services.Refresh
             RefreshProgressScope progressScope,
             bool forceIconRefresh,
             bool preferCachedDefinitions,
+            Metadata.MetadataOverlayRun metadataRun,
             CancellationToken cancel)
         {
             if (plan?.Provider == null || plan.Games == null || plan.Games.Count == 0)
@@ -1085,7 +1096,7 @@ namespace PlayniteAchievements.Services.Refresh
                     progressScope,
                     cancel,
                     (provider, refreshedGame, refreshedData, scope, token) =>
-                        OnGameRefreshed(provider, refreshedGame, refreshedData, scope, forceIconRefresh, token));
+                        OnGameRefreshed(provider, refreshedGame, refreshedData, scope, forceIconRefresh, metadataRun, token));
                 return await (plan.Provider is IDefinitionCachePreferenceProvider cachePreferring
                     ? cachePreferring.RefreshAsync(plan.Games, onGameStarting, onGameCompleted, preferCachedDefinitions, cancel)
                     : plan.Provider.RefreshAsync(plan.Games, onGameStarting, onGameCompleted, cancel)).ConfigureAwait(false);
@@ -1435,6 +1446,7 @@ namespace PlayniteAchievements.Services.Refresh
             var friendPerf = new FriendRefreshCoordinator.FriendRefreshPerfSession(_logger, friendOptions, friendProviders.Count, "combined");
             var friendPrepareTimer = Stopwatch.StartNew();
 
+            using (var metadataRun = MetadataOverlay?.BeginRun())
             using (var friendInvalidationBatch = hasFriendWork ? _friendCache?.BeginFriendCacheInvalidationBatch() : null)
             {
                 try
@@ -1466,6 +1478,7 @@ namespace PlayniteAchievements.Services.Refresh
                                     progressScope,
                                     forceIconRefresh,
                                     preferCachedDefinitions,
+                                    metadataRun,
                                     cancel).ConfigureAwait(false);
                                 FriendRefreshCoordinator.Merge(providerPayload, currentPayload);
                                 FriendRefreshCoordinator.MarkAuthFailure(providerPayload, provider.ProviderKey, currentPayload?.AuthRequired == true);
@@ -1574,6 +1587,7 @@ namespace PlayniteAchievements.Services.Refresh
             GameAchievementData data,
             RefreshProgressScope progressScope,
             bool forceIconRefresh,
+            Metadata.MetadataOverlayRun metadataRun,
             CancellationToken cancel = default)
         {
             if (data?.PlayniteGameId == null) return;
@@ -1589,6 +1603,14 @@ namespace PlayniteAchievements.Services.Refresh
             catch (Exception ex)
             {
                 _logger?.Debug(ex, "Failed to backfill provider key on refreshed game data.");
+            }
+
+            // Secondary-source metadata lands on the payload before anything reads it, so the
+            // cache, the icon cache and the memory cache all see one result.
+            var metadataIconSourceChanged = false;
+            if (metadataRun != null && data.HasAchievements)
+            {
+                metadataIconSourceChanged = await metadataRun.ApplyAsync(game, data, cancel).ConfigureAwait(false);
             }
 
             data.RaritySource = RaritySourceResolver.ResolveRefreshed(data.RaritySource, data.Achievements);
@@ -1641,7 +1663,7 @@ namespace PlayniteAchievements.Services.Refresh
             // When a provider reports which source the achievements came from, a changed
             // key means previously cached icon files (keyed by ApiName) may hold another
             // game's art; force an overwrite so icons follow the new source.
-            var forceRefreshExistingTargets = forceIconRefresh;
+            var forceRefreshExistingTargets = forceIconRefresh || metadataIconSourceChanged;
             if (!forceRefreshExistingTargets &&
                 !string.IsNullOrWhiteSpace(data.ProviderGameKey) &&
                 previous != null &&

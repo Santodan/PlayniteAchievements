@@ -117,6 +117,29 @@ namespace PlayniteAchievements.Models.Tests
         }
 
         [TestMethod]
+        public void CloneAndCopyFrom_PreserveMetadataSources()
+        {
+            var source = new PersistedSettings
+            {
+                MetadataIconSources = new List<string> { "PlayStation", "Exophase" },
+                MetadataCapstoneArtSources = new List<string> { "PlayStation" },
+                MetadataAllowNameSearch = false
+            };
+
+            var clone = source.Clone();
+            var target = new PersistedSettings();
+            target.CopyFrom(source);
+
+            foreach (var copy in new[] { clone, target })
+            {
+                CollectionAssert.AreEqual(new[] { "PlayStation", "Exophase" }, copy.MetadataIconSources);
+                CollectionAssert.AreEqual(new[] { "PlayStation" }, copy.MetadataCapstoneArtSources);
+                Assert.IsFalse(copy.MetadataAllowNameSearch);
+                Assert.AreNotSame(source.MetadataIconSources, copy.MetadataIconSources);
+            }
+        }
+
+        [TestMethod]
         public void CloneAndCopyFrom_PreserveExclusionFilterPresets()
         {
             var refreshPreset = Guid.NewGuid();

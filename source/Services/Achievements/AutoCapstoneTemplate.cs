@@ -57,11 +57,24 @@ namespace PlayniteAchievements.Services.Achievements
         }
 
         /// <summary>
-        /// The image to stand the capstone on: the game's own icon, then its cover, then the
-        /// plugin's mark, so it is never left without one.
+        /// The capstone art a metadata source supplied for a game (a PlayStation platinum's icon),
+        /// or null. Set at startup to read the metadata overlay's record.
+        /// </summary>
+        public static Func<Guid, string> MetadataArtAccessor { get; set; }
+
+        /// <summary>
+        /// The image to stand the capstone on: art from a metadata source when the user chose one,
+        /// then the game's own icon, then its cover, then the plugin's mark, so it is never left
+        /// without one.
         /// </summary>
         public static string ResolveIconSource(Game game, ILogger logger)
         {
+            var metadataArt = game != null ? MetadataArtAccessor?.Invoke(game.Id) : null;
+            if (!string.IsNullOrWhiteSpace(metadataArt))
+            {
+                return metadataArt;
+            }
+
             var icon = ResolvePlayniteAssetFile(game?.Icon);
             if (!string.IsNullOrWhiteSpace(icon))
             {

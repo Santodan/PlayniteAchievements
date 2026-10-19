@@ -1,4 +1,6 @@
 using System;
+using System.Globalization;
+using System.Text;
 using System.Text.RegularExpressions;
 
 namespace PlayniteAchievements.Common
@@ -108,6 +110,41 @@ namespace PlayniteAchievements.Common
         public static string CollapseSeparators(string name)
         {
             return string.IsNullOrEmpty(name) ? name : SeparatorRunRegex.Replace(name, " ").Trim();
+        }
+
+        /// <summary>
+        /// Removes accents from Latin, Greek and Cyrillic letters ("Ragnarök" -> "Ragnarok",
+        /// "Pokémon" -> "Pokemon"). Marks on other scripts are kept, since there they change the
+        /// letter (Japanese が is not か).
+        /// </summary>
+        public static string StripDiacritics(string name)
+        {
+            if (string.IsNullOrEmpty(name))
+            {
+                return name;
+            }
+
+            var decomposed = name.Normalize(NormalizationForm.FormD);
+            var builder = new StringBuilder(decomposed.Length);
+            var baseIsAlphabetic = false;
+            foreach (var c in decomposed)
+            {
+                if (CharUnicodeInfo.GetUnicodeCategory(c) == UnicodeCategory.NonSpacingMark)
+                {
+                    if (!baseIsAlphabetic)
+                    {
+                        builder.Append(c);
+                    }
+
+                    continue;
+                }
+
+                // Latin, IPA, Greek and Cyrillic blocks end at U+052F.
+                baseIsAlphabetic = c <= 'ԯ';
+                builder.Append(c);
+            }
+
+            return builder.ToString().Normalize(NormalizationForm.FormC);
         }
 
         /// <summary>Collapses runs of whitespace to single spaces.</summary>

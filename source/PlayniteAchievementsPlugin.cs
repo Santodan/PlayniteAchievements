@@ -88,6 +88,7 @@ namespace PlayniteAchievements
         private readonly NotificationImageStore _notificationImageStore;
         private readonly FallbackIconStore _fallbackIconStore;
         private readonly ShowcaseImageStore _showcaseImageStore;
+        private readonly Services.Metadata.MetadataLinkStore _metadataLinkStore;
         private NotificationStylePortableStore _notificationStylePortableStore;
         private NotificationStylePresetStore _notificationStylePresetStore;
         private Services.Workshop.PackagePresetStore _colorPresetStore;
@@ -189,6 +190,9 @@ namespace PlayniteAchievements
 
         public PlayniteAchievementsSettings Settings => _settingsViewModel.Settings;
         public ProviderRegistry ProviderRegistry => _providerRegistry;
+
+        /// <summary>Per-game links to metadata sources, edited on the Manage Achievements Overview.</summary>
+        public Services.Metadata.MetadataLinkStore MetadataLinks => _metadataLinkStore;
 
         /// <summary>
         /// True while a settings window holds a pending edit snapshot. Editors that write straight
@@ -945,6 +949,9 @@ namespace PlayniteAchievements
                 using (PerfScope.StartStartup(_logger, "PluginCtor.ProviderCreation", thresholdMs: 50))
                 {
                     providers = _providerRegistry.CreateProviders(settings, PlayniteApi, pluginUserDataPath);
+                    _providerRegistry.CreateMetadataProviders(settings, PlayniteApi, pluginUserDataPath);
+                    _metadataLinkStore = new Services.Metadata.MetadataLinkStore(pluginUserDataPath, _logger);
+                    Services.Achievements.AutoCapstoneTemplate.MetadataArtAccessor = _metadataLinkStore.GetCapstoneArtUrl;
                 }
 
                 // Phase 3: Wire core services, refresh pipeline, and tagging.
@@ -975,6 +982,11 @@ namespace PlayniteAchievements
                     _gameCustomDataStore.AttachNotificationImageStore(_notificationImageStore);
 
                     _refreshService = new RefreshRuntime(api, settings, _logger, this, providers, _diskImageService, _managedCustomIconService, _providerRegistry, ProviderRefreshOrder, onRefreshCompleted: payload => HandleRefreshAuthNotifications(payload));
+                    _refreshService.MetadataOverlay = new Services.Metadata.MetadataOverlay(
+                        () => _providerRegistry.GetMetadataProviders(),
+                        () => Settings?.Persisted,
+                        _metadataLinkStore,
+                        _logger);
                     _cacheManager = _refreshService.Cache;
                     _friendCacheManager = _cacheManager as Services.Friends.IFriendCacheManager;
                     _friendsOverviewDataCoordinator = new FriendsOverviewDataCoordinator(

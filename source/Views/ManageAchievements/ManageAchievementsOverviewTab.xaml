@@ -301,6 +301,58 @@
                                      Margin="0,4" />
                         </Grid>
                     </Border>
+
+                    <!-- Metadata links: which game each secondary source supplies data from. -->
+                    <Border BorderBrush="{DynamicResource PlayAch.Brush.ControlBorder}"
+                            BorderThickness="0,1,0,0"
+                            Margin="0,10,0,0"
+                            Padding="0,6,0,0"
+                            DataContext="{Binding MetadataLinks}"
+                            Visibility="{Binding HasRows, Converter={StaticResource BoolToVis}}">
+                        <StackPanel>
+                            <TextBlock Style="{StaticResource SettingLabelStyle}"
+                                       Text="{DynamicResource LOCPlayAch_ManageAchievements_Overview_MetadataLinks}"
+                                       ToolTip="{DynamicResource LOCPlayAch_ManageAchievements_Overview_MetadataLinks_Help}" />
+                            <ItemsControl ItemsSource="{Binding Rows}" Focusable="False" Grid.IsSharedSizeScope="True">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <Grid Margin="0,2">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="Auto" SharedSizeGroup="MetadataLinkSource" />
+                                                <ColumnDefinition Width="*" />
+                                            </Grid.ColumnDefinitions>
+                                            <Grid.RowDefinitions>
+                                                <RowDefinition Height="Auto" />
+                                                <RowDefinition Height="Auto" />
+                                            </Grid.RowDefinitions>
+                                            <TextBlock Grid.Column="0"
+                                                       Style="{StaticResource SettingLabelStyle}"
+                                                       Text="{Binding SourceName}" />
+                                            <WrapPanel Grid.Column="1">
+                                                <TextBox Text="{Binding Input, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                         Width="200"
+                                                         Padding="8,4"
+                                                         VerticalAlignment="Center" />
+                                                <Button Content="{DynamicResource LOCPlayAch_Button_Apply}"
+                                                        Command="{Binding ApplyCommand}"
+                                                        Padding="{StaticResource PlayAch.Thickness.ButtonPadding}"
+                                                        VerticalAlignment="Center"
+                                                        Margin="{StaticResource PlayAch.Thickness.Left.Sm}" />
+                                                <Button Content="{DynamicResource LOCClearLabel}"
+                                                        Command="{Binding ClearCommand}"
+                                                        Padding="{StaticResource PlayAch.Thickness.ButtonPadding}"
+                                                        VerticalAlignment="Center"
+                                                        Margin="{StaticResource PlayAch.Thickness.Left.Sm}" />
+                                            </WrapPanel>
+                                            <TextBlock Grid.Row="1" Grid.Column="1"
+                                                       Style="{StaticResource SettingStatusStyle}"
+                                                       Text="{Binding StatusText}" />
+                                        </Grid>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </StackPanel>
+                    </Border>
                 </StackPanel>
             </Border>
 

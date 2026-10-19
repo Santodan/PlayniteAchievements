@@ -130,6 +130,9 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         public RelayCommand ClearProviderOverrideCommand { get; }
         public RelayCommand ApplyExophaseEnrichmentSlugCommand { get; }
         public RelayCommand ClearExophaseEnrichmentSlugCommand { get; }
+
+        /// <summary>The game's links to metadata sources, one editable row per source.</summary>
+        public MetadataLinksViewModel MetadataLinks { get; }
         public RelayCommand FollowSavedFiltersCommand { get; }
         public RelayCommand UnlinkManualTrackingCommand { get; }
         public RelayCommand RefreshStateCommand { get; }
@@ -172,6 +175,14 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             ClearProviderOverrideCommand = new RelayCommand(_ => ClearProviderOverride(), _ => HasGame && HasProviderOverride);
             ApplyExophaseEnrichmentSlugCommand = new RelayCommand(_ => ApplyExophaseEnrichmentSlug(), _ => HasGame);
             ClearExophaseEnrichmentSlugCommand = new RelayCommand(_ => ClearExophaseEnrichmentSlug(), _ => HasGame && HasExophaseEnrichmentSlugOverride);
+            MetadataLinks = new MetadataLinksViewModel(
+                () => _plugin?.MetadataLinks,
+                () => _plugin?.ProviderRegistry?.GetMetadataProviders(),
+                () =>
+                {
+                    Reload();
+                    TriggerRefresh();
+                });
             FollowSavedFiltersCommand = new RelayCommand(_ => FollowSavedFilters(), _ => HasGame && IsExclusionOverridingFilter);
             UnlinkManualTrackingCommand = new RelayCommand(_ => UnlinkManualTracking(), _ => HasGame && HasManualTrackingLink);
             RefreshStateCommand = new RelayCommand(_ => Reload());
@@ -943,6 +954,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 OnPropertyChanged(nameof(SeparateLockedIconsStatusText));
                 ReloadProviderOverrideState(currentCustomData);
                 ReloadExophaseEnrichmentSlugState(currentCustomData, game, gameData?.ProviderGameKey);
+                MetadataLinks.Load(HasGame ? _gameId : Guid.Empty, _cachedProviderKey);
 
                 HasManualTrackingLink = hasManualLink;
                 ManualTrackingSummary = ManualAchievementsProvider.GetManageAchievementsLinkSummary(manualLink);

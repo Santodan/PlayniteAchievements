@@ -118,6 +118,13 @@ namespace PlayniteAchievements.Views
                     _logger);
             }
 
+            if (MetadataSettingsContent != null)
+            {
+                MetadataSettingsContent.Content = new Settings.Metadata.MetadataSettingsTab(
+                    _settingsViewModel.Settings,
+                    _providerRegistry);
+            }
+
             _themeMigrationController = new ThemeMigrationController(
                 _settingsViewModel.Settings,
                 _plugin,

@@ -55,6 +55,17 @@
                     EnableGrouping="True"/>
             </TabItem>
 
+            <!-- ================== TAB: METADATA ================== -->
+            <TabItem x:Name="MetadataTab" AutomationProperties.Name="{DynamicResource LOCSettingsMetadataLabel}">
+                <TabItem.Header>
+                    <StackPanel Style="{StaticResource TabHeaderWithIconStyle}">
+                        <controls:GlyphIcon Style="{StaticResource HeaderGlyphStyle}" Glyph="&#xEFD1;"/>
+                        <TextBlock Text="{DynamicResource LOCSettingsMetadataLabel}" VerticalAlignment="Center"/>
+                    </StackPanel>
+                </TabItem.Header>
+                <ContentControl x:Name="MetadataSettingsContent"/>
+            </TabItem>
+
             <!-- ================== TAB: FRIENDS ================== -->
             <TabItem x:Name="FriendsTab" AutomationProperties.Name="{DynamicResource LOCPlayAch_Settings_Friends}"
                      Visibility="{Binding Persisted.EnableFriendsFeatures, Converter={StaticResource BoolToVis}}">

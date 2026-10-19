@@ -797,6 +797,88 @@ namespace PlayniteAchievements.Providers.PSN
         }
 
         /// <summary>
+        /// For the PlayStation metadata provider: the trophy set the signed-in user has played
+        /// under the game's name, or null. Throws <see cref="PsnAuthRequiredException"/> when not signed in.
+        /// </summary>
+        internal async Task<PsnResolvedTrophySet> FindPlayedTrophySetByNameAsync(string gameName, CancellationToken cancel)
+        {
+            using (var http = await CreateAuthorizedClientAsync(cancel).ConfigureAwait(false))
+            {
+                return await ResolveByNameAsync(http, gameName, cancel).ConfigureAwait(false);
+            }
+        }
+
+        /// <summary>
+        /// For the PlayStation metadata provider: a trophy set's definitions (names, descriptions,
+        /// full-size icons, types) without user progress. The trophy list is title-scoped, so this
+        /// works for sets the user never played. Returns null when the set cannot be fetched.
+        /// </summary>
+        internal async Task<List<AchievementDetail>> FetchTrophyDefinitionsAsync(string npCommId, CancellationToken cancel)
+        {
+            if (string.IsNullOrWhiteSpace(npCommId))
+            {
+                return null;
+            }
+
+            using (var http = await CreateAuthorizedClientAsync(cancel).ConfigureAwait(false))
+            {
+                // The platform is unknown here; PS4 and older answer with the suffix, PS5 without.
+                var suffixes = PsnSuffixRetryHelper.BuildSuffixCandidates(null);
+                string detailsJson;
+                try
+                {
+                    detailsJson = await PsnSuffixRetryHelper.GetStringWithSuffixRetryAsync(
+                        suffix => GetStringWithAuthRetryAsync(
+                            http,
+                            string.Format(UrlTrophiesDetailsAll, npCommId) + suffix,
+                            $"trophy definitions ({npCommId})",
+                            cancel),
+                        suffixes).ConfigureAwait(false);
+                }
+                catch (PsnAuthRequiredException)
+                {
+                    throw;
+                }
+                catch (Exception ex)
+                {
+                    _logger?.Debug(ex, $"[PSNAch] Trophy definitions fetch failed ({npCommId}).");
+                    return null;
+                }
+
+                var details = JsonConvert.DeserializeObject<PsnTrophiesDetailResponse>(detailsJson);
+                return (details?.Trophies ?? new List<PsnTrophyDetail>())
+                    .GroupBy(PsnTrophyMatchHelper.GetTrophyKey)
+                    .Select(group => group.First())
+                    .Select(detail => new AchievementDetail
+                    {
+                        ApiName = PsnTrophySetResolutionHelper.BuildApiName(false, npCommId, PsnTrophyMatchHelper.GetTrophyKey(detail)),
+                        DisplayName = detail.TrophyName,
+                        Description = detail.TrophyDetail,
+                        UnlockedIconPath = detail.TrophyIconUrl,
+                        CategoryType = PsnTrophyCategoryHelper.MapTrophyGroupToCategoryType(detail.TrophyGroupId),
+                        Hidden = detail.Hidden,
+                        TrophyType = detail.TrophyType,
+                        IsCapstone = string.Equals(detail.TrophyType, "platinum", StringComparison.OrdinalIgnoreCase)
+                    })
+                    .ToList();
+            }
+        }
+
+        private async Task<HttpClient> CreateAuthorizedClientAsync(CancellationToken cancel)
+        {
+            var token = await _sessionManager.GetAccessTokenAsync(cancel).ConfigureAwait(false);
+            var http = new HttpClient { Timeout = TimeSpan.FromSeconds(45) };
+            SetAuthorizationHeader(http, token);
+            var acceptLanguage = MapGlobalLanguageToPsnLocale(_settings?.Persisted?.GlobalLanguage);
+            if (!string.IsNullOrWhiteSpace(acceptLanguage))
+            {
+                http.DefaultRequestHeaders.TryAddWithoutValidation("Accept-Language", acceptLanguage);
+            }
+
+            return http;
+        }
+
+        /// <summary>
         /// Fallback method that searches the user's trophy titles by game name.
         /// This matches SuccessStory's GetNPWR_2 approach.
         /// </summary>
