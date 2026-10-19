@@ -94,15 +94,22 @@ namespace PlayniteAchievements.Providers.Metadata
     /// <summary>A resolved source id with a label for display.</summary>
     internal sealed class MetadataSourceLink
     {
-        public MetadataSourceLink(string id, string label = null)
+        public MetadataSourceLink(string id, string label = null, bool foundByName = false)
         {
             Id = id;
             Label = label;
+            FoundByName = foundByName;
         }
 
         public string Id { get; }
 
         public string Label { get; }
+
+        /// <summary>
+        /// Found by searching the game's name rather than an id the game carries, so the overlay
+        /// keeps it only when enough of the game's achievements match the source's.
+        /// </summary>
+        public bool FoundByName { get; }
     }
 
     /// <summary>
