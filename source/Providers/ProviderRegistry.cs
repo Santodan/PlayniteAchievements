@@ -587,10 +587,21 @@ namespace PlayniteAchievements.Providers
                 else if (paramType == typeof(IPlayniteAPI)) args[i] = playniteApi;
                 else if (paramType == typeof(string) && param.Name?.ToLower().Contains("path") == true) args[i] = pluginUserDataPath;
                 else if (TryResolveSharedService(paramType, out var sharedService)) args[i] = sharedService;
+                else if (TryResolveCreatedProvider(paramType, out var dataProvider)) args[i] = dataProvider;
                 else return null;
             }
 
             return args;
+        }
+
+        // Lets a metadata provider take the data provider whose clients and sessions it reuses
+        // (SteamHunters takes the Steam provider). Only already-created providers resolve.
+        private bool TryResolveCreatedProvider(Type paramType, out object provider)
+        {
+            provider = paramType != null && typeof(IDataProvider).IsAssignableFrom(paramType)
+                ? _providersByKey.Values.FirstOrDefault(paramType.IsInstanceOfType)
+                : null;
+            return provider != null;
         }
 
         private void RegisterSharedServices(IEnumerable<object> sharedServices)
