@@ -800,6 +800,24 @@ namespace PlayniteAchievements.Providers.PSN
         /// For the PlayStation metadata provider: the trophy set the signed-in user has played
         /// under the game's name, or null. Throws <see cref="PsnAuthRequiredException"/> when not signed in.
         /// </summary>
+        /// <summary>
+        /// For the PlayStation metadata provider: acquires the access token the way
+        /// <see cref="RefreshAsync"/> does before its first request. False when PSN needs a sign-in.
+        /// </summary>
+        internal async Task<bool> TryAcquireAccessTokenAsync(CancellationToken cancel)
+        {
+            try
+            {
+                await _sessionManager.GetAccessTokenAsync(cancel).ConfigureAwait(false);
+                return true;
+            }
+            catch (PsnAuthRequiredException)
+            {
+                _logger?.Warn("[PSNAch] Not authenticated (PSN token missing).");
+                return false;
+            }
+        }
+
         internal async Task<PsnResolvedTrophySet> FindPlayedTrophySetByNameAsync(string gameName, CancellationToken cancel)
         {
             using (var http = await CreateAuthorizedClientAsync(cancel).ConfigureAwait(false))
