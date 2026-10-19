@@ -8,6 +8,7 @@ using PlayniteAchievements.Models;
 using PlayniteAchievements.Models.Achievements;
 using PlayniteAchievements.Models.Settings;
 using PlayniteAchievements.Models.Tagging;
+using PlayniteAchievements.Providers.Metadata;
 using PlayniteAchievements.Services.Showcase;
 
 namespace PlayniteAchievements.Models.Tests
@@ -117,13 +118,16 @@ namespace PlayniteAchievements.Models.Tests
         }
 
         [TestMethod]
-        public void CloneAndCopyFrom_PreserveMetadataSources()
+        public void CloneAndCopyFrom_PreserveMetadataChoices()
         {
             var source = new PersistedSettings
             {
-                MetadataIconSources = new List<string> { "PlayStation", "Exophase" },
-                MetadataCapstoneArtSources = new List<string> { "PlayStation" },
-                MetadataAllowNameSearch = false
+                MetadataDefaults = new MetadataChoices { Icons = "PlayStation", Categories = "", Rarity = "", CapstoneArt = "" },
+                MetadataPlatformChoices = new Dictionary<string, MetadataChoices>
+                {
+                    ["Xbox"] = new MetadataChoices { Rarity = "Exophase" }
+                },
+                MetadataChoicesSeeded = false
             };
 
             var clone = source.Clone();
@@ -132,11 +136,44 @@ namespace PlayniteAchievements.Models.Tests
 
             foreach (var copy in new[] { clone, target })
             {
-                CollectionAssert.AreEqual(new[] { "PlayStation", "Exophase" }, copy.MetadataIconSources);
-                CollectionAssert.AreEqual(new[] { "PlayStation" }, copy.MetadataCapstoneArtSources);
-                Assert.IsFalse(copy.MetadataAllowNameSearch);
-                Assert.AreNotSame(source.MetadataIconSources, copy.MetadataIconSources);
+                Assert.AreEqual("PlayStation", copy.MetadataDefaults.Icons);
+                Assert.AreEqual("Exophase", copy.MetadataPlatformChoices["xbox"].Rarity);
+                Assert.IsFalse(copy.MetadataChoicesSeeded);
+                Assert.AreNotSame(source.MetadataDefaults, copy.MetadataDefaults);
+                Assert.AreNotSame(source.MetadataPlatformChoices["Xbox"], copy.MetadataPlatformChoices["Xbox"]);
             }
+        }
+
+        [TestMethod]
+        public void MetadataChoices_PlatformFieldsOverrideTheDefaults()
+        {
+            var settings = new PersistedSettings
+            {
+                MetadataDefaults = new MetadataChoices
+                {
+                    Icons = "PlayStation",
+                    Categories = "SteamHunters",
+                    CategoryMode = MetadataCategoryMode.Override,
+                    Rarity = "",
+                    CapstoneArt = ""
+                },
+                MetadataPlatformChoices = new Dictionary<string, MetadataChoices>
+                {
+                    ["Xbox"] = new MetadataChoices { Icons = "", Rarity = "Exophase" },
+                    ["Steam"] = new MetadataChoices { Rarity = "Exophase" }
+                }
+            };
+
+            var xbox = settings.ResolveMetadataChoices("Xbox");
+            Assert.AreEqual("", xbox.Icons);
+            Assert.AreEqual("SteamHunters", xbox.Categories);
+            Assert.AreEqual(MetadataCategoryMode.Override, xbox.CategoryMode);
+            Assert.AreEqual("PlayStation", settings.ResolveMetadataChoices("Epic").Icons);
+
+            Assert.IsTrue(settings.UsesExophaseRarity("Xbox"));
+            Assert.IsFalse(settings.UsesExophaseRarity("Epic"));
+            // Steam's scanner cannot read Exophase rarity, whatever its row says.
+            Assert.IsFalse(settings.UsesExophaseRarity("Steam"));
         }
 
         [TestMethod]
