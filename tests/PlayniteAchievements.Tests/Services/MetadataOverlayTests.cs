@@ -157,6 +157,56 @@ namespace PlayniteAchievements.Tests.Services
             Assert.AreEqual(0, playstation.FetchCount);
         }
 
+        [TestMethod]
+        public async Task SharedIds_MatchAcrossLanguages_AndCoverageIsRecorded()
+        {
+            // German platform titles, English Steam titles: only the reused IDs can pair them.
+            var hunters = new FakeSource("SteamHunters", MetadataField.Categories) { Mode = MetadataCategoryMode.Override, IdsMayBeShared = true };
+            hunters.Rows.Add(Row("ACH_DRAGON", "Dragon Slayer", category: "Story"));
+            hunters.Rows.Add(Row("ACH_COINS", "Collector", category: "Collectibles"));
+            hunters.Rows.Add(Row("ACH_EXTRA", "Extra", category: "DLC"));
+            var dragon = Row("ACH_DRAGON", "Drachentöter");
+            var coins = Row("ACH_COINS", "Sammler");
+            var unknown = Row("GOG_ONLY", "Nur auf GOG");
+            var data = Game("GOG", dragon, coins, unknown);
+            var overlay = Overlay(new[] { hunters }, new PersistedSettings());
+
+            using (var run = overlay.BeginRun())
+            {
+                await run.ApplyAsync(data.Game, data, CancellationToken.None);
+            }
+
+            Assert.AreEqual("Story", dragon.Category);
+            Assert.AreEqual("Collectibles", coins.Category);
+            Assert.IsNull(unknown.Category);
+            var coverage = overlay.Links.GetCoverage(data.PlayniteGameId.Value, "SteamHunters");
+            Assert.AreEqual(2, coverage.Matched);
+            Assert.AreEqual(3, coverage.Total);
+        }
+
+        [TestMethod]
+        public async Task LowIdOverlap_FallsBackToTitles()
+        {
+            var hunters = new FakeSource("SteamHunters", MetadataField.Categories) { Mode = MetadataCategoryMode.Override, IdsMayBeShared = true };
+            hunters.Rows.Add(Row("ACH_ONE", "One", category: "Story"));
+            hunters.Rows.Add(Row("ACH_TWO", "Two", category: "Side"));
+            // One of three distinctive IDs coincides (33%), under the threshold; "ACH_TWO" names a
+            // different achievement here, so an ID join would mislabel it.
+            var one = Row("e_one", "One");
+            var two = Row("ACH_TWO", "Something else");
+            var three = Row("e_three", "Two");
+            var data = Game("Epic", one, two, three);
+
+            using (var run = Overlay(new[] { hunters }, new PersistedSettings()).BeginRun())
+            {
+                await run.ApplyAsync(data.Game, data, CancellationToken.None);
+            }
+
+            Assert.AreEqual("Story", one.Category);
+            Assert.IsNull(two.Category);
+            Assert.AreEqual("Side", three.Category);
+        }
+
         private MetadataOverlay Overlay(IReadOnlyList<IMetadataProvider> providers, PersistedSettings settings)
         {
             return new MetadataOverlay(() => providers, () => settings, new MetadataLinkStore(_directory, null), null);
@@ -211,6 +261,8 @@ namespace PlayniteAchievements.Tests.Services
 
             public MetadataCategoryMode CategoryMode => Mode;
 
+            public bool IdsMayBeShared { get; set; }
+
             public string NativeFor { get; set; }
 
             public List<AchievementDetail> Rows { get; } = new List<AchievementDetail>();
@@ -243,7 +295,7 @@ namespace PlayniteAchievements.Tests.Services
             public Task<AchievementSourceSet> FetchAsync(MetadataLinkRequest request, string linkId, CancellationToken ct)
             {
                 FetchCount++;
-                return Task.FromResult(new AchievementSourceSet(Key, linkId, Rows));
+                return Task.FromResult(new AchievementSourceSet(Key, linkId, Rows) { ApiNamesMayBeShared = IdsMayBeShared });
             }
         }
     }
