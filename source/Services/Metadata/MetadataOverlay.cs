@@ -175,33 +175,6 @@ namespace PlayniteAchievements.Services.Metadata
                 Chosen(choices.CapstoneArt, MetadataField.CapstoneArt));
         }
 
-        /// <summary>
-        /// What matching one game against one source would do, for the Metadata tab's test. Runs
-        /// the same lookups as a refresh but stores nothing and changes no data.
-        /// </summary>
-        public async Task<MetadataProbeResult> ProbeAsync(Game game, GameAchievementData data, string sourceKey, CancellationToken ct)
-        {
-            var result = new MetadataProbeResult { Total = data?.Achievements?.Count ?? 0 };
-            var gameId = data?.PlayniteGameId ?? game?.Id ?? Guid.Empty;
-            if (gameId == Guid.Empty || result.Total == 0 || string.IsNullOrWhiteSpace(sourceKey) ||
-                !_providersByKey.TryGetValue(sourceKey, out var provider))
-            {
-                result.Outcome = MetadataProbeOutcome.Skipped;
-                return result;
-            }
-
-            if (provider.IsNativeFor(data.ProviderKey))
-            {
-                result.Outcome = MetadataProbeOutcome.Native;
-                return result;
-            }
-
-            result.Outcome = MetadataProbeOutcome.NotFound;
-            await LoadMatchedSetAsync(sourceKey, gameId, CreateRequest(game, data, gameId), data.Achievements, ct, result)
-                .ConfigureAwait(false);
-            return result;
-        }
-
         /// <summary>A link request carrying the labels of the game's saved links as alternate names.</summary>
         private MetadataLinkRequest CreateRequest(Game game, GameAchievementData data, Guid gameId)
         {
@@ -214,38 +187,22 @@ namespace PlayniteAchievements.Services.Metadata
             };
         }
 
-        /// <param name="probe">When set, a dry run: nothing is stored and the outcome is written here.</param>
         private async Task<MatchedSet> LoadMatchedSetAsync(
             string key,
             Guid gameId,
             MetadataLinkRequest request,
             IList<AchievementDetail> targets,
-            CancellationToken ct,
-            MetadataProbeResult probe = null)
+            CancellationToken ct)
         {
             var provider = _providersByKey[key];
             try
             {
                 if (!await BeginSessionAsync(provider, ct).ConfigureAwait(false))
                 {
-                    if (probe != null)
-                    {
-                        probe.Outcome = MetadataProbeOutcome.SourceUnavailable;
-                    }
-
                     return null;
                 }
 
-                var (linkId, unconfirmed, saved) = await ResolveLinkIdAsync(provider, gameId, request, ct, persist: probe == null)
-                    .ConfigureAwait(false);
-                if (probe != null)
-                {
-                    probe.LinkId = linkId;
-                    probe.Label = unconfirmed?.Label;
-                    probe.FromSavedLink = saved;
-                    probe.FoundByName = unconfirmed != null;
-                }
-
+                var (linkId, unconfirmed) = await ResolveLinkIdAsync(provider, gameId, request, ct).ConfigureAwait(false);
                 if (string.IsNullOrWhiteSpace(linkId))
                 {
                     return null;
@@ -254,11 +211,6 @@ namespace PlayniteAchievements.Services.Metadata
                 var set = await provider.FetchAsync(request, linkId, ct).ConfigureAwait(false);
                 if (set == null || set.Achievements.Count == 0)
                 {
-                    if (probe != null)
-                    {
-                        probe.Outcome = MetadataProbeOutcome.FetchFailed;
-                    }
-
                     return null;
                 }
 
@@ -273,12 +225,6 @@ namespace PlayniteAchievements.Services.Metadata
                     $"[Metadata] {key} matched {matches.Count}/{targets.Count} achievements for '{request.Game?.Name}' " +
                     $"({linkId}, idOverlap={overlap:P0}, byId={matchApiNames}).");
 
-                if (probe != null)
-                {
-                    probe.Matched = matches.Count;
-                    probe.ByAchievementId = matchApiNames;
-                }
-
                 // A game found by name is a different release when too few achievements line up
                 // ("Thief: Definitive Edition" against "Thief Gold"), so it is neither kept nor used.
                 // Measured against the shorter list: a console version with fewer trophies than
@@ -290,23 +236,10 @@ namespace PlayniteAchievements.Services.Metadata
                         _logger?.Debug(
                             $"[Metadata] {key} name match '{unconfirmed.Label ?? linkId}' rejected for '{request.Game?.Name}': " +
                             $"{matches.Count}/{targets.Count} achievements matched.");
-                        if (probe != null)
-                        {
-                            probe.Outcome = MetadataProbeOutcome.Rejected;
-                        }
-
                         return null;
                     }
 
-                    if (probe == null)
-                    {
-                        _links?.SetAuto(gameId, provider.Key, linkId, unconfirmed.Label);
-                    }
-                }
-
-                if (probe != null)
-                {
-                    probe.Outcome = MetadataProbeOutcome.Matched;
+                    _links?.SetAuto(gameId, provider.Key, linkId, unconfirmed.Label);
                 }
 
                 return new MatchedSet(set, matches);
@@ -318,11 +251,6 @@ namespace PlayniteAchievements.Services.Metadata
             catch (Exception ex)
             {
                 _logger?.Warn(ex, $"[Metadata] {key} failed for '{request.Game?.Name}'; provider data kept.");
-                if (probe != null)
-                {
-                    probe.Outcome = MetadataProbeOutcome.FetchFailed;
-                }
-
                 return null;
             }
         }
@@ -343,38 +271,33 @@ namespace PlayniteAchievements.Services.Metadata
 
         /// <summary>
         /// The stored link, or a newly resolved one. One resolved from an id the game carries is
-        /// stored at once (unless <paramref name="persist"/> is false); one found by name comes back
-        /// as <c>Unconfirmed</c> and is stored only after its achievements match.
+        /// stored at once; one found by name comes back as <c>Unconfirmed</c> and is stored only
+        /// after its achievements match.
         /// </summary>
-        private async Task<(string Id, MetadataSourceLink Unconfirmed, bool Saved)> ResolveLinkIdAsync(
+        private async Task<(string Id, MetadataSourceLink Unconfirmed)> ResolveLinkIdAsync(
             IMetadataProvider provider,
             Guid gameId,
             MetadataLinkRequest request,
-            CancellationToken ct,
-            bool persist = true)
+            CancellationToken ct)
         {
             if (_links != null && _links.TryGet(gameId, provider.Key, out var stored))
             {
-                return (stored.IsNoMatch ? null : stored.Id, null, true);
+                return (stored.IsNoMatch ? null : stored.Id, null);
             }
 
             var resolved = await provider.ResolveLinkAsync(request, ct).ConfigureAwait(false);
             if (resolved == null || string.IsNullOrWhiteSpace(resolved.Id))
             {
-                return (null, null, false);
+                return (null, null);
             }
 
             if (resolved.FoundByName)
             {
-                return (resolved.Id.Trim(), resolved, false);
+                return (resolved.Id.Trim(), resolved);
             }
 
-            if (persist)
-            {
-                _links?.SetAuto(gameId, provider.Key, resolved.Id, resolved.Label);
-            }
-
-            return (resolved.Id.Trim(), null, false);
+            _links?.SetAuto(gameId, provider.Key, resolved.Id, resolved.Label);
+            return (resolved.Id.Trim(), null);
         }
 
         /// <summary>
