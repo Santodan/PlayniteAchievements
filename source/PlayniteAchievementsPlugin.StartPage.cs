@@ -542,16 +542,33 @@ namespace PlayniteAchievements
 
             if (data is GameSummaryItem)
             {
-                AddStartPageGameRowMenuItems(
-                    menu,
-                    gameId,
+                // The same game menu as the Overview's game rows.
+                return GameRowContextMenuBuilder.BuildGameMenu(
+                    data,
                     resourceOwner,
-                    includeShowcasePin: !(data is FriendGameSummaryItem));
-                return menu;
+                    new PlayniteAchievements.Common.RelayCommand(
+                        _ => _ = StartMenuRefreshAsync(
+                            new RefreshRequest
+                            {
+                                Mode = RefreshModeType.Single,
+                                SingleGameId = gameId,
+                                SurfaceUserNotices = true
+                            },
+                            gameId),
+                        _ => !IsRefreshInProgress()),
+                    new PlayniteAchievements.Common.RelayCommand(_ => OpenGameInLibrary(gameId)),
+                    id => OpenManageAchievementsView(id),
+                    PlayniteApi,
+                    _achievementOverridesService,
+                    _cacheManager,
+                    _logger,
+                    menuSource: resourceOwner,
+                    includeViewCaptures: true);
             }
 
             if (data is FriendAchievementDisplayItem)
             {
+                menu.Items.Add(CreateStartPageOpenMenu(resourceOwner, gameId));
                 menu.Items.Add(CreateStartPageMenuItem(resourceOwner, "LOCPlayAch_Common_View",
                     () => OpenViewAchievementsWindow(gameId)));
                 if (Settings.Persisted.EnableFriendsFeatures)
@@ -559,69 +576,17 @@ namespace PlayniteAchievements
                     menu.Items.Add(CreateStartPageMenuItem(resourceOwner, "LOCPlayAch_Settings_Friends",
                         () => OpenViewFriendsAchievementsWindow(gameId)));
                 }
-                menu.Items.Add(CreateStartPageOpenMenu(resourceOwner, gameId));
                 return menu;
             }
 
             if (data is AchievementDisplayItem || data is RecentAchievementItem)
             {
+                menu.Items.Add(CreateStartPageOpenMenu(resourceOwner, gameId));
                 menu.Items.Add(CreateStartPageMenuItem(resourceOwner, "LOCPlayAch_Common_View",
                     () => OpenViewAchievementsWindow(gameId)));
-                menu.Items.Add(CreateStartPageOpenMenu(resourceOwner, gameId));
             }
 
             return menu;
-        }
-
-        private void AddStartPageGameRowMenuItems(
-            ContextMenu menu,
-            Guid gameId,
-            FrameworkElement resourceOwner,
-            bool includeShowcasePin)
-        {
-            menu.Items.Add(CreateStartPageMenuItem(resourceOwner, "LOCPlayAch_Common_View",
-                () => OpenViewAchievementsWindow(gameId)));
-
-            if (!IsRefreshInProgress())
-            {
-                menu.Items.Add(CreateStartPageMenuItem(resourceOwner, "LOCPlayAch_Button_Refresh",
-                    () => _ = StartMenuRefreshAsync(
-                        new RefreshRequest
-                        {
-                            Mode = RefreshModeType.Single,
-                            SingleGameId = gameId,
-                            SurfaceUserNotices = true
-                        },
-                        gameId)));
-            }
-
-            menu.Items.Add(CreateStartPageMenuItem(resourceOwner, "LOCPlayAch_Common_Manage",
-                () => OpenManageAchievementsView(gameId)));
-            menu.Items.Add(CreateStartPageOpenMenu(resourceOwner, gameId));
-
-            if (includeShowcasePin)
-            {
-                ShowcasePinMenuBuilder.AppendGameMenu(menu, resourceOwner, gameId);
-            }
-
-            menu.Items.Add(new Separator());
-
-            var game = PlayniteApi?.Database?.Games?.Get(gameId);
-            if (game != null)
-            {
-                // Same Maintenance grouping as the Overview's game rows.
-                menu.Items.Add(GameRowContextMenuBuilder.CreateMaintenanceMenu(
-                    resourceOwner,
-                    IsGameExcludedFromSummaries(gameId),
-                    IsGameExcluded(gameId),
-                    () => ClearSingleGameData(game),
-                    () => ToggleExcludedFromSummaries(new[] { game }),
-                    () => ToggleExcludedFromRefreshes(
-                        new[] { game },
-                        clearDataWhenExcluding: false,
-                        confirmWhenClearingData: false),
-                    () => ToggleExcludedFromRefreshesAndRefresh(new[] { game })));
-            }
         }
 
         private MenuItem CreateStartPageOpenMenu(FrameworkElement resourceOwner, Guid gameId)
