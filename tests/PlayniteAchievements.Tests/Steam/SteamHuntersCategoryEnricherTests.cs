@@ -1,6 +1,7 @@
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using PlayniteAchievements.Common;
 using PlayniteAchievements.Models.Achievements;
+using PlayniteAchievements.Providers.Metadata;
 using PlayniteAchievements.Providers.Steam;
 using System.Collections.Generic;
 using System.Threading;
