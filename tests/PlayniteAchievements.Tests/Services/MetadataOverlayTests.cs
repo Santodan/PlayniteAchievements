@@ -69,6 +69,62 @@ namespace PlayniteAchievements.Tests.Services
         }
 
         [TestMethod]
+        public async Task FailedBorrowedIcon_FallsBackToOwn_AndIsTriedAgainNextRefresh()
+        {
+            var playstation = new FakeSource("PlayStation", MetadataField.Icons)
+            {
+                Rows =
+                {
+                    Row("p1", "Dragon Slayer", icon: "https://psn/dragon.png"),
+                    Row("p2", "Curiosity", icon: "https://psn/curiosity.png")
+                }
+            };
+            var data = Game(
+                "Steam",
+                Row("ACH_DRAGON", "Dragon Slayer", icon: "steam_dragon.png"),
+                Row("ACH_CURIOUS", "Curiosity", icon: "steam_curious.png", locked: "steam_curious_gray.png"));
+            var overlay = Overlay(new[] { playstation }, Choices(icons: "PlayStation"));
+            bool Undownloaded(string path) => path != null && path.StartsWith("https://", StringComparison.Ordinal);
+
+            using (var run = overlay.BeginRun())
+            {
+                await run.ApplyAsync(data.Game, data, CancellationToken.None);
+                data.Achievements[0].UnlockedIconPath = "cache/dragon.png";
+
+                var restored = run.RestoreOwnIconsWhereDownloadFailed(data, Undownloaded);
+
+                CollectionAssert.AreEquivalent(new[] { "ACH_CURIOUS" }, restored.ToList());
+            }
+
+            Assert.AreEqual("cache/dragon.png", data.Achievements[0].UnlockedIconPath);
+            Assert.AreEqual("steam_curious.png", data.Achievements[1].UnlockedIconPath);
+            Assert.AreEqual("steam_curious_gray.png", data.Achievements[1].LockedIconPath);
+            var gameId = data.PlayniteGameId.Value;
+            CollectionAssert.AreEquivalent(new[] { "ACH_CURIOUS" }, overlay.Links.GetIconFallbacks(gameId).ToList());
+
+            // Next refresh: the download reuses both files, so the fallen-back one is reset to the
+            // borrowed icon and downloaded again; once it arrives nothing is left falling back.
+            var next = Game("Steam", Row("ACH_DRAGON", "Dragon Slayer"), Row("ACH_CURIOUS", "Curiosity"));
+            next.Game = data.Game;
+            next.PlayniteGameId = data.PlayniteGameId;
+            using (var run = overlay.BeginRun())
+            {
+                Assert.IsFalse(await run.ApplyAsync(next.Game, next, CancellationToken.None));
+                next.Achievements[0].UnlockedIconPath = "cache/dragon.png";
+                next.Achievements[1].UnlockedIconPath = "cache/curious.png";
+
+                var retried = run.ResetEarlierIconFallbacks(next);
+
+                CollectionAssert.AreEquivalent(new[] { "ACH_CURIOUS" }, retried.ToList());
+                Assert.AreEqual("https://psn/curiosity.png", next.Achievements[1].UnlockedIconPath);
+                next.Achievements[1].UnlockedIconPath = "cache/curious.png";
+                Assert.AreEqual(0, run.RestoreOwnIconsWhereDownloadFailed(next, Undownloaded).Count);
+            }
+
+            Assert.AreEqual(0, overlay.Links.GetIconFallbacks(gameId).Count);
+        }
+
+        [TestMethod]
         public void MatchWithPairings_AppliesUserPairingsBeforeNames()
         {
             var renamed = Row("a", "Night Owl");
