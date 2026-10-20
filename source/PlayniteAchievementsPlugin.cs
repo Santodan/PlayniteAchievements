@@ -1114,6 +1114,7 @@ namespace PlayniteAchievements
                             ?? _achievementDataService?.GetGameAchievementData(gameId)?.GameName,
                         GetPluginLocalizationDirectory(),
                         _logger);
+                    SettingsSaved += OnSettingsSavedForAutoCapstoneText;
                     _autoCapstoneGenerator = new AutoCapstoneGenerator(
                         _gameCustomDataStore,
                         _achievementOverridesService,
@@ -1873,9 +1874,13 @@ namespace PlayniteAchievements
                 });
         }
 
+        private void OnSettingsSavedForAutoCapstoneText(object sender, EventArgs e) => StartAutoCapstoneTextApply();
+
         /// <summary>
         /// Applies the auto capstone text templates in the background when they differ from the
-        /// ones last applied, which is how a language change reaches existing capstones.
+        /// ones last applied: at startup, which is how a language change reaches existing
+        /// capstones, and after each settings save, which is how a template edit does. Capstones
+        /// whose text was edited keep it.
         /// </summary>
         private void StartAutoCapstoneTextApply()
         {
@@ -2008,68 +2013,6 @@ namespace PlayniteAchievements
                     _logger?.Warn(ex, "Failed bringing Workshop installs into the customization library.");
                 }
             });
-        }
-
-        /// <summary>
-        /// Asks, then rewrites every auto capstone still on default text with the current
-        /// templates, for the Editor settings' Apply button.
-        /// </summary>
-        /// <remarks>
-        /// Like tag sync, what it writes stays even if the settings are then cancelled; the
-        /// templates it applied are recorded in the edit snapshot too, so a Cancel that restores
-        /// the old templates is applied back at the next startup.
-        /// </remarks>
-        public void ApplyAutoCapstoneTextWithProgress()
-        {
-            var service = _autoCapstoneTextService;
-            if (service == null)
-            {
-                return;
-            }
-
-            var answer = PlayniteApi.Dialogs.ShowMessage(
-                ResourceProvider.GetString("LOCPlayAch_Settings_AutoCapstoneText_ApplyConfirm"),
-                ResourceProvider.GetString("LOCPlayAch_Title_PluginName"),
-                MessageBoxButton.YesNo,
-                MessageBoxImage.Question);
-            if (answer != MessageBoxResult.Yes)
-            {
-                return;
-            }
-
-            string signature = null;
-            PlayniteApi.Dialogs.ActivateGlobalProgress(
-                progress =>
-                {
-                    try
-                    {
-                        signature = service.Apply(
-                            progress.CancelToken,
-                            (done, total) =>
-                            {
-                                progress.ProgressMaxValue = total;
-                                progress.CurrentProgressValue = done;
-                            });
-                    }
-                    catch (OperationCanceledException)
-                    {
-                        // Cancelled from the dialog: the rest are applied at the next startup.
-                    }
-                    catch (Exception ex)
-                    {
-                        _logger?.Error(ex, "Failed to apply auto capstone text templates.");
-                    }
-                },
-                new GlobalProgressOptions(ResourceProvider.GetString("LOCPlayAch_Settings_AutoCapstoneText_Progress"))
-                {
-                    Cancelable = true,
-                    IsIndeterminate = false
-                });
-
-            if (signature != null)
-            {
-                RecordAutoCapstoneTextApplied(signature);
-            }
         }
 
         /// <summary>
@@ -2308,6 +2251,7 @@ namespace PlayniteAchievements
             try { _unlockRecordings?.Dispose(); } catch (Exception ex) { _logger?.Debug(ex, "Failed to dispose unlockRecordings"); }
             // After the recordings: a session in flight still reads the host's pid until then.
             SettingsSaved -= OnSettingsSavedForUnlockSounds;
+            SettingsSaved -= OnSettingsSavedForAutoCapstoneText;
             try { _unlockSounds?.Dispose(); } catch (Exception ex) { _logger?.Debug(ex, "Failed to dispose unlockSounds"); }
             try { _captureLibraryService?.Dispose(); } catch (Exception ex) { _logger?.Debug(ex, "Failed to dispose captureLibraryService"); }
             try { _windowTracker?.Dispose(); } catch (Exception ex) { _logger?.Debug(ex, "Failed to dispose windowTracker"); }
