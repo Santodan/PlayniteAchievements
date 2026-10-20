@@ -418,7 +418,7 @@ namespace PlayniteAchievements.Services.Tests
         }
 
         [TestMethod]
-        public void NormalizeInternal_CategoryTypeOverrides_DropSoftcoreAndHardcore()
+        public void NormalizeInternal_CategoryTypeOverrides_SplitIntoKindAndTagsWithoutUnlockModes()
         {
             var gameId = Guid.NewGuid();
             var normalized = GameCustomDataNormalizer.NormalizeInternal(
@@ -434,10 +434,13 @@ namespace PlayniteAchievements.Services.Tests
                 },
                 gameId);
 
-            Assert.AreEqual("Base|Missable", normalized.AchievementCategoryTypeOverrides["mixed"]);
-            Assert.AreEqual("SideQuest", normalized.AchievementCategoryTypeOverrides["legacy"]);
-            Assert.IsFalse(normalized.AchievementCategoryTypeOverrides.ContainsKey("derived_only"));
-            Assert.AreEqual("Base|Missable", normalized.AchievementOverrides["mixed"].CategoryType);
+            // The type map is split onto the records and no longer written.
+            Assert.IsNull(normalized.AchievementCategoryTypeOverrides);
+            Assert.AreEqual("Base", normalized.AchievementOverrides["mixed"].LegacyCategoryKind);
+            Assert.AreEqual("Missable", normalized.AchievementOverrides["mixed"].Tags);
+            Assert.AreEqual(CategoryKindHelper.None, normalized.AchievementOverrides["legacy"].LegacyCategoryKind);
+            Assert.AreEqual("SideQuest", normalized.AchievementOverrides["legacy"].Tags);
+            Assert.IsFalse(normalized.AchievementOverrides.ContainsKey("derived_only"), "an unlock mode alone overrode nothing");
         }
 
         [TestMethod]
@@ -812,7 +815,7 @@ namespace PlayniteAchievements.Services.Tests
             var gameId = Guid.NewGuid();
             var details = new List<AchievementDetail>
             {
-                new AchievementDetail { ApiName = "dlc_ach", Category = "Phantom Liberty", CategoryType = "DLC" }
+                new AchievementDetail { ApiName = "dlc_ach", Category = "Phantom Liberty", CategoryKind = "DLC" }
             };
             var renamed = new ResolvedGameCustomData
             {
@@ -862,10 +865,12 @@ namespace PlayniteAchievements.Services.Tests
             CollectionAssert.AreEquivalent(
                 new[] { "existing_summary", "ach_summary" },
                 normalized.SummaryFilteredAchievementApiNames);
-            Assert.AreEqual("DLC", normalized.AchievementCategoryTypeOverrides["ach_filtered"]);
-            Assert.AreEqual("Base|Stackable", normalized.AchievementCategoryTypeOverrides["ach_normal"]);
-            Assert.IsFalse(normalized.AchievementCategoryTypeOverrides.ContainsKey("ach_summary"));
-            Assert.IsFalse(normalized.AchievementCategoryTypeOverrides.ContainsKey("ach_both"));
+            Assert.AreEqual("DLC", normalized.AchievementOverrides["ach_filtered"].LegacyCategoryKind);
+            Assert.IsTrue(normalized.AchievementOverrides["ach_filtered"].ClearTags);
+            Assert.AreEqual("Base", normalized.AchievementOverrides["ach_normal"].LegacyCategoryKind);
+            Assert.AreEqual("Stackable", normalized.AchievementOverrides["ach_normal"].Tags);
+            Assert.IsFalse(normalized.AchievementOverrides.ContainsKey("ach_summary"));
+            Assert.IsFalse(normalized.AchievementOverrides.ContainsKey("ach_both"));
         }
 
         [TestMethod]

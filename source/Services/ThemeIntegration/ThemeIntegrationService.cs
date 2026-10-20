@@ -3626,7 +3626,7 @@ namespace PlayniteAchievements.Services.ThemeIntegration
             {
                 if (item != null)
                 {
-                    labels.Add(AchievementCategoryTypeHelper.NormalizeCategoryOrDefault(item.CategoryLabel));
+                    labels.Add(AchievementCategoryHelper.NormalizeCategoryOrDefault(item.CategoryLabel));
                 }
             }
 
@@ -3729,7 +3729,7 @@ namespace PlayniteAchievements.Services.ThemeIntegration
                     item.TotalAchievements,
                     openManageAchievementsWindow: hasGame ? GetOpenManageAchievementsCommand(gameId) : null,
                     sortingName: item.SortingName ?? item.GameName,
-                    categoryType: (item as CategorySummaryItem)?.CategoryType));
+                    categoryKind: (item as CategorySummaryItem)?.CategoryKind));
             }
 
             return new ObservableCollection<GameAchievementSummary>(projected);
@@ -3753,7 +3753,7 @@ namespace PlayniteAchievements.Services.ThemeIntegration
                 string.Equals(categoryKey, DynamicThemeViewKeys.All, StringComparison.OrdinalIgnoreCase)
                     ? DynamicThemeLabels.GetLabel(DynamicThemeViewKeys.All, DynamicThemeViewKeys.All)
                     // Leaf, matching the options list this label summarizes.
-                    : AchievementCategoryTypeHelper.ToCategoryLeafDisplayText(categoryKey);
+                    : AchievementCategoryHelper.ToCategoryLeafDisplayText(categoryKey);
             _settings.ModernTheme.DynamicAchievementCategoryLabelFilterOptions =
                 DynamicThemeOptionFactory.CreateCategoryLabelOptions(
                     state?.AllAchievements,
@@ -4137,7 +4137,7 @@ namespace PlayniteAchievements.Services.ThemeIntegration
             }
 
             return source.Where(item => string.Equals(
-                AchievementCategoryTypeHelper.NormalizeCategoryOrDefault(item?.Category),
+                AchievementCategoryHelper.NormalizeCategoryOrDefault(item?.Category),
                 categoryLabelKey,
                 StringComparison.OrdinalIgnoreCase));
         }
@@ -4154,10 +4154,10 @@ namespace PlayniteAchievements.Services.ThemeIntegration
 
             // Accept only labels present in the current game so a bad theme binding cannot
             // pin the list to a permanently empty scope.
-            var normalized = AchievementCategoryTypeHelper.NormalizeCategoryOrDefault(raw);
+            var normalized = AchievementCategoryHelper.NormalizeCategoryOrDefault(raw);
             var achievements = _runtimeState.SelectedGame?.AllAchievements ?? EmptyAchievementList;
             key = achievements
-                .Select(item => AchievementCategoryTypeHelper.NormalizeCategoryOrDefault(item?.Category))
+                .Select(item => AchievementCategoryHelper.NormalizeCategoryOrDefault(item?.Category))
                 .FirstOrDefault(label => string.Equals(label, normalized, StringComparison.OrdinalIgnoreCase));
             return key != null;
         }
@@ -4173,7 +4173,7 @@ namespace PlayniteAchievements.Services.ThemeIntegration
             }
 
             var exists = (state?.AllAchievements ?? EmptyAchievementList).Any(item => string.Equals(
-                AchievementCategoryTypeHelper.NormalizeCategoryOrDefault(item?.Category),
+                AchievementCategoryHelper.NormalizeCategoryOrDefault(item?.Category),
                 key,
                 StringComparison.OrdinalIgnoreCase));
             if (!exists)
@@ -4458,10 +4458,8 @@ namespace PlayniteAchievements.Services.ThemeIntegration
                 item => item != null && string.Equals(item.Rarity.ToString(), key, StringComparison.OrdinalIgnoreCase);
             Func<FriendAchievementDisplayItem, bool> Trophy(string key) =>
                 item => string.Equals(item?.TrophyType, key, StringComparison.OrdinalIgnoreCase);
-            // CategoryType is multi-valued ("Base|DLC"); ParseValues canonicalizes aliases.
-            Func<FriendAchievementDisplayItem, bool> CategoryType(string key) =>
-                item => item != null && AchievementCategoryTypeHelper.ParseValues(item.CategoryType)
-                    .Contains(key, StringComparer.OrdinalIgnoreCase);
+            Func<FriendAchievementDisplayItem, bool> Classification(string key) =>
+                item => item != null && AchievementClassificationFilter.Matches(item.CategoryKind, item.Tags, key);
 
             var predicates = new Dictionary<string, Func<FriendAchievementDisplayItem, bool>>(StringComparer.Ordinal)
             {
@@ -4482,15 +4480,14 @@ namespace PlayniteAchievements.Services.ThemeIntegration
                 [DynamicThemeViewKeys.Bronze] = Trophy(DynamicThemeViewKeys.Bronze),
             };
 
-            // One entry per category type, from the same vocabulary as the type menus.
-            foreach (var categoryType in DynamicThemeOptionGroups.AchievementCategoryTypeFilterKeys
-                .Where(key => !string.Equals(key, DynamicThemeViewKeys.All, StringComparison.Ordinal)))
+            // One entry per listed kind and tag, plus the key Side Quest shipped under for themes
+            // that still name it.
+            foreach (var key in DynamicThemeOptionGroups.AchievementCategoryTypeFilterKeys
+                .Where(key => !string.Equals(key, DynamicThemeViewKeys.All, StringComparison.Ordinal))
+                .Concat(new[] { "SideProgression" }))
             {
-                predicates[categoryType] = CategoryType(categoryType);
+                predicates[key] = Classification(key);
             }
-
-            // The key Side Quest shipped under, for themes that still name it.
-            predicates["SideProgression"] = CategoryType("SideQuest");
 
             return predicates;
         }

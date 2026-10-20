@@ -26,7 +26,7 @@ namespace PlayniteAchievements.Services.Database
         {
             public long DefinitionId { get; set; }
             public string ApiName { get; set; }
-            public string CategoryType { get; set; }
+            public string Tags { get; set; }
             public long? UserAchievementId { get; set; }
             public long? Unlocked { get; set; }
             public string UnlockTimeUtc { get; set; }
@@ -81,7 +81,7 @@ namespace PlayniteAchievements.Services.Database
                     @"SELECT
                         ad.Id AS DefinitionId,
                         ad.ApiName AS ApiName,
-                        ad.CategoryType AS CategoryType,
+                        ad.Tags AS Tags,
                         ua.Id AS UserAchievementId,
                         ua.Unlocked AS Unlocked,
                         ua.UnlockTimeUtc AS UnlockTimeUtc,
@@ -189,30 +189,21 @@ namespace PlayniteAchievements.Services.Database
 
                     if (!string.IsNullOrWhiteSpace(observation.UnlockMode))
                     {
-                        var categoryTypes = AchievementCategoryTypeHelper
-                            .ParseValues(row.CategoryType)
-                            .Where(value =>
-                                !string.Equals(
-                                    value,
-                                    AchievementCategoryTypeHelper.SoftcoreCategoryType,
-                                    StringComparison.OrdinalIgnoreCase) &&
-                                !string.Equals(
-                                    value,
-                                    AchievementCategoryTypeHelper.HardcoreCategoryType,
-                                    StringComparison.OrdinalIgnoreCase))
-                            .Concat(new[] { observation.UnlockMode });
-                        var updatedCategoryType = AchievementCategoryTypeHelper.NormalizeOrDefault(
-                            AchievementCategoryTypeHelper.Combine(categoryTypes));
+                        // The observed unlock mode replaces whichever one the row carried.
+                        var updatedTags = AchievementTagHelper.Combine(
+                            AchievementTagHelper.GetComponents(row.Tags)
+                                .Where(value => !AchievementTagHelper.IsDerivedTag(value))
+                                .Concat(new[] { observation.UnlockMode }));
                         if (!string.Equals(
-                            updatedCategoryType,
-                            row.CategoryType,
+                            updatedTags,
+                            row.Tags,
                             StringComparison.Ordinal))
                         {
                             db.ExecuteNonQuery(
                                 @"UPDATE AchievementDefinitions
-                                  SET CategoryType = ?, UpdatedUtc = ?
+                                  SET Tags = ?, UpdatedUtc = ?
                                   WHERE Id = ?;",
-                                updatedCategoryType,
+                                DbValue(updatedTags),
                                 nowIso,
                                 row.DefinitionId);
                             rowChanged = true;

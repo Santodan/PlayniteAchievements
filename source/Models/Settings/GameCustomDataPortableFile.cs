@@ -51,6 +51,15 @@ namespace PlayniteAchievements.Models.Settings
 
         public Dictionary<string, CategoryImageOverrideData> AchievementCategoryImageOverrides { get; set; }
 
+        /// <summary>
+        /// Kind of each category, keyed by category path (see CategoryKindHelper). A category absent
+        /// here takes its kind from the provider; CategoryKindHelper.None says it has none.
+        /// </summary>
+        public Dictionary<string, string> AchievementCategoryKinds { get; set; }
+
+        /// <summary>Tags only this game offers, alongside the global list in settings.</summary>
+        public List<PlayniteAchievements.Models.Achievements.AchievementTagDefinition> AchievementTags { get; set; }
+
         public GameSummaryCategoryData GameSummaryCategory { get; set; }
 
         public List<string> FilteredAchievementApiNames { get; set; }
@@ -132,6 +141,8 @@ namespace PlayniteAchievements.Models.Settings
                     ? new List<string>(AchievementCategoryOrder)
                     : null,
                 AchievementCategoryImageOverrides = GameCustomDataFile.CloneCategoryImageOverrideMap(AchievementCategoryImageOverrides),
+                AchievementCategoryKinds = GameCustomDataFile.CloneCategoryKindMap(AchievementCategoryKinds),
+                AchievementTags = GameCustomDataFile.CloneTagList(AchievementTags),
                 GameSummaryCategory = GameSummaryCategory?.Clone(),
                 FilteredAchievementApiNames = FilteredAchievementApiNames != null
                     ? new List<string>(FilteredAchievementApiNames)

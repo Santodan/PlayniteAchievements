@@ -237,8 +237,8 @@ namespace PlayniteAchievements.Providers.GuildWars2
             foreach (var entry in Gw2AchievementMapper.BuildCategoryArtPlan(catalog))
             {
                 cancel.ThrowIfCancellationRequested();
-                var label = AchievementCategoryTypeHelper.NormalizeCategoryOrDefault(entry.Label);
-                if (string.Equals(label, AchievementCategoryTypeHelper.DefaultCategoryLabel, StringComparison.OrdinalIgnoreCase))
+                var label = AchievementCategoryHelper.NormalizeCategoryOrDefault(entry.Label);
+                if (string.Equals(label, AchievementCategoryHelper.DefaultCategoryLabel, StringComparison.OrdinalIgnoreCase))
                 {
                     continue;
                 }
@@ -292,7 +292,8 @@ namespace PlayniteAchievements.Providers.GuildWars2
                     Unlocked = achievement.Unlocked,
                     UnlockTimeUtc = achievement.UnlockTimeUtc,
                     Category = achievement.Category,
-                    CategoryType = achievement.CategoryType,
+                    Tags = achievement.Tags,
+                    CategoryKind = achievement.CategoryKind,
                     Hidden = achievement.Hidden,
                     GlobalPercentUnlocked = achievement.GlobalPercentUnlocked,
                     Rarity = achievement.Rarity,

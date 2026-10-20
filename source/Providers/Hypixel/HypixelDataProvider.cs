@@ -212,8 +212,8 @@ namespace PlayniteAchievements.Providers.Hypixel
                     continue;
                 }
 
-                var label = AchievementCategoryTypeHelper.NormalizeCategoryOrDefault(panel.DisplayName);
-                if (string.Equals(label, AchievementCategoryTypeHelper.DefaultCategoryLabel, StringComparison.OrdinalIgnoreCase) ||
+                var label = AchievementCategoryHelper.NormalizeCategoryOrDefault(panel.DisplayName);
+                if (string.Equals(label, AchievementCategoryHelper.DefaultCategoryLabel, StringComparison.OrdinalIgnoreCase) ||
                     !seenLabels.Add(label))
                 {
                     continue;

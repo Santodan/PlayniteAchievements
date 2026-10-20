@@ -287,7 +287,8 @@ namespace PlayniteAchievements.ThemeIntegration.Tests
                 ApiName = name,
                 DisplayName = name,
                 Category = category,
-                CategoryType = categoryType,
+                CategoryKind = PlayniteAchievements.Services.Achievements.LegacyCategoryTypes.SplitKind(categoryType),
+                Tags = PlayniteAchievements.Services.Achievements.AchievementTagHelper.Normalize(categoryType),
                 Unlocked = unlocked,
                 GlobalPercentUnlocked = percent,
                 Rarity = percent.HasValue

@@ -109,11 +109,14 @@ namespace PlayniteAchievements.ViewModels.Items
         }
 
         /// <summary>
-        /// The category's group-based type token (one of Base/DLC/Update/Subset, or Default when the
-        /// bucket has no group membership). Carries the locale-independent classification so the
-        /// theme-facing summary can expose type flags (IsBaseCategory, etc.).
+        /// The category's kind (Base, DLC, "DLC|Update", ...), or null when it has none. Carries the
+        /// locale-independent classification so the theme-facing summary can expose kind flags
+        /// (IsBaseCategory, etc.).
         /// </summary>
-        public string CategoryType { get; set; }
+        public string CategoryKind { get; set; }
+
+        /// <summary>Theme compatibility: the category's kind under its former name.</summary>
+        public string CategoryType => CategoryKind;
 
         private bool _allowCompletionBadge = true;
 

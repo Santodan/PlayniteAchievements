@@ -67,7 +67,7 @@ namespace PlayniteAchievements.Services.Achievements
                 .Select(CategoryPathHelper.NormalizePath)
                 .Distinct(StringComparer.OrdinalIgnoreCase)
                 .Where(label =>
-                    !string.Equals(label, AchievementCategoryTypeHelper.DefaultCategoryLabel, StringComparison.OrdinalIgnoreCase) &&
+                    !string.Equals(label, AchievementCategoryHelper.DefaultCategoryLabel, StringComparison.OrdinalIgnoreCase) &&
                     snapshot.ContainsKey(label))
                 .Select(label => snapshot[label])
                 .ToList();
@@ -93,7 +93,7 @@ namespace PlayniteAchievements.Services.Achievements
                 // row, and a node cannot become its own descendant.
                 if (string.Equals(
                         CategoryPathHelper.Split(target)[0],
-                        AchievementCategoryTypeHelper.DefaultCategoryLabel,
+                        AchievementCategoryHelper.DefaultCategoryLabel,
                         StringComparison.OrdinalIgnoreCase) ||
                     !snapshot.TryGetValue(target, out target) ||
                     moving.Any(label => CategoryPathHelper.IsSelfOrDescendantOf(target, label)))
@@ -155,7 +155,7 @@ namespace PlayniteAchievements.Services.Achievements
                 .Select(CategoryPathHelper.NormalizePath)
                 .Distinct(StringComparer.OrdinalIgnoreCase)
                 .Where(label =>
-                    !string.Equals(label, AchievementCategoryTypeHelper.DefaultCategoryLabel, StringComparison.OrdinalIgnoreCase) &&
+                    !string.Equals(label, AchievementCategoryHelper.DefaultCategoryLabel, StringComparison.OrdinalIgnoreCase) &&
                     renderedSet.Contains(label))
                 .ToList();
             roots = roots
@@ -246,7 +246,7 @@ namespace PlayniteAchievements.Services.Achievements
                 }
 
                 currentLabels.Add(current);
-                if (string.Equals(current, AchievementCategoryTypeHelper.DefaultCategoryLabel, StringComparison.OrdinalIgnoreCase))
+                if (string.Equals(current, AchievementCategoryHelper.DefaultCategoryLabel, StringComparison.OrdinalIgnoreCase))
                 {
                     continue;
                 }

@@ -77,7 +77,8 @@ namespace PlayniteAchievements.Services.Database
             public int? Points { get; set; }
             public int? ScaledPoints { get; set; }
             public string Category { get; set; }
-            public string CategoryType { get; set; }
+            public string Tags { get; set; }
+            public string CategoryKind { get; set; }
             public string TrophyType { get; set; }
             public long Hidden { get; set; }
             public long IsCapstone { get; set; }
@@ -606,9 +607,9 @@ namespace PlayniteAchievements.Services.Database
                     -- Points is user-editable, so the score total must read the override first.
                     -- Rarity above deliberately is not: it stays provider-owned.
                     COALESCE(aov.Points, ad.Points) AS Points,
-                    -- RetroAchievements marks softcore unlocks with the derived Softcore type, which
+                    -- RetroAchievements marks softcore unlocks with the derived Softcore tag, which
                     -- only the provider writes (overrides never carry it). Platform scores skip them.
-                    CASE WHEN ('|' || COALESCE(ad.CategoryType, '') || '|') LIKE '%|Softcore|%'
+                    CASE WHEN ('|' || COALESCE(ad.Tags, '') || '|') LIKE '%|Softcore|%'
                          THEN 1 ELSE 0 END AS IsSoftcore
                 FROM LatestProgress lp
                 INNER JOIN AchievementDefinitions ad ON ad.GameId = lp.GameId
@@ -730,7 +731,8 @@ namespace PlayniteAchievements.Services.Database
                     ad.Points AS Points,
                     ad.ScaledPoints AS ScaledPoints,
                     ad.Category AS Category,
-                    ad.CategoryType AS CategoryType,
+                    ad.Tags AS Tags,
+                    ad.CategoryKind AS CategoryKind,
                     ad.TrophyType AS TrophyType,
                     ad.Hidden AS Hidden,
                     ad.IsCapstone AS IsCapstone,
@@ -824,8 +826,9 @@ namespace PlayniteAchievements.Services.Database
                     LockedIconPath = _store.MakeAbsolutePath(row.LockedIconPath),
                     Points = row.Points,
                     ScaledPoints = row.ScaledPoints,
-                    Category = AchievementCategoryTypeHelper.NormalizeCategoryOrDefault(row.Category),
-                    CategoryType = AchievementCategoryTypeHelper.NormalizeOrDefault(row.CategoryType),
+                    Category = AchievementCategoryHelper.NormalizeCategoryOrDefault(row.Category),
+                    Tags = AchievementTagHelper.Normalize(row.Tags),
+                    CategoryKind = CategoryKindHelper.Normalize(row.CategoryKind),
                     TrophyType = row.TrophyType,
                     Hidden = row.Hidden != 0,
                     IsCapstone = row.IsCapstone != 0,

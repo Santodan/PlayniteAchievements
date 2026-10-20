@@ -1898,13 +1898,13 @@
                                             MinWidth="100"
                                             IsReadOnly="True"
                                             CanUserSort="False"
-                                            SortMemberPath="CategoryTypeDisplayText"
+                                            SortMemberPath="TagsDisplayText"
                                             helpers:ColumnVisibilityHelper.ColumnKey="EditorType"
                                             helpers:EditorCellRouting.RoutesToSelection="True">
                         <DataGridTemplateColumn.CellTemplate>
                             <DataTemplate>
-                                <Button Content="{Binding CategoryTypeDisplayText}"
-                                        ToolTip="{Binding CategoryTypeDisplayText}"
+                                <Button Content="{Binding TagsDisplayText}"
+                                        ToolTip="{Binding TagsDisplayText}"
                                         Style="{StaticResource AchievementSelectorButtonStyle}"
                                         IsEnabled="{Binding CanEditAssignments}"
                                         Click="TypeCell_Click"
@@ -2589,7 +2589,7 @@
                                        Style="{StaticResource FieldLabelStyle}" />
                             <Button x:Name="TypeSelectionButton"
                                     Style="{StaticResource AchievementSelectorButtonStyle}"
-                                    Content="{Binding CategoryTypeDisplayText}"
+                                    Content="{Binding TagsDisplayText}"
                                     IsEnabled="{Binding CanEditAssignments}"
                                     Click="TypeSelectionButton_Click"
                                     MinHeight="26"

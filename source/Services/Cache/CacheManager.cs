@@ -1695,7 +1695,8 @@ namespace PlayniteAchievements.Services.Cache
                     LockedIconPath = achievement.LockedIconPath,
                     Points = achievement.Points,
                     ScaledPoints = achievement.ScaledPoints,
-                    CategoryType = achievement.CategoryType,
+                    Tags = achievement.Tags,
+                    CategoryKind = achievement.CategoryKind,
                     Category = achievement.Category,
                     // Carried with Category, not derived from it later: hydration overwrites
                     // Category with the user's assignment and keeps the provider's own label here,
@@ -1703,6 +1704,8 @@ namespace PlayniteAchievements.Services.Cache
                     // provider label" defence dead across any cache round-trip, leaving the
                     // provider baseline to be reconstructed from a value the user can replace.
                     ProviderCategory = achievement.ProviderCategory,
+                    ProviderTags = achievement.ProviderTags,
+                    ProviderCategoryKind = achievement.ProviderCategoryKind,
                     TrophyType = achievement.TrophyType,
                     Hidden = achievement.Hidden,
                     IsCapstone = achievement.IsCapstone,

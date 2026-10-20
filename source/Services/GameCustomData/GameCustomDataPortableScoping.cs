@@ -223,7 +223,7 @@ namespace PlayniteAchievements.Services.GameCustomData
                     if (!game.NameByScope.ContainsKey(rowScope) && !string.IsNullOrWhiteSpace(category))
                     {
                         var root = CategoryPathHelper.Split(category)[0];
-                        if (!string.Equals(root, AchievementCategoryTypeHelper.DefaultCategoryLabel, StringComparison.OrdinalIgnoreCase))
+                        if (!string.Equals(root, AchievementCategoryHelper.DefaultCategoryLabel, StringComparison.OrdinalIgnoreCase))
                         {
                             game.NameByScope[rowScope] = root;
                             game.Names.Add(root);
@@ -436,7 +436,8 @@ namespace PlayniteAchievements.Services.GameCustomData
             }
 
             portable.AchievementCategoryOverrides = Project(value => value.Category);
-            portable.AchievementCategoryTypeOverrides = Project(value => value.CategoryType);
+            // Tags and kinds live on the record and the kind map now; the old type map is not written.
+            portable.AchievementCategoryTypeOverrides = null;
             portable.AchievementNotes = Project(value => value.Note);
             portable.AchievementUnlockedIconOverrides = Project(value => value.UnlockedIconPath);
             portable.AchievementLockedIconOverrides = Project(value => value.LockedIconPath);
@@ -675,7 +676,7 @@ namespace PlayniteAchievements.Services.GameCustomData
                 ? tail
                 : new[] { scopeName }.Concat(tail).ToList();
             return segments.Count == 0
-                ? AchievementCategoryTypeHelper.DefaultCategoryLabel
+                ? AchievementCategoryHelper.DefaultCategoryLabel
                 : CategoryPathHelper.Join(segments);
         }
 

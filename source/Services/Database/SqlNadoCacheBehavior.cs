@@ -11,7 +11,8 @@ namespace PlayniteAchievements.Services.Database
     {
         public long DefinitionId { get; set; }
         public string Category { get; set; }
-        public string CategoryType { get; set; }
+        public string Tags { get; set; }
+        public string CategoryKind { get; set; }
     }
 
     internal static class SqlNadoCacheBehavior
@@ -76,11 +77,11 @@ namespace PlayniteAchievements.Services.Database
         }
 
         // Computes category backfills for a mapped friend proxy row: a fetched definition's
-        // Category/CategoryType only fills existing rows still holding the Default placeholder
-        // (or blank), matched by ApiName. Rows a user scan already categorized are never changed,
+        // Category, Tags and CategoryKind only fill existing rows still holding the Default
+        // placeholder or blank, matched by ApiName. Rows a user scan already categorized are never changed,
         // keeping the mapped current-user schema canonical.
         public static List<DefinitionCategoryBackfill> ComputeDefinitionCategoryBackfills(
-            IReadOnlyList<(long Id, string ApiName, string Category, string CategoryType)> existingDefinitions,
+            IReadOnlyList<(long Id, string ApiName, string Category, string Tags, string CategoryKind)> existingDefinitions,
             IEnumerable<AchievementDetail> achievements)
         {
             var result = new List<DefinitionCategoryBackfill>();
@@ -111,12 +112,14 @@ namespace PlayniteAchievements.Services.Database
 
                 // Provider label first, for the reason the definition upsert gives: this table is
                 // provider data, and a hydrated payload carries the user's assignment in Category.
-                var incomingCategory = AchievementCategoryTypeHelper.NormalizeCategoryOrDefault(
+                var incomingCategory = AchievementCategoryHelper.NormalizeCategoryOrDefault(
                     incoming.ProviderCategory ?? incoming.Category);
-                var incomingCategoryType = AchievementCategoryTypeHelper.NormalizeOrDefault(incoming.CategoryType);
+                var incomingTags = AchievementTagHelper.Normalize(incoming.ProviderTags ?? incoming.Tags);
+                var incomingKind = CategoryKindHelper.Normalize(incoming.ProviderCategoryKind ?? incoming.CategoryKind);
                 var fillCategory = !IsDefaultCategoryValue(incomingCategory) && IsDefaultCategoryValue(existing.Category);
-                var fillCategoryType = !IsDefaultCategoryValue(incomingCategoryType) && IsDefaultCategoryValue(existing.CategoryType);
-                if (!fillCategory && !fillCategoryType)
+                var fillTags = incomingTags != null && string.IsNullOrWhiteSpace(existing.Tags);
+                var fillKind = incomingKind != null && string.IsNullOrWhiteSpace(existing.CategoryKind);
+                if (!fillCategory && !fillTags && !fillKind)
                 {
                     continue;
                 }
@@ -125,7 +128,8 @@ namespace PlayniteAchievements.Services.Database
                 {
                     DefinitionId = existing.Id,
                     Category = fillCategory ? incomingCategory : existing.Category,
-                    CategoryType = fillCategoryType ? incomingCategoryType : existing.CategoryType
+                    Tags = fillTags ? incomingTags : existing.Tags,
+                    CategoryKind = fillKind ? incomingKind : existing.CategoryKind
                 });
             }
 
@@ -139,7 +143,7 @@ namespace PlayniteAchievements.Services.Database
             return normalized.Length == 0 ||
                    string.Equals(
                        normalized,
-                       AchievementCategoryTypeHelper.DefaultCategoryLabel,
+                       AchievementCategoryHelper.DefaultCategoryLabel,
                        StringComparison.OrdinalIgnoreCase);
         }
 
@@ -243,7 +247,8 @@ namespace PlayniteAchievements.Services.Database
                     Points = row.Points,
                     ScaledPoints = row.ScaledPoints,
                     Category = row.Category,
-                    CategoryType = row.CategoryType,
+                    Tags = row.Tags,
+                    CategoryKind = row.CategoryKind,
                     TrophyType = row.TrophyType,
                     Hidden = row.Hidden,
                     IsCapstone = row.IsCapstone ||

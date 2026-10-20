@@ -300,7 +300,7 @@ namespace PlayniteAchievements.Providers.Ffxiv
                 Category = CategoryPathHelper.JoinRaw(achievement.Type?.Name, achievement.Category?.Name),
 
                 // Keyed on the leaf: the Missable rule matches a category name, not a path.
-                CategoryType = FfxivParsing.ResolveCategoryType(achievement.Category?.Name),
+                Tags = FfxivParsing.ResolveTag(achievement.Category?.Name),
                 UnlockTimeUtc = unlockTimeUtc,
                 Unlocked = unlocked,
                 Hidden = false,

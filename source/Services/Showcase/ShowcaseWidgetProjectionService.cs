@@ -1204,7 +1204,7 @@ namespace PlayniteAchievements.Services.Showcase
                 // Softcore unlocks are left out, as in the points totals.
                 var hasPlatformScore = platformPoints > 0 &&
                     family != null &&
-                    !AchievementCategoryTypeHelper.IsSoftcore(item.CategoryType);
+                    !AchievementTagHelper.IsSoftcore(item.Tags);
 
                 if (item.UnlockTimeUtc.HasValue)
                 {

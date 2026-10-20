@@ -878,7 +878,7 @@ namespace PlayniteAchievements.Services.Achievements
             var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             foreach (var value in source ?? Enumerable.Empty<string>())
             {
-                var normalized = AchievementCategoryTypeHelper.NormalizeCategoryOrDefault(value);
+                var normalized = AchievementCategoryHelper.NormalizeCategoryOrDefault(value);
                 if (!string.IsNullOrWhiteSpace(normalized) && seen.Add(normalized))
                 {
                     result.Add(normalized);
@@ -899,7 +899,7 @@ namespace PlayniteAchievements.Services.Achievements
 
             foreach (var pair in source)
             {
-                var key = AchievementCategoryTypeHelper.NormalizeCategoryOrDefault(pair.Key);
+                var key = AchievementCategoryHelper.NormalizeCategoryOrDefault(pair.Key);
                 var art = NormalizeText(pair.Value?.Art);
                 if (string.IsNullOrWhiteSpace(key) || string.IsNullOrWhiteSpace(art))
                 {
@@ -1369,9 +1369,11 @@ namespace PlayniteAchievements.Services.Achievements
                         achievement.Category = CategoryPathHelper.NormalizePath(userOverride.Category);
                     }
 
-                    if (!string.IsNullOrWhiteSpace(userOverride.CategoryType))
+                    if (userOverride.ClearTags || userOverride.Tags != null)
                     {
-                        achievement.CategoryType = AchievementCategoryTypeHelper.NormalizeOrDefault(userOverride.CategoryType);
+                        achievement.Tags = AchievementTagHelper.ApplyOverride(
+                            achievement.Tags,
+                            userOverride.ClearTags ? string.Empty : userOverride.Tags);
                     }
 
                     var countedDate = achievement.Unlocked && achievement.UnlockTimeUtc.HasValue
@@ -1382,6 +1384,10 @@ namespace PlayniteAchievements.Services.Achievements
                 }
 
                 achievement.AchievementNote = userOverride?.Note;
+                achievement.CategoryKind = CategoryKindHelper.ResolveEffective(
+                    resolved.GetStoredCategoryKind(achievement.Category),
+                    userOverride?.LegacyCategoryKind,
+                    achievement.CategoryKind);
 
                 var unlockedOverride = AchievementIconOverrideHelper.GetOverrideValue(customization.UnlockedIconOverrides, apiName);
                 if (!string.IsNullOrWhiteSpace(unlockedOverride))

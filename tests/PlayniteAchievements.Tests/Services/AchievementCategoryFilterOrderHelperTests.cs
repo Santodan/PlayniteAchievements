@@ -87,10 +87,10 @@ namespace PlayniteAchievements.Services.Tests
             var options = OverviewAchievementFilters.BuildSelectedGameFilterOptions(
                 new[]
                 {
-                    new AchievementDisplayItem { CategoryType = "Default", CategoryLabel = "Original Game" },
-                    new AchievementDisplayItem { CategoryType = "DLC", CategoryLabel = "DLC 1: Revenge" },
-                    new AchievementDisplayItem { CategoryType = "DLC", CategoryLabel = "DLC 2: Redemption" },
-                    new AchievementDisplayItem { CategoryType = "DLC", CategoryLabel = "Original Game" }
+                    new AchievementDisplayItem { Tags = null, CategoryLabel = "Original Game" },
+                    new AchievementDisplayItem { CategoryKind = "DLC", CategoryLabel = "DLC 1: Revenge" },
+                    new AchievementDisplayItem { CategoryKind = "DLC", CategoryLabel = "DLC 2: Redemption" },
+                    new AchievementDisplayItem { CategoryKind = "DLC", CategoryLabel = "Original Game" }
                 },
                 selectedTypeFilters: new HashSet<string>(StringComparer.OrdinalIgnoreCase),
                 selectedCategoryFilters: selectedCategoryFilters);

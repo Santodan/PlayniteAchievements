@@ -40,7 +40,7 @@ namespace PlayniteAchievements.Services.Achievements
                     continue;
                 }
 
-                var label = AchievementCategoryTypeHelper.NormalizeCategoryOrDefault(
+                var label = AchievementCategoryHelper.NormalizeCategoryOrDefault(
                     categoryLabelSelector(achievement));
                 if (string.IsNullOrWhiteSpace(label))
                 {

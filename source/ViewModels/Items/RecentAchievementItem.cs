@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using PlayniteAchievements.Common;
 using PlayniteAchievements.Models.Achievements;
 using PlayniteAchievements.Services;
@@ -214,20 +215,47 @@ namespace PlayniteAchievements.ViewModels.Items
             }
         }
 
-        private string _categoryType;
-        public string CategoryType
+        private string _tags;
+        public string Tags
         {
-            get => _categoryType;
+            get => _tags;
             set
             {
-                if (SetValueAndReturn(ref _categoryType, value))
+                if (SetValueAndReturn(ref _tags, value))
                 {
+                    OnPropertyChanged(nameof(TagsDisplay));
+                    OnPropertyChanged(nameof(TagChips));
+                    OnPropertyChanged(nameof(CategoryType));
                     OnPropertyChanged(nameof(CategoryTypeDisplay));
                 }
             }
         }
 
-        public string CategoryTypeDisplay => AchievementCategoryTypeHelper.ToDisplayText(CategoryType);
+        private string _categoryKind;
+        public string CategoryKind
+        {
+            get => _categoryKind;
+            set
+            {
+                if (SetValueAndReturn(ref _categoryKind, value))
+                {
+                    OnPropertyChanged(nameof(CategoryType));
+                    OnPropertyChanged(nameof(CategoryTypeDisplay));
+                }
+            }
+        }
+
+        public string TagsDisplay => AchievementTagHelper.ToDisplayText(Tags, PlayniteGameId);
+
+        public System.Collections.Generic.IReadOnlyList<AchievementTagChip> TagChips => AchievementTagChip.Build(Tags, PlayniteGameId);
+
+        /// <summary>Theme compatibility: kind and tag keys joined, as before they split.</summary>
+        public string CategoryType => string.Join("|",
+            CategoryKindHelper.GetComponents(CategoryKind).Concat(AchievementTagHelper.GetComponents(Tags)));
+
+        /// <summary>Theme compatibility: kind and tag names joined.</summary>
+        public string CategoryTypeDisplay => string.Join(", ",
+            new[] { CategoryKindHelper.ToDisplayText(CategoryKind), TagsDisplay }.Where(text => !string.IsNullOrEmpty(text)));
 
         private string _categoryLabel;
         public string CategoryLabel
@@ -242,10 +270,10 @@ namespace PlayniteAchievements.ViewModels.Items
             }
         }
 
-        public string CategoryLabelDisplay => AchievementCategoryTypeHelper.ToCategoryLabelCellText(CategoryLabel);
+        public string CategoryLabelDisplay => AchievementCategoryHelper.ToCategoryLabelCellText(CategoryLabel);
 
         /// <summary>Full path for the category cell's tooltip; the cell itself shows the leaf.</summary>
-        public string CategoryLabelPathDisplay => AchievementCategoryTypeHelper.ToCategoryLabelCellPathText(CategoryLabel);
+        public string CategoryLabelPathDisplay => AchievementCategoryHelper.ToCategoryLabelCellPathText(CategoryLabel);
 
         private string _achievementNote;
         public string AchievementNote
@@ -313,7 +341,8 @@ namespace PlayniteAchievements.ViewModels.Items
             GameIconPath = other.GameIconPath;
             GameCoverPath = other.GameCoverPath;
             TrophyType = other.TrophyType;
-            CategoryType = other.CategoryType;
+            Tags = other.Tags;
+            CategoryKind = other.CategoryKind;
             CategoryLabel = other.CategoryLabel;
             AchievementNote = other.AchievementNote;
             IsCapstone = other.IsCapstone;

@@ -50,7 +50,7 @@ namespace PlayniteAchievements.Tests.Services
             foreach (var input in inputs)
             {
                 Assert.AreEqual(
-                    AchievementCategoryTypeHelper.NormalizeCategoryOrDefault(input),
+                    AchievementCategoryHelper.NormalizeCategoryOrDefault(input),
                     CategoryPathHelper.NormalizePath(input),
                     $"input [{input ?? "<null>"}]");
             }

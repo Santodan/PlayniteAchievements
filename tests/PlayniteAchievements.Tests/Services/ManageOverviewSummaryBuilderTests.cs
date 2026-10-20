@@ -183,14 +183,14 @@ namespace PlayniteAchievements.Tests.Services
                         IsCapstone = true,
                         Unlocked = true,
                         UnlockTimeUtc = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc),
-                        CategoryType = "Default"
+                        Tags = null
                     },
                     new CustomAchievementDefinition
                     {
                         Id = "two",
                         DisplayName = "Other",
                         Category = "DLC",
-                        CategoryType = "Story",
+                        Tags = "Story",
                         UnlockTimeUtc = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc)
                     }
                 },
@@ -212,7 +212,7 @@ namespace PlayniteAchievements.Tests.Services
             Assert.AreEqual(1, counts["LOCPlayAch_Dynamic_Capstone"]);
             Assert.AreEqual(1, counts["LOCPlayAch_Common_UnlockTime"], "A locked custom's stored time is not in effect.");
             Assert.AreEqual(2, counts["LOCCategoryLabel"]);
-            Assert.AreEqual(1, counts[AchievementCustomizationFacetLabels.GetLabelKey(AchievementCustomizationFacet.CategoryType)]);
+            Assert.AreEqual(1, counts[AchievementCustomizationFacetLabels.GetLabelKey(AchievementCustomizationFacet.Tags)]);
         }
 
         [TestMethod]

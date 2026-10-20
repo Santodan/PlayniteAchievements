@@ -125,7 +125,8 @@ namespace PlayniteAchievements.Tests.Services
                 ApiName = apiName,
                 DisplayName = apiName,
                 TrophyType = trophyType,
-                CategoryType = categoryType
+                CategoryKind = PlayniteAchievements.Services.Achievements.LegacyCategoryTypes.SplitKind(categoryType),
+                Tags = PlayniteAchievements.Services.Achievements.AchievementTagHelper.Normalize(categoryType)
             };
         }
     }

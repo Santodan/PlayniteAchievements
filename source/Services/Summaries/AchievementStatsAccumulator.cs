@@ -65,7 +65,7 @@ namespace PlayniteAchievements.Services.Summaries
                 achievement.CollectionScore,
                 achievement.PrestigeScore,
                 achievement.Points ?? 0,
-                AchievementCategoryTypeHelper.IsSoftcore(achievement.CategoryType),
+                AchievementTagHelper.IsSoftcore(achievement.Tags),
                 achievement.UnlockTimeUtc);
         }
 
@@ -104,7 +104,7 @@ namespace PlayniteAchievements.Services.Summaries
                 achievement.CollectionScore,
                 achievement.PrestigeScore,
                 achievement.Points,
-                AchievementCategoryTypeHelper.IsSoftcore(achievement.CategoryType),
+                AchievementTagHelper.IsSoftcore(achievement.Tags),
                 achievement.UnlockTimeUtc);
         }
 

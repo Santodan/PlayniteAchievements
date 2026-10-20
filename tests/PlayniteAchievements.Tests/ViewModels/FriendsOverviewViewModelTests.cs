@@ -1834,7 +1834,8 @@ namespace PlayniteAchievements.Tests.ViewModels
                 SortingName = gameName,
                 DisplayName = achievementName,
                 Description = achievementName + " description",
-                CategoryType = categoryType,
+                CategoryKind = PlayniteAchievements.Services.Achievements.LegacyCategoryTypes.SplitKind(categoryType),
+                Tags = PlayniteAchievements.Services.Achievements.AchievementTagHelper.Normalize(categoryType),
                 CategoryLabel = categoryLabel,
                 UnlockTimeUtc = unlockTimeUtc,
                 Unlocked = true

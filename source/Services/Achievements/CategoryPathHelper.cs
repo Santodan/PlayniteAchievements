@@ -15,7 +15,7 @@ namespace PlayniteAchievements.Services.Achievements
     /// <see cref="DisplaySeparator"/>.
     ///
     /// Every member degenerates to today's flat behavior for a separator-free label:
-    /// <see cref="NormalizePath"/> matches AchievementCategoryTypeHelper.NormalizeCategoryOrDefault,
+    /// <see cref="NormalizePath"/> matches AchievementCategoryHelper.NormalizeCategoryOrDefault,
     /// the ancestor walks are empty, and <see cref="IsDescendantOf"/> is false.
     /// </summary>
     internal static class CategoryPathHelper
@@ -75,14 +75,14 @@ namespace PlayniteAchievements.Services.Achievements
 
             if (segments.Count == 0)
             {
-                return AchievementCategoryTypeHelper.DefaultCategoryLabel;
+                return AchievementCategoryHelper.DefaultCategoryLabel;
             }
 
             // The Default bucket is a root-only sentinel: CategoryDefaultImageResolver treats it as
             // having no provider art, and rename/merge refuse it, so a child under it would be
             // unreachable. Keep the root's own text so existing casing is untouched.
             if (segments.Count > 1 &&
-                string.Equals(segments[0], AchievementCategoryTypeHelper.DefaultCategoryLabel, StringComparison.OrdinalIgnoreCase))
+                string.Equals(segments[0], AchievementCategoryHelper.DefaultCategoryLabel, StringComparison.OrdinalIgnoreCase))
             {
                 return segments[0];
             }
@@ -120,7 +120,7 @@ namespace PlayniteAchievements.Services.Achievements
         {
             if (segments == null)
             {
-                return AchievementCategoryTypeHelper.DefaultCategoryLabel;
+                return AchievementCategoryHelper.DefaultCategoryLabel;
             }
 
             return NormalizePath(string.Join(Separator, segments));

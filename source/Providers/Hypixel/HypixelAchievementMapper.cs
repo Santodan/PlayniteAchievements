@@ -16,7 +16,7 @@ namespace PlayniteAchievements.Providers.Hypixel
     /// </summary>
     internal static class HypixelAchievementMapper
     {
-        private const string UnobtainableCategoryType = "Unobtainable";
+        private const string UnobtainableTag = "Unobtainable";
 
         public static List<AchievementDetail> BuildAchievements(
             HypixelProfile profile,
@@ -105,7 +105,7 @@ namespace PlayniteAchievements.Providers.Hypixel
 
                 // Neither the profile page nor the API records when an achievement was earned.
                 UnlockTimeUtc = null,
-                CategoryType = entry.Legacy || definition?.Legacy == true ? UnobtainableCategoryType : null,
+                Tags = entry.Legacy || definition?.Legacy == true ? UnobtainableTag : null,
                 Hidden = false,
                 GlobalPercentUnlocked = percent
             };
@@ -140,7 +140,7 @@ namespace PlayniteAchievements.Providers.Hypixel
                 Points = tierDefinition?.Points,
                 Unlocked = entry.Completed,
                 UnlockTimeUtc = null,
-                CategoryType = entry.Legacy || definition?.Legacy == true ? UnobtainableCategoryType : null,
+                Tags = entry.Legacy || definition?.Legacy == true ? UnobtainableTag : null,
                 Hidden = false,
 
                 // The catalog publishes completion rates for one-time achievements only.

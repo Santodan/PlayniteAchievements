@@ -46,7 +46,7 @@ namespace PlayniteAchievements.Views.Helpers
         public static void OpenCategoryTypeMenu(
             Button button,
             ContextMenu menu,
-            IEnumerable<CategoryTypeSelectionOption> options)
+            IEnumerable<TagSelectionOption> options)
         {
             if (button == null || menu == null)
             {
@@ -56,7 +56,7 @@ namespace PlayniteAchievements.Views.Helpers
             menu.Items.Clear();
 
             var itemStyle = button.TryFindResource("AchievementMultiSelectMenuItemStyle") as Style;
-            foreach (var option in options ?? Enumerable.Empty<CategoryTypeSelectionOption>())
+            foreach (var option in options ?? Enumerable.Empty<TagSelectionOption>())
             {
                 if (option == null)
                 {

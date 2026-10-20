@@ -197,9 +197,9 @@ namespace PlayniteAchievements.Providers.Vita3K
                 var iconPath = GetTrophyIconPath(iconFolder, trophy.Id);
                 var trophyType = NormalizeTrophyType(trophy.TrophyType);
                 var category = CategoryPathHelper.SanitizeSegment(trophy.GroupName);
-                var categoryType = MapGroupIdToCategoryType(trophy.GroupId);
+                var categoryKind = MapGroupIdToCategoryKind(trophy.GroupId);
                 if (!string.IsNullOrWhiteSpace(category) &&
-                    categoryType == "DLC" &&
+                    categoryKind == "DLC" &&
                     !groupArt.ContainsKey(category))
                 {
                     var artPath = GetGroupIconPath(iconFolder, trophy.GroupId);
@@ -223,7 +223,7 @@ namespace PlayniteAchievements.Providers.Vita3K
                     Rarity = GetRarityFromTrophyType(trophyType),
                     TrophyType = trophyType,
                     IsCapstone = trophyType == "platinum",
-                    CategoryType = categoryType,
+                    CategoryKind = categoryKind,
                     Category = category
                 });
             }
@@ -382,8 +382,8 @@ namespace PlayniteAchievements.Providers.Vita3K
             var gameIdText = game.Id.ToString("D");
             foreach (var entry in groupArt)
             {
-                var label = AchievementCategoryTypeHelper.NormalizeCategoryOrDefault(entry.Key);
-                if (string.Equals(label, AchievementCategoryTypeHelper.DefaultCategoryLabel, StringComparison.OrdinalIgnoreCase))
+                var label = AchievementCategoryHelper.NormalizeCategoryOrDefault(entry.Key);
+                if (string.Equals(label, AchievementCategoryHelper.DefaultCategoryLabel, StringComparison.OrdinalIgnoreCase))
                 {
                     continue;
                 }
@@ -446,7 +446,7 @@ namespace PlayniteAchievements.Providers.Vita3K
             }
         }
 
-        internal static string MapGroupIdToCategoryType(string groupId)
+        internal static string MapGroupIdToCategoryKind(string groupId)
         {
             var normalized = (groupId ?? string.Empty).Trim();
             return normalized.Length == 0 ||

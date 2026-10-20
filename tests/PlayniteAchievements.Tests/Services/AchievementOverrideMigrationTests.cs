@@ -34,7 +34,7 @@ namespace PlayniteAchievements.Services.Tests
             var result = Normalize(new GameCustomDataFile { SchemaVersion = 7 });
 
             Assert.AreEqual(GameCustomDataNormalizer.CurrentSchemaVersion, result.SchemaVersion);
-            Assert.AreEqual(8, GameCustomDataNormalizer.CurrentSchemaVersion);
+            Assert.AreEqual(9, GameCustomDataNormalizer.CurrentSchemaVersion);
         }
 
         [TestMethod]
@@ -71,9 +71,10 @@ namespace PlayniteAchievements.Services.Tests
                 AchievementCategoryTypeOverrides = new Dictionary<string, string> { ["ach_one"] = "DLC" }
             });
 
-            Assert.AreEqual(
-                AchievementCategoryTypeHelper.Normalize("DLC"),
-                result.AchievementOverrides["ach_one"].CategoryType);
+            // A legacy type override replaced every provider type: DLC becomes the kind, and no
+            // other value means no tags.
+            Assert.AreEqual("DLC", result.AchievementOverrides["ach_one"].LegacyCategoryKind);
+            Assert.IsTrue(result.AchievementOverrides["ach_one"].ClearTags);
         }
 
         [TestMethod]
@@ -110,7 +111,7 @@ namespace PlayniteAchievements.Services.Tests
             Assert.AreEqual("note", entry.Note);
             Assert.AreEqual("unlocked.png", entry.UnlockedIconPath);
             Assert.AreEqual("locked.png", entry.LockedIconPath);
-            Assert.IsFalse(string.IsNullOrWhiteSpace(entry.CategoryType));
+            Assert.AreEqual("DLC", entry.LegacyCategoryKind);
         }
 
         [TestMethod]
@@ -356,7 +357,9 @@ namespace PlayniteAchievements.Services.Tests
             {
                 var second = twice.AchievementOverrides[pair.Key];
                 Assert.AreEqual(pair.Value.Category, second.Category);
-                Assert.AreEqual(pair.Value.CategoryType, second.CategoryType);
+                Assert.AreEqual(pair.Value.LegacyCategoryKind, second.LegacyCategoryKind);
+                Assert.AreEqual(pair.Value.Tags, second.Tags);
+                Assert.AreEqual(pair.Value.ClearTags, second.ClearTags);
                 Assert.AreEqual(pair.Value.Note, second.Note);
                 Assert.AreEqual(pair.Value.DisplayName, second.DisplayName);
                 Assert.AreEqual(pair.Value.Description, second.Description);

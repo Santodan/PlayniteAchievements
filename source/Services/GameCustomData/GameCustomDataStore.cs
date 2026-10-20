@@ -1389,7 +1389,7 @@ namespace PlayniteAchievements.Services.GameCustomData
 
             foreach (var pair in overrides.ToList())
             {
-                var category = AchievementCategoryTypeHelper.NormalizeCategoryOrDefault(pair.Key);
+                var category = AchievementCategoryHelper.NormalizeCategoryOrDefault(pair.Key);
                 if (string.IsNullOrWhiteSpace(category) || pair.Value == null)
                 {
                     overrides.Remove(pair.Key);
@@ -1456,7 +1456,7 @@ namespace PlayniteAchievements.Services.GameCustomData
 
             foreach (var pair in overrides.ToList())
             {
-                var category = AchievementCategoryTypeHelper.NormalizeCategoryOrDefault(pair.Key);
+                var category = AchievementCategoryHelper.NormalizeCategoryOrDefault(pair.Key);
                 if (string.IsNullOrWhiteSpace(category) || pair.Value == null)
                 {
                     overrides.Remove(pair.Key);
@@ -1936,7 +1936,7 @@ namespace PlayniteAchievements.Services.GameCustomData
 
             foreach (var pair in left)
             {
-                var key = AchievementCategoryTypeHelper.NormalizeCategoryOrDefault(pair.Key);
+                var key = AchievementCategoryHelper.NormalizeCategoryOrDefault(pair.Key);
                 if (string.IsNullOrWhiteSpace(key) ||
                     right == null ||
                     !right.TryGetValue(key, out var rightValue))
@@ -2161,7 +2161,7 @@ namespace PlayniteAchievements.Services.GameCustomData
 
             foreach (var pair in overrides)
             {
-                var category = AchievementCategoryTypeHelper.NormalizeCategoryOrDefault(pair.Key);
+                var category = AchievementCategoryHelper.NormalizeCategoryOrDefault(pair.Key);
                 if (string.IsNullOrWhiteSpace(category) || pair.Value == null)
                 {
                     continue;
@@ -2216,7 +2216,7 @@ namespace PlayniteAchievements.Services.GameCustomData
             return (portable?.AchievementCategoryImageOverrides?.Keys ?? Enumerable.Empty<string>())
                 .Concat(portable?.AchievementCategoryOrder ?? Enumerable.Empty<string>())
                 .Where(key => !string.IsNullOrWhiteSpace(key))
-                .Select(AchievementCategoryTypeHelper.NormalizeCategoryOrDefault)
+                .Select(AchievementCategoryHelper.NormalizeCategoryOrDefault)
                 .Where(key => !string.IsNullOrWhiteSpace(key))
                 .Distinct(StringComparer.OrdinalIgnoreCase);
         }

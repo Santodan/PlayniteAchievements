@@ -30,8 +30,8 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         public bool ResetCategoryOverrides()
         {
             var categoryOverrides = GetCurrentCategoryOverrideMap();
-            var categoryTypeOverrides = GetCurrentCategoryTypeOverrideMap();
-            if (categoryOverrides.Count == 0 && categoryTypeOverrides.Count == 0)
+            var tagOverrides = GetCurrentTagOverrideMap();
+            if (categoryOverrides.Count == 0 && tagOverrides.Count == 0)
             {
                 return false;
             }
@@ -54,22 +54,22 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 return false;
             }
 
-            var normalizedCategory = AchievementCategoryTypeHelper.NormalizeCategory(categoryText);
-            var normalizedCategoryType = AchievementCategoryTypeHelper.Normalize(GetSelectedCategoryTypeValue());
+            var normalizedCategory = AchievementCategoryHelper.NormalizeCategory(categoryText);
+            var normalizedTags = AchievementTagHelper.Normalize(GetSelectedTagValue());
             var hasCategoryInput = !string.IsNullOrWhiteSpace(normalizedCategory);
-            var hasCategoryTypeInput = !string.IsNullOrWhiteSpace(normalizedCategoryType);
-            var selectedCategoryTypes = hasCategoryTypeInput
-                ? AchievementCategoryTypeHelper.ParseValues(normalizedCategoryType)
+            var hasTagInput = !string.IsNullOrWhiteSpace(normalizedTags);
+            var selectedTags = hasTagInput
+                ? AchievementTagHelper.Parse(normalizedTags)
                 : new List<string>();
-            if (!hasCategoryInput && !hasCategoryTypeInput)
+            if (!hasCategoryInput && !hasTagInput)
             {
                 return false;
             }
 
             var categoryOverrideMap = GetCurrentCategoryOverrideMap();
-            var categoryTypeOverrideMap = GetCurrentCategoryTypeOverrideMap();
+            var tagOverrideMap = GetCurrentTagOverrideMap();
             var categoryChanged = false;
-            var categoryTypeChanged = false;
+            var tagsChanged = false;
 
             foreach (var item in selectedRows.Where(row => row != null))
             {
@@ -87,31 +87,31 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                     categoryChanged = true;
                 }
 
-                if (hasCategoryTypeInput &&
-                    selectedCategoryTypes.Count > 0)
+                if (hasTagInput &&
+                    selectedTags.Count > 0)
                 {
-                    var currentEffectiveCategoryType = AchievementCategoryTypeHelper.NormalizeOrDefault(item.CategoryType);
-                    var mergedCategoryType = AchievementCategoryTypeHelper.NormalizeOrDefault(
-                        AchievementCategoryTypeHelper.Combine(
-                            AchievementCategoryTypeHelper.ParseValues(currentEffectiveCategoryType)
-                                .Concat(selectedCategoryTypes)));
+                    var currentEffectiveTags = AchievementTagHelper.Normalize(item.Tags);
+                    var mergedTags = AchievementTagHelper.Normalize(
+                        AchievementTagHelper.Combine(
+                            AchievementTagHelper.Parse(currentEffectiveTags)
+                                .Concat(selectedTags)));
 
-                    var overrideCategoryType = AchievementCategoryTypeHelper.NormalizeOrDefault(
-                        AchievementCategoryTypeHelper.StripDerivedTypes(mergedCategoryType));
-                    if (!string.Equals(mergedCategoryType, currentEffectiveCategoryType, StringComparison.Ordinal) &&
-                        (!categoryTypeOverrideMap.TryGetValue(apiName, out var existingCategoryType) ||
-                         !string.Equals(existingCategoryType, overrideCategoryType, StringComparison.Ordinal)))
+                    var overrideTags = AchievementTagHelper.Normalize(
+                        AchievementTagHelper.StripDerived(mergedTags));
+                    if (!string.Equals(mergedTags, currentEffectiveTags, StringComparison.Ordinal) &&
+                        (!tagOverrideMap.TryGetValue(apiName, out var existingTags) ||
+                         !string.Equals(existingTags, overrideTags, StringComparison.Ordinal)))
                     {
-                        categoryTypeOverrideMap[apiName] = overrideCategoryType;
-                        categoryTypeChanged = true;
+                        tagOverrideMap[apiName] = overrideTags;
+                        tagsChanged = true;
                     }
                 }
             }
 
-            if (categoryChanged || categoryTypeChanged)
+            if (categoryChanged || tagsChanged)
             {
-                PersistCategoryOverrideMaps(categoryOverrideMap, categoryTypeOverrideMap);
-                ApplyCategoryOverrideMapsToRows(categoryOverrideMap, categoryTypeOverrideMap);
+                PersistCategoryOverrideMaps(categoryOverrideMap, tagOverrideMap);
+                ApplyCategoryOverrideMapsToRows(categoryOverrideMap, tagOverrideMap);
                 if (categoryChanged)
                 {
                     // Only a label move regroups the Manage sub-tab; a type edit renders nowhere there.
@@ -122,9 +122,9 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             return true;
         }
 
-        public bool SetCategoryTypeForSelection(
+        public bool SetTagForSelection(
             IReadOnlyList<ManageAchievementsCategoryItem> selectedRows,
-            string categoryType,
+            string tag,
             bool isSelected)
         {
             if (selectedRows == null || selectedRows.Count == 0)
@@ -132,14 +132,14 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 return false;
             }
 
-            var normalizedType = AchievementCategoryTypeHelper.Normalize(categoryType);
+            var normalizedType = AchievementTagHelper.Normalize(tag);
             if (string.IsNullOrWhiteSpace(normalizedType))
             {
                 return false;
             }
 
-            var categoryTypeOverrideMap = GetCurrentCategoryTypeOverrideMap();
-            var categoryTypeChanged = false;
+            var tagOverrideMap = GetCurrentTagOverrideMap();
+            var tagsChanged = false;
 
             foreach (var item in selectedRows.Where(row => row != null))
             {
@@ -149,42 +149,42 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                     continue;
                 }
 
-                var currentEffectiveCategoryType = AchievementCategoryTypeHelper.NormalizeOrDefault(item.CategoryType);
-                var updatedCategoryType = AchievementCategoryTypeHelper.WithCategoryType(
-                    currentEffectiveCategoryType, normalizedType, isSelected);
+                var currentEffectiveTags = AchievementTagHelper.Normalize(item.Tags);
+                var updatedTags = AchievementTagHelper.WithTag(
+                    currentEffectiveTags, normalizedType, isSelected);
 
-                if (string.Equals(updatedCategoryType, currentEffectiveCategoryType, StringComparison.Ordinal))
+                if (string.Equals(updatedTags, currentEffectiveTags, StringComparison.Ordinal))
                 {
                     continue;
                 }
 
-                var overrideCategoryType = AchievementCategoryTypeHelper.OverrideOrNull(
-                    updatedCategoryType, item.ProviderCategoryType);
-                if (overrideCategoryType == null)
+                var overrideTags = AchievementTagHelper.OverrideOrNull(
+                    updatedTags, item.ProviderTags);
+                if (overrideTags == null)
                 {
                     // Result matches the provider value: drop the override so the row is no
                     // longer flagged as customized.
-                    if (categoryTypeOverrideMap.Remove(apiName))
+                    if (tagOverrideMap.Remove(apiName))
                     {
-                        categoryTypeChanged = true;
+                        tagsChanged = true;
                     }
                 }
-                else if (!categoryTypeOverrideMap.TryGetValue(apiName, out var existingCategoryType) ||
-                         !string.Equals(existingCategoryType, overrideCategoryType, StringComparison.Ordinal))
+                else if (!tagOverrideMap.TryGetValue(apiName, out var existingTags) ||
+                         !string.Equals(existingTags, overrideTags, StringComparison.Ordinal))
                 {
-                    categoryTypeOverrideMap[apiName] = overrideCategoryType;
-                    categoryTypeChanged = true;
+                    tagOverrideMap[apiName] = overrideTags;
+                    tagsChanged = true;
                 }
             }
 
-            if (!categoryTypeChanged)
+            if (!tagsChanged)
             {
                 return false;
             }
 
             var categoryOverrideMap = GetCurrentCategoryOverrideMap();
-            PersistCategoryOverrideMaps(categoryOverrideMap, categoryTypeOverrideMap);
-            ApplyCategoryOverrideMapsToRows(categoryOverrideMap, categoryTypeOverrideMap);
+            PersistCategoryOverrideMaps(categoryOverrideMap, tagOverrideMap);
+            ApplyCategoryOverrideMapsToRows(categoryOverrideMap, tagOverrideMap);
             return true;
         }
 
@@ -197,7 +197,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 return false;
             }
 
-            var normalizedCategory = AchievementCategoryTypeHelper.NormalizeCategory(categoryLabel);
+            var normalizedCategory = AchievementCategoryHelper.NormalizeCategory(categoryLabel);
             if (string.IsNullOrWhiteSpace(normalizedCategory))
             {
                 return false;
@@ -227,9 +227,9 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 return false;
             }
 
-            var categoryTypeOverrideMap = GetCurrentCategoryTypeOverrideMap();
-            PersistCategoryOverrideMaps(categoryOverrideMap, categoryTypeOverrideMap);
-            ApplyCategoryOverrideMapsToRows(categoryOverrideMap, categoryTypeOverrideMap);
+            var tagOverrideMap = GetCurrentTagOverrideMap();
+            PersistCategoryOverrideMaps(categoryOverrideMap, tagOverrideMap);
+            ApplyCategoryOverrideMapsToRows(categoryOverrideMap, tagOverrideMap);
             RefreshCategoryRows();
             return true;
         }
@@ -242,9 +242,9 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             }
 
             var categoryOverrideMap = GetCurrentCategoryOverrideMap();
-            var categoryTypeOverrideMap = GetCurrentCategoryTypeOverrideMap();
+            var tagOverrideMap = GetCurrentTagOverrideMap();
             var categoryChanged = false;
-            var categoryTypeChanged = false;
+            var tagsChanged = false;
 
             foreach (var item in selectedRows.Where(row => row != null))
             {
@@ -259,19 +259,19 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                     categoryChanged = true;
                 }
 
-                if (categoryTypeOverrideMap.Remove(apiName))
+                if (tagOverrideMap.Remove(apiName))
                 {
-                    categoryTypeChanged = true;
+                    tagsChanged = true;
                 }
             }
 
-            if (!categoryChanged && !categoryTypeChanged)
+            if (!categoryChanged && !tagsChanged)
             {
                 return false;
             }
 
-            PersistCategoryOverrideMaps(categoryOverrideMap, categoryTypeOverrideMap);
-            ApplyCategoryOverrideMapsToRows(categoryOverrideMap, categoryTypeOverrideMap);
+            PersistCategoryOverrideMaps(categoryOverrideMap, tagOverrideMap);
+            ApplyCategoryOverrideMapsToRows(categoryOverrideMap, tagOverrideMap);
             if (categoryChanged)
             {
                 RefreshCategoryRows();
@@ -282,9 +282,8 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
 
         /// <summary>
         /// Re-points every achievement whose effective category equals <paramref name="normalizedSource"/>
-        /// to <paramref name="normalizedTarget"/> in <paramref name="categoryOverrideMap"/>. When
-        /// <paramref name="categoryTypeOverrideMap"/> is non-null (merge), also replaces each moved
-        /// achievement's group-based type tags with <paramref name="targetGroupTypes"/>. An override is
+        /// to <paramref name="normalizedTarget"/> in <paramref name="categoryOverrideMap"/>. Tags and kinds
+        /// are left alone: a moved achievement takes the kind of the category it lands in. An override is
         /// removed rather than set when the resulting value matches the achievement's provider default.
         /// Returns true when at least one achievement was affected and something changed.
         /// </summary>
@@ -297,8 +296,6 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             string normalizedSource,
             string normalizedTarget,
             Dictionary<string, string> categoryOverrideMap,
-            Dictionary<string, string> categoryTypeOverrideMap,
-            IReadOnlyList<string> targetGroupTypes,
             bool rewriteDescendantPaths = false)
         {
             var affectedCount = 0;
@@ -340,59 +337,19 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                     categoryOverrideMap[apiName] = writtenCategory;
                     changed = true;
                 }
-
-                if (categoryTypeOverrideMap == null)
-                {
-                    continue;
-                }
-
-                var newType = AchievementCategoryTypeHelper.NormalizeOrDefault(
-                    AchievementCategoryTypeHelper.ReplaceGroupTypes(item.CategoryType, targetGroupTypes));
-                var overrideType = AchievementCategoryTypeHelper.OverrideOrNull(newType, item.ProviderCategoryType);
-                if (overrideType == null)
-                {
-                    if (categoryTypeOverrideMap.Remove(apiName))
-                    {
-                        changed = true;
-                    }
-                }
-                else if (!categoryTypeOverrideMap.TryGetValue(apiName, out var existingType) ||
-                         !string.Equals(existingType, overrideType, StringComparison.Ordinal))
-                {
-                    categoryTypeOverrideMap[apiName] = overrideType;
-                    changed = true;
-                }
             }
 
             return affectedCount > 0 && changed;
         }
 
-        /// <summary>
-        /// The group-based type signature (Base/DLC/Update/Subset) shared by the achievements currently
-        /// in <paramref name="targetLabel"/>. Empty when the target category carries no group-based type.
-        /// </summary>
-        private IReadOnlyList<string> ResolveGroupTypesForCategory(string targetLabel)
-        {
-            var normalizedTarget = AchievementCategoryTypeHelper.NormalizeCategoryOrDefault(targetLabel);
-
-            return AchievementCategoryTypeHelper.ResolveDominantGroupType(
-                _allRows
-                    .Where(row => row != null)
-                    .Where(row => string.Equals(
-                        AchievementCategoryTypeHelper.NormalizeCategoryOrDefault(row.Category),
-                        normalizedTarget,
-                        StringComparison.OrdinalIgnoreCase))
-                    .Select(row => row.CategoryType));
-        }
-
         public void ResetBulkEditorInputs()
         {
-            SetCategoryTypeSelections(TypeSelectionOptions, false);
+            SetCategoryTypeSelections(TagSelectionOptions, false);
         }
 
         private void PersistCategoryOverrideMaps(
             IReadOnlyDictionary<string, string> categoryOverrideMap,
-            IReadOnlyDictionary<string, string> categoryTypeOverrideMap)
+            IReadOnlyDictionary<string, string> tagOverrideMap)
         {
             // Membership is scoped out of the library-wide passes inside the service, so the
             // catch-up has to be booked here.
@@ -400,7 +357,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             var rescoped = _achievementOverridesService.SetAchievementCategoryOverrides(
                 _gameId,
                 categoryOverrideMap,
-                categoryTypeOverrideMap);
+                tagOverrideMap);
 
             // A moved auto capstone stands for somewhere new, and no refresh follows a hand edit
             // to bring its unlock into step. Quiet, because the user moved it rather than the game
@@ -420,8 +377,9 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
 
         private void ApplyCategoryOverrideMapsToRows(
             IReadOnlyDictionary<string, string> categoryOverrideMap,
-            IReadOnlyDictionary<string, string> categoryTypeOverrideMap)
+            IReadOnlyDictionary<string, string> tagOverrideMap)
         {
+            var storedKinds = GameCustomDataLookup.GetAchievementCategoryKinds(_gameId, _settings?.Persisted);
             foreach (var item in _allRows.Where(row => row != null))
             {
                 var apiName = (item.ApiName ?? string.Empty).Trim();
@@ -435,19 +393,24 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                                !string.IsNullOrWhiteSpace(categoryOverride)
                     ? categoryOverride
                     : item.ProviderCategory;
-                var categoryTypeOverride = categoryTypeOverrideMap != null &&
-                                           categoryTypeOverrideMap.TryGetValue(apiName, out var storedCategoryTypeOverride)
-                    ? storedCategoryTypeOverride
+                var tagOverride = tagOverrideMap != null &&
+                                  tagOverrideMap.TryGetValue(apiName, out var storedTagOverride)
+                    ? storedTagOverride
                     : null;
 
-                item.Category = AchievementCategoryTypeHelper.NormalizeCategoryOrDefault(category);
-                item.CategoryType = AchievementCategoryTypeHelper.ApplyOverride(item.ProviderCategoryType, categoryTypeOverride);
+                item.Category = AchievementCategoryHelper.NormalizeCategoryOrDefault(category);
+                item.Tags = AchievementTagHelper.ApplyOverride(item.ProviderTags, tagOverride);
+                // A move changes which category's kind applies.
+                item.CategoryKind = CategoryKindHelper.ResolveEffective(
+                    ResolveStoredCategoryKind(storedKinds, item.Category),
+                    item.LegacyCategoryKind,
+                    item.ProviderCategoryKind);
             }
 
             _searchIndex.Rebuild(_allRows);
             HasCustomOverrides =
                 (categoryOverrideMap?.Count ?? 0) > 0 ||
-                (categoryTypeOverrideMap?.Count ?? 0) > 0;
+                (tagOverrideMap?.Count ?? 0) > 0;
             RefreshCategoryLabelOptions();
 
             // Rows update their bound Type/Category cells in place via property change, so a
@@ -487,23 +450,56 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             return normalized;
         }
 
-        private Dictionary<string, string> GetCurrentCategoryTypeOverrideMap()
+        private Dictionary<string, string> GetCurrentTagOverrideMap()
         {
-            var map = GameCustomDataLookup.GetAchievementCategoryTypeOverrides(_gameId, _settings?.Persisted);
-            var normalized = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-            foreach (var pair in map)
-            {
-                var apiName = (pair.Key ?? string.Empty).Trim();
-                var categoryType = AchievementCategoryTypeHelper.Normalize(pair.Value);
-                if (string.IsNullOrWhiteSpace(apiName) || string.IsNullOrWhiteSpace(categoryType))
-                {
-                    continue;
-                }
+            // "" values are kept: they record that the user removed every tag.
+            return GameCustomDataLookup.GetAchievementTagOverrides(_gameId, _settings?.Persisted);
+        }
 
-                normalized[apiName] = categoryType;
+        private Dictionary<string, string> GetCurrentCategoryKinds()
+        {
+            return GameCustomDataFile.CloneCategoryKindMap(
+                       GameCustomDataLookup.GetAchievementCategoryKinds(_gameId, _settings?.Persisted)) ??
+                   new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        }
+
+        /// <summary>
+        /// Moves the kinds stored for <paramref name="source"/> and its descendants to the same place
+        /// under <paramref name="target"/> ("DLC::Winter" follows "DLC" to "Extras::Winter"), or
+        /// drops them when <paramref name="target"/> is null. True when the map changed.
+        /// </summary>
+        private static bool MoveCategoryKinds(Dictionary<string, string> kinds, string source, string target)
+        {
+            var normalizedSource = CategoryPathHelper.NormalizePath(source);
+            if (kinds == null || kinds.Count == 0 || normalizedSource == null)
+            {
+                return false;
             }
 
-            return normalized;
+            var moved = kinds
+                .Where(pair => CategoryPathHelper.IsSelfOrDescendantOf(pair.Key, normalizedSource))
+                .ToList();
+            foreach (var pair in moved)
+            {
+                kinds.Remove(pair.Key);
+            }
+
+            if (target != null)
+            {
+                var normalizedTarget = CategoryPathHelper.NormalizePath(target);
+                foreach (var pair in moved)
+                {
+                    kinds[CategoryPathHelper.RewritePrefix(pair.Key, normalizedSource, normalizedTarget)] = pair.Value;
+                }
+            }
+
+            return moved.Count > 0;
+        }
+
+        private static string ResolveStoredCategoryKind(IReadOnlyDictionary<string, string> storedKinds, string category)
+        {
+            var key = CategoryPathHelper.NormalizePath(category);
+            return key != null && storedKinds != null && storedKinds.TryGetValue(key, out var kind) ? kind : null;
         }
 
         private static string ResolveEffectiveCategoryLabel(

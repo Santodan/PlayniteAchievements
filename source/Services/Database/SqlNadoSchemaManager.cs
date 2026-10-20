@@ -5,6 +5,7 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
 using System.Linq;
+using PlayniteAchievements.Services.Achievements;
 using PlayniteAchievements.Services.Database.Rows;
 
 namespace PlayniteAchievements.Services.Database
@@ -13,7 +14,7 @@ namespace PlayniteAchievements.Services.Database
     {
         // v18: AchievementFilters became the general AchievementOverrides mirror, adding the
         // user-editable points and trophy type alongside the two filter flags.
-        public const int SchemaVersion = 18;
+        public const int SchemaVersion = 19;
         private const string LegacyGamesProviderGameIdIndexName = "UX_Games_Provider_GameId";
         private const string GamesProviderGameIdNonRaIndexName = "UX_Games_Provider_GameId_NonRA";
         private const string GamesProviderGameIdLookupIndexName = "IX_Games_Provider_GameId";
@@ -86,7 +87,8 @@ namespace PlayniteAchievements.Services.Database
                 Points INTEGER NULL,
                 ScaledPoints INTEGER NULL,
                 Category TEXT NOT NULL DEFAULT 'Default',
-                CategoryType TEXT NOT NULL DEFAULT 'Default',
+                Tags TEXT NULL,
+                CategoryKind TEXT NULL,
                 TrophyType TEXT NULL,
                 Hidden INTEGER NOT NULL DEFAULT 0,
                 IsCapstone INTEGER NOT NULL DEFAULT 0,
@@ -439,12 +441,6 @@ namespace PlayniteAchievements.Services.Database
                 "UPDATE AchievementDefinitions " +
                 "SET Category = 'Default' " +
                 "WHERE Category IS NULL OR TRIM(Category) = '';");
-
-            ExecuteSafe(
-                db,
-                "UPDATE AchievementDefinitions " +
-                "SET CategoryType = 'Default' " +
-                "WHERE CategoryType IS NULL OR TRIM(CategoryType) = '';");
         }
 
         private string ReconcileSchema(SQLiteDatabase db)
@@ -476,7 +472,14 @@ namespace PlayniteAchievements.Services.Database
             EnsureColumn(db, "AchievementDefinitions", "LockedIconPath", "TEXT NULL", definitionColumns, ref backupPath);
             EnsureColumn(db, "AchievementDefinitions", "Points", "INTEGER NULL", definitionColumns, ref backupPath);
             EnsureColumn(db, "AchievementDefinitions", "Category", "TEXT NOT NULL DEFAULT 'Default'", definitionColumns, ref backupPath);
-            EnsureColumn(db, "AchievementDefinitions", "CategoryType", "TEXT NOT NULL DEFAULT 'Default'", definitionColumns, ref backupPath);
+            var hadTags = definitionColumns.Contains("Tags");
+            EnsureColumn(db, "AchievementDefinitions", "Tags", "TEXT NULL", definitionColumns, ref backupPath);
+            EnsureColumn(db, "AchievementDefinitions", "CategoryKind", "TEXT NULL", definitionColumns, ref backupPath);
+            if (!hadTags && definitionColumns.Contains("CategoryType"))
+            {
+                SplitLegacyCategoryTypes(db);
+            }
+
             EnsureColumn(db, "AchievementDefinitions", "TrophyType", "TEXT NULL", definitionColumns, ref backupPath);
             EnsureColumn(db, "AchievementDefinitions", "IsCapstone", "INTEGER NOT NULL DEFAULT 0", definitionColumns, ref backupPath);
             EnsureColumn(db, "AchievementDefinitions", "ScaledPoints", "INTEGER NULL", definitionColumns, ref backupPath);
@@ -861,6 +864,60 @@ namespace PlayniteAchievements.Services.Database
             ExecuteSchemaChangeWithBackup(db, createIndexSql, ref backupPath, successLog);
         }
 
+        /// <summary>
+        /// Fills the Tags and CategoryKind columns from the single CategoryType column they
+        /// replaced, which is left in place and no longer read. The values come from a small fixed
+        /// vocabulary, so one update per distinct value covers the table.
+        /// </summary>
+        private void SplitLegacyCategoryTypes(SQLiteDatabase db)
+        {
+            List<string> values;
+            try
+            {
+                values = db.Load<LegacyCategoryTypeRow>(
+                        "SELECT DISTINCT CategoryType AS Value FROM AchievementDefinitions;")
+                    .Select(row => row?.Value)
+                    .Where(value => !string.IsNullOrWhiteSpace(value))
+                    .ToList();
+            }
+            catch (Exception ex)
+            {
+                _logger?.Warn(ex, "[Schema] Could not read category types to split into kinds and tags.");
+                return;
+            }
+
+            foreach (var value in values)
+            {
+                // Derived unlock modes (Softcore/Hardcore) stay with the tags they rode with.
+                var tags = AchievementTagHelper.Normalize(value);
+                var kind = LegacyCategoryTypes.SplitKind(value);
+                if (tags == null && kind == null)
+                {
+                    continue;
+                }
+
+                try
+                {
+                    db.ExecuteNonQuery(
+                        "UPDATE AchievementDefinitions SET Tags = ?, CategoryKind = ? WHERE CategoryType = ?;",
+                        tags == null ? (object)DBNull.Value : tags,
+                        kind == null ? (object)DBNull.Value : kind,
+                        value);
+                }
+                catch (Exception ex)
+                {
+                    _logger?.Warn(ex, $"[Schema] Could not split category type '{value}'.");
+                }
+            }
+
+            _logger?.Info($"[Schema] Split {values.Count} category type values into kinds and tags.");
+        }
+
+        private sealed class LegacyCategoryTypeRow
+        {
+            public string Value { get; set; }
+        }
+
         private void EnsureColumn(
             SQLiteDatabase db,
             string tableName,
@@ -974,7 +1031,8 @@ namespace PlayniteAchievements.Services.Database
             EnsureRequiredColumn(definitionColumns, "Points", "AchievementDefinitions", missing);
             EnsureRequiredColumn(definitionColumns, "ScaledPoints", "AchievementDefinitions", missing);
             EnsureRequiredColumn(definitionColumns, "Category", "AchievementDefinitions", missing);
-            EnsureRequiredColumn(definitionColumns, "CategoryType", "AchievementDefinitions", missing);
+            EnsureRequiredColumn(definitionColumns, "Tags", "AchievementDefinitions", missing);
+            EnsureRequiredColumn(definitionColumns, "CategoryKind", "AchievementDefinitions", missing);
             EnsureRequiredColumn(definitionColumns, "TrophyType", "AchievementDefinitions", missing);
             EnsureRequiredColumn(definitionColumns, "IsCapstone", "AchievementDefinitions", missing);
             EnsureRequiredColumn(definitionColumns, "Rarity", "AchievementDefinitions", missing);

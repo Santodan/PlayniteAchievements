@@ -31,7 +31,12 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
 
         public string ProviderCategory { get; set; }
 
-        public string ProviderCategoryType { get; set; }
+        public string ProviderTags { get; set; }
+
+        public string ProviderCategoryKind { get; set; }
+
+        /// <summary>The achievement's own leftover kind from before kinds moved onto categories.</summary>
+        public string LegacyCategoryKind { get; set; }
 
         public string Category
         {
@@ -49,10 +54,10 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             set => SetValue(ref _isSelected, value);
         }
 
-        public string CategoryDisplay => AchievementCategoryTypeHelper.ToCategoryLeafDisplayText(Category);
+        public string CategoryDisplay => AchievementCategoryHelper.ToCategoryLeafDisplayText(Category);
 
         /// <summary>Full path for the category cell's tooltip; the cell itself shows the leaf.</summary>
-        public string CategoryPathDisplay => AchievementCategoryTypeHelper.ToCategoryLabelDisplayText(Category);
+        public string CategoryPathDisplay => AchievementCategoryHelper.ToCategoryLabelDisplayText(Category);
     }
 
     public sealed class ManageAchievementsCategoryMetadataItem : ObservableObject
@@ -79,7 +84,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
 
         public string CategoryLabel { get; private set; }
 
-        public string CategoryDisplay => AchievementCategoryTypeHelper.ToCategoryLabelDisplayText(CategoryLabel);
+        public string CategoryDisplay => AchievementCategoryHelper.ToCategoryLabelDisplayText(CategoryLabel);
 
         /// <summary>
         /// Depth of this row's category path, 1 for a root. The grid is a flat list, so nesting is
@@ -132,12 +137,12 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         /// </summary>
         public bool IsDefaultCategory => string.Equals(
             CategoryLabel,
-            AchievementCategoryTypeHelper.DefaultCategoryLabel,
+            AchievementCategoryHelper.DefaultCategoryLabel,
             StringComparison.OrdinalIgnoreCase);
 
         public string ProviderCategoryLabel { get; private set; }
 
-        public string ProviderCategoryDisplay => AchievementCategoryTypeHelper.ToCategoryLabelDisplayText(ProviderCategoryLabel);
+        public string ProviderCategoryDisplay => AchievementCategoryHelper.ToCategoryLabelDisplayText(ProviderCategoryLabel);
 
         /// <summary>Placeholder for the leaf-scoped rename box.</summary>
         public string ProviderCategoryLeafDisplay => CategoryPathHelper.ToDisplayLeaf(ProviderCategoryLabel);
@@ -264,8 +269,8 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             bool isSummarySelected = false,
             IReadOnlyList<ManageAchievementsCategoryItem> artFallbackSource = null)
         {
-            var normalizedLabel = AchievementCategoryTypeHelper.NormalizeCategoryOrDefault(categoryLabel);
-            var normalizedProviderLabel = AchievementCategoryTypeHelper.NormalizeCategoryOrDefault(providerCategoryLabel);
+            var normalizedLabel = AchievementCategoryHelper.NormalizeCategoryOrDefault(categoryLabel);
+            var normalizedProviderLabel = AchievementCategoryHelper.NormalizeCategoryOrDefault(providerCategoryLabel);
             var playniteGameId = Guid.TryParse(gameIdText, out var parsedGameId) ? parsedGameId : (Guid?)null;
             // An empty bucket (the always-listed Default row) still resolves game art
             // from the fallback source so its preview matches the other rows.
@@ -471,11 +476,11 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         }
     }
 
-    public sealed class CategoryTypeSelectionOption : ObservableObject
+    public sealed class TagSelectionOption : ObservableObject
     {
         private bool _isSelected;
 
-        public CategoryTypeSelectionOption(string value, string displayName)
+        public TagSelectionOption(string value, string displayName)
         {
             Value = value;
             DisplayName = displayName;

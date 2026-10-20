@@ -17,8 +17,6 @@ namespace PlayniteAchievements.Services.Achievements
 
         public const string DescriptionKey = "LOCPlayAch_ManageAchievements_Custom_AutoCapstoneDescription";
 
-        private const string BaseCategoryType = "Base";
-
         private const string BrandingIconPackUri =
             "pack://application:,,,/PlayniteAchievements;component/Resources/BrandingIcon.png";
 
@@ -27,15 +25,15 @@ namespace PlayniteAchievements.Services.Achievements
         /// </summary>
         /// <remarks>
         /// Several platinums means DLC trophy sets alongside the base game's, and only the base
-        /// game's marks the game complete. Providers type the group rather than leaving it to the
-        /// label, so the base one is read off that type instead of guessed from the category text.
-        /// When nothing is typed -- a game whose trophies were authored or came from a provider
+        /// game's marks the game complete. Providers give the group a kind rather than leaving it to
+        /// the label, so the base one is read off that kind instead of guessed from the category
+        /// text. When nothing has a kind -- a game whose trophies were authored or came from a provider
         /// that does not group them -- the earliest in <paramref name="candidatesInOrder"/> wins.
         /// </remarks>
         public static T SelectPlatinum<T>(
             IEnumerable<T> candidatesInOrder,
             Func<T, string> trophyType,
-            Func<T, string> categoryType)
+            Func<T, string> categoryKind)
             where T : class
         {
             var platinums = (candidatesInOrder ?? Enumerable.Empty<T>())
@@ -51,8 +49,7 @@ namespace PlayniteAchievements.Services.Achievements
             }
 
             var baseGame = platinums.FirstOrDefault(candidate =>
-                AchievementCategoryTypeHelper.ParseValues(categoryType(candidate))
-                    .Any(value => string.Equals(value, BaseCategoryType, StringComparison.OrdinalIgnoreCase)));
+                CategoryKindHelper.IsBase(categoryKind(candidate)));
             return baseGame ?? platinums[0];
         }
 

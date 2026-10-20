@@ -24,10 +24,10 @@ namespace PlayniteAchievements.Providers.Riot
         private const string AssetPathPrefix = "/lol-game-data/assets/";
 
         /// <summary>Category type applied to challenges whose end date is still ahead.</summary>
-        private const string MissableCategoryType = "Missable";
+        private const string MissableTag = "Missable";
 
         /// <summary>Category type applied to challenges that can no longer be progressed.</summary>
-        private const string UnobtainableCategoryType = "Unobtainable";
+        private const string UnobtainableTag = "Unobtainable";
 
         private const string IsCategoryTag = "isCategory";
         private const string ParentTag = "parent";
@@ -207,7 +207,7 @@ namespace PlayniteAchievements.Providers.Riot
             var playerRank = RiotChallengeLevels.GetRank(playerInfo?.Level);
             var value = playerInfo?.Value ?? 0d;
             var category = ResolveCategory(challenge, allChallenges, categoryDisplayNames);
-            var categoryType = ResolveTimedCategoryType(challengeId, challenge, allChallenges, archivedIds, nowUtc);
+            var tag = ResolveTimedTag(challengeId, challenge, allChallenges, archivedIds, nowUtc);
             var description = FirstNonBlank(challenge.Description, challenge.DescriptionShort);
 
             foreach (var tier in ladder)
@@ -239,7 +239,7 @@ namespace PlayniteAchievements.Providers.Riot
                     UnlockTimeUtc = tier.Rank == playerRank ? ToUtc(playerInfo?.AchievedTime) : null,
 
                     Category = category,
-                    CategoryType = categoryType,
+                    Tags = tag,
                     GlobalPercentUnlocked = percent
                 };
 
@@ -598,7 +598,7 @@ namespace PlayniteAchievements.Providers.Riot
         // after it. Neither CommunityDragon nor Riot's config names the current season, and
         // seasonal challenges carry no end date, so the year comes from the seasonal set's id
         // (2022000, 2023009, 2024100, ...). Anything else gets no timed type.
-        private static string ResolveTimedCategoryType(
+        private static string ResolveTimedTag(
             long challengeId,
             CDragonChallenge challenge,
             IReadOnlyDictionary<string, CDragonChallenge> allChallenges,
@@ -607,7 +607,7 @@ namespace PlayniteAchievements.Providers.Riot
         {
             if (archivedIds != null && archivedIds.Contains(challengeId))
             {
-                return UnobtainableCategoryType;
+                return UnobtainableTag;
             }
 
             if (challenge.EndTimestamp > 0)
@@ -615,14 +615,14 @@ namespace PlayniteAchievements.Providers.Riot
                 var end = ToUtc(challenge.EndTimestamp);
                 if (end.HasValue)
                 {
-                    return end.Value <= nowUtc ? UnobtainableCategoryType : MissableCategoryType;
+                    return end.Value <= nowUtc ? UnobtainableTag : MissableTag;
                 }
             }
 
             var seasonalYear = ResolveSeasonalYear(challengeId, challenge, allChallenges);
             if (seasonalYear.HasValue)
             {
-                return seasonalYear.Value < nowUtc.Year ? UnobtainableCategoryType : MissableCategoryType;
+                return seasonalYear.Value < nowUtc.Year ? UnobtainableTag : MissableTag;
             }
 
             return null;

@@ -156,8 +156,8 @@ namespace PlayniteAchievements.Services.Achievements
                 var label = ordered[i];
                 options.Add(new CategoryPickerOption(
                     label,
-                    AchievementCategoryTypeHelper.ToCategoryLeafDisplayText(label),
-                    AchievementCategoryTypeHelper.ToCategoryLabelDisplayText(label),
+                    AchievementCategoryHelper.ToCategoryLeafDisplayText(label),
+                    AchievementCategoryHelper.ToCategoryLabelDisplayText(label),
                     shapes?[i],
                     synthesizedAreSelectable || present.Contains(label)));
             }

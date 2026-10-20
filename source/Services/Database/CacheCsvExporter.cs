@@ -53,17 +53,17 @@ namespace PlayniteAchievements.Services.Database
             var filePath = Path.Combine(dir, "AchievementDefinitions.csv");
             var rows = _store._db.Load<AchievementDefinitionExportRow>(
                 "SELECT Id, GameId, ApiName, DisplayName, Description, " +
-                "UnlockedIconPath, LockedIconPath, Points, Category, CategoryType, TrophyType, Hidden, IsCapstone, " +
+                "UnlockedIconPath, LockedIconPath, Points, Category, Tags, CategoryKind, TrophyType, Hidden, IsCapstone, " +
                 "GlobalPercentUnlocked, Rarity, ProgressMax, CreatedUtc, UpdatedUtc " +
                 "FROM AchievementDefinitions").ToList();
             WriteCsv(filePath, rows, new[]
             {
                 "Id", "GameId", "ApiName", "DisplayName", "Description",
-                "UnlockedIconPath", "LockedIconPath", "Points", "Category", "CategoryType", "TrophyType", "Hidden", "IsCapstone",
+                "UnlockedIconPath", "LockedIconPath", "Points", "Category", "Tags", "CategoryKind", "TrophyType", "Hidden", "IsCapstone",
                 "GlobalPercentUnlocked", "Rarity", "ProgressMax", "CreatedUtc", "UpdatedUtc"
             }, r => new[] {
                 r.Id?.ToString(), r.GameId?.ToString(), r.ApiName, r.DisplayName, r.Description,
-                r.UnlockedIconPath, r.LockedIconPath, r.Points?.ToString(), r.Category, r.CategoryType, r.TrophyType, r.Hidden?.ToString(), r.IsCapstone?.ToString(),
+                r.UnlockedIconPath, r.LockedIconPath, r.Points?.ToString(), r.Category, r.Tags, r.CategoryKind, r.TrophyType, r.Hidden?.ToString(), r.IsCapstone?.ToString(),
                 r.GlobalPercentUnlocked?.ToString(), r.Rarity, r.ProgressMax?.ToString(), r.CreatedUtc, r.UpdatedUtc
             });
             _store._logger.Info($"Exported {rows.Count} rows to {filePath}");
@@ -152,7 +152,7 @@ namespace PlayniteAchievements.Services.Database
             var filePath = Path.Combine(dir, "AchievementSummary.csv");
             var rows = _store._db.Load<AchievementSummaryExportRow>(
                 "SELECT g.GameName, g.ProviderKey, g.PlayniteGameId, " +
-                "ad.ApiName, ad.DisplayName AS AchievementName, ad.Description, ad.Points, ad.Category, ad.CategoryType, ad.TrophyType, " +
+                "ad.ApiName, ad.DisplayName AS AchievementName, ad.Description, ad.Points, ad.Category, ad.Tags, ad.CategoryKind, ad.TrophyType, " +
                 "ad.GlobalPercentUnlocked, ad.Rarity, ad.Hidden, " +
                 "ua.Unlocked, ua.UnlockTimeUtc, u.DisplayName AS UserName " +
                 "FROM AchievementDefinitions ad " +
@@ -164,12 +164,12 @@ namespace PlayniteAchievements.Services.Database
             WriteCsv(filePath, rows, new[]
             {
                 "GameName", "ProviderKey", "PlayniteGameId",
-                "ApiName", "AchievementName", "Description", "Points", "Category", "CategoryType", "TrophyType",
+                "ApiName", "AchievementName", "Description", "Points", "Category", "Tags", "CategoryKind", "TrophyType",
                 "GlobalPercentUnlocked", "Rarity", "Hidden",
                 "Unlocked", "UnlockTimeUtc", "UserName"
             }, r => new[] {
                 r.GameName, r.ProviderKey, r.PlayniteGameId,
-                r.ApiName, r.AchievementName, r.Description, r.Points?.ToString(), r.Category, r.CategoryType, r.TrophyType,
+                r.ApiName, r.AchievementName, r.Description, r.Points?.ToString(), r.Category, r.Tags, r.CategoryKind, r.TrophyType,
                 r.GlobalPercentUnlocked?.ToString(), r.Rarity, r.Hidden?.ToString(),
                 r.Unlocked?.ToString(), r.UnlockTimeUtc, r.UserName
             });
@@ -216,7 +216,8 @@ namespace PlayniteAchievements.Services.Database
             public string LockedIconPath { get; set; }
             public int? Points { get; set; }
             public string Category { get; set; }
-            public string CategoryType { get; set; }
+            public string Tags { get; set; }
+            public string CategoryKind { get; set; }
             public string TrophyType { get; set; }
             public bool? Hidden { get; set; }
             public bool? IsCapstone { get; set; }
@@ -289,7 +290,8 @@ namespace PlayniteAchievements.Services.Database
             public string Description { get; set; }
             public int? Points { get; set; }
             public string Category { get; set; }
-            public string CategoryType { get; set; }
+            public string Tags { get; set; }
+            public string CategoryKind { get; set; }
             public string TrophyType { get; set; }
             public double? GlobalPercentUnlocked { get; set; }
             public string Rarity { get; set; }

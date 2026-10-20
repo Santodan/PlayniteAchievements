@@ -34,8 +34,8 @@ namespace PlayniteAchievements.Services.Achievements
             IReadOnlyDictionary<string, CategoryImageOverrideData> currentImages,
             GameSummaryCategoryData currentSummaryCategory)
         {
-            var normalizedSource = AchievementCategoryTypeHelper.NormalizeCategoryOrDefault(sourceCategory);
-            var normalizedTarget = AchievementCategoryTypeHelper.NormalizeCategoryOrDefault(targetCategory);
+            var normalizedSource = AchievementCategoryHelper.NormalizeCategoryOrDefault(sourceCategory);
+            var normalizedTarget = AchievementCategoryHelper.NormalizeCategoryOrDefault(targetCategory);
             if (string.IsNullOrWhiteSpace(normalizedSource) ||
                 string.IsNullOrWhiteSpace(normalizedTarget) ||
                 string.Equals(normalizedSource, normalizedTarget, StringComparison.OrdinalIgnoreCase))

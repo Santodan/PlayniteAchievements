@@ -4,6 +4,7 @@ using System.Windows.Input;
 using Playnite.SDK.Data;
 using PlayniteAchievements.Common;
 using PlayniteAchievements.Models.Achievements;
+using PlayniteAchievements.Services.Achievements;
 
 namespace PlayniteAchievements.Models.ThemeIntegration
 {
@@ -258,7 +259,7 @@ namespace PlayniteAchievements.Models.ThemeIntegration
             ICommand openViewAchievementsWindow = null,
             ICommand openManageAchievementsWindow = null,
             string sortingName = null,
-            string categoryType = null)
+            string categoryKind = null)
         {
             GameId = gameId;
             Name = name ?? string.Empty;
@@ -272,12 +273,12 @@ namespace PlayniteAchievements.Models.ThemeIntegration
             _silverCount = Math.Max(0, silverCount);
             _bronzeCount = Math.Max(0, bronzeCount);
             IsCompleted = isCompleted;
-            // categoryType is a single canonical group token from CategorySummaryBuilder
-            // (Base/DLC/Update/Subset, or Default/null for non-category summaries).
-            IsBaseCategory = string.Equals(categoryType, "Base", StringComparison.OrdinalIgnoreCase);
-            IsDlcCategory = string.Equals(categoryType, "DLC", StringComparison.OrdinalIgnoreCase);
-            IsUpdateCategory = string.Equals(categoryType, "Update", StringComparison.OrdinalIgnoreCase);
-            IsSubsetCategory = string.Equals(categoryType, "Subset", StringComparison.OrdinalIgnoreCase);
+            // categoryKind is the category's kind from CategorySummaryBuilder (null for non-category
+            // summaries). Kinds combine, so a "DLC|Update" category is both a DLC and an update.
+            IsBaseCategory = CategoryKindHelper.IsBase(categoryKind);
+            IsDlcCategory = CategoryKindHelper.IsDlc(categoryKind);
+            IsUpdateCategory = CategoryKindHelper.IsUpdate(categoryKind);
+            IsSubsetCategory = CategoryKindHelper.IsSubset(categoryKind);
             LastUnlockDate = lastUnlockDate;
             LastPlayed = lastPlayed;
             UnlockedCount = Math.Max(0, unlockedCount);

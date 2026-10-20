@@ -427,10 +427,10 @@ namespace PlayniteAchievements.Providers.RPCS3
             var gameIdText = game.Id.ToString("D");
             foreach (var entry in entries)
             {
-                var label = AchievementCategoryTypeHelper.NormalizeCategoryOrDefault(entry.Label);
+                var label = AchievementCategoryHelper.NormalizeCategoryOrDefault(entry.Label);
                 if (string.Equals(
                     label,
-                    AchievementCategoryTypeHelper.DefaultCategoryLabel,
+                    AchievementCategoryHelper.DefaultCategoryLabel,
                     StringComparison.OrdinalIgnoreCase))
                 {
                     continue;
@@ -723,7 +723,7 @@ namespace PlayniteAchievements.Providers.RPCS3
             var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             foreach (var trophy in trophies)
             {
-                if (!string.Equals(MapGroupIdToCategoryType(trophy?.GroupId), "DLC", StringComparison.OrdinalIgnoreCase) ||
+                if (!string.Equals(MapGroupIdToCategoryKind(trophy?.GroupId), "DLC", StringComparison.OrdinalIgnoreCase) ||
                     !int.TryParse(trophy.GroupId.Trim(), out var groupNumber) ||
                     groupNumber <= 0)
                 {
@@ -789,7 +789,7 @@ namespace PlayniteAchievements.Providers.RPCS3
                     Rarity = GetRarityFromTrophyType(normalizedTrophyType),
                     TrophyType = normalizedTrophyType,
                     IsCapstone = normalizedTrophyType == "platinum",
-                    CategoryType = MapGroupIdToCategoryType(trophy.GroupId),
+                    CategoryKind = MapGroupIdToCategoryKind(trophy.GroupId),
                     Category = BuildAchievementCategory(trophy, collectionTitle, isCollection)
                 });
             }
@@ -806,9 +806,9 @@ namespace PlayniteAchievements.Providers.RPCS3
 
             var title = CategoryPathHelper.SanitizeSegment(sourceTitle);
             var groupName = CategoryPathHelper.SanitizeSegment(trophy?.GroupName);
-            var categoryType = MapGroupIdToCategoryType(trophy?.GroupId);
+            var categoryKind = MapGroupIdToCategoryKind(trophy?.GroupId);
 
-            if (string.Equals(categoryType, "DLC", StringComparison.OrdinalIgnoreCase) &&
+            if (string.Equals(categoryKind, "DLC", StringComparison.OrdinalIgnoreCase) &&
                 !string.IsNullOrWhiteSpace(groupName))
             {
                 // Nest the group under the containing game so a collection's DLC groups sort with
@@ -2900,7 +2900,7 @@ namespace PlayniteAchievements.Providers.RPCS3
             }
         }
 
-        private static string MapGroupIdToCategoryType(string groupId)
+        private static string MapGroupIdToCategoryKind(string groupId)
         {
             var normalized = (groupId ?? string.Empty).Trim();
             if (string.IsNullOrWhiteSpace(normalized) ||

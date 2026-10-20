@@ -74,12 +74,12 @@ namespace PlayniteAchievements.Tests.Views
         [TestMethod]
         public void IsMissableMatchesCombinedAndAliasedTypes()
         {
-            Assert.IsTrue(AchievementCategoryTypeHelper.IsMissable("Base|Update|Missable"));
-            Assert.IsTrue(AchievementCategoryTypeHelper.IsMissable("miss-able"));
-            Assert.IsFalse(AchievementCategoryTypeHelper.IsMissable("Base|DLC"));
-            Assert.IsFalse(AchievementCategoryTypeHelper.IsMissable(null));
-            Assert.IsTrue(AchievementCategoryTypeHelper.IsUnobtainable("Base|Unobtainable"));
-            Assert.IsFalse(AchievementCategoryTypeHelper.IsUnobtainable("Base|Missable"));
+            Assert.IsTrue(AchievementTagHelper.IsMissable("Progression|Missable"));
+            Assert.IsTrue(AchievementTagHelper.IsMissable("miss-able"));
+            Assert.IsFalse(AchievementTagHelper.IsMissable("Progression"));
+            Assert.IsFalse(AchievementTagHelper.IsMissable(null));
+            Assert.IsTrue(AchievementTagHelper.IsUnobtainable("Unobtainable"));
+            Assert.IsFalse(AchievementTagHelper.IsUnobtainable("Missable"));
         }
     }
 }

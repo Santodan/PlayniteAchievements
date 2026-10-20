@@ -33,10 +33,16 @@ namespace PlayniteAchievements.Models.Achievements
         public int? ScaledPoints { get; set; }
 
         /// <summary>
-        /// Optional structured category classification.
-        /// Canonical values are listed in AchievementCategoryTypeHelper.AllowedCategoryTypes.
+        /// Pipe-joined tag keys (see AchievementTagHelper). Null for no tags. Also carries the
+        /// provider-derived Softcore/Hardcore unlock mode, which is never shown as a tag.
         /// </summary>
-        public string CategoryType { get; set; }
+        public string Tags { get; set; }
+
+        /// <summary>
+        /// The kind of the category this achievement belongs to (see CategoryKindHelper): the
+        /// provider's value until hydration, then the effective one. Null for no kind.
+        /// </summary>
+        public string CategoryKind { get; set; }
 
         public string Category { get; set; }
 
@@ -114,6 +120,17 @@ namespace PlayniteAchievements.Models.Achievements
         /// </summary>
         [IgnoreDataMember]
         public string ProviderCategory { get; set; }
+
+        /// <summary>
+        /// Runtime-only provider tags and kind, captured by the hydrator before user overrides
+        /// replace <see cref="Tags"/> and <see cref="CategoryKind"/>, so re-hydrating an instance
+        /// and comparing an edit against the provider value both see what the provider gave.
+        /// </summary>
+        [IgnoreDataMember]
+        public string ProviderTags { get; set; }
+
+        [IgnoreDataMember]
+        public string ProviderCategoryKind { get; set; }
 
         /// <summary>
         /// Runtime-only category art path for theme/display bindings: custom override when

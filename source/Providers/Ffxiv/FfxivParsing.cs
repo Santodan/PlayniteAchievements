@@ -16,7 +16,7 @@ namespace PlayniteAchievements.Providers.Ffxiv
 
         /// <summary>
         /// FFXIV Collect categories whose achievements are only obtainable during a
-        /// limited-time window, mapped to the canonical "Missable" category type.
+        /// limited-time window, mapped to the canonical "Missable" tag.
         /// FFXIV Collect exposes no obtainable flag, so the category is the signal.
         /// </summary>
         private static readonly HashSet<string> MissableCategories =
@@ -124,7 +124,7 @@ namespace PlayniteAchievements.Providers.Ffxiv
         /// type. Limited-time categories become "Missable"; everything else returns
         /// null so the category falls back to the default classification.
         /// </summary>
-        public static string ResolveCategoryType(string categoryName)
+        public static string ResolveTag(string categoryName)
         {
             if (!string.IsNullOrWhiteSpace(categoryName) && MissableCategories.Contains(categoryName.Trim()))
             {

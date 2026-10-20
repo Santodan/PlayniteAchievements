@@ -82,6 +82,7 @@ namespace PlayniteAchievements.Models.Settings
             target.InGameFriendBatchSize = source.InGameFriendBatchSize;
             target.RecentRefreshGamesCount = source.RecentRefreshGamesCount;
             target.DefaultOverviewRefreshMode = source.DefaultOverviewRefreshMode;
+            target.AchievementTags = Services.Achievements.AchievementTagHelper.NormalizeDefinitions(source.AchievementTags, ensureSystemTags: true);
             target.CustomRefreshPresets = source.CustomRefreshPresets != null
                 ? new List<CustomRefreshPreset>(CustomRefreshPreset.NormalizePresets(source.CustomRefreshPresets))
                 : new List<CustomRefreshPreset>();

@@ -1002,8 +1002,8 @@ namespace PlayniteAchievements.Services.Achievements
             AchievementSortScope scope)
         {
             var typeComparison = CompareText(
-                AchievementCategoryTypeHelper.ToDisplayText(a?.CategoryType),
-                AchievementCategoryTypeHelper.ToDisplayText(b?.CategoryType));
+                a?.CategoryTypeDisplay,
+                b?.CategoryTypeDisplay);
             if (typeComparison != 0)
             {
                 return typeComparison;
@@ -1038,8 +1038,8 @@ namespace PlayniteAchievements.Services.Achievements
             }
 
             return CompareText(
-                AchievementCategoryTypeHelper.NormalizeCategoryOrDefault(a?.CategoryLabel),
-                AchievementCategoryTypeHelper.NormalizeCategoryOrDefault(b?.CategoryLabel));
+                AchievementCategoryHelper.NormalizeCategoryOrDefault(a?.CategoryLabel),
+                AchievementCategoryHelper.NormalizeCategoryOrDefault(b?.CategoryLabel));
         }
 
         private static int CompareByAchievementNote(
@@ -1294,8 +1294,9 @@ namespace PlayniteAchievements.Services.Achievements
                 gameCoverPath: null);
             item.ProviderKey = detail?.ProviderKey ?? item.ProviderKey;
             item.PointsValue = detail?.ScaledPoints ?? detail?.Points;
-            item.CategoryType = AchievementCategoryTypeHelper.NormalizeOrDefault(detail?.CategoryType);
-            item.CategoryLabel = AchievementCategoryTypeHelper.NormalizeCategoryOrDefault(detail?.Category);
+            item.Tags = AchievementTagHelper.Normalize(detail?.Tags);
+            item.CategoryKind = CategoryKindHelper.Normalize(detail?.CategoryKind);
+            item.CategoryLabel = AchievementCategoryHelper.NormalizeCategoryOrDefault(detail?.Category);
             item.CategoryOrderIndex = detail?.CategoryOrderIndex ?? int.MaxValue;
             return item;
         }

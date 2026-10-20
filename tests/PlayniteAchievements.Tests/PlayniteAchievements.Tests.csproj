@@ -216,7 +216,13 @@
     <Compile Include="..\..\source\Services\Achievements\AchievementSortHelper.cs" Link="Source\Services\Achievements\AchievementSortHelper.cs" />
     <Compile Include="..\..\source\Services\Achievements\AchievementCategoryFilterOrderHelper.cs" Link="Source\Services\Achievements\AchievementCategoryFilterOrderHelper.cs" />
     <Compile Include="..\..\source\Services\Achievements\AchievementOrderHelper.cs" Link="Source\Services\Achievements\AchievementOrderHelper.cs" />
-    <Compile Include="..\..\source\Services\Achievements\AchievementCategoryTypeHelper.cs" Link="Source\Services\Achievements\AchievementCategoryTypeHelper.cs" />
+    <Compile Include="..\..\source\Services\Achievements\AchievementCategoryHelper.cs" Link="Source\Services\Achievements\AchievementCategoryHelper.cs" />
+    <Compile Include="..\..\source\Services\Achievements\CategoryKindHelper.cs" Link="Source\Services\Achievements\CategoryKindHelper.cs" />
+    <Compile Include="..\..\source\Services\Achievements\AchievementTagHelper.cs" Link="Source\Services\Achievements\AchievementTagHelper.cs" />
+    <Compile Include="..\..\source\Services\Achievements\AchievementTagRegistry.cs" Link="Source\Services\Achievements\AchievementTagRegistry.cs" />
+    <Compile Include="..\..\source\Services\Achievements\AchievementClassificationFilter.cs" Link="Source\Services\Achievements\AchievementClassificationFilter.cs" />
+    <Compile Include="..\..\source\Services\Achievements\LegacyCategoryTypes.cs" Link="Source\Services\Achievements\LegacyCategoryTypes.cs" />
+    <Compile Include="..\..\source\Models\Achievements\AchievementTagDefinition.cs" Link="Source\Models\Achievements\AchievementTagDefinition.cs" />
     <Compile Include="..\..\source\Services\Achievements\OpenEditorRegistry.cs" Link="Source\Services\Achievements\OpenEditorRegistry.cs" />
     <Compile Include="..\..\source\Services\Achievements\CategoryPathHelper.cs" Link="Source\Services\Achievements\CategoryPathHelper.cs" />
     <Compile Include="..\..\source\Services\Achievements\CategoryMemberIndex.cs" Link="Source\Services\Achievements\CategoryMemberIndex.cs" />

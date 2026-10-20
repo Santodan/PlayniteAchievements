@@ -26,31 +26,11 @@ namespace PlayniteAchievements.Services.Overview
             HashSet<string> selectedTypeFilters,
             HashSet<string> selectedCategoryFilters)
         {
-            var typeValues = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-
-            if (source != null)
-            {
-                foreach (var item in source)
-                {
-                    if (item == null)
-                    {
-                        continue;
-                    }
-
-                    foreach (var parsedType in AchievementCategoryTypeHelper.ParseValues(
-                                 AchievementCategoryTypeHelper.NormalizeOrDefault(item.CategoryType)))
-                    {
-                        if (!string.IsNullOrWhiteSpace(parsedType))
-                        {
-                            typeValues.Add(parsedType);
-                        }
-                    }
-                }
-            }
-
-            var typeOptions = AchievementCategoryTypeHelper.AllowedCategoryTypes
-                .Where(typeValues.Contains)
-                .ToList();
+            var typeOptions = AchievementClassificationFilter.GetPresentKeys(
+                source,
+                item => item.CategoryKind,
+                item => item.Tags,
+                source?.FirstOrDefault(item => item != null)?.PlayniteGameId);
 
             var categoryOptions = AchievementCategoryFilterOrderHelper.BuildOrderedCategoryLabels(
                 source,
@@ -91,29 +71,25 @@ namespace PlayniteAchievements.Services.Overview
 
             if (selectedGameTypeFilters != null && selectedGameTypeFilters.Count > 0)
             {
-                var selectedTypeSet = new HashSet<string>(
-                    selectedGameTypeFilters
-                        .Select(AchievementCategoryTypeHelper.NormalizeOrDefault)
-                        .Where(value => !string.IsNullOrWhiteSpace(value)),
-                    StringComparer.OrdinalIgnoreCase);
+                var selectedTypes = selectedGameTypeFilters
+                    .Where(value => !string.IsNullOrWhiteSpace(value))
+                    .ToList();
 
-                filtered = filtered.Where(a =>
-                    AchievementCategoryTypeHelper.ParseValues(
-                            AchievementCategoryTypeHelper.NormalizeOrDefault(a.CategoryType))
-                        .Any(selectedTypeSet.Contains));
+                filtered = filtered.Where(a => selectedTypes.Any(key =>
+                    AchievementClassificationFilter.Matches(a.CategoryKind, a.Tags, key)));
             }
 
             if (selectedGameCategoryFilters != null && selectedGameCategoryFilters.Count > 0)
             {
                 var selectedCategorySet = new HashSet<string>(
                     selectedGameCategoryFilters
-                        .Select(AchievementCategoryTypeHelper.NormalizeCategoryOrDefault)
+                        .Select(AchievementCategoryHelper.NormalizeCategoryOrDefault)
                         .Where(value => !string.IsNullOrWhiteSpace(value)),
                     StringComparer.OrdinalIgnoreCase);
 
                 filtered = filtered.Where(a =>
                     selectedCategorySet.Contains(
-                        AchievementCategoryTypeHelper.NormalizeCategoryOrDefault(a.CategoryLabel)));
+                        AchievementCategoryHelper.NormalizeCategoryOrDefault(a.CategoryLabel)));
             }
 
             if (!string.IsNullOrEmpty(rightSearchText))

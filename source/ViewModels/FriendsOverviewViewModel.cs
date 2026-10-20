@@ -51,7 +51,7 @@ namespace PlayniteAchievements.ViewModels
                 item?.GameName,
                 item?.DisplayName,
                 item?.Description,
-                item?.CategoryType,
+                item?.TagsDisplay,
                 item?.CategoryLabel,
                 item?.ProviderKey));
 

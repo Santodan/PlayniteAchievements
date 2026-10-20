@@ -270,9 +270,9 @@ namespace PlayniteAchievements.Providers.Tests
                 Assert.IsTrue(gold.Hidden);
 
                 var dlc = data.Achievements.Single(a => a.ApiName == "2");
-                Assert.AreEqual("DLC", dlc.CategoryType);
+                Assert.AreEqual("DLC", dlc.CategoryKind);
                 Assert.AreEqual("Francais DLC Pack", dlc.Category);
-                Assert.AreEqual("Base", gold.CategoryType);
+                Assert.AreEqual("Base", gold.CategoryKind);
             }
             finally
             {

@@ -131,7 +131,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
 
         private List<string> ResolveMemberApiNames(string categoryLabel)
         {
-            var label = AchievementCategoryTypeHelper.NormalizeCategoryOrDefault(categoryLabel);
+            var label = AchievementCategoryHelper.NormalizeCategoryOrDefault(categoryLabel);
             return _memberApiNamesByLabel.TryGetValue(label, out var apiNames) && apiNames != null
                 ? apiNames
                 : new List<string>();

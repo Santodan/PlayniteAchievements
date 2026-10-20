@@ -117,9 +117,9 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 }
 
                 var label = CategoryPathHelper.NormalizePath(
-                    AchievementCategoryTypeHelper.NormalizeCategory(achievement.Category));
+                    AchievementCategoryHelper.NormalizeCategory(achievement.Category));
                 if (!string.IsNullOrWhiteSpace(label) &&
-                    !string.Equals(label, AchievementCategoryTypeHelper.DefaultCategoryLabel, StringComparison.OrdinalIgnoreCase))
+                    !string.Equals(label, AchievementCategoryHelper.DefaultCategoryLabel, StringComparison.OrdinalIgnoreCase))
                 {
                     breakdown.CategorizedCount++;
                 }
@@ -139,8 +139,8 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 .Select(a =>
                 {
                     var category = CategoryPathHelper.NormalizePath(
-                        AchievementCategoryTypeHelper.NormalizeCategory(a.Category));
-                    if (string.Equals(category, AchievementCategoryTypeHelper.DefaultCategoryLabel, StringComparison.OrdinalIgnoreCase))
+                        AchievementCategoryHelper.NormalizeCategory(a.Category));
+                    if (string.Equals(category, AchievementCategoryHelper.DefaultCategoryLabel, StringComparison.OrdinalIgnoreCase))
                     {
                         category = null;
                     }
@@ -242,8 +242,8 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                     case AchievementCustomizationFacet.Category:
                         count = Count(o => HasText(o.Category), c => IsNamedCategory(c.Category));
                         break;
-                    case AchievementCustomizationFacet.CategoryType:
-                        count = Count(o => HasText(o.CategoryType), c => IsNamedCategoryType(c.CategoryType));
+                    case AchievementCustomizationFacet.Tags:
+                        count = Count(o => o.ClearTags || o.Tags != null, c => HasText(c.Tags));
                         break;
                     case AchievementCustomizationFacet.Hidden:
                         count = Count(o => o.Hidden.HasValue, c => c.Hidden);
@@ -327,20 +327,13 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
 
         private static bool HasText(string value) => !string.IsNullOrWhiteSpace(value);
 
-        // A custom achievement left in the Default bucket, or with the Default type, has chosen
+        // A custom achievement left in the Default bucket has chosen
         // nothing; the projection files it there when the field is blank.
         private static bool IsNamedCategory(string category) =>
             HasText(category) &&
             !string.Equals(
                 CategoryPathHelper.NormalizePath(category),
-                AchievementCategoryTypeHelper.DefaultCategoryLabel,
-                StringComparison.OrdinalIgnoreCase);
-
-        private static bool IsNamedCategoryType(string categoryType) =>
-            HasText(categoryType) &&
-            !string.Equals(
-                AchievementCategoryTypeHelper.NormalizeOrDefault(categoryType),
-                AchievementCategoryTypeHelper.DefaultCategoryType,
+                AchievementCategoryHelper.DefaultCategoryLabel,
                 StringComparison.OrdinalIgnoreCase);
     }
 }

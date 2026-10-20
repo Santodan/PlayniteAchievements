@@ -110,14 +110,14 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             CategoryRows = new BulkObservableCollection<ManageAchievementsCategoryMetadataItem>();
             CategoryLabelFilterOptions = new ObservableCollection<string>();
             AssignableCategoryOptions = new ObservableCollection<string>();
-            TypeSelectionOptions = CreateCategoryTypeOptions(
-                AchievementCategoryTypeHelper.AssignableCategoryTypes,
+            TagSelectionOptions = CreateCategoryTypeOptions(
+                AchievementTagRegistry.GetAssignableKeys(_gameId),
                 () =>
                 {
                     OnPropertyChanged(nameof(SelectedTypeSelectionText));
                 });
             TypeFilterOptions = CreateCategoryTypeOptions(
-                AchievementCategoryTypeHelper.AllowedCategoryTypes,
+                AchievementClassificationFilter.GetFilterKeys(_gameId),
                 () =>
                 {
                     OnPropertyChanged(nameof(SelectedCategoryTypeFilterText));
@@ -148,8 +148,10 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         /// one cannot be reached by typing (typed input rejects the path separator).
         /// </summary>
         public ObservableCollection<string> AssignableCategoryOptions { get; }
-        public ObservableCollection<CategoryTypeSelectionOption> TypeSelectionOptions { get; }
-        public ObservableCollection<CategoryTypeSelectionOption> TypeFilterOptions { get; }
+        public Guid GameId => _gameId;
+
+        public ObservableCollection<TagSelectionOption> TagSelectionOptions { get; }
+        public ObservableCollection<TagSelectionOption> TypeFilterOptions { get; }
 
         public RelayCommand ClearSearchCommand { get; }
         public RelayCommand OpenCategoryImagesFolderCommand { get; }
@@ -226,10 +228,10 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         {
             get
             {
-                var selected = GetSelectedCategoryTypeValues(TypeSelectionOptions);
+                var selected = GetSelectedCategoryTypeValues(TagSelectionOptions);
                 return selected.Count == 0
-                    ? L("LOCTypeLabel")
-                    : string.Join(", ", selected.Select(AchievementCategoryTypeHelper.ToCategoryTypeDisplayText));
+                    ? L("LOCTagsLabel")
+                    : string.Join(", ", selected.Select(key => AchievementTagRegistry.GetName(key, _gameId)));
             }
         }
 
@@ -240,7 +242,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 var selected = GetSelectedCategoryTypeFilterValues();
                 return selected.Count == 0
                     ? L("LOCTypeLabel")
-                    : string.Join(", ", selected.Select(AchievementCategoryTypeHelper.ToCategoryTypeDisplayText));
+                    : string.Join(", ", selected.Select(key => AchievementClassificationFilter.GetDisplayName(key, _gameId)));
             }
         }
 
@@ -354,7 +356,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
 
                 // prefixes overflows the button and reads as repetition rather than a selection.
 
-                return string.Join(", ", ordered.Select(AchievementCategoryTypeHelper.ToCategoryLeafDisplayText));
+                return string.Join(", ", ordered.Select(AchievementCategoryHelper.ToCategoryLeafDisplayText));
             }
         }
 
@@ -428,8 +430,8 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                     .Where(a => a != null && !string.IsNullOrWhiteSpace(a.ApiName))
                     .ToList() ?? new List<AchievementDetail>();
                 var categoryOverrides = GetCurrentCategoryOverrideMap();
-                var categoryTypeOverrides = GetCurrentCategoryTypeOverrideMap();
-                HasCustomOverrides = categoryOverrides.Count > 0 || categoryTypeOverrides.Count > 0;
+                var tagOverrides = GetCurrentTagOverrideMap();
+                HasCustomOverrides = categoryOverrides.Count > 0 || tagOverrides.Count > 0;
                 var projectionSource = hydratedGameData ?? rawGameData;
                 List<AchievementDetail> orderedAchievements;
                 List<AchievementDetail> canonicalAchievements;
@@ -461,27 +463,35 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                     _gameId,
                     projectionSource?.UseSeparateLockedIconsWhenAvailable);
                 var categoryMemo = new AchievementDisplayItem.CategoryPresentationMemo();
+                var resolvedCustomData = GameCustomDataLookup.ResolveGameCustomData(_gameId, _settings?.Persisted);
+                var overrideRecords = resolvedCustomData?.ResolveAchievementOverrides();
 
                 _allRows = orderedAchievements.Select(a =>
                 {
                     var apiName = (a.ApiName ?? string.Empty).Trim();
                     var providerCategory = NormalizeCategory(a.Category);
-                    var providerCategoryType = AchievementCategoryTypeHelper.Normalize(a.CategoryType);
+                    var providerTags = AchievementTagHelper.Normalize(a.Tags);
 
                     string overrideCategory = null;
                     var hasCategoryOverride = !string.IsNullOrWhiteSpace(apiName) &&
                                               categoryOverrides.TryGetValue(apiName, out overrideCategory) &&
                                               !string.IsNullOrWhiteSpace(overrideCategory);
-                    string overrideCategoryType = null;
-                    var hasCategoryTypeOverride = !string.IsNullOrWhiteSpace(apiName) &&
-                                                  categoryTypeOverrides.TryGetValue(apiName, out overrideCategoryType) &&
-                                                  !string.IsNullOrWhiteSpace(overrideCategoryType);
+                    string overrideTags = null;
+                    // "" is an override too: the user removed every tag.
+                    var hasTagOverride = !string.IsNullOrWhiteSpace(apiName) &&
+                                         tagOverrides.TryGetValue(apiName, out overrideTags) &&
+                                         overrideTags != null;
+                    AchievementOverride overrideRecord = null;
+                    if (!string.IsNullOrWhiteSpace(apiName))
+                    {
+                        overrideRecords?.TryGetValue(apiName, out overrideRecord);
+                    }
 
-                    var effectiveCategory = AchievementCategoryTypeHelper.NormalizeCategoryOrDefault(
+                    var effectiveCategory = AchievementCategoryHelper.NormalizeCategoryOrDefault(
                         hasCategoryOverride ? overrideCategory : providerCategory);
-                    var effectiveCategoryType = AchievementCategoryTypeHelper.ApplyOverride(
-                        providerCategoryType,
-                        hasCategoryTypeOverride ? overrideCategoryType : null);
+                    var effectiveTags = AchievementTagHelper.ApplyOverride(
+                        providerTags,
+                        hasTagOverride ? overrideTags : null);
 
                     var projected = AchievementDisplayItem.Create(
                         projectionSource,
@@ -527,10 +537,16 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                         IsRevealed = revealedStateByApiName.TryGetValue(apiName, out var isRevealed)
                             ? isRevealed
                             : projected.IsRevealed,
-                        ProviderCategory = AchievementCategoryTypeHelper.NormalizeCategoryOrDefault(providerCategory),
-                        ProviderCategoryType = AchievementCategoryTypeHelper.NormalizeOrDefault(providerCategoryType),
+                        ProviderCategory = AchievementCategoryHelper.NormalizeCategoryOrDefault(providerCategory),
+                        ProviderTags = AchievementTagHelper.Normalize(providerTags),
                         Category = effectiveCategory,
-                        CategoryType = effectiveCategoryType,
+                        Tags = effectiveTags,
+                        ProviderCategoryKind = CategoryKindHelper.Normalize(a.CategoryKind),
+                        LegacyCategoryKind = overrideRecord?.LegacyCategoryKind,
+                        CategoryKind = CategoryKindHelper.ResolveEffective(
+                            resolvedCustomData?.GetStoredCategoryKind(effectiveCategory),
+                            overrideRecord?.LegacyCategoryKind,
+                            a.CategoryKind),
                         IsSelected = selectedApiNames.Contains(apiName)
                     };
                 })
@@ -627,31 +643,21 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             var selectedTypeFilters = GetSelectedCategoryTypeFilterValues();
             if (selectedTypeFilters.Count > 0)
             {
-                var selectedTypeSet = new HashSet<string>(selectedTypeFilters, StringComparer.OrdinalIgnoreCase);
-                filtered = filtered.Where(a =>
-                {
-                    var rowTypes = AchievementCategoryTypeHelper.ParseValues(
-                        AchievementCategoryTypeHelper.NormalizeOrDefault(a.CategoryType));
-                    if (rowTypes.Count == 0)
-                    {
-                        return false;
-                    }
-
-                    // OR semantics: keep rows containing at least one selected type.
-                    return rowTypes.Any(selectedTypeSet.Contains);
-                });
+                // OR semantics: keep rows matching at least one selected kind or tag.
+                filtered = filtered.Where(a => selectedTypeFilters.Any(key =>
+                    AchievementClassificationFilter.Matches(a.CategoryKind, a.Tags, key)));
             }
 
             if (_selectedCategoryLabelFilters.Count > 0)
             {
                 var selectedCategorySet = new HashSet<string>(
                     _selectedCategoryLabelFilters
-                        .Select(AchievementCategoryTypeHelper.NormalizeCategoryOrDefault)
+                        .Select(AchievementCategoryHelper.NormalizeCategoryOrDefault)
                         .Where(value => !string.IsNullOrWhiteSpace(value)),
                     StringComparer.OrdinalIgnoreCase);
                 filtered = filtered.Where(a =>
                     selectedCategorySet.Contains(
-                        AchievementCategoryTypeHelper.NormalizeCategoryOrDefault(a.Category)));
+                        AchievementCategoryHelper.NormalizeCategoryOrDefault(a.Category)));
             }
 
             ReplaceAchievementRows(filtered.ToList());
@@ -666,7 +672,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         {
             var labels = _allRows
                 .Where(row => row != null)
-                .Select(row => AchievementCategoryTypeHelper.NormalizeCategoryOrDefault(row.Category))
+                .Select(row => AchievementCategoryHelper.NormalizeCategoryOrDefault(row.Category))
                 .Where(label => !string.IsNullOrWhiteSpace(label))
                 .Distinct(StringComparer.OrdinalIgnoreCase)
                 .OrderBy(label => label, StringComparer.OrdinalIgnoreCase)
@@ -719,22 +725,22 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             return GetSelectedCategoryTypeValues(TypeFilterOptions);
         }
 
-        private string GetSelectedCategoryTypeValue()
+        private string GetSelectedTagValue()
         {
-            return AchievementCategoryTypeHelper.Combine(GetSelectedCategoryTypeValues(TypeSelectionOptions));
+            return AchievementTagHelper.Combine(GetSelectedCategoryTypeValues(TagSelectionOptions));
         }
 
-        private static List<string> GetSelectedCategoryTypeValues(IEnumerable<CategoryTypeSelectionOption> options)
+        private static List<string> GetSelectedCategoryTypeValues(IEnumerable<TagSelectionOption> options)
         {
-            return (options ?? Enumerable.Empty<CategoryTypeSelectionOption>())
+            return (options ?? Enumerable.Empty<TagSelectionOption>())
                 .Where(option => option?.IsSelected == true)
                 .Select(option => option.Value)
                 .ToList();
         }
 
-        private static void SetCategoryTypeSelections(IEnumerable<CategoryTypeSelectionOption> options, bool isSelected)
+        private static void SetCategoryTypeSelections(IEnumerable<TagSelectionOption> options, bool isSelected)
         {
-            foreach (var option in options ?? Enumerable.Empty<CategoryTypeSelectionOption>())
+            foreach (var option in options ?? Enumerable.Empty<TagSelectionOption>())
             {
                 if (option != null)
                 {
@@ -743,19 +749,19 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             }
         }
 
-        private ObservableCollection<CategoryTypeSelectionOption> CreateCategoryTypeOptions(
-            IReadOnlyList<string> categoryTypes,
+        private ObservableCollection<TagSelectionOption> CreateCategoryTypeOptions(
+            IReadOnlyList<string> tags,
             Action onSelectionChanged)
         {
-            var options = new ObservableCollection<CategoryTypeSelectionOption>(
-                categoryTypes
-                    .Select(type => new CategoryTypeSelectionOption(type, GetCategoryTypeDisplayName(type))));
+            var options = new ObservableCollection<TagSelectionOption>(
+                tags
+                    .Select(type => new TagSelectionOption(type, GetTagDisplayName(type, _gameId))));
 
             foreach (var option in options)
             {
                 option.PropertyChanged += (_, args) =>
                 {
-                    if (string.Equals(args?.PropertyName, nameof(CategoryTypeSelectionOption.IsSelected), StringComparison.Ordinal))
+                    if (string.Equals(args?.PropertyName, nameof(TagSelectionOption.IsSelected), StringComparison.Ordinal))
                     {
                         onSelectionChanged?.Invoke();
                     }
@@ -765,9 +771,9 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             return options;
         }
 
-        public static string GetCategoryTypeDisplayName(string categoryType)
+        public static string GetTagDisplayName(string tag, Guid? gameId = null)
         {
-            return AchievementCategoryTypeHelper.ToCategoryTypeDisplayText(categoryType);
+            return AchievementClassificationFilter.GetDisplayName(tag, gameId);
         }
 
         private static string L(string key)

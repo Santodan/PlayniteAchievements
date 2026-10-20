@@ -310,15 +310,15 @@ namespace PlayniteAchievements.Views.Helpers
 
             var typesMenu = new MenuItem
             {
-                Header = L(resourceOwner, "LOCTypeLabel")
+                Header = L(resourceOwner, "LOCTagsLabel")
             };
-            var effectiveTypes = AchievementCategoryTypeHelper.ParseValues(context.CategoryType);
-            foreach (var categoryType in AchievementCategoryTypeHelper.AssignableCategoryTypes)
+            var effectiveTypes = AchievementTagHelper.Parse(context.Tags);
+            foreach (var tag in AchievementTagRegistry.GetAssignableKeys(context.GameId))
             {
-                var capturedType = categoryType;
+                var capturedType = tag;
                 var typeItem = new MenuItem
                 {
-                    Header = ManageAchievementsCategoryViewModel.GetCategoryTypeDisplayName(capturedType),
+                    Header = AchievementTagRegistry.GetName(capturedType, context.GameId),
                     IsCheckable = true,
                     StaysOpenOnClick = true,
                     IsChecked = effectiveTypes.Any(value =>
@@ -328,11 +328,11 @@ namespace PlayniteAchievements.Views.Helpers
                 {
                     if (typeItem.IsChecked)
                     {
-                        AddCategoryType(context, capturedType);
+                        AddTag(context, capturedType);
                     }
                     else
                     {
-                        RemoveCategoryType(context, capturedType);
+                        RemoveTag(context, capturedType);
                     }
 
                     onChanged?.Invoke();
@@ -447,46 +447,46 @@ namespace PlayniteAchievements.Views.Helpers
             return menu;
         }
 
-        private static void AddCategoryType(AchievementRowContext context, string categoryType)
+        private static void AddTag(AchievementRowContext context, string tag)
         {
-            var map = GameCustomDataLookup.GetAchievementCategoryTypeOverrides(
+            var map = GameCustomDataLookup.GetAchievementTagOverrides(
                 context.GameId,
                 CurrentSettings,
                 CurrentStore);
-            var normalizedMap = CloneStringMap(map);
-            var currentEffective = AchievementCategoryTypeHelper.NormalizeOrDefault(context.CategoryType);
-            var merged = AchievementCategoryTypeHelper.WithCategoryType(currentEffective, categoryType, include: true);
+            var normalizedMap = new Dictionary<string, string>(map, StringComparer.OrdinalIgnoreCase);
+            var currentEffective = AchievementTagHelper.Normalize(context.Tags);
+            var merged = AchievementTagHelper.WithTag(currentEffective, tag, include: true);
             if (string.Equals(merged, currentEffective, StringComparison.Ordinal))
             {
                 return;
             }
 
-            normalizedMap[context.ApiName] = AchievementCategoryTypeHelper.NormalizeOrDefault(
-                AchievementCategoryTypeHelper.StripDerivedTypes(merged));
-            CurrentOverridesService?.SetAchievementCategoryTypeOverrides(context.GameId, normalizedMap);
+            // "" when nothing is left: the user removed every tag.
+            normalizedMap[context.ApiName] = AchievementTagHelper.StripDerived(merged) ?? string.Empty;
+            CurrentOverridesService?.SetAchievementTagOverrides(context.GameId, normalizedMap);
             NotifySummaryRowsChanged(context.GameId);
-            context.ApplyCategoryType(merged);
+            context.ApplyTags(merged);
         }
 
-        private static void RemoveCategoryType(AchievementRowContext context, string categoryType)
+        private static void RemoveTag(AchievementRowContext context, string tag)
         {
-            var map = GameCustomDataLookup.GetAchievementCategoryTypeOverrides(
+            var map = GameCustomDataLookup.GetAchievementTagOverrides(
                 context.GameId,
                 CurrentSettings,
                 CurrentStore);
-            var normalizedMap = CloneStringMap(map);
-            var currentEffective = AchievementCategoryTypeHelper.NormalizeOrDefault(context.CategoryType);
-            var remaining = AchievementCategoryTypeHelper.WithCategoryType(currentEffective, categoryType, include: false);
+            var normalizedMap = new Dictionary<string, string>(map, StringComparer.OrdinalIgnoreCase);
+            var currentEffective = AchievementTagHelper.Normalize(context.Tags);
+            var remaining = AchievementTagHelper.WithTag(currentEffective, tag, include: false);
             if (string.Equals(remaining, currentEffective, StringComparison.Ordinal))
             {
                 return;
             }
 
-            normalizedMap[context.ApiName] = AchievementCategoryTypeHelper.NormalizeOrDefault(
-                AchievementCategoryTypeHelper.StripDerivedTypes(remaining));
-            CurrentOverridesService?.SetAchievementCategoryTypeOverrides(context.GameId, normalizedMap);
+            // "" when nothing is left: the user removed every tag.
+            normalizedMap[context.ApiName] = AchievementTagHelper.StripDerived(remaining) ?? string.Empty;
+            CurrentOverridesService?.SetAchievementTagOverrides(context.GameId, normalizedMap);
             NotifySummaryRowsChanged(context.GameId);
-            context.ApplyCategoryType(remaining);
+            context.ApplyTags(remaining);
         }
 
         /// <summary>
@@ -512,7 +512,7 @@ namespace PlayniteAchievements.Views.Helpers
             var resolved = GameCustomDataLookup.ResolveGameCustomData(gameId, CurrentSettings, CurrentStore);
             return CategoryPickerResolver.BuildGameCategoryLabels(
                 achievements.Select(achievement =>
-                    AchievementCategoryTypeHelper.NormalizeCategoryOrDefault(achievement?.Category)),
+                    AchievementCategoryHelper.NormalizeCategoryOrDefault(achievement?.Category)),
                 resolved?.AchievementCategoryOrder,
                 resolved?.AchievementCategoryImageOverrides?.Keys,
                 resolved?.GameSummaryCategory?.Label);
@@ -548,7 +548,7 @@ namespace PlayniteAchievements.Views.Helpers
                 return false;
             }
 
-            var normalizedCategory = AchievementCategoryTypeHelper.NormalizeCategory(inputDialog.SelectedCategory);
+            var normalizedCategory = AchievementCategoryHelper.NormalizeCategory(inputDialog.SelectedCategory);
             if (string.IsNullOrWhiteSpace(normalizedCategory))
             {
                 return false;
@@ -575,7 +575,7 @@ namespace PlayniteAchievements.Views.Helpers
                 context.GameId,
                 CurrentSettings,
                 CurrentStore));
-            var typeMap = CloneStringMap(GameCustomDataLookup.GetAchievementCategoryTypeOverrides(
+            var typeMap = CloneStringMap(GameCustomDataLookup.GetAchievementTagOverrides(
                 context.GameId,
                 CurrentSettings,
                 CurrentStore));
@@ -797,7 +797,7 @@ namespace PlayniteAchievements.Views.Helpers
 
             public string CategoryLabel { get; private set; }
 
-            public string CategoryType { get; private set; }
+            public string Tags { get; private set; }
 
             public static bool TryCreate(object data, out AchievementRowContext context)
             {
@@ -822,7 +822,7 @@ namespace PlayniteAchievements.Views.Helpers
                         IsGoal = displayItem.IsGoal,
                         Unlocked = displayItem.Unlocked,
                         CategoryLabel = displayItem.CategoryLabel,
-                        CategoryType = displayItem.CategoryType
+                        Tags = displayItem.Tags
                     };
                     return true;
                 }
@@ -848,7 +848,7 @@ namespace PlayniteAchievements.Views.Helpers
                         IsGoal = false,
                         Unlocked = true,
                         CategoryLabel = recentItem.CategoryLabel,
-                        CategoryType = recentItem.CategoryType
+                        Tags = recentItem.Tags
                     };
                     return true;
                 }
@@ -873,17 +873,17 @@ namespace PlayniteAchievements.Views.Helpers
                 }
             }
 
-            public void ApplyCategoryType(string value)
+            public void ApplyTags(string value)
             {
-                CategoryType = value;
+                Tags = value;
                 if (_displayItem != null)
                 {
-                    _displayItem.CategoryType = value;
+                    _displayItem.Tags = value;
                 }
 
                 if (_recentItem != null)
                 {
-                    _recentItem.CategoryType = value;
+                    _recentItem.Tags = value;
                 }
             }
 

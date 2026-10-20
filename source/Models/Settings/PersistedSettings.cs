@@ -251,6 +251,7 @@ namespace PlayniteAchievements.Models.Settings
         private Dictionary<string, ResourceOverrideSetting> _resourceOverrides =
             new Dictionary<string, ResourceOverrideSetting>(StringComparer.OrdinalIgnoreCase);
         private List<CustomRefreshPreset> _customRefreshPresets = new List<CustomRefreshPreset>();
+        private List<AchievementTagDefinition> _achievementTags;
         private double _overviewLeftColumnRatio = DefaultOverviewLeftColumnRatio;
         private double _friendsOverviewFriendColumnRatio = DefaultFriendsOverviewFriendColumnRatio;
         private double _friendsOverviewGameColumnRatio = DefaultFriendsOverviewGameColumnRatio;
@@ -1028,6 +1029,21 @@ namespace PlayniteAchievements.Models.Settings
             get => _defaultOverviewRefreshMode;
             set => SetValue(ref _defaultOverviewRefreshMode, value);
         }
+
+        /// <summary>
+        /// The global achievement tag list edited in Settings &gt; Metadata. Null until the user first
+        /// edits it, which means the built-in list; see <see cref="ResolveAchievementTags"/>. Kept null
+        /// by default because deserialization appends to a non-null list rather than replacing it.
+        /// </summary>
+        public List<AchievementTagDefinition> AchievementTags
+        {
+            get => _achievementTags;
+            set => SetValue(ref _achievementTags, AchievementTagHelper.NormalizeDefinitions(value, ensureSystemTags: true));
+        }
+
+        /// <summary>The effective global tag list: <see cref="AchievementTags"/>, or the built-ins.</summary>
+        public List<AchievementTagDefinition> ResolveAchievementTags() =>
+            AchievementTags ?? AchievementTagHelper.CreateDefaultDefinitions();
 
         /// <summary>
         /// Saved presets for Custom Refresh dialog.
@@ -3271,6 +3287,7 @@ namespace PlayniteAchievements.Models.Settings
                 InGameFriendBatchSize = this.InGameFriendBatchSize,
                 RecentRefreshGamesCount = this.RecentRefreshGamesCount,
                 DefaultOverviewRefreshMode = this.DefaultOverviewRefreshMode,
+                AchievementTags = AchievementTagHelper.NormalizeDefinitions(this.AchievementTags, ensureSystemTags: true),
                 CustomRefreshPresets = this.CustomRefreshPresets != null
                     ? new List<CustomRefreshPreset>(CustomRefreshPreset.NormalizePresets(this.CustomRefreshPresets))
                     : new List<CustomRefreshPreset>(),
@@ -4275,7 +4292,7 @@ namespace PlayniteAchievements.Models.Settings
                     foreach (var categoryTypePair in gamePair.Value)
                     {
                         var key = (categoryTypePair.Key ?? string.Empty).Trim();
-                        var categoryType = Services.Achievements.AchievementCategoryTypeHelper.Normalize(categoryTypePair.Value);
+                        var categoryType = (categoryTypePair.Value ?? string.Empty).Trim();
                         if (string.IsNullOrWhiteSpace(key) || string.IsNullOrWhiteSpace(categoryType))
                         {
                             continue;

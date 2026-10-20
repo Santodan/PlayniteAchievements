@@ -82,7 +82,7 @@ namespace PlayniteAchievements.Services.Achievements
             var platinum = AutoCapstoneTemplate.SelectPlatinum(
                 achievements,
                 achievement => achievement.TrophyType,
-                achievement => achievement.CategoryType);
+                achievement => achievement.CategoryKind);
             return platinum != null
                 ? new AutoCapstoneGenerationDecision(AutoCapstoneGenerationAction.NominatePlatinum, platinum)
                 : new AutoCapstoneGenerationDecision(AutoCapstoneGenerationAction.Author);

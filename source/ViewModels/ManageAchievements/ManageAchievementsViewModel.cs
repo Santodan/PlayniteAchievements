@@ -965,7 +965,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             var lines = ManageOverviewSummaryBuilder.BuildCapstones(achievements)
                 .Select(capstone => capstone.Item1 == null
                     ? capstone.Item2
-                    : AchievementCategoryTypeHelper.ToCategoryLabelDisplayText(capstone.Item1) + ": " + capstone.Item2)
+                    : AchievementCategoryHelper.ToCategoryLabelDisplayText(capstone.Item1) + ": " + capstone.Item2)
                 .ToList();
             return lines.Count > 0 ? string.Join(Environment.NewLine, lines) : null;
         }

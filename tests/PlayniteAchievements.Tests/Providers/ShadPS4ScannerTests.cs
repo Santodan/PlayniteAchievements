@@ -456,7 +456,7 @@ namespace PlayniteAchievements.Providers.Tests
                 Assert.IsTrue(trophy.Hidden);
                 Assert.IsFalse(trophy.Unlocked);
                 Assert.IsNull(trophy.UnlockTimeUtc);
-                Assert.AreEqual("DLC", trophy.CategoryType);
+                Assert.AreEqual("DLC", trophy.CategoryKind);
                 Assert.AreEqual("Shared DLC", trophy.Category);
                 Assert.IsFalse(string.IsNullOrWhiteSpace(trophy.UnlockedIconPath));
                 Assert.AreEqual(trophy.UnlockedIconPath, trophy.LockedIconPath);
