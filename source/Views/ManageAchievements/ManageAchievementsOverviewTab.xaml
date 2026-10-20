@@ -200,45 +200,6 @@
                                         VerticalAlignment="Center"
                                         Margin="{StaticResource PlayAch.Thickness.Left.Sm}" />
                             </WrapPanel>
-                            <TextBlock Grid.Row="1" Grid.Column="1"
-                                       Style="{StaticResource SettingStatusStyle}"
-                                       Text="{Binding ProviderOverrideStatusText}" />
-
-                            <!-- Exophase rarity slug: which Exophase page enriches rarity when another
-                                 platform services the game. Separate from the override above, which
-                                 picks the servicing platform itself. -->
-                            <TextBlock Grid.Row="2" Grid.Column="0"
-                                       Style="{StaticResource SettingLabelStyle}"
-                                       Text="{DynamicResource LOCPlayAch_ManageAchievements_Overrides_ExophaseEnrichmentHeader}"
-                                       ToolTip="{DynamicResource LOCPlayAch_ManageAchievements_Overrides_ExophaseEnrichmentHint}"
-                                       Visibility="{Binding IsExophaseEnrichmentSlugSectionVisible, Converter={StaticResource BoolToVis}}" />
-                            <WrapPanel Grid.Row="2" Grid.Column="1"
-                                       Margin="0,2"
-                                       Visibility="{Binding IsExophaseEnrichmentSlugSectionVisible, Converter={StaticResource BoolToVis}}">
-                                <Grid Width="200" VerticalAlignment="Center">
-                                    <TextBox x:Name="ExophaseEnrichmentSlugTextBox"
-                                             Text="{Binding ExophaseEnrichmentSlugInput, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                             Padding="8,4" />
-                                    <TextBlock Text="{Binding ExophaseEnrichmentSlugPlaceholder}"
-                                               Tag="{Binding Text, ElementName=ExophaseEnrichmentSlugTextBox}"
-                                               Style="{StaticResource ManageAchievementsSearchPlaceholderTextStyle}" />
-                                </Grid>
-                                <Button Content="{DynamicResource LOCPlayAch_Button_Apply}"
-                                        Command="{Binding ApplyExophaseEnrichmentSlugCommand}"
-                                        Padding="{StaticResource PlayAch.Thickness.ButtonPadding}"
-                                        VerticalAlignment="Center"
-                                        Margin="{StaticResource PlayAch.Thickness.Left.Sm}" />
-                                <Button Content="{DynamicResource LOCClearLabel}"
-                                        Command="{Binding ClearExophaseEnrichmentSlugCommand}"
-                                        Padding="{StaticResource PlayAch.Thickness.ButtonPadding}"
-                                        VerticalAlignment="Center"
-                                        Margin="{StaticResource PlayAch.Thickness.Left.Sm}" />
-                            </WrapPanel>
-                            <TextBlock Grid.Row="3" Grid.Column="1"
-                                       Style="{StaticResource SettingStatusStyle}"
-                                       Text="{Binding ExophaseEnrichmentSlugStatusText}"
-                                       Visibility="{Binding IsExophaseEnrichmentSlugSectionVisible, Converter={StaticResource BoolToVis}}" />
-
                             <!-- Exclusion: one choice between the refresh and summary exclusions. -->
                             <TextBlock Grid.Row="4" Grid.Column="0"
                                        Style="{StaticResource SettingLabelStyle}"
@@ -325,15 +286,21 @@
                                                        Style="{StaticResource SettingLabelStyle}"
                                                        Text="{Binding SourceName}" />
                                             <WrapPanel Grid.Column="1">
+                                                <!-- Hidden, not collapsed, on a row with no switch, so every box lines up. -->
                                                 <CheckBox Content="{DynamicResource LOCEnabledTitle}"
                                                           IsChecked="{Binding IsEnabled, Mode=TwoWay}"
+                                                          Visibility="{Binding EnabledSwitchVisibility}"
                                                           VerticalAlignment="Center"
                                                           Margin="{StaticResource PlayAch.Thickness.Right.Sm}" />
-                                                <TextBox Text="{Binding Input, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                                         IsEnabled="{Binding IsEnabled}"
-                                                         Width="200"
-                                                         Padding="8,4"
-                                                         VerticalAlignment="Center" />
+                                                <Grid Width="200" VerticalAlignment="Center">
+                                                    <TextBox x:Name="LinkInput"
+                                                             Text="{Binding Input, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                             IsEnabled="{Binding IsEnabled}"
+                                                             Padding="8,4" />
+                                                    <TextBlock Text="{Binding Placeholder}"
+                                                               Tag="{Binding Text, ElementName=LinkInput}"
+                                                               Style="{StaticResource ManageAchievementsSearchPlaceholderTextStyle}" />
+                                                </Grid>
                                                 <Button Content="{DynamicResource LOCPlayAch_Button_Apply}"
                                                         Command="{Binding ApplyCommand}"
                                                         Padding="{StaticResource PlayAch.Thickness.ButtonPadding}"
