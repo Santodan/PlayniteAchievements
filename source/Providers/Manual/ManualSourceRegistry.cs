@@ -32,7 +32,6 @@ namespace PlayniteAchievements.Providers.Manual
             if (settings == null) throw new ArgumentNullException(nameof(settings));
             if (playniteApi == null) throw new ArgumentNullException(nameof(playniteApi));
 
-            var exophaseSessionManager = new ExophaseSessionManager(playniteApi, logger, pluginUserDataPath);
             var steamSessionManager = new SteamSessionManager(playniteApi, logger);
             _steamAuthClient = new SteamHttpClient(playniteApi, logger, steamSessionManager, pluginUserDataPath);
             steamSessionManager.SetClearInMemoryAuthState(_steamAuthClient.ClearInMemoryAuthState);
@@ -57,12 +56,7 @@ namespace PlayniteAchievements.Providers.Manual
                     _steamSearchHttpClient,
                     logger,
                     steamTokenResolver),
-                new ExophaseManualSource(
-                    playniteApi,
-                    exophaseSessionManager,
-                    logger,
-                    () => settings.Persisted.GlobalLanguage,
-                    () => ProviderRegistry.Settings<ManualSettings>().RequireExophaseAuthentication)
+                new ExophaseManualSource(playniteApi, logger)
             }.AsReadOnly();
 
             _sourcesByKey = _sources
