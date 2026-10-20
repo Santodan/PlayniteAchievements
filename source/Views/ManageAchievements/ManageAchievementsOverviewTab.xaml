@@ -282,9 +282,20 @@
                                                 <ColumnDefinition Width="Auto" SharedSizeGroup="MetadataLinkSource" />
                                                 <ColumnDefinition Width="*" />
                                             </Grid.ColumnDefinitions>
+                                            <Grid.RowDefinitions>
+                                                <RowDefinition Height="Auto" />
+                                                <RowDefinition Height="Auto" />
+                                            </Grid.RowDefinitions>
                                             <TextBlock Grid.Column="0"
                                                        Style="{StaticResource SettingLabelStyle}"
                                                        Text="{Binding SourceName}" />
+                                            <!-- What the source adds to this game, under the box. -->
+                                            <TextBlock Grid.Row="1"
+                                                       Grid.Column="1"
+                                                       Style="{StaticResource SettingStatusStyle}"
+                                                       Text="{Binding Supplies}"
+                                                       Visibility="{Binding HasSupplies, Converter={StaticResource BoolToVis}}"
+                                                       Margin="0,2,0,0" />
                                             <WrapPanel Grid.Column="1">
                                                 <!-- Hidden, not collapsed, on a row with no switch, so every box lines up. -->
                                                 <CheckBox Content="{DynamicResource LOCEnabledTitle}"
