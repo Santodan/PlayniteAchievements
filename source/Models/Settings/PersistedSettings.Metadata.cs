@@ -33,8 +33,14 @@ namespace PlayniteAchievements.Models.Settings
 
         public string CapstoneArt { get; set; }
 
+        /// <summary>Trophy types (platinum, gold, silver, bronze).</summary>
+        public string TrophyTypes { get; set; }
+
+        public string Points { get; set; }
+
         public bool IsEmpty() =>
-            Icons == null && Categories == null && Rarity == null && CapstoneArt == null;
+            Icons == null && Categories == null && Rarity == null && CapstoneArt == null &&
+            TrophyTypes == null && Points == null;
 
         /// <summary>
         /// Every field set: each platform's own icons and categories, Exophase rarity (which only
@@ -49,7 +55,9 @@ namespace PlayniteAchievements.Models.Settings
                 Categories = string.Empty,
                 CategoryMode = MetadataCategoryMode.Merge,
                 Rarity = Exophase,
-                CapstoneArt = PlayStation
+                CapstoneArt = PlayStation,
+                TrophyTypes = string.Empty,
+                Points = string.Empty
             };
         }
 
@@ -61,7 +69,9 @@ namespace PlayniteAchievements.Models.Settings
                 Categories = Categories,
                 CategoryMode = CategoryMode,
                 Rarity = Rarity,
-                CapstoneArt = CapstoneArt
+                CapstoneArt = CapstoneArt,
+                TrophyTypes = TrophyTypes,
+                Points = Points
             };
         }
     }
@@ -115,7 +125,9 @@ namespace PlayniteAchievements.Models.Settings
                 Categories = (categoriesFromPlatform ? platform.Categories : defaults.Categories) ?? string.Empty,
                 CategoryMode = (categoriesFromPlatform ? platform.CategoryMode : defaults.CategoryMode) ?? MetadataCategoryMode.Merge,
                 Rarity = platform?.Rarity ?? defaults.Rarity ?? string.Empty,
-                CapstoneArt = platform?.CapstoneArt ?? defaults.CapstoneArt ?? string.Empty
+                CapstoneArt = platform?.CapstoneArt ?? defaults.CapstoneArt ?? string.Empty,
+                TrophyTypes = platform?.TrophyTypes ?? defaults.TrophyTypes ?? string.Empty,
+                Points = platform?.Points ?? defaults.Points ?? string.Empty
             };
         }
 
