@@ -62,7 +62,7 @@ namespace PlayniteAchievements.Views.Helpers
                     .AchievementHasCaptures(achItem.GameName, achItem.DisplayName) == true;
                 var captureItem = new MenuItem
                 {
-                    Header = L(resourceOwner, "LOCPlayAch_Menu_ViewCaptures"),
+                    Header = L(resourceOwner, "LOCPlayAch_Column_Captures"),
                     IsEnabled = hasCaptures
                 };
                 captureItem.Click += (_, __) => PlayniteAchievementsPlugin.Instance?.OpenCapturesViewer(achItem);
