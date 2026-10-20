@@ -129,11 +129,11 @@ namespace PlayniteAchievements.Services.Achievements
                 }
 
                 RecordArt(links, gameId, apiName, source, path);
-                if (!string.Equals(path, definition.UnlockedIconPath, StringComparison.OrdinalIgnoreCase))
-                {
-                    definition.UnlockedIconPath = path;
-                    changed = true;
-                }
+                definition.UnlockedIconPath = path;
+
+                // Counted even when the path is unchanged: new art overwrites the managed file in
+                // place, and only the write's change event makes open views read it again.
+                changed = true;
 
                 _logger?.Debug($"[AutoCapstone] Art for gameId={gameId} {apiName} now from {source}.");
             }
