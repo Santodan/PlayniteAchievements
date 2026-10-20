@@ -60,6 +60,8 @@ namespace PlayniteAchievements.Views.Settings.Metadata
         private string _categories;
         private string _rarity;
         private string _capstoneArt;
+        private string _trophyTypes;
+        private string _points;
 
         internal MetadataChoiceRow(
             PlayniteAchievementsSettings settings,
@@ -79,6 +81,8 @@ namespace PlayniteAchievements.Views.Settings.Metadata
             SupportsRarity = IsDefaults || MetadataChoices.ExophaseRarityProviders.Contains(providerKey);
             IconOptions = BuildSourceOptions(providers, MetadataField.Icons, "LOCPlayAch_Settings_Metadata_Source_Own");
             CapstoneArtOptions = BuildSourceOptions(providers, MetadataField.CapstoneArt, "LOCPlayAch_Settings_Metadata_Source_Own");
+            TrophyTypeOptions = BuildSourceOptions(providers, MetadataField.TrophyTypes, "LOCPlayAch_Settings_Metadata_Source_Own");
+            PointsOptions = BuildSourceOptions(providers, MetadataField.Points, "LOCPlayAch_Settings_Metadata_Source_Own");
             CategoryOptions = BuildCategoryOptions(providers);
             RarityOptions = WithDefault(new[]
             {
@@ -93,6 +97,8 @@ namespace PlayniteAchievements.Views.Settings.Metadata
             _categories = ToCategoryKey(stored);
             _rarity = SupportsRarity ? ToKey(stored?.Rarity) : DefaultKey;
             _capstoneArt = ToKey(stored?.CapstoneArt);
+            _trophyTypes = ToKey(stored?.TrophyTypes);
+            _points = ToKey(stored?.Points);
         }
 
         public string ProviderKey { get; }
@@ -116,6 +122,10 @@ namespace PlayniteAchievements.Views.Settings.Metadata
         public IReadOnlyList<ChoiceOption> RarityOptions { get; }
 
         public IReadOnlyList<ChoiceOption> CapstoneArtOptions { get; }
+
+        public IReadOnlyList<ChoiceOption> TrophyTypeOptions { get; }
+
+        public IReadOnlyList<ChoiceOption> PointsOptions { get; }
 
         public string Icons
         {
@@ -141,6 +151,18 @@ namespace PlayniteAchievements.Views.Settings.Metadata
             set { _capstoneArt = value; Save(); OnPropertyChanged(); }
         }
 
+        public string TrophyTypes
+        {
+            get => _trophyTypes;
+            set { _trophyTypes = value; Save(); OnPropertyChanged(); }
+        }
+
+        public string Points
+        {
+            get => _points;
+            set { _points = value; Save(); OnPropertyChanged(); }
+        }
+
         private void Save()
         {
             var persisted = _settings.Persisted;
@@ -153,7 +175,9 @@ namespace PlayniteAchievements.Views.Settings.Metadata
             {
                 Icons = FromKey(_icons),
                 Rarity = SupportsRarity ? FromKey(_rarity) : null,
-                CapstoneArt = FromKey(_capstoneArt)
+                CapstoneArt = FromKey(_capstoneArt),
+                TrophyTypes = FromKey(_trophyTypes),
+                Points = FromKey(_points)
             };
             ApplyCategoryKey(choices, _categories);
 
@@ -166,7 +190,9 @@ namespace PlayniteAchievements.Views.Settings.Metadata
                     Categories = choices.Categories ?? defaults.Categories,
                     CategoryMode = choices.CategoryMode ?? defaults.CategoryMode,
                     Rarity = choices.Rarity ?? defaults.Rarity,
-                    CapstoneArt = choices.CapstoneArt ?? defaults.CapstoneArt
+                    CapstoneArt = choices.CapstoneArt ?? defaults.CapstoneArt,
+                    TrophyTypes = choices.TrophyTypes ?? defaults.TrophyTypes,
+                    Points = choices.Points ?? defaults.Points
                 };
                 return;
             }
