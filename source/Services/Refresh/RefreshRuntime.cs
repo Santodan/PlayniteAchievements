@@ -1685,6 +1685,40 @@ namespace PlayniteAchievements.Services.Refresh
                 forceRefreshExistingTargets: forceRefreshExistingTargets)
                 .ConfigureAwait(false);
 
+            if (metadataRun != null)
+            {
+                // Borrowed icons that fell back to the game's own last time try again: their files
+                // hold the own icon, which the pass above keeps when it reuses files.
+                var retried = metadataRun.ResetEarlierIconFallbacks(data);
+                if (retried.Count > 0)
+                {
+                    await _achievementIconService.PopulateAchievementIconCacheAsync(
+                            data,
+                            unlockedIconOverrides,
+                            lockedIconOverrides,
+                            cancel,
+                            forceRefreshExistingTargets: true,
+                            onlyApiNames: retried)
+                        .ConfigureAwait(false);
+                }
+
+                // A borrowed icon that did not download falls back to the game's own, as for an
+                // achievement the source has no match for.
+                var restored = metadataRun.RestoreOwnIconsWhereDownloadFailed(data, AchievementIconService.IsHttpIconPath);
+                if (restored.Count > 0)
+                {
+                    _logger?.Info($"[Metadata] {restored.Count} borrowed icon(s) for '{game?.Name}' did not download; using the game's own.");
+                    await _achievementIconService.PopulateAchievementIconCacheAsync(
+                            data,
+                            unlockedIconOverrides,
+                            lockedIconOverrides,
+                            cancel,
+                            forceRefreshExistingTargets: true,
+                            onlyApiNames: restored)
+                        .ConfigureAwait(false);
+                }
+            }
+
             if (!string.IsNullOrWhiteSpace(key))
             {
                 // Persist provider payload as-is. Runtime overlays (capstone/category/order/game reference)
