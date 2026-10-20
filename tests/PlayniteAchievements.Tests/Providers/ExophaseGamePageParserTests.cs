@@ -51,14 +51,17 @@ namespace PlayniteAchievements.Providers.Tests
         }
 
         [TestMethod]
-        public void BuildTrophyPageUrl_AppendsTheLanguagePath()
+        public void LocalizeAwardPageUrl_AppendsTheLanguagePathToEitherList()
         {
             Assert.AreEqual(
                 "https://www.exophase.com/game/god-of-war-ragnarok-psn/trophies/",
-                ExophaseGamePageParser.BuildTrophyPageUrl("god-of-war-ragnarok-psn", null));
+                ExophaseGamePageParser.LocalizeAwardPageUrl(ExophaseApiClient.BuildUrlFromSlug("god-of-war-ragnarok-psn", "psn"), null));
             Assert.AreEqual(
                 "https://www.exophase.com/game/god-of-war-ragnarok-psn/trophies/fr/",
-                ExophaseGamePageParser.BuildTrophyPageUrl("god-of-war-ragnarok-psn", "fr"));
+                ExophaseGamePageParser.LocalizeAwardPageUrl(ExophaseApiClient.BuildUrlFromSlug("god-of-war-ragnarok-psn", "psn"), "fr"));
+            Assert.AreEqual(
+                "https://www.exophase.com/game/fallout-4-xbox-one/achievements/fr/",
+                ExophaseGamePageParser.LocalizeAwardPageUrl(ExophaseApiClient.BuildUrlFromSlug("fallout-4-xbox-one", "xbox"), "fr"));
         }
     }
 }
