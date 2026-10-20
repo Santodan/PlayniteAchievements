@@ -194,12 +194,39 @@ namespace PlayniteAchievements.Tests.Services
         }
 
         [TestMethod]
-        public void Derive_InheritsNothingWhenTheyAreSpreadAround()
+        public void Derive_FilesInTheFirstCategoryWhenTheyAreSpreadAround()
         {
             var derived = AutoCapstoneCalculator.Derive(new[]
             {
                 Achievement("a", category: "Story"),
                 Achievement("b", category: "Combat")
+            });
+
+            Assert.AreEqual("Story", derived.Category);
+        }
+
+        [TestMethod]
+        public void Derive_FirstCategoryFollowsTheGamesCategoryOrder()
+        {
+            var derived = AutoCapstoneCalculator.Derive(
+                new[]
+                {
+                    Achievement("a", categoryType: "Base", category: "Story"),
+                    Achievement("b", categoryType: "Base", category: "Combat"),
+                    Achievement("dlc", categoryType: "DLC", category: "Expansion")
+                },
+                categoryOrder: new[] { "Expansion", "Combat", "Story" });
+
+            Assert.AreEqual("Combat", derived.Category);
+        }
+
+        [TestMethod]
+        public void Derive_StaysInDefaultWhenTheDefaultBucketComesFirst()
+        {
+            var derived = AutoCapstoneCalculator.Derive(new[]
+            {
+                Achievement("a"),
+                Achievement("b", category: "Story")
             });
 
             Assert.IsNull(derived.Category);
