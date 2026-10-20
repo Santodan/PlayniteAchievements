@@ -44,9 +44,10 @@ namespace PlayniteAchievements.Providers.Tests
         {
             Assert.AreEqual("jp", ExophaseGamePageParser.TrophyLanguageCode("japanese"));
             Assert.AreEqual("kr", ExophaseGamePageParser.TrophyLanguageCode("koreana"));
-            Assert.AreEqual("pt", ExophaseGamePageParser.TrophyLanguageCode("brazilian"));
+            Assert.AreEqual("pt-BR", ExophaseGamePageParser.TrophyLanguageCode("brazilian"));
+            Assert.AreEqual("zh-CN", ExophaseGamePageParser.TrophyLanguageCode("schinese"));
             Assert.IsNull(ExophaseGamePageParser.TrophyLanguageCode("english"));
-            Assert.IsNull(ExophaseGamePageParser.TrophyLanguageCode("schinese"));
+            Assert.IsNull(ExophaseGamePageParser.TrophyLanguageCode("vietnamese"));
         }
 
         [TestMethod]
