@@ -36,6 +36,10 @@ namespace PlayniteAchievements.Providers.Exophase
         // lazy-thumbnail retry path warms each thumbnail on download instead.
         private const int MaxImageWarmCount = 400;
 
+        // Shared by every client so the provider, rarity and metadata searches back off together.
+        // Retries only, up to four, waiting roughly 4, 6, 10 and 18 seconds after a throttled answer.
+        private static readonly RateLimiter SearchRateLimiter = new RateLimiter(2000, 4);
+
         // Renderer-side mirror of ContainsAchievementMarkup + HasUnlockDataPopulated so readiness
         // can be polled without serializing the full page source across the CEF boundary each pass.
         private const string AchievementDomReadyScript =
@@ -292,8 +296,21 @@ namespace PlayniteAchievements.Providers.Exophase
             {
                 var url = BuildSearchUrl(query, platformSlug);
 
-                // Use WebView to bypass Cloudflare protection
-                var json = await FetchJsonViaWebViewAsync(url, ct).ConfigureAwait(false);
+                // Use WebView to bypass Cloudflare protection. A throttled search answers with the
+                // bare body "429"; it is retried with backoff rather than read as no results.
+                var json = await SearchRateLimiter.ExecuteWithRetryAsync(
+                    async () =>
+                    {
+                        var body = await FetchJsonViaWebViewAsync(url, ct).ConfigureAwait(false);
+                        if (string.Equals(body?.Trim(), "429", StringComparison.Ordinal))
+                        {
+                            throw new ExophaseThrottledException();
+                        }
+
+                        return body;
+                    },
+                    ex => ex is ExophaseThrottledException,
+                    ct).ConfigureAwait(false);
                 if (string.IsNullOrWhiteSpace(json))
                 {
                     return new List<ExophaseGame>();
@@ -322,11 +339,20 @@ namespace PlayniteAchievements.Providers.Exophase
             {
                 throw;
             }
+            catch (ExophaseThrottledException)
+            {
+                _logger?.Warn($"[Exophase] Search for '{query}' still throttled after retries.");
+                return new List<ExophaseGame>();
+            }
             catch (Exception ex)
             {
                 _logger?.Error(ex, "Exophase search failed");
                 return new List<ExophaseGame>();
             }
+        }
+
+        private sealed class ExophaseThrottledException : Exception
+        {
         }
 
         /// <summary>
