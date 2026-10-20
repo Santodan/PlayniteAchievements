@@ -5,7 +5,7 @@
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:helpers="clr-namespace:PlayniteAchievements.Views.Helpers"
              mc:Ignorable="d"
-             d:DesignHeight="600" d:DesignWidth="900">
+             d:DesignHeight="600" d:DesignWidth="760">
 
     <UserControl.Resources>
         <ResourceDictionary>
@@ -26,6 +26,7 @@
                 <Setter Property="Foreground" Value="{DynamicResource PlayAch.Brush.Text}"/>
                 <Setter Property="FontSize" Value="{DynamicResource PlayAch.FontSize.Body}"/>
                 <Setter Property="TextTrimming" Value="CharacterEllipsis"/>
+                <Setter Property="VerticalAlignment" Value="Center"/>
             </Style>
 
             <Style x:Key="MatchDetailStyle" TargetType="TextBlock">
@@ -43,114 +44,127 @@
                 <RowDefinition Height="*"/>
                 <RowDefinition Height="Auto"/>
             </Grid.RowDefinitions>
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="*"/>
-                <ColumnDefinition Width="16"/>
-                <ColumnDefinition Width="*"/>
-            </Grid.ColumnDefinitions>
 
-            <!-- The game's achievements. -->
-            <DockPanel Grid.Row="0" Grid.Column="0" Margin="{StaticResource PlayAch.Thickness.Bottom.Md}">
-                <CheckBox DockPanel.Dock="Right"
-                          Content="{DynamicResource LOCPlayAch_ManageAchievements_Overview_MetadataMatches_UnmatchedOnly}"
-                          IsChecked="{Binding UnmatchedOnly, Mode=TwoWay}"
-                          VerticalAlignment="Center"
-                          Margin="{StaticResource PlayAch.Thickness.Left.Sm}"/>
-                <TextBox Text="{Binding TargetSearch, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                         ToolTip="{DynamicResource LOCSearchLabel}"
-                         Padding="8,6"
-                         VerticalContentAlignment="Center"/>
-            </DockPanel>
+            <CheckBox Grid.Row="0"
+                      Content="{DynamicResource LOCPlayAch_ManageAchievements_Overview_MetadataMatches_UnmatchedOnly}"
+                      IsChecked="{Binding UnmatchedOnly, Mode=TwoWay}"
+                      Margin="{StaticResource PlayAch.Thickness.Bottom.Md}"/>
 
-            <ListBox Grid.Row="1" Grid.Column="0"
-                     ItemsSource="{Binding Targets}"
-                     SelectedItem="{Binding SelectedTarget, Mode=TwoWay}"
-                     HorizontalContentAlignment="Stretch"
-                     ScrollViewer.HorizontalScrollBarVisibility="Disabled"
-                     VirtualizingPanel.IsVirtualizing="True">
-                <ListBox.ItemTemplate>
+            <!-- One row per achievement: the achievement, then its searchable pairing dropdown. -->
+            <ItemsControl Grid.Row="1"
+                          ItemsSource="{Binding Targets}"
+                          Focusable="False"
+                          VirtualizingPanel.IsVirtualizing="True"
+                          VirtualizingPanel.ScrollUnit="Pixel"
+                          ScrollViewer.CanContentScroll="True">
+                <ItemsControl.Template>
+                    <ControlTemplate TargetType="ItemsControl">
+                        <ScrollViewer Focusable="False" HorizontalScrollBarVisibility="Disabled">
+                            <ItemsPresenter/>
+                        </ScrollViewer>
+                    </ControlTemplate>
+                </ItemsControl.Template>
+                <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate>
+                        <VirtualizingStackPanel/>
+                    </ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+                <ItemsControl.ItemTemplate>
                     <DataTemplate>
-                        <Grid Margin="4,3" ToolTip="{Binding Description}">
+                        <Grid Margin="0,3">
                             <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="16"/>
                                 <ColumnDefinition Width="*"/>
                             </Grid.ColumnDefinitions>
-                            <Image Grid.Column="0" Style="{StaticResource MatchIconStyle}" helpers:AsyncImage.Uri="{Binding Icon}"/>
-                            <StackPanel Grid.Column="1">
+
+                            <StackPanel Grid.Column="0" Orientation="Horizontal" ToolTip="{Binding Description}">
+                                <Image Style="{StaticResource MatchIconStyle}" helpers:AsyncImage.Uri="{Binding Icon}"/>
                                 <TextBlock Style="{StaticResource MatchNameStyle}" Text="{Binding Name, Mode=OneWay}"/>
-                                <StackPanel Orientation="Horizontal">
-                                    <Image Width="16" Height="16"
-                                           Margin="0,0,4,0"
-                                           RenderOptions.BitmapScalingMode="HighQuality"
+                            </StackPanel>
+
+                            <!-- Ignores clicks while open, so a click on it closes the dropdown
+                                 (StaysOpen=False) instead of closing and reopening it. -->
+                            <ToggleButton x:Name="PickerButton"
+                                          Grid.Column="2"
+                                          IsChecked="{Binding IsPickerOpen, Mode=TwoWay}"
+                                          IsHitTestVisible="{Binding IsPickerOpen, Converter={StaticResource InvertBoolConverter}}"
+                                          HorizontalContentAlignment="Stretch"
+                                          Padding="6,3">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto"/>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <Image Grid.Column="0"
+                                           Style="{StaticResource MatchIconStyle}"
                                            helpers:AsyncImage.Uri="{Binding Trophy.Icon}"
-                                           helpers:AsyncImage.DecodePixel="32"
                                            Visibility="{Binding IsMatched, Converter={StaticResource BoolToVis}}"/>
-                                    <TextBlock Style="{StaticResource MatchDetailStyle}" Text="{Binding PairingText, Mode=OneWay}"/>
-                                    <TextBlock Style="{StaticResource MatchDetailStyle}"
+                                    <TextBlock Grid.Column="1" Style="{StaticResource MatchNameStyle}" Text="{Binding PairingText, Mode=OneWay}"/>
+                                    <TextBlock Grid.Column="2"
+                                               Style="{StaticResource MatchDetailStyle}"
                                                Text="{DynamicResource LOCPlayAch_ManageAchievements_Overview_MetadataLink_SetByYou}"
+                                               VerticalAlignment="Center"
                                                Margin="{StaticResource PlayAch.Thickness.Left.Sm}"
-                                               FontStyle="Italic"
                                                Visibility="{Binding IsUserSet, Converter={StaticResource BoolToVis}}"/>
-                                </StackPanel>
-                            </StackPanel>
+                                </Grid>
+                            </ToggleButton>
+
+                            <Popup Grid.Column="2"
+                                   IsOpen="{Binding IsPickerOpen, Mode=TwoWay}"
+                                   PlacementTarget="{Binding ElementName=PickerButton}"
+                                   Placement="Bottom"
+                                   StaysOpen="False"
+                                   AllowsTransparency="True"
+                                   Opened="PickerPopup_Opened">
+                                <Border Background="{DynamicResource PlayAch.Brush.PopupSurface}"
+                                        BorderBrush="{DynamicResource PlayAch.Brush.PopupBorder}"
+                                        BorderThickness="1"
+                                        Padding="6"
+                                        MinWidth="{Binding ActualWidth, ElementName=PickerButton}">
+                                    <StackPanel>
+                                        <TextBox Text="{Binding Search, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                 ToolTip="{DynamicResource LOCSearchLabel}"
+                                                 Padding="6,4"
+                                                 Margin="0,0,0,6"
+                                                 PreviewKeyDown="PickerSearch_PreviewKeyDown"/>
+                                        <ListBox ItemsSource="{Binding Options}"
+                                                 MaxHeight="360"
+                                                 HorizontalContentAlignment="Stretch"
+                                                 ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                                                 VirtualizingPanel.IsVirtualizing="True"
+                                                 PreviewMouseLeftButtonUp="PickerList_PreviewMouseLeftButtonUp">
+                                            <ListBox.ItemTemplate>
+                                                <DataTemplate>
+                                                    <Grid Margin="2" ToolTip="{Binding Description}">
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="Auto"/>
+                                                            <ColumnDefinition Width="*"/>
+                                                        </Grid.ColumnDefinitions>
+                                                        <Image Grid.Column="0"
+                                                               Style="{StaticResource MatchIconStyle}"
+                                                               helpers:AsyncImage.Uri="{Binding Icon}"
+                                                               Visibility="{Binding IsSpecial, Converter={StaticResource InverseBoolToVis}}"/>
+                                                        <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                                            <TextBlock Style="{StaticResource MatchNameStyle}" Text="{Binding Name, Mode=OneWay}"/>
+                                                            <TextBlock Style="{StaticResource MatchDetailStyle}"
+                                                                       Text="{Binding PairedWith, Mode=OneWay}"
+                                                                       Visibility="{Binding IsPaired, Converter={StaticResource BoolToVis}}"/>
+                                                        </StackPanel>
+                                                    </Grid>
+                                                </DataTemplate>
+                                            </ListBox.ItemTemplate>
+                                        </ListBox>
+                                    </StackPanel>
+                                </Border>
+                            </Popup>
                         </Grid>
                     </DataTemplate>
-                </ListBox.ItemTemplate>
-            </ListBox>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
 
-            <!-- The source's rows. -->
-            <TextBox Grid.Row="0" Grid.Column="2"
-                     Text="{Binding TrophySearch, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                     ToolTip="{DynamicResource LOCSearchLabel}"
-                     Padding="8,6"
-                     VerticalContentAlignment="Center"
-                     Margin="{StaticResource PlayAch.Thickness.Bottom.Md}"/>
-
-            <ListBox x:Name="TrophyList"
-                     Grid.Row="1" Grid.Column="2"
-                     ItemsSource="{Binding Trophies}"
-                     SelectedItem="{Binding SelectedTrophy, Mode=TwoWay}"
-                     HorizontalContentAlignment="Stretch"
-                     ScrollViewer.HorizontalScrollBarVisibility="Disabled"
-                     VirtualizingPanel.IsVirtualizing="True"
-                     MouseDoubleClick="TrophyList_MouseDoubleClick">
-                <ListBox.ItemTemplate>
-                    <DataTemplate>
-                        <Grid Margin="4,3" ToolTip="{Binding Description}">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="Auto"/>
-                                <ColumnDefinition Width="*"/>
-                            </Grid.ColumnDefinitions>
-                            <Image Grid.Column="0" Style="{StaticResource MatchIconStyle}" helpers:AsyncImage.Uri="{Binding Icon}"/>
-                            <StackPanel Grid.Column="1">
-                                <TextBlock Style="{StaticResource MatchNameStyle}" Text="{Binding Name, Mode=OneWay}"/>
-                                <TextBlock Style="{StaticResource MatchDetailStyle}"
-                                           Text="{Binding PairedWith, Mode=OneWay}"
-                                           Visibility="{Binding IsPaired, Converter={StaticResource BoolToVis}}"/>
-                            </StackPanel>
-                        </Grid>
-                    </DataTemplate>
-                </ListBox.ItemTemplate>
-            </ListBox>
-
-            <!-- Pair the selections, or set the selected achievement to none or back to matching. -->
-            <StackPanel Grid.Row="2" Grid.Column="0" Grid.ColumnSpan="3"
-                        Orientation="Horizontal"
-                        Margin="0,12,0,0">
-                <Button Content="{DynamicResource LOCPlayAch_ManageAchievements_Overview_MetadataMatches_Pair}"
-                        Command="{Binding PairCommand}"
-                        Padding="{StaticResource PlayAch.Thickness.ButtonPadding}"
-                        Margin="{StaticResource PlayAch.Thickness.Right.Sm}"/>
-                <Button Content="{DynamicResource LOCNone}"
-                        Command="{Binding NoneCommand}"
-                        Padding="{StaticResource PlayAch.Thickness.ButtonPadding}"
-                        Margin="{StaticResource PlayAch.Thickness.Right.Sm}"/>
-                <Button Content="{DynamicResource LOCAutomatic}"
-                        Command="{Binding AutomaticCommand}"
-                        Padding="{StaticResource PlayAch.Thickness.ButtonPadding}"/>
-            </StackPanel>
-
-            <StackPanel Grid.Row="2" Grid.Column="0" Grid.ColumnSpan="3"
+            <StackPanel Grid.Row="2"
                         Orientation="Horizontal"
                         HorizontalAlignment="Right"
                         Margin="0,12,0,0">
