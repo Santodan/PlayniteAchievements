@@ -330,12 +330,18 @@ namespace PlayniteAchievements.Services.Achievements
 
             var stored = _store.TryLoad(gameId, out var data) ? data : null;
             var gameData = _resolveGameData?.Invoke(gameId);
-            var achievements = gameData?.Achievements ?? new List<AchievementDetail>();
+            var achievements = AchievementOrderHelper.ApplyOrder(
+                gameData?.Achievements ?? new List<AchievementDetail>(),
+                achievement => achievement?.ApiName,
+                gameData?.AchievementOrder);
 
             // Worked out now, so a game already finished gets a capstone already unlocked and the
             // first refresh after this sees no crossing to announce.
             var normalizedCategory = AchievementCategoryTypeHelper.NormalizeCategory(category);
-            var derived = AutoCapstoneCalculator.Derive(achievements, normalizedCategory);
+            var derived = AutoCapstoneCalculator.Derive(
+                achievements,
+                normalizedCategory,
+                gameData?.AchievementCategoryOrder);
             if (derived == null)
             {
                 return null;
