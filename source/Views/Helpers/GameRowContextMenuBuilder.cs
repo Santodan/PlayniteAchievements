@@ -20,8 +20,8 @@ namespace PlayniteAchievements.Views.Helpers
     internal static class GameRowContextMenuBuilder
     {
         /// <summary>
-        /// Builds the game-level context menu (View, optional Captures, Refresh, optional Manage,
-        /// Open, Maintenance). The Manage item is omitted when
+        /// Builds the game-level context menu (Open, View, optional Friends and Captures, Refresh,
+        /// optional Manage, Maintenance). The Manage item is omitted when
         /// <paramref name="openManageAchievements"/> is null (e.g. when already inside that window).
         /// </summary>
         public static ContextMenu BuildGameMenu(
@@ -45,8 +45,19 @@ namespace PlayniteAchievements.Views.Helpers
             var gameInLibrary = !hasPlayniteGameId || GameExists(playniteApi, menuGameId);
             if (hasPlayniteGameId && gameInLibrary)
             {
+                menu.Items.Add(CreateOpenMenu(
+                    resourceOwner,
+                    menuGameId,
+                    () => ExecuteCommand(openGameInLibraryCommand, data),
+                    playniteApi,
+                    logger));
                 menu.Items.Add(CreateMenuItem(resourceOwner, "LOCPlayAch_Common_View",
                     () => PlayniteAchievementsPlugin.Instance?.OpenViewAchievementsWindow(menuGameId)));
+                if (PlayniteAchievementsPlugin.Instance?.Settings?.Persisted?.EnableFriendsFeatures == true)
+                {
+                    menu.Items.Add(CreateMenuItem(resourceOwner, "LOCPlayAch_Settings_Friends",
+                        () => PlayniteAchievementsPlugin.Instance?.OpenViewFriendsAchievementsWindow(menuGameId)));
+                }
 
                 // User-earned scopes only (opted in by the caller); disabled when the game has no
                 // saved captures. Friend game rows never opt in.
@@ -62,8 +73,11 @@ namespace PlayniteAchievements.Views.Helpers
 
             if (gameInLibrary)
             {
-                menu.Items.Add(CreateMenuItem(resourceOwner, "LOCPlayAch_Button_Refresh",
-                    () => ExecuteCommand(refreshGameCommand, data)));
+                var refreshItem = CreateMenuItem(resourceOwner, "LOCPlayAch_Button_Refresh",
+                    () => ExecuteCommand(refreshGameCommand, data));
+                // Greyed out while it cannot run, such as during another refresh.
+                refreshItem.IsEnabled = refreshGameCommand?.CanExecute(data) != false;
+                menu.Items.Add(refreshItem);
             }
 
             if (hasPlayniteGameId && gameInLibrary)
@@ -78,13 +92,6 @@ namespace PlayniteAchievements.Views.Helpers
                         }
                     }));
                 }
-
-                menu.Items.Add(CreateOpenMenu(
-                    resourceOwner,
-                    menuGameId,
-                    () => ExecuteCommand(openGameInLibraryCommand, data),
-                    playniteApi,
-                    logger));
 
                 if (!(data is FriendGameSummaryItem) &&
                     TryGetGameId(data, out var showcaseGameId))
