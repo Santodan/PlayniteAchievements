@@ -117,47 +117,29 @@ namespace PlayniteAchievements.Services.Achievements
         }
 
         /// <summary>
-        /// The category the scope belongs in: the one it all sits in, or when the base game spans
-        /// several, the main game's. Null when any of it sits in the default bucket.
+        /// The category the scope belongs in: the first the main game sits in, in the order the
+        /// game shows its categories. Null when that is the default bucket.
         /// </summary>
-        private static string ResolveSharedCategory(List<AchievementDetail> scope)
+        /// <remarks>
+        /// The main game is the base-game rows that are not an update: SteamHunters files each
+        /// post-launch update group under its own label, typed Base|Update, and the capstone sits
+        /// with the game rather than with an update. Nothing typed Base leaves the whole scope.
+        /// </remarks>
+        private static string ResolveSharedCategory(
+            List<AchievementDetail> scope,
+            IReadOnlyList<string> categoryOrder)
         {
-            var labels = DistinctNamedCategories(scope);
-            if (labels.Count == 1)
-            {
-                return labels[0];
-            }
-
-            if (labels.Count == 0)
-            {
-                return null;
-            }
-
-            // The base game spread over several categories: SteamHunters files each post-launch
-            // update group under its own label, typed Base|Update. The main game is the category
-            // holding the base-game rows that are not an update, so the capstone sits with it
-            // rather than in a default bucket that nothing else is left in.
-            //
-            // Nothing typed to tell the main game by -- categories the user drew up themselves --
-            // leaves no single right place, so the capstone stays in the default category.
-            var mainGame = DistinctNamedCategories(scope
+            var mainGame = scope
                 .Where(achievement => HasGroupType(achievement, BaseCategoryType) &&
                                       !HasGroupType(achievement, UpdateCategoryType))
-                .ToList());
-            return mainGame.Count == 1 ? mainGame[0] : null;
-        }
-
-        /// <summary>
-        /// The distinct categories <paramref name="achievements"/> sit in, or empty when any of
-        /// them sits in the default bucket, which then has as good a claim as a named one.
-        /// </summary>
-        private static List<string> DistinctNamedCategories(List<AchievementDetail> achievements)
-        {
-            var labels = achievements
-                .Select(achievement => AchievementCategoryTypeHelper.NormalizeCategoryOrDefault(achievement.Category))
-                .Distinct(StringComparer.OrdinalIgnoreCase)
                 .ToList();
-            return labels.Any(IsDefaultCategory) ? new List<string>() : labels;
+            var first = AchievementCategoryFilterOrderHelper
+                .BuildOrderedCategoryLabels(
+                    mainGame.Count > 0 ? mainGame : scope,
+                    achievement => AchievementCategoryTypeHelper.NormalizeCategoryOrDefault(achievement.Category),
+                    categoryOrder)
+                .FirstOrDefault();
+            return first == null || IsDefaultCategory(first) ? null : first;
         }
 
         /// <summary>
@@ -191,9 +173,15 @@ namespace PlayniteAchievements.Services.Achievements
         /// achievements all sit in one category the two give the same answer, which is what keeps a
         /// single-category game behaving exactly as it did.
         /// </param>
+        /// <param name="categoryOrder">
+        /// The game's category order, so the category the capstone is filed in is the first the
+        /// game shows; categories it does not name follow in the order of
+        /// <paramref name="achievements"/>.
+        /// </param>
         public static AutoCapstoneDerivation Derive(
             IEnumerable<AchievementDetail> achievements,
-            string category = null)
+            string category = null,
+            IReadOnlyList<string> categoryOrder = null)
         {
             // Filtered achievements are out of the counts completion is read from, so waiting on
             // one would hold the capstone locked on a game the summary already calls finished.
@@ -242,7 +230,7 @@ namespace PlayniteAchievements.Services.Achievements
                 unlockTimeUtc == default(DateTime) ? (DateTime?)null : unlockTimeUtc,
                 rarest,
                 rarest.HasValue ? PercentRarityHelper.GetRarityTier(rarest.Value).ToString() : null,
-                ResolveSharedCategory(scope),
+                ResolveSharedCategory(scope, categoryOrder),
                 ResolveSharedGroupType(scope));
         }
 
@@ -260,7 +248,8 @@ namespace PlayniteAchievements.Services.Achievements
             IEnumerable<AchievementDetail> achievements,
             string apiName,
             bool isWholeGame,
-            string storedCategory = null)
+            string storedCategory = null,
+            IReadOnlyList<string> categoryOrder = null)
         {
             var list = (achievements ?? Enumerable.Empty<AchievementDetail>())
                 .Where(achievement => achievement != null)
@@ -280,7 +269,7 @@ namespace PlayniteAchievements.Services.Achievements
                 .ToList();
             if (isWholeGame)
             {
-                return Derive(others);
+                return Derive(others, categoryOrder: categoryOrder);
             }
 
             // A category capstone left alone in its category -- one authored before the whole-game
