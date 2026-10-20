@@ -40,6 +40,10 @@ namespace PlayniteAchievements.Providers.Exophase
         // Retries only, up to four, waiting roughly 4, 6, 10 and 18 seconds after a throttled answer.
         private static readonly RateLimiter SearchRateLimiter = new RateLimiter(2000, 4);
 
+        // The page text of a throttled answer is the status alone, possibly wrapped in characters
+        // the browser view adds around plain text.
+        private static readonly Regex ThrottledBody = new Regex(@"^\W*429\W*$", RegexOptions.CultureInvariant);
+
         // Renderer-side mirror of ContainsAchievementMarkup + HasUnlockDataPopulated so readiness
         // can be polled without serializing the full page source across the CEF boundary each pass.
         private const string AchievementDomReadyScript =
@@ -302,7 +306,7 @@ namespace PlayniteAchievements.Providers.Exophase
                     async () =>
                     {
                         var body = await FetchJsonViaWebViewAsync(url, ct).ConfigureAwait(false);
-                        if (string.Equals(body?.Trim(), "429", StringComparison.Ordinal))
+                        if (body != null && ThrottledBody.IsMatch(body))
                         {
                             throw new ExophaseThrottledException();
                         }
