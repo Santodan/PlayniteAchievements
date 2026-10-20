@@ -103,7 +103,7 @@
                                     </DataGridTemplateColumn.CellTemplate>
                                 </DataGridTemplateColumn>
 
-                                <DataGridTemplateColumn Header="{DynamicResource LOCPlayAch_Column_UnlockToasts}"
+                                <DataGridTemplateColumn Header="{DynamicResource LOCPlayAch_Column_UnlockToasts}" IsReadOnly="True"
                                                         Width="Auto"
                                                         MinWidth="100">
                                     <DataGridTemplateColumn.CellTemplate>
@@ -121,7 +121,7 @@
                                     </DataGridTemplateColumn.CellTemplate>
                                 </DataGridTemplateColumn>
 
-                                <DataGridTemplateColumn Header="{DynamicResource LOCPlayAch_Column_FriendToasts}"
+                                <DataGridTemplateColumn Header="{DynamicResource LOCPlayAch_Column_FriendToasts}" IsReadOnly="True"
                                                         Width="Auto"
                                                         MinWidth="100"
                                                         Visibility="{Binding Data.Persisted.EnableFriendsFeatures, Source={StaticResource NotificationPlatformsContext}, Converter={StaticResource BoolToVis}}">
@@ -140,7 +140,7 @@
                                     </DataGridTemplateColumn.CellTemplate>
                                 </DataGridTemplateColumn>
 
-                                <DataGridTemplateColumn Header="{DynamicResource LOCPlayAch_Column_ProgressToasts}"
+                                <DataGridTemplateColumn Header="{DynamicResource LOCPlayAch_Column_ProgressToasts}" IsReadOnly="True"
                                                         Width="Auto"
                                                         MinWidth="100">
                                     <DataGridTemplateColumn.CellTemplate>
@@ -158,7 +158,7 @@
                                     </DataGridTemplateColumn.CellTemplate>
                                 </DataGridTemplateColumn>
 
-                                <DataGridTemplateColumn Header="{DynamicResource LOCPlayAch_Column_Screenshots}"
+                                <DataGridTemplateColumn Header="{DynamicResource LOCPlayAch_Column_Screenshots}" IsReadOnly="True"
                                                         Width="Auto"
                                                         MinWidth="110">
                                     <DataGridTemplateColumn.CellTemplate>
@@ -243,7 +243,7 @@
                                     </DataGridTemplateColumn.CellTemplate>
                                 </DataGridTemplateColumn>
 
-                                <DataGridTemplateColumn Header="{DynamicResource LOCPlayAch_Column_Recordings}"
+                                <DataGridTemplateColumn Header="{DynamicResource LOCPlayAch_Column_Recordings}" IsReadOnly="True"
                                                         Width="Auto"
                                                         MinWidth="110">
                                     <DataGridTemplateColumn.CellTemplate>
