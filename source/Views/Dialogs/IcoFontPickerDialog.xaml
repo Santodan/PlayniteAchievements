@@ -3,6 +3,7 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:controls="clr-namespace:PlayniteAchievements.Views.Controls"
              mc:Ignorable="d"
              d:DesignHeight="480" d:DesignWidth="520">
 
@@ -11,6 +12,41 @@
             <ResourceDictionary.MergedDictionaries>
                 <ResourceDictionary Source="pack://application:,,,/PlayniteAchievements;component/Resources/PlayAchImplicitControlStyles.xaml"/>
             </ResourceDictionary.MergedDictionaries>
+
+            <!-- One glyph cell: the name is the tooltip and what the search matches; the chosen
+                 one is outlined in the accent. -->
+            <Style x:Key="GlyphCellStyle" TargetType="Button">
+                <Setter Property="Width" Value="36"/>
+                <Setter Property="Height" Value="36"/>
+                <Setter Property="Cursor" Value="Hand"/>
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="Button">
+                            <Border x:Name="Cell"
+                                    Margin="2"
+                                    CornerRadius="4"
+                                    BorderThickness="1"
+                                    BorderBrush="Transparent"
+                                    Background="Transparent">
+                                <controls:GlyphIcon Glyph="{Binding Glyph}"
+                                                    FontFamily="{DynamicResource PlayAch.FontFamily.Icon}"
+                                                    Size="20"
+                                                    Foreground="{DynamicResource PlayAch.Brush.Text}"
+                                                    HorizontalAlignment="Center"
+                                                    VerticalAlignment="Center"/>
+                            </Border>
+                            <ControlTemplate.Triggers>
+                                <Trigger Property="IsMouseOver" Value="True">
+                                    <Setter TargetName="Cell" Property="BorderBrush" Value="{DynamicResource PlayAch.Brush.ControlBorder}"/>
+                                </Trigger>
+                                <DataTrigger Binding="{Binding IsSelected}" Value="True">
+                                    <Setter TargetName="Cell" Property="BorderBrush" Value="{DynamicResource PlayAch.Brush.Accent}"/>
+                                </DataTrigger>
+                            </ControlTemplate.Triggers>
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
+            </Style>
         </ResourceDictionary>
     </UserControl.Resources>
 
@@ -30,33 +66,47 @@
                      TextChanged="SearchBox_TextChanged"
                      Margin="{StaticResource PlayAch.Thickness.Bottom.Md}"/>
 
-            <!-- One button per glyph; the name is the tooltip and what the search matches. -->
-            <ListBox x:Name="GlyphList"
-                     Grid.Row="1"
-                     SelectionMode="Single"
-                     ScrollViewer.HorizontalScrollBarVisibility="Disabled"
-                     MouseDoubleClick="GlyphList_MouseDoubleClick">
-                <ListBox.ItemsPanel>
+            <!-- Rows of a fixed number of glyphs in a virtualizing list, so only the rows on
+                 screen are built: a wrap panel over every glyph cannot virtualize. -->
+            <ItemsControl x:Name="GlyphRows"
+                          Grid.Row="1"
+                          VirtualizingPanel.IsVirtualizing="True"
+                          VirtualizingPanel.VirtualizationMode="Recycling"
+                          ScrollViewer.CanContentScroll="True"
+                          ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                          ScrollViewer.VerticalScrollBarVisibility="Auto">
+                <ItemsControl.Template>
+                    <ControlTemplate TargetType="ItemsControl">
+                        <ScrollViewer x:Name="GlyphScroller" Focusable="False" CanContentScroll="True">
+                            <ItemsPresenter/>
+                        </ScrollViewer>
+                    </ControlTemplate>
+                </ItemsControl.Template>
+                <ItemsControl.ItemsPanel>
                     <ItemsPanelTemplate>
-                        <WrapPanel/>
+                        <VirtualizingStackPanel/>
                     </ItemsPanelTemplate>
-                </ListBox.ItemsPanel>
-                <ListBox.ItemTemplate>
+                </ItemsControl.ItemsPanel>
+                <ItemsControl.ItemTemplate>
                     <DataTemplate>
-                        <TextBlock Text="{Binding Glyph}"
-                                   ToolTip="{Binding Name}"
-                                   FontFamily="{DynamicResource PlayAch.FontFamily.Icon}"
-                                   FontSize="22"
-                                   Width="32"
-                                   Height="32"
-                                   TextAlignment="Center"
-                                   Padding="0,4,0,0"
-                                   Foreground="{DynamicResource PlayAch.Brush.Text}"
-                                   TextOptions.TextFormattingMode="Display"
-                                   TextOptions.TextRenderingMode="Grayscale"/>
+                        <ItemsControl ItemsSource="{Binding}" Focusable="False">
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate>
+                                    <StackPanel Orientation="Horizontal"/>
+                                </ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Button Style="{StaticResource GlyphCellStyle}"
+                                            ToolTip="{Binding Name}"
+                                            Click="GlyphCell_Click"
+                                            MouseDoubleClick="GlyphCell_MouseDoubleClick"/>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
                     </DataTemplate>
-                </ListBox.ItemTemplate>
-            </ListBox>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
 
             <Grid Grid.Row="2" Margin="{StaticResource PlayAch.Thickness.Top.Md}">
                 <Grid.ColumnDefinitions>
