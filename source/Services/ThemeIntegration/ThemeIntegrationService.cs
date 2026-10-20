@@ -4097,7 +4097,12 @@ namespace PlayniteAchievements.Services.ThemeIntegration
                 DynamicThemeOptionGroups.GetAchievementCategoryTypeFilterKeys(
                     Guid.TryParse(selectedGameKey, out var selectedTagGameId) ? selectedTagGameId : (Guid?)null),
                 DynamicThemeOptionGroups.GetGroupSelection(selectedGameView.FilterKey, DynamicThemeOptionGroups.AchievementCategoryTypeGroup, DynamicThemeOptionGroups.AchievementFilterGroupMap),
-                _settings.SetDynamicAchievementsCategoryTypeFilterCommand);
+                _settings.SetDynamicAchievementsCategoryTypeFilterCommand,
+                // The selected game's own tags name themselves too, not only the global ones.
+                getLabel: key => AchievementClassificationFilter.IsFilterKey(key) &&
+                                 !string.Equals(key, DynamicThemeViewKeys.All, StringComparison.OrdinalIgnoreCase)
+                    ? AchievementClassificationFilter.GetDisplayName(key, selectedTagGameId)
+                    : null);
             _settings.ModernTheme.DynamicAchievementCustomizationFilterOptions = DynamicThemeOptionFactory.CreateOptions(
                 DynamicThemeOptionGroups.AchievementCustomizationFilterKeys,
                 DynamicThemeOptionGroups.GetGroupSelection(selectedGameView.FilterKey, DynamicThemeOptionGroups.AchievementCustomizationGroups, DynamicThemeOptionGroups.AchievementFilterGroupMap),

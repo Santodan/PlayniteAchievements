@@ -144,7 +144,7 @@ namespace PlayniteAchievements.Models.ThemeIntegration
 
         /// <summary>
         /// True when this summary represents a base-game achievement category (dynamic category cards
-        /// only). The flags below are precomputed from the card's canonical group-type token so themes
+        /// only). The flags below are precomputed from the card's kind so themes
         /// can bind a plain boolean (e.g. IsBaseCategory) instead of string-matching the localized name.
         /// All false for ordinary per-game summaries.
         /// </summary>
@@ -158,6 +158,12 @@ namespace PlayniteAchievements.Models.ThemeIntegration
 
         /// <summary>True when this summary represents a subset achievement category.</summary>
         public bool IsSubsetCategory { get; }
+
+        /// <summary>
+        /// The category's kind ("Base", "DLC|Update", ...), or null for none and for ordinary
+        /// per-game summaries.
+        /// </summary>
+        public string CategoryKind { get; }
 
         /// <summary>
         /// Date of the most recent achievement unlock.
@@ -275,6 +281,7 @@ namespace PlayniteAchievements.Models.ThemeIntegration
             IsCompleted = isCompleted;
             // categoryKind is the category's kind from CategorySummaryBuilder (null for non-category
             // summaries). Kinds combine, so a "DLC|Update" category is both a DLC and an update.
+            CategoryKind = CategoryKindHelper.Normalize(categoryKind);
             IsBaseCategory = CategoryKindHelper.IsBase(categoryKind);
             IsDlcCategory = CategoryKindHelper.IsDlc(categoryKind);
             IsUpdateCategory = CategoryKindHelper.IsUpdate(categoryKind);

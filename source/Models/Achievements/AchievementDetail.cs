@@ -44,6 +44,27 @@ namespace PlayniteAchievements.Models.Achievements
         /// </summary>
         public string CategoryKind { get; set; }
 
+        /// <summary>
+        /// Theme compatibility: the kind and tag keys joined, the single type value themes bound
+        /// before kinds and tags split.
+        /// </summary>
+        [IgnoreDataMember]
+        public string CategoryType => string.Join("|",
+            System.Linq.Enumerable.Concat(
+                Services.Achievements.CategoryKindHelper.GetComponents(CategoryKind),
+                Services.Achievements.AchievementTagHelper.GetComponents(Tags)));
+
+        /// <summary>Names of the visible tags, in the tag list's order.</summary>
+        [IgnoreDataMember]
+        public string TagsDisplay => Services.Achievements.AchievementTagHelper.ToDisplayText(Tags, Game?.Id);
+
+        /// <summary>Theme compatibility: kind and tag names joined.</summary>
+        [IgnoreDataMember]
+        public string CategoryTypeDisplay => string.Join(", ",
+            System.Linq.Enumerable.Where(
+                new[] { Services.Achievements.CategoryKindHelper.ToDisplayText(CategoryKind), TagsDisplay },
+                text => !string.IsNullOrEmpty(text)));
+
         public string Category { get; set; }
 
         /// <summary>

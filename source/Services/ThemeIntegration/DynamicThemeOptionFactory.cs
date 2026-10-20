@@ -15,7 +15,8 @@ namespace PlayniteAchievements.Services.ThemeIntegration
             IEnumerable<string> keys,
             string selectedKey,
             ICommand applyCommand = null,
-            Func<string, object> commandParameterFactory = null)
+            Func<string, object> commandParameterFactory = null,
+            Func<string, string> getLabel = null)
         {
             var orderedKeys = new List<string>();
             var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -36,7 +37,7 @@ namespace PlayniteAchievements.Services.ThemeIntegration
             return new ObservableCollection<DynamicThemeOption>(orderedKeys
                 .Select(key => new DynamicThemeOption(
                     key,
-                    DynamicThemeLabels.GetLabel(key, key),
+                    getLabel?.Invoke(key) ?? DynamicThemeLabels.GetLabel(key, key),
                     isSelected: IsSelected(key, selectedKey),
                     applyCommand: applyCommand,
                     commandParameter: commandParameterFactory?.Invoke(key)))
