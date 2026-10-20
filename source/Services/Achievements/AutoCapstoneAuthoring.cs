@@ -293,6 +293,7 @@ namespace PlayniteAchievements.Services.Achievements
                 Unlocked = derived.Unlocked,
                 UnlockTimeUtc = derived.Unlocked ? derived.UnlockTimeUtc : null,
                 UnlockedIconPath = iconPath,
+                CategoryType = derived.CategoryType,
                 TrophyType = AutoCapstoneTemplate.PlatinumTrophyType,
                 Hidden = false,
                 Rarity = derived.Rarity ?? "Common",
