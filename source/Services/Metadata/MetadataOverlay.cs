@@ -25,24 +25,17 @@ namespace PlayniteAchievements.Services.Metadata
         private readonly Func<PersistedSettings> _settings;
         private readonly MetadataLinkStore _links;
         private readonly ILogger _logger;
-        private readonly Func<string, CancellationToken, Task<int>> _measureIconWidth;
 
-        /// <param name="measureIconWidth">
-        /// Reads an icon's pixel width (0 when unknown) so a source's icons replace only smaller
-        /// ones. Without it, matched icons are always replaced.
-        /// </param>
         public MetadataOverlay(
             Func<IReadOnlyList<IMetadataProvider>> providers,
             Func<PersistedSettings> settings,
             MetadataLinkStore links,
-            ILogger logger,
-            Func<string, CancellationToken, Task<int>> measureIconWidth = null)
+            ILogger logger)
         {
             _providers = providers;
             _settings = settings;
             _links = links;
             _logger = logger;
-            _measureIconWidth = measureIconWidth;
         }
 
         public MetadataLinkStore Links => _links;
@@ -54,8 +47,7 @@ namespace PlayniteAchievements.Services.Metadata
                 _providers?.Invoke() ?? Array.Empty<IMetadataProvider>(),
                 _settings?.Invoke(),
                 _links,
-                _logger,
-                _measureIconWidth);
+                _logger);
         }
     }
 
@@ -68,7 +60,6 @@ namespace PlayniteAchievements.Services.Metadata
         private readonly PersistedSettings _settings;
         private readonly MetadataLinkStore _links;
         private readonly ILogger _logger;
-        private readonly Func<string, CancellationToken, Task<int>> _measureIconWidth;
         private readonly object _sessionSync = new object();
         private readonly Dictionary<string, Task<bool>> _sessions =
             new Dictionary<string, Task<bool>>(StringComparer.OrdinalIgnoreCase);
@@ -77,10 +68,8 @@ namespace PlayniteAchievements.Services.Metadata
             IReadOnlyList<IMetadataProvider> providers,
             PersistedSettings settings,
             MetadataLinkStore links,
-            ILogger logger,
-            Func<string, CancellationToken, Task<int>> measureIconWidth = null)
+            ILogger logger)
         {
-            _measureIconWidth = measureIconWidth;
             _providersByKey = (providers ?? Array.Empty<IMetadataProvider>())
                 .Where(provider => provider != null && !string.IsNullOrWhiteSpace(provider.Key))
                 .GroupBy(provider => provider.Key, StringComparer.OrdinalIgnoreCase)
@@ -121,8 +110,7 @@ namespace PlayniteAchievements.Services.Metadata
             }
 
             var borrowedIconApiNames = new List<string>();
-            var iconKeys = await KeepLargerIconSourcesAsync(plan.IconKeys, sets, request.Game?.Name, ct).ConfigureAwait(false);
-            var iconSource = ApplyIcons(iconKeys, sets, borrowedIconApiNames);
+            var iconSource = ApplyIcons(plan.IconKeys, sets, borrowedIconApiNames);
             ApplyCategories(plan.CategoryKeys, plan.CategoryMode, sets);
             var capstone = ResolveCapstone(plan.CapstoneArtKeys, sets);
             var capstoneArt = FirstNonBlank(capstone?.UnlockedIconPath, capstone?.LockedIconPath);
@@ -385,52 +373,6 @@ namespace PlayniteAchievements.Services.Metadata
 
             _links?.SetAuto(gameId, provider.Key, resolved.Id, resolved.Label);
             return (resolved.Id.Trim(), null);
-        }
-
-        /// <summary>
-        /// The icon sources whose icons are larger than the game's own, judged by one matched
-        /// pair per source: a source's icons share one size, and so do a provider's. A source is
-        /// kept when either width cannot be read, as it was before sizes were compared.
-        /// </summary>
-        private async Task<IReadOnlyList<string>> KeepLargerIconSourcesAsync(
-            IReadOnlyList<string> keys,
-            IReadOnlyDictionary<string, MatchedSet> sets,
-            string gameName,
-            CancellationToken ct)
-        {
-            if (_measureIconWidth == null)
-            {
-                return keys;
-            }
-
-            var kept = new List<string>();
-            foreach (var key in keys)
-            {
-                if (!sets.TryGetValue(key, out var set))
-                {
-                    continue;
-                }
-
-                var sample = set.Matches.FirstOrDefault(match =>
-                    FirstNonBlank(match.Source.UnlockedIconPath, match.Source.LockedIconPath) != null &&
-                    FirstNonBlank(match.Target.UnlockedIconPath, match.Target.LockedIconPath) != null);
-                if (sample.Source != null)
-                {
-                    var sourceWidth = await _measureIconWidth(
-                        FirstNonBlank(sample.Source.UnlockedIconPath, sample.Source.LockedIconPath), ct).ConfigureAwait(false);
-                    var ownWidth = await _measureIconWidth(
-                        FirstNonBlank(sample.Target.UnlockedIconPath, sample.Target.LockedIconPath), ct).ConfigureAwait(false);
-                    if (sourceWidth > 0 && ownWidth > 0 && sourceWidth <= ownWidth)
-                    {
-                        _logger?.Debug($"[Metadata] {key} icons ({sourceWidth}px) not larger than '{gameName}' icons ({ownWidth}px); kept own.");
-                        continue;
-                    }
-                }
-
-                kept.Add(key);
-            }
-
-            return kept;
         }
 
         /// <summary>
