@@ -581,8 +581,6 @@ namespace PlayniteAchievements
         {
             menu.Items.Add(CreateStartPageMenuItem(resourceOwner, "LOCPlayAch_Common_View",
                 () => OpenViewAchievementsWindow(gameId)));
-            menu.Items.Add(CreateStartPageMenuItem(resourceOwner, "LOCPlayAch_Common_Manage",
-                () => OpenManageAchievementsView(gameId)));
 
             if (!IsRefreshInProgress())
             {
@@ -597,6 +595,8 @@ namespace PlayniteAchievements
                         gameId)));
             }
 
+            menu.Items.Add(CreateStartPageMenuItem(resourceOwner, "LOCPlayAch_Common_Manage",
+                () => OpenManageAchievementsView(gameId)));
             menu.Items.Add(CreateStartPageOpenMenu(resourceOwner, gameId));
 
             if (includeShowcasePin)
