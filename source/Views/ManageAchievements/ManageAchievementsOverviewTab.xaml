@@ -152,10 +152,10 @@
                                     MinWidth="100"
                                     Margin="{StaticResource PlayAch.Thickness.Right.Sm}" />
                             <Button Grid.Row="0" Grid.Column="2"
-                                    Content="{DynamicResource LOCPlayAch_Menu_ViewAchievements}"
+                                    Content="{DynamicResource LOCPlayAch_Common_View}"
                                     Command="{Binding OpenAchievementsCommand}"
                                     Padding="{StaticResource PlayAch.Thickness.ButtonPadding}"
-                                    MinWidth="130" />
+                                    MinWidth="100" />
                             <Button Grid.Row="1" Grid.Column="0"
                                     Content="{DynamicResource LOCPlayAch_ManageAchievements_Overrides_ExportButton}" ContentTemplate="{DynamicResource PlayAch.ButtonContent.Export}"
                                     Click="ContextMenuButton_Click"
