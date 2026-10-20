@@ -83,6 +83,23 @@ namespace PlayniteAchievements.Models.ThemeIntegration
         public static readonly string[] AchievementCategoryTypeFilterKeys =
             new[] { DynamicThemeViewKeys.All }.Concat(CategoryTypeKeys).ToArray();
 
+        /// <summary>
+        /// The type filter options for <paramref name="gameId"/> (every game when null): All, the
+        /// kinds, the tags available there (user tags included), then the unlock modes.
+        /// </summary>
+        public static IReadOnlyList<string> GetAchievementCategoryTypeFilterKeys(Guid? gameId = null) =>
+            new[] { DynamicThemeViewKeys.All }
+                .Concat(Services.Achievements.AchievementClassificationFilter.GetFilterKeys(gameId))
+                .Concat(new[] { Services.Achievements.AchievementTagHelper.Softcore, Services.Achievements.AchievementTagHelper.Hardcore })
+                .ToList();
+
+        /// <summary>
+        /// <see cref="GetAchievementCategoryTypeFilterKeys"/> for every game, read afresh on each use,
+        /// for option bindings built once.
+        /// </summary>
+        public static readonly IReadOnlyList<string> LiveAchievementCategoryTypeFilterKeys =
+            new LiveKeyList(() => GetAchievementCategoryTypeFilterKeys());
+
         public static readonly string[] AchievementCustomizationFilterKeys =
         {
             DynamicThemeViewKeys.All,
@@ -427,6 +444,24 @@ namespace PlayniteAchievements.Models.ThemeIntegration
             }
 
             return map;
+        }
+
+        private sealed class LiveKeyList : IReadOnlyList<string>
+        {
+            private readonly Func<IReadOnlyList<string>> _read;
+
+            public LiveKeyList(Func<IReadOnlyList<string>> read)
+            {
+                _read = read;
+            }
+
+            public string this[int index] => _read()[index];
+
+            public int Count => _read().Count;
+
+            public IEnumerator<string> GetEnumerator() => _read().GetEnumerator();
+
+            System.Collections.IEnumerator System.Collections.IEnumerable.GetEnumerator() => GetEnumerator();
         }
 
         private static (string GroupKey, string[] Keys) Group(string groupKey, params string[] keys)

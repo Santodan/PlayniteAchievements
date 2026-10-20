@@ -3375,7 +3375,7 @@ namespace PlayniteAchievements.Services.ThemeIntegration
                 },
                 new DynamicGroupOptionBinding
                 {
-                    OptionKeys = DynamicThemeOptionGroups.AchievementCategoryTypeFilterKeys,
+                    OptionKeys = DynamicThemeOptionGroups.LiveAchievementCategoryTypeFilterKeys,
                     GroupKeys = new[] { DynamicThemeOptionGroups.AchievementCategoryTypeGroup },
                     GroupMap = DynamicThemeOptionGroups.AchievementFilterGroupMap,
                     Command = () => _settings.SetDynamicLibraryAchievementsCategoryTypeFilterCommand,
@@ -3554,7 +3554,7 @@ namespace PlayniteAchievements.Services.ThemeIntegration
                 },
                 new DynamicGroupOptionBinding
                 {
-                    OptionKeys = DynamicThemeOptionGroups.AchievementCategoryTypeFilterKeys,
+                    OptionKeys = DynamicThemeOptionGroups.LiveAchievementCategoryTypeFilterKeys,
                     GroupKeys = new[] { DynamicThemeOptionGroups.AchievementCategoryTypeGroup },
                     GroupMap = DynamicThemeOptionGroups.AchievementFilterGroupMap,
                     Command = () => _settings.SetDynamicFriendAchievementsCategoryTypeFilterCommand,
@@ -4094,7 +4094,8 @@ namespace PlayniteAchievements.Services.ThemeIntegration
                 DynamicThemeOptionGroups.GetGroupSelection(selectedGameView.FilterKey, DynamicThemeOptionGroups.AchievementTrophyGroup, DynamicThemeOptionGroups.AchievementFilterGroupMap),
                 _settings.SetDynamicAchievementsTrophyFilterCommand);
             _settings.ModernTheme.DynamicAchievementCategoryTypeFilterOptions = DynamicThemeOptionFactory.CreateOptions(
-                DynamicThemeOptionGroups.AchievementCategoryTypeFilterKeys,
+                DynamicThemeOptionGroups.GetAchievementCategoryTypeFilterKeys(
+                    Guid.TryParse(selectedGameKey, out var selectedTagGameId) ? selectedTagGameId : (Guid?)null),
                 DynamicThemeOptionGroups.GetGroupSelection(selectedGameView.FilterKey, DynamicThemeOptionGroups.AchievementCategoryTypeGroup, DynamicThemeOptionGroups.AchievementFilterGroupMap),
                 _settings.SetDynamicAchievementsCategoryTypeFilterCommand);
             _settings.ModernTheme.DynamicAchievementCustomizationFilterOptions = DynamicThemeOptionFactory.CreateOptions(
@@ -4310,7 +4311,14 @@ namespace PlayniteAchievements.Services.ThemeIntegration
                 source = source.Where(achievement => FriendOverviewProjection.IsSameGame(achievement, selectedGame));
             }
 
-            source = ApplyDynamicFilterPredicates(source, viewState.FilterKey, FriendAchievementFilterPredicates);
+            source = ApplyDynamicFilterPredicates(
+                source,
+                viewState.FilterKey,
+                FriendAchievementFilterPredicates,
+                // User tags are not in the listed keys but still filter.
+                key => AchievementClassificationFilter.IsFilterKey(key)
+                    ? item => item != null && AchievementClassificationFilter.Matches(item.CategoryKind, item.Tags, key)
+                    : (Func<FriendAchievementDisplayItem, bool>)null);
             return FriendAchievementSortTable.Sort(source, viewState).ToList();
         }
 
@@ -4415,12 +4423,19 @@ namespace PlayniteAchievements.Services.ThemeIntegration
         private static IEnumerable<T> ApplyDynamicFilterPredicates<T>(
             IEnumerable<T> source,
             string filterKey,
-            IReadOnlyDictionary<string, Func<T, bool>> predicates)
+            IReadOnlyDictionary<string, Func<T, bool>> predicates,
+            Func<string, Func<T, bool>> fallback = null)
         {
             var items = source ?? Enumerable.Empty<T>();
             foreach (var key in DynamicThemeFilterExpression.Enumerate(filterKey))
             {
-                if (key != null && predicates.TryGetValue(key, out var predicate))
+                if (key == null)
+                {
+                    continue;
+                }
+
+                var predicate = predicates.TryGetValue(key, out var listed) ? listed : fallback?.Invoke(key);
+                if (predicate != null)
                 {
                     items = items.Where(predicate);
                 }

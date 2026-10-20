@@ -91,6 +91,13 @@ namespace PlayniteAchievements.Services.ThemeIntegration
                 return string.Join(" + ", filterKeys.Select(filterKey => GetLabel(filterKey, filterKey)));
             }
 
+            // Kinds and tags name themselves, so a renamed or user-made tag shows its current name.
+            if (Services.Achievements.AchievementClassificationFilter.IsFilterKey(key) &&
+                !string.Equals(key, DynamicThemeViewKeys.All, StringComparison.OrdinalIgnoreCase))
+            {
+                return Services.Achievements.AchievementClassificationFilter.GetDisplayName(key);
+            }
+
             if (!LabelMap.TryGetValue(key ?? string.Empty, out var localized) &&
                 !LabelMap.TryGetValue(defaultKey, out localized))
             {
