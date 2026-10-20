@@ -1081,8 +1081,6 @@
     <sys:String x:Key="LOCPlayAch_Metadata_Source_PlayStation">PlayStation</sys:String>
     <sys:String x:Key="LOCPlayAch_Metadata_Source_SteamHunters">SteamHunters</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_SteamHuntersCategories_Override">Override</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_Metadata_CapstoneArt">Capstone art</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_Metadata_CapstoneArt_GameIcon">Game icon</sys:String>
 
     <!-- ================================================================= -->
     <!-- 11 Authentication -->
