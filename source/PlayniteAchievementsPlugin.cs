@@ -2142,16 +2142,6 @@ namespace PlayniteAchievements
             {
                 return;
             }
-            if (summary.SourceUnavailable)
-            {
-                PlayniteApi.Dialogs.ShowMessage(
-                    string.Format(
-                        ResourceProvider.GetString("LOCPlayAch_ManualAchievements_SignInRequired"),
-                        ProviderRegistry.GetLocalizedName("PSN")),
-                    title);
-                return;
-            }
-
             var text = string.Format(
                 ResourceProvider.GetString("LOCPlayAch_Settings_Metadata_TestIcons_Summary"),
                 summary.Tested,

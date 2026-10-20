@@ -408,6 +408,7 @@
     <Compile Include="..\..\source\Providers\Steam\SteamWebAuthSession.cs" Link="Source\Providers\Steam\SteamWebAuthSession.cs" />
     <Compile Include="..\..\source\Providers\Steam\SteamWebApiTokenResolver.cs" Link="Source\Providers\Steam\SteamWebApiTokenResolver.cs" />
     <Compile Include="..\..\source\Providers\Exophase\ExophaseApiClient.cs" Link="Source\Providers\Exophase\ExophaseApiClient.cs" />
+    <Compile Include="..\..\source\Providers\Exophase\ExophaseGamePageParser.cs" Link="Source\Providers\Exophase\ExophaseGamePageParser.cs" />
     <Compile Include="..\..\source\Providers\Exophase\ExophaseSteamAppIdParser.cs" Link="Source\Providers\Exophase\ExophaseSteamAppIdParser.cs" />
     <Compile Include="..\..\source\Providers\ISessionManager.cs" Link="Source\Providers\ISessionManager.cs" />
     <Compile Include="..\..\source\Providers\PSN\PsnAuthModels.cs" Link="Source\Providers\PSN\PsnAuthModels.cs" />
@@ -502,7 +503,6 @@
     <Compile Include="..\..\source\Services\Metadata\MetadataMatchTest.cs" Link="Source\Services\Metadata\MetadataMatchTest.cs" />
     <Compile Include="..\..\source\Services\Metadata\MetadataLinkStore.cs" Link="Source\Services\Metadata\MetadataLinkStore.cs" />
     <Compile Include="..\..\source\Services\Metadata\MetadataOverlay.cs" Link="Source\Services\Metadata\MetadataOverlay.cs" />
-    <Compile Include="..\..\source\Providers\PSN\PsPricesPageParser.cs" Link="Source\Providers\PSN\PsPricesPageParser.cs" />
     <Compile Include="..\..\source\Models\Settings\PersistedSettings.GridCompatibility.Notifications.cs" Link="Source\Models\Settings\PersistedSettings.GridCompatibility.Notifications.cs" />
     <Compile Include="..\..\source\Models\Settings\ProgressBadgeSource.cs" Link="Source\Models\Settings\ProgressBadgeSource.cs" />
     <Compile Include="..\..\source\Models\Settings\ProviderNotificationOverride.cs" Link="Source\Models\Settings\ProviderNotificationOverride.cs" />
@@ -819,9 +819,6 @@
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
     <None Include="Fixtures\Steam\Achievements\*.*">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </None>
-    <None Include="Fixtures\PsPrices\*.html">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
     <None Include="Fixtures\Webm\*.webm">

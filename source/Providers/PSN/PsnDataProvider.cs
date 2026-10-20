@@ -33,9 +33,6 @@ namespace PlayniteAchievements.Providers.PSN
         private readonly PsnSessionManager _sessionManager;
         private readonly PsnScanner _scanner;
 
-        /// <summary>The scanner, shared with the PlayStation metadata provider for title-scoped trophy lookups.</summary>
-        internal PsnScanner Scanner => _scanner;
-
         public PsnDataProvider(
             ILogger logger,
             PlayniteAchievementsSettings settings,

@@ -97,7 +97,12 @@ namespace PlayniteAchievements.Providers.Exophase
                 return ExophaseCookieSnapshotStore.HasCriticalCookies(cookies);
             }
 
-            _logger?.Warn("[Exophase] No snapshot cookies available for this refresh - fetches may not show unlocked achievements.");
+            // A client built without a snapshot store reads public pages only.
+            if (_cookieSnapshotStore != null)
+            {
+                _logger?.Warn("[Exophase] No snapshot cookies available for this refresh - fetches may not show unlocked achievements.");
+            }
+
             return false;
         }
 
@@ -500,7 +505,7 @@ namespace PlayniteAchievements.Providers.Exophase
                     {
                         await RestoreCookiesAsync(view, snapshotCookies, ct).ConfigureAwait(false);
                     }
-                    else
+                    else if (_cookieSnapshotStore != null)
                     {
                         _logger?.Warn("[Exophase] No snapshot cookies to restore - fetching may not show unlocked achievements");
                     }
@@ -1206,12 +1211,26 @@ namespace PlayniteAchievements.Providers.Exophase
             }
 
             var iconUrl = NormalizeIconUrlCandidate(imgNode.GetAttributeValue("data-normal", string.Empty));
-            if (!string.IsNullOrWhiteSpace(iconUrl))
+            if (string.IsNullOrWhiteSpace(iconUrl))
             {
-                return iconUrl;
+                iconUrl = NormalizeIconUrlCandidate(imgNode.GetAttributeValue("src", string.Empty));
             }
 
-            return NormalizeIconUrlCandidate(imgNode.GetAttributeValue("src", string.Empty));
+            return ToOriginalAwardIconUrl(iconUrl);
+        }
+
+        private static readonly Regex AwardIconSizePath = new Regex(
+            @"(m\.exophase\.com/[a-z0-9-]+/awards/)[a-z](/)",
+            RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+
+        /// <summary>
+        /// The original upload of an Exophase award icon. Pages link the 64px copy under
+        /// <c>/awards/s/</c>; <c>/awards/o/</c> is the file Exophase received (512px for PS5
+        /// trophies), while the larger fixed sizes can be upscaled from a smaller original.
+        /// </summary>
+        internal static string ToOriginalAwardIconUrl(string url)
+        {
+            return string.IsNullOrWhiteSpace(url) ? url : AwardIconSizePath.Replace(url, "$1o$2", 1);
         }
 
         internal static string ResolveImageUrl(HtmlNode node)

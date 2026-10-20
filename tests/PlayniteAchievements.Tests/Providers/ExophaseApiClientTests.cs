@@ -8,7 +8,7 @@ namespace PlayniteAchievements.Providers.Tests
     public class ExophaseApiClientTests
     {
         [TestMethod]
-        public void ResolveAchievementIconUrl_BlizzardAwardImage_UsesDataNormal()
+        public void ResolveAchievementIconUrl_BlizzardAwardImage_UsesDataNormalAtOriginalSize()
         {
             var node = LoadNode(@"
 <li class=""col-12 locked t1 award visible"" data-earned=""0"">
@@ -24,7 +24,7 @@ namespace PlayniteAchievements.Providers.Tests
             var iconUrl = ExophaseApiClient.ResolveAchievementIconUrl(node);
 
             Assert.AreEqual(
-                "https://m.exophase.com/blizzard/awards/s/7de866e.png?8d203856ce4b449e702586e55c94fef2",
+                "https://m.exophase.com/blizzard/awards/o/7de866e.png?8d203856ce4b449e702586e55c94fef2",
                 iconUrl);
         }
 
@@ -38,7 +38,7 @@ namespace PlayniteAchievements.Providers.Tests
 
             var iconUrl = ExophaseApiClient.ResolveAchievementIconUrl(node);
 
-            Assert.AreEqual("https://m.exophase.com/steam/awards/s/example.png", iconUrl);
+            Assert.AreEqual("https://m.exophase.com/steam/awards/o/example.png", iconUrl);
         }
 
         [TestMethod]
@@ -51,7 +51,21 @@ namespace PlayniteAchievements.Providers.Tests
 
             var iconUrl = ExophaseApiClient.ResolveAchievementIconUrl(node);
 
-            Assert.AreEqual("https://m.exophase.com/blizzard/awards/s/example.png", iconUrl);
+            Assert.AreEqual("https://m.exophase.com/blizzard/awards/o/example.png", iconUrl);
+        }
+
+        [TestMethod]
+        public void ToOriginalAwardIconUrl_RewritesOnlyAwardIconSizes()
+        {
+            Assert.AreEqual(
+                "https://m.exophase.com/psn/awards/o/64b7718.png?9537",
+                ExophaseApiClient.ToOriginalAwardIconUrl("https://m.exophase.com/psn/awards/l/64b7718.png?9537"));
+            Assert.AreEqual(
+                "https://m.exophase.com/origin/games/s/titanfall-2.jpg",
+                ExophaseApiClient.ToOriginalAwardIconUrl("https://m.exophase.com/origin/games/s/titanfall-2.jpg"));
+            Assert.AreEqual(
+                "https://example.com/psn/awards/s/a.png",
+                ExophaseApiClient.ToOriginalAwardIconUrl("https://example.com/psn/awards/s/a.png"));
         }
 
         [TestMethod]
