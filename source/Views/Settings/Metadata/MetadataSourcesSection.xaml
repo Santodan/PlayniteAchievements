@@ -101,7 +101,10 @@
                                     </DataGridTemplateColumn.CellTemplate>
                                 </DataGridTemplateColumn>
 
-                                <DataGridTemplateColumn Header="{DynamicResource LOCPlayAch_ManageAchievements_Tab_CustomIcons}" Width="Auto">
+                                <!-- Read-only columns keep the grid out of row edit mode: a ComboBox never
+                                     commits that edit, so closing the view would cancel it and write the
+                                     original values back over the choices. The ComboBoxes stay editable. -->
+                                <DataGridTemplateColumn Header="{DynamicResource LOCPlayAch_ManageAchievements_Tab_CustomIcons}" Width="Auto" IsReadOnly="True">
                                     <DataGridTemplateColumn.CellTemplate>
                                         <DataTemplate>
                                             <ComboBox Style="{StaticResource MetadataChoiceComboStyle}"
@@ -111,7 +114,7 @@
                                     </DataGridTemplateColumn.CellTemplate>
                                 </DataGridTemplateColumn>
 
-                                <DataGridTemplateColumn Header="{DynamicResource LOCPlayAch_ManageAchievements_Tab_Category}" Width="Auto">
+                                <DataGridTemplateColumn Header="{DynamicResource LOCPlayAch_ManageAchievements_Tab_Category}" Width="Auto" IsReadOnly="True">
                                     <DataGridTemplateColumn.CellTemplate>
                                         <DataTemplate>
                                             <ComboBox Style="{StaticResource MetadataChoiceComboStyle}"
@@ -123,7 +126,7 @@
                                 </DataGridTemplateColumn>
 
                                 <!-- Only platforms whose scanners read Exophase rarity get a choice. -->
-                                <DataGridTemplateColumn Header="{DynamicResource LOCPlayAch_Column_Rarity}" Width="Auto">
+                                <DataGridTemplateColumn Header="{DynamicResource LOCPlayAch_Column_Rarity}" Width="Auto" IsReadOnly="True">
                                     <DataGridTemplateColumn.CellTemplate>
                                         <DataTemplate>
                                             <Grid>
@@ -141,7 +144,7 @@
                                     </DataGridTemplateColumn.CellTemplate>
                                 </DataGridTemplateColumn>
 
-                                <DataGridTemplateColumn Header="{DynamicResource LOCPlayAch_Settings_Metadata_CapstoneArt}" Width="Auto">
+                                <DataGridTemplateColumn Header="{DynamicResource LOCPlayAch_Settings_Metadata_CapstoneArt}" Width="Auto" IsReadOnly="True">
                                     <DataGridTemplateColumn.CellTemplate>
                                         <DataTemplate>
                                             <ComboBox Style="{StaticResource MetadataChoiceComboStyle}"
