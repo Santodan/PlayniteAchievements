@@ -1,5 +1,7 @@
 using Playnite.SDK;
+using PlayniteAchievements.Models;
 using PlayniteAchievements.Models.Achievements;
+using PlayniteAchievements.Providers.Exophase;
 using PlayniteAchievements.Providers.Metadata;
 using System;
 using System.Collections.Generic;
@@ -10,35 +12,38 @@ using System.Threading.Tasks;
 namespace PlayniteAchievements.Providers.PSN
 {
     /// <summary>
-    /// PlayStation trophy icons (512px for PS5, 240px for PS4) and platinum art for games another
-    /// provider services. A game links to a trophy set id (NPWR) and its trophies come from the PSN
-    /// API in the user's language, so a PSN sign-in is required. Matching considers the set the user
-    /// played and the sets behind the game's PSPrices results, preferring a PS5 set.
+    /// PlayStation trophy icons and platinum art for games another provider services, read from
+    /// Exophase's public trophy pages: original-size icons (512px for PS5), trophy types and DLC
+    /// lists, in the plugin's language where Exophase translates them. No sign-in is needed. A
+    /// game links to an Exophase PlayStation page slug, found by name and preferring the PS5 page.
     /// </summary>
     internal sealed class PlayStationMetadataProvider : IMetadataProvider
     {
         public const string MetadataKey = "PlayStation";
 
-        /// <summary>Separates the sets of a link that spans several (a game and its DLC lists).</summary>
+        /// <summary>Separates the pages of a link that spans several.</summary>
         internal const char SetSeparator = ',';
+
+        private static readonly string[] PlatformPreference = { "ps5", "ps4", "ps3", "psvita" };
 
         private static readonly HashSet<string> NativeProviders = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
         {
             "PSN", "RPCS3", "ShadPS4", "Vita3K"
         };
 
-        private readonly PsnDataProvider _psn;
-        private readonly PsPricesClient _psPrices;
+        private readonly ExophaseApiClient _exophase;
+        private readonly PlayniteAchievementsSettings _settings;
         private readonly ILogger _logger;
-        private readonly Dictionary<string, List<AchievementDetail>> _definitions =
-            new Dictionary<string, List<AchievementDetail>>(StringComparer.OrdinalIgnoreCase);
-        private IDisposable _psPricesRun;
-        private volatile bool _runSignedIn;
+        private readonly Dictionary<string, ExophaseApiClient.AchievementFetchResult> _pages =
+            new Dictionary<string, ExophaseApiClient.AchievementFetchResult>(StringComparer.OrdinalIgnoreCase);
+        private readonly Dictionary<string, List<ExophaseGame>> _searches =
+            new Dictionary<string, List<ExophaseGame>>(StringComparer.OrdinalIgnoreCase);
 
-        public PlayStationMetadataProvider(PsnDataProvider psn, IPlayniteAPI api, ILogger logger)
+        public PlayStationMetadataProvider(IPlayniteAPI api, PlayniteAchievementsSettings settings, ILogger logger)
         {
-            _psn = psn;
-            _psPrices = new PsPricesClient(api, logger);
+            // No cookie store: public pages only, so no Exophase sign-in is involved.
+            _exophase = api == null ? null : new ExophaseApiClient(api, logger, null);
+            _settings = settings;
             _logger = logger;
         }
 
@@ -48,198 +53,161 @@ namespace PlayniteAchievements.Providers.PSN
 
         public MetadataField SupportedFields => MetadataField.Icons | MetadataField.CapstoneArt;
 
-        // Set by this run's session probe, not the cached flag, which can outlive the token.
-        private bool PsnSignedIn => _psn?.Scanner != null && _runSignedIn;
-
         public bool IsNativeFor(string servicingProviderKey) =>
             !string.IsNullOrWhiteSpace(servicingProviderKey) && NativeProviders.Contains(servicingProviderKey);
 
-        /// <summary>
-        /// Acquires the PSN access token once per run, as the PSN provider's own refresh does, so a
-        /// lapsed token is renewed before any lookup and a missing sign-in skips the source.
-        /// </summary>
-        public async Task<bool> BeginRunAsync(CancellationToken ct)
+        /// <summary>Leases one shared browser view for the run's page loads.</summary>
+        public Task<bool> BeginRunAsync(CancellationToken ct)
         {
-            if (_psn?.Scanner == null || !await _psn.Scanner.TryAcquireAccessTokenAsync(ct).ConfigureAwait(false))
+            if (_exophase == null)
             {
-                return false;
+                return Task.FromResult(false);
             }
 
-            _runSignedIn = true;
-            _psPricesRun = _psPrices.BeginRun();
-            return true;
+            _exophase.BeginCookieSession();
+            return Task.FromResult(true);
         }
 
         public void EndRun()
         {
-            _runSignedIn = false;
-            Interlocked.Exchange(ref _psPricesRun, null)?.Dispose();
-            lock (_definitions)
+            _exophase?.EndCookieSession();
+            lock (_pages)
             {
-                _definitions.Clear();
-            }
-        }
-
-        public async Task<MetadataSourceLink> ResolveLinkAsync(MetadataLinkRequest request, CancellationToken ct)
-        {
-            var name = request?.Game?.Name;
-            if (string.IsNullOrWhiteSpace(name))
-            {
-                return null;
+                _pages.Clear();
             }
 
-            if (!PsnSignedIn)
+            lock (_searches)
             {
-                return null;
-            }
-
-            try
-            {
-                return await FindMainSetAsync(request, name, ct).ConfigureAwait(false);
-            }
-            catch (PsnAuthRequiredException)
-            {
-                _logger?.Debug($"[PlayStationMetadata] PSN sign-in expired while matching '{name}'.");
-                return null;
+                _searches.Clear();
             }
         }
 
         /// <summary>
-        /// The game's own trophy set: the set the user played under its name, else the sets behind
-        /// its PSPrices results. PS5 sets carry 512px art, so the first PS5 one wins; otherwise the
-        /// first that loads.
+        /// The best PlayStation search match for the first name that finds one, PS5 first. A PS4 or
+        /// older match whose page links a PS5 version of the same game takes that page instead.
         /// </summary>
-        private async Task<MetadataSourceLink> FindMainSetAsync(MetadataLinkRequest request, string name, CancellationToken ct)
+        public async Task<MetadataSourceLink> ResolveLinkAsync(MetadataLinkRequest request, CancellationToken ct)
         {
-            MetadataSourceLink fallback = null;
-            var played = await _psn.Scanner.FindPlayedTrophySetByNameAsync(name, ct).ConfigureAwait(false);
-            if (!string.IsNullOrWhiteSpace(played?.NpCommunicationId))
+            if (_exophase == null || request == null)
             {
-                var link = new MetadataSourceLink(played.NpCommunicationId, played.Title, foundByName: true);
-                if (await IsPs5SetAsync(link.Id, ct).ConfigureAwait(false))
-                {
-                    return link;
-                }
-
-                fallback = link;
+                return null;
             }
 
-            foreach (var gamePage in await _psPrices.FindGamePagePathsAsync(request.SearchNames, ct).ConfigureAwait(false))
+            foreach (var name in DistinctNames(request.SearchNames))
             {
-                var page = await ReadTrophyPageAsync(gamePage, ct).ConfigureAwait(false);
-                if (page == null || string.Equals(page.NpCommunicationId, fallback?.Id, StringComparison.OrdinalIgnoreCase))
+                var games = await SearchAsync(name, ct).ConfigureAwait(false);
+                foreach (var platform in PlatformPreference)
                 {
-                    continue;
-                }
+                    var match = ExophaseGameNameMatcher.SelectBestSearchMatch(name, games, platform);
+                    var slug = ExophaseApiClient.ExtractSlugFromUrl(match?.EndpointAwards);
+                    if (string.IsNullOrWhiteSpace(slug))
+                    {
+                        continue;
+                    }
 
-                var link = new MetadataSourceLink(page.NpCommunicationId, page.Title, foundByName: true);
-                if (await IsPs5SetAsync(link.Id, ct).ConfigureAwait(false))
-                {
-                    return link;
-                }
+                    if (platform != PlatformPreference[0])
+                    {
+                        slug = await FindPs5PageAsync(slug, ct).ConfigureAwait(false) ?? slug;
+                    }
 
-                fallback = fallback ?? link;
+                    _logger?.Debug($"[PlayStationMetadata] '{name}' -> {slug} ({platform}).");
+                    return new MetadataSourceLink(slug, match.Title, foundByName: true);
+                }
             }
 
-            return fallback;
+            return null;
         }
 
-        private async Task<PsPricesTrophyPage> ReadTrophyPageAsync(string gamePage, CancellationToken ct)
+        private async Task<string> FindPs5PageAsync(string slug, CancellationToken ct)
         {
-            var trophyPath = await _psPrices.FindTrophyPagePathAsync(gamePage, ct).ConfigureAwait(false);
-            return trophyPath == null ? null : await _psPrices.GetTrophyPageAsync(trophyPath, ct).ConfigureAwait(false);
+            var page = await GetPageAsync(slug, ct).ConfigureAwait(false);
+            return ExophaseGamePageParser.ParseRelatedPages(page?.Html)
+                .FirstOrDefault(related => string.Equals(related.Platform, "PS5", StringComparison.OrdinalIgnoreCase))
+                ?.Slug;
         }
 
-        /// <summary>PS5 trophy art is served from psnobj; PS4 and older from the trophy/np image path.</summary>
-        internal static bool IsPs5Icon(string url)
+        private static IEnumerable<string> DistinctNames(IEnumerable<string> names)
         {
-            return !string.IsNullOrWhiteSpace(url) &&
-                   url.IndexOf("psnobj.prod.dl.playstation.net", StringComparison.OrdinalIgnoreCase) >= 0;
+            return (names ?? Enumerable.Empty<string>())
+                .Select(name => ExophaseGameNameMatcher.NormalizeGameName(name))
+                .Where(name => !string.IsNullOrWhiteSpace(name))
+                .Distinct(StringComparer.OrdinalIgnoreCase);
         }
 
-        private async Task<bool> IsPs5SetAsync(string npCommunicationId, CancellationToken ct)
+        /// <summary>PlayStation search results for a name, fetched once per run.</summary>
+        private async Task<List<ExophaseGame>> SearchAsync(string name, CancellationToken ct)
         {
-            var rows = await GetDefinitionsAsync(npCommunicationId, ct).ConfigureAwait(false);
-            var ps5 = rows?.Any(row => IsPs5Icon(row.UnlockedIconPath)) == true;
-            _logger?.Debug($"[PlayStationMetadata] {npCommunicationId}: {(rows == null ? "unavailable" : ps5 ? "PS5" : "PS4 or older")}.");
-            return ps5;
-        }
-
-        /// <summary>A set's definitions, fetched once per run so matching and the overlay share them.</summary>
-        private async Task<List<AchievementDetail>> GetDefinitionsAsync(string npCommunicationId, CancellationToken ct)
-        {
-            lock (_definitions)
+            lock (_searches)
             {
-                if (_definitions.TryGetValue(npCommunicationId, out var cached))
+                if (_searches.TryGetValue(name, out var cached))
                 {
                     return cached;
                 }
             }
 
-            var rows = await _psn.Scanner.FetchTrophyDefinitionsAsync(npCommunicationId, ct).ConfigureAwait(false);
-            lock (_definitions)
+            // The PlayStation search endpoint covers every PlayStation platform when given ps5.
+            var games = await _exophase.SearchGamesAsync(name, "ps5", ct).ConfigureAwait(false) ?? new List<ExophaseGame>();
+            lock (_searches)
             {
-                _definitions[npCommunicationId] = rows;
+                _searches[name] = games;
             }
 
-            return rows;
+            return games;
+        }
+
+        /// <summary>A trophy page in the plugin's language, loaded once per run.</summary>
+        private async Task<ExophaseApiClient.AchievementFetchResult> GetPageAsync(string slug, CancellationToken ct)
+        {
+            lock (_pages)
+            {
+                if (_pages.TryGetValue(slug, out var cached))
+                {
+                    return cached;
+                }
+            }
+
+            var language = ExophaseGamePageParser.TrophyLanguageCode(_settings?.Persisted?.GlobalLanguage);
+            var url = ExophaseGamePageParser.BuildTrophyPageUrl(slug, language);
+            var page = await _exophase.FetchAchievementsWithHtmlAsync(url, null, ct).ConfigureAwait(false);
+            lock (_pages)
+            {
+                _pages[slug] = page;
+            }
+
+            return page;
         }
 
         public async Task<AchievementSourceSet> FetchAsync(MetadataLinkRequest request, string linkId, CancellationToken ct)
         {
-            if (!PsnSignedIn)
+            if (_exophase == null)
             {
                 return null;
             }
 
-            // One set, or the main set then its extra ones, comma-separated. Rows keep that order,
-            // so the main set's platinum is the capstone art.
+            // One page, or several comma-separated. Rows keep that order, so the first page's
+            // platinum is the capstone art.
             var rows = new List<AchievementDetail>();
-            foreach (var part in SplitSets(linkId))
+            foreach (var slug in SplitSets(linkId))
             {
-                var npCommunicationId = part;
-                if (IsPsPricesPath(npCommunicationId))
-                {
-                    // A user may paste a PSPrices trophy page; it only supplies the NPWR.
-                    var page = await _psPrices.GetTrophyPageAsync(npCommunicationId, ct).ConfigureAwait(false);
-                    npCommunicationId = page?.NpCommunicationId;
-                }
-
-                if (string.IsNullOrWhiteSpace(npCommunicationId))
-                {
-                    continue;
-                }
-
-                try
-                {
-                    rows.AddRange(await GetDefinitionsAsync(npCommunicationId, ct).ConfigureAwait(false) ?? new List<AchievementDetail>());
-                }
-                catch (PsnAuthRequiredException)
-                {
-                    _logger?.Debug($"[PlayStationMetadata] PSN sign-in required to fetch {npCommunicationId}.");
-                    return null;
-                }
+                var page = await GetPageAsync(slug, ct).ConfigureAwait(false);
+                rows.AddRange(page?.Achievements ?? new List<AchievementDetail>());
             }
 
             return rows.Count == 0 ? null : new AchievementSourceSet(Key, linkId, rows);
         }
 
-        /// <summary>The sets in a link: one id, or several separated by commas.</summary>
+        /// <summary>The page slugs in a link: one, or several separated by commas. Full page addresses are accepted.</summary>
         internal static IReadOnlyList<string> SplitSets(string linkId)
         {
             return (linkId ?? string.Empty)
                 .Split(new[] { SetSeparator }, StringSplitOptions.RemoveEmptyEntries)
                 .Select(part => part.Trim())
-                .Where(part => part.Length > 0)
+                .Select(part => part.StartsWith("http", StringComparison.OrdinalIgnoreCase)
+                    ? ExophaseApiClient.ExtractSlugFromUrl(part)
+                    : part)
+                .Where(part => !string.IsNullOrWhiteSpace(part))
                 .Distinct(StringComparer.OrdinalIgnoreCase)
                 .ToList();
-        }
-
-        /// <summary>A link entered as a PSPrices trophy page (path or full URL) rather than an NPWR id.</summary>
-        internal static bool IsPsPricesPath(string linkId)
-        {
-            return !string.IsNullOrWhiteSpace(linkId) &&
-                   linkId.IndexOf("/game-trophies/", StringComparison.OrdinalIgnoreCase) >= 0;
         }
     }
 }
