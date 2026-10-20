@@ -52,6 +52,8 @@ namespace PlayniteAchievements.Providers.Steam
 
         public string DisplayNameKey => "LOCPlayAch_Metadata_Source_SteamHunters";
 
+        public string LinkPlaceholder => "123456";
+
         public MetadataField SupportedFields => MetadataField.Categories | MetadataField.CategoryArt;
 
         private IManualSource SteamSchema => _manualSources?.GetSourceByKey("Steam");
