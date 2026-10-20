@@ -444,8 +444,6 @@
     <sys:String x:Key="LOCPlayAch_Settings_Manual_Legacy_SummarySkipped">Skipped: {0}</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Manual_Override_Description">Allow manual tracking for games which already have official achievement support.</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Manual_Override_Enable">Enable Manual Tracking Override</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_Manual_RequireExophaseAuth">Require Exophase Authentication</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_Manual_RequireExophaseAuth_Description">When enabled, manual linking uses your Exophase sign-in and can fetch localized achievement text. When disabled, no sign-in is needed but text may be English only.</sys:String>
 
     <!-- ================================================================= -->
     <!-- 09 Refresh and Execution -->
