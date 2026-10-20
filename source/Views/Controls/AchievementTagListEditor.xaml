@@ -1,0 +1,129 @@
+<UserControl x:Class="PlayniteAchievements.Views.Controls.AchievementTagListEditor"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             mc:Ignorable="d"
+             d:DesignHeight="300"
+             d:DesignWidth="600">
+    <!-- DataContext: AchievementTagListViewModel. One row per tag: icon, color, name, order, then
+         Make Global (a game's own tags) or Delete (any tag but the system ones). -->
+    <UserControl.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceDictionary Source="pack://application:,,,/PlayniteAchievements;component/Resources/CommonResources.xaml"/>
+            </ResourceDictionary.MergedDictionaries>
+            <BooleanToVisibilityConverter x:Key="TagEditorBoolToVisibility"/>
+
+            <Style x:Key="TagIconButtonStyle" TargetType="Button" BasedOn="{StaticResource PlayAch.Button.ToolbarIconStyle}">
+                <Setter Property="Margin" Value="{StaticResource PlayAch.Thickness.Right.Sm}"/>
+                <Setter Property="TextOptions.TextFormattingMode" Value="Display"/>
+                <Setter Property="TextOptions.TextRenderingMode" Value="Grayscale"/>
+            </Style>
+        </ResourceDictionary>
+    </UserControl.Resources>
+
+    <StackPanel>
+        <ItemsControl ItemsSource="{Binding Rows}" Focusable="False">
+            <ItemsControl.ItemTemplate>
+                <DataTemplate>
+                    <StackPanel Orientation="Horizontal" Margin="{StaticResource PlayAch.Thickness.Bottom.Sm}">
+                        <!-- Icon: the tag's glyph, or a faint placeholder until one is chosen. -->
+                        <Button Command="{Binding PickIconCommand}"
+                                ToolTip="{DynamicResource LOCPlayAch_Common_ChooseIcon}">
+                            <Button.Style>
+                                <Style TargetType="Button" BasedOn="{StaticResource TagIconButtonStyle}">
+                                    <Setter Property="Content" Value="{Binding Glyph}"/>
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding HasGlyph}" Value="False">
+                                            <Setter Property="Content" Value="&#xEF4B;"/>
+                                            <Setter Property="Opacity" Value="{StaticResource PlayAch.Opacity.Hint}"/>
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </Button.Style>
+                        </Button>
+
+                        <!-- Color: a swatch of the tag's color, or a brush glyph for the theme default.
+                             Right-click returns it to the default. -->
+                        <Button Command="{Binding PickColorCommand}"
+                                ToolTip="{DynamicResource LOCPlayAch_Common_Color}"
+                                Style="{StaticResource TagIconButtonStyle}">
+                            <Button.ContextMenu>
+                                <ContextMenu>
+                                    <MenuItem Header="{DynamicResource LOCResetLabel}" Command="{Binding ClearColorCommand}"/>
+                                </ContextMenu>
+                            </Button.ContextMenu>
+                            <Grid>
+                                <Border Width="16"
+                                        Height="16"
+                                        CornerRadius="3"
+                                        Background="{Binding Brush}"
+                                        BorderBrush="{DynamicResource PlayAch.Brush.Text}"
+                                        BorderThickness="1"
+                                        Visibility="{Binding HasColor, Converter={StaticResource TagEditorBoolToVisibility}}"/>
+                                <TextBlock Text="&#xEDE4;"
+                                           FontFamily="{DynamicResource PlayAch.FontFamily.Icon}"
+                                           Opacity="{StaticResource PlayAch.Opacity.Hint}">
+                                    <TextBlock.Style>
+                                        <Style TargetType="TextBlock">
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding HasColor}" Value="True">
+                                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </TextBlock.Style>
+                                </TextBlock>
+                            </Grid>
+                        </Button>
+
+                        <TextBox Text="{Binding Name, UpdateSourceTrigger=LostFocus}"
+                                 Width="240"
+                                 VerticalContentAlignment="Center"
+                                 Padding="6,4"
+                                 Margin="{StaticResource PlayAch.Thickness.Right.Sm}"
+                                 KeyDown="NameBox_KeyDown"/>
+
+                        <Button Content="&#xEA5E;"
+                                Command="{Binding MoveUpCommand}"
+                                Style="{StaticResource TagIconButtonStyle}"/>
+                        <Button Content="&#xEA5B;"
+                                Command="{Binding MoveDownCommand}"
+                                Style="{StaticResource TagIconButtonStyle}"/>
+
+                        <Button Content="&#xEF3E;"
+                                Command="{Binding MakeGlobalCommand}"
+                                ToolTip="{DynamicResource LOCPlayAch_ManageAchievements_Tags_MakeGlobal}"
+                                Style="{StaticResource TagIconButtonStyle}"
+                                Visibility="{Binding CanMakeGlobal, Converter={StaticResource TagEditorBoolToVisibility}}"/>
+
+                        <!-- System tags carry behavior, so they can be renamed and recolored but
+                             not deleted; a lock stands where Delete would be. -->
+                        <Button Command="{Binding DeleteCommand}">
+                            <Button.Style>
+                                <Style TargetType="Button" BasedOn="{StaticResource TagIconButtonStyle}">
+                                    <Setter Property="Content" Value="&#xEC53;"/>
+                                    <Setter Property="ToolTip" Value="{DynamicResource LOCRemoveTitle}"/>
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding IsSystem}" Value="True">
+                                            <Setter Property="Content" Value="&#xEC61;"/>
+                                            <Setter Property="ToolTip" Value="{DynamicResource LOCPlayAch_Common_BuiltInTagHint}"/>
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </Button.Style>
+                        </Button>
+                    </StackPanel>
+                </DataTemplate>
+            </ItemsControl.ItemTemplate>
+        </ItemsControl>
+
+        <Button Content="{DynamicResource LOCAddTitle}"
+                Command="{Binding AddCommand}"
+                HorizontalAlignment="Left"
+                Padding="{StaticResource PlayAch.Thickness.ButtonPadding}"
+                MinWidth="80"
+                Margin="{StaticResource PlayAch.Thickness.Top.Sm}"/>
+    </StackPanel>
+</UserControl>
