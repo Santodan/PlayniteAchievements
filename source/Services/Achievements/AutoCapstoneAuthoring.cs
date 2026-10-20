@@ -29,8 +29,6 @@ namespace PlayniteAchievements.Services.Achievements
         private readonly Func<AutoCapstoneTemplates> _templates;
         private readonly Func<MetadataLinkStore> _metadataLinks;
         private readonly ILogger _logger;
-        private readonly object _pendingSync = new object();
-        private readonly HashSet<Guid> _waitingForEditor = new HashSet<Guid>();
 
         /// <param name="templates">The text templates in effect, read at each authoring.</param>
         /// <param name="metadataLinks">Where the art written into each capstone is recorded.</param>
@@ -50,8 +48,6 @@ namespace PlayniteAchievements.Services.Achievements
             _templates = templates;
             _metadataLinks = metadataLinks;
             _logger = logger;
-
-            OpenEditorRegistry.Closed += OnEditorClosed;
         }
 
         /// <summary>
@@ -85,13 +81,8 @@ namespace PlayniteAchievements.Services.Achievements
             }
 
             // An open editor saves its own rows over this write, so the game waits for it to close.
-            if (OpenEditorRegistry.IsOpen(gameId))
+            if (OpenEditorRegistry.DeferWhileOpen(gameId, this, () => _ = Task.Run(() => RefreshArtAsync(new[] { gameId }))))
             {
-                lock (_pendingSync)
-                {
-                    _waitingForEditor.Add(gameId);
-                }
-
                 _logger?.Debug($"[AutoCapstone] Art for gameId={gameId} waits for its editor to close.");
                 return;
             }
@@ -234,19 +225,6 @@ namespace PlayniteAchievements.Services.Achievements
         {
             var name = (game?.Name ?? string.Empty).Trim();
             return string.IsNullOrWhiteSpace(name) ? ResourceProvider.GetString(AutoCapstoneText.FallbackGameNameKey) : name;
-        }
-
-        private void OnEditorClosed(Guid gameId)
-        {
-            lock (_pendingSync)
-            {
-                if (!_waitingForEditor.Remove(gameId))
-                {
-                    return;
-                }
-            }
-
-            _ = Task.Run(() => RefreshArtAsync(new[] { gameId }));
         }
 
         private static bool IsRecordedFile(string path, CapstoneArtRecord record)
