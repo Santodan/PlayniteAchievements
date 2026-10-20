@@ -217,12 +217,19 @@ namespace PlayniteAchievements.Services.Metadata
         /// </summary>
         public bool SetPairing(Guid gameId, string sourceKey, string targetApiName, string sourceApiName)
         {
-            if (string.IsNullOrWhiteSpace(targetApiName))
+            return string.IsNullOrWhiteSpace(targetApiName)
+                ? false
+                : SetPairings(gameId, sourceKey, new Dictionary<string, string> { { targetApiName, sourceApiName } });
+        }
+
+        /// <summary>Applies several pairing changes in one write; a null value leaves that achievement to matching.</summary>
+        public bool SetPairings(Guid gameId, string sourceKey, IReadOnlyDictionary<string, string> changes)
+        {
+            if (changes == null || changes.Count == 0)
             {
                 return false;
             }
 
-            var target = targetApiName.Trim();
             return Write(gameId, sourceKey, existing =>
             {
                 if (existing == null || string.IsNullOrWhiteSpace(existing.Id))
@@ -232,13 +239,22 @@ namespace PlayniteAchievements.Services.Metadata
 
                 var next = existing.Clone();
                 var pairings = next.Pairings ?? new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-                if (sourceApiName == null)
+                foreach (var change in changes)
                 {
-                    pairings.Remove(target);
-                }
-                else
-                {
-                    pairings[target] = sourceApiName.Trim();
+                    if (string.IsNullOrWhiteSpace(change.Key))
+                    {
+                        continue;
+                    }
+
+                    var target = change.Key.Trim();
+                    if (change.Value == null)
+                    {
+                        pairings.Remove(target);
+                    }
+                    else
+                    {
+                        pairings[target] = change.Value.Trim();
+                    }
                 }
 
                 next.Pairings = pairings.Count > 0 ? pairings : null;
