@@ -411,6 +411,11 @@
                                      Visibility="{Binding HasAchievementData, Converter={StaticResource BoolToVis}}"
                                      IsChecked="{Binding SelectedTab, Mode=TwoWay, Converter={StaticResource EnumToBool}, ConverterParameter=Category}" />
 
+                        <RadioButton x:Name="TagsTabButton"
+                                     Content="{DynamicResource LOCTagsLabel}"
+                                     Style="{StaticResource NavTabRadioStyle}"
+                                     IsChecked="{Binding SelectedTab, Mode=TwoWay, Converter={StaticResource EnumToBool}, ConverterParameter=Tags}" />
+
                         <RadioButton x:Name="NotificationsTabButton"
                                      Content="{DynamicResource LOCNotifications}"
                                      Style="{StaticResource NavTabRadioStyle}"
@@ -481,6 +486,20 @@
                         </Style>
                     </Grid.Style>
                     <ContentControl x:Name="CategoryHost" />
+                </Grid>
+
+                <Grid>
+                    <Grid.Style>
+                        <Style TargetType="{x:Type Grid}">
+                            <Setter Property="Visibility" Value="Hidden" />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding SelectedTab}" Value="Tags">
+                                    <Setter Property="Visibility" Value="Visible" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </Grid.Style>
+                    <ContentControl x:Name="TagsHost" />
                 </Grid>
 
                 <Grid>
