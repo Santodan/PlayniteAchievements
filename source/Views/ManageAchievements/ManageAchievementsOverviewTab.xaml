@@ -339,8 +339,10 @@
                                                         Padding="{StaticResource PlayAch.Thickness.ButtonPadding}"
                                                         VerticalAlignment="Center"
                                                         Margin="{StaticResource PlayAch.Thickness.Left.Sm}" />
-                                                <Button Content="{DynamicResource LOCClearLabel}"
+                                                <!-- Only for a link the user set: back to automatic matching. -->
+                                                <Button Content="{DynamicResource LOCResetLabel}"
                                                         Command="{Binding ClearCommand}"
+                                                        Visibility="{Binding IsUserSet, Converter={StaticResource BoolToVis}}"
                                                         Padding="{StaticResource PlayAch.Thickness.ButtonPadding}"
                                                         VerticalAlignment="Center"
                                                         Margin="{StaticResource PlayAch.Thickness.Left.Sm}" />
@@ -350,14 +352,12 @@
                                                            Visibility="{Binding HasStatus, Converter={StaticResource BoolToVis}}"
                                                            VerticalAlignment="Center"
                                                            Margin="12,0,0,0" />
-                                                <!-- IcoFont "wrench". -->
-                                                <Button Content="&#xE9C4;"
-                                                        Style="{StaticResource OverviewIconButtonStyle}"
-                                                        ToolTip="{DynamicResource LOCPlayAch_Common_Edit}"
-                                                        AutomationProperties.Name="{DynamicResource LOCPlayAch_Common_Edit}"
+                                                <Button Content="{DynamicResource LOCPlayAch_Common_Edit}"
                                                         Command="{Binding OpenMatchesCommand}"
                                                         Visibility="{Binding ShowFixMatches, Converter={StaticResource BoolToVis}}"
-                                                        VerticalAlignment="Center" />
+                                                        Padding="{StaticResource PlayAch.Thickness.ButtonPadding}"
+                                                        VerticalAlignment="Center"
+                                                        Margin="{StaticResource PlayAch.Thickness.Left.Sm}" />
                                             </WrapPanel>
                                         </Grid>
                                     </DataTemplate>
