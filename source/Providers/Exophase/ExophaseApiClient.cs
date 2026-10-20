@@ -542,25 +542,31 @@ namespace PlayniteAchievements.Providers.Exophase
 
                     await view.NavigateAndWaitAsync(url, timeoutMs: 20000).ConfigureAwait(false);
 
-                    // Wait for JavaScript to populate unlock status (loaded async after initial render)
-                    await Task.Delay(1000, ct).ConfigureAwait(false);
+                    // A client without a cookie store reads public pages, which never carry unlock
+                    // data, so it takes the page as loaded instead of waiting for unlocks to appear.
+                    var waitForUnlocks = _cookieSnapshotStore != null;
+                    if (waitForUnlocks)
+                    {
+                        // Wait for JavaScript to populate unlock status (loaded async after initial render)
+                        await Task.Delay(1000, ct).ConfigureAwait(false);
 
-                    // Poll a cheap renderer-side readiness signal, then serialize the (multi-MB for
-                    // large games) page source across the CEF boundary once instead of per attempt.
-                    await PollAsync(
-                        async _ =>
-                        {
-                            var eval = await view.EvaluateScriptAsync(AchievementDomReadyScript).ConfigureAwait(false);
-                            return eval?.Success == true &&
-                                   string.Equals(Convert.ToString(eval.Result), bool.TrueString, StringComparison.OrdinalIgnoreCase);
-                        },
-                        ready => ready,
-                        AchievementDomReadyPollAttempts,
-                        AchievementDomReadyPollDelayMs,
-                        ct).ConfigureAwait(false);
+                        // Poll a cheap renderer-side readiness signal, then serialize the (multi-MB for
+                        // large games) page source across the CEF boundary once instead of per attempt.
+                        await PollAsync(
+                            async _ =>
+                            {
+                                var eval = await view.EvaluateScriptAsync(AchievementDomReadyScript).ConfigureAwait(false);
+                                return eval?.Success == true &&
+                                       string.Equals(Convert.ToString(eval.Result), bool.TrueString, StringComparison.OrdinalIgnoreCase);
+                            },
+                            ready => ready,
+                            AchievementDomReadyPollAttempts,
+                            AchievementDomReadyPollDelayMs,
+                            ct).ConfigureAwait(false);
+                    }
 
                     var html = await view.GetPageSourceAsync().ConfigureAwait(false);
-                    if (!ContainsAchievementMarkup(html) || !HasUnlockDataPopulated(html))
+                    if (waitForUnlocks && (!ContainsAchievementMarkup(html) || !HasUnlockDataPopulated(html)))
                     {
                         // The readiness script can race the final DOM mutation; retry the fetch once.
                         await Task.Delay(AchievementDomReadyPollDelayMs, ct).ConfigureAwait(false);
