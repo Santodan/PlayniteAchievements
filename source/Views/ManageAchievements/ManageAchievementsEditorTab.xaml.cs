@@ -1516,7 +1516,7 @@ namespace PlayniteAchievements.Views.ManageAchievements
 
             var typeMenu = new MenuItem
             {
-                Header = ResourceProvider.GetString("LOCTypeLabel"),
+                Header = ResourceProvider.GetString("LOCTagsLabel"),
                 IsEnabled = selection.All(row => row.CanEditAssignments)
             };
             AppendTagItems(typeMenu.Items, selection);

@@ -622,7 +622,7 @@
                                 Height="{StaticResource PlayAch.Size.Control.Height}"
                                 Margin="0,0,6,0"
                                 VerticalAlignment="Center"
-                                ToolTip="{DynamicResource LOCTypeLabel}">
+                                ToolTip="{DynamicResource LOCTagsLabel}">
                             <Button.ContextMenu>
                                 <ContextMenu Style="{StaticResource AchievementSelectorContextMenuStyle}"
                                              ItemContainerStyle="{StaticResource AchievementMultiSelectMenuItemStyle}" />
