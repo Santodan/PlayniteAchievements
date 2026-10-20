@@ -69,6 +69,41 @@ namespace PlayniteAchievements.Tests.Services
         }
 
         [TestMethod]
+        public async Task TrophyTypesAndPoints_ComeFromTheirChosenSources()
+        {
+            var playstationPlatinum = Row("p1", "Master");
+            playstationPlatinum.TrophyType = "platinum";
+            playstationPlatinum.Points = 300;
+            var playstationGold = Row("p2", "Dragon Slayer");
+            playstationGold.TrophyType = "gold";
+            playstationGold.Points = 90;
+            var playstation = new FakeSource("PlayStation", MetadataField.TrophyTypes)
+            {
+                Rows = { playstationPlatinum, playstationGold }
+            };
+            var xboxGold = Row("x2", "Dragon Slayer");
+            xboxGold.Points = 50;
+            var xbox = new FakeSource("Xbox", MetadataField.Points) { Rows = { xboxGold } };
+            var master = Row("ACH_MASTER", "Master");
+            master.Points = 10;
+            var dragon = Row("ACH_DRAGON", "Dragon Slayer");
+            dragon.Points = 10;
+            var data = Game("Steam", master, dragon);
+            var overlay = Overlay(new IMetadataProvider[] { playstation, xbox }, Choices(trophyTypes: "PlayStation", points: "Xbox"));
+
+            using (var run = overlay.BeginRun())
+            {
+                await run.ApplyAsync(data.Game, data, CancellationToken.None);
+            }
+
+            Assert.AreEqual("platinum", master.TrophyType);
+            Assert.IsFalse(master.IsCapstone, "A borrowed platinum type only labels the trophy.");
+            Assert.AreEqual(10, master.Points, "Points come only from the source chosen for points.");
+            Assert.AreEqual("gold", dragon.TrophyType);
+            Assert.AreEqual(50, dragon.Points);
+        }
+
+        [TestMethod]
         public async Task UserLink_SurvivesARefreshWhoseSourceReturnsNothing()
         {
             var playstation = new FakeSource("PlayStation", MetadataField.Icons);
@@ -484,7 +519,9 @@ namespace PlayniteAchievements.Tests.Services
         private static PersistedSettings Choices(
             string icons = null,
             MetadataCategoryMode? categories = null,
-            string capstoneArt = null)
+            string capstoneArt = null,
+            string trophyTypes = null,
+            string points = null)
         {
             var settings = new PersistedSettings();
             settings.MetadataDefaults = new MetadataChoices
@@ -493,7 +530,9 @@ namespace PlayniteAchievements.Tests.Services
                 Categories = categories.HasValue ? "SteamHunters" : string.Empty,
                 CategoryMode = categories ?? MetadataCategoryMode.Merge,
                 Rarity = string.Empty,
-                CapstoneArt = capstoneArt ?? string.Empty
+                CapstoneArt = capstoneArt ?? string.Empty,
+                TrophyTypes = trophyTypes ?? string.Empty,
+                Points = points ?? string.Empty
             };
             return settings;
         }
