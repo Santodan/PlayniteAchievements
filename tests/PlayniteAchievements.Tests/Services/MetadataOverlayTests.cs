@@ -68,6 +68,56 @@ namespace PlayniteAchievements.Tests.Services
         }
 
         [TestMethod]
+        public async Task Icons_AreKeptWhenTheSourceIsNotLarger()
+        {
+            var playstation = new FakeSource("PlayStation", MetadataField.Icons)
+            {
+                Rows = { Row("p1", "Dragon Slayer", icon: "https://psn/dragon.png") }
+            };
+            var data = Game("Steam", Row("ACH_DRAGON", "Dragon Slayer", icon: "steam.png"));
+            var widths = new Dictionary<string, int> { { "https://psn/dragon.png", 240 }, { "steam.png", 256 } };
+            var overlay = Overlay(new[] { playstation }, Choices(icons: "PlayStation"), widths);
+
+            using (var run = overlay.BeginRun())
+            {
+                await run.ApplyAsync(data.Game, data, CancellationToken.None);
+            }
+
+            Assert.AreEqual("steam.png", data.Achievements[0].UnlockedIconPath);
+        }
+
+        [TestMethod]
+        public async Task Icons_AreReplacedWhenTheSourceIsLargerOrTheSizeIsUnknown()
+        {
+            var playstation = new FakeSource("PlayStation", MetadataField.Icons)
+            {
+                Rows =
+                {
+                    Row("p1", "Dragon Slayer", icon: "https://psn/dragon.png"),
+                    Row("p2", "Collector", icon: "https://psn/collector.png")
+                }
+            };
+            var larger = Game("Steam", Row("ACH_DRAGON", "Dragon Slayer", icon: "steam.png"));
+            var unknown = Game("Steam", Row("ACH_COLLECT", "Collector", icon: "unreadable.png"));
+            var widths = new Dictionary<string, int>
+            {
+                { "https://psn/dragon.png", 240 },
+                { "https://psn/collector.png", 240 },
+                { "steam.png", 64 }
+            };
+            var overlay = Overlay(new[] { playstation }, Choices(icons: "PlayStation"), widths);
+
+            using (var run = overlay.BeginRun())
+            {
+                await run.ApplyAsync(larger.Game, larger, CancellationToken.None);
+                await run.ApplyAsync(unknown.Game, unknown, CancellationToken.None);
+            }
+
+            Assert.AreEqual("https://psn/dragon.png", larger.Achievements[0].UnlockedIconPath);
+            Assert.AreEqual("https://psn/collector.png", unknown.Achievements[0].UnlockedIconPath);
+        }
+
+        [TestMethod]
         public async Task NativeSource_IsSkipped()
         {
             var playstation = new FakeSource("PlayStation", MetadataField.Icons) { NativeFor = "PSN" };
@@ -324,9 +374,23 @@ namespace PlayniteAchievements.Tests.Services
             return settings;
         }
 
-        private MetadataOverlay Overlay(IReadOnlyList<IMetadataProvider> providers, PersistedSettings settings)
+        private MetadataOverlay Overlay(
+            IReadOnlyList<IMetadataProvider> providers,
+            PersistedSettings settings,
+            IReadOnlyDictionary<string, int> iconWidths = null)
         {
-            return new MetadataOverlay(() => providers, () => settings, new MetadataLinkStore(_directory, new GameCustomDataStore(_directory), null), null);
+            Func<string, CancellationToken, Task<int>> measure = null;
+            if (iconWidths != null)
+            {
+                measure = (path, ct) => Task.FromResult(iconWidths.TryGetValue(path, out var width) ? width : 0);
+            }
+
+            return new MetadataOverlay(
+                () => providers,
+                () => settings,
+                new MetadataLinkStore(_directory, new GameCustomDataStore(_directory), null),
+                null,
+                measure);
         }
 
         private static GameAchievementData Game(string providerKey, params AchievementDetail[] rows)
