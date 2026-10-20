@@ -301,7 +301,12 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         public string Input
         {
             get => _input;
-            set => SetValue(ref _input, value);
+            set
+            {
+                SetValue(ref _input, value);
+                // Apply waits for a new id, so the button follows the box as it is typed in.
+                (ApplyCommand as RelayCommand)?.RaiseCanExecuteChanged();
+            }
         }
 
         /// <summary>Whether the source is used for this game; off is the user's "no match".</summary>
@@ -317,6 +322,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
 
                 _isEnabled = value;
                 OnPropertyChanged();
+                (ApplyCommand as RelayCommand)?.RaiseCanExecuteChanged();
                 _owner?.SetEnabled(this, value);
             }
         }
