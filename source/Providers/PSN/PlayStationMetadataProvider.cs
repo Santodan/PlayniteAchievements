@@ -115,11 +115,14 @@ namespace PlayniteAchievements.Providers.PSN
             return null;
         }
 
-        /// <summary>The <c>-psn</c> page slug of each name, accents removed, without repeats.</summary>
+        /// <summary>
+        /// The <c>-psn</c> page slug of each name, accents removed and without the hyphen a leading
+        /// bracket leaves ("(the) Gnorp Apologue"), without repeats.
+        /// </summary>
         internal static IEnumerable<string> CandidateSlugs(IEnumerable<string> names)
         {
             return (names ?? Enumerable.Empty<string>())
-                .Select(name => ExophaseGameNameMatcher.NormalizeGameNameForSlug(GameNameNormalizer.StripDiacritics(name ?? string.Empty)))
+                .Select(name => ExophaseGameNameMatcher.NormalizeGameNameForSlug(GameNameNormalizer.StripDiacritics(name ?? string.Empty))?.Trim('-'))
                 .Where(slug => !string.IsNullOrWhiteSpace(slug))
                 .Select(slug => slug + "-psn")
                 .Distinct(StringComparer.OrdinalIgnoreCase);
