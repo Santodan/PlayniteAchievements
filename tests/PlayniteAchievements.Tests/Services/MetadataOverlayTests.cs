@@ -69,6 +69,38 @@ namespace PlayniteAchievements.Tests.Services
         }
 
         [TestMethod]
+        public async Task CategoryArt_IsSavedOnlyForCategoriesTheSourceGave()
+        {
+            var source = new FakeSource("SteamHunters", MetadataField.Categories)
+            {
+                Rows = { Row("p1", "Far From Home", category: "Far Harbor", type: "DLC") },
+                CategoryArt =
+                {
+                    ["Far Harbor"] = "https://art/far.png",
+                    ["Nuka-World"] = "https://art/nuka.png"
+                }
+            };
+            var data = Game("Steam", Row("ACH_FAR", "Far From Home"));
+            var saved = new List<(string Label, string ImageUrl)>();
+            var overlay = Overlay(
+                new[] { source },
+                Choices(categories: MetadataCategoryMode.Override),
+                (gameId, art, ct) =>
+                {
+                    saved.AddRange(art);
+                    return Task.CompletedTask;
+                });
+
+            using (var run = overlay.BeginRun())
+            {
+                await run.ApplyAsync(data.Game, data, CancellationToken.None);
+            }
+
+            Assert.AreEqual("Far Harbor", data.Achievements[0].Category);
+            CollectionAssert.AreEqual(new[] { ("Far Harbor", "https://art/far.png") }, saved);
+        }
+
+        [TestMethod]
         public async Task TrophyTypesAndPoints_ComeFromTheirChosenSources()
         {
             var playstationPlatinum = Row("p1", "Master");
@@ -537,9 +569,17 @@ namespace PlayniteAchievements.Tests.Services
             return settings;
         }
 
-        private MetadataOverlay Overlay(IReadOnlyList<IMetadataProvider> providers, PersistedSettings settings)
+        private MetadataOverlay Overlay(
+            IReadOnlyList<IMetadataProvider> providers,
+            PersistedSettings settings,
+            CategoryArtDownload downloadCategoryArt = null)
         {
-            return new MetadataOverlay(() => providers, () => settings, new MetadataLinkStore(_directory, new GameCustomDataStore(_directory), null), null);
+            return new MetadataOverlay(
+                () => providers,
+                () => settings,
+                new MetadataLinkStore(_directory, new GameCustomDataStore(_directory), null),
+                null,
+                downloadCategoryArt);
         }
 
         private static GameAchievementData Game(string providerKey, params AchievementDetail[] rows)
@@ -628,8 +668,16 @@ namespace PlayniteAchievements.Tests.Services
             public Task<AchievementSourceSet> FetchAsync(MetadataLinkRequest request, string linkId, CancellationToken ct)
             {
                 FetchCount++;
-                return Task.FromResult(new AchievementSourceSet(Key, linkId, Rows) { ApiNamesMayBeShared = IdsMayBeShared });
+                var set = new AchievementSourceSet(Key, linkId, Rows) { ApiNamesMayBeShared = IdsMayBeShared };
+                foreach (var art in CategoryArt)
+                {
+                    set.CategoryArtUrls[art.Key] = art.Value;
+                }
+
+                return Task.FromResult(set);
             }
+
+            public Dictionary<string, string> CategoryArt { get; } = new Dictionary<string, string>();
         }
     }
 }
