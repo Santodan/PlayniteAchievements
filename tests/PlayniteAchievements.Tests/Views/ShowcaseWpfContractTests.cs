@@ -382,7 +382,8 @@ namespace PlayniteAchievements.Tests.Views
 
             StringAssert.Contains(achievements, "friendOwned");
             StringAssert.Contains(games, "!(data is FriendGameSummaryItem)");
-            StringAssert.Contains(startPage, "includeShowcasePin: !(data is FriendGameSummaryItem)");
+            // Start page game rows take the same menu, so the same exclusion.
+            StringAssert.Contains(startPage, "GameRowContextMenuBuilder.BuildGameMenu(");
         }
 
         [TestMethod]
