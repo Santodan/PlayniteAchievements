@@ -36,11 +36,21 @@ namespace PlayniteAchievements.Views.Settings.Metadata
         internal MetadataSourcesViewModel(PlayniteAchievementsSettings settings, ProviderRegistry registry)
         {
             var providers = registry.GetMetadataProviders() ?? Array.Empty<IMetadataProvider>();
-            var rows = new List<MetadataChoiceRow> { new MetadataChoiceRow(settings, providers, null) };
+            var defaults = new MetadataChoiceRow(settings, providers, null);
+            var rows = new List<MetadataChoiceRow> { defaults };
             rows.AddRange((registry.GetSettingsViewProviderKeys() ?? Enumerable.Empty<string>())
                 .Where(key => !string.IsNullOrWhiteSpace(key))
                 .Select(key => new MetadataChoiceRow(settings, providers, key)));
             Rows = rows;
+
+            // Platform rows show what their "Default" stands for, which the defaults row decides.
+            defaults.Saved += () =>
+            {
+                foreach (var row in rows.Skip(1))
+                {
+                    row.RefreshInherited();
+                }
+            };
         }
 
         public IReadOnlyList<MetadataChoiceRow> Rows { get; }
@@ -57,6 +67,7 @@ namespace PlayniteAchievements.Views.Settings.Metadata
 
         private readonly PlayniteAchievementsSettings _settings;
         private readonly Action<MetadataChoices> _saveGame;
+        private readonly Func<MetadataChoices> _inherited;
         private string _icons;
         private string _categories;
         private string _rarity;
@@ -75,21 +86,25 @@ namespace PlayniteAchievements.Views.Settings.Metadata
                 providerKey == null || MetadataChoices.ExophaseRarityProviders.Contains(providerKey),
                 providerKey == null
                     ? settings.Persisted?.MetadataDefaults ?? MetadataChoices.CreateDefaults()
-                    : FindOverride(settings.Persisted, providerKey))
+                    : FindOverride(settings.Persisted, providerKey),
+                providerKey == null
+                    ? (Func<MetadataChoices>)null
+                    : () => settings.Persisted?.MetadataDefaults ?? MetadataChoices.CreateDefaults())
         {
             _settings = settings;
         }
 
         /// <summary>
-        /// One game's row: its "Default" follows the game's platform, and changes go to
-        /// <paramref name="save"/>. Rarity is chosen per platform only.
+        /// One game's row: its "Default" follows <paramref name="inherited"/>, the game's platform
+        /// choices, and changes go to <paramref name="save"/>. Rarity is chosen per platform only.
         /// </summary>
         internal MetadataChoiceRow(
             IReadOnlyList<IMetadataProvider> providers,
             string servicingProviderKey,
             MetadataChoices stored,
+            Func<MetadataChoices> inherited,
             Action<MetadataChoices> save)
-            : this(providers, servicingProviderKey ?? string.Empty, supportsRarity: false, stored)
+            : this(providers, servicingProviderKey ?? string.Empty, supportsRarity: false, stored, inherited)
         {
             _saveGame = save;
         }
@@ -98,8 +113,10 @@ namespace PlayniteAchievements.Views.Settings.Metadata
             IReadOnlyList<IMetadataProvider> providers,
             string providerKey,
             bool supportsRarity,
-            MetadataChoices stored)
+            MetadataChoices stored,
+            Func<MetadataChoices> inherited)
         {
+            _inherited = inherited;
             ProviderKey = providerKey;
             IsDefaults = providerKey == null;
             DisplayName = IsDefaults ? ResourceProvider.GetString("LOCDefault") : ProviderRegistry.GetLocalizedName(providerKey);
@@ -154,6 +171,50 @@ namespace PlayniteAchievements.Views.Settings.Metadata
         public IReadOnlyList<ChoiceOption> TrophyTypeOptions { get; }
 
         public IReadOnlyList<ChoiceOption> PointsOptions { get; }
+
+        /// <summary>Raised after a choice is saved.</summary>
+        internal event Action Saved;
+
+        // What each field's "Default" stands for, shown muted in the closed dropdown.
+        public string InheritedIcons => InheritedLabel(IconOptions, choices => choices.Icons);
+
+        public string InheritedCategories => InheritedLabel(CategoryOptions, ToCategoryKey);
+
+        public string InheritedRarity => InheritedLabel(RarityOptions, choices => choices.Rarity);
+
+        public string InheritedCapstoneArt => InheritedLabel(CapstoneArtOptions, choices => choices.CapstoneArt);
+
+        public string InheritedTrophyTypes => InheritedLabel(TrophyTypeOptions, choices => choices.TrophyTypes);
+
+        public string InheritedPoints => InheritedLabel(PointsOptions, choices => choices.Points);
+
+        /// <summary>Updates what "Default" stands for after the choices it follows changed.</summary>
+        internal void RefreshInherited()
+        {
+            OnPropertyChanged(nameof(InheritedIcons));
+            OnPropertyChanged(nameof(InheritedCategories));
+            OnPropertyChanged(nameof(InheritedRarity));
+            OnPropertyChanged(nameof(InheritedCapstoneArt));
+            OnPropertyChanged(nameof(InheritedTrophyTypes));
+            OnPropertyChanged(nameof(InheritedPoints));
+        }
+
+        /// <summary>
+        /// The label of the option the inherited choices pick; Own when this row cannot offer it
+        /// (a source native to the platform, which the overlay skips).
+        /// </summary>
+        private string InheritedLabel(IReadOnlyList<ChoiceOption> options, Func<MetadataChoices, string> keyOf)
+        {
+            var inherited = _inherited?.Invoke();
+            if (inherited == null)
+            {
+                return null;
+            }
+
+            var key = keyOf(inherited) ?? string.Empty;
+            return (options.FirstOrDefault(option => !option.IsInherited && option.Key == key) ??
+                    options.FirstOrDefault(option => option.Key.Length == 0))?.Label;
+        }
 
         public string Icons
         {
@@ -228,12 +289,14 @@ namespace PlayniteAchievements.Views.Settings.Metadata
                     TrophyTypes = choices.TrophyTypes ?? defaults.TrophyTypes,
                     Points = choices.Points ?? defaults.Points
                 };
+                Saved?.Invoke();
                 return;
             }
 
             var platforms = PersistedSettings.ClonePlatformChoices(persisted.MetadataPlatformChoices);
             platforms[ProviderKey] = choices;
             persisted.MetadataPlatformChoices = platforms;
+            Saved?.Invoke();
         }
 
         private IReadOnlyList<ChoiceOption> BuildSourceOptions(
@@ -322,5 +385,8 @@ namespace PlayniteAchievements.Views.Settings.Metadata
         public string Key { get; }
 
         public string Label { get; }
+
+        /// <summary>The "Default" option, which stands for an inherited value.</summary>
+        public bool IsInherited => Key == MetadataChoiceRow.DefaultKey;
     }
 }
