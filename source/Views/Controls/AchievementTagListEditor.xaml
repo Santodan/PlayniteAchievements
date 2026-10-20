@@ -135,14 +135,9 @@
                             <DataTemplate>
                                 <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="8,0,4,0">
                                     <Grid Width="22" Height="22" VerticalAlignment="Center">
-                                        <!-- No color: an empty swatch struck through, the usual "none" mark. -->
+                                        <!-- No color: an empty swatch; the hex box's placeholder names it Default. -->
                                         <Border BorderBrush="{DynamicResource PlayAch.Brush.Border}"
-                                                BorderThickness="{StaticResource PlayAch.Thickness.Border}"
-                                                ClipToBounds="True">
-                                            <Line X1="0" Y1="20" X2="20" Y2="0"
-                                                  Stroke="{DynamicResource PlayAch.Brush.ErrorText}"
-                                                  StrokeThickness="1.5"/>
-                                        </Border>
+                                                BorderThickness="{StaticResource PlayAch.Thickness.Border}"/>
                                         <Border Background="{Binding Brush}"
                                                 BorderBrush="{DynamicResource PlayAch.Brush.Border}"
                                                 BorderThickness="{StaticResource PlayAch.Thickness.Border}"
