@@ -2025,7 +2025,7 @@ namespace PlayniteAchievements.Views
             var menu = new ContextMenu();
             if (data is RecentAchievementItem)
             {
-                menu.Items.Add(GameRowContextMenuBuilder.CreateMenuItem(this, "LOCPlayAch_Menu_ViewAchievements",
+                menu.Items.Add(GameRowContextMenuBuilder.CreateMenuItem(this, "LOCPlayAch_Common_View",
                     () => GameRowContextMenuBuilder.ExecuteCommand(_viewModel?.OpenGameInOverviewCommand, data)));
             }
             else if (!IsCurrentGame(data))
