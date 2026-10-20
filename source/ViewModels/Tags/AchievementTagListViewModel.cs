@@ -301,11 +301,20 @@ namespace PlayniteAchievements.ViewModels.Tags
 
         private void PickColor()
         {
-            var picked = _owner.PickColor(_color ?? "#FFFFFF");
+            var picked = _owner.PickColor(_color ?? DefaultColorHex());
             if (picked != null)
             {
                 Color = picked;
             }
+        }
+
+        // A tag without a color uses the theme's text color, so the picker opens on it.
+        private static string DefaultColorHex()
+        {
+            var brush = System.Windows.Application.Current?.TryFindResource("PlayAch.Brush.Text") as SolidColorBrush;
+            return brush == null
+                ? "#FFFFFF"
+                : string.Format(System.Globalization.CultureInfo.InvariantCulture, "#{0:X2}{1:X2}{2:X2}", brush.Color.R, brush.Color.G, brush.Color.B);
         }
 
         private void PickIcon()

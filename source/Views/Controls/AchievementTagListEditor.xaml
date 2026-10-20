@@ -4,6 +4,7 @@
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:local="clr-namespace:PlayniteAchievements.Views.Controls"
+             xmlns:converters="clr-namespace:PlayniteAchievements.Views.Converters"
              mc:Ignorable="d"
              d:DesignHeight="300"
              d:DesignWidth="700">
@@ -15,6 +16,7 @@
                 <ResourceDictionary Source="pack://application:,,,/PlayniteAchievements;component/Resources/CommonResources.xaml"/>
             </ResourceDictionary.MergedDictionaries>
             <BooleanToVisibilityConverter x:Key="TagEditorBoolToVisibility"/>
+            <converters:BrushToHexConverter x:Key="TagEditorBrushToHex"/>
 
             <Style x:Key="TagRowStyle" TargetType="DataGridRow" BasedOn="{StaticResource AchievementRowStyle}">
                 <Setter Property="MinHeight" Value="36"/>
@@ -135,22 +137,25 @@
                             <DataTemplate>
                                 <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="8,0,4,0">
                                     <Grid Width="22" Height="22" VerticalAlignment="Center">
-                                        <!-- No color: an empty swatch; the hex box's placeholder names it Default. -->
-                                        <Border BorderBrush="{DynamicResource PlayAch.Brush.Border}"
+                                        <!-- No color: a tag uses the theme's text color, shown here and as
+                                             the hex box's placeholder. -->
+                                        <Border x:Name="DefaultSwatch"
+                                                Background="{DynamicResource PlayAch.Brush.Text}"
+                                                BorderBrush="{DynamicResource PlayAch.Brush.Border}"
                                                 BorderThickness="{StaticResource PlayAch.Thickness.Border}"/>
                                         <Border Background="{Binding Brush}"
                                                 BorderBrush="{DynamicResource PlayAch.Brush.Border}"
                                                 BorderThickness="{StaticResource PlayAch.Thickness.Border}"
                                                 Visibility="{Binding HasColor, Converter={StaticResource TagEditorBoolToVisibility}}"/>
                                     </Grid>
-                                    <!-- Blank means the default color, which the dimmed placeholder says. -->
+                                    <!-- Blank means the default color, whose hex shows dimmed. -->
                                     <Grid Width="90" Margin="8,0,0,0" VerticalAlignment="Center">
                                         <TextBox x:Name="HexBox"
                                                  Text="{Binding ColorText, UpdateSourceTrigger=LostFocus}"
                                                  VerticalContentAlignment="Center"
                                                  Padding="6,3"
                                                  KeyDown="CommitOnEnter_KeyDown"/>
-                                        <TextBlock Text="{DynamicResource LOCDefault}"
+                                        <TextBlock Text="{Binding Background, ElementName=DefaultSwatch, Converter={StaticResource TagEditorBrushToHex}}"
                                                    Margin="9,0,0,0"
                                                    VerticalAlignment="Center"
                                                    IsHitTestVisible="False"
