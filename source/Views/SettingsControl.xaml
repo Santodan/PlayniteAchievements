@@ -59,7 +59,7 @@
             <TabItem x:Name="MetadataTab" AutomationProperties.Name="{DynamicResource LOCSettingsMetadataLabel}">
                 <TabItem.Header>
                     <StackPanel Style="{StaticResource TabHeaderWithIconStyle}">
-                        <controls:GlyphIcon Style="{StaticResource HeaderGlyphStyle}" Glyph="&#xEFD1;"/>
+                        <controls:GlyphIcon Style="{StaticResource HeaderGlyphStyle}" Glyph="&#xF005;"/>
                         <TextBlock Text="{DynamicResource LOCSettingsMetadataLabel}" VerticalAlignment="Center"/>
                     </StackPanel>
                 </TabItem.Header>
