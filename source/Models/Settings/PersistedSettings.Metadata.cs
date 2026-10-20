@@ -23,6 +23,31 @@ namespace PlayniteAchievements.Models.Settings
                 "Xbox", "Xenia", "EA", "Ubisoft", "RPCS3", "ShadPS4", "Vita3K"
             };
 
+        /// <summary>
+        /// Platforms whose achievements carry their own points, on every achievement: they never
+        /// take points from a source, so they have no points choice.
+        /// </summary>
+        public static readonly IReadOnlyCollection<string> OwnPointsProviders =
+            new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+            {
+                "Epic", "RetroAchievements", "FFXIV", "GW2", "Hypixel", "Hoyoverse", "BattleNet", "GameJolt", "Exophase"
+            };
+
+        /// <summary>Platforms whose achievements carry their own trophy types, so they have no trophy type choice.</summary>
+        public static readonly IReadOnlyCollection<string> OwnTrophyTypeProviders =
+            new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+            {
+                "RetroAchievements", "Hoyoverse", "BattleNet", "GameJolt", "Exophase"
+            };
+
+        /// <summary>Whether a platform can take points from a source; the defaults row (null) can.</summary>
+        public static bool TakesPoints(string providerKey) =>
+            string.IsNullOrWhiteSpace(providerKey) || !OwnPointsProviders.Contains(providerKey.Trim());
+
+        /// <summary>Whether a platform can take trophy types from a source; the defaults row (null) can.</summary>
+        public static bool TakesTrophyTypes(string providerKey) =>
+            string.IsNullOrWhiteSpace(providerKey) || !OwnTrophyTypeProviders.Contains(providerKey.Trim());
+
         public string Icons { get; set; }
 
         public string Categories { get; set; }
@@ -166,8 +191,12 @@ namespace PlayniteAchievements.Models.Settings
                 CategoryMode = categories.CategoryMode ?? MetadataCategoryMode.Merge,
                 Rarity = platform?.Rarity ?? defaults.Rarity ?? string.Empty,
                 CapstoneArt = game?.CapstoneArt ?? platform?.CapstoneArt ?? defaults.CapstoneArt ?? string.Empty,
-                TrophyTypes = game?.TrophyTypes ?? platform?.TrophyTypes ?? defaults.TrophyTypes ?? string.Empty,
-                Points = game?.Points ?? platform?.Points ?? defaults.Points ?? string.Empty
+                TrophyTypes = MetadataChoices.TakesTrophyTypes(providerKey)
+                    ? game?.TrophyTypes ?? platform?.TrophyTypes ?? defaults.TrophyTypes ?? string.Empty
+                    : string.Empty,
+                Points = MetadataChoices.TakesPoints(providerKey)
+                    ? game?.Points ?? platform?.Points ?? defaults.Points ?? string.Empty
+                    : string.Empty
             };
         }
 
