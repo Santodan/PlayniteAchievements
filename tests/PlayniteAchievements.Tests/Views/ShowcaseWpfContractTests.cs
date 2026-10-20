@@ -428,7 +428,7 @@ namespace PlayniteAchievements.Tests.Views
                 "Showcase",
                 "ShowcaseGameGridControl.xaml.cs");
 
-            StringAssert.Contains(menuBuilder, "LOCPlayAch_Showcase_PinToShowcase");
+            StringAssert.Contains(menuBuilder, "LOCPlayAch_Showcase_Title");
             StringAssert.Contains(menuBuilder, "IsCheckable = true");
             StringAssert.Contains(menuBuilder, "AutomationProperties.SetName(button, label)");
             StringAssert.Contains(menuBuilder, "e.Handled = true");
@@ -437,7 +437,7 @@ namespace PlayniteAchievements.Tests.Views
             StringAssert.Contains(achievementMenus, "ShowcasePinMenuBuilder.AppendAchievementMenu");
             StringAssert.Contains(gameMenus, "ShowcasePinMenuBuilder.AppendGameMenu");
             Assert.IsFalse(nativeMenus.Contains("ShowcasePinMenuBuilder"));
-            Assert.IsFalse(nativeMenus.Contains("LOCPlayAch_Showcase_PinToShowcase"));
+            Assert.IsFalse(nativeMenus.Contains("LOCPlayAch_Showcase_Title"));
 
             StringAssert.Contains(options, "AddPinCollectionChoice");
             StringAssert.Contains(options, "ShowcaseGameGridSource.Pinned");
