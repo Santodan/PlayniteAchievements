@@ -153,9 +153,10 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
 
         public bool IsMatched => Trophy != null;
 
+        /// <summary>The paired trophy's name, None, or blank while unmatched.</summary>
         public string PairingText => Trophy?.Name ?? (_staged == string.Empty
             ? ResourceProvider.GetString("LOCNone")
-            : ResourceProvider.GetString("LOCPlayAch_ManageAchievements_Overview_MetadataMatches_NotMatched"));
+            : string.Empty);
 
         public bool IsPickerOpen
         {
