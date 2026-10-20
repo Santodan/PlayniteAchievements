@@ -115,7 +115,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             var viewModel = new MetadataMatchesViewModel(row.SourceName, targets, row.Snapshot, record.Pairings);
             var title = string.Join(
                 " · ",
-                new[] { ResourceProvider.GetString("LOCPlayAch_ManageAchievements_Overview_MetadataMatches"), row.SourceName, _gameName?.Invoke() }
+                new[] { row.SourceName, _gameName?.Invoke() }
                     .Where(part => !string.IsNullOrWhiteSpace(part)));
             if (!MetadataMatchesWindow.Show(null, viewModel, title))
             {
@@ -217,10 +217,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         {
             return record == null || record.IsNoMatch || coverage == null || coverage.Total <= 0
                 ? string.Empty
-                : string.Format(
-                    ResourceProvider.GetString("LOCPlayAch_ManageAchievements_Overview_MetadataLink_Matched"),
-                    coverage.Matched,
-                    coverage.Total);
+                : string.Format(System.Globalization.CultureInfo.CurrentCulture, "{0}/{1}", coverage.Matched, coverage.Total);
         }
     }
 }
