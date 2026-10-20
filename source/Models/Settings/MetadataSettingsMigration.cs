@@ -52,11 +52,14 @@ namespace PlayniteAchievements.Models.Settings
             var providers = persisted[nameof(PersistedSettings.ProviderSettings)] as JObject;
             foreach (var key in MetadataChoices.ExophaseRarityProviders)
             {
+                // The toggle defaulted to off, and the defaults row now says Exophase, so a platform
+                // that had it off (or never saved it) keeps its own rarity.
                 var enabled = FindProperty(providers, key)?["UseExophaseForRarity"];
-                if (enabled?.Type == JTokenType.Boolean && enabled.Value<bool>())
-                {
-                    SetIfAbsent(Platform(platforms, key), nameof(MetadataChoices.Rarity), MetadataChoices.Exophase);
-                }
+                var useExophase = enabled?.Type == JTokenType.Boolean && enabled.Value<bool>();
+                SetIfAbsent(
+                    Platform(platforms, key),
+                    nameof(MetadataChoices.Rarity),
+                    useExophase ? MetadataChoices.Exophase : string.Empty);
             }
 
             var mode = ReadSteamHuntersMode(FindProperty(providers, "Steam"));
