@@ -33,7 +33,9 @@
             </Style>
         </ResourceDictionary>
     </UserControl.Resources>
+    <!-- As wide as its columns, not the window. -->
     <DataGrid Style="{StaticResource PlayAch.DataGrid.BaseStyle}"
+              HorizontalAlignment="Left"
               ItemsSource="{Binding}"
               AutoGenerateColumns="False"
               CanUserAddRows="False"
@@ -55,7 +57,7 @@
               ScrollViewer.HorizontalScrollBarVisibility="Auto">
         <DataGrid.Columns>
             <DataGridTemplateColumn Header="{DynamicResource LOCPlatformTitle}"
-                                    Width="*"
+                                    Width="Auto"
                                     MinWidth="140">
                 <DataGridTemplateColumn.CellTemplate>
                     <DataTemplate>
