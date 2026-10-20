@@ -174,9 +174,8 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             // history is built from the writes themselves rather than from an uncommitted buffer.
             _gameCustomDataStore.CustomDataWritten += GameCustomDataStore_CustomDataWritten;
 
-            // Background capstone writes wait for this to close rather than land underneath it,
-            // where the next save would overwrite them or they would join the user's undo.
-            OpenEditorRegistry.Open(_gameId);
+            // Registered as open only while its tab shows (SetVisible): background capstone writes
+            // wait for it rather than land underneath it, where the next save would overwrite them.
             UndoCommand =new RelayCommand(_ => Undo(), _ => CanUndo && !IsSaving);
             RedoCommand = new RelayCommand(_ => Redo(), _ => CanRedo && !IsSaving);
 
@@ -300,6 +299,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
 
         private DispatcherTimer _undoStepTimer;
         private bool _isDetached;
+        private bool _isRegisteredOpen;
 
         /// <summary>
         /// Set while a step is being reversed, so the write that reverses it is not itself
@@ -2278,6 +2278,29 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         }
 
         /// <summary>
+        /// Registers the editor as open on its game while its tab shows, and unregisters it when the
+        /// user moves to another tab, so background capstone writes held back for it land then. The
+        /// Manage window reloads this tab's rows when it shows again after a change.
+        /// </summary>
+        internal void SetVisible(bool visible)
+        {
+            if (visible == _isRegisteredOpen || (visible && _isDetached))
+            {
+                return;
+            }
+
+            _isRegisteredOpen = visible;
+            if (visible)
+            {
+                OpenEditorRegistry.Open(_gameId);
+            }
+            else
+            {
+                OpenEditorRegistry.Close(_gameId);
+            }
+        }
+
+        /// <summary>
         /// Drops the store subscription when the Manage window discards this view model.
         /// </summary>
         public void Detach()
@@ -2317,7 +2340,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             if (!_isDetached)
             {
                 _isDetached = true;
-                OpenEditorRegistry.Close(_gameId);
+                SetVisible(false);
             }
 
             // The history is session-scoped, so the art it was holding for a redo goes with it.
