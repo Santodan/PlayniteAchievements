@@ -106,7 +106,8 @@ namespace PlayniteAchievements.Services.Achievements
                 {
                     Key = CanonicalByAlias.TryGetValue(key, out var canonical) ? canonical : key,
                     Name = name.Length == 0 ? null : name,
-                    Color = NormalizeColor(definition.Color)
+                    Color = NormalizeColor(definition.Color),
+                    Icon = NormalizeIcon(definition.Icon)
                 });
             }
 
@@ -121,10 +122,44 @@ namespace PlayniteAchievements.Services.Achievements
             return result;
         }
 
-        /// <summary>"#RRGGBB" in upper case, or null when <paramref name="color"/> is not one.</summary>
+        /// <summary>
+        /// An icon codepoint as upper-case hex ("EDD7"), or null when <paramref name="icon"/> is not a
+        /// private-use codepoint, which is where icon fonts put their glyphs.
+        /// </summary>
+        public static string NormalizeIcon(string icon)
+        {
+            var value = (icon ?? string.Empty).Trim();
+            if (value.StartsWith("U+", StringComparison.OrdinalIgnoreCase))
+            {
+                value = value.Substring(2);
+            }
+
+            return int.TryParse(value, System.Globalization.NumberStyles.HexNumber, null, out var codepoint) &&
+                   codepoint >= 0xE000 && codepoint <= 0xF8FF
+                ? codepoint.ToString("X4")
+                : null;
+        }
+
+        /// <summary>The character for an icon codepoint, or null for none.</summary>
+        public static string IconGlyph(string icon)
+        {
+            var normalized = NormalizeIcon(icon);
+            return normalized == null
+                ? null
+                : ((char)int.Parse(normalized, System.Globalization.NumberStyles.HexNumber)).ToString();
+        }
+
+        /// <summary>
+        /// "#RRGGBB" in upper case, or null when <paramref name="color"/> is not a color. An alpha
+        /// channel ("#AARRGGBB", as the color picker returns) is dropped: tag colors are opaque.
+        /// </summary>
         public static string NormalizeColor(string color)
         {
             var value = (color ?? string.Empty).Trim();
+            if (value.Length == 9 && value[0] == '#')
+            {
+                value = "#" + value.Substring(3);
+            }
             if (value.Length == 7 && value[0] == '#' &&
                 value.Skip(1).All(c => Uri.IsHexDigit(c)))
             {

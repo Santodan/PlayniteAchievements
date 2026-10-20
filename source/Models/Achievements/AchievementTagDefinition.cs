@@ -18,13 +18,19 @@ namespace PlayniteAchievements.Models.Achievements
         /// <summary>#RRGGBB, or null for the theme's default tag color.</summary>
         public string Color { get; set; }
 
+        /// <summary>
+        /// IcoFont codepoint in hex ("EDD7"), drawn from Playnite's icon font; null for no icon.
+        /// </summary>
+        public string Icon { get; set; }
+
         public AchievementTagDefinition Clone()
         {
             return new AchievementTagDefinition
             {
                 Key = Key,
                 Name = Name,
-                Color = Color
+                Color = Color,
+                Icon = Icon
             };
         }
     }

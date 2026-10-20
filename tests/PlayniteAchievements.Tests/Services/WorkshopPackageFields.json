@@ -45,6 +45,7 @@
     },
     "AchievementTagDefinition": {
       "Color": "value",
+      "Icon": "value",
       "Key": "value",
       "Name": "value"
     },

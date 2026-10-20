@@ -24,6 +24,11 @@ namespace PlayniteAchievements.ViewModels.Items
 
         public bool HasColor => Brush != null;
 
+        /// <summary>The tag's icon glyph in Playnite's icon font, or null for none.</summary>
+        public string Glyph { get; private set; }
+
+        public bool HasGlyph => Glyph != null;
+
         public static IReadOnlyList<AchievementTagChip> Build(string tags, Guid? gameId)
         {
             var definitions = AchievementTagRegistry.ResolveVisible(tags, gameId);
@@ -37,7 +42,8 @@ namespace PlayniteAchievements.ViewModels.Items
                 {
                     Key = definition.Key,
                     Name = AchievementTagRegistry.GetName(definition),
-                    Brush = ToBrush(definition.Color)
+                    Brush = ToBrush(definition.Color),
+                    Glyph = AchievementTagHelper.IconGlyph(definition.Icon)
                 })
                 .ToList();
         }
