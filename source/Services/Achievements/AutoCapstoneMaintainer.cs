@@ -197,6 +197,18 @@ namespace PlayniteAchievements.Services.Achievements
                 updated.UnlockTimeUtc = derived.Unlocked ? derived.UnlockTimeUtc : null;
                 updated.GlobalPercentUnlocked = derived.GlobalPercentUnlocked;
                 updated.Rarity = derived.Rarity ?? updated.Rarity;
+
+                // Capstones authored, or imported, before they carried a group type sat alone in
+                // Default beside a game typed Base. A type of their own is left alone.
+                if (derived.CategoryType != null &&
+                    string.Equals(
+                        AchievementCategoryTypeHelper.NormalizeOrDefault(current.CategoryType),
+                        AchievementCategoryTypeHelper.DefaultCategoryType,
+                        StringComparison.OrdinalIgnoreCase))
+                {
+                    updated.CategoryType = derived.CategoryType;
+                }
+
                 if (!HasChanges(current, updated))
                 {
                     continue;
@@ -261,7 +273,8 @@ namespace PlayniteAchievements.Services.Achievements
             return current.Unlocked != updated.Unlocked ||
                    !Nullable.Equals(current.UnlockTimeUtc, updated.UnlockTimeUtc) ||
                    !Nullable.Equals(current.GlobalPercentUnlocked, updated.GlobalPercentUnlocked) ||
-                   !string.Equals(current.Rarity, updated.Rarity, StringComparison.OrdinalIgnoreCase);
+                   !string.Equals(current.Rarity, updated.Rarity, StringComparison.OrdinalIgnoreCase) ||
+                   !string.Equals(current.CategoryType, updated.CategoryType, StringComparison.OrdinalIgnoreCase);
         }
 
         /// <summary>
