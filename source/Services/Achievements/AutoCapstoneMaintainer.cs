@@ -126,7 +126,8 @@ namespace PlayniteAchievements.Services.Achievements
                 return;
             }
 
-            var definitions = _store.LoadOrDefault(gameId)?.CustomAchievements;
+            var customData = _store.LoadOrDefault(gameId);
+            var definitions = customData?.CustomAchievements;
             if (definitions == null || definitions.Count == 0)
             {
                 return;
@@ -150,12 +151,20 @@ namespace PlayniteAchievements.Services.Achievements
             }
 
             var gameData = _resolveGameData?.Invoke(gameId);
+
+            // In the order the game shows them, so a capstone filed below is filed in the first
+            // of the main game's categories.
+            var achievements = AchievementOrderHelper.ApplyOrder(
+                gameData?.Achievements ?? new List<AchievementDetail>(),
+                achievement => achievement?.ApiName,
+                gameData?.AchievementOrder);
             var replacement = definitions
                 .Select(definition => definition?.Clone())
                 .Where(definition => definition != null)
                 .ToList();
 
             var announce = new List<CustomAchievementDefinition>();
+            var filings = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
             var changed = false;
 
             foreach (var index in indexes)
@@ -167,13 +176,24 @@ namespace PlayniteAchievements.Services.Achievements
                 // unlock. The scope comes from its hydrated row: the definition's category is only
                 // ever the default, while the category the user filed it in lives in the overrides.
                 var derived = AutoCapstoneCalculator.DeriveForCapstone(
-                    gameData?.Achievements,
+                    achievements,
                     apiName,
                     current.IsWholeGameAutoCapstone,
-                    current.Category);
+                    current.Category,
+                    gameData?.AchievementCategoryOrder);
                 if (derived == null)
                 {
                     continue;
+                }
+
+                // A whole-game capstone still in the default category, where capstones authored
+                // before they were filed with the main game were left. Filing one in a category by
+                // hand makes it that category's, so a whole-game one there was never moved.
+                if (current.IsWholeGameAutoCapstone &&
+                    derived.Category != null &&
+                    IsInDefaultCategory(customData, apiName))
+                {
+                    filings[apiName] = derived.Category;
                 }
 
                 var updated = current.Clone();
@@ -210,14 +230,14 @@ namespace PlayniteAchievements.Services.Achievements
                 }
             }
 
-            if (!changed)
+            if (!changed && filings.Count == 0)
             {
                 return;
             }
 
             // One write for the whole set: each store update fans out a synchronous whole-library
             // recompute, so one per capstone would pay for it several times over.
-            _overridesService.SetCustomAchievements(gameId, replacement);
+            _overridesService.SetCustomAchievements(gameId, replacement, categoryFilings: filings);
 
             if (!announceUnlocks || announce.Count == 0)
             {
@@ -250,6 +270,18 @@ namespace PlayniteAchievements.Services.Achievements
             {
                 _notifyUnlocked?.Invoke(args);
             }
+        }
+
+        private static bool IsInDefaultCategory(GameCustomDataFile customData, string apiName)
+        {
+            var overrides = customData?.AchievementOverrides;
+            var category = overrides != null && overrides.TryGetValue(apiName, out var entry)
+                ? entry?.Category
+                : null;
+            return string.Equals(
+                AchievementCategoryTypeHelper.NormalizeCategoryOrDefault(category),
+                AchievementCategoryTypeHelper.DefaultCategoryLabel,
+                StringComparison.OrdinalIgnoreCase);
         }
 
         private static bool HasChanges(CustomAchievementDefinition current, CustomAchievementDefinition updated)
