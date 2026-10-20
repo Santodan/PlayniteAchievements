@@ -132,6 +132,39 @@ namespace PlayniteAchievements.Tests.Services
         }
 
         [TestMethod]
+        public void BuildCustomizationCounts_AutoCapstoneCountsOnlyAsItself()
+        {
+            var autoApiName = CustomAchievementProjectionService.BuildApiName("auto");
+            var data = new GameCustomDataFile
+            {
+                CustomAchievements = new List<CustomAchievementDefinition>
+                {
+                    new CustomAchievementDefinition
+                    {
+                        Id = "auto",
+                        DisplayName = "Platinum",
+                        Description = "Earn them all",
+                        UnlockedIconPath = "p.png",
+                        TrophyType = "platinum",
+                        IsCapstone = true,
+                        IsAutoCapstone = true
+                    }
+                },
+                CapstonesMaterialized = true,
+                Capstones = new List<CapstoneAssignment> { new CapstoneAssignment { ApiName = autoApiName } },
+                AchievementOverrides = new Dictionary<string, AchievementOverride>(StringComparer.OrdinalIgnoreCase)
+                {
+                    [autoApiName] = new AchievementOverride { Note = "n" }
+                }
+            };
+
+            var counts = ToMap(ManageOverviewSummaryBuilder.BuildCustomizationCounts(data));
+
+            Assert.AreEqual(1, counts.Count);
+            Assert.AreEqual(1, counts[ManageOverviewSummaryBuilder.AutoCapstoneLabelKey]);
+        }
+
+        [TestMethod]
         public void BuildCustomizationCounts_CountsCustomAchievementFieldsOncePerAchievement()
         {
             var customApiName = CustomAchievementProjectionService.BuildApiName("one");
