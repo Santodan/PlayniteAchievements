@@ -111,7 +111,7 @@ namespace PlayniteAchievements.Services.Metadata
             }
 
             var request = CreateRequest(game, data, gameId);
-            var plan = BuildPlan(request.ServicingProviderKey);
+            var plan = BuildPlan(request.ServicingProviderKey, _links?.GetChoices(gameId));
             if (plan.IsEmpty)
             {
                 return _links?.RecordApplied(gameId, null, null) ?? false;
@@ -280,7 +280,7 @@ namespace PlayniteAchievements.Services.Metadata
             }
         }
 
-        private OverlayPlan BuildPlan(string servicingProviderKey)
+        private OverlayPlan BuildPlan(string servicingProviderKey, MetadataChoices gameChoices)
         {
             bool Usable(string key, MetadataField field) =>
                 _providersByKey.TryGetValue(key, out var provider) &&
@@ -292,7 +292,7 @@ namespace PlayniteAchievements.Services.Metadata
                     ? new List<string> { key.Trim() }
                     : new List<string>();
 
-            var choices = (_settings ?? new PersistedSettings()).ResolveMetadataChoices(servicingProviderKey);
+            var choices = (_settings ?? new PersistedSettings()).ResolveMetadataChoices(servicingProviderKey, gameChoices);
             return new OverlayPlan(
                 Chosen(choices.Icons, MetadataField.Icons),
                 Chosen(choices.Categories, MetadataField.Categories),
