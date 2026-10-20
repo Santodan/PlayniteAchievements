@@ -166,6 +166,38 @@ namespace PlayniteAchievements.Tests.Services
         }
 
         [TestMethod]
+        public async Task NewPairing_ReportsAnIconChange_SoItsFileIsRewritten()
+        {
+            var playstation = new FakeSource("PlayStation", MetadataField.Icons)
+            {
+                Rows =
+                {
+                    Row("p1", "Dragon Slayer", icon: "https://psn/dragon.png"),
+                    Row("p2", "Curiosity", icon: "https://psn/curiosity.png")
+                }
+            };
+            var data = Game("Steam", Row("ACH_DRAGON", "Dragon Slayer"), Row("ACH_CURIOUS", "Curiousity"));
+            var overlay = Overlay(new[] { playstation }, Choices(icons: "PlayStation"));
+            using (var run = overlay.BeginRun())
+            {
+                await run.ApplyAsync(data.Game, data, CancellationToken.None);
+            }
+
+            var gameId = data.PlayniteGameId.Value;
+            overlay.Links.SetPairing(gameId, "PlayStation", "ACH_CURIOUS", "p2");
+            var next = Game("Steam", Row("ACH_DRAGON", "Dragon Slayer"), Row("ACH_CURIOUS", "Curiousity"));
+            next.Game = data.Game;
+            next.PlayniteGameId = data.PlayniteGameId;
+
+            using (var run = overlay.BeginRun())
+            {
+                Assert.IsTrue(await run.ApplyAsync(next.Game, next, CancellationToken.None));
+            }
+
+            Assert.AreEqual("https://psn/curiosity.png", next.Achievements[1].UnlockedIconPath);
+        }
+
+        [TestMethod]
         public async Task CapstoneOnlySource_CountsItsPlatinum_AndKeepsNoMatchList()
         {
             var playstation = new FakeSource("PlayStation", MetadataField.Icons | MetadataField.CapstoneArt);
