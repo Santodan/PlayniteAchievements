@@ -124,7 +124,7 @@ namespace PlayniteAchievements.Views.Helpers
             PlayniteAchievementsPlugin.Instance?.Settings?.Persisted?.Showcase;
 
         private static MenuItem CreateParent(FrameworkElement resourceOwner) =>
-            new MenuItem { Header = L(resourceOwner, "LOCPlayAch_Showcase_PinToShowcase") };
+            new MenuItem { Header = L(resourceOwner, "LOCPlayAch_Showcase_Title") };
 
         private static MenuItem CreateCollectionItem(
             FrameworkElement resourceOwner,
