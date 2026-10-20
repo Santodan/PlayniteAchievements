@@ -31,6 +31,10 @@ namespace PlayniteAchievements.Services.Metadata
 
         public bool IsNoMatch => string.IsNullOrWhiteSpace(Id);
 
+        /// <summary>The user's achievement pairings, by the game's ApiName; an empty value is "none".</summary>
+        public IReadOnlyDictionary<string, string> Pairings { get; set; } =
+            new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+
         public MetadataLinkRecord Clone() => (MetadataLinkRecord)MemberwiseClone();
     }
 
@@ -137,6 +141,9 @@ namespace PlayniteAchievements.Services.Metadata
         /// <summary>Raised after a link is added, changed or removed, with the game id.</summary>
         public event Action<Guid> LinkChanged;
 
+        /// <summary>Each source's list and matches from the last overlay; null without a data folder.</summary>
+        public MetadataSourceSnapshotStore Snapshots { get; }
+
         public MetadataLinkStore(string pluginUserDataPath, GameCustomDataStore customData, ILogger logger)
         {
             _customData = customData;
@@ -146,6 +153,7 @@ namespace PlayniteAchievements.Services.Metadata
                 var directory = Path.Combine(pluginUserDataPath, "metadata");
                 Directory.CreateDirectory(directory);
                 _path = Path.Combine(directory, FileName);
+                Snapshots = new MetadataSourceSnapshotStore(directory, logger);
                 Load();
             }
         }
@@ -200,6 +208,41 @@ namespace PlayniteAchievements.Services.Metadata
                 Id = string.IsNullOrWhiteSpace(id) ? null : id.Trim(),
                 Label = NormalizeLabel(label),
                 IsUserSet = true
+            });
+        }
+
+        /// <summary>
+        /// Sets the user's pairing for one of the game's achievements on a linked source: a source
+        /// row's ApiName, an empty string for "never borrow", or null to leave it to matching.
+        /// </summary>
+        public bool SetPairing(Guid gameId, string sourceKey, string targetApiName, string sourceApiName)
+        {
+            if (string.IsNullOrWhiteSpace(targetApiName))
+            {
+                return false;
+            }
+
+            var target = targetApiName.Trim();
+            return Write(gameId, sourceKey, existing =>
+            {
+                if (existing == null || string.IsNullOrWhiteSpace(existing.Id))
+                {
+                    return null;
+                }
+
+                var next = existing.Clone();
+                var pairings = next.Pairings ?? new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+                if (sourceApiName == null)
+                {
+                    pairings.Remove(target);
+                }
+                else
+                {
+                    pairings[target] = sourceApiName.Trim();
+                }
+
+                next.Pairings = pairings.Count > 0 ? pairings : null;
+                return next;
             });
         }
 
@@ -435,11 +478,23 @@ namespace PlayniteAchievements.Services.Metadata
             MetadataLinkData existing = null;
             ReadLinks(gameId)?.TryGetValue(key, out existing);
             var next = build(existing);
-            if (next == null ||
-                (existing != null &&
-                 existing.IsUserSet == next.IsUserSet &&
-                 string.Equals(existing.Id, next.Id, StringComparison.Ordinal) &&
-                 string.Equals(existing.Label, next.Label, StringComparison.Ordinal)))
+            if (next == null)
+            {
+                return false;
+            }
+
+            // Pairings belong to the link they were made against: kept while it stays the same.
+            if (next.Pairings == null && existing?.Pairings != null &&
+                string.Equals(existing.Id, next.Id, StringComparison.Ordinal))
+            {
+                next.Pairings = new Dictionary<string, string>(existing.Pairings, StringComparer.OrdinalIgnoreCase);
+            }
+
+            if (existing != null &&
+                existing.IsUserSet == next.IsUserSet &&
+                string.Equals(existing.Id, next.Id, StringComparison.Ordinal) &&
+                string.Equals(existing.Label, next.Label, StringComparison.Ordinal) &&
+                SamePairings(existing.Pairings, next.Pairings))
             {
                 return false;
             }
@@ -464,8 +519,22 @@ namespace PlayniteAchievements.Services.Metadata
             {
                 Id = link.Id,
                 Label = link.Label,
-                Origin = link.IsUserSet ? MetadataLinkOrigin.User : MetadataLinkOrigin.Auto
+                Origin = link.IsUserSet ? MetadataLinkOrigin.User : MetadataLinkOrigin.Auto,
+                Pairings = new Dictionary<string, string>(
+                    link.Pairings ?? new Dictionary<string, string>(),
+                    StringComparer.OrdinalIgnoreCase)
             };
+        }
+
+        private static bool SamePairings(Dictionary<string, string> previous, Dictionary<string, string> next)
+        {
+            if ((previous?.Count ?? 0) != (next?.Count ?? 0))
+            {
+                return false;
+            }
+
+            return next == null || next.All(pair =>
+                previous.TryGetValue(pair.Key, out var value) && string.Equals(value, pair.Value, StringComparison.Ordinal));
         }
 
         private static string NormalizeLabel(string label)
