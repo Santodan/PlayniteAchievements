@@ -987,7 +987,8 @@ namespace PlayniteAchievements
                         () => _providerRegistry.GetMetadataProviders(),
                         () => Settings?.Persisted,
                         _metadataLinkStore,
-                        _logger);
+                        _logger,
+                        (gameId, art, ct) => CategoryDefaultArtDownloader.DownloadAsync(_diskImageService, gameId, art, _logger, ct));
                     _cacheManager = _refreshService.Cache;
                     _friendCacheManager = _cacheManager as Services.Friends.IFriendCacheManager;
                     _friendsOverviewDataCoordinator = new FriendsOverviewDataCoordinator(
