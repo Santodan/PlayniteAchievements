@@ -123,6 +123,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                     OnPropertyChanged(nameof(SelectedCategoryTypeFilterText));
                     ApplyFilter();
                 });
+            AchievementTagRegistry.Changed += OnTagsChanged;
             ClearSearchCommand = new RelayCommand(_ => SearchText = string.Empty);
             OpenCategoryImagesFolderCommand = new RelayCommand(_ => OpenCategoryImagesFolder());
             IndentCategoryCommand = new RelayCommand(parameter => IndentOrOutdentFromCommand(parameter, indent: true));
@@ -753,22 +754,61 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             IReadOnlyList<string> tags,
             Action onSelectionChanged)
         {
-            var options = new ObservableCollection<TagSelectionOption>(
-                tags
-                    .Select(type => new TagSelectionOption(type, GetTagDisplayName(type, _gameId))));
-
-            foreach (var option in options)
-            {
-                option.PropertyChanged += (_, args) =>
-                {
-                    if (string.Equals(args?.PropertyName, nameof(TagSelectionOption.IsSelected), StringComparison.Ordinal))
-                    {
-                        onSelectionChanged?.Invoke();
-                    }
-                };
-            }
+            var options = new ObservableCollection<TagSelectionOption>();
+            TagSelectionOption.Sync(options, tags, key => GetTagDisplayName(key, _gameId), option => AttachOption(option, onSelectionChanged));
 
             return options;
+        }
+
+        private static void AttachOption(TagSelectionOption option, Action onSelectionChanged)
+        {
+            option.PropertyChanged += (_, args) =>
+            {
+                if (string.Equals(args?.PropertyName, nameof(TagSelectionOption.IsSelected), StringComparison.Ordinal))
+                {
+                    onSelectionChanged?.Invoke();
+                }
+            };
+        }
+
+        // Tags added, renamed or deleted elsewhere (the Tags tab, settings) reach the menus and rows here.
+        private void OnTagsChanged(object sender, AchievementTagsChangedEventArgs e)
+        {
+            if (e?.GameId != null && e.GameId != _gameId)
+            {
+                return;
+            }
+
+            System.Windows.Application.Current?.Dispatcher?.BeginInvoke(new Action(() =>
+            {
+                TagSelectionOption.Sync(
+                    TagSelectionOptions,
+                    AchievementTagRegistry.GetAssignableKeys(_gameId),
+                    key => GetTagDisplayName(key, _gameId),
+                    option => AttachOption(option, () => OnPropertyChanged(nameof(SelectedTypeSelectionText))));
+                TagSelectionOption.Sync(
+                    TypeFilterOptions,
+                    AchievementClassificationFilter.GetFilterKeys(_gameId),
+                    key => GetTagDisplayName(key, _gameId),
+                    option => AttachOption(option, () =>
+                    {
+                        OnPropertyChanged(nameof(SelectedCategoryTypeFilterText));
+                        ApplyFilter();
+                    }));
+                foreach (var row in _allRows.Where(row => row != null))
+                {
+                    row.RefreshTagPresentation();
+                }
+
+                OnPropertyChanged(nameof(SelectedTypeSelectionText));
+                OnPropertyChanged(nameof(SelectedCategoryTypeFilterText));
+            }));
+        }
+
+        /// <summary>Stops listening for tag list changes; the tab calls it when it is torn down.</summary>
+        public void Detach()
+        {
+            AchievementTagRegistry.Changed -= OnTagsChanged;
         }
 
         public static string GetTagDisplayName(string tag, Guid? gameId = null)

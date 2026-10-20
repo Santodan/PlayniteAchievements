@@ -26,18 +26,25 @@ namespace PlayniteAchievements.Services.Achievements
         private static readonly System.Collections.Concurrent.ConcurrentDictionary<Guid, IReadOnlyList<AchievementTagDefinition>> GameCache =
             new System.Collections.Concurrent.ConcurrentDictionary<Guid, IReadOnlyList<AchievementTagDefinition>>();
 
-        /// <summary>Raised after the global list or a game's tags change.</summary>
-        public static event EventHandler Changed;
+        /// <summary>
+        /// Raised after a tag list actually changed: the global one (GameId null) or one game's.
+        /// </summary>
+        public static event EventHandler<AchievementTagsChangedEventArgs> Changed;
 
         public static IReadOnlyList<AchievementTagDefinition> Global => _global;
 
         public static void SetGlobal(IEnumerable<AchievementTagDefinition> definitions)
         {
-            _global = (definitions ?? Enumerable.Empty<AchievementTagDefinition>())
+            var updated = (definitions ?? Enumerable.Empty<AchievementTagDefinition>())
                 .Where(definition => !string.IsNullOrWhiteSpace(definition?.Key))
                 .Select(definition => definition.Clone())
                 .ToList();
-            NotifyChanged();
+            var changed = !SameDefinitions(_global, updated);
+            _global = updated;
+            if (changed)
+            {
+                Changed?.Invoke(null, new AchievementTagsChangedEventArgs(null));
+            }
         }
 
         public static void SetGameResolver(Func<Guid, IReadOnlyList<AchievementTagDefinition>> resolver)
@@ -46,16 +53,48 @@ namespace PlayniteAchievements.Services.Achievements
             GameCache.Clear();
         }
 
-        /// <summary>Forgets the cached tags of <paramref name="gameId"/> after its custom data changed.</summary>
+        /// <summary>
+        /// Forgets the cached tags of <paramref name="gameId"/> after its custom data changed, and
+        /// raises <see cref="Changed"/> only when its tag list is not what it was: most custom data
+        /// edits leave the tags alone.
+        /// </summary>
         public static void InvalidateGame(Guid gameId)
         {
-            if (GameCache.TryRemove(gameId, out _))
+            if (!GameCache.TryRemove(gameId, out var before))
             {
-                NotifyChanged();
+                return;
+            }
+
+            if (!SameDefinitions(before, GetGameTags(gameId)))
+            {
+                Changed?.Invoke(null, new AchievementTagsChangedEventArgs(gameId));
             }
         }
 
-        public static void NotifyChanged() => Changed?.Invoke(null, EventArgs.Empty);
+        private static bool SameDefinitions(
+            IReadOnlyList<AchievementTagDefinition> left,
+            IReadOnlyList<AchievementTagDefinition> right)
+        {
+            if ((left?.Count ?? 0) != (right?.Count ?? 0))
+            {
+                return false;
+            }
+
+            for (var i = 0; i < (left?.Count ?? 0); i++)
+            {
+                var a = left[i];
+                var b = right[i];
+                if (!string.Equals(a?.Key, b?.Key, StringComparison.Ordinal) ||
+                    !string.Equals(a?.Name, b?.Name, StringComparison.Ordinal) ||
+                    !string.Equals(a?.Color, b?.Color, StringComparison.Ordinal) ||
+                    !string.Equals(a?.Icon, b?.Icon, StringComparison.Ordinal))
+                {
+                    return false;
+                }
+            }
+
+            return true;
+        }
 
         public static IReadOnlyList<AchievementTagDefinition> GetGameTags(Guid? gameId)
         {
@@ -155,5 +194,19 @@ namespace PlayniteAchievements.Services.Achievements
 
         private static bool KeyEquals(AchievementTagDefinition definition, string key) =>
             string.Equals(definition?.Key, key, StringComparison.OrdinalIgnoreCase);
+    }
+}
+
+namespace PlayniteAchievements.Services.Achievements
+{
+    internal sealed class AchievementTagsChangedEventArgs : EventArgs
+    {
+        public AchievementTagsChangedEventArgs(Guid? gameId)
+        {
+            GameId = gameId;
+        }
+
+        /// <summary>The game whose own tags changed; null when the global list changed.</summary>
+        public Guid? GameId { get; }
     }
 }

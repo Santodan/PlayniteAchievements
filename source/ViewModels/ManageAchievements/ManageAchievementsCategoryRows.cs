@@ -518,15 +518,63 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
     {
         private bool _isSelected;
 
+        private string _displayName;
+
         public TagSelectionOption(string value, string displayName)
         {
             Value = value;
-            DisplayName = displayName;
+            _displayName = displayName;
         }
 
         public string Value { get; }
 
-        public string DisplayName { get; }
+        public string DisplayName
+        {
+            get => _displayName;
+            private set => SetValue(ref _displayName, value);
+        }
+
+        /// <summary>
+        /// Brings <paramref name="options"/> in line with <paramref name="keys"/> after the tag lists
+        /// changed: options for kept keys stay (and keep their selection) under their current names,
+        /// new keys get an option passed through <paramref name="attach"/>, removed keys go.
+        /// </summary>
+        public static void Sync(
+            ObservableCollection<TagSelectionOption> options,
+            IReadOnlyList<string> keys,
+            Func<string, string> getName,
+            Action<TagSelectionOption> attach)
+        {
+            if (options == null || keys == null)
+            {
+                return;
+            }
+
+            var existing = options.ToDictionary(option => option.Value, StringComparer.OrdinalIgnoreCase);
+            var ordered = keys.Select(key =>
+            {
+                if (existing.TryGetValue(key, out var option))
+                {
+                    option.DisplayName = getName(key);
+                    return option;
+                }
+
+                var created = new TagSelectionOption(key, getName(key));
+                attach?.Invoke(created);
+                return created;
+            }).ToList();
+
+            if (ordered.SequenceEqual(options))
+            {
+                return;
+            }
+
+            options.Clear();
+            foreach (var option in ordered)
+            {
+                options.Add(option);
+            }
+        }
 
         public bool IsSelected
         {

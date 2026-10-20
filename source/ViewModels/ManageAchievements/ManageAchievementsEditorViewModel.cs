@@ -184,6 +184,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             EditCustomProviderCommand = new RelayCommand(_ => EditCustomProvider(), _ => HasSelectedCustomProvider && _showEditor != null && !IsSaving);
 
             AchievementRows = new BulkObservableCollection<AchievementEditorRow>();
+            AchievementTagRegistry.Changed += OnTagsChanged;
             // Rows carry the game so its own tags resolve to their names and colors.
             AchievementRows.CollectionChanged += (_, args) =>
             {
@@ -202,7 +203,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             AssignableCategoryOptions = new ObservableCollection<string>();
             TagSelectionOptions = new ObservableCollection<TagSelectionOption>(
                 AchievementTagRegistry.GetAssignableKeys(_gameId).Select(type =>
-                    new TagSelectionOption(type, ManageAchievementsCategoryViewModel.GetTagDisplayName(type))));
+                    new TagSelectionOption(type, ManageAchievementsCategoryViewModel.GetTagDisplayName(type, _gameId))));
             foreach (var option in TagSelectionOptions)
             {
                 option.PropertyChanged += TypeSelectionOption_PropertyChanged;
@@ -2317,8 +2318,33 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         /// <summary>
         /// Drops the store subscription when the Manage window discards this view model.
         /// </summary>
+        // Renamed or deleted tags re-read their names on every row; raised off the UI thread.
+        private void OnTagsChanged(object sender, AchievementTagsChangedEventArgs e)
+        {
+            if (e?.GameId != null && e.GameId != _gameId)
+            {
+                return;
+            }
+
+            System.Windows.Application.Current?.Dispatcher?.BeginInvoke(new Action(() =>
+            {
+                TagSelectionOption.Sync(
+                    TagSelectionOptions,
+                    AchievementTagRegistry.GetAssignableKeys(_gameId),
+                    key => ManageAchievementsCategoryViewModel.GetTagDisplayName(key, _gameId),
+                    option => option.PropertyChanged += TypeSelectionOption_PropertyChanged);
+                foreach (var row in AchievementRows.ToList())
+                {
+                    row?.RefreshTags();
+                }
+
+                BulkRow?.RefreshTags();
+            }));
+        }
+
         public void Detach()
         {
+            AchievementTagRegistry.Changed -= OnTagsChanged;
             // Before the notification flush, which it ends by raising itself.
             FlushManualUnlocks();
             // A pending notification must not be lost when the tab closes.
@@ -7991,6 +8017,9 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         /// </summary>
         public bool IsUnobtainable => AchievementTagHelper.IsUnobtainable(EffectiveTagsValue);
         private Guid? _gameId;
+
+        /// <summary>Re-reads tag names after the tag lists changed.</summary>
+        public void RefreshTags() => OnPropertyChanged(nameof(TagsDisplayText));
 
         /// <summary>The game the row belongs to, so its own tags resolve.</summary>
         public Guid? GameId

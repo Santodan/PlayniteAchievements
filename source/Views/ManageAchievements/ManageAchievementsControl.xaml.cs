@@ -1346,6 +1346,7 @@ namespace PlayniteAchievements.Views.ManageAchievements
                 _categoryViewModel.FlushDeferredLibraryRefresh();
                 _categoryViewModel.CategoryMetadataPersisted -= CategoryViewModel_CategoryMetadataPersisted;
                 _categoryViewModel.DeferredLibraryRefreshRequired -= CategoryViewModel_DeferredLibraryRefreshRequired;
+                _categoryViewModel.Detach();
             }
 
             if (_categoryControl != null)
