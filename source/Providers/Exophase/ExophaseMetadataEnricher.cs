@@ -27,13 +27,13 @@ namespace PlayniteAchievements.Providers.Exophase
         private readonly IPlayniteAPI _playniteApi;
         private readonly ILogger _logger;
         private readonly PlayniteAchievementsSettings _settings;
-        private readonly ExophaseSessionManager _sessionManager;
         private readonly ExophaseApiClient _apiClient;
         // Slug mappings are permanently stable; memoized for the enricher's lifetime.
         private readonly Dictionary<string, string> _slugMemo = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-        private bool _authChecked;
+        private bool _initialized;
         private bool _isReady;
 
+        /// <param name="pluginUserDataPath">Unused: rarity and icons come from public pages.</param>
         public ExophaseMetadataEnricher(
             IPlayniteAPI playniteApi,
             ILogger logger,
@@ -44,53 +44,34 @@ namespace PlayniteAchievements.Providers.Exophase
             _logger = logger;
             _settings = settings;
 
-            if (_playniteApi != null && !string.IsNullOrWhiteSpace(pluginUserDataPath))
+            // No cookie store: rarity and icons are on Exophase's public pages, so no Exophase
+            // sign-in is involved, and pages load without waiting for unlock data.
+            if (_playniteApi != null)
             {
-                _sessionManager = new ExophaseSessionManager(_playniteApi, _logger, pluginUserDataPath);
-                _apiClient = new ExophaseApiClient(_playniteApi, _logger, _sessionManager.CookieSnapshotStore);
+                _apiClient = new ExophaseApiClient(_playniteApi, _logger, null);
             }
         }
 
-        public async Task InitializeAsync(CancellationToken ct)
+        /// <summary>Opens the scan's shared offscreen view; closed in Dispose.</summary>
+        public Task InitializeAsync(CancellationToken ct)
         {
-            if (_authChecked)
+            if (_initialized)
             {
-                return;
+                return Task.CompletedTask;
             }
 
-            _authChecked = true;
-
-            if (_sessionManager == null || _apiClient == null)
+            _initialized = true;
+            if (_apiClient == null)
             {
-                _logger?.Warn("[ExophaseMetadata] Missing Playnite API or plugin data path; metadata enrichment disabled for this scan.");
-                return;
+                _logger?.Warn("[ExophaseMetadata] Missing Playnite API; metadata enrichment disabled for this scan.");
+                return Task.CompletedTask;
             }
 
-            try
-            {
-                var result = await _sessionManager.ProbeAuthStateAsync(ct).ConfigureAwait(false);
-                _isReady = result?.IsSuccess == true;
-
-                if (_isReady)
-                {
-                    // One cookie session spans all EnrichAsync calls of the owning scan: fetches
-                    // reuse the cached cookie snapshot and one shared offscreen view instead of
-                    // decrypting the snapshot and creating a view per game. Closed in Dispose.
-                    _apiClient.BeginCookieSession();
-                }
-                else
-                {
-                    _logger?.Warn("[ExophaseMetadata] Exophase authentication is required; native metadata will be kept.");
-                }
-            }
-            catch (OperationCanceledException)
-            {
-                throw;
-            }
-            catch (Exception ex)
-            {
-                _logger?.Warn(ex, "[ExophaseMetadata] Exophase auth probe failed; native metadata will be kept.");
-            }
+            // One session spans all EnrichAsync calls of the owning scan, so pages share one
+            // offscreen view instead of creating one per game.
+            _apiClient.BeginCookieSession();
+            _isReady = true;
+            return Task.CompletedTask;
         }
 
         /// <summary>
