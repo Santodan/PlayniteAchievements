@@ -155,6 +155,7 @@ namespace PlayniteAchievements.Services.Metadata
         /// <summary>
         /// Lowercase letters and digits without accents, with each run of anything else collapsed
         /// to one space. Apostrophes are dropped rather than spaced, so "Don't" reads as "dont".
+        /// British and American spellings read alike (see <see cref="FoldEnglishSpelling"/>).
         /// </summary>
         public static string NormalizeText(string value)
         {
@@ -192,7 +193,20 @@ namespace PlayniteAchievements.Services.Metadata
                 index--;
             }
 
-            return new string(chars, 0, index);
+            return FoldEnglishSpelling(new string(chars, 0, index));
+        }
+
+        /// <summary>
+        /// Folds British and American spellings together: "our" reads as "or" ("armour", "armor")
+        /// and "iz"/"yz" as "is"/"ys" ("realize", "realise"; "analyze", "analyse"). Both texts
+        /// being compared fold the same way, so a word the rule also touches ("four", "wizard")
+        /// still compares equal to itself; no word list is needed.
+        /// </summary>
+        internal static string FoldEnglishSpelling(string text)
+        {
+            return string.IsNullOrEmpty(text)
+                ? text
+                : text.Replace("our", "or").Replace("iz", "is").Replace("yz", "ys");
         }
 
         private static AchievementDetail ResolveTitleMatch(
