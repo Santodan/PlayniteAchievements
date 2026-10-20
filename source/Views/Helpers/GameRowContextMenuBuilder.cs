@@ -20,8 +20,8 @@ namespace PlayniteAchievements.Views.Helpers
     internal static class GameRowContextMenuBuilder
     {
         /// <summary>
-        /// Builds the game-level context menu (Refresh, Open, optional Manage Achievements,
-        /// Clear Data, Exclude from Summaries/Refreshes). The Manage Achievements item is omitted when
+        /// Builds the game-level context menu (View, optional Captures, Refresh, optional Manage,
+        /// Open, Maintenance). The Manage item is omitted when
         /// <paramref name="openManageAchievements"/> is null (e.g. when already inside that window).
         /// </summary>
         public static ContextMenu BuildGameMenu(
@@ -43,31 +43,10 @@ namespace PlayniteAchievements.Views.Helpers
             // A row whose game was removed from Playnite (custom data left behind) keeps only the
             // Maintenance actions; refreshing or opening it has nothing to act on.
             var gameInLibrary = !hasPlayniteGameId || GameExists(playniteApi, menuGameId);
-            if (hasPlayniteGameId && gameInLibrary && openManageAchievements != null)
-            {
-                menu.Items.Add(CreateMenuItem(resourceOwner, "LOCPlayAch_Common_Manage", () =>
-                {
-                    if (TryGetGameId(data, out var gameId))
-                    {
-                        openManageAchievements(gameId);
-                    }
-                }));
-            }
-
-            if (gameInLibrary)
-            {
-                menu.Items.Add(CreateMenuItem(resourceOwner, "LOCPlayAch_Button_Refresh",
-                    () => ExecuteCommand(refreshGameCommand, data)));
-            }
-
             if (hasPlayniteGameId && gameInLibrary)
             {
-                menu.Items.Add(CreateOpenMenu(
-                    resourceOwner,
-                    menuGameId,
-                    () => ExecuteCommand(openGameInLibraryCommand, data),
-                    playniteApi,
-                    logger));
+                menu.Items.Add(CreateMenuItem(resourceOwner, "LOCPlayAch_Common_View",
+                    () => PlayniteAchievementsPlugin.Instance?.OpenViewAchievementsWindow(menuGameId)));
 
                 // User-earned scopes only (opted in by the caller); disabled when the game has no
                 // saved captures. Friend game rows never opt in.
@@ -79,6 +58,33 @@ namespace PlayniteAchievements.Views.Helpers
                         .GameHasCaptures(gameSummary.GameName) == true;
                     menu.Items.Add(captureItem);
                 }
+            }
+
+            if (gameInLibrary)
+            {
+                menu.Items.Add(CreateMenuItem(resourceOwner, "LOCPlayAch_Button_Refresh",
+                    () => ExecuteCommand(refreshGameCommand, data)));
+            }
+
+            if (hasPlayniteGameId && gameInLibrary)
+            {
+                if (openManageAchievements != null)
+                {
+                    menu.Items.Add(CreateMenuItem(resourceOwner, "LOCPlayAch_Common_Manage", () =>
+                    {
+                        if (TryGetGameId(data, out var gameId))
+                        {
+                            openManageAchievements(gameId);
+                        }
+                    }));
+                }
+
+                menu.Items.Add(CreateOpenMenu(
+                    resourceOwner,
+                    menuGameId,
+                    () => ExecuteCommand(openGameInLibraryCommand, data),
+                    playniteApi,
+                    logger));
 
                 if (!(data is FriendGameSummaryItem) &&
                     TryGetGameId(data, out var showcaseGameId))
