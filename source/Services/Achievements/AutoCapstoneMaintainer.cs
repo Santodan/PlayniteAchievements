@@ -167,6 +167,19 @@ namespace PlayniteAchievements.Services.Achievements
             var filings = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
             var changed = false;
 
+            // Capstones the order never names, which authoring before they were placed first left
+            // at the bottom. The order is only written when rows are moved, so one it does not name
+            // is one nobody has placed. The whole-game capstone leads.
+            var ordered = new HashSet<string>(
+                customData.AchievementOrder ?? new List<string>(),
+                StringComparer.OrdinalIgnoreCase);
+            var placeFirst = indexes
+                .Select(index => definitions[index])
+                .OrderBy(definition => definition.IsWholeGameAutoCapstone ? 0 : 1)
+                .Select(definition => CustomAchievementProjectionService.BuildApiName(definition.Id))
+                .Where(apiName => !ordered.Contains(apiName))
+                .ToList();
+
             foreach (var index in indexes)
             {
                 var current = definitions[index];
@@ -230,14 +243,18 @@ namespace PlayniteAchievements.Services.Achievements
                 }
             }
 
-            if (!changed && filings.Count == 0)
+            if (!changed && filings.Count == 0 && placeFirst.Count == 0)
             {
                 return;
             }
 
             // One write for the whole set: each store update fans out a synchronous whole-library
             // recompute, so one per capstone would pay for it several times over.
-            _overridesService.SetCustomAchievements(gameId, replacement, categoryFilings: filings);
+            _overridesService.SetCustomAchievements(
+                gameId,
+                replacement,
+                categoryFilings: filings,
+                placeFirst: placeFirst);
 
             if (!announceUnlocks || announce.Count == 0)
             {
