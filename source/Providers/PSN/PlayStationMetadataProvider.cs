@@ -75,9 +75,8 @@ namespace PlayniteAchievements.Providers.PSN
         }
 
         /// <summary>
-        /// The PlayStation page named after the first of the game's names that has one
-        /// (<c>&lt;name&gt;-psn</c>, Exophase's slug for the first PlayStation release). When that
-        /// page links a PS5 version of the same game, the PS5 page is taken instead.
+        /// The first PlayStation page that exists among the slugs built from the game's names. When
+        /// that page links a PS5 version of the same game, the PS5 page is taken instead.
         /// </summary>
         public async Task<MetadataSourceLink> ResolveLinkAsync(MetadataLinkRequest request, CancellationToken ct)
         {
@@ -116,15 +115,21 @@ namespace PlayniteAchievements.Providers.PSN
         }
 
         /// <summary>
-        /// The <c>-psn</c> page slug of each name, accents removed and without the hyphen a leading
-        /// bracket leaves ("(the) Gnorp Apologue"), without repeats.
+        /// Exophase's PlayStation page suffixes, newest first: <c>-psn</c> for recent games, and the
+        /// platform itself for older ones ("dark-souls-iii-ps4").
+        /// </summary>
+        private static readonly string[] PageSuffixes = { "-psn", "-ps4", "-ps3", "-psvita" };
+
+        /// <summary>
+        /// The PlayStation page slugs to try for each name in turn, accents removed and without the
+        /// hyphen a leading bracket leaves ("(the) Gnorp Apologue"), without repeats.
         /// </summary>
         internal static IEnumerable<string> CandidateSlugs(IEnumerable<string> names)
         {
             return (names ?? Enumerable.Empty<string>())
                 .Select(name => ExophaseGameNameMatcher.NormalizeGameNameForSlug(GameNameNormalizer.StripDiacritics(name ?? string.Empty))?.Trim('-'))
                 .Where(slug => !string.IsNullOrWhiteSpace(slug))
-                .Select(slug => slug + "-psn")
+                .SelectMany(slug => PageSuffixes.Select(suffix => slug + suffix))
                 .Distinct(StringComparer.OrdinalIgnoreCase);
         }
 
