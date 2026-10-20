@@ -102,7 +102,11 @@
                     <DataGridTemplateColumn Width="32" MinWidth="32" MaxWidth="32" CanUserResize="False" IsReadOnly="True">
                         <DataGridTemplateColumn.CellTemplate>
                             <DataTemplate>
-                                <Border Tag="DragHandle" Background="Transparent" Cursor="SizeAll">
+                                <Border Tag="DragHandle"
+                                        Background="Transparent"
+                                        HorizontalAlignment="Stretch"
+                                        VerticalAlignment="Stretch"
+                                        Cursor="SizeAll">
                                     <TextBlock Tag="DragHandle"
                                                Text="☰"
                                                HorizontalAlignment="Center"
