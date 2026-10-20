@@ -1252,11 +1252,13 @@ namespace PlayniteAchievements.Services.Achievements
         /// Categories to file authored achievements in, by ApiName, in the same store update. Filed
         /// as authoring files them, so what an auto capstone stands for is left alone.
         /// </param>
+        /// <param name="placeFirst">ApiNames to lead the achievement order, as authoring places them.</param>
         public void SetCustomAchievements(
             Guid gameId,
             IReadOnlyList<CustomAchievementDefinition> definitions,
             IReadOnlyDictionary<string, string> renamedApiNames = null,
-            IReadOnlyDictionary<string, string> categoryFilings = null)
+            IReadOnlyDictionary<string, string> categoryFilings = null,
+            IReadOnlyList<string> placeFirst = null)
         {
             if (gameId == Guid.Empty)
             {
@@ -1278,7 +1280,22 @@ namespace PlayniteAchievements.Services.Achievements
                 {
                     FileInCategory(customData, filing.Key, filing.Value);
                 }
+
+                if (placeFirst != null && placeFirst.Count > 0)
+                {
+                    PlaceFirst(customData, placeFirst);
+                }
             });
+        }
+
+        /// <summary>
+        /// Puts <paramref name="apiNames"/> at the head of the order. Everything else keeps its order
+        /// behind them: entries the order does not name follow those it does, in their own order.
+        /// </summary>
+        private static void PlaceFirst(GameCustomDataFile customData, IEnumerable<string> apiNames)
+        {
+            customData.AchievementOrder = AchievementOrderHelper.NormalizeApiNames(
+                apiNames.Concat(customData.AchievementOrder ?? new List<string>()));
         }
 
         private static void FileInCategory(GameCustomDataFile customData, string apiName, string category)
@@ -1360,11 +1377,9 @@ namespace PlayniteAchievements.Services.Achievements
                 customData.CustomAchievements = definitions;
 
                 // Placed first, so the capstone leads the list, and its category's group when it
-                // stands for one. Everything else keeps its order behind it: entries the order
-                // does not name follow those it does, in their own order.
+                // stands for one.
                 var apiName = CustomAchievementProjectionService.BuildApiName(definition.Id);
-                customData.AchievementOrder = AchievementOrderHelper.NormalizeApiNames(
-                    new[] { apiName }.Concat(customData.AchievementOrder ?? new List<string>()));
+                PlaceFirst(customData, new[] { apiName });
 
                 FileInCategory(customData, apiName, category);
 
