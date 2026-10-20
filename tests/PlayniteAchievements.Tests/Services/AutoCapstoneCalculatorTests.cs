@@ -358,6 +358,58 @@ namespace PlayniteAchievements.Tests.Services
             Assert.IsTrue(category.Unlocked);
         }
 
+        [TestMethod]
+        public void Derive_TakesTheBaseGameGroupType()
+        {
+            // A PSN game types its base trophies Base; the capstone groups with them.
+            var derived = AutoCapstoneCalculator.Derive(new[]
+            {
+                Achievement("a", categoryType: "Base"),
+                Achievement("b", categoryType: "Base|Missable"),
+                Achievement("dlc", categoryType: "DLC")
+            });
+
+            Assert.AreEqual("Base", derived.CategoryType);
+        }
+
+        [TestMethod]
+        public void Derive_GroupTypeLeavesOutUpdate()
+        {
+            var derived = AutoCapstoneCalculator.Derive(new[]
+            {
+                Achievement("a", categoryType: "Base|Update"),
+                Achievement("b", categoryType: "Base|Update"),
+                Achievement("c", categoryType: "Base")
+            });
+
+            Assert.AreEqual("Base", derived.CategoryType);
+        }
+
+        [TestMethod]
+        public void Derive_DlcCategoryTakesTheDlcGroupType()
+        {
+            var derived = AutoCapstoneCalculator.Derive(new[]
+            {
+                Achievement("a", categoryType: "Base", category: "Main"),
+                Achievement("dlc1", categoryType: "DLC", category: "Expansion"),
+                Achievement("dlc2", categoryType: "DLC", category: "Expansion")
+            }, "Expansion");
+
+            Assert.AreEqual("DLC", derived.CategoryType);
+        }
+
+        [TestMethod]
+        public void Derive_UngroupedGameHasNoGroupType()
+        {
+            var derived = AutoCapstoneCalculator.Derive(new[]
+            {
+                Achievement("a"),
+                Achievement("b", categoryType: "Missable")
+            });
+
+            Assert.IsNull(derived.CategoryType);
+        }
+
         private static AchievementDetail Achievement(
             string apiName,
             bool unlocked = false,
