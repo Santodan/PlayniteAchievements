@@ -45,6 +45,14 @@ namespace PlayniteAchievements.Services.Metadata
         [JsonProperty("capstoneArt")]
         public string CapstoneArtUrl { get; set; }
 
+        /// <summary>The borrowed capstone's title (a PlayStation platinum's), or null.</summary>
+        [JsonProperty("capstoneTitle")]
+        public string CapstoneTitle { get; set; }
+
+        /// <summary>The borrowed capstone's description, or null.</summary>
+        [JsonProperty("capstoneDescription")]
+        public string CapstoneDescription { get; set; }
+
         /// <summary>How many of the game's achievements each source matched, by source key.</summary>
         [JsonProperty("coverage")]
         public Dictionary<string, MetadataCoverage> Coverage { get; set; }
@@ -69,10 +77,18 @@ namespace PlayniteAchievements.Services.Metadata
 
     /// <summary>
     /// The art the plugin last wrote into an auto capstone's icon file: where it came from and the
-    /// file it left, so a later refresh can tell its own file from one the user replaced.
+    /// file it left, so a later refresh can tell its own file from one the user replaced. Also the
+    /// borrowed text it last wrote, so that text is recognized as the plugin's and not the user's.
     /// </summary>
     public sealed class CapstoneArtRecord
     {
+        /// <summary>The borrowed title the plugin wrote, or null while the capstone uses the templates.</summary>
+        [JsonProperty("title", NullValueHandling = NullValueHandling.Ignore)]
+        public string Title { get; set; }
+
+        [JsonProperty("description", NullValueHandling = NullValueHandling.Ignore)]
+        public string Description { get; set; }
+
         [JsonProperty("source")]
         public string Source { get; set; }
 
@@ -225,6 +241,17 @@ namespace PlayniteAchievements.Services.Metadata
             }
         }
 
+        /// <summary>The borrowed capstone title and description the last overlay recorded, or nulls.</summary>
+        public (string Title, string Description) GetCapstoneText(Guid gameId)
+        {
+            lock (_sync)
+            {
+                return _applied.TryGetValue(gameId, out var state) && state != null
+                    ? (state.CapstoneTitle, state.CapstoneDescription)
+                    : (null, null);
+            }
+        }
+
         /// <summary>
         /// Records what an overlay applied to the game. Returns true when the icon source differs
         /// from the one recorded last, so the caller re-downloads icons kept under the same names.
@@ -234,7 +261,9 @@ namespace PlayniteAchievements.Services.Metadata
             string iconSourceKey,
             string capstoneArtUrl,
             IReadOnlyDictionary<string, MetadataCoverage> coverage = null,
-            IEnumerable<string> iconApiNames = null)
+            IEnumerable<string> iconApiNames = null,
+            string capstoneTitle = null,
+            string capstoneDescription = null)
         {
             if (gameId == Guid.Empty)
             {
@@ -243,6 +272,8 @@ namespace PlayniteAchievements.Services.Metadata
 
             var icon = string.IsNullOrWhiteSpace(iconSourceKey) ? null : iconSourceKey.Trim();
             var art = string.IsNullOrWhiteSpace(capstoneArtUrl) ? null : capstoneArtUrl.Trim();
+            var title = string.IsNullOrWhiteSpace(capstoneTitle) ? null : capstoneTitle.Trim();
+            var description = string.IsNullOrWhiteSpace(capstoneDescription) ? null : capstoneDescription.Trim();
             var counts = coverage == null || coverage.Count == 0
                 ? null
                 : coverage.ToDictionary(pair => pair.Key, pair => pair.Value, StringComparer.OrdinalIgnoreCase);
@@ -260,6 +291,8 @@ namespace PlayniteAchievements.Services.Metadata
                 iconChanged = !string.Equals(previous?.IconSourceKey, icon, StringComparison.OrdinalIgnoreCase);
                 if (!iconChanged &&
                     string.Equals(previous?.CapstoneArtUrl, art, StringComparison.Ordinal) &&
+                    string.Equals(previous?.CapstoneTitle, title, StringComparison.Ordinal) &&
+                    string.Equals(previous?.CapstoneDescription, description, StringComparison.Ordinal) &&
                     SameCoverage(previous?.Coverage, counts) &&
                     (previous?.IconApiNames ?? new List<string>()).SequenceEqual(borrowed ?? new List<string>(), StringComparer.OrdinalIgnoreCase))
                 {
@@ -276,6 +309,8 @@ namespace PlayniteAchievements.Services.Metadata
                     {
                         IconSourceKey = icon,
                         CapstoneArtUrl = art,
+                        CapstoneTitle = art == null ? null : title,
+                        CapstoneDescription = art == null ? null : description,
                         Coverage = counts,
                         IconApiNames = borrowed?.Count > 0 ? borrowed : null
                     };
