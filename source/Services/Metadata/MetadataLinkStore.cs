@@ -312,8 +312,9 @@ namespace PlayniteAchievements.Services.Metadata
         }
 
         /// <summary>
-        /// Records what an overlay applied to the game. Returns true when the icon source differs
-        /// from the one recorded last, so the caller re-downloads icons kept under the same names.
+        /// Records what an overlay applied to the game. Returns true when the game's icons changed
+        /// since the last record (another icon source, or other achievements borrowing from it, as
+        /// after a pairing), so the caller re-downloads icons kept under the same file names.
         /// </summary>
         public bool RecordApplied(
             Guid gameId,
@@ -347,13 +348,13 @@ namespace PlayniteAchievements.Services.Metadata
             lock (_sync)
             {
                 _applied.TryGetValue(gameId, out var previous);
-                iconChanged = !string.Equals(previous?.IconSourceKey, icon, StringComparison.OrdinalIgnoreCase);
+                iconChanged = !string.Equals(previous?.IconSourceKey, icon, StringComparison.OrdinalIgnoreCase) ||
+                              !(previous?.IconApiNames ?? new List<string>()).SequenceEqual(borrowed ?? new List<string>(), StringComparer.OrdinalIgnoreCase);
                 if (!iconChanged &&
                     string.Equals(previous?.CapstoneArtUrl, art, StringComparison.Ordinal) &&
                     string.Equals(previous?.CapstoneTitle, title, StringComparison.Ordinal) &&
                     string.Equals(previous?.CapstoneDescription, description, StringComparison.Ordinal) &&
-                    SameCoverage(previous?.Coverage, counts) &&
-                    (previous?.IconApiNames ?? new List<string>()).SequenceEqual(borrowed ?? new List<string>(), StringComparer.OrdinalIgnoreCase))
+                    SameCoverage(previous?.Coverage, counts))
                 {
                     return false;
                 }
