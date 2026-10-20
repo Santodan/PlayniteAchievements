@@ -10,36 +10,28 @@ using PlayniteAchievements.Providers;
 namespace PlayniteAchievements.Providers.Manual
 {
     /// <summary>
-    /// Manual source implementation for Exophase.
+    /// Manual source implementation for Exophase. Reads public pages only: manual links take the
+    /// achievement list and text, not the user's unlocks, so no Exophase sign-in is involved.
     /// Uses WebView for all requests to bypass Cloudflare protection.
     /// </summary>
     internal sealed class ExophaseManualSource : IManualSource
     {
         private readonly ExophaseApiClient _apiClient;
-        private readonly ExophaseSessionManager _sessionManager;
         private readonly ILogger _logger;
-        private readonly Func<bool> _requireExophaseAuthentication;
 
         public string SourceKey => "Exophase";
         public string SourceName => ResourceProvider.GetString("LOCPlayAch_Provider_Exophase");
-        public bool IsAuthenticated => _sessionManager?.IsAuthenticated ?? false;
-        public ISessionManager AuthSession => _sessionManager;
+        public bool IsAuthenticated => true;
+        public ISessionManager AuthSession => null;
 
-        public ExophaseManualSource(
-            IPlayniteAPI playniteApi,
-            ExophaseSessionManager sessionManager,
-            ILogger logger,
-            Func<string> getLanguage,
-            Func<bool> requireExophaseAuthentication)
+        public ExophaseManualSource(IPlayniteAPI playniteApi, ILogger logger)
         {
-            _sessionManager = sessionManager ?? throw new ArgumentNullException(nameof(sessionManager));
+            // No cookie store: public pages only.
             _apiClient = new ExophaseApiClient(
                 playniteApi ?? throw new ArgumentNullException(nameof(playniteApi)),
                 logger,
-                _sessionManager.CookieSnapshotStore);
+                null);
             _logger = logger;
-            _ = getLanguage ?? throw new ArgumentNullException(nameof(getLanguage));
-            _requireExophaseAuthentication = requireExophaseAuthentication ?? throw new ArgumentNullException(nameof(requireExophaseAuthentication));
         }
 
         public async Task<List<ManualGameSearchResult>> SearchGamesAsync(string query, string language, CancellationToken ct)
@@ -51,8 +43,6 @@ namespace PlayniteAchievements.Providers.Manual
 
             try
             {
-                await ManualSourceAuthentication.EnsureAuthenticatedIfRequiredAsync(this, _requireExophaseAuthentication(), ct).ConfigureAwait(false);
-
                 var games = await _apiClient.SearchGamesAsync(query, ct).ConfigureAwait(false);
                 if (games == null || games.Count == 0)
                 {
@@ -128,12 +118,17 @@ namespace PlayniteAchievements.Providers.Manual
                     return null;
                 }
 
-                var acceptLanguage = ExophaseApiClient.MapLanguageToAcceptLanguage(language);
-
+                // The page in the plugin's language, else English: each game lists its own
+                // languages, and some platforms' pages may offer none.
+                var languageCode = ExophaseGamePageParser.TrophyLanguageCode(language);
                 var achievements = await _apiClient.FetchAchievementsAsync(
-                    achievementUrl,
-                    acceptLanguage,
+                    ExophaseGamePageParser.LocalizeAwardPageUrl(achievementUrl, languageCode),
+                    null,
                     ct).ConfigureAwait(false);
+                if (languageCode != null && !(achievements?.Count > 0))
+                {
+                    achievements = await _apiClient.FetchAchievementsAsync(achievementUrl, null, ct).ConfigureAwait(false);
+                }
 
                 if (achievements == null || achievements.Count == 0)
                 {
