@@ -75,13 +75,6 @@
                                   Focusable="False"
                                   ItemTemplate="{StaticResource TemplateRowTemplate}"
                                   Margin="{StaticResource PlayAch.Thickness.SettingRow.Indent}"/>
-
-                    <!-- Section-level action, not one setting's control. -->
-                    <StackPanel Orientation="Horizontal" Margin="{StaticResource PlayAch.Thickness.Top.Md}">
-                        <Button Content="{DynamicResource LOCPlayAch_Button_Apply}"
-                                Click="Apply_Click"
-                                Padding="{StaticResource PlayAch.Thickness.ButtonPadding}"/>
-                    </StackPanel>
                 </StackPanel>
             </Border>
         </StackPanel>
