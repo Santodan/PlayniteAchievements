@@ -95,19 +95,7 @@ namespace PlayniteAchievements.Providers.PSN
 
             try
             {
-                var main = await FindMainSetAsync(request, name, ct).ConfigureAwait(false);
-                if (main == null)
-                {
-                    return null;
-                }
-
-                var extras = await FindExtraSetsAsync(request, main.Id, ct).ConfigureAwait(false);
-                return extras.Count == 0
-                    ? main
-                    : new MetadataSourceLink(
-                        string.Join(SetSeparator + " ", new[] { main.Id }.Concat(extras)),
-                        $"{main.Label} (+{extras.Count})",
-                        foundByName: true);
+                return await FindMainSetAsync(request, name, ct).ConfigureAwait(false);
             }
             catch (PsnAuthRequiredException)
             {
@@ -156,92 +144,10 @@ namespace PlayniteAchievements.Providers.PSN
             return fallback;
         }
 
-        /// <summary>
-        /// Trophy sets sold apart from the main one (DLC lists such as The Binding of Isaac's
-        /// Afterbirth+ and Repentance, or the parts of a collection), looked for whenever the main
-        /// set leaves achievements unmatched. A related set is kept when at least half of its
-        /// trophies match achievements nothing matched yet, which keeps out sequels that only share
-        /// the name.
-        /// </summary>
-        private async Task<List<string>> FindExtraSetsAsync(MetadataLinkRequest request, string mainId, CancellationToken ct)
-        {
-            var extras = new List<string>();
-            var targets = request.Data?.Achievements;
-            var mainRows = await GetDefinitionsAsync(mainId, ct).ConfigureAwait(false);
-            if (targets == null || targets.Count == 0 || mainRows == null)
-            {
-                return extras;
-            }
-
-            var matched = new HashSet<AchievementDetail>(
-                Services.Metadata.CrossSourceAchievementMatcher.Match(targets, mainRows).Select(match => match.Target));
-            var unmatched = targets.Where(target => !matched.Contains(target)).ToList();
-            if (unmatched.Count == 0)
-            {
-                return extras;
-            }
-
-            var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { mainId };
-            foreach (var gamePage in await _psPrices.FindRelatedGamePagePathsAsync(BaseName(request.Game?.Name), ct).ConfigureAwait(false))
-            {
-                var page = await ReadTrophyPageAsync(gamePage, ct).ConfigureAwait(false);
-                if (page == null || !seen.Add(page.NpCommunicationId))
-                {
-                    continue;
-                }
-
-                var rows = await GetDefinitionsAsync(page.NpCommunicationId, ct).ConfigureAwait(false);
-                if (rows == null || rows.Count == 0)
-                {
-                    continue;
-                }
-
-                var matches = Services.Metadata.CrossSourceAchievementMatcher.Match(unmatched, rows);
-                _logger?.Debug(
-                    $"[PlayStationMetadata] Extra set {page.NpCommunicationId} ('{page.Title}') matched {matches.Count}/{rows.Count} " +
-                    $"of the {unmatched.Count} achievements still unmatched for '{request.Game?.Name}'.");
-                if (matches.Count == 0 || matches.Count < rows.Count * 0.5)
-                {
-                    continue;
-                }
-
-                extras.Add(page.NpCommunicationId);
-                var newlyMatched = new HashSet<AchievementDetail>(matches.Select(match => match.Target));
-                unmatched = unmatched.Where(target => !newlyMatched.Contains(target)).ToList();
-                if (unmatched.Count == 0)
-                {
-                    break;
-                }
-            }
-
-            return extras;
-        }
-
         private async Task<PsPricesTrophyPage> ReadTrophyPageAsync(string gamePage, CancellationToken ct)
         {
             var trophyPath = await _psPrices.FindTrophyPagePathAsync(gamePage, ct).ConfigureAwait(false);
             return trophyPath == null ? null : await _psPrices.GetTrophyPageAsync(trophyPath, ct).ConfigureAwait(false);
-        }
-
-        /// <summary>The franchise part of a name: "The Binding of Isaac: Rebirth" gives "The Binding of Isaac".</summary>
-        internal static string BaseName(string name)
-        {
-            if (string.IsNullOrWhiteSpace(name))
-            {
-                return name;
-            }
-
-            var cut = name.Length;
-            foreach (var separator in new[] { ":", " - ", " – " })
-            {
-                var at = name.IndexOf(separator, StringComparison.Ordinal);
-                if (at > 0 && at < cut)
-                {
-                    cut = at;
-                }
-            }
-
-            return name.Substring(0, cut).Trim();
         }
 
         /// <summary>PS5 trophy art is served from psnobj; PS4 and older from the trophy/np image path.</summary>
