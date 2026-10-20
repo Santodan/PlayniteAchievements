@@ -124,13 +124,21 @@ namespace PlayniteAchievements.Services.Metadata
             var iconKeys = await KeepLargerIconSourcesAsync(plan.IconKeys, sets, request.Game?.Name, ct).ConfigureAwait(false);
             var iconSource = ApplyIcons(iconKeys, sets, borrowedIconApiNames);
             ApplyCategories(plan.CategoryKeys, plan.CategoryMode, sets);
-            var capstoneArt = ResolveCapstoneArt(plan.CapstoneArtKeys, sets);
+            var capstone = ResolveCapstone(plan.CapstoneArtKeys, sets);
+            var capstoneArt = FirstNonBlank(capstone?.UnlockedIconPath, capstone?.LockedIconPath);
             var coverage = sets.ToDictionary(
                 pair => pair.Key,
                 pair => new MetadataCoverage { Matched = pair.Value.Matches.Count, Total = data.Achievements.Count },
                 StringComparer.OrdinalIgnoreCase);
 
-            return _links?.RecordApplied(gameId, iconSource, capstoneArt, coverage, borrowedIconApiNames) ?? false;
+            return _links?.RecordApplied(
+                gameId,
+                iconSource,
+                capstoneArt,
+                coverage,
+                borrowedIconApiNames,
+                capstone?.DisplayName,
+                capstone?.Description) ?? false;
         }
 
         public void Dispose()
@@ -435,7 +443,11 @@ namespace PlayniteAchievements.Services.Metadata
         }
 
         /// <summary>The first preferred source's capstone (platinum) icon, when that source matched the game.</summary>
-        private static string ResolveCapstoneArt(IReadOnlyList<string> keys, IReadOnlyDictionary<string, MatchedSet> sets)
+        /// <summary>
+        /// The first preferred source's capstone row with art (a PlayStation platinum), whose art,
+        /// title and description auto capstones take; null when none matched.
+        /// </summary>
+        private static AchievementDetail ResolveCapstone(IReadOnlyList<string> keys, IReadOnlyDictionary<string, MatchedSet> sets)
         {
             foreach (var key in keys)
             {
@@ -447,10 +459,9 @@ namespace PlayniteAchievements.Services.Metadata
                 var capstone = set.Set.Achievements.FirstOrDefault(row =>
                     row != null &&
                     (row.IsCapstone || string.Equals(row.TrophyType, "platinum", StringComparison.OrdinalIgnoreCase)));
-                var art = FirstNonBlank(capstone?.UnlockedIconPath, capstone?.LockedIconPath);
-                if (art != null)
+                if (FirstNonBlank(capstone?.UnlockedIconPath, capstone?.LockedIconPath) != null)
                 {
-                    return art;
+                    return capstone;
                 }
             }
 
