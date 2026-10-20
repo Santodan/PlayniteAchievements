@@ -7,6 +7,7 @@ using PlayniteAchievements.Providers.Settings;
 using PlayniteAchievements.Services;
 using PlayniteAchievements.Services.GameCustomData;
 using PlayniteAchievements.Services.Refresh;
+using PlayniteAchievements.Providers.Metadata;
 using PlayniteAchievements.Providers.Steam.Local;
 using System;
 using System.Collections.Generic;
