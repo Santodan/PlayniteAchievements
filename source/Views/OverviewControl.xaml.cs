@@ -2023,23 +2023,23 @@ namespace PlayniteAchievements.Views
         private ContextMenu BuildAchievementMenu(object data, DependencyObject menuSource = null)
         {
             var menu = new ContextMenu();
-            if (data is RecentAchievementItem)
-            {
-                menu.Items.Add(GameRowContextMenuBuilder.CreateMenuItem(this, "LOCPlayAch_Common_View",
-                    () => GameRowContextMenuBuilder.ExecuteCommand(_viewModel?.OpenGameInOverviewCommand, data)));
-            }
-            else if (!IsCurrentGame(data))
-            {
-                menu.Items.Add(GameRowContextMenuBuilder.CreateMenuItem(this, "LOCPlayAch_Menu_OpenGameInOverview",
-                    () => GameRowContextMenuBuilder.ExecuteCommand(_viewModel?.OpenGameInOverviewCommand, data)));
-            }
             GameRowContextMenuBuilder.TryGetGameId(data, out var achievementGameId);
+            // Open > Overview selects the row's game here, so it is left out on that game's own rows.
+            Action openInOverview = data is RecentAchievementItem || !IsCurrentGame(data)
+                ? () => GameRowContextMenuBuilder.ExecuteCommand(_viewModel?.OpenGameInOverviewCommand, data)
+                : (Action)null;
             menu.Items.Add(GameRowContextMenuBuilder.CreateOpenMenu(
                 this,
                 achievementGameId,
                 () => GameRowContextMenuBuilder.ExecuteCommand(_viewModel?.OpenGameInLibraryCommand, data),
                 _playniteApi,
-                _logger));
+                _logger,
+                openInOverview));
+            if (achievementGameId != Guid.Empty)
+            {
+                menu.Items.Add(GameRowContextMenuBuilder.CreateMenuItem(this, "LOCPlayAch_Common_View",
+                    () => PlayniteAchievementsPlugin.Instance?.OpenViewAchievementsWindow(achievementGameId)));
+            }
             AchievementRowOptionsMenuBuilder.AppendAchievementOptions(
                 menu,
                 data,
