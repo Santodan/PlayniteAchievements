@@ -334,6 +334,61 @@ namespace PlayniteAchievements.Views.ManageAchievements
             SelectorContextMenuHelper.Open(button, menu);
         }
 
+        /// <summary>
+        /// The Kind cell's menu: kinds tick on and off and combine (DLC with Update), None says the
+        /// category has none, and Reset hands it back to the providers.
+        /// </summary>
+        private void CategoryKindButton_Click(object sender, RoutedEventArgs e)
+        {
+            var viewModel = ViewModel;
+            if (viewModel == null ||
+                !(sender is Button button) ||
+                !TryResolveCategoryImageRow(button, out var row))
+            {
+                return;
+            }
+
+            var menu = new ContextMenu();
+            foreach (var kind in CategoryKindHelper.AssignableKinds)
+            {
+                var captured = kind;
+                var kindItem = new MenuItem
+                {
+                    Header = CategoryKindHelper.ToKindDisplayText(captured),
+                    IsCheckable = true,
+                    IsChecked = CategoryKindHelper.Contains(row.Kind, captured)
+                };
+                kindItem.Click += (_, __) =>
+                {
+                    var updated = CategoryKindHelper.WithKind(row.Kind, captured, kindItem.IsChecked);
+                    viewModel.ApplyCategoryKind(row, updated ?? CategoryKindHelper.None);
+                };
+                menu.Items.Add(kindItem);
+            }
+
+            menu.Items.Add(new Separator());
+
+            var noneItem = new MenuItem
+            {
+                Header = L("LOCNone"),
+                IsCheckable = true,
+                IsChecked = string.Equals(row.StoredKind, CategoryKindHelper.None, StringComparison.OrdinalIgnoreCase)
+            };
+            noneItem.Click += (_, __) => viewModel.ApplyCategoryKind(row, CategoryKindHelper.None);
+            menu.Items.Add(noneItem);
+
+            var resetItem = new MenuItem
+            {
+                Header = L("LOCResetLabel"),
+                IsEnabled = row.IsKindStored
+            };
+            resetItem.Click += (_, __) => viewModel.ApplyCategoryKind(row, null);
+            menu.Items.Add(resetItem);
+
+            ContextMenuStyleHelper.ApplyAchievementContextMenuStyle(this, menu);
+            SelectorContextMenuHelper.Open(button, menu);
+        }
+
         private void SummaryCategoryRadioButton_KeyDown(object sender, KeyEventArgs e)
         {
             if (e.Key != Key.Space ||

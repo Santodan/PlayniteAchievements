@@ -244,6 +244,44 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         /// <summary>False for a category holding no achievements of its own, so there is nothing to push to.</summary>
         public bool CanEditFilterScope => _memberAchievementCount > 0;
 
+        private string _storedKind;
+        private string _kind;
+
+        /// <summary>
+        /// The kind the user set on this category: a kind, <see cref="CategoryKindHelper.None"/>, or
+        /// null when the providers decide.
+        /// </summary>
+        public string StoredKind => _storedKind;
+
+        /// <summary>The category's kind: the stored one, else what its achievements all agree on.</summary>
+        public string Kind => _kind;
+
+        public bool IsKindStored => _storedKind != null;
+
+        /// <summary>The Kind cell's face: the kind's name, None when set to none, blank otherwise.</summary>
+        public string KindDisplayText =>
+            string.Equals(_storedKind, CategoryKindHelper.None, StringComparison.OrdinalIgnoreCase)
+                ? ResourceProvider.GetString("LOCNone")
+                : CategoryKindHelper.ToDisplayText(_kind);
+
+        internal void SetKind(string storedKind, string kind)
+        {
+            var stored = CategoryKindHelper.NormalizeStored(storedKind);
+            var normalized = CategoryKindHelper.Normalize(kind);
+            if (string.Equals(_storedKind, stored, StringComparison.Ordinal) &&
+                string.Equals(_kind, normalized, StringComparison.Ordinal))
+            {
+                return;
+            }
+
+            _storedKind = stored;
+            _kind = normalized;
+            OnPropertyChanged(nameof(StoredKind));
+            OnPropertyChanged(nameof(Kind));
+            OnPropertyChanged(nameof(IsKindStored));
+            OnPropertyChanged(nameof(KindDisplayText));
+        }
+
         /// <summary>
         /// Stamps the scope this row's own achievements agree on.
         /// <paramref name="summaryEffectiveCount"/> includes the fully filtered, matching how the
