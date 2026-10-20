@@ -34,7 +34,7 @@ namespace PlayniteAchievements.Providers.Metadata
 
         public override string DisplayNameKey => "LOCPlayAch_Metadata_Source_PlayStation";
 
-        public override MetadataField SupportedFields => MetadataField.Icons | MetadataField.TrophyTypes | MetadataField.CapstoneArt;
+        public override MetadataField SupportedFields => MetadataField.Icons | MetadataField.TrophyTypes | MetadataField.Categories | MetadataField.CategoryArt | MetadataField.CapstoneArt;
 
         protected override ICollection<string> NativeProviders => Native;
 
