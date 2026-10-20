@@ -25,17 +25,23 @@ namespace PlayniteAchievements.Services.Metadata
         private readonly Func<PersistedSettings> _settings;
         private readonly MetadataLinkStore _links;
         private readonly ILogger _logger;
+        private readonly CategoryArtDownload _downloadCategoryArt;
 
+        /// <param name="downloadCategoryArt">
+        /// Saves a source's category art for the categories it gave a game; null keeps none.
+        /// </param>
         public MetadataOverlay(
             Func<IReadOnlyList<IMetadataProvider>> providers,
             Func<PersistedSettings> settings,
             MetadataLinkStore links,
-            ILogger logger)
+            ILogger logger,
+            CategoryArtDownload downloadCategoryArt = null)
         {
             _providers = providers;
             _settings = settings;
             _links = links;
             _logger = logger;
+            _downloadCategoryArt = downloadCategoryArt;
         }
 
         public MetadataLinkStore Links => _links;
@@ -47,9 +53,16 @@ namespace PlayniteAchievements.Services.Metadata
                 _providers?.Invoke() ?? Array.Empty<IMetadataProvider>(),
                 _settings?.Invoke(),
                 _links,
-                _logger);
+                _logger,
+                _downloadCategoryArt);
         }
     }
+
+    /// <summary>Saves category art (label, image address) as a game's default category images.</summary>
+    internal delegate Task CategoryArtDownload(
+        Guid gameId,
+        IReadOnlyList<(string Label, string ImageUrl)> art,
+        CancellationToken ct);
 
     internal sealed class MetadataOverlayRun : IDisposable
     {
@@ -70,7 +83,8 @@ namespace PlayniteAchievements.Services.Metadata
             IReadOnlyList<IMetadataProvider> providers,
             PersistedSettings settings,
             MetadataLinkStore links,
-            ILogger logger)
+            ILogger logger,
+            CategoryArtDownload downloadCategoryArt = null)
         {
             _providersByKey = (providers ?? Array.Empty<IMetadataProvider>())
                 .Where(provider => provider != null && !string.IsNullOrWhiteSpace(provider.Key))
@@ -79,7 +93,10 @@ namespace PlayniteAchievements.Services.Metadata
             _settings = settings;
             _links = links;
             _logger = logger;
+            _downloadCategoryArt = downloadCategoryArt;
         }
+
+        private readonly CategoryArtDownload _downloadCategoryArt;
 
         /// <summary>
         /// Applies the enabled metadata fields to the payload. Returns true when the game's icon
@@ -119,6 +136,12 @@ namespace PlayniteAchievements.Services.Metadata
                 _ownIcons[gameId] = ownIcons;
             }
             ApplyCategories(plan.CategoryKeys, plan.CategoryMode, sets);
+            var categoryArt = CollectCategoryArt(plan.CategoryKeys, sets);
+            if (categoryArt.Count > 0 && _downloadCategoryArt != null)
+            {
+                await _downloadCategoryArt(gameId, categoryArt, ct).ConfigureAwait(false);
+            }
+
             // A borrowed platinum type only labels the trophy; capstones keep their own rules.
             ApplyField(
                 plan.TrophyTypeKeys,
@@ -563,6 +586,41 @@ namespace PlayniteAchievements.Services.Metadata
                     ApplyCategory(match.Target, match.Source, mode);
                 }
             }
+        }
+
+        /// <summary>
+        /// The category art of each category source, for the categories it gave the game's
+        /// achievements; the first source wins a label.
+        /// </summary>
+        private static List<(string Label, string ImageUrl)> CollectCategoryArt(
+            IReadOnlyList<string> keys,
+            IReadOnlyDictionary<string, MatchedSet> sets)
+        {
+            var art = new List<(string Label, string ImageUrl)>();
+            var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var key in keys)
+            {
+                if (!sets.TryGetValue(key, out var set) || set.Set.CategoryArtUrls.Count == 0)
+                {
+                    continue;
+                }
+
+                var given = new HashSet<string>(
+                    set.Matches
+                        .Select(match => AchievementCategoryTypeHelper.NormalizeCategory(match.Target.Category))
+                        .Where(label => label != null),
+                    StringComparer.OrdinalIgnoreCase);
+                foreach (var pair in set.Set.CategoryArtUrls)
+                {
+                    var label = AchievementCategoryTypeHelper.NormalizeCategory(pair.Key);
+                    if (label != null && given.Contains(label) && seen.Add(label))
+                    {
+                        art.Add((label, pair.Value));
+                    }
+                }
+            }
+
+            return art;
         }
 
         internal static void ApplyCategory(AchievementDetail target, AchievementDetail source, MetadataCategoryMode mode)
