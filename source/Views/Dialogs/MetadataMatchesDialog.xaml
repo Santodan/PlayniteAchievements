@@ -87,28 +87,16 @@
                                  (StaysOpen=False) instead of closing and reopening it. -->
                             <ToggleButton x:Name="PickerButton"
                                           Grid.Column="2"
+                                          Style="{StaticResource PlayAch.ToggleButton.ComboBoxLookStyle}"
                                           IsChecked="{Binding IsPickerOpen, Mode=TwoWay}"
-                                          IsHitTestVisible="{Binding IsPickerOpen, Converter={StaticResource InvertBoolConverter}}"
-                                          HorizontalContentAlignment="Stretch"
-                                          Padding="6,3">
-                                <Grid>
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="Auto"/>
-                                        <ColumnDefinition Width="*"/>
-                                        <ColumnDefinition Width="Auto"/>
-                                    </Grid.ColumnDefinitions>
-                                    <Image Grid.Column="0"
-                                           Style="{StaticResource MatchIconStyle}"
+                                          IsHitTestVisible="{Binding IsPickerOpen, Converter={StaticResource InvertBoolConverter}}">
+                                <StackPanel Orientation="Horizontal">
+                                    <Image Style="{StaticResource MatchIconStyle}"
+                                           Width="24" Height="24"
                                            helpers:AsyncImage.Uri="{Binding Trophy.Icon}"
                                            Visibility="{Binding IsMatched, Converter={StaticResource BoolToVis}}"/>
-                                    <TextBlock Grid.Column="1" Style="{StaticResource MatchNameStyle}" Text="{Binding PairingText, Mode=OneWay}"/>
-                                    <TextBlock Grid.Column="2"
-                                               Style="{StaticResource MatchDetailStyle}"
-                                               Text="{DynamicResource LOCPlayAch_ManageAchievements_Overview_MetadataLink_SetByYou}"
-                                               VerticalAlignment="Center"
-                                               Margin="{StaticResource PlayAch.Thickness.Left.Sm}"
-                                               Visibility="{Binding IsUserSet, Converter={StaticResource BoolToVis}}"/>
-                                </Grid>
+                                    <TextBlock Style="{StaticResource MatchNameStyle}" Text="{Binding PairingText, Mode=OneWay}"/>
+                                </StackPanel>
                             </ToggleButton>
 
                             <Popup Grid.Column="2"
