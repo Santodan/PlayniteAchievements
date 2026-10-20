@@ -83,6 +83,16 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 fields.Add(ResourceProvider.GetString("LOCPlayAch_ManageAchievements_Custom_AutoCapstone"));
             }
 
+            if (Uses(choices.TrophyTypes, MetadataField.TrophyTypes))
+            {
+                fields.Add(ResourceProvider.GetString("LOCPlayAch_Column_Trophy"));
+            }
+
+            if (Uses(choices.Points, MetadataField.Points))
+            {
+                fields.Add(ResourceProvider.GetString("LOCPlayAch_Column_Points"));
+            }
+
             return string.Join(", ", fields);
         }
 
