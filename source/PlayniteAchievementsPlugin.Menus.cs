@@ -307,7 +307,7 @@ namespace PlayniteAchievements
 
             yield return new GameMenuItem
             {
-                Description = ResourceProvider.GetString("LOCPlayAch_Menu_ViewAchievements"),
+                Description = ResourceProvider.GetString("LOCPlayAch_Common_View"),
                 MenuSection = PluginGameMenuSection,
                 Action = (a) =>
                 {
@@ -319,7 +319,7 @@ namespace PlayniteAchievements
             {
                 yield return new GameMenuItem
                 {
-                    Description = ResourceProvider.GetString("LOCPlayAch_Menu_ViewFriendsAchievements"),
+                    Description = ResourceProvider.GetString("LOCPlayAch_Settings_Friends"),
                     MenuSection = PluginGameMenuSection,
                     Action = (a) =>
                     {
@@ -328,11 +328,36 @@ namespace PlayniteAchievements
                 };
             }
 
+            // Only shown when the game actually has saved captures (Playnite menu items can't be
+            // greyed out, so absence is the "inactive" state here).
+            if (_captureLibraryService?.GameHasCaptures(game.Name) == true)
+            {
+                yield return new GameMenuItem
+                {
+                    Description = ResourceProvider.GetString("LOCPlayAch_Column_Captures"),
+                    MenuSection = PluginGameMenuSection,
+                    Action = (a) =>
+                    {
+                        OpenCapturesViewerForGame(game.Name);
+                    }
+                };
+            }
+
+            yield return new GameMenuItem
+            {
+                Description = ResourceProvider.GetString("LOCPlayAch_Common_Manage"),
+                MenuSection = PluginGameMenuSection,
+                Action = (a) =>
+                {
+                    OpenManageAchievementsView(game.Id);
+                }
+            };
+
             if (!refreshInProgress)
             {
                 yield return new GameMenuItem
                 {
-                    Description = ResourceProvider.GetString("LOCPlayAch_Menu_RefreshGame"),
+                    Description = ResourceProvider.GetString("LOCPlayAch_Button_Refresh"),
                     MenuSection = PluginGameMenuSection,
                     Action = (a) =>
                     {
@@ -344,31 +369,6 @@ namespace PlayniteAchievements
                                 SurfaceUserNotices = true
                             },
                             game.Id);
-                    }
-                };
-            }
-
-            yield return new GameMenuItem
-            {
-                Description = ResourceProvider.GetString("LOCPlayAch_Menu_ManageAchievements"),
-                MenuSection = PluginGameMenuSection,
-                Action = (a) =>
-                {
-                    OpenManageAchievementsView(game.Id);
-                }
-            };
-
-            // Only shown when the game actually has saved captures (Playnite menu items can't be
-            // greyed out, so absence is the "inactive" state here).
-            if (_captureLibraryService?.GameHasCaptures(game.Name) == true)
-            {
-                yield return new GameMenuItem
-                {
-                    Description = ResourceProvider.GetString("LOCPlayAch_Menu_ViewCaptures"),
-                    MenuSection = PluginGameMenuSection,
-                    Action = (a) =>
-                    {
-                        OpenCapturesViewerForGame(game.Name);
                     }
                 };
             }
