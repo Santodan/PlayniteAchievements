@@ -184,6 +184,17 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             EditCustomProviderCommand = new RelayCommand(_ => EditCustomProvider(), _ => HasSelectedCustomProvider && _showEditor != null && !IsSaving);
 
             AchievementRows = new BulkObservableCollection<AchievementEditorRow>();
+            // Rows carry the game so its own tags resolve to their names and colors.
+            AchievementRows.CollectionChanged += (_, args) =>
+            {
+                var added = args.Action == System.Collections.Specialized.NotifyCollectionChangedAction.Reset
+                    ? AchievementRows
+                    : args.NewItems?.OfType<AchievementEditorRow>() ?? Enumerable.Empty<AchievementEditorRow>();
+                foreach (var editorRow in added)
+                {
+                    editorRow.GameId = _gameId;
+                }
+            };
             CategoryFilter = BuildCategoryFilter();
             TypeFilter = BuildTypeFilter();
             CustomizationFilter = BuildCustomizationFilter();
@@ -1694,6 +1705,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             row.SuppressNotifications = false;
 
             row.PropertyChanged += BulkRow_PropertyChanged;
+            row.GameId = _gameId;
             BulkRow = row;
         }
 
@@ -2774,7 +2786,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 thresholdMs: 10,
                 context: "rows=" + AchievementRows.Count);
 
-            MarkUndoIntent(EditorEditIntent.Command("CategoryType", "LOCTypeLabel"));
+            MarkUndoIntent(EditorEditIntent.Command("Tags", "LOCTagsLabel"));
 
             var targets = ResolveSelectionTargets()
                 .Where(row => row.CanEditAssignments && !string.IsNullOrWhiteSpace(row.OriginalApiName))
@@ -2809,7 +2821,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 thresholdMs: 10,
                 context: "rows=" + AchievementRows.Count);
 
-            MarkUndoIntent(EditorEditIntent.Command("CategoryType", "LOCTypeLabel"));
+            MarkUndoIntent(EditorEditIntent.Command("Tags", "LOCTagsLabel"));
 
             var targets = ResolveSelectionTargets()
                 .Where(row => row.CanEditAssignments && !string.IsNullOrWhiteSpace(row.OriginalApiName))
@@ -7961,8 +7973,10 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 {
                     OnPropertyChanged(nameof(EffectiveTagsValue));
                     OnPropertyChanged(nameof(TagsDisplayText));
+                    OnPropertyChanged(nameof(TagChips));
                     OnPropertyChanged(nameof(IsMissable));
-                    OnPropertyChanged(nameof(IsUnobtainable));                }
+                    OnPropertyChanged(nameof(IsUnobtainable));
+                }
             }
         }
 
@@ -7977,14 +7991,34 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         /// column's lock fill and tooltip alongside Missable.
         /// </summary>
         public bool IsUnobtainable => AchievementTagHelper.IsUnobtainable(EffectiveTagsValue);
+        private Guid? _gameId;
+
+        /// <summary>The game the row belongs to, so its own tags resolve.</summary>
+        public Guid? GameId
+        {
+            get => _gameId;
+            set
+            {
+                if (_gameId != value)
+                {
+                    _gameId = value;
+                    OnPropertyChanged(nameof(TagsDisplayText));
+                    OnPropertyChanged(nameof(TagChips));
+                }
+            }
+        }
+
+        /// <summary>The row's visible tags as chips.</summary>
+        public IReadOnlyList<AchievementTagChip> TagChips => AchievementTagChip.Build(EffectiveTagsValue, _gameId);
+
         public string TagsDisplayText
         {
             get
             {
-                // The Default sentinel renders blank in grid cells; a button needs a label. Except
-                // on the bulk proxy, where a blank effective value means the selection disagrees
-                // and the button has to stay empty rather than claim they are all Default.
-                var text = AchievementTagHelper.ToDisplayText(EffectiveTagsValue);
+                // A row without tags reads None, since a button needs a label. Except on the bulk
+                // proxy, where a blank effective value means the selection disagrees and the button
+                // has to stay empty rather than claim they all have none.
+                var text = AchievementTagHelper.ToDisplayText(EffectiveTagsValue, _gameId);
                 if (!string.IsNullOrWhiteSpace(text))
                 {
                     return text;
@@ -7992,7 +8026,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
 
                 return IsBulkRow && string.IsNullOrWhiteSpace(EffectiveTagsValue)
                     ? string.Empty
-                    : AchievementClassificationFilter.GetDisplayName(AchievementTagHelper.Normalize(null));
+                    : ResourceProvider.GetString("LOCNone");
             }
         }
 

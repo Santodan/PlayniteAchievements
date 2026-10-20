@@ -1702,4 +1702,42 @@
         </StackPanel>
     </DataTemplate>
 
+    <!-- Achievement tag chips: each tag's icon and name in a pill outlined in its color, or in
+         the control border when it has none. ItemsSource is a TagChips list. -->
+    <DataTemplate x:Key="PlayAch.Template.TagChip">
+        <Border x:Name="Pill"
+                CornerRadius="9"
+                Padding="6,0,7,1"
+                Margin="0,1,4,1"
+                BorderThickness="1"
+                BorderBrush="{DynamicResource PlayAch.Brush.ControlBorder}"
+                ToolTip="{Binding Name}">
+            <StackPanel Orientation="Horizontal">
+                <TextBlock x:Name="Glyph"
+                           Text="{Binding Glyph}"
+                           FontFamily="{DynamicResource PlayAch.FontFamily.Icon}"
+                           Foreground="{DynamicResource PlayAch.Brush.Text}"
+                           VerticalAlignment="Center"
+                           Margin="0,0,4,0"
+                           TextOptions.TextFormattingMode="Display"
+                           TextOptions.TextRenderingMode="Grayscale"
+                           Visibility="{Binding HasGlyph, Converter={StaticResource BoolToVis}}"/>
+                <TextBlock Text="{Binding Name}"
+                           Foreground="{DynamicResource PlayAch.Brush.Text}"
+                           VerticalAlignment="Center"
+                           TextTrimming="CharacterEllipsis"/>
+            </StackPanel>
+        </Border>
+        <DataTemplate.Triggers>
+            <DataTrigger Binding="{Binding HasColor}" Value="True">
+                <Setter TargetName="Pill" Property="BorderBrush" Value="{Binding Brush}"/>
+                <Setter TargetName="Glyph" Property="Foreground" Value="{Binding Brush}"/>
+            </DataTrigger>
+        </DataTemplate.Triggers>
+    </DataTemplate>
+
+    <ItemsPanelTemplate x:Key="PlayAch.Panel.TagChips">
+        <WrapPanel Orientation="Horizontal"/>
+    </ItemsPanelTemplate>
+
 </ResourceDictionary>
