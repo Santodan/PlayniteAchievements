@@ -532,8 +532,9 @@ namespace PlayniteAchievements.Services.Metadata
         }
 
         /// <summary>
-        /// Copies one field to each achievement from the first preferred source that matched it
-        /// and has a value for it.
+        /// Fills one field of each achievement that has no value of its own, from the first
+        /// preferred source that matched it and has one: a platform with its own points or trophy
+        /// types (RetroAchievements, Epic, the MMOs) keeps them.
         /// </summary>
         private static void ApplyField(
             IReadOnlyList<string> keys,
@@ -551,7 +552,7 @@ namespace PlayniteAchievements.Services.Metadata
 
                 foreach (var match in set.Matches)
                 {
-                    if (hasValue(match.Source) && done.Add(match.Target))
+                    if (!hasValue(match.Target) && hasValue(match.Source) && done.Add(match.Target))
                     {
                         copy(match.Target, match.Source);
                     }
