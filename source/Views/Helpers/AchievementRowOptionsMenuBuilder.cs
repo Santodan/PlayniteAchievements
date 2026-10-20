@@ -47,11 +47,6 @@ namespace PlayniteAchievements.Views.Helpers
                 return false;
             }
 
-            if (menu.Items.Count > 0)
-            {
-                menu.Items.Add(new Separator());
-            }
-
             // User-earned achievements only (opted in by the caller); disabled when the achievement
             // has no saved captures. Friend achievement rows never opt in.
             if (includeViewCaptures && data is AchievementDisplayItem achItem && !(data is FriendAchievementDisplayItem))
@@ -228,27 +223,19 @@ namespace PlayniteAchievements.Views.Helpers
             return item;
         }
 
-        /// <summary>
-        /// "Capstone", with what the click would do appended, and the displaced capstone named when
-        /// there is one so a replacement is never a surprise.
-        /// </summary>
-        private static string BuildCapstoneHeader(
+        /// <summary>What the click would do, worded as the Editor's capstone button: Add, Replace or Remove.</summary>
+        private static string BuildCapstoneActionLabel(
             FrameworkElement resourceOwner,
-            AchievementMarkerToggle.CapstoneAction action,
-            string displacedDisplayName)
+            AchievementMarkerToggle.CapstoneAction action)
         {
-            var capstone = L(resourceOwner, "LOCPlayAch_Dynamic_Capstone");
             switch (action)
             {
                 case AchievementMarkerToggle.CapstoneAction.Remove:
-                    return $"{capstone} — {L(resourceOwner, "LOCRemoveLabel")}";
+                    return L(resourceOwner, "LOCRemoveLabel");
                 case AchievementMarkerToggle.CapstoneAction.Replace:
-                    var replace = L(resourceOwner, "LOCPlayAch_Button_Replace");
-                    return string.IsNullOrWhiteSpace(displacedDisplayName)
-                        ? $"{capstone} — {replace}"
-                        : $"{capstone} — {replace}: {displacedDisplayName}";
+                    return L(resourceOwner, "LOCPlayAch_Button_Replace");
                 default:
-                    return $"{capstone} — {L(resourceOwner, "LOCAddTitle")}";
+                    return L(resourceOwner, "LOCAddTitle");
             }
         }
 
@@ -258,8 +245,8 @@ namespace PlayniteAchievements.Views.Helpers
             Action onChanged,
             Func<string, bool> onCapstoneChanged)
         {
-            // The entry says what the click will do, because a capstone belongs to a category and
-            // adding one there quietly displaces whatever stood for it before.
+            // Capstone > Add, Replace or Remove, as the Editor offers it: the entry says what the
+            // click will do, and a replacement names the capstone it displaces.
             var action = AchievementMarkerToggle.CapstoneAction.Add;
             string displaced = null;
             if (CurrentMarkerToggle != null)
@@ -267,12 +254,15 @@ namespace PlayniteAchievements.Views.Helpers
                 action = CurrentMarkerToggle.ResolveCapstoneAction(context.ToMarkerTarget(), out displaced);
             }
 
+            var parent = new MenuItem { Header = L(resourceOwner, "LOCPlayAch_Dynamic_Capstone") };
             var item = new MenuItem
             {
-                Header = BuildCapstoneHeader(resourceOwner, action, displaced),
-                IsCheckable = true,
-                IsChecked = action == AchievementMarkerToggle.CapstoneAction.Remove
+                Header = BuildCapstoneActionLabel(resourceOwner, action),
+                ToolTip = action == AchievementMarkerToggle.CapstoneAction.Replace && !string.IsNullOrWhiteSpace(displaced)
+                    ? string.Format(L(resourceOwner, "LOCPlayAch_Capstone_Replaces"), displaced)
+                    : null
             };
+            parent.Items.Add(item);
             item.Click += async (_, __) =>
             {
                 var toggle = CurrentMarkerToggle;
@@ -305,7 +295,7 @@ namespace PlayniteAchievements.Views.Helpers
                 onChanged?.Invoke();
             };
 
-            return item;
+            return parent;
         }
 
         private static MenuItem CreateCategoriesMenu(
