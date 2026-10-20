@@ -173,6 +173,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 () => _plugin?.ProviderRegistry?.GetMetadataProviders(),
                 gameId => _plugin?.AchievementDataService?.GetGameAchievementData(gameId)?.Achievements,
                 () => GameName,
+                () => _settings?.Persisted,
                 () =>
                 {
                     Reload();
@@ -874,6 +875,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                         L("LOCPlayAch_Provider_Exophase"),
                         _exophaseEnrichmentSlugValue,
                         "exophase-game-id",
+                        L("LOCPlayAch_Column_Rarity"),
                         ApplyExophaseEnrichmentSlug,
                         ClearExophaseEnrichmentSlug));
                 }
