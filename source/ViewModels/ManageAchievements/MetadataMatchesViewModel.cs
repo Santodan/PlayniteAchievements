@@ -3,28 +3,23 @@ using System.Collections.Generic;
 using System.ComponentModel;
 using System.Linq;
 using System.Windows.Data;
-using System.Windows.Input;
 using Playnite.SDK;
 using PlayniteAchievements.Models.Achievements;
 using PlayniteAchievements.Services.Metadata;
 using ObservableObject = PlayniteAchievements.Common.ObservableObject;
-using RelayCommand = PlayniteAchievements.Common.RelayCommand;
 
 namespace PlayniteAchievements.ViewModels.ManageAchievements
 {
     /// <summary>
-    /// The Achievement matches window for one game and one metadata source: the game's
-    /// achievements on one side and the source's rows on the other, each searchable. Pairings are
-    /// staged here and handed back together by <see cref="GetChanges"/> when the user saves.
+    /// The Achievement matches window for one game and one metadata source: one row per
+    /// achievement, each with a searchable dropdown of the source's rows. Pairings are staged here
+    /// and handed back together by <see cref="GetChanges"/> when the user saves.
     /// </summary>
     public sealed class MetadataMatchesViewModel : ObservableObject
     {
-        private readonly Dictionary<string, MatchTrophyItem> _trophiesByApiName;
-        private string _targetSearch = string.Empty;
-        private string _trophySearch = string.Empty;
+        private readonly Dictionary<string, MatchOption> _trophiesByApiName;
+        private readonly List<MatchOption> _trophies;
         private bool _unmatchedOnly;
-        private MatchTargetItem _selectedTarget;
-        private MatchTrophyItem _selectedTrophy;
 
         internal MetadataMatchesViewModel(
             string sourceName,
@@ -33,16 +28,18 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             IReadOnlyDictionary<string, string> pairings)
         {
             SourceName = sourceName;
-            var trophies = (snapshot?.Rows ?? new List<MetadataSourceRow>())
-                .Select(row => new MatchTrophyItem(row))
+            _trophies = (snapshot?.Rows ?? new List<MetadataSourceRow>())
+                .Select(MatchOption.ForRow)
                 .ToList();
-            _trophiesByApiName = trophies
-                .GroupBy(trophy => trophy.ApiName, StringComparer.OrdinalIgnoreCase)
+            _trophiesByApiName = _trophies
+                .GroupBy(trophy => trophy.Key, StringComparer.OrdinalIgnoreCase)
                 .ToDictionary(group => group.Key, group => group.First(), StringComparer.OrdinalIgnoreCase);
+            Automatic = MatchOption.Special(null, ResourceProvider.GetString("LOCAutomatic"));
+            None = MatchOption.Special(string.Empty, ResourceProvider.GetString("LOCNone"));
 
             var matches = snapshot?.Matches ?? new Dictionary<string, string>();
             pairings = pairings ?? new Dictionary<string, string>();
-            var targetItems = (targets ?? Array.Empty<AchievementDetail>())
+            var rows = (targets ?? Array.Empty<AchievementDetail>())
                 .Select(target =>
                 {
                     matches.TryGetValue(target.ApiName, out var automatic);
@@ -52,55 +49,29 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 .OrderBy(target => target.IsMatched ? 1 : 0)
                 .ToList();
 
-            Trophies = CollectionViewSource.GetDefaultView(trophies);
-            Trophies.Filter = item => Matches(((MatchTrophyItem)item).SearchText, _trophySearch);
-            TargetItems = targetItems;
-            Targets = CollectionViewSource.GetDefaultView(targetItems);
-            Targets.Filter = item =>
-            {
-                var target = (MatchTargetItem)item;
-                return (!_unmatchedOnly || !target.IsMatched) && Matches(target.SearchText, _targetSearch);
-            };
-            _unmatchedOnly = targetItems.Any(target => !target.IsMatched);
-            Targets.Refresh();
+            Rows = rows;
+            Targets = CollectionViewSource.GetDefaultView(rows);
+            _unmatchedOnly = rows.Any(target => !target.IsMatched);
+            Targets.Filter = item => !_unmatchedOnly || !((MatchTargetItem)item).WasMatched;
             RefreshPairedWith();
-
-            PairCommand = new RelayCommand(_ => Stage(SelectedTrophy?.ApiName), _ => SelectedTarget != null && SelectedTrophy != null);
-            NoneCommand = new RelayCommand(_ => Stage(string.Empty), _ => SelectedTarget != null);
-            AutomaticCommand = new RelayCommand(_ => Stage(null), _ => SelectedTarget?.IsUserSet == true);
         }
 
         public string SourceName { get; }
 
         public ICollectionView Targets { get; }
 
-        public ICollectionView Trophies { get; }
+        internal IReadOnlyList<MatchTargetItem> Rows { get; }
 
-        internal IReadOnlyList<MatchTargetItem> TargetItems { get; }
+        internal MatchOption Automatic { get; }
 
-        public string TargetSearch
-        {
-            get => _targetSearch;
-            set
-            {
-                _targetSearch = value ?? string.Empty;
-                OnPropertyChanged();
-                Targets.Refresh();
-            }
-        }
+        internal MatchOption None { get; }
 
-        public string TrophySearch
-        {
-            get => _trophySearch;
-            set
-            {
-                _trophySearch = value ?? string.Empty;
-                OnPropertyChanged();
-                Trophies.Refresh();
-            }
-        }
+        internal IReadOnlyList<MatchOption> Trophies => _trophies;
 
-        /// <summary>Lists only the achievements nothing is paired with; on when any are.</summary>
+        /// <summary>
+        /// Lists only the achievements that were unmatched when the window opened, so one paired
+        /// here stays in view; on when any were.
+        /// </summary>
         public bool UnmatchedOnly
         {
             get => _unmatchedOnly;
@@ -112,93 +83,39 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             }
         }
 
-        public MatchTargetItem SelectedTarget
-        {
-            get => _selectedTarget;
-            set
-            {
-                _selectedTarget = value;
-                OnPropertyChanged();
-                CommandManager.InvalidateRequerySuggested();
-            }
-        }
-
-        public MatchTrophyItem SelectedTrophy
-        {
-            get => _selectedTrophy;
-            set
-            {
-                _selectedTrophy = value;
-                OnPropertyChanged();
-                CommandManager.InvalidateRequerySuggested();
-            }
-        }
-
-        public ICommand PairCommand { get; }
-
-        public ICommand NoneCommand { get; }
-
-        public ICommand AutomaticCommand { get; }
-
         /// <summary>The pairings that differ from the saved ones: a source ApiName, "" for none, or null to leave to matching.</summary>
         public IReadOnlyDictionary<string, string> GetChanges()
         {
-            return TargetItems
+            return Rows
                 .Where(target => target.IsChanged)
                 .ToDictionary(target => target.ApiName, target => target.Staged, StringComparer.OrdinalIgnoreCase);
         }
 
-        internal MatchTrophyItem FindTrophy(string apiName) =>
+        internal MatchOption FindTrophy(string apiName) =>
             !string.IsNullOrEmpty(apiName) && _trophiesByApiName.TryGetValue(apiName, out var trophy) ? trophy : null;
 
-        /// <summary>Pairs the selected achievement, so a double-clicked trophy pairs at once.</summary>
-        internal void PairSelected(MatchTrophyItem trophy)
+        internal void RefreshPairedWith()
         {
-            if (SelectedTarget != null && trophy != null)
-            {
-                SelectedTrophy = trophy;
-                Stage(trophy.ApiName);
-            }
-        }
-
-        private void Stage(string value)
-        {
-            if (SelectedTarget == null)
-            {
-                return;
-            }
-
-            SelectedTarget.Stage(value);
-            RefreshPairedWith();
-            CommandManager.InvalidateRequerySuggested();
-        }
-
-        private void RefreshPairedWith()
-        {
-            var pairedWith = TargetItems
+            var pairedWith = Rows
                 .Where(target => target.Trophy != null)
                 .GroupBy(target => target.Trophy)
                 .ToDictionary(group => group.Key, group => string.Join(", ", group.Select(target => target.Name)));
-            foreach (var trophy in _trophiesByApiName.Values)
+            foreach (var trophy in _trophies)
             {
                 trophy.SetPairedWith(pairedWith.TryGetValue(trophy, out var names) ? names : null);
             }
         }
-
-        private static bool Matches(string text, string search)
-        {
-            return string.IsNullOrWhiteSpace(search) ||
-                   (text ?? string.Empty).IndexOf(search.Trim(), StringComparison.CurrentCultureIgnoreCase) >= 0;
-        }
     }
 
-    /// <summary>One of the game's achievements and what it is paired with.</summary>
+    /// <summary>One of the game's achievements, what it is paired with, and its searchable dropdown.</summary>
     public sealed class MatchTargetItem : ObservableObject
     {
         private readonly MetadataMatchesViewModel _owner;
         private readonly string _automatic;
         private readonly string _saved;
         private string _staged;
+        private string _search = string.Empty;
+        private bool _isPickerOpen;
 
         internal MatchTargetItem(MetadataMatchesViewModel owner, AchievementDetail target, string automatic, string saved)
         {
@@ -210,6 +127,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             Name = string.IsNullOrWhiteSpace(target.DisplayName) ? target.ApiName : target.DisplayName;
             Description = target.Description;
             Icon = string.IsNullOrWhiteSpace(target.UnlockedIconPath) ? target.LockedIconPath : target.UnlockedIconPath;
+            WasMatched = IsMatched;
         }
 
         public string ApiName { get; }
@@ -220,52 +138,124 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
 
         public string Icon { get; }
 
-        internal string SearchText => Name + " " + Description;
-
         /// <summary>The user's pairing as it stands in the window: a source ApiName, "" for none, or null for matching.</summary>
         internal string Staged => _staged;
+
+        /// <summary>Whether it was matched when the window opened; the Unmatched only filter keys off this.</summary>
+        internal bool WasMatched { get; }
 
         public bool IsUserSet => _staged != null;
 
         public bool IsChanged => !string.Equals(_staged, _saved, StringComparison.Ordinal);
 
         /// <summary>The trophy it is paired with now, by the user or by matching.</summary>
-        public MatchTrophyItem Trophy => _owner.FindTrophy(_staged ?? _automatic);
+        public MatchOption Trophy => _owner.FindTrophy(_staged ?? _automatic);
 
         public bool IsMatched => Trophy != null;
 
-        public bool IsNone => _staged == string.Empty;
-
-        public string PairingText => Trophy?.Name ?? (IsNone
+        public string PairingText => Trophy?.Name ?? (_staged == string.Empty
             ? ResourceProvider.GetString("LOCNone")
             : ResourceProvider.GetString("LOCPlayAch_ManageAchievements_Overview_MetadataMatches_NotMatched"));
 
-        internal void Stage(string value)
+        public bool IsPickerOpen
         {
-            _staged = value;
+            get => _isPickerOpen;
+            set
+            {
+                if (_isPickerOpen == value)
+                {
+                    return;
+                }
+
+                _isPickerOpen = value;
+                if (value)
+                {
+                    _search = string.Empty;
+                    OnPropertyChanged(nameof(Search));
+                    OnPropertyChanged(nameof(Options));
+                }
+
+                OnPropertyChanged();
+            }
+        }
+
+        public string Search
+        {
+            get => _search;
+            set
+            {
+                _search = value ?? string.Empty;
+                OnPropertyChanged();
+                OnPropertyChanged(nameof(Options));
+            }
+        }
+
+        /// <summary>Automatic (when the user set a pairing), None, then the source's rows matching the search.</summary>
+        public IEnumerable<MatchOption> Options
+        {
+            get
+            {
+                if (IsUserSet)
+                {
+                    yield return _owner.Automatic;
+                }
+
+                yield return _owner.None;
+                var search = _search.Trim();
+                foreach (var trophy in _owner.Trophies)
+                {
+                    if (search.Length == 0 ||
+                        (trophy.Name ?? string.Empty).IndexOf(search, StringComparison.CurrentCultureIgnoreCase) >= 0 ||
+                        (trophy.Description ?? string.Empty).IndexOf(search, StringComparison.CurrentCultureIgnoreCase) >= 0)
+                    {
+                        yield return trophy;
+                    }
+                }
+            }
+        }
+
+        internal void Pick(MatchOption option)
+        {
+            if (option == null)
+            {
+                return;
+            }
+
+            _staged = option.Key;
+            IsPickerOpen = false;
             OnPropertyChanged(nameof(IsUserSet));
             OnPropertyChanged(nameof(IsChanged));
             OnPropertyChanged(nameof(Trophy));
             OnPropertyChanged(nameof(IsMatched));
-            OnPropertyChanged(nameof(IsNone));
             OnPropertyChanged(nameof(PairingText));
+            _owner.RefreshPairedWith();
         }
     }
 
-    /// <summary>One of the source's rows.</summary>
-    public sealed class MatchTrophyItem : ObservableObject
+    /// <summary>
+    /// A choice in a pairing dropdown: one of the source's rows, or the None (empty key) and
+    /// Automatic (null key) choices.
+    /// </summary>
+    public sealed class MatchOption : ObservableObject
     {
         private string _pairedWith;
 
-        internal MatchTrophyItem(MetadataSourceRow row)
+        private MatchOption(string key, string name, string description, string icon, bool isSpecial)
         {
-            ApiName = row.ApiName;
-            Name = row.Name;
-            Description = row.Description;
-            Icon = row.Icon;
+            Key = key;
+            Name = name;
+            Description = description;
+            Icon = icon;
+            IsSpecial = isSpecial;
         }
 
-        public string ApiName { get; }
+        internal static MatchOption ForRow(MetadataSourceRow row) =>
+            new MatchOption(row.ApiName, row.Name, row.Description, row.Icon, isSpecial: false);
+
+        internal static MatchOption Special(string key, string name) =>
+            new MatchOption(key, name, null, null, isSpecial: true);
+
+        public string Key { get; }
 
         public string Name { get; }
 
@@ -273,7 +263,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
 
         public string Icon { get; }
 
-        internal string SearchText => Name + " " + Description;
+        public bool IsSpecial { get; }
 
         /// <summary>The achievements paired with it, or null.</summary>
         public string PairedWith => _pairedWith;
