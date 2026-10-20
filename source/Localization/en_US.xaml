@@ -1079,7 +1079,7 @@
 
     <!-- Metadata tab (tab title reuses Playnite's LOCSettingsMetadataLabel) -->
     <sys:String x:Key="LOCPlayAch_Settings_Metadata_Sources">Sources</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_Metadata_SourcesHint">Default follows the top row. PlayStation needs a PSN sign-in. Fix a game's match in Manage Achievements.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_Metadata_SourcesHint">Default follows the top row. Fix a game's match in Manage Achievements.</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Metadata_SourceMode">{0} ({1})</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Metadata_TestIcons">Test icon matching</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Metadata_TestIcons_Help">Matches every game to PlayStation trophies without saving anything. Can take an hour.</sys:String>
