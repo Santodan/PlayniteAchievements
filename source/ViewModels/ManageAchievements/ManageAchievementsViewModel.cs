@@ -179,6 +179,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 () => _plugin?.MetadataLinks,
                 () => _plugin?.ProviderRegistry?.GetMetadataProviders(),
                 gameId => _plugin?.AchievementDataService?.GetGameAchievementData(gameId)?.Achievements,
+                () => GameName,
                 () =>
                 {
                     Reload();
