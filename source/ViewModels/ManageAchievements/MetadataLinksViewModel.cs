@@ -62,12 +62,25 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                         gameId,
                         provider.Key,
                         ResourceProvider.GetString(provider.DisplayNameKey),
+                        provider.LinkPlaceholder,
                         record,
                         store.GetCoverage(gameId, provider.Key),
                         record == null || record.IsNoMatch ? null : store.Snapshots?.Get(gameId, provider.Key, record.Id)));
                 }
             }
 
+            OnPropertyChanged(nameof(HasRows));
+        }
+
+        /// <summary>Adds a row for a link stored elsewhere, after the metadata sources.</summary>
+        internal void AddRow(MetadataLinkRow row)
+        {
+            if (row == null)
+            {
+                return;
+            }
+
+            Rows.Add(row);
             OnPropertyChanged(nameof(HasRows));
         }
 
@@ -136,11 +149,39 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         private string _input;
         private bool _isEnabled;
 
+        /// <summary>
+        /// A row for a link kept outside the metadata link store (the Exophase rarity page): the
+        /// same box, Apply and Reset, with no Enabled switch, count or matches.
+        /// </summary>
+        internal MetadataLinkRow(
+            string sourceName,
+            string linkedId,
+            string placeholder,
+            Action<string> apply,
+            Action reset)
+        {
+            SourceName = sourceName;
+            Placeholder = placeholder;
+            _linkedId = (linkedId ?? string.Empty).Trim();
+            _input = _linkedId;
+            _isEnabled = true;
+            HasLink = _linkedId.Length > 0;
+            IsUserSet = HasLink;
+            StatusText = string.Empty;
+            ApplyCommand = new RelayCommand(
+                _ => apply?.Invoke(Input),
+                _ => !string.IsNullOrWhiteSpace(Input) &&
+                     !string.Equals(Input.Trim(), _linkedId, StringComparison.OrdinalIgnoreCase));
+            ClearCommand = new RelayCommand(_ => reset?.Invoke(), _ => IsUserSet);
+            OpenMatchesCommand = new RelayCommand(_ => { }, _ => false);
+        }
+
         internal MetadataLinkRow(
             MetadataLinksViewModel owner,
             Guid gameId,
             string sourceKey,
             string sourceName,
+            string placeholder,
             MetadataLinkRecord record,
             MetadataCoverage coverage,
             MetadataSourceSnapshot snapshot)
@@ -149,6 +190,8 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             GameId = gameId;
             SourceKey = sourceKey;
             SourceName = string.IsNullOrWhiteSpace(sourceName) ? sourceKey : sourceName;
+            Placeholder = placeholder;
+            HasEnabledSwitch = true;
             Snapshot = snapshot;
             _input = record?.Id ?? string.Empty;
             _isEnabled = record == null || !record.IsNoMatch;
@@ -173,6 +216,16 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         public string SourceKey { get; }
 
         public string SourceName { get; }
+
+        /// <summary>The shape of the id the box takes, shown while it is empty.</summary>
+        public string Placeholder { get; }
+
+        /// <summary>A metadata source the user can turn off for this game.</summary>
+        public bool HasEnabledSwitch { get; }
+
+        /// <summary>Hidden rather than collapsed without a switch, so every row's box lines up.</summary>
+        public System.Windows.Visibility EnabledSwitchVisibility =>
+            HasEnabledSwitch ? System.Windows.Visibility.Visible : System.Windows.Visibility.Hidden;
 
         public string StatusText { get; }
 
@@ -210,7 +263,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
 
                 _isEnabled = value;
                 OnPropertyChanged();
-                _owner.SetEnabled(this, value);
+                _owner?.SetEnabled(this, value);
             }
         }
 
