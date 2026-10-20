@@ -69,6 +69,26 @@ namespace PlayniteAchievements.Tests.Services
         }
 
         [TestMethod]
+        public async Task UserLink_SurvivesARefreshWhoseSourceReturnsNothing()
+        {
+            var playstation = new FakeSource("PlayStation", MetadataField.Icons);
+            var data = Game("Steam", Row("ACH_ONE", "One", icon: "steam.png"));
+            var overlay = Overlay(new[] { playstation }, Choices(icons: "PlayStation"));
+            var gameId = data.PlayniteGameId.Value;
+
+            Assert.IsTrue(overlay.Links.SetUser(gameId, "PlayStation", "tokyodark-remembrance-psn"));
+            using (var run = overlay.BeginRun())
+            {
+                await run.ApplyAsync(data.Game, data, CancellationToken.None);
+                run.RestoreOwnIconsWhereDownloadFailed(data, path => false);
+            }
+
+            Assert.IsTrue(overlay.Links.TryGet(gameId, "PlayStation", out var record));
+            Assert.AreEqual("tokyodark-remembrance-psn", record.Id);
+            Assert.AreEqual(MetadataLinkOrigin.User, record.Origin);
+        }
+
+        [TestMethod]
         public async Task FailedBorrowedIcon_FallsBackToOwn_AndIsTriedAgainNextRefresh()
         {
             var playstation = new FakeSource("PlayStation", MetadataField.Icons)
