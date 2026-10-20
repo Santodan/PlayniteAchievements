@@ -18,7 +18,9 @@ namespace PlayniteAchievements.Providers.Metadata
         Rarity = 2,
         Categories = 4,
         CategoryArt = 8,
-        CapstoneArt = 16
+        CapstoneArt = 16,
+        TrophyTypes = 32,
+        Points = 64
     }
 
     /// <summary>How a metadata source's categories combine with the servicing provider's.</summary>
