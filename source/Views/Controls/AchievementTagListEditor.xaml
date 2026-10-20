@@ -27,49 +27,6 @@
                 <Setter Property="TextOptions.TextRenderingMode" Value="Grayscale"/>
             </Style>
 
-            <!-- A square slot: the chosen glyph in a solid frame, or an empty dashed frame when the
-                 tag has no icon, so an unset icon reads as empty rather than as a picture. -->
-            <Style x:Key="TagIconSlotStyle" TargetType="Button">
-                <Setter Property="Cursor" Value="Hand"/>
-                <Setter Property="Focusable" Value="True"/>
-                <Setter Property="Template">
-                    <Setter.Value>
-                        <ControlTemplate TargetType="Button">
-                            <Grid Width="28" Height="28" Background="Transparent">
-                                <Rectangle x:Name="EmptyFrame"
-                                           Stroke="{DynamicResource PlayAch.Brush.Text}"
-                                           StrokeThickness="1"
-                                           StrokeDashArray="2 2"
-                                           RadiusX="4"
-                                           RadiusY="4"
-                                           Opacity="{StaticResource PlayAch.Opacity.Hint}"/>
-                                <Border x:Name="Frame"
-                                        BorderBrush="{DynamicResource PlayAch.Brush.ControlBorder}"
-                                        BorderThickness="1"
-                                        CornerRadius="4"
-                                        Visibility="Collapsed">
-                                    <local:GlyphIcon Glyph="{Binding Glyph}"
-                                               FontFamily="{DynamicResource PlayAch.FontFamily.Icon}"
-                                               Size="18"
-                                               Foreground="{DynamicResource PlayAch.Brush.Text}"
-                                               HorizontalAlignment="Center"
-                                               VerticalAlignment="Center"/>
-                                </Border>
-                            </Grid>
-                            <ControlTemplate.Triggers>
-                                <DataTrigger Binding="{Binding HasGlyph}" Value="True">
-                                    <Setter TargetName="EmptyFrame" Property="Visibility" Value="Collapsed"/>
-                                    <Setter TargetName="Frame" Property="Visibility" Value="Visible"/>
-                                </DataTrigger>
-                                <Trigger Property="IsMouseOver" Value="True">
-                                    <Setter TargetName="EmptyFrame" Property="Opacity" Value="1"/>
-                                    <Setter TargetName="Frame" Property="BorderBrush" Value="{DynamicResource PlayAch.Brush.Accent}"/>
-                                </Trigger>
-                            </ControlTemplate.Triggers>
-                        </ControlTemplate>
-                    </Setter.Value>
-                </Setter>
-            </Style>
         </ResourceDictionary>
     </UserControl.Resources>
 
@@ -117,14 +74,38 @@
                         </DataGridTemplateColumn.CellTemplate>
                     </DataGridTemplateColumn>
 
-                    <DataGridTemplateColumn Width="40" IsReadOnly="True">
+                    <!-- An ordinary button like the color's Pick and Reset: the icon when one is set,
+                         None otherwise. -->
+                    <DataGridTemplateColumn Width="Auto" IsReadOnly="True">
                         <DataGridTemplateColumn.CellTemplate>
                             <DataTemplate>
                                 <Button Command="{Binding PickIconCommand}"
-                                        Style="{StaticResource TagIconSlotStyle}"
                                         ToolTip="{DynamicResource LOCPlayAch_Common_ChooseIcon}"
-                                        HorizontalAlignment="Center"
-                                        VerticalAlignment="Center"/>
+                                        MinWidth="58"
+                                        Margin="4,0"
+                                        VerticalAlignment="Center">
+                                    <Grid>
+                                        <TextBlock Text="{DynamicResource LOCNone}"
+                                                   Opacity="{StaticResource PlayAch.Opacity.Hint}">
+                                            <TextBlock.Style>
+                                                <Style TargetType="TextBlock">
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding HasGlyph}" Value="True">
+                                                            <Setter Property="Visibility" Value="Collapsed"/>
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </TextBlock.Style>
+                                        </TextBlock>
+                                        <local:GlyphIcon Glyph="{Binding Glyph}"
+                                                         FontFamily="{DynamicResource PlayAch.FontFamily.Icon}"
+                                                         Size="16"
+                                                         Foreground="{DynamicResource PlayAch.Brush.Text}"
+                                                         HorizontalAlignment="Center"
+                                                         VerticalAlignment="Center"
+                                                         Visibility="{Binding HasGlyph, Converter={StaticResource TagEditorBoolToVisibility}}"/>
+                                    </Grid>
+                                </Button>
                             </DataTemplate>
                         </DataGridTemplateColumn.CellTemplate>
                     </DataGridTemplateColumn>

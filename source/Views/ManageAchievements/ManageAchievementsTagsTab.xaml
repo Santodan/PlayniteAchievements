@@ -44,24 +44,15 @@
                         <ItemsControl.ItemTemplate>
                             <DataTemplate>
                                 <StackPanel Orientation="Horizontal" Height="36">
-                                    <Grid Width="28" Height="28" Margin="0,0,8,0">
-                                        <Rectangle Stroke="{DynamicResource PlayAch.Brush.Text}"
-                                                   StrokeThickness="1"
-                                                   StrokeDashArray="2 2"
-                                                   RadiusX="4"
-                                                   RadiusY="4"/>
-                                        <Border BorderBrush="{DynamicResource PlayAch.Brush.ControlBorder}"
-                                                Background="{DynamicResource PlayAch.Brush.Grid.Background}"
-                                                BorderThickness="1"
-                                                CornerRadius="4"
-                                                Visibility="{Binding HasGlyph, Converter={StaticResource TagsTabBoolToVisibility}}">
-                                            <controls:GlyphIcon Glyph="{Binding Glyph}"
-                                                       FontFamily="{DynamicResource PlayAch.FontFamily.Icon}"
-                                                       Size="18"
-                                                       Foreground="{DynamicResource PlayAch.Brush.Text}"
-                                                       HorizontalAlignment="Center"
-                                                       VerticalAlignment="Center"/>
-                                        </Border>
+                                    <!-- Fixed width so names line up; blank when the tag has no icon. -->
+                                    <Grid Width="24" Margin="0,0,8,0" VerticalAlignment="Center">
+                                        <controls:GlyphIcon Glyph="{Binding Glyph}"
+                                                            FontFamily="{DynamicResource PlayAch.FontFamily.Icon}"
+                                                            Size="18"
+                                                            Foreground="{DynamicResource PlayAch.Brush.Text}"
+                                                            HorizontalAlignment="Center"
+                                                            VerticalAlignment="Center"
+                                                            Visibility="{Binding HasGlyph, Converter={StaticResource TagsTabBoolToVisibility}}"/>
                                     </Grid>
                                     <Border Width="14"
                                             Height="14"
