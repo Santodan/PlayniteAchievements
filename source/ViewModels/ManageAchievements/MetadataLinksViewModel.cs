@@ -10,17 +10,18 @@ using PlayniteAchievements.Providers.Metadata;
 using PlayniteAchievements.Services;
 using PlayniteAchievements.Services.Metadata;
 using PlayniteAchievements.Views.Helpers;
+using PlayniteAchievements.Views.Settings.Metadata;
 using ObservableObject = PlayniteAchievements.Common.ObservableObject;
 using RelayCommand = PlayniteAchievements.Common.RelayCommand;
 
 namespace PlayniteAchievements.ViewModels.ManageAchievements
 {
     /// <summary>
-    /// Manage Achievements Overview: one row per metadata source the game can use, showing the
-    /// linked id and whether it was matched or entered, with an editable box, an on/off switch,
-    /// and a window for fixing the achievement pairings from the last refresh. Applying an id pins
-    /// it; clearing lets matching run again; switching a source off stops it for this game. Each
-    /// change refreshes the game once, so it takes effect at once.
+    /// Manage Achievements Overview: the game's own source choices (one row of the Metadata tab's
+    /// grid), then one row per metadata source the game can use, showing the linked id with an
+    /// editable box and a window for fixing the achievement pairings from the last refresh.
+    /// Applying an id pins it; Reset lets matching run again; choosing "Own" for a source's fields
+    /// stops it for this game. Each change refreshes the game once, so it takes effect at once.
     /// </summary>
     public sealed class MetadataLinksViewModel : ObservableObject
     {
@@ -83,6 +84,16 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 fields.Add(ResourceProvider.GetString("LOCPlayAch_ManageAchievements_Custom_AutoCapstone"));
             }
 
+            if (Uses(choices.TrophyTypes, MetadataField.TrophyTypes))
+            {
+                fields.Add(ResourceProvider.GetString("LOCPlayAch_Column_Trophy"));
+            }
+
+            if (Uses(choices.Points, MetadataField.Points))
+            {
+                fields.Add(ResourceProvider.GetString("LOCPlayAch_Column_Points"));
+            }
+
             return string.Join(", ", fields);
         }
 
@@ -90,13 +101,35 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
 
         public bool HasRows => Rows.Count > 0;
 
+        /// <summary>
+        /// The game's own source choices, one row of the Metadata tab's grid: "Default" follows the
+        /// game's platform, "Own" turns a source off for this game.
+        /// </summary>
+        public IReadOnlyList<MetadataChoiceRow> ChoiceRows { get; private set; } = Array.Empty<MetadataChoiceRow>();
+
         internal void Load(Guid gameId, string servicingProviderKey)
         {
             Rows.Clear();
+            ChoiceRows = Array.Empty<MetadataChoiceRow>();
             var store = _store?.Invoke();
             if (gameId != Guid.Empty && store != null)
             {
-                var choices = _settings?.Invoke()?.ResolveMetadataChoices(servicingProviderKey);
+                var gameChoices = store.GetChoices(gameId);
+                ChoiceRows = new[]
+                {
+                    new MetadataChoiceRow(
+                        _providers?.Invoke() ?? Array.Empty<IMetadataProvider>(),
+                        servicingProviderKey,
+                        gameChoices,
+                        changed =>
+                        {
+                            if (store.SetChoices(gameId, changed))
+                            {
+                                _onChanged?.Invoke();
+                            }
+                        })
+                };
+                var choices = _settings?.Invoke()?.ResolveMetadataChoices(servicingProviderKey, gameChoices);
                 foreach (var provider in (_providers?.Invoke() ?? Array.Empty<IMetadataProvider>())
                     .Where(provider => !provider.IsNativeFor(servicingProviderKey)))
                 {
@@ -115,6 +148,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             }
 
             OnPropertyChanged(nameof(HasRows));
+            OnPropertyChanged(nameof(ChoiceRows));
         }
 
         /// <summary>Adds a row for a link stored elsewhere, after the metadata sources.</summary>
@@ -138,22 +172,6 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         internal void Clear(MetadataLinkRow row)
         {
             _store?.Invoke()?.Clear(row.GameId, row.SourceKey);
-            _onChanged?.Invoke();
-        }
-
-        /// <summary>Off stores the user's "no match"; on removes it so matching runs again.</summary>
-        internal void SetEnabled(MetadataLinkRow row, bool enabled)
-        {
-            var store = _store?.Invoke();
-            if (enabled)
-            {
-                store?.Clear(row.GameId, row.SourceKey);
-            }
-            else
-            {
-                store?.SetUser(row.GameId, row.SourceKey, null);
-            }
-
             _onChanged?.Invoke();
         }
 
@@ -189,14 +207,12 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
 
     public sealed class MetadataLinkRow : ObservableObject
     {
-        private readonly MetadataLinksViewModel _owner;
         private readonly string _linkedId;
         private string _input;
-        private bool _isEnabled;
 
         /// <summary>
         /// A row for a link kept outside the metadata link store (the Exophase rarity page): the
-        /// same box, Apply and Reset, with no Enabled switch, count or matches.
+        /// same box, Apply and Reset, with no count or matches.
         /// </summary>
         internal MetadataLinkRow(
             string sourceName,
@@ -211,7 +227,6 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             Supplies = supplies ?? string.Empty;
             _linkedId = (linkedId ?? string.Empty).Trim();
             _input = _linkedId;
-            _isEnabled = true;
             HasLink = _linkedId.Length > 0;
             IsUserSet = HasLink;
             StatusText = string.Empty;
@@ -234,27 +249,25 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             MetadataCoverage coverage,
             MetadataSourceSnapshot snapshot)
         {
-            _owner = owner;
             GameId = gameId;
             SourceKey = sourceKey;
             SourceName = string.IsNullOrWhiteSpace(sourceName) ? sourceKey : sourceName;
             Placeholder = placeholder;
             Supplies = supplies ?? string.Empty;
-            HasEnabledSwitch = true;
             Snapshot = snapshot;
             _input = record?.Id ?? string.Empty;
-            _isEnabled = record == null || !record.IsNoMatch;
             StatusText = BuildStatus(record, coverage);
             HasLink = record != null && !record.IsNoMatch;
-            IsUserSet = HasLink && record.Origin == MetadataLinkOrigin.User;
+            // A stored "no match" (the retired Enabled switch's off) is the user's too, so Reset
+            // hands it back to matching.
+            IsUserSet = record?.Origin == MetadataLinkOrigin.User;
             _linkedId = record?.Id ?? string.Empty;
             ShowFixMatches = HasMatches &&
                              ((coverage != null && coverage.Matched < coverage.Total) || record?.Pairings?.Count > 0);
-            // Apply pins a new id; an empty box no longer stops matching, the Enabled switch does.
+            // Apply pins a new id; turning a source off is the game's "Own" choice for its fields.
             ApplyCommand = new RelayCommand(
                 _ => owner.Apply(this),
-                _ => IsEnabled &&
-                     !string.IsNullOrWhiteSpace(Input) &&
+                _ => !string.IsNullOrWhiteSpace(Input) &&
                      !string.Equals(Input.Trim(), _linkedId, StringComparison.OrdinalIgnoreCase));
             ClearCommand = new RelayCommand(_ => owner.Clear(this), _ => IsUserSet);
             OpenMatchesCommand = new RelayCommand(_ => owner.OpenMatches(this), _ => HasMatches);
@@ -273,13 +286,6 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         public string Supplies { get; }
 
         public bool HasSupplies => !string.IsNullOrEmpty(Supplies);
-
-        /// <summary>A metadata source the user can turn off for this game.</summary>
-        public bool HasEnabledSwitch { get; }
-
-        /// <summary>Hidden rather than collapsed without a switch, so every row's box lines up.</summary>
-        public System.Windows.Visibility EnabledSwitchVisibility =>
-            HasEnabledSwitch ? System.Windows.Visibility.Visible : System.Windows.Visibility.Hidden;
 
         public string StatusText { get; }
 
@@ -306,24 +312,6 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 SetValue(ref _input, value);
                 // Apply waits for a new id, so the button follows the box as it is typed in.
                 (ApplyCommand as RelayCommand)?.RaiseCanExecuteChanged();
-            }
-        }
-
-        /// <summary>Whether the source is used for this game; off is the user's "no match".</summary>
-        public bool IsEnabled
-        {
-            get => _isEnabled;
-            set
-            {
-                if (_isEnabled == value)
-                {
-                    return;
-                }
-
-                _isEnabled = value;
-                OnPropertyChanged();
-                (ApplyCommand as RelayCommand)?.RaiseCanExecuteChanged();
-                _owner?.SetEnabled(this, value);
             }
         }
 

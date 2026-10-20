@@ -191,6 +191,38 @@ namespace PlayniteAchievements.Services.Metadata
                 .ToDictionary(pair => pair.Key, pair => ToRecord(pair.Value), StringComparer.OrdinalIgnoreCase);
         }
 
+        /// <summary>The game's own metadata choices, or null when it follows its platform throughout.</summary>
+        public MetadataChoices GetChoices(Guid gameId)
+        {
+            return gameId != Guid.Empty && _customData != null && _customData.TryLoad(gameId, out var data)
+                ? data?.MetadataChoices?.Clone()
+                : null;
+        }
+
+        /// <summary>Stores the game's own metadata choices; empty ones are removed, so the game follows its platform.</summary>
+        public bool SetChoices(Guid gameId, MetadataChoices choices)
+        {
+            if (gameId == Guid.Empty || _customData == null)
+            {
+                return false;
+            }
+
+            var next = choices?.IsEmpty() == false ? choices.Clone() : null;
+            var current = GetChoices(gameId);
+            if (next == null ? current == null : next.SameAs(current))
+            {
+                return false;
+            }
+
+            _customData.Update(
+                gameId,
+                data => data.MetadataChoices = next,
+                affectsSummaryData: false,
+                affectsOverrideMirror: false);
+            LinkChanged?.Invoke(gameId);
+            return true;
+        }
+
         /// <summary>Stores an automatic match unless the user already set this link.</summary>
         public bool SetAuto(Guid gameId, string sourceKey, string id, string label = null)
         {

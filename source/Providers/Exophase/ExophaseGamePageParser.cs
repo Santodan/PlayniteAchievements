@@ -22,12 +22,138 @@ namespace PlayniteAchievements.Providers.Exophase
         public string Slug { get; }
     }
 
+    /// <summary>One award list of a game page: the base game's, or a DLC's under its heading.</summary>
+    internal sealed class ExophaseAwardSection
+    {
+        public ExophaseAwardSection(string title, string artUrl, IReadOnlyList<string> apiNames)
+        {
+            Title = title;
+            ArtUrl = artUrl;
+            ApiNames = apiNames ?? Array.Empty<string>();
+        }
+
+        /// <summary>The DLC's name, or null for the base game's list.</summary>
+        public string Title { get; }
+
+        /// <summary>The DLC's own image, or null when the page shows the game's image for it.</summary>
+        public string ArtUrl { get; }
+
+        /// <summary>The awards in the list, keyed as the award parser keys them.</summary>
+        public IReadOnlyList<string> ApiNames { get; }
+    }
+
     /// <summary>
-    /// Reads the game details of an Exophase award page (the "Game Info" list) and builds the
-    /// localized trophy page addresses that list's "Languages" links follow.
+    /// Reads the game details of an Exophase award page (the "Game Info" list and the DLC award
+    /// lists) and builds the localized award page addresses that list's "Languages" links follow.
     /// </summary>
     internal static class ExophaseGamePageParser
     {
+        // The image a DLC heading's style draws beside it.
+        private static readonly Regex StyleImageUrl = new Regex(
+            @"url\(\s*['""]?([^'"")\s]+)['""]?\s*\)",
+            RegexOptions.Compiled | RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+
+        // The word a DLC heading ends in after the DLC's name ("Far Harbor Trophies").
+        private static readonly Regex ListWordSuffix = new Regex(
+            @"\s+(?:Trophies|Achievements|Challenges)\s*$",
+            RegexOptions.Compiled | RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+
+        /// <summary>
+        /// The page's award lists in order: the base game's, then each DLC's under its heading. A
+        /// DLC's art is kept only when it is not the game's own image, which Exophase also shows
+        /// beside DLC lists that have none.
+        /// </summary>
+        public static IReadOnlyList<ExophaseAwardSection> ParseAwardSections(string html)
+        {
+            if (string.IsNullOrWhiteSpace(html))
+            {
+                return Array.Empty<ExophaseAwardSection>();
+            }
+
+            var doc = new HtmlDocument();
+            doc.LoadHtml(html);
+            var nodes = doc.DocumentNode.SelectNodes(
+                "//h3[contains(concat(' ', normalize-space(@class), ' '), ' dlc-add-on ')]" +
+                " | //ul[contains(@class,'achievement') or contains(@class,'trophy') or contains(@class,'challenge')]");
+            if (nodes == null)
+            {
+                return Array.Empty<ExophaseAwardSection>();
+            }
+
+            var gameArt = ImageFileName(doc.DocumentNode
+                .SelectSingleNode("//meta[@property='og:image']")
+                ?.GetAttributeValue("content", null));
+            var sections = new List<ExophaseAwardSection>();
+            string title = null;
+            string art = null;
+            foreach (var node in nodes)
+            {
+                if (string.Equals(node.Name, "h3", StringComparison.OrdinalIgnoreCase))
+                {
+                    var heading = WebUtility.HtmlDecode(node.InnerText ?? string.Empty).Trim();
+                    title = ListWordSuffix.Replace(heading, string.Empty).Trim();
+                    art = HeadingArt(node);
+                    if (art != null && string.Equals(ImageFileName(art), gameArt, StringComparison.OrdinalIgnoreCase))
+                    {
+                        art = null;
+                    }
+
+                    continue;
+                }
+
+                var apiNames = (node.SelectNodes("./li") ?? Enumerable.Empty<HtmlNode>())
+                    .Select(item => ExophaseApiClient.TryParseStableAwardId(item, out var id)
+                        ? ExophaseApiClient.ExophaseStableApiNamePrefix + id.ToString(System.Globalization.CultureInfo.InvariantCulture)
+                        : null)
+                    .Where(apiName => apiName != null)
+                    .ToList();
+                if (apiNames.Count > 0)
+                {
+                    sections.Add(new ExophaseAwardSection(string.IsNullOrWhiteSpace(title) ? null : title, art, apiNames));
+                }
+
+                title = null;
+                art = null;
+            }
+
+            return sections;
+        }
+
+        /// <summary>The image the style after a DLC heading gives it.</summary>
+        private static string HeadingArt(HtmlNode heading)
+        {
+            for (var sibling = heading.NextSibling; sibling != null; sibling = sibling.NextSibling)
+            {
+                if (sibling.NodeType != HtmlNodeType.Element)
+                {
+                    continue;
+                }
+
+                if (!string.Equals(sibling.Name, "style", StringComparison.OrdinalIgnoreCase))
+                {
+                    return null;
+                }
+
+                var match = StyleImageUrl.Match(sibling.InnerText ?? string.Empty);
+                return match.Success ? WebUtility.HtmlDecode(match.Groups[1].Value) : null;
+            }
+
+            return null;
+        }
+
+        /// <summary>An image address's file name, the same across Exophase's sizes ("b85e734.png").</summary>
+        private static string ImageFileName(string url)
+        {
+            if (string.IsNullOrWhiteSpace(url))
+            {
+                return null;
+            }
+
+            var path = url.Split('?', '#')[0];
+            var slash = path.LastIndexOf('/');
+            return slash >= 0 ? path.Substring(slash + 1) : path;
+        }
+
         // An award list of another game page; the price and language links carry an extra segment.
         private static readonly Regex AwardPagePath = new Regex(
             @"/game/([^/?#]+)/(?:achievements|trophies|challenges)/?$",
@@ -99,14 +225,6 @@ namespace PlayniteAchievements.Providers.Exophase
                    TrophyLanguageCodes.TryGetValue(globalLanguage.Trim(), out var code)
                 ? code
                 : null;
-        }
-
-        /// <summary>A PlayStation trophy page, in a language when <paramref name="languageCode"/> is given.</summary>
-        public static string BuildTrophyPageUrl(string slug, string languageCode)
-        {
-            return string.IsNullOrWhiteSpace(slug)
-                ? null
-                : LocalizeAwardPageUrl($"https://www.exophase.com/game/{slug.Trim()}/trophies/", languageCode);
         }
 
         /// <summary>An award page address with the language path appended, or unchanged without a language.</summary>

@@ -473,7 +473,9 @@ namespace PlayniteAchievements.Providers.Steam
                     .ConfigureAwait(false);
             }
 
-            var choices = _settings?.Persisted?.ResolveMetadataChoices("Steam");
+            var choices = _settings?.Persisted?.ResolveMetadataChoices(
+                "Steam",
+                playniteGameId.HasValue ? PlayniteAchievementsPlugin.Instance?.MetadataLinks?.GetChoices(playniteGameId.Value) : null);
             if (_steamHuntersCategoryEnricher == null ||
                 !string.Equals(choices?.Categories, MetadataChoices.SteamHunters, StringComparison.OrdinalIgnoreCase))
             {

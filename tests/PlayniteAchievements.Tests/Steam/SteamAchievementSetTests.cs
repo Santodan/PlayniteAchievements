@@ -1,6 +1,7 @@
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Newtonsoft.Json;
 using PlayniteAchievements.Models.Achievements;
+using PlayniteAchievements.Providers.Metadata;
 using PlayniteAchievements.Providers.Steam;
 using PlayniteAchievements.Providers.Steam.Models;
 using System;

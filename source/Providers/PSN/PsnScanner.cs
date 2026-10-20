@@ -6,6 +6,7 @@ using PlayniteAchievements.Providers.PSN.Models;
 using PlayniteAchievements.Services;
 using PlayniteAchievements.Services.Achievements;
 using PlayniteAchievements.Services.GameCustomData;
+using PlayniteAchievements.Services.Images;
 using PlayniteAchievements.Services.Refresh;
 using Playnite.SDK;
 using Playnite.SDK.Models;
@@ -357,58 +358,18 @@ namespace PlayniteAchievements.Providers.PSN
         }
 
         // Downloads each set's title icon as default category art for its category label, so a
-        // collection's category groups render with per-game art. Uses the shared provider-default
-        // convention read by CategoryDefaultImageResolver: existing art is kept and user overrides
-        // win over defaults. Best-effort: failures never fail the scan, and existing targets are
-        // skipped so re-scans cost nothing.
-        private async Task DownloadCategoryImagesAsync(
+        // collection's category groups render with per-game art.
+        private Task DownloadCategoryImagesAsync(
             Guid? playniteGameId,
             IReadOnlyList<(string Label, string IconUrl)> entries,
             CancellationToken cancel)
         {
-            if (entries == null || entries.Count == 0 ||
-                playniteGameId == null || playniteGameId.Value == Guid.Empty)
-            {
-                return;
-            }
-
-            var diskImageService = PlayniteAchievementsPlugin.Instance?.DiskImageService;
-            if (diskImageService == null)
-            {
-                return;
-            }
-
-            var gameIdText = playniteGameId.Value.ToString("D");
-            var seenLabels = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-            foreach (var entry in entries)
-            {
-                cancel.ThrowIfCancellationRequested();
-                var label = AchievementCategoryHelper.NormalizeCategoryOrDefault(entry.Label);
-                if (string.Equals(
-                        label,
-                        AchievementCategoryHelper.DefaultCategoryLabel,
-                        StringComparison.OrdinalIgnoreCase) ||
-                    !seenLabels.Add(label))
-                {
-                    continue;
-                }
-
-                try
-                {
-                    var artTarget = diskImageService.GetDefaultCategoryImagePath(gameIdText, label);
-                    // decodeSize 0 stores the original bytes: no square crop, original aspect.
-                    await diskImageService.GetOrDownloadIconToPathAsync(entry.IconUrl, artTarget, decodeSize: 0, cancel)
-                        .ConfigureAwait(false);
-                }
-                catch (OperationCanceledException) when (cancel.IsCancellationRequested)
-                {
-                    throw;
-                }
-                catch (Exception ex)
-                {
-                    _logger?.Debug(ex, $"[PSNAch] Default category image download failed for category '{entry.Label}'.");
-                }
-            }
+            return CategoryDefaultArtDownloader.DownloadAsync(
+                PlayniteAchievementsPlugin.Instance?.DiskImageService,
+                playniteGameId,
+                entries,
+                _logger,
+                cancel);
         }
 
         private void SetAuthorizationHeader(HttpClient http, string token)

@@ -5,7 +5,7 @@ using PlayniteAchievements.Common;
 using PlayniteAchievements.Models.Achievements;
 using PlayniteAchievements.Providers.Exophase;
 using PlayniteAchievements.Providers.Manual;
-using PlayniteAchievements.Providers.Metadata;
+using PlayniteAchievements.Providers.Steam;
 using PlayniteAchievements.Services.GameCustomData;
 using System;
 using System.Collections.Generic;
@@ -15,7 +15,7 @@ using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 
-namespace PlayniteAchievements.Providers.Steam
+namespace PlayniteAchievements.Providers.Metadata
 {
     /// <summary>
     /// SteamHunters categories, types and category art for games another provider services. The

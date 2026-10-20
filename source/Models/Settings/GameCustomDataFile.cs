@@ -235,6 +235,12 @@ namespace PlayniteAchievements.Models.Settings
         /// </summary>
         public Dictionary<string, MetadataLinkData> MetadataLinks { get; set; }
 
+        /// <summary>
+        /// Which metadata source supplies each field to this game, over its platform's choices; a
+        /// null field follows the platform. Null when the game follows its platform throughout.
+        /// </summary>
+        public MetadataChoices MetadataChoices { get; set; }
+
         public ManualAchievementLink ManualLink { get; set; }
 
         public List<CustomAchievementDefinition> CustomAchievements { get; set; }
@@ -311,6 +317,7 @@ namespace PlayniteAchievements.Models.Settings
                 ProviderOverride = ProviderOverride?.Clone(),
                 ExophaseEnrichmentSlugOverride = ExophaseEnrichmentSlugOverride,
                 MetadataLinks = MetadataLinkData.CloneMap(MetadataLinks),
+                MetadataChoices = MetadataChoices?.Clone(),
                 ManualLink = ManualLink?.Clone(),
                 CustomAchievements = CustomAchievements != null
                     ? CustomAchievements.ConvertAll(item => item?.Clone()).FindAll(item => item != null)
@@ -376,6 +383,7 @@ namespace PlayniteAchievements.Models.Settings
                 ProviderOverride = ProviderOverride?.Clone(),
                 ExophaseEnrichmentSlugOverride = ExophaseEnrichmentSlugOverride,
                 MetadataLinks = MetadataLinkData.CloneMap(MetadataLinks),
+                MetadataChoices = MetadataChoices?.Clone(),
                 ManualLink = ManualLink?.Clone(),
                 CustomAchievements = CustomAchievements != null
                     ? CustomAchievements.ConvertAll(item => item?.Clone()).FindAll(item => item != null)
@@ -449,6 +457,7 @@ namespace PlayniteAchievements.Models.Settings
                 ProviderOverride = portable?.ProviderOverride?.Clone(),
                 ExophaseEnrichmentSlugOverride = portable?.ExophaseEnrichmentSlugOverride,
                 MetadataLinks = MetadataLinkData.CloneMap(portable?.MetadataLinks),
+                MetadataChoices = portable?.MetadataChoices?.Clone(),
                 ManualLink = portable?.ManualLink?.Clone(),
                 CustomAchievements = portable?.CustomAchievements != null
                     ? portable.CustomAchievements.ConvertAll(item => item?.Clone()).FindAll(item => item != null)

@@ -48,7 +48,8 @@ namespace PlayniteAchievements.Services.GameCustomData
                    data?.ForceUseExophase == true ||
                    !string.IsNullOrWhiteSpace(data?.ExophaseSlugOverride) ||
                    !string.IsNullOrWhiteSpace(data?.ExophaseEnrichmentSlugOverride) ||
-                   data?.MetadataLinks?.Count > 0;
+                   data?.MetadataLinks?.Count > 0 ||
+                   data?.MetadataChoices?.IsEmpty() == false;
         }
 
         private static bool HaveIconOverridesChanged(GameCustomDataFile previousData, GameCustomDataFile currentData)
