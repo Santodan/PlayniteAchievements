@@ -1,5 +1,6 @@
 using System;
 using System.Globalization;
+using System.Linq;
 using System.Text;
 using System.Text.RegularExpressions;
 
@@ -110,6 +111,18 @@ namespace PlayniteAchievements.Common
         public static string CollapseSeparators(string name)
         {
             return string.IsNullOrEmpty(name) ? name : SeparatorRunRegex.Replace(name, " ").Trim();
+        }
+
+        /// <summary>Whether a character is an apostrophe in any of the forms titles use.</summary>
+        public static bool IsApostrophe(char c)
+        {
+            return c == '\'' || c == '’' || c == '‘' || c == 'ʼ' || c == '`' || c == '´';
+        }
+
+        /// <summary>Removes apostrophes, so "Marvel’s" reads as "Marvels" rather than two words.</summary>
+        public static string StripApostrophes(string name)
+        {
+            return string.IsNullOrEmpty(name) ? name : new string(name.Where(c => !IsApostrophe(c)).ToArray());
         }
 
         /// <summary>
