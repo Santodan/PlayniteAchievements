@@ -343,16 +343,6 @@ namespace PlayniteAchievements
                 };
             }
 
-            yield return new GameMenuItem
-            {
-                Description = ResourceProvider.GetString("LOCPlayAch_Common_Manage"),
-                MenuSection = PluginGameMenuSection,
-                Action = (a) =>
-                {
-                    OpenManageAchievementsView(game.Id);
-                }
-            };
-
             if (!refreshInProgress)
             {
                 yield return new GameMenuItem
@@ -372,6 +362,16 @@ namespace PlayniteAchievements
                     }
                 };
             }
+
+            yield return new GameMenuItem
+            {
+                Description = ResourceProvider.GetString("LOCPlayAch_Common_Manage"),
+                MenuSection = PluginGameMenuSection,
+                Action = (a) =>
+                {
+                    OpenManageAchievementsView(game.Id);
+                }
+            };
 
             yield return new GameMenuItem
             {
