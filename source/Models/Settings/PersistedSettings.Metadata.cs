@@ -13,6 +13,7 @@ namespace PlayniteAchievements.Models.Settings
     {
         public const string SteamHunters = "SteamHunters";
         public const string Exophase = "Exophase";
+        public const string PlayStation = "PlayStation";
 
         /// <summary>Platforms whose scanners can take rarity from Exophase.</summary>
         public static readonly IReadOnlyCollection<string> ExophaseRarityProviders =
@@ -35,7 +36,11 @@ namespace PlayniteAchievements.Models.Settings
         public bool IsEmpty() =>
             Icons == null && Categories == null && Rarity == null && CapstoneArt == null;
 
-        /// <summary>Every field set: each platform's own data, no borrowed categories.</summary>
+        /// <summary>
+        /// Every field set: each platform's own icons and categories, Exophase rarity (which only
+        /// the platforms in <see cref="ExophaseRarityProviders"/> take) and the PlayStation
+        /// platinum for auto capstones where one matches.
+        /// </summary>
         public static MetadataChoices CreateDefaults()
         {
             return new MetadataChoices
@@ -43,8 +48,8 @@ namespace PlayniteAchievements.Models.Settings
                 Icons = string.Empty,
                 Categories = string.Empty,
                 CategoryMode = MetadataCategoryMode.Merge,
-                Rarity = string.Empty,
-                CapstoneArt = string.Empty
+                Rarity = Exophase,
+                CapstoneArt = PlayStation
             };
         }
 
