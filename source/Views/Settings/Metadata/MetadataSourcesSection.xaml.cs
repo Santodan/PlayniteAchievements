@@ -191,18 +191,16 @@ namespace PlayniteAchievements.Views.Settings.Metadata
 
         private IReadOnlyList<ChoiceOption> BuildCategoryOptions(IReadOnlyList<IMetadataProvider> providers)
         {
-            var format = ResourceProvider.GetString("LOCPlayAch_Settings_Metadata_SourceMode");
-            var merge = ResourceProvider.GetString("LOCPlayAch_Common_Merge");
-            var replace = ResourceProvider.GetString("LOCPlayAch_Settings_SteamHuntersCategories_Override");
-            var options = new List<ChoiceOption>
-            {
-                new ChoiceOption(string.Empty, ResourceProvider.GetString("LOCPlayAch_Settings_Override_Off"))
-            };
+            // Own, Own + SteamHunters (merge: the platform's categories kept, the source fills the
+            // rest), SteamHunters (the source's replace the platform's).
+            var own = ResourceProvider.GetString("LOCPlayAch_Settings_Metadata_Source_Own");
+            var combined = ResourceProvider.GetString("LOCPlayAch_Settings_Metadata_SourceMode");
+            var options = new List<ChoiceOption> { new ChoiceOption(string.Empty, own) };
             foreach (var provider in providers.Where(provider => (provider.SupportedFields & MetadataField.Categories) != 0))
             {
                 var name = ResourceProvider.GetString(provider.DisplayNameKey);
-                options.Add(new ChoiceOption(provider.Key + ModeSeparator + MetadataCategoryMode.Merge, string.Format(format, name, merge)));
-                options.Add(new ChoiceOption(provider.Key + ModeSeparator + MetadataCategoryMode.Override, string.Format(format, name, replace)));
+                options.Add(new ChoiceOption(provider.Key + ModeSeparator + MetadataCategoryMode.Merge, string.Format(combined, own, name)));
+                options.Add(new ChoiceOption(provider.Key + ModeSeparator + MetadataCategoryMode.Override, name));
             }
 
             return WithDefault(options);
