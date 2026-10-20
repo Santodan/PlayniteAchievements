@@ -104,13 +104,20 @@ namespace PlayniteAchievements.Providers.Exophase
         /// <summary>A PlayStation trophy page, in a language when <paramref name="languageCode"/> is given.</summary>
         public static string BuildTrophyPageUrl(string slug, string languageCode)
         {
-            if (string.IsNullOrWhiteSpace(slug))
+            return string.IsNullOrWhiteSpace(slug)
+                ? null
+                : LocalizeAwardPageUrl($"https://www.exophase.com/game/{slug.Trim()}/trophies/", languageCode);
+        }
+
+        /// <summary>An award page address with the language path appended, or unchanged without a language.</summary>
+        public static string LocalizeAwardPageUrl(string awardPageUrl, string languageCode)
+        {
+            if (string.IsNullOrWhiteSpace(awardPageUrl) || string.IsNullOrWhiteSpace(languageCode))
             {
-                return null;
+                return awardPageUrl;
             }
 
-            var url = $"https://www.exophase.com/game/{slug.Trim()}/trophies/";
-            return string.IsNullOrWhiteSpace(languageCode) ? url : url + languageCode + "/";
+            return awardPageUrl.TrimEnd('/') + "/" + languageCode + "/";
         }
     }
 }
