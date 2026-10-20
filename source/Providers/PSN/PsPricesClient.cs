@@ -123,8 +123,16 @@ namespace PlayniteAchievements.Providers.PSN
                 }
             }
 
-            var html = await GetPageSourceAsync(PsPricesPageParser.BuildSearchUrl(query), ct).ConfigureAwait(false);
-            var results = PsPricesPageParser.ParseSearchResults(html);
+            var url = PsPricesPageParser.BuildSearchUrl(query);
+            var results = PsPricesPageParser.ParseSearchResults(await GetPageSourceAsync(url, ct).ConfigureAwait(false));
+            if (results.Count == 0)
+            {
+                // The site at times answers with a page holding no results for a query it found
+                // games for earlier, so a page without any game card is loaded once more.
+                results = PsPricesPageParser.ParseSearchResults(await GetPageSourceAsync(url, ct).ConfigureAwait(false));
+                _logger?.Debug($"[PsPrices] '{query}': no results; retry found {results.Count}.");
+            }
+
             lock (_searchByQuery)
             {
                 _searchByQuery[query] = results;
