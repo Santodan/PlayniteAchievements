@@ -10,6 +10,7 @@ using PlayniteAchievements.Services.Metadata;
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -115,6 +116,97 @@ namespace PlayniteAchievements.Tests.Services
 
             Assert.AreEqual("https://psn/dragon.png", larger.Achievements[0].UnlockedIconPath);
             Assert.AreEqual("https://psn/collector.png", unknown.Achievements[0].UnlockedIconPath);
+        }
+
+        [TestMethod]
+        public void MatchWithPairings_AppliesUserPairingsBeforeNames()
+        {
+            var renamed = Row("a", "Night Owl");
+            var excluded = Row("b", "Collector");
+            var byName = Row("c", "Dragon Slayer");
+            var owl = Row("p1", "Nocturnal");
+            var collector = Row("p2", "Collector");
+            var dragon = Row("p3", "Dragon Slayer");
+            var pairings = new Dictionary<string, string> { { "a", "p1" }, { "b", string.Empty } };
+
+            var matches = MetadataOverlayRun.MatchWithPairings(
+                new[] { renamed, excluded, byName },
+                new[] { owl, collector, dragon },
+                pairings,
+                matchApiNames: false);
+
+            Assert.AreSame(owl, matches.Single(match => match.Target == renamed).Source);
+            Assert.AreSame(dragon, matches.Single(match => match.Target == byName).Source);
+            Assert.IsFalse(matches.Any(match => match.Target == excluded));
+        }
+
+        [TestMethod]
+        public async Task Pairings_StayWithTheirLink_AndDropWhenItChanges()
+        {
+            var playstation = new FakeSource("PlayStation", MetadataField.Icons)
+            {
+                Rows = { Row("p1", "Dragon Slayer", icon: "https://psn/dragon.png") }
+            };
+            var data = Game("Steam", Row("ACH_DRAGON", "Dragon Slayer"));
+            var overlay = Overlay(new[] { playstation }, Choices(icons: "PlayStation"));
+            using (var run = overlay.BeginRun())
+            {
+                await run.ApplyAsync(data.Game, data, CancellationToken.None);
+            }
+
+            var gameId = data.PlayniteGameId.Value;
+            Assert.IsTrue(overlay.Links.SetPairing(gameId, "PlayStation", "ACH_DRAGON", string.Empty));
+            overlay.Links.SetUser(gameId, "PlayStation", "link-PlayStation");
+            Assert.IsTrue(overlay.Links.TryGet(gameId, "PlayStation", out var kept));
+            Assert.AreEqual(string.Empty, kept.Pairings["ACH_DRAGON"]);
+
+            overlay.Links.SetUser(gameId, "PlayStation", "another-page");
+            Assert.IsTrue(overlay.Links.TryGet(gameId, "PlayStation", out var changed));
+            Assert.AreEqual(0, changed.Pairings.Count);
+        }
+
+        [TestMethod]
+        public async Task CapstoneOnlySource_CountsItsPlatinum_AndKeepsNoMatchList()
+        {
+            var playstation = new FakeSource("PlayStation", MetadataField.Icons | MetadataField.CapstoneArt);
+            var platinum = Row("p0", "Master", icon: "https://psn/platinum.png");
+            platinum.TrophyType = "platinum";
+            playstation.Rows.Add(platinum);
+            playstation.Rows.Add(Row("p1", "Dragon Slayer", icon: "https://psn/dragon.png"));
+            var data = Game("Steam", Row("ACH_DRAGON", "Dragon Slayer"), Row("ACH_OTHER", "Other"));
+            var overlay = Overlay(new[] { playstation }, Choices(capstoneArt: "PlayStation"));
+
+            using (var run = overlay.BeginRun())
+            {
+                await run.ApplyAsync(data.Game, data, CancellationToken.None);
+            }
+
+            var gameId = data.PlayniteGameId.Value;
+            var coverage = overlay.Links.GetCoverage(gameId, "PlayStation");
+            Assert.AreEqual(1, coverage.Matched);
+            Assert.AreEqual(1, coverage.Total);
+            Assert.IsNull(overlay.Links.Snapshots.Get(gameId, "PlayStation", "link-PlayStation"));
+            Assert.AreEqual("Master", overlay.Links.GetCapstoneText(gameId).Title);
+        }
+
+        [TestMethod]
+        public async Task IconSource_KeepsItsListAndMatches()
+        {
+            var playstation = new FakeSource("PlayStation", MetadataField.Icons)
+            {
+                Rows = { Row("p1", "Dragon Slayer", icon: "https://psn/dragon.png") }
+            };
+            var data = Game("Steam", Row("ACH_DRAGON", "Dragon Slayer"));
+            var overlay = Overlay(new[] { playstation }, Choices(icons: "PlayStation"));
+
+            using (var run = overlay.BeginRun())
+            {
+                await run.ApplyAsync(data.Game, data, CancellationToken.None);
+            }
+
+            var snapshot = overlay.Links.Snapshots.Get(data.PlayniteGameId.Value, "PlayStation", "link-PlayStation");
+            Assert.AreEqual(1, snapshot.Rows.Count);
+            Assert.AreEqual("p1", snapshot.Matches["ACH_DRAGON"]);
         }
 
         [TestMethod]
