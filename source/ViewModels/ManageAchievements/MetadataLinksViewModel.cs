@@ -130,6 +130,8 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                             _providers?.Invoke() ?? Array.Empty<IMetadataProvider>(),
                             servicingProviderKey,
                             gameChoices,
+                            // "Default" stands for the platform's choices, without the game's own.
+                            () => _settings?.Invoke()?.ResolveMetadataChoices(servicingProviderKey),
                             changed => SaveChoices(gameId, servicingProviderKey, changed))
                     });
                 }
