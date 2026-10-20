@@ -77,6 +77,7 @@ namespace PlayniteAchievements.Services.GameCustomData
 
             portable.AchievementCategoryOrder = Distinct(portable.AchievementCategoryOrder?.Select(path => TokenizeAnyScope(path, game)));
             portable.AchievementCategoryImageOverrides = CollapseCategoryImages(portable.AchievementCategoryImageOverrides, game, icon);
+            portable.AchievementCategoryKinds = CollapseCategoryKinds(portable.AchievementCategoryKinds, game);
             if (portable.GameSummaryCategory != null)
             {
                 portable.GameSummaryCategory.Label = TokenizeAnyScope(portable.GameSummaryCategory.Label, game);
@@ -155,6 +156,7 @@ namespace PlayniteAchievements.Services.GameCustomData
             portable.AchievementCategoryOrder = Distinct(portable.AchievementCategoryOrder?
                 .SelectMany(path => ResolveForEveryScope(path, game, foreign)));
             portable.AchievementCategoryImageOverrides = ExpandCategoryImages(portable.AchievementCategoryImageOverrides, game, foreign);
+            portable.AchievementCategoryKinds = ExpandCategoryKinds(portable.AchievementCategoryKinds, game, foreign);
             if (portable.GameSummaryCategory != null)
             {
                 portable.GameSummaryCategory.Label = ResolveForFirstScope(portable.GameSummaryCategory.Label, game, foreign);
@@ -384,6 +386,66 @@ namespace PlayniteAchievements.Services.GameCustomData
                 foreach (var pair in entries)
                 {
                     result[pair.Key] = pair.Value;
+                }
+            }
+
+            return result;
+        }
+
+        /// <summary>
+        /// Category kinds keyed by path, collapsed like category art: one portable entry when every
+        /// scope's copy of the path has the same kind.
+        /// </summary>
+        private static Dictionary<string, string> CollapseCategoryKinds(Dictionary<string, string> map, GameScopes game)
+        {
+            if (map == null || map.Count == 0)
+            {
+                return map;
+            }
+
+            var result = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var group in map
+                .Where(pair => !string.IsNullOrWhiteSpace(pair.Key) && !string.IsNullOrWhiteSpace(pair.Value))
+                .GroupBy(pair => TokenizeAnyScope(pair.Key, game), StringComparer.OrdinalIgnoreCase))
+            {
+                var entries = group.ToList();
+                var collapses = !string.Equals(group.Key, entries[0].Key, StringComparison.OrdinalIgnoreCase) &&
+                                ScopedPathCount(group.Key, map.Keys, game) == game.Names.Count &&
+                                entries.All(pair => string.Equals(pair.Value, entries[0].Value, StringComparison.OrdinalIgnoreCase));
+                if (collapses)
+                {
+                    result[group.Key] = entries[0].Value;
+                    continue;
+                }
+
+                foreach (var pair in entries)
+                {
+                    result[pair.Key] = pair.Value;
+                }
+            }
+
+            return result;
+        }
+
+        private static Dictionary<string, string> ExpandCategoryKinds(
+            Dictionary<string, string> map,
+            GameScopes game,
+            ISet<string> foreign)
+        {
+            if (map == null || map.Count == 0)
+            {
+                return map;
+            }
+
+            var result = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var pair in map.Where(pair => !string.IsNullOrWhiteSpace(pair.Key) && !string.IsNullOrWhiteSpace(pair.Value)))
+            {
+                foreach (var path in ResolveForEveryScope(pair.Key, game, foreign))
+                {
+                    if (!result.ContainsKey(path))
+                    {
+                        result[path] = pair.Value;
+                    }
                 }
             }
 

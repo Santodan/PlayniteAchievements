@@ -210,6 +210,32 @@ namespace PlayniteAchievements.Tests.Services
         }
 
         [TestMethod]
+        public void CategoryKinds_CollapseWhenEveryInstanceSharesAndFanOutOnImport()
+        {
+            var portable = new GameCustomDataPortableFile
+            {
+                AchievementCategoryKinds = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+                {
+                    ["Vanilla::Mining"] = "DLC",
+                    ["Modded::Mining"] = "DLC",
+                    ["Vanilla::Story"] = "Base",
+                    ["Modded::Story"] = "Subset"
+                }
+            };
+
+            GameCustomDataPortableScoping.ToPortable(portable, Scope, TwoInstances());
+
+            Assert.AreEqual("DLC", portable.AchievementCategoryKinds["{instance}::Mining"]);
+            Assert.AreEqual("Base", portable.AchievementCategoryKinds["Vanilla::Story"], "differing kinds stay scoped");
+            Assert.AreEqual("Subset", portable.AchievementCategoryKinds["Modded::Story"]);
+
+            GameCustomDataPortableScoping.ToGame(portable, Scope, TwoInstances());
+
+            Assert.AreEqual("DLC", portable.AchievementCategoryKinds["Vanilla::Mining"]);
+            Assert.AreEqual("DLC", portable.AchievementCategoryKinds["Modded::Mining"]);
+        }
+
+        [TestMethod]
         public void ToPortable_KeepsScopedValuesThatDiffer()
         {
             var portable = new GameCustomDataPortableFile
