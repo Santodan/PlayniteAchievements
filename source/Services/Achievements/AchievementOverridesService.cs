@@ -1248,10 +1248,15 @@ namespace PlayniteAchievements.Services.Achievements
         /// Replaces the achievements authored by the user and keeps every ApiName-keyed
         /// customization attached when an edited custom ID changes.
         /// </summary>
+        /// <param name="categoryFilings">
+        /// Categories to file authored achievements in, by ApiName, in the same store update. Filed
+        /// as authoring files them, so what an auto capstone stands for is left alone.
+        /// </param>
         public void SetCustomAchievements(
             Guid gameId,
             IReadOnlyList<CustomAchievementDefinition> definitions,
-            IReadOnlyDictionary<string, string> renamedApiNames = null)
+            IReadOnlyDictionary<string, string> renamedApiNames = null,
+            IReadOnlyDictionary<string, string> categoryFilings = null)
         {
             if (gameId == Guid.Empty)
             {
@@ -1268,7 +1273,31 @@ namespace PlayniteAchievements.Services.Achievements
                 customData.CustomAchievements = definitions != null
                     ? definitions.Select(definition => definition?.Clone()).Where(definition => definition != null).ToList()
                     : null;
+
+                foreach (var filing in categoryFilings ?? new Dictionary<string, string>())
+                {
+                    FileInCategory(customData, filing.Key, filing.Value);
+                }
             });
+        }
+
+        private static void FileInCategory(GameCustomDataFile customData, string apiName, string category)
+        {
+            var normalizedCategory = AchievementCategoryTypeHelper.NormalizeCategory(category);
+            if (string.IsNullOrWhiteSpace(apiName) || string.IsNullOrWhiteSpace(normalizedCategory))
+            {
+                return;
+            }
+
+            var overrides = CloneOverrides(customData);
+            if (!overrides.TryGetValue(apiName, out var entry) || entry == null)
+            {
+                entry = new AchievementOverride();
+                overrides[apiName] = entry;
+            }
+
+            entry.Category = normalizedCategory;
+            StoreOverrides(customData, overrides);
         }
 
         /// <summary>
@@ -1337,19 +1366,7 @@ namespace PlayniteAchievements.Services.Achievements
                 customData.AchievementOrder = AchievementOrderHelper.NormalizeApiNames(
                     new[] { apiName }.Concat(customData.AchievementOrder ?? new List<string>()));
 
-                var normalizedCategory = AchievementCategoryTypeHelper.NormalizeCategory(category);
-                if (!string.IsNullOrWhiteSpace(normalizedCategory))
-                {
-                    var overrides = CloneOverrides(customData);
-                    if (!overrides.TryGetValue(apiName, out var entry) || entry == null)
-                    {
-                        entry = new AchievementOverride();
-                        overrides[apiName] = entry;
-                    }
-
-                    entry.Category = normalizedCategory;
-                    StoreOverrides(customData, overrides);
-                }
+                FileInCategory(customData, apiName, category);
 
                 customData.AutoCapstoneGenerated = true;
             });
