@@ -7973,7 +7973,6 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 {
                     OnPropertyChanged(nameof(EffectiveTagsValue));
                     OnPropertyChanged(nameof(TagsDisplayText));
-                    OnPropertyChanged(nameof(TagChips));
                     OnPropertyChanged(nameof(IsMissable));
                     OnPropertyChanged(nameof(IsUnobtainable));
                 }
@@ -8003,13 +8002,9 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 {
                     _gameId = value;
                     OnPropertyChanged(nameof(TagsDisplayText));
-                    OnPropertyChanged(nameof(TagChips));
                 }
             }
         }
-
-        /// <summary>The row's visible tags as chips.</summary>
-        public IReadOnlyList<AchievementTagChip> TagChips => AchievementTagChip.Build(EffectiveTagsValue, _gameId);
 
         public string TagsDisplayText
         {

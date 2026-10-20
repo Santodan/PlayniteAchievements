@@ -1903,38 +1903,15 @@
                                             helpers:EditorCellRouting.RoutesToSelection="True">
                         <DataGridTemplateColumn.CellTemplate>
                             <DataTemplate>
-                                <!-- The selector button draws its content as text, so the chips sit
-                                     over it and the button only spells out None for an untagged row. -->
-                                <Grid Margin="4,0" VerticalAlignment="Center">
-                                    <Button ToolTip="{Binding TagsDisplayText}"
-                                            IsEnabled="{Binding CanEditAssignments}"
-                                            Click="TypeCell_Click"
-                                            MinHeight="22"
-                                            HorizontalAlignment="Stretch">
-                                        <Button.Style>
-                                            <Style TargetType="Button" BasedOn="{StaticResource AchievementSelectorButtonStyle}">
-                                                <Setter Property="Content" Value="" />
-                                                <Style.Triggers>
-                                                    <DataTrigger Binding="{Binding TagChips.Count}" Value="0">
-                                                        <Setter Property="Content" Value="{Binding TagsDisplayText}" />
-                                                    </DataTrigger>
-                                                </Style.Triggers>
-                                            </Style>
-                                        </Button.Style>
-                                    </Button>
-                                    <ItemsControl ItemsSource="{Binding TagChips}"
-                                                  ItemTemplate="{StaticResource PlayAch.Template.TagChip}"
-                                                  IsHitTestVisible="False"
-                                                  Focusable="False"
-                                                  Margin="6,0,20,0"
-                                                  VerticalAlignment="Center">
-                                        <ItemsControl.ItemsPanel>
-                                            <ItemsPanelTemplate>
-                                                <StackPanel Orientation="Horizontal" />
-                                            </ItemsPanelTemplate>
-                                        </ItemsControl.ItemsPanel>
-                                    </ItemsControl>
-                                </Grid>
+                                <Button Content="{Binding TagsDisplayText}"
+                                        ToolTip="{Binding TagsDisplayText}"
+                                        Style="{StaticResource AchievementSelectorButtonStyle}"
+                                        IsEnabled="{Binding CanEditAssignments}"
+                                        Click="TypeCell_Click"
+                                        MinHeight="22"
+                                        Margin="4,0"
+                                        HorizontalAlignment="Stretch"
+                                        VerticalAlignment="Center" />
                             </DataTemplate>
                         </DataGridTemplateColumn.CellTemplate>
                     </DataGridTemplateColumn>

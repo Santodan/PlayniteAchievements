@@ -224,7 +224,6 @@ namespace PlayniteAchievements.ViewModels.Items
                 if (SetValueAndReturn(ref _tags, value))
                 {
                     OnPropertyChanged(nameof(TagsDisplay));
-                    OnPropertyChanged(nameof(TagChips));
                     OnPropertyChanged(nameof(CategoryType));
                     OnPropertyChanged(nameof(CategoryTypeDisplay));
                 }
@@ -246,8 +245,6 @@ namespace PlayniteAchievements.ViewModels.Items
         }
 
         public string TagsDisplay => AchievementTagHelper.ToDisplayText(Tags, PlayniteGameId);
-
-        public System.Collections.Generic.IReadOnlyList<AchievementTagChip> TagChips => AchievementTagChip.Build(Tags, PlayniteGameId);
 
         /// <summary>Theme compatibility: kind and tag keys joined, as before they split.</summary>
         public string CategoryType => string.Join("|",

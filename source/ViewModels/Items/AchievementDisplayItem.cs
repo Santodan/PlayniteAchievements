@@ -1017,9 +1017,6 @@ namespace PlayniteAchievements.ViewModels.Items
         /// <summary>Names of the visible tags, in the tag list's order.</summary>
         public string TagsDisplay => AchievementTagHelper.ToDisplayText(Tags, PlayniteGameId);
 
-        /// <summary>The visible tags with their names and colors, for tag chips.</summary>
-        public IReadOnlyList<AchievementTagChip> TagChips => AchievementTagChip.Build(Tags, PlayniteGameId);
-
         public string CategoryKindDisplay => CategoryKindHelper.ToDisplayText(CategoryKind);
 
         /// <summary>
@@ -1054,7 +1051,6 @@ namespace PlayniteAchievements.ViewModels.Items
         private void NotifyTagsChanged()
         {
             OnPropertyChanged(nameof(TagsDisplay));
-            OnPropertyChanged(nameof(TagChips));
             OnPropertyChanged(nameof(CategoryType));
             OnPropertyChanged(nameof(CategoryTypeDisplay));
             OnPropertyChanged(nameof(IsHardcore));

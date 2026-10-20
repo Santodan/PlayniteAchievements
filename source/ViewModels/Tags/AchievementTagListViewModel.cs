@@ -6,7 +6,6 @@ using System.Windows.Input;
 using System.Windows.Media;
 using PlayniteAchievements.Models.Achievements;
 using PlayniteAchievements.Services.Achievements;
-using PlayniteAchievements.ViewModels.Items;
 using PlayniteAchievements.Views.Dialogs;
 using ObservableObject = PlayniteAchievements.Common.ObservableObject;
 using RelayCommand = PlayniteAchievements.Common.RelayCommand;
@@ -173,7 +172,7 @@ namespace PlayniteAchievements.ViewModels.Tags
             }
         }
 
-        public Brush Brush => AchievementTagChip.ToBrush(_color);
+        public Brush Brush => ToBrush(_color);
 
         public bool HasColor => _color != null;
 
@@ -213,6 +212,26 @@ namespace PlayniteAchievements.ViewModels.Tags
         public ICommand MoveUpCommand { get; }
 
         public ICommand MoveDownCommand { get; }
+
+        private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, Brush> BrushByColor =
+            new System.Collections.Concurrent.ConcurrentDictionary<string, Brush>(StringComparer.OrdinalIgnoreCase);
+
+        // One frozen brush per color for the swatch.
+        private static Brush ToBrush(string color)
+        {
+            var normalized = AchievementTagHelper.NormalizeColor(color);
+            if (normalized == null)
+            {
+                return null;
+            }
+
+            return BrushByColor.GetOrAdd(normalized, value =>
+            {
+                var brush = new SolidColorBrush((System.Windows.Media.Color)ColorConverter.ConvertFromString(value));
+                brush.Freeze();
+                return brush;
+            });
+        }
 
         internal AchievementTagDefinition ToDefinition() =>
             new AchievementTagDefinition { Key = Key, Name = _name, Color = _color, Icon = _icon };

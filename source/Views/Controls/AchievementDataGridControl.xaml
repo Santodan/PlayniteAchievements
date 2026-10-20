@@ -414,14 +414,10 @@
             <DataGridTemplateColumn Width="*" MinWidth="22" CanUserResize="True" Header="{DynamicResource LOCTagsLabel}" SortMemberPath="CategoryType" helpers:ColumnVisibilityHelper.ColumnKey="CategoryType">
                 <DataGridTemplateColumn.CellTemplate>
                     <DataTemplate>
-                        <!-- Keyed CategoryType so saved column layouts and sorts carry over. -->
-                        <ItemsControl ItemsSource="{Binding TagChips}"
-                                      ItemTemplate="{StaticResource PlayAch.Template.TagChip}"
-                                      ItemsPanel="{StaticResource PlayAch.Panel.TagChips}"
-                                      Focusable="False"
-                                      IsHitTestVisible="False"
-                                      HorizontalAlignment="Center"
-                                      VerticalAlignment="Center"/>
+                        <TextBlock Text="{Binding TagsDisplay}"
+                                   Style="{StaticResource WrappedCenteredDataGridTextStyle}"
+                                   Foreground="{DynamicResource PlayAch.Brush.Text}"
+                                   Opacity="{StaticResource PlayAch.Opacity.Subtle}"/>
                     </DataTemplate>
                 </DataGridTemplateColumn.CellTemplate>
             </DataGridTemplateColumn>
