@@ -55,6 +55,7 @@ namespace PlayniteAchievements.Services.GameCustomData
             normalized.ExophaseSlugOverride = NormalizeString(normalized.ExophaseSlugOverride);
             normalized.ExophaseEnrichmentSlugOverride = NormalizeString(normalized.ExophaseEnrichmentSlugOverride);
             normalized.MetadataLinks = NormalizeMetadataLinks(normalized.MetadataLinks);
+            normalized.MetadataChoices = normalized.MetadataChoices?.IsEmpty() == false ? normalized.MetadataChoices : null;
             normalized.XeniaTitleIdOverride = XeniaTitleIdHelper.Normalize(normalized.XeniaTitleIdOverride);
             normalized.ShadPS4MatchIdOverride = ShadPS4MatchIdHelper.Normalize(normalized.ShadPS4MatchIdOverride);
             normalized.RetroAchievementsGameIdOverride =
@@ -116,6 +117,7 @@ namespace PlayniteAchievements.Services.GameCustomData
             normalized.ExophaseSlugOverride = NormalizeString(normalized.ExophaseSlugOverride);
             normalized.ExophaseEnrichmentSlugOverride = NormalizeString(normalized.ExophaseEnrichmentSlugOverride);
             normalized.MetadataLinks = NormalizeMetadataLinks(normalized.MetadataLinks);
+            normalized.MetadataChoices = normalized.MetadataChoices?.IsEmpty() == false ? normalized.MetadataChoices : null;
             normalized.XeniaTitleIdOverride = XeniaTitleIdHelper.Normalize(normalized.XeniaTitleIdOverride);
             normalized.ShadPS4MatchIdOverride = ShadPS4MatchIdHelper.Normalize(normalized.ShadPS4MatchIdOverride);
             normalized.RetroAchievementsGameIdOverride =
@@ -205,6 +207,7 @@ namespace PlayniteAchievements.Services.GameCustomData
                    data.NotificationBehaviorOverride != null ||
                    data.CaptureOverride != null ||
                    HasAnyMetadataLink(data.MetadataLinks) ||
+                   data.MetadataChoices?.IsEmpty() == false ||
                    data.ManualLink != null ||
                    (data.CustomAchievements != null && data.CustomAchievements.Count > 0) ||
                    !string.IsNullOrWhiteSpace(data.CustomProviderId);
@@ -223,6 +226,7 @@ namespace PlayniteAchievements.Services.GameCustomData
             }
 
             return HasAnyMetadataLink(data.MetadataLinks) ||
+                   data.MetadataChoices?.IsEmpty() == false ||
                    data.UseSeparateLockedIconsOverride == true ||
                    !string.IsNullOrWhiteSpace(data.ManualCapstoneApiName) ||
                    data.CapstonesMaterialized ||
@@ -261,6 +265,7 @@ namespace PlayniteAchievements.Services.GameCustomData
 
             // Only links the user set: an automatic match is not a customization.
             return HasUserMetadataLink(data.MetadataLinks) ||
+                   data.MetadataChoices?.IsEmpty() == false ||
                    data.UseSeparateLockedIconsOverride == true ||
                    !string.IsNullOrWhiteSpace(data.ManualCapstoneApiName) ||
                    data.CapstonesMaterialized ||
@@ -396,6 +401,7 @@ namespace PlayniteAchievements.Services.GameCustomData
                     : legacy.ExophaseEnrichmentSlugOverride,
                 MetadataLinks = MetadataLinkData.CloneMap(
                     HasAnyMetadataLink(existing.MetadataLinks) ? existing.MetadataLinks : legacy.MetadataLinks),
+                MetadataChoices = (existing.MetadataChoices ?? legacy.MetadataChoices)?.Clone(),
                 ManualLink = existing.ManualLink?.Clone() ?? legacy.ManualLink?.Clone(),
                 CustomAchievements = existing.CustomAchievements != null && existing.CustomAchievements.Count > 0
                     ? existing.CustomAchievements.ConvertAll(item => item?.Clone()).FindAll(item => item != null)
