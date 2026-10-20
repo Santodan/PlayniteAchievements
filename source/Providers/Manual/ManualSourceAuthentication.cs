@@ -3,57 +3,15 @@ using System.Threading;
 using System.Threading.Tasks;
 using Playnite.SDK;
 using PlayniteAchievements.Models;
-using PlayniteAchievements.Models.Settings;
 
 namespace PlayniteAchievements.Providers.Manual
 {
     internal static class ManualSourceAuthentication
     {
-        public static Task EnsureAuthenticatedIfRequiredAsync(
-            IManualSource source,
-            bool requireExophaseAuthentication,
-            CancellationToken ct)
-        {
-            return EnsureAuthenticatedIfRequiredAsync(source, requireExophaseAuthentication, link: null, ct);
-        }
-
-        public static Task EnsureAuthenticatedIfRequiredAsync(
-            IManualSource source,
-            bool requireExophaseAuthentication,
-            ManualAchievementLink link,
-            CancellationToken ct)
-        {
-            if (!ShouldRequireAuthentication(source, requireExophaseAuthentication, link))
-            {
-                return Task.CompletedTask;
-            }
-
-            return EnsureAuthenticatedAsync(source, ct);
-        }
-
-        public static bool ShouldRequireAuthentication(
-            IManualSource source,
-            bool requireExophaseAuthentication,
-            ManualAchievementLink link)
-        {
-            if (source == null)
-            {
-                throw new ArgumentNullException(nameof(source));
-            }
-
-            if (string.Equals(source.SourceKey, "Exophase", StringComparison.OrdinalIgnoreCase))
-            {
-                if (link != null && link.AllowUnauthenticatedSchemaFetch != false)
-                {
-                    return false;
-                }
-
-                return requireExophaseAuthentication;
-            }
-
-            return true;
-        }
-
+        /// <summary>
+        /// Throws <see cref="ManualSourceAuthenticationException"/> unless the source is signed in.
+        /// A source that needs no sign-in reports itself authenticated with no session.
+        /// </summary>
         public static async Task EnsureAuthenticatedAsync(IManualSource source, CancellationToken ct)
         {
             if (source == null)
