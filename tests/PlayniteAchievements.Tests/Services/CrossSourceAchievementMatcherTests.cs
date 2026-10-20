@@ -34,6 +34,14 @@ namespace PlayniteAchievements.Tests.Services
         }
 
         [TestMethod]
+        public void NormalizeText_DropsApostrophes()
+        {
+            Assert.AreEqual("dont stop", CrossSourceAchievementMatcher.NormalizeText("Don't Stop"));
+            Assert.AreEqual("dont stop", CrossSourceAchievementMatcher.NormalizeText("Don’t stop!"));
+            Assert.AreEqual("dont stop", CrossSourceAchievementMatcher.NormalizeText("Dont Stop"));
+        }
+
+        [TestMethod]
         public void NormalizeText_KeepsMarksThatChangeJapaneseLetters()
         {
             Assert.AreNotEqual(

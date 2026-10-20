@@ -124,13 +124,41 @@ namespace PlayniteAchievements.Services.Metadata
             var iconKeys = await KeepLargerIconSourcesAsync(plan.IconKeys, sets, request.Game?.Name, ct).ConfigureAwait(false);
             var iconSource = ApplyIcons(iconKeys, sets, borrowedIconApiNames);
             ApplyCategories(plan.CategoryKeys, plan.CategoryMode, sets);
-            var capstoneArt = ResolveCapstoneArt(plan.CapstoneArtKeys, sets);
-            var coverage = sets.ToDictionary(
-                pair => pair.Key,
-                pair => new MetadataCoverage { Matched = pair.Value.Matches.Count, Total = data.Achievements.Count },
-                StringComparer.OrdinalIgnoreCase);
+            var capstone = ResolveCapstone(plan.CapstoneArtKeys, sets);
+            var capstoneArt = FirstNonBlank(capstone?.UnlockedIconPath, capstone?.LockedIconPath);
+            // A source that supplies achievement data is judged, and shown, by how many of the
+            // game's achievements it matched; one used only for the auto capstone by its platinum.
+            var coverage = new Dictionary<string, MetadataCoverage>(StringComparer.OrdinalIgnoreCase);
+            foreach (var pair in sets)
+            {
+                var perAchievement = plan.IconKeys.Contains(pair.Key, StringComparer.OrdinalIgnoreCase) ||
+                                     plan.CategoryKeys.Contains(pair.Key, StringComparer.OrdinalIgnoreCase);
+                if (perAchievement)
+                {
+                    coverage[pair.Key] = new MetadataCoverage { Matched = pair.Value.Matches.Count, Total = data.Achievements.Count };
+                    _links?.Snapshots?.Record(
+                        gameId,
+                        pair.Key,
+                        pair.Value.Set.LinkId,
+                        pair.Value.Set.Achievements,
+                        pair.Value.Matches.Select(match => new KeyValuePair<string, string>(match.Target.ApiName, match.Source.ApiName)));
+                }
+                else
+                {
+                    var hasPlatinum = ResolveCapstone(new[] { pair.Key }, sets) != null;
+                    coverage[pair.Key] = new MetadataCoverage { Matched = hasPlatinum ? 1 : 0, Total = 1 };
+                    _links?.Snapshots?.Forget(gameId, pair.Key);
+                }
+            }
 
-            return _links?.RecordApplied(gameId, iconSource, capstoneArt, coverage, borrowedIconApiNames) ?? false;
+            return _links?.RecordApplied(
+                gameId,
+                iconSource,
+                capstoneArt,
+                coverage,
+                borrowedIconApiNames,
+                capstone?.DisplayName,
+                capstone?.Description) ?? false;
         }
 
         public void Dispose()
@@ -220,7 +248,7 @@ namespace PlayniteAchievements.Services.Metadata
                     ? CrossSourceAchievementMatcher.ApiNameOverlap(targets, set.Achievements)
                     : 0;
                 var matchApiNames = set.SharesApiNames || overlap >= CrossSourceAchievementMatcher.SharedApiNameThreshold;
-                var matches = CrossSourceAchievementMatcher.Match(targets, set.Achievements, matchApiNames: matchApiNames);
+                var matches = MatchWithPairings(targets, set.Achievements, ReadPairings(gameId, key, linkId), matchApiNames);
                 _logger?.Debug(
                     $"[Metadata] {key} matched {matches.Count}/{targets.Count} achievements for '{request.Game?.Name}' " +
                     $"({linkId}, idOverlap={overlap:P0}, byId={matchApiNames}).");
@@ -253,6 +281,65 @@ namespace PlayniteAchievements.Services.Metadata
                 _logger?.Warn(ex, $"[Metadata] {key} failed for '{request.Game?.Name}'; provider data kept.");
                 return null;
             }
+        }
+
+        /// <summary>The user's pairings on the game's stored link, when it is the link being used.</summary>
+        private IReadOnlyDictionary<string, string> ReadPairings(Guid gameId, string sourceKey, string linkId)
+        {
+            return _links != null &&
+                   _links.TryGet(gameId, sourceKey, out var record) &&
+                   string.Equals(record.Id, linkId, StringComparison.OrdinalIgnoreCase)
+                ? record.Pairings
+                : null;
+        }
+
+        /// <summary>
+        /// The user's pairings first: each pairs its achievement with the named source row, and an
+        /// empty one keeps the achievement out of matching. The rest are matched as usual, against
+        /// the source rows no pairing took. A pairing naming a row the source no longer has is
+        /// left to matching.
+        /// </summary>
+        internal static List<AchievementMatch> MatchWithPairings(
+            IList<AchievementDetail> targets,
+            IList<AchievementDetail> sources,
+            IReadOnlyDictionary<string, string> pairings,
+            bool matchApiNames)
+        {
+            if (pairings == null || pairings.Count == 0)
+            {
+                return CrossSourceAchievementMatcher.Match(targets, sources, matchApiNames: matchApiNames);
+            }
+
+            var sourcesByApiName = sources
+                .Where(source => !string.IsNullOrWhiteSpace(source?.ApiName))
+                .GroupBy(source => source.ApiName, StringComparer.OrdinalIgnoreCase)
+                .ToDictionary(group => group.Key, group => group.First(), StringComparer.OrdinalIgnoreCase);
+            var paired = new List<AchievementMatch>();
+            var settled = new HashSet<AchievementDetail>();
+            var taken = new HashSet<AchievementDetail>();
+            foreach (var target in targets.Where(target => !string.IsNullOrWhiteSpace(target?.ApiName)))
+            {
+                if (!pairings.TryGetValue(target.ApiName, out var sourceApiName))
+                {
+                    continue;
+                }
+
+                if (string.IsNullOrEmpty(sourceApiName))
+                {
+                    settled.Add(target);
+                }
+                else if (sourcesByApiName.TryGetValue(sourceApiName, out var source) && taken.Add(source))
+                {
+                    paired.Add(new AchievementMatch(target, source));
+                    settled.Add(target);
+                }
+            }
+
+            paired.AddRange(CrossSourceAchievementMatcher.Match(
+                targets.Where(target => target != null && !settled.Contains(target)).ToList(),
+                sources.Where(source => source != null && !taken.Contains(source)).ToList(),
+                matchApiNames: matchApiNames));
+            return paired;
         }
 
         private Task<bool> BeginSessionAsync(IMetadataProvider provider, CancellationToken ct)
@@ -435,7 +522,11 @@ namespace PlayniteAchievements.Services.Metadata
         }
 
         /// <summary>The first preferred source's capstone (platinum) icon, when that source matched the game.</summary>
-        private static string ResolveCapstoneArt(IReadOnlyList<string> keys, IReadOnlyDictionary<string, MatchedSet> sets)
+        /// <summary>
+        /// The first preferred source's capstone row with art (a PlayStation platinum), whose art,
+        /// title and description auto capstones take; null when none matched.
+        /// </summary>
+        private static AchievementDetail ResolveCapstone(IReadOnlyList<string> keys, IReadOnlyDictionary<string, MatchedSet> sets)
         {
             foreach (var key in keys)
             {
@@ -447,10 +538,9 @@ namespace PlayniteAchievements.Services.Metadata
                 var capstone = set.Set.Achievements.FirstOrDefault(row =>
                     row != null &&
                     (row.IsCapstone || string.Equals(row.TrophyType, "platinum", StringComparison.OrdinalIgnoreCase)));
-                var art = FirstNonBlank(capstone?.UnlockedIconPath, capstone?.LockedIconPath);
-                if (art != null)
+                if (FirstNonBlank(capstone?.UnlockedIconPath, capstone?.LockedIconPath) != null)
                 {
-                    return art;
+                    return capstone;
                 }
             }
 

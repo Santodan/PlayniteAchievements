@@ -144,7 +144,7 @@
                                     </DataGridTemplateColumn.CellTemplate>
                                 </DataGridTemplateColumn>
 
-                                <DataGridTemplateColumn Header="{DynamicResource LOCPlayAch_Settings_Metadata_CapstoneArt}" Width="Auto" IsReadOnly="True">
+                                <DataGridTemplateColumn Header="{DynamicResource LOCPlayAch_ManageAchievements_Custom_AutoCapstone}" Width="Auto" IsReadOnly="True">
                                     <DataGridTemplateColumn.CellTemplate>
                                         <DataTemplate>
                                             <ComboBox Style="{StaticResource MetadataChoiceComboStyle}"

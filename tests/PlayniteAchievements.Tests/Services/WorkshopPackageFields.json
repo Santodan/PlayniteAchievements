@@ -230,7 +230,10 @@
     "MetadataLinkData": {
       "Id": "value",
       "IsUserSet": "value",
-      "Label": "value"
+      "Label": "value",
+      "Pairings": {
+        "map": "value"
+      }
     },
     "NotificationBadgeImageSet": {
       "CommonPath": "value",

@@ -324,12 +324,18 @@
                                             <Grid.RowDefinitions>
                                                 <RowDefinition Height="Auto" />
                                                 <RowDefinition Height="Auto" />
+                                                <RowDefinition Height="Auto" />
                                             </Grid.RowDefinitions>
                                             <TextBlock Grid.Column="0"
                                                        Style="{StaticResource SettingLabelStyle}"
                                                        Text="{Binding SourceName}" />
                                             <WrapPanel Grid.Column="1">
+                                                <CheckBox Content="{DynamicResource LOCEnabledTitle}"
+                                                          IsChecked="{Binding IsEnabled, Mode=TwoWay}"
+                                                          VerticalAlignment="Center"
+                                                          Margin="{StaticResource PlayAch.Thickness.Right.Sm}" />
                                                 <TextBox Text="{Binding Input, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                         IsEnabled="{Binding IsEnabled}"
                                                          Width="200"
                                                          Padding="8,4"
                                                          VerticalAlignment="Center" />
@@ -347,6 +353,84 @@
                                             <TextBlock Grid.Row="1" Grid.Column="1"
                                                        Style="{StaticResource SettingStatusStyle}"
                                                        Text="{Binding StatusText}" />
+
+                                            <!-- The pairings from the last refresh: unmatched first, each fixable. -->
+                                            <Expander Grid.Row="2" Grid.Column="1"
+                                                      Header="{DynamicResource LOCPlayAch_ManageAchievements_Overview_MetadataMatches}"
+                                                      IsExpanded="{Binding IsExpanded, Mode=TwoWay}"
+                                                      Visibility="{Binding HasMatches, Converter={StaticResource BoolToVis}}"
+                                                      Margin="0,4,0,0">
+                                                <StackPanel Margin="0,4,0,0">
+                                                    <CheckBox Content="{DynamicResource LOCPlayAch_ManageAchievements_Overview_MetadataMatches_ShowAll}"
+                                                              IsChecked="{Binding ShowAll, Mode=TwoWay}"
+                                                              Margin="0,0,0,4" />
+                                                    <ItemsControl ItemsSource="{Binding VisibleMatches}"
+                                                                  Focusable="False"
+                                                                  Grid.IsSharedSizeScope="True">
+                                                        <ItemsControl.ItemTemplate>
+                                                            <DataTemplate>
+                                                                <Grid Margin="0,2">
+                                                                    <Grid.ColumnDefinitions>
+                                                                        <ColumnDefinition Width="Auto" SharedSizeGroup="MetadataMatchTarget" MinWidth="180" />
+                                                                        <ColumnDefinition Width="280" />
+                                                                        <ColumnDefinition Width="Auto" />
+                                                                    </Grid.ColumnDefinitions>
+                                                                    <TextBlock Grid.Column="0"
+                                                                               Text="{Binding TargetName}"
+                                                                               ToolTip="{Binding TargetDescription}"
+                                                                               TextTrimming="CharacterEllipsis"
+                                                                               MaxWidth="320"
+                                                                               VerticalAlignment="Center"
+                                                                               Margin="{StaticResource PlayAch.Thickness.Right.Sm}" />
+                                                                    <Grid Grid.Column="1">
+                                                                        <ComboBox ItemsSource="{Binding Options}"
+                                                                                  SelectedValuePath="Key"
+                                                                                  SelectedValue="{Binding SelectedKey, Mode=TwoWay}"
+                                                                                  VirtualizingPanel.IsVirtualizing="True">
+                                                                            <ComboBox.ItemsPanel>
+                                                                                <ItemsPanelTemplate>
+                                                                                    <VirtualizingStackPanel />
+                                                                                </ItemsPanelTemplate>
+                                                                            </ComboBox.ItemsPanel>
+                                                                            <ComboBox.ItemTemplate>
+                                                                                <DataTemplate>
+                                                                                    <StackPanel Orientation="Horizontal" ToolTip="{Binding Description}">
+                                                                                        <Image Width="24" Height="24"
+                                                                                               Margin="{StaticResource PlayAch.Thickness.Right.Sm}"
+                                                                                               RenderOptions.BitmapScalingMode="HighQuality"
+                                                                                               helpers:AsyncImage.Uri="{Binding Icon}"
+                                                                                               helpers:AsyncImage.DecodePixel="48" />
+                                                                                        <TextBlock Text="{Binding Name}" VerticalAlignment="Center" />
+                                                                                    </StackPanel>
+                                                                                </DataTemplate>
+                                                                            </ComboBox.ItemTemplate>
+                                                                        </ComboBox>
+                                                                        <TextBlock Text="{DynamicResource LOCPlayAch_ManageAchievements_Overview_MetadataMatches_NotMatched}"
+                                                                                   Style="{StaticResource OverviewMutedTextStyle}"
+                                                                                   IsHitTestVisible="False"
+                                                                                   VerticalAlignment="Center"
+                                                                                   Margin="8,0,24,0"
+                                                                                   Visibility="{Binding IsUnmatched, Converter={StaticResource BoolToVis}}" />
+                                                                    </Grid>
+                                                                    <StackPanel Grid.Column="2"
+                                                                                Orientation="Horizontal"
+                                                                                Visibility="{Binding IsUserSet, Converter={StaticResource BoolToVis}}">
+                                                                        <TextBlock Text="{DynamicResource LOCPlayAch_ManageAchievements_Overview_MetadataLink_SetByYou}"
+                                                                                   Style="{StaticResource OverviewMutedTextStyle}"
+                                                                                   VerticalAlignment="Center"
+                                                                                   Margin="{StaticResource PlayAch.Thickness.Left.Sm}" />
+                                                                        <Button Content="{DynamicResource LOCResetLabel}"
+                                                                                Command="{Binding ResetCommand}"
+                                                                                Padding="{StaticResource PlayAch.Thickness.ButtonPadding}"
+                                                                                VerticalAlignment="Center"
+                                                                                Margin="{StaticResource PlayAch.Thickness.Left.Sm}" />
+                                                                    </StackPanel>
+                                                                </Grid>
+                                                            </DataTemplate>
+                                                        </ItemsControl.ItemTemplate>
+                                                    </ItemsControl>
+                                                </StackPanel>
+                                            </Expander>
                                         </Grid>
                                     </DataTemplate>
                                 </ItemsControl.ItemTemplate>

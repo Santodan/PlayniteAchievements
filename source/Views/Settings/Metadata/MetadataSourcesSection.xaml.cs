@@ -78,7 +78,7 @@ namespace PlayniteAchievements.Views.Settings.Metadata
 
             SupportsRarity = IsDefaults || MetadataChoices.ExophaseRarityProviders.Contains(providerKey);
             IconOptions = BuildSourceOptions(providers, MetadataField.Icons, "LOCPlayAch_Settings_Metadata_Source_Own");
-            CapstoneArtOptions = BuildSourceOptions(providers, MetadataField.CapstoneArt, "LOCPlayAch_Settings_Metadata_CapstoneArt_GameIcon");
+            CapstoneArtOptions = BuildSourceOptions(providers, MetadataField.CapstoneArt, "LOCPlayAch_Settings_Metadata_Source_Own");
             CategoryOptions = BuildCategoryOptions(providers);
             RarityOptions = WithDefault(new[]
             {

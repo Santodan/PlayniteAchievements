@@ -382,9 +382,12 @@
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Overview_AchievementPageUnavailable">No source page link is available for this game.</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Overview_LibrarySource">Library Source</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Overview_MetadataLinks">Metadata links</sys:String>
-    <sys:String x:Key="LOCPlayAch_ManageAchievements_Overview_MetadataLinks_Help">Which game each source uses. Clear a link to match again, or apply an empty box to stop matching.</sys:String>
+    <sys:String x:Key="LOCPlayAch_ManageAchievements_Overview_MetadataLinks_Help">Which game each source uses. Clear a link to match again, or turn a source off for this game.</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Overview_MetadataLink_SetByYou">Set by you</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Overview_MetadataLink_Matched">{0}/{1} matched</sys:String>
+    <sys:String x:Key="LOCPlayAch_ManageAchievements_Overview_MetadataMatches">Achievement matches</sys:String>
+    <sys:String x:Key="LOCPlayAch_ManageAchievements_Overview_MetadataMatches_ShowAll">Show all</sys:String>
+    <sys:String x:Key="LOCPlayAch_ManageAchievements_Overview_MetadataMatches_NotMatched">Not matched</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Status_Excluded">Excluded</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Status_ExcludedFromRefreshes">Excluded from Bulk Refreshes</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Status_ExcludedFromSummaries">Excluded from Summaries</sys:String>
@@ -1081,8 +1084,6 @@
     <sys:String x:Key="LOCPlayAch_Metadata_Source_PlayStation">PlayStation</sys:String>
     <sys:String x:Key="LOCPlayAch_Metadata_Source_SteamHunters">SteamHunters</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_SteamHuntersCategories_Override">Override</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_Metadata_CapstoneArt">Capstone art</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_Metadata_CapstoneArt_GameIcon">Game icon</sys:String>
 
     <!-- ================================================================= -->
     <!-- 11 Authentication -->

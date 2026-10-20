@@ -63,6 +63,27 @@ namespace PlayniteAchievements.Services.Achievements
         public static Func<Guid, string> MetadataArtAccessor { get; set; }
 
         /// <summary>
+        /// The title and description that come with that art (the platinum's own), or nulls. Set at
+        /// startup alongside <see cref="MetadataArtAccessor"/>.
+        /// </summary>
+        public static Func<Guid, (string Title, string Description)> MetadataTextAccessor { get; set; }
+
+        /// <summary>
+        /// The text a whole-game auto capstone takes: the borrowed platinum's when a metadata source
+        /// supplied it, else the templates'.
+        /// </summary>
+        public static (string Title, string Description) ResolveWholeGameText(
+            Guid gameId,
+            AutoCapstoneTemplates templates,
+            string gameName)
+        {
+            var borrowed = MetadataTextAccessor?.Invoke(gameId) ?? (null, null);
+            return !string.IsNullOrWhiteSpace(borrowed.Title)
+                ? (borrowed.Title, borrowed.Description ?? string.Empty)
+                : AutoCapstoneText.Describe(templates, gameName, null);
+        }
+
+        /// <summary>
         /// The image to stand the capstone on: art from a metadata source when the user chose one,
         /// then the game's own icon, then its cover, then the plugin's mark, so it is never left
         /// without one.

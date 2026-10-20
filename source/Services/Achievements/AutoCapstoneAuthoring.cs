@@ -1,4 +1,5 @@
 using Playnite.SDK;
+using Playnite.SDK.Models;
 using PlayniteAchievements.Models.Achievements;
 using PlayniteAchievements.Models.Settings;
 using PlayniteAchievements.Services.GameCustomData;
@@ -54,10 +55,11 @@ namespace PlayniteAchievements.Services.Achievements
         }
 
         /// <summary>
-        /// Brings each refreshed game's auto capstone art in line with the art it should now use
-        /// (a newly matched platinum, a PS5 set replacing a PS4 one, or a changed Capstone art
-        /// choice). An icon the user replaced is left alone: the file no longer matches what the
-        /// plugin recorded writing.
+        /// Brings each refreshed game's auto capstones in line with what they should now use (a
+        /// newly matched platinum, a PS5 set replacing a PS4 one, or a changed Auto capstone
+        /// choice): the art, and on the whole-game capstone the platinum's title and description.
+        /// What the user replaced is left alone: an icon file that no longer matches what the
+        /// plugin recorded writing, or text that is neither a template's nor the recorded platinum's.
         /// </summary>
         public async Task RefreshArtAsync(IEnumerable<Guid> gameIds)
         {
@@ -102,12 +104,9 @@ namespace PlayniteAchievements.Services.Achievements
 
             var game = API.Instance?.Database?.Games?.Get(gameId);
             var source = AutoCapstoneTemplate.ResolveIconSource(game, _logger);
-            if (string.IsNullOrWhiteSpace(source))
-            {
-                return;
-            }
-
             var borrowedArt = AutoCapstoneTemplate.MetadataArtAccessor?.Invoke(gameId);
+            var borrowedText = BorrowedText(gameId);
+            var templateText = AutoCapstoneText.Describe(_templates?.Invoke(), ResolveGameName(game), null);
             var existing = definitions.Where(definition => definition != null).ToList();
             var replacement = existing.Select(definition => definition.Clone()).ToList();
             var changed = false;
@@ -115,47 +114,126 @@ namespace PlayniteAchievements.Services.Achievements
             {
                 var apiName = CustomAchievementProjectionService.BuildApiName(definition.Id);
                 var record = links.GetCapstoneArtRecord(gameId, apiName);
-                if (record != null)
-                {
-                    if (string.Equals(record.Source, source, StringComparison.Ordinal))
-                    {
-                        continue;
-                    }
 
-                    if (!IsRecordedFile(definition.UnlockedIconPath, record))
+                var artWritten = false;
+                if (!string.IsNullOrWhiteSpace(source) && ShouldReplaceArt(links, gameId, apiName, definition, record, source, borrowedArt))
+                {
+                    var path = await MaterializeIconAsync(gameId, source, existing, apiName).ConfigureAwait(false);
+                    if (!string.IsNullOrWhiteSpace(path))
                     {
-                        // Replaced by the user since; theirs from here on.
-                        links.SetCapstoneArtRecord(gameId, apiName, null);
-                        continue;
+                        definition.UnlockedIconPath = path;
+                        artWritten = true;
+                        _logger?.Debug($"[AutoCapstone] Art for gameId={gameId} {apiName} now from {source}.");
                     }
                 }
-                else if (!string.Equals(source, borrowedArt, StringComparison.Ordinal))
+
+                // Only the whole-game capstone stands for what a platinum does.
+                var textWritten = definition.IsWholeGameAutoCapstone &&
+                                  ApplyText(definition, record, borrowedText, templateText);
+                if (textWritten)
                 {
-                    // Authored before art was recorded: only a borrowed platinum, which the
-                    // platform's Capstone art choice asked for, replaces what it has.
-                    continue;
+                    _logger?.Debug($"[AutoCapstone] Text for gameId={gameId} {apiName} now from {(borrowedText.Title != null ? "the platinum" : "the templates")}.");
                 }
 
-                var path = await MaterializeIconAsync(gameId, source, existing, apiName).ConfigureAwait(false);
-                if (string.IsNullOrWhiteSpace(path))
+                if (artWritten || textWritten)
                 {
-                    continue;
+                    // An unrecorded source keeps the rule for capstones authored before records.
+                    RecordArt(
+                        links,
+                        gameId,
+                        apiName,
+                        artWritten ? source : record?.Source,
+                        definition.UnlockedIconPath,
+                        definition.IsWholeGameAutoCapstone ? borrowedText : (null, null));
+
+                    // Counted even when the icon path is unchanged: new art overwrites the managed
+                    // file in place, and only the write's change event makes open views read it again.
+                    changed = true;
                 }
-
-                RecordArt(links, gameId, apiName, source, path);
-                definition.UnlockedIconPath = path;
-
-                // Counted even when the path is unchanged: new art overwrites the managed file in
-                // place, and only the write's change event makes open views read it again.
-                changed = true;
-
-                _logger?.Debug($"[AutoCapstone] Art for gameId={gameId} {apiName} now from {source}.");
             }
 
             if (changed)
             {
                 _overridesService.SetCustomAchievements(gameId, replacement);
             }
+        }
+
+        /// <summary>
+        /// Whether the capstone's art should become <paramref name="source"/>. An icon the user
+        /// replaced since the plugin wrote it is theirs from then on.
+        /// </summary>
+        private static bool ShouldReplaceArt(
+            MetadataLinkStore links,
+            Guid gameId,
+            string apiName,
+            CustomAchievementDefinition definition,
+            CapstoneArtRecord record,
+            string source,
+            string borrowedArt)
+        {
+            if (record?.Source != null)
+            {
+                if (string.Equals(record.Source, source, StringComparison.Ordinal))
+                {
+                    return false;
+                }
+
+                if (!IsRecordedFile(definition.UnlockedIconPath, record))
+                {
+                    links.SetCapstoneArtRecord(gameId, apiName, null);
+                    return false;
+                }
+
+                return true;
+            }
+
+            // Authored before art was recorded: only a borrowed platinum, which the platform's
+            // Auto capstone choice asked for, replaces what it has.
+            return string.Equals(source, borrowedArt, StringComparison.Ordinal);
+        }
+
+        /// <summary>
+        /// Brings a whole-game capstone's title and description to the platinum's text, or back to
+        /// the templates' when no platinum supplies any. Only text the plugin wrote is replaced:
+        /// the templates' current text, or the platinum text it recorded writing. Returns whether
+        /// anything changed.
+        /// </summary>
+        private static bool ApplyText(
+            CustomAchievementDefinition definition,
+            CapstoneArtRecord record,
+            (string Title, string Description) borrowed,
+            (string Title, string Description) template)
+        {
+            var desired = borrowed.Title != null ? borrowed : template;
+            var changed = false;
+            if (!string.Equals(definition.DisplayName, desired.Title, StringComparison.Ordinal) &&
+                IsPluginText(definition.DisplayName, record?.Title, template.Title))
+            {
+                definition.DisplayName = desired.Title;
+                changed = true;
+            }
+
+            if (!string.Equals(definition.Description ?? string.Empty, desired.Description ?? string.Empty, StringComparison.Ordinal) &&
+                IsPluginText(definition.Description, record?.Description, template.Description))
+            {
+                definition.Description = desired.Description;
+                changed = true;
+            }
+
+            return changed;
+        }
+
+        private static bool IsPluginText(string current, string recorded, string template)
+        {
+            current = current ?? string.Empty;
+            return (recorded != null && string.Equals(current, recorded, StringComparison.Ordinal)) ||
+                   string.Equals(current, template ?? string.Empty, StringComparison.Ordinal);
+        }
+
+        private static string ResolveGameName(Game game)
+        {
+            var name = (game?.Name ?? string.Empty).Trim();
+            return string.IsNullOrWhiteSpace(name) ? ResourceProvider.GetString(AutoCapstoneText.FallbackGameNameKey) : name;
         }
 
         private void OnEditorClosed(Guid gameId)
@@ -185,7 +263,14 @@ namespace PlayniteAchievements.Services.Achievements
                    Math.Abs((info.LastWriteTimeUtc - record.WriteTimeUtc).TotalSeconds) < 2;
         }
 
-        private static void RecordArt(MetadataLinkStore links, Guid gameId, string apiName, string source, string path)
+        /// <param name="borrowedText">The borrowed text written with it, or nulls for the templates'.</param>
+        private static void RecordArt(
+            MetadataLinkStore links,
+            Guid gameId,
+            string apiName,
+            string source,
+            string path,
+            (string Title, string Description) borrowedText)
         {
             if (links == null || !File.Exists(path))
             {
@@ -198,8 +283,17 @@ namespace PlayniteAchievements.Services.Achievements
                 Source = source,
                 Path = path,
                 Length = info.Length,
-                WriteTimeUtc = info.LastWriteTimeUtc
+                WriteTimeUtc = info.LastWriteTimeUtc,
+                Title = borrowedText.Title,
+                Description = borrowedText.Title == null ? null : borrowedText.Description
             });
+        }
+
+        /// <summary>The platinum text a metadata source supplied for the game, or nulls.</summary>
+        private static (string Title, string Description) BorrowedText(Guid gameId)
+        {
+            var borrowed = AutoCapstoneTemplate.MetadataTextAccessor?.Invoke(gameId) ?? (null, null);
+            return string.IsNullOrWhiteSpace(borrowed.Title) ? (null, null) : (borrowed.Title, borrowed.Description ?? string.Empty);
         }
 
         /// <summary>
@@ -281,7 +375,10 @@ namespace PlayniteAchievements.Services.Achievements
                 .ToList() ?? new List<CustomAchievementDefinition>();
             var id = ResolveUniqueId(existing);
             var apiName = CustomAchievementProjectionService.BuildApiName(id);
-            var (title, description) = AutoCapstoneText.Describe(_templates?.Invoke(), name, normalizedCategory);
+            var borrowedText = normalizedCategory == null ? BorrowedText(gameId) : (null, null);
+            var (title, description) = normalizedCategory == null
+                ? AutoCapstoneTemplate.ResolveWholeGameText(gameId, _templates?.Invoke(), name)
+                : AutoCapstoneText.Describe(_templates?.Invoke(), name, normalizedCategory);
             var iconSource = AutoCapstoneTemplate.ResolveIconSource(game, _logger);
             var iconPath = await MaterializeIconAsync(gameId, iconSource, existing, apiName).ConfigureAwait(false);
 
@@ -304,7 +401,7 @@ namespace PlayniteAchievements.Services.Achievements
 
             // A chosen category is filed outright; the whole game is filed with the main game.
             _overridesService.AddGeneratedAutoCapstone(gameId, definition, normalizedCategory ?? derived.Category);
-            RecordArt(_metadataLinks?.Invoke(), gameId, apiName, iconSource, iconPath);
+            RecordArt(_metadataLinks?.Invoke(), gameId, apiName, iconSource, iconPath, borrowedText);
 
             var nominated = _overridesService.SetCapstone(gameId, apiName, true);
             if (nominated?.Success != true)

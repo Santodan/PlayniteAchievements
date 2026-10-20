@@ -19,9 +19,22 @@ namespace PlayniteAchievements.Models.Settings
         /// <summary>Set by the user rather than matched automatically; automatic matching never replaces it.</summary>
         public bool IsUserSet { get; set; }
 
+        /// <summary>
+        /// Achievement pairings the user set, by the game's ApiName: the source row's ApiName, or an
+        /// empty string for "never borrow for this achievement". Matching fills in the rest. They
+        /// belong to <see cref="Id"/> and are dropped when the link changes.
+        /// </summary>
+        public Dictionary<string, string> Pairings { get; set; }
+
         public MetadataLinkData Clone()
         {
-            return new MetadataLinkData { Id = Id, Label = Label, IsUserSet = IsUserSet };
+            return new MetadataLinkData
+            {
+                Id = Id,
+                Label = Label,
+                IsUserSet = IsUserSet,
+                Pairings = Pairings == null ? null : new Dictionary<string, string>(Pairings, StringComparer.OrdinalIgnoreCase)
+            };
         }
 
         internal static Dictionary<string, MetadataLinkData> CloneMap(Dictionary<string, MetadataLinkData> links)

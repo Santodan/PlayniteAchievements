@@ -1304,8 +1304,30 @@ namespace PlayniteAchievements.Services.GameCustomData
                 {
                     Id = id,
                     Label = NormalizeString(pair.Value.Label),
-                    IsUserSet = pair.Value.IsUserSet
+                    IsUserSet = pair.Value.IsUserSet,
+                    Pairings = id == null ? null : NormalizeMetadataPairings(pair.Value.Pairings)
                 };
+            }
+
+            return normalized.Count > 0 ? normalized : null;
+        }
+
+        /// <summary>Pairings keyed by a non-blank ApiName; an empty value ("none") is kept.</summary>
+        private static Dictionary<string, string> NormalizeMetadataPairings(Dictionary<string, string> pairings)
+        {
+            if (pairings == null)
+            {
+                return null;
+            }
+
+            var normalized = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var pair in pairings)
+            {
+                var target = NormalizeString(pair.Key);
+                if (target != null)
+                {
+                    normalized[target] = NormalizeString(pair.Value) ?? string.Empty;
+                }
             }
 
             return normalized.Count > 0 ? normalized : null;
@@ -1318,7 +1340,7 @@ namespace PlayniteAchievements.Services.GameCustomData
 
         private static bool HasUserMetadataLink(Dictionary<string, MetadataLinkData> links)
         {
-            return links != null && links.Values.Any(link => link?.IsUserSet == true);
+            return links != null && links.Values.Any(link => link?.IsUserSet == true || link?.Pairings?.Count > 0);
         }
 
         private static ManualAchievementLink NormalizeManualLink(ManualAchievementLink link)
