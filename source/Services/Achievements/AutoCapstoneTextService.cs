@@ -28,8 +28,6 @@ namespace PlayniteAchievements.Services.Achievements
         private readonly ILogger _logger;
         private readonly Lazy<LocalizedDefaultStringCatalog> _catalog;
         private readonly object _applySync = new object();
-        private readonly object _pendingSync = new object();
-        private readonly HashSet<Guid> _waitingForEditor = new HashSet<Guid>();
 
         public AutoCapstoneTextService(
             GameCustomDataStore store,
@@ -43,7 +41,6 @@ namespace PlayniteAchievements.Services.Achievements
             _resolveGameName = resolveGameName;
             _logger = logger;
             _catalog = new Lazy<LocalizedDefaultStringCatalog>(() => BuildCatalog(localizationDirectory, logger));
-            OpenEditorRegistry.Closed += OnEditorClosed;
         }
 
         /// <summary>True when the templates in effect are not the ones last applied.</summary>
@@ -94,13 +91,8 @@ namespace PlayniteAchievements.Services.Achievements
 
         private bool ApplyToGame(Guid gameId, AutoCapstoneTemplates current, AutoCapstoneKnownTemplates known)
         {
-            if (OpenEditorRegistry.IsOpen(gameId))
+            if (OpenEditorRegistry.DeferWhileOpen(gameId, this, () => CatchUpAfterEditor(gameId)))
             {
-                lock (_pendingSync)
-                {
-                    _waitingForEditor.Add(gameId);
-                }
-
                 return false;
             }
 
@@ -255,16 +247,8 @@ namespace PlayniteAchievements.Services.Achievements
             return new LocalizedDefaultStringCatalog(localizationDirectory, definitions, logger);
         }
 
-        private void OnEditorClosed(Guid gameId)
+        private void CatchUpAfterEditor(Guid gameId)
         {
-            lock (_pendingSync)
-            {
-                if (!_waitingForEditor.Remove(gameId))
-                {
-                    return;
-                }
-            }
-
             System.Threading.Tasks.Task.Run(() =>
             {
                 try
