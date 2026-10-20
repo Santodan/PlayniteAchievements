@@ -89,6 +89,8 @@ namespace PlayniteAchievements.Models.Settings
 
         public Dictionary<string, MetadataLinkData> MetadataLinks { get; set; }
 
+        public MetadataChoices MetadataChoices { get; set; }
+
         public ManualAchievementLink ManualLink { get; set; }
 
         public List<CustomAchievementDefinition> CustomAchievements { get; set; }
@@ -161,6 +163,7 @@ namespace PlayniteAchievements.Models.Settings
                 ProviderOverride = ProviderOverride?.Clone(),
                 ExophaseEnrichmentSlugOverride = ExophaseEnrichmentSlugOverride,
                 MetadataLinks = MetadataLinkData.CloneMap(MetadataLinks),
+                MetadataChoices = MetadataChoices?.Clone(),
                 ManualLink = ManualLink?.Clone(),
                 CustomAchievements = CustomAchievements != null
                     ? CustomAchievements.ConvertAll(item => item?.Clone()).FindAll(item => item != null)

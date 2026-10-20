@@ -51,14 +51,45 @@ namespace PlayniteAchievements.Providers.Tests
         }
 
         [TestMethod]
-        public void BuildTrophyPageUrl_AppendsTheLanguagePath()
+        public void ParseAwardSections_FilesAwardsUnderTheirDlcAndKeepsOnlyDlcArt()
+        {
+            const string html = @"<html><head>
+<meta property=""og:image"" content=""https://m.exophase.com/psn/games/o/abc123.png?x"" /></head><body>
+<ul class=""list-unordered-base psn trophy"">
+  <li data-master=""11""></li><li id=""12""></li><li></li>
+</ul>
+<h3 class=""dlc-add-on""><span>Automatron Trophies</span></h3>
+<style>h3.dlc-add-on::before { background-image: url('https://m.exophase.com/psn/games/l/abc123.png?y'); }</style>
+<ul class=""list-unordered-base psn trophy""><li data-master=""21""></li></ul>
+<h3 class=""dlc-add-on""><span>Far Harbor Trophies</span></h3>
+<style>h3.dlc-add-on::before { background-image: url('https://m.exophase.com/psn/dlc/l/far.png'); }</style>
+<ul class=""list-unordered-base psn trophy""><li data-master=""31""></li></ul>
+</body></html>";
+
+            var sections = ExophaseGamePageParser.ParseAwardSections(html);
+
+            Assert.AreEqual(3, sections.Count);
+            Assert.IsNull(sections[0].Title);
+            CollectionAssert.AreEqual(new[] { "exophase:11", "exophase:12" }, sections[0].ApiNames.ToList());
+            Assert.AreEqual("Automatron", sections[1].Title);
+            Assert.IsNull(sections[1].ArtUrl, "A DLC shown with the game's own image has no art of its own.");
+            Assert.AreEqual("Far Harbor", sections[2].Title);
+            Assert.AreEqual("https://m.exophase.com/psn/dlc/l/far.png", sections[2].ArtUrl);
+            CollectionAssert.AreEqual(new[] { "exophase:31" }, sections[2].ApiNames.ToList());
+        }
+
+        [TestMethod]
+        public void LocalizeAwardPageUrl_AppendsTheLanguagePathToEitherList()
         {
             Assert.AreEqual(
                 "https://www.exophase.com/game/god-of-war-ragnarok-psn/trophies/",
-                ExophaseGamePageParser.BuildTrophyPageUrl("god-of-war-ragnarok-psn", null));
+                ExophaseGamePageParser.LocalizeAwardPageUrl(ExophaseApiClient.BuildUrlFromSlug("god-of-war-ragnarok-psn", "psn"), null));
             Assert.AreEqual(
                 "https://www.exophase.com/game/god-of-war-ragnarok-psn/trophies/fr/",
-                ExophaseGamePageParser.BuildTrophyPageUrl("god-of-war-ragnarok-psn", "fr"));
+                ExophaseGamePageParser.LocalizeAwardPageUrl(ExophaseApiClient.BuildUrlFromSlug("god-of-war-ragnarok-psn", "psn"), "fr"));
+            Assert.AreEqual(
+                "https://www.exophase.com/game/fallout-4-xbox-one/achievements/fr/",
+                ExophaseGamePageParser.LocalizeAwardPageUrl(ExophaseApiClient.BuildUrlFromSlug("fallout-4-xbox-one", "xbox"), "fr"));
         }
     }
 }

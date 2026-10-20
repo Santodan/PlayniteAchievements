@@ -102,8 +102,8 @@
     <Compile Include="..\..\source\Providers\Steam\Local\SteamInstallLocator.cs" Link="Source\Providers\Steam\Local\SteamInstallLocator.cs" />
     <Compile Include="..\..\source\Providers\Steam\Local\SteamBinaryKeyValuesReader.cs" Link="Source\Providers\Steam\Local\SteamBinaryKeyValuesReader.cs" />
     <Compile Include="..\..\source\Providers\Steam\Local\SteamLocalStatsReader.cs" Link="Source\Providers\Steam\Local\SteamLocalStatsReader.cs" />
-    <Compile Include="..\..\source\Providers\Steam\SteamHuntersApiClient.cs" Link="Source\Providers\Steam\SteamHuntersApiClient.cs" />
-    <Compile Include="..\..\source\Providers\Steam\SteamHuntersCategoryEnricher.cs" Link="Source\Providers\Steam\SteamHuntersCategoryEnricher.cs" />
+    <Compile Include="..\..\source\Providers\Metadata\SteamHunters\SteamHuntersApiClient.cs" Link="Source\Providers\Metadata\SteamHunters\SteamHuntersApiClient.cs" />
+    <Compile Include="..\..\source\Providers\Metadata\SteamHunters\SteamHuntersCategoryEnricher.cs" Link="Source\Providers\Metadata\SteamHunters\SteamHuntersCategoryEnricher.cs" />
     <Compile Include="..\..\source\Providers\Steam\SteamFriendListItem.cs" Link="Source\Providers\Steam\SteamFriendListItem.cs" />
     <Compile Include="..\..\source\Providers\Steam\SteamFriendListBuilder.cs" Link="Source\Providers\Steam\SteamFriendListBuilder.cs" />
     <Compile Include="..\..\source\Providers\IInGameProgressSource.cs" Link="Source\Providers\IInGameProgressSource.cs" />

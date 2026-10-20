@@ -7,7 +7,7 @@ using System.Globalization;
 using System.Threading;
 using System.Threading.Tasks;
 
-namespace PlayniteAchievements.Providers.Steam
+namespace PlayniteAchievements.Providers.Metadata
 {
     internal sealed class SteamHuntersApiClient
     {

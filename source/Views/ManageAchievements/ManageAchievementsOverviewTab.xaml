@@ -5,6 +5,7 @@
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:helpers="clr-namespace:PlayniteAchievements.Views.Helpers"
              xmlns:controls="clr-namespace:PlayniteAchievements.Views.Controls"
+             xmlns:metadata="clr-namespace:PlayniteAchievements.Views.Settings.Metadata"
              mc:Ignorable="d"
              d:DesignHeight="600"
              d:DesignWidth="800">
@@ -325,6 +326,10 @@
                             <TextBlock Style="{StaticResource SettingLabelStyle}"
                                        Text="{DynamicResource LOCPlayAch_ManageAchievements_Overview_MetadataLinks}"
                                        ToolTip="{DynamicResource LOCPlayAch_ManageAchievements_Overview_MetadataLinks_Help}" />
+                            <!-- The game's own source per field; "Default" follows its platform. -->
+                            <metadata:MetadataChoicesGrid DataContext="{Binding ChoiceRows}"
+                                                          ShowsRarity="False"
+                                                          Margin="0,4,0,8" />
                             <ItemsControl ItemsSource="{Binding Rows}" Focusable="False" Grid.IsSharedSizeScope="True">
                                 <ItemsControl.ItemTemplate>
                                     <DataTemplate>
@@ -348,16 +353,9 @@
                                                        Visibility="{Binding HasSupplies, Converter={StaticResource BoolToVis}}"
                                                        Margin="0,2,0,0" />
                                             <WrapPanel Grid.Column="1">
-                                                <!-- Hidden, not collapsed, on a row with no switch, so every box lines up. -->
-                                                <CheckBox Content="{DynamicResource LOCEnabledTitle}"
-                                                          IsChecked="{Binding IsEnabled, Mode=TwoWay}"
-                                                          Visibility="{Binding EnabledSwitchVisibility}"
-                                                          VerticalAlignment="Center"
-                                                          Margin="{StaticResource PlayAch.Thickness.Right.Sm}" />
                                                 <Grid Width="200" VerticalAlignment="Center">
                                                     <TextBox x:Name="LinkInput"
                                                              Text="{Binding Input, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                                             IsEnabled="{Binding IsEnabled}"
                                                              Padding="8,4" />
                                                     <TextBlock Text="{Binding Placeholder}"
                                                                Tag="{Binding Text, ElementName=LinkInput}"

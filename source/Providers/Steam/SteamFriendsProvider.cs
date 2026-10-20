@@ -1,6 +1,7 @@
 using PlayniteAchievements.Models.Friends;
 using PlayniteAchievements.Models.Achievements;
 using PlayniteAchievements.Models.Achievements.Scoring;
+using PlayniteAchievements.Providers.Metadata;
 using PlayniteAchievements.Providers.Steam.Models;
 using Playnite.SDK;
 using System;

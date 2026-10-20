@@ -1,5 +1,6 @@
 using Playnite.SDK;
 using PlayniteAchievements.Models.Achievements;
+using PlayniteAchievements.Providers.Steam;
 using PlayniteAchievements.Services.Achievements;
 using PlayniteAchievements.Services.Images;
 using System;
@@ -8,7 +9,7 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 
-namespace PlayniteAchievements.Providers.Steam
+namespace PlayniteAchievements.Providers.Metadata
 {
     internal sealed class SteamHuntersCategoryEnricher
     {
