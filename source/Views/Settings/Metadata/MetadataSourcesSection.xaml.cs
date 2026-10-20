@@ -127,6 +127,8 @@ namespace PlayniteAchievements.Views.Settings.Metadata
             }
 
             SupportsRarity = supportsRarity;
+            SupportsTrophyTypes = MetadataChoices.TakesTrophyTypes(providerKey);
+            SupportsPoints = MetadataChoices.TakesPoints(providerKey);
             IconOptions = BuildSourceOptions(providers, MetadataField.Icons, "LOCPlayAch_Settings_Metadata_Source_Own");
             CapstoneArtOptions = BuildSourceOptions(providers, MetadataField.CapstoneArt, "LOCPlayAch_Settings_Metadata_Source_Own");
             TrophyTypeOptions = BuildSourceOptions(providers, MetadataField.TrophyTypes, "LOCPlayAch_Settings_Metadata_Source_Own");
@@ -142,8 +144,8 @@ namespace PlayniteAchievements.Views.Settings.Metadata
             _categories = ToCategoryKey(stored);
             _rarity = SupportsRarity ? ToKey(stored?.Rarity) : DefaultKey;
             _capstoneArt = ToKey(stored?.CapstoneArt);
-            _trophyTypes = ToKey(stored?.TrophyTypes);
-            _points = ToKey(stored?.Points);
+            _trophyTypes = SupportsTrophyTypes ? ToKey(stored?.TrophyTypes) : DefaultKey;
+            _points = SupportsPoints ? ToKey(stored?.Points) : DefaultKey;
         }
 
         public string ProviderKey { get; }
@@ -159,6 +161,12 @@ namespace PlayniteAchievements.Views.Settings.Metadata
         public bool HasProviderIcon => !string.IsNullOrWhiteSpace(ProviderIconKey);
 
         public bool SupportsRarity { get; }
+
+        /// <summary>False for a platform with trophy types of its own, which takes none from a source.</summary>
+        public bool SupportsTrophyTypes { get; }
+
+        /// <summary>False for a platform with points of its own, which takes none from a source.</summary>
+        public bool SupportsPoints { get; }
 
         public IReadOnlyList<ChoiceOption> IconOptions { get; }
 
@@ -259,8 +267,8 @@ namespace PlayniteAchievements.Views.Settings.Metadata
                 Icons = FromKey(_icons),
                 Rarity = SupportsRarity ? FromKey(_rarity) : null,
                 CapstoneArt = FromKey(_capstoneArt),
-                TrophyTypes = FromKey(_trophyTypes),
-                Points = FromKey(_points)
+                TrophyTypes = SupportsTrophyTypes ? FromKey(_trophyTypes) : null,
+                Points = SupportsPoints ? FromKey(_points) : null
             };
             ApplyCategoryKey(choices, _categories);
 
