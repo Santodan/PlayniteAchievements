@@ -278,17 +278,8 @@ namespace PlayniteAchievements.Views.Settings.Metadata
 
             if (IsDefaults)
             {
-                var defaults = MetadataChoices.CreateDefaults();
-                persisted.MetadataDefaults = new MetadataChoices
-                {
-                    Icons = choices.Icons ?? defaults.Icons,
-                    Categories = choices.Categories ?? defaults.Categories,
-                    CategoryMode = choices.CategoryMode ?? defaults.CategoryMode,
-                    Rarity = choices.Rarity ?? defaults.Rarity,
-                    CapstoneArt = choices.CapstoneArt ?? defaults.CapstoneArt,
-                    TrophyTypes = choices.TrophyTypes ?? defaults.TrophyTypes,
-                    Points = choices.Points ?? defaults.Points
-                };
+                // The setter fills any unset field from the built-in defaults.
+                persisted.MetadataDefaults = choices;
                 Saved?.Invoke();
                 return;
             }
