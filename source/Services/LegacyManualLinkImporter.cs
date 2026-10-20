@@ -215,7 +215,6 @@ namespace PlayniteAchievements.Services
                         SourceGameId = sourceGameId,
                         UnlockTimes = unlockTimes,
                         UnlockStates = unlockStates,
-                        AllowUnauthenticatedSchemaFetch = ShouldAllowUnauthenticatedSchemaFetch(sourceKey),
                         CreatedUtc = nowUtc,
                         LastModifiedUtc = nowUtc
                     };
@@ -367,13 +366,6 @@ namespace PlayniteAchievements.Services
                     manualLinks[gameId] = link;
                     return;
             }
-        }
-
-        private static bool? ShouldAllowUnauthenticatedSchemaFetch(string sourceKey)
-        {
-            return string.Equals(sourceKey, "Exophase", StringComparison.OrdinalIgnoreCase)
-                ? true
-                : (bool?)null;
         }
 
         private static void IncrementUnsupportedSourceCount(
