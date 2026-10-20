@@ -35,13 +35,6 @@ namespace PlayniteAchievements.Models.Settings
         public Dictionary<string, bool> UnlockStates { get; set; } = new Dictionary<string, bool>();
 
         /// <summary>
-        /// For Exophase links, true allows unauthenticated schema fetch and false follows the current auth setting.
-        /// Null preserves pre-flag legacy links, which are treated as grandfathered unauthenticated links.
-        /// </summary>
-        [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
-        public bool? AllowUnauthenticatedSchemaFetch { get; set; }
-
-        /// <summary>
         /// Provider key this manually tracked game displays as (e.g. "PSN"), chosen by the user.
         /// Null or empty uses the platform derived from the source game id.
         /// </summary>
@@ -73,7 +66,6 @@ namespace PlayniteAchievements.Models.Settings
                 UnlockStates = this.UnlockStates != null
                     ? new Dictionary<string, bool>(this.UnlockStates)
                     : new Dictionary<string, bool>(),
-                AllowUnauthenticatedSchemaFetch = this.AllowUnauthenticatedSchemaFetch,
                 DisplayPlatformKeyOverride = this.DisplayPlatformKeyOverride,
                 CreatedUtc = this.CreatedUtc,
                 LastModifiedUtc = this.LastModifiedUtc
