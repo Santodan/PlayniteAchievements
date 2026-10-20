@@ -61,6 +61,18 @@ namespace PlayniteAchievements.Models.Settings
             };
         }
 
+        public bool SameAs(MetadataChoices other)
+        {
+            return other != null &&
+                   Icons == other.Icons &&
+                   Categories == other.Categories &&
+                   CategoryMode == other.CategoryMode &&
+                   Rarity == other.Rarity &&
+                   CapstoneArt == other.CapstoneArt &&
+                   TrophyTypes == other.TrophyTypes &&
+                   Points == other.Points;
+        }
+
         public MetadataChoices Clone()
         {
             return new MetadataChoices
@@ -108,8 +120,11 @@ namespace PlayniteAchievements.Models.Settings
             set => SetValue(ref _metadataChoicesSeeded, value);
         }
 
-        /// <summary>The effective choices for a platform: its override where set, else the defaults.</summary>
-        public MetadataChoices ResolveMetadataChoices(string providerKey)
+        /// <summary>
+        /// The effective choices for a game: each field from the game's own choices where set,
+        /// else its platform's override, else the defaults.
+        /// </summary>
+        public MetadataChoices ResolveMetadataChoices(string providerKey, MetadataChoices game = null)
         {
             var defaults = MetadataDefaults ?? MetadataChoices.CreateDefaults();
             MetadataChoices platform = null;
@@ -118,16 +133,17 @@ namespace PlayniteAchievements.Models.Settings
                 MetadataPlatformChoices?.TryGetValue(providerKey, out platform);
             }
 
-            var categoriesFromPlatform = platform?.Categories != null;
+            // Categories and their mode come from the same level.
+            var categories = game?.Categories != null ? game : platform?.Categories != null ? platform : defaults;
             return new MetadataChoices
             {
-                Icons = platform?.Icons ?? defaults.Icons ?? string.Empty,
-                Categories = (categoriesFromPlatform ? platform.Categories : defaults.Categories) ?? string.Empty,
-                CategoryMode = (categoriesFromPlatform ? platform.CategoryMode : defaults.CategoryMode) ?? MetadataCategoryMode.Merge,
+                Icons = game?.Icons ?? platform?.Icons ?? defaults.Icons ?? string.Empty,
+                Categories = categories.Categories ?? string.Empty,
+                CategoryMode = categories.CategoryMode ?? MetadataCategoryMode.Merge,
                 Rarity = platform?.Rarity ?? defaults.Rarity ?? string.Empty,
-                CapstoneArt = platform?.CapstoneArt ?? defaults.CapstoneArt ?? string.Empty,
-                TrophyTypes = platform?.TrophyTypes ?? defaults.TrophyTypes ?? string.Empty,
-                Points = platform?.Points ?? defaults.Points ?? string.Empty
+                CapstoneArt = game?.CapstoneArt ?? platform?.CapstoneArt ?? defaults.CapstoneArt ?? string.Empty,
+                TrophyTypes = game?.TrophyTypes ?? platform?.TrophyTypes ?? defaults.TrophyTypes ?? string.Empty,
+                Points = game?.Points ?? platform?.Points ?? defaults.Points ?? string.Empty
             };
         }
 
