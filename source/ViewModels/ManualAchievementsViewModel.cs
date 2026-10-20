@@ -65,8 +65,6 @@ namespace PlayniteAchievements.ViewModels
         private ManualAchievementLink _lastSavedLink;
         private List<InheritedUnlockEntry> _pendingInheritedUnlocks;
 
-        private bool RequireExophaseAuthentication => ProviderRegistry.Settings<ManualSettings>().RequireExophaseAuthentication;
-
         private GameCustomDataStore GameCustomDataStore => PlayniteAchievementsPlugin.Instance?.GameCustomDataStore;
 
         private WizardStage _currentStage = WizardStage.Search;
@@ -596,10 +594,7 @@ namespace PlayniteAchievements.ViewModels
 
             try
             {
-                await ManualSourceAuthentication.EnsureAuthenticatedIfRequiredAsync(
-                    _source,
-                    RequireExophaseAuthentication,
-                    CancellationToken.None);
+                await ManualSourceAuthentication.EnsureAuthenticatedAsync(_source, CancellationToken.None);
             }
             catch (ManualSourceAuthenticationException ex)
             {
@@ -618,7 +613,6 @@ namespace PlayniteAchievements.ViewModels
                 SourceGameId = selectedResult.SourceGameId,
                 UnlockTimes = new Dictionary<string, DateTime?>(),
                 UnlockStates = new Dictionary<string, bool>(),
-                AllowUnauthenticatedSchemaFetch = ResolveAllowUnauthenticatedSchemaFetch(_source?.SourceKey),
                 CreatedUtc = DateTime.UtcNow,
                 LastModifiedUtc = DateTime.UtcNow
             };
@@ -805,11 +799,7 @@ namespace PlayniteAchievements.ViewModels
 
             try
             {
-                await ManualSourceAuthentication.EnsureAuthenticatedIfRequiredAsync(
-                    _source,
-                    RequireExophaseAuthentication,
-                    _existingLink,
-                    refreshCts.Token);
+                await ManualSourceAuthentication.EnsureAuthenticatedAsync(_source, refreshCts.Token);
 
                 _refreshService.RebuildProgress += OnRebuildProgress;
 
@@ -1182,16 +1172,6 @@ namespace PlayniteAchievements.ViewModels
             return string.IsNullOrWhiteSpace(_source.SourceName) ? _source.SourceKey : _source.SourceName;
         }
 
-        private bool? ResolveAllowUnauthenticatedSchemaFetch(string sourceKey)
-        {
-            if (string.Equals(sourceKey, "Exophase", StringComparison.OrdinalIgnoreCase))
-            {
-                return !RequireExophaseAuthentication;
-            }
-
-            return null;
-        }
-
         private void EnsureManualProviderEnabledForLinking()
         {
             try
@@ -1433,8 +1413,6 @@ namespace PlayniteAchievements.ViewModels
                 SourceGameId = SourceGameId,
                 UnlockTimes = new Dictionary<string, DateTime?>(),
                 UnlockStates = new Dictionary<string, bool>(),
-                AllowUnauthenticatedSchemaFetch = _existingLink?.AllowUnauthenticatedSchemaFetch
-                    ?? ResolveAllowUnauthenticatedSchemaFetch(_source?.SourceKey),
                 DisplayPlatformKeyOverride =
                     ManualDisplayPlatformResolver.NormalizeOverride(_displayPlatformKeyOverride),
                 CreatedUtc = _existingLink?.CreatedUtc ?? now,
