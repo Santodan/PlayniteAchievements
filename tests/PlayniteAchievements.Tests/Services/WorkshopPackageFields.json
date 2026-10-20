@@ -215,6 +215,7 @@
       }
     },
     "ManualAchievementLink": {
+      "AllowUnauthenticatedSchemaFetch": "value",
       "CreatedUtc": "value",
       "DisplayPlatformKeyOverride": "value",
       "LastModifiedUtc": "value",
