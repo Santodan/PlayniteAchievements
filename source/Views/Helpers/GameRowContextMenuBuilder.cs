@@ -43,9 +43,20 @@ namespace PlayniteAchievements.Views.Helpers
             // A row whose game was removed from Playnite (custom data left behind) keeps only the
             // Maintenance actions; refreshing or opening it has nothing to act on.
             var gameInLibrary = !hasPlayniteGameId || GameExists(playniteApi, menuGameId);
+            if (hasPlayniteGameId && gameInLibrary && openManageAchievements != null)
+            {
+                menu.Items.Add(CreateMenuItem(resourceOwner, "LOCPlayAch_Common_Manage", () =>
+                {
+                    if (TryGetGameId(data, out var gameId))
+                    {
+                        openManageAchievements(gameId);
+                    }
+                }));
+            }
+
             if (gameInLibrary)
             {
-                menu.Items.Add(CreateMenuItem(resourceOwner, "LOCPlayAch_Menu_RefreshGame",
+                menu.Items.Add(CreateMenuItem(resourceOwner, "LOCPlayAch_Button_Refresh",
                     () => ExecuteCommand(refreshGameCommand, data)));
             }
 
@@ -58,22 +69,11 @@ namespace PlayniteAchievements.Views.Helpers
                     playniteApi,
                     logger));
 
-                if (openManageAchievements != null)
-                {
-                    menu.Items.Add(CreateMenuItem(resourceOwner, "LOCPlayAch_Menu_ManageAchievements", () =>
-                    {
-                        if (TryGetGameId(data, out var gameId))
-                        {
-                            openManageAchievements(gameId);
-                        }
-                    }));
-                }
-
                 // User-earned scopes only (opted in by the caller); disabled when the game has no
                 // saved captures. Friend game rows never opt in.
                 if (includeViewCaptures && data is GameSummaryItem gameSummary && !(data is FriendGameSummaryItem))
                 {
-                    var captureItem = CreateMenuItem(resourceOwner, "LOCPlayAch_Menu_ViewCaptures",
+                    var captureItem = CreateMenuItem(resourceOwner, "LOCPlayAch_Column_Captures",
                         () => PlayniteAchievementsPlugin.Instance?.OpenCapturesViewer(gameSummary));
                     captureItem.IsEnabled = PlayniteAchievementsPlugin.Instance?.CaptureLibraryService?
                         .GameHasCaptures(gameSummary.GameName) == true;
