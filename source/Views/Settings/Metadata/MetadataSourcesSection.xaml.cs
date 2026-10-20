@@ -56,6 +56,7 @@ namespace PlayniteAchievements.Views.Settings.Metadata
         private const char ModeSeparator = '|';
 
         private readonly PlayniteAchievementsSettings _settings;
+        private readonly Action<MetadataChoices> _saveGame;
         private string _icons;
         private string _categories;
         private string _rarity;
@@ -63,12 +64,42 @@ namespace PlayniteAchievements.Views.Settings.Metadata
         private string _trophyTypes;
         private string _points;
 
+        /// <summary>The defaults row (null <paramref name="providerKey"/>) or a platform's row, saved to settings.</summary>
         internal MetadataChoiceRow(
             PlayniteAchievementsSettings settings,
             IReadOnlyList<IMetadataProvider> providers,
             string providerKey)
+            : this(
+                providers,
+                providerKey,
+                providerKey == null || MetadataChoices.ExophaseRarityProviders.Contains(providerKey),
+                providerKey == null
+                    ? settings.Persisted?.MetadataDefaults ?? MetadataChoices.CreateDefaults()
+                    : FindOverride(settings.Persisted, providerKey))
         {
             _settings = settings;
+        }
+
+        /// <summary>
+        /// One game's row: its "Default" follows the game's platform, and changes go to
+        /// <paramref name="save"/>. Rarity is chosen per platform only.
+        /// </summary>
+        internal MetadataChoiceRow(
+            IReadOnlyList<IMetadataProvider> providers,
+            string servicingProviderKey,
+            MetadataChoices stored,
+            Action<MetadataChoices> save)
+            : this(providers, servicingProviderKey ?? string.Empty, supportsRarity: false, stored)
+        {
+            _saveGame = save;
+        }
+
+        private MetadataChoiceRow(
+            IReadOnlyList<IMetadataProvider> providers,
+            string providerKey,
+            bool supportsRarity,
+            MetadataChoices stored)
+        {
             ProviderKey = providerKey;
             IsDefaults = providerKey == null;
             DisplayName = IsDefaults ? ResourceProvider.GetString("LOCDefault") : ProviderRegistry.GetLocalizedName(providerKey);
@@ -78,7 +109,7 @@ namespace PlayniteAchievements.Views.Settings.Metadata
                 ProviderIconKey = iconKey;
             }
 
-            SupportsRarity = IsDefaults || MetadataChoices.ExophaseRarityProviders.Contains(providerKey);
+            SupportsRarity = supportsRarity;
             IconOptions = BuildSourceOptions(providers, MetadataField.Icons, "LOCPlayAch_Settings_Metadata_Source_Own");
             CapstoneArtOptions = BuildSourceOptions(providers, MetadataField.CapstoneArt, "LOCPlayAch_Settings_Metadata_Source_Own");
             TrophyTypeOptions = BuildSourceOptions(providers, MetadataField.TrophyTypes, "LOCPlayAch_Settings_Metadata_Source_Own");
@@ -90,9 +121,6 @@ namespace PlayniteAchievements.Views.Settings.Metadata
                 new ChoiceOption(MetadataChoices.Exophase, ResourceProvider.GetString("LOCPlayAch_Provider_Exophase"))
             });
 
-            var stored = IsDefaults
-                ? settings.Persisted?.MetadataDefaults ?? MetadataChoices.CreateDefaults()
-                : FindOverride(settings.Persisted, providerKey);
             _icons = ToKey(stored?.Icons);
             _categories = ToCategoryKey(stored);
             _rarity = SupportsRarity ? ToKey(stored?.Rarity) : DefaultKey;
@@ -165,12 +193,6 @@ namespace PlayniteAchievements.Views.Settings.Metadata
 
         private void Save()
         {
-            var persisted = _settings.Persisted;
-            if (persisted == null)
-            {
-                return;
-            }
-
             var choices = new MetadataChoices
             {
                 Icons = FromKey(_icons),
@@ -180,6 +202,18 @@ namespace PlayniteAchievements.Views.Settings.Metadata
                 Points = FromKey(_points)
             };
             ApplyCategoryKey(choices, _categories);
+
+            if (_saveGame != null)
+            {
+                _saveGame(choices);
+                return;
+            }
+
+            var persisted = _settings?.Persisted;
+            if (persisted == null)
+            {
+                return;
+            }
 
             if (IsDefaults)
             {
