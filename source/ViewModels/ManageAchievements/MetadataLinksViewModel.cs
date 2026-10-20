@@ -132,6 +132,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
     public sealed class MetadataLinkRow : ObservableObject
     {
         private readonly MetadataLinksViewModel _owner;
+        private readonly string _linkedId;
         private string _input;
         private bool _isEnabled;
 
@@ -153,10 +154,17 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             _isEnabled = record == null || !record.IsNoMatch;
             StatusText = BuildStatus(record, coverage);
             HasLink = record != null && !record.IsNoMatch;
+            IsUserSet = HasLink && record.Origin == MetadataLinkOrigin.User;
+            _linkedId = record?.Id ?? string.Empty;
             ShowFixMatches = HasMatches &&
                              ((coverage != null && coverage.Matched < coverage.Total) || record?.Pairings?.Count > 0);
-            ApplyCommand = new RelayCommand(_ => owner.Apply(this));
-            ClearCommand = new RelayCommand(_ => owner.Clear(this), _ => HasLink);
+            // Apply pins a new id; an empty box no longer stops matching, the Enabled switch does.
+            ApplyCommand = new RelayCommand(
+                _ => owner.Apply(this),
+                _ => IsEnabled &&
+                     !string.IsNullOrWhiteSpace(Input) &&
+                     !string.Equals(Input.Trim(), _linkedId, StringComparison.OrdinalIgnoreCase));
+            ClearCommand = new RelayCommand(_ => owner.Clear(this), _ => IsUserSet);
             OpenMatchesCommand = new RelayCommand(_ => owner.OpenMatches(this), _ => HasMatches);
         }
 
@@ -171,6 +179,9 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         public bool HasStatus => !string.IsNullOrEmpty(StatusText);
 
         public bool HasLink { get; }
+
+        /// <summary>The link was entered by the user, so Reset can hand it back to matching.</summary>
+        public bool IsUserSet { get; }
 
         /// <summary>The source's list and matches from the last refresh; null before one, or for a capstone-only source.</summary>
         internal MetadataSourceSnapshot Snapshot { get; }
