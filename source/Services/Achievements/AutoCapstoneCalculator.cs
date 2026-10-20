@@ -15,13 +15,15 @@ namespace PlayniteAchievements.Services.Achievements
             DateTime? unlockTimeUtc,
             double? globalPercentUnlocked,
             string rarity,
-            string category)
+            string category,
+            string categoryType = null)
         {
             Unlocked = unlocked;
             UnlockTimeUtc = unlockTimeUtc;
             GlobalPercentUnlocked = globalPercentUnlocked;
             Rarity = rarity;
             Category = category;
+            CategoryType = categoryType;
         }
 
         /// <summary>True once every achievement the capstone stands for is unlocked.</summary>
@@ -49,6 +51,13 @@ namespace PlayniteAchievements.Services.Achievements
         /// somewhere of your own choosing sticks.
         /// </remarks>
         public string Category { get; }
+
+        /// <summary>
+        /// The group type (Base, DLC, Subset) everything the capstone stands for carries, so the
+        /// capstone groups with them wherever achievements are split by type. Null when they carry
+        /// none, which leaves it in the default type alongside them.
+        /// </summary>
+        public string CategoryType { get; }
     }
 
     /// <summary>
@@ -151,6 +160,18 @@ namespace PlayniteAchievements.Services.Achievements
             return labels.Any(IsDefaultCategory) ? new List<string>() : labels;
         }
 
+        /// <summary>
+        /// The group type most of the scope carries, without Update: SteamHunters types post-launch
+        /// groups Base|Update, and the capstone stands for the base game rather than an update.
+        /// </summary>
+        private static string ResolveSharedGroupType(List<AchievementDetail> scope)
+        {
+            var group = AchievementCategoryTypeHelper
+                .ResolveDominantGroupType(scope.Select(achievement => achievement.CategoryType))
+                .Where(value => !string.Equals(value, UpdateCategoryType, StringComparison.OrdinalIgnoreCase));
+            return AchievementCategoryTypeHelper.Combine(group);
+        }
+
         private static bool IsDefaultCategory(string label)
         {
             return string.Equals(label, AchievementCategoryTypeHelper.DefaultCategoryLabel, StringComparison.OrdinalIgnoreCase);
@@ -221,7 +242,8 @@ namespace PlayniteAchievements.Services.Achievements
                 unlockTimeUtc == default(DateTime) ? (DateTime?)null : unlockTimeUtc,
                 rarest,
                 rarest.HasValue ? PercentRarityHelper.GetRarityTier(rarest.Value).ToString() : null,
-                ResolveSharedCategory(scope));
+                ResolveSharedCategory(scope),
+                ResolveSharedGroupType(scope));
         }
 
         /// <summary>
