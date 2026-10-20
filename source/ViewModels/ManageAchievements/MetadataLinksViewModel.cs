@@ -5,6 +5,7 @@ using System.Linq;
 using System.Windows.Input;
 using Playnite.SDK;
 using PlayniteAchievements.Models.Achievements;
+using PlayniteAchievements.Models.Settings;
 using PlayniteAchievements.Providers.Metadata;
 using PlayniteAchievements.Services;
 using PlayniteAchievements.Services.Metadata;
@@ -27,6 +28,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         private readonly Func<IReadOnlyList<IMetadataProvider>> _providers;
         private readonly Func<Guid, IReadOnlyList<AchievementDetail>> _achievements;
         private readonly Func<string> _gameName;
+        private readonly Func<PersistedSettings> _settings;
         private readonly Action _onChanged;
 
         internal MetadataLinksViewModel(
@@ -34,13 +36,54 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             Func<IReadOnlyList<IMetadataProvider>> providers,
             Func<Guid, IReadOnlyList<AchievementDetail>> achievements,
             Func<string> gameName,
+            Func<PersistedSettings> settings,
             Action onChanged)
         {
             _store = store;
             _providers = providers;
             _achievements = achievements;
             _gameName = gameName;
+            _settings = settings;
             _onChanged = onChanged;
+        }
+
+        /// <summary>
+        /// What a source supplies to this game under its platform's Sources settings, as the
+        /// Sources grid names the fields ("Icons, Auto Capstone"); empty when nothing.
+        /// </summary>
+        private static string DescribeSupplies(MetadataChoices choices, IMetadataProvider provider)
+        {
+            if (choices == null || provider == null)
+            {
+                return string.Empty;
+            }
+
+            bool Uses(string chosen, MetadataField field) =>
+                (provider.SupportedFields & field) == field &&
+                string.Equals(chosen, provider.Key, StringComparison.OrdinalIgnoreCase);
+
+            var fields = new List<string>();
+            if (Uses(choices.Icons, MetadataField.Icons))
+            {
+                fields.Add(ResourceProvider.GetString("LOCPlayAch_ManageAchievements_Tab_CustomIcons"));
+            }
+
+            if (Uses(choices.Categories, MetadataField.Categories))
+            {
+                fields.Add(ResourceProvider.GetString("LOCPlayAch_ManageAchievements_Tab_Category"));
+            }
+
+            if (Uses(choices.Rarity, MetadataField.Rarity))
+            {
+                fields.Add(ResourceProvider.GetString("LOCPlayAch_Column_Rarity"));
+            }
+
+            if (Uses(choices.CapstoneArt, MetadataField.CapstoneArt))
+            {
+                fields.Add(ResourceProvider.GetString("LOCPlayAch_ManageAchievements_Custom_AutoCapstone"));
+            }
+
+            return string.Join(", ", fields);
         }
 
         public ObservableCollection<MetadataLinkRow> Rows { get; } = new ObservableCollection<MetadataLinkRow>();
@@ -53,6 +96,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             var store = _store?.Invoke();
             if (gameId != Guid.Empty && store != null)
             {
+                var choices = _settings?.Invoke()?.ResolveMetadataChoices(servicingProviderKey);
                 foreach (var provider in (_providers?.Invoke() ?? Array.Empty<IMetadataProvider>())
                     .Where(provider => !provider.IsNativeFor(servicingProviderKey)))
                 {
@@ -63,6 +107,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                         provider.Key,
                         ResourceProvider.GetString(provider.DisplayNameKey),
                         provider.LinkPlaceholder,
+                        DescribeSupplies(choices, provider),
                         record,
                         store.GetCoverage(gameId, provider.Key),
                         record == null || record.IsNoMatch ? null : store.Snapshots?.Get(gameId, provider.Key, record.Id)));
@@ -157,11 +202,13 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             string sourceName,
             string linkedId,
             string placeholder,
+            string supplies,
             Action<string> apply,
             Action reset)
         {
             SourceName = sourceName;
             Placeholder = placeholder;
+            Supplies = supplies ?? string.Empty;
             _linkedId = (linkedId ?? string.Empty).Trim();
             _input = _linkedId;
             _isEnabled = true;
@@ -182,6 +229,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             string sourceKey,
             string sourceName,
             string placeholder,
+            string supplies,
             MetadataLinkRecord record,
             MetadataCoverage coverage,
             MetadataSourceSnapshot snapshot)
@@ -191,6 +239,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             SourceKey = sourceKey;
             SourceName = string.IsNullOrWhiteSpace(sourceName) ? sourceKey : sourceName;
             Placeholder = placeholder;
+            Supplies = supplies ?? string.Empty;
             HasEnabledSwitch = true;
             Snapshot = snapshot;
             _input = record?.Id ?? string.Empty;
@@ -219,6 +268,11 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
 
         /// <summary>The shape of the id the box takes, shown while it is empty.</summary>
         public string Placeholder { get; }
+
+        /// <summary>What the source adds to this game ("Icons, Auto Capstone"); empty when nothing.</summary>
+        public string Supplies { get; }
+
+        public bool HasSupplies => !string.IsNullOrEmpty(Supplies);
 
         /// <summary>A metadata source the user can turn off for this game.</summary>
         public bool HasEnabledSwitch { get; }
