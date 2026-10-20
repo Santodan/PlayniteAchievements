@@ -470,6 +470,8 @@ namespace PlayniteAchievements.Tests.Services
 
             public string DisplayNameKey => Key;
 
+            public string LinkPlaceholder => string.Empty;
+
             public MetadataField SupportedFields { get; }
 
             /// <summary>The category mode the test's settings choose for this source.</summary>
