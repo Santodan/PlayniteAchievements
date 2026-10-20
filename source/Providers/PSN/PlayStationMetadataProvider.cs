@@ -144,9 +144,16 @@ namespace PlayniteAchievements.Providers.PSN
                 }
             }
 
+            // Each game lists its own subset of languages; one it lacks falls back to English.
             var language = ExophaseGamePageParser.TrophyLanguageCode(_settings?.Persisted?.GlobalLanguage);
-            var url = ExophaseGamePageParser.BuildTrophyPageUrl(slug, language);
-            var page = await _exophase.FetchAchievementsWithHtmlAsync(url, null, ct).ConfigureAwait(false);
+            var page = await _exophase.FetchAchievementsWithHtmlAsync(
+                ExophaseGamePageParser.BuildTrophyPageUrl(slug, language), null, ct).ConfigureAwait(false);
+            if (language != null && !(page?.Achievements?.Count > 0))
+            {
+                page = await _exophase.FetchAchievementsWithHtmlAsync(
+                    ExophaseGamePageParser.BuildTrophyPageUrl(slug, null), null, ct).ConfigureAwait(false);
+            }
+
             lock (_pages)
             {
                 _pages[slug] = page;
