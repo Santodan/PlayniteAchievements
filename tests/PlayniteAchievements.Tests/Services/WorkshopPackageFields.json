@@ -148,6 +148,7 @@
       "Kind": "value",
       "ManualCapstoneApiName": "value",
       "ManualLink": "ManualAchievementLink",
+      "MetadataChoices": "MetadataChoices",
       "MetadataLinks": {
         "map": "MetadataLinkData"
       },
@@ -227,6 +228,15 @@
       "UnlockTimes": {
         "map": "value"
       }
+    },
+    "MetadataChoices": {
+      "CapstoneArt": "value",
+      "Categories": "value",
+      "CategoryMode": "value",
+      "Icons": "value",
+      "Points": "value",
+      "Rarity": "value",
+      "TrophyTypes": "value"
     },
     "MetadataLinkData": {
       "Id": "value",
