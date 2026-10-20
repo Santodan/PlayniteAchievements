@@ -96,7 +96,8 @@ namespace PlayniteAchievements.Services.Images
             CancellationToken cancel,
             Action<int, int> onIconProgress = null,
             bool forceRefreshExistingTargets = false,
-            ISet<string> forceOverrideApiNames = null)
+            ISet<string> forceOverrideApiNames = null,
+            ISet<string> onlyApiNames = null)
         {
             if (data?.Achievements == null || data.Achievements.Count == 0)
             {
@@ -105,13 +106,24 @@ namespace PlayniteAchievements.Services.Images
 
             var useSeparateLockedIcons = GameCustomDataLookup.ShouldUseSeparateLockedIcons(data?.PlayniteGameId, Persisted);
             var gameId = ResolveGameId(data);
+            // File names are chosen across the whole game so colliding names stay apart, even when
+            // only some achievements are downloaded.
             var fileStems = AchievementIconCachePathBuilder.BuildFileStems(
                 data.Achievements.Select(achievement => achievement?.ApiName));
+            IReadOnlyList<AchievementDetail> targets = onlyApiNames == null
+                ? (IReadOnlyList<AchievementDetail>)data.Achievements
+                : data.Achievements
+                    .Where(achievement => achievement?.ApiName != null && onlyApiNames.Contains(achievement.ApiName.Trim()))
+                    .ToList();
+            if (targets.Count == 0)
+            {
+                return;
+            }
 
             // Normalize the effective icon sources once here so request building only downloads
             // the paths that can actually be used for display and persistence.
             await PrepareSourcePathsAsync(
-                    data.Achievements,
+                    targets,
                     fileStems,
                     gameId,
                     useSeparateLockedIcons,
@@ -123,7 +135,7 @@ namespace PlayniteAchievements.Services.Images
                 .ConfigureAwait(false);
 
             await PopulateAchievementIconsCoreAsync(
-                    data.Achievements,
+                    targets,
                     fileStems,
                     gameId,
                     buildLockedRequests: true,
@@ -1076,7 +1088,7 @@ namespace PlayniteAchievements.Services.Images
             return string.IsNullOrWhiteSpace(normalized) ? null : normalized;
         }
 
-        private static bool IsHttpIconPath(string iconPath)
+        internal static bool IsHttpIconPath(string iconPath)
         {
             return !string.IsNullOrWhiteSpace(iconPath) &&
                    (iconPath.StartsWith("http://", StringComparison.OrdinalIgnoreCase) ||
