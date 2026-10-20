@@ -64,6 +64,13 @@ namespace PlayniteAchievements.Services.Metadata
         /// <summary>ApiNames of the achievements whose icons came from <see cref="IconSourceKey"/>.</summary>
         [JsonProperty("iconApiNames")]
         public List<string> IconApiNames { get; set; }
+
+        /// <summary>
+        /// ApiNames among <see cref="IconApiNames"/> whose borrowed icon failed to download, so the
+        /// cached file holds the game's own icon until a later download succeeds.
+        /// </summary>
+        [JsonProperty("iconFallbackApiNames")]
+        public List<string> IconFallbackApiNames { get; set; }
     }
 
     /// <summary>One source's match count for a game at its last overlay.</summary>
@@ -372,13 +379,64 @@ namespace PlayniteAchievements.Services.Metadata
                         CapstoneTitle = art == null ? null : title,
                         CapstoneDescription = art == null ? null : description,
                         Coverage = counts,
-                        IconApiNames = borrowed?.Count > 0 ? borrowed : null
+                        IconApiNames = borrowed?.Count > 0 ? borrowed : null,
+                        // Still the files' state while the borrowed set is unchanged; a changed set
+                        // overwrites every file anyway.
+                        IconFallbackApiNames = iconChanged ? null : previous?.IconFallbackApiNames
                     };
                 }
             }
 
             Save();
             return iconChanged;
+        }
+
+        /// <summary>The borrowed icons that fell back to the game's own at the last refresh.</summary>
+        public IReadOnlyCollection<string> GetIconFallbacks(Guid gameId)
+        {
+            lock (_sync)
+            {
+                return _applied.TryGetValue(gameId, out var state) && state?.IconFallbackApiNames != null
+                    ? state.IconFallbackApiNames.ToList()
+                    : (IReadOnlyCollection<string>)Array.Empty<string>();
+            }
+        }
+
+        /// <summary>
+        /// Records which borrowed icons fell back to the game's own because their download failed,
+        /// returning the ones recorded before.
+        /// </summary>
+        public IReadOnlyCollection<string> ReplaceIconFallbacks(Guid gameId, IEnumerable<string> apiNames)
+        {
+            var next = (apiNames ?? Enumerable.Empty<string>())
+                .Where(apiName => !string.IsNullOrWhiteSpace(apiName))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .OrderBy(apiName => apiName, StringComparer.OrdinalIgnoreCase)
+                .ToList();
+            if (gameId == Guid.Empty)
+            {
+                return Array.Empty<string>();
+            }
+
+            List<string> previous;
+            lock (_sync)
+            {
+                if (!_applied.TryGetValue(gameId, out var state) || state == null)
+                {
+                    return Array.Empty<string>();
+                }
+
+                previous = state.IconFallbackApiNames ?? new List<string>();
+                if (previous.SequenceEqual(next, StringComparer.OrdinalIgnoreCase))
+                {
+                    return previous;
+                }
+
+                state.IconFallbackApiNames = next.Count > 0 ? next : null;
+            }
+
+            Save();
+            return previous;
         }
 
         /// <summary>A source's match count for the game at the last overlay, or null when it did not run.</summary>

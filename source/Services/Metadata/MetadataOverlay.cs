@@ -63,6 +63,8 @@ namespace PlayniteAchievements.Services.Metadata
         private readonly object _sessionSync = new object();
         private readonly Dictionary<string, Task<bool>> _sessions =
             new Dictionary<string, Task<bool>>(StringComparer.OrdinalIgnoreCase);
+        private readonly System.Collections.Concurrent.ConcurrentDictionary<Guid, Dictionary<string, OwnIconPaths>> _ownIcons =
+            new System.Collections.Concurrent.ConcurrentDictionary<Guid, Dictionary<string, OwnIconPaths>>();
 
         internal MetadataOverlayRun(
             IReadOnlyList<IMetadataProvider> providers,
@@ -109,8 +111,13 @@ namespace PlayniteAchievements.Services.Metadata
                 }
             }
 
-            var borrowedIconApiNames = new List<string>();
-            var iconSource = ApplyIcons(plan.IconKeys, sets, borrowedIconApiNames);
+            var ownIcons = new Dictionary<string, OwnIconPaths>(StringComparer.OrdinalIgnoreCase);
+            var iconSource = ApplyIcons(plan.IconKeys, sets, ownIcons);
+            var borrowedIconApiNames = ownIcons.Keys.ToList();
+            if (ownIcons.Count > 0)
+            {
+                _ownIcons[gameId] = ownIcons;
+            }
             ApplyCategories(plan.CategoryKeys, plan.CategoryMode, sets);
             var capstone = ResolveCapstone(plan.CapstoneArtKeys, sets);
             var capstoneArt = FirstNonBlank(capstone?.UnlockedIconPath, capstone?.LockedIconPath);
@@ -147,6 +154,75 @@ namespace PlayniteAchievements.Services.Metadata
                 borrowedIconApiNames,
                 capstone?.DisplayName,
                 capstone?.Description) ?? false;
+        }
+
+        /// <summary>
+        /// After the game's icon download: the borrowed icons that fell back to the game's own on an
+        /// earlier refresh get their borrowed source back, because their files still hold the own
+        /// icon and a download that reuses files would keep it. Returns their ApiNames, to download
+        /// again with files overwritten.
+        /// </summary>
+        public ISet<string> ResetEarlierIconFallbacks(GameAchievementData data)
+        {
+            var reset = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var gameId = data?.PlayniteGameId ?? Guid.Empty;
+            if (gameId == Guid.Empty || data.Achievements == null || !_ownIcons.TryGetValue(gameId, out var ownIcons))
+            {
+                return reset;
+            }
+
+            var earlier = new HashSet<string>(_links?.GetIconFallbacks(gameId) ?? Array.Empty<string>(), StringComparer.OrdinalIgnoreCase);
+            foreach (var achievement in data.Achievements)
+            {
+                if (achievement?.ApiName == null ||
+                    !earlier.Contains(achievement.ApiName) ||
+                    !ownIcons.TryGetValue(achievement.ApiName, out var paths))
+                {
+                    continue;
+                }
+
+                achievement.UnlockedIconPath = paths.BorrowedUnlocked;
+                achievement.LockedIconPath = paths.BorrowedLocked;
+                reset.Add(achievement.ApiName);
+            }
+
+            return reset;
+        }
+
+        /// <summary>
+        /// Puts the game's own icons back on each achievement whose borrowed icon did not download,
+        /// so it shows what it would without the source, and records them so a later refresh tries
+        /// the borrowed icon again. Call once per game, after its icon downloads. Returns the
+        /// ApiNames put back, to download with files overwritten.
+        /// </summary>
+        public ISet<string> RestoreOwnIconsWhereDownloadFailed(GameAchievementData data, Func<string, bool> isUndownloaded)
+        {
+            var restored = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var gameId = data?.PlayniteGameId ?? Guid.Empty;
+            if (gameId == Guid.Empty || data.Achievements == null)
+            {
+                return restored;
+            }
+
+            if (_ownIcons.TryRemove(gameId, out var ownIcons))
+            {
+                foreach (var achievement in data.Achievements)
+                {
+                    if (achievement?.ApiName == null ||
+                        !ownIcons.TryGetValue(achievement.ApiName, out var paths) ||
+                        !isUndownloaded(achievement.UnlockedIconPath))
+                    {
+                        continue;
+                    }
+
+                    achievement.UnlockedIconPath = paths.Unlocked;
+                    achievement.LockedIconPath = paths.Locked;
+                    restored.Add(achievement.ApiName);
+                }
+            }
+
+            _links?.ReplaceIconFallbacks(gameId, restored);
+            return restored;
         }
 
         public void Dispose()
@@ -377,12 +453,12 @@ namespace PlayniteAchievements.Services.Metadata
 
         /// <summary>
         /// Replaces each achievement's icons with the first preferred source that matched it,
-        /// adding the ApiName of each one replaced to <paramref name="replacedApiNames"/>.
+        /// keeping each replaced achievement's own icons in <paramref name="ownIcons"/> by ApiName.
         /// </summary>
         private static string ApplyIcons(
             IReadOnlyList<string> keys,
             IReadOnlyDictionary<string, MatchedSet> sets,
-            ICollection<string> replacedApiNames)
+            IDictionary<string, OwnIconPaths> ownIcons)
         {
             string firstApplied = null;
             var done = new HashSet<AchievementDetail>();
@@ -401,11 +477,18 @@ namespace PlayniteAchievements.Services.Metadata
                         continue;
                     }
 
+                    var own = new OwnIconPaths
+                    {
+                        Unlocked = match.Target.UnlockedIconPath,
+                        Locked = match.Target.LockedIconPath
+                    };
                     match.Target.UnlockedIconPath = unlocked;
                     match.Target.LockedIconPath = string.IsNullOrWhiteSpace(match.Source.LockedIconPath)
                         ? null
                         : match.Source.LockedIconPath;
-                    replacedApiNames.Add(match.Target.ApiName);
+                    own.BorrowedUnlocked = match.Target.UnlockedIconPath;
+                    own.BorrowedLocked = match.Target.LockedIconPath;
+                    ownIcons[match.Target.ApiName] = own;
                     firstApplied = firstApplied ?? key;
                 }
             }
@@ -510,6 +593,18 @@ namespace PlayniteAchievements.Services.Metadata
             public AchievementSourceSet Set { get; }
 
             public List<AchievementMatch> Matches { get; }
+        }
+
+        /// <summary>An achievement's icons as its own provider gave them, and the source's that replaced them.</summary>
+        private sealed class OwnIconPaths
+        {
+            public string Unlocked { get; set; }
+
+            public string Locked { get; set; }
+
+            public string BorrowedUnlocked { get; set; }
+
+            public string BorrowedLocked { get; set; }
         }
 
         private sealed class OverlayPlan
