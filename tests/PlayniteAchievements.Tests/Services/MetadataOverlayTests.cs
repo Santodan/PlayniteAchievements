@@ -69,6 +69,46 @@ namespace PlayniteAchievements.Tests.Services
         }
 
         [TestMethod]
+        public async Task GameChoices_OptInAndOutOverThePlatform()
+        {
+            var playstation = new FakeSource("PlayStation", MetadataField.Icons | MetadataField.TrophyTypes);
+            var gold = Row("p1", "Dragon Slayer", icon: "https://psn/dragon.png");
+            gold.TrophyType = "gold";
+            playstation.Rows.Add(gold);
+            var data = Game("Steam", Row("ACH_DRAGON", "Dragon Slayer", icon: "steam.png"));
+            // The platform takes PlayStation trophy types but not its icons.
+            var overlay = Overlay(new[] { playstation }, Choices(trophyTypes: "PlayStation"));
+            var gameId = data.PlayniteGameId.Value;
+
+            Assert.IsTrue(overlay.Links.SetChoices(gameId, new MetadataChoices { Icons = "PlayStation", TrophyTypes = string.Empty }));
+            using (var run = overlay.BeginRun())
+            {
+                await run.ApplyAsync(data.Game, data, CancellationToken.None);
+            }
+
+            Assert.AreEqual("https://psn/dragon.png", data.Achievements[0].UnlockedIconPath, "The game opts in to PlayStation icons.");
+            Assert.IsNull(data.Achievements[0].TrophyType, "The game's Own trophy types win over the platform's.");
+
+            Assert.IsTrue(overlay.Links.SetChoices(gameId, new MetadataChoices()));
+            Assert.IsNull(overlay.Links.GetChoices(gameId), "Empty choices follow the platform again.");
+        }
+
+        [TestMethod]
+        public void GameChoices_TravelInPortableData()
+        {
+            var file = new GameCustomDataFile
+            {
+                PlayniteGameId = Guid.NewGuid(),
+                MetadataChoices = new MetadataChoices { Icons = "PlayStation", Points = "Xbox" }
+            };
+
+            var restored = GameCustomDataFile.FromPortable(file.ToPortable(), file.PlayniteGameId, null, null);
+
+            Assert.IsTrue(file.MetadataChoices.SameAs(restored.MetadataChoices));
+            Assert.IsTrue(GameCustomDataNormalizer.HasPortableData(file.ToPortable()));
+        }
+
+        [TestMethod]
         public async Task CategoryArt_IsSavedOnlyForCategoriesTheSourceGave()
         {
             var source = new FakeSource("SteamHunters", MetadataField.Categories)
