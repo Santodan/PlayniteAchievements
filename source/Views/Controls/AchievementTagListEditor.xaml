@@ -75,7 +75,7 @@
                     </DataGridTemplateColumn>
 
                     <!-- An ordinary button like the color's Pick and Reset: the icon when one is set,
-                         None otherwise. -->
+                         a dimmed tag otherwise. -->
                     <DataGridTemplateColumn Width="Auto" IsReadOnly="True">
                         <DataGridTemplateColumn.CellTemplate>
                             <DataTemplate>
@@ -85,18 +85,23 @@
                                         Margin="4,0"
                                         VerticalAlignment="Center">
                                     <Grid>
-                                        <TextBlock Text="{DynamicResource LOCNone}"
-                                                   Opacity="{StaticResource PlayAch.Opacity.Hint}">
-                                            <TextBlock.Style>
-                                                <Style TargetType="TextBlock">
+                                        <local:GlyphIcon Glyph="&#xF004;"
+                                                         FontFamily="{DynamicResource PlayAch.FontFamily.Icon}"
+                                                         Size="16"
+                                                         Foreground="{DynamicResource PlayAch.Brush.Text}"
+                                                         HorizontalAlignment="Center"
+                                                         VerticalAlignment="Center"
+                                                         Opacity="{StaticResource PlayAch.Opacity.Hint}">
+                                            <local:GlyphIcon.Style>
+                                                <Style TargetType="local:GlyphIcon">
                                                     <Style.Triggers>
                                                         <DataTrigger Binding="{Binding HasGlyph}" Value="True">
                                                             <Setter Property="Visibility" Value="Collapsed"/>
                                                         </DataTrigger>
                                                     </Style.Triggers>
                                                 </Style>
-                                            </TextBlock.Style>
-                                        </TextBlock>
+                                            </local:GlyphIcon.Style>
+                                        </local:GlyphIcon>
                                         <local:GlyphIcon Glyph="{Binding Glyph}"
                                                          FontFamily="{DynamicResource PlayAch.FontFamily.Icon}"
                                                          Size="16"
@@ -130,22 +135,44 @@
                             <DataTemplate>
                                 <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="8,0,4,0">
                                     <Grid Width="22" Height="22" VerticalAlignment="Center">
-                                        <Rectangle Stroke="{DynamicResource PlayAch.Brush.Text}"
-                                                   StrokeThickness="1"
-                                                   StrokeDashArray="2 2"
-                                                   Opacity="{StaticResource PlayAch.Opacity.Hint}"/>
+                                        <!-- No color: an empty swatch struck through, the usual "none" mark. -->
+                                        <Border BorderBrush="{DynamicResource PlayAch.Brush.Border}"
+                                                BorderThickness="{StaticResource PlayAch.Thickness.Border}"
+                                                ClipToBounds="True">
+                                            <Line X1="0" Y1="20" X2="20" Y2="0"
+                                                  Stroke="{DynamicResource PlayAch.Brush.ErrorText}"
+                                                  StrokeThickness="1.5"/>
+                                        </Border>
                                         <Border Background="{Binding Brush}"
                                                 BorderBrush="{DynamicResource PlayAch.Brush.Border}"
                                                 BorderThickness="{StaticResource PlayAch.Thickness.Border}"
                                                 Visibility="{Binding HasColor, Converter={StaticResource TagEditorBoolToVisibility}}"/>
                                     </Grid>
-                                    <TextBox Text="{Binding ColorText, UpdateSourceTrigger=LostFocus}"
-                                             Width="90"
-                                             Margin="8,0,0,0"
-                                             VerticalAlignment="Center"
-                                             VerticalContentAlignment="Center"
-                                             Padding="6,3"
-                                             KeyDown="CommitOnEnter_KeyDown"/>
+                                    <!-- Blank means the default color, which the dimmed placeholder says. -->
+                                    <Grid Width="90" Margin="8,0,0,0" VerticalAlignment="Center">
+                                        <TextBox x:Name="HexBox"
+                                                 Text="{Binding ColorText, UpdateSourceTrigger=LostFocus}"
+                                                 VerticalContentAlignment="Center"
+                                                 Padding="6,3"
+                                                 KeyDown="CommitOnEnter_KeyDown"/>
+                                        <TextBlock Text="{DynamicResource LOCDefault}"
+                                                   Margin="9,0,0,0"
+                                                   VerticalAlignment="Center"
+                                                   IsHitTestVisible="False"
+                                                   Foreground="{DynamicResource PlayAch.Brush.Text}"
+                                                   Opacity="{StaticResource PlayAch.Opacity.Hint}">
+                                            <TextBlock.Style>
+                                                <Style TargetType="TextBlock">
+                                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding Text, ElementName=HexBox}" Value="">
+                                                            <Setter Property="Visibility" Value="Visible"/>
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </TextBlock.Style>
+                                        </TextBlock>
+                                    </Grid>
                                     <Button Content="{DynamicResource LOCPlayAch_Button_Pick}"
                                             Command="{Binding PickColorCommand}"
                                             Margin="8,0,0,0"
