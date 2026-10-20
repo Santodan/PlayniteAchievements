@@ -1374,7 +1374,6 @@ namespace PlayniteAchievements.Services.GameCustomData
                 SourceGameId = normalizedSourceGameId,
                 UnlockStates = compactStates,
                 UnlockTimes = compactTimes,
-                AllowUnauthenticatedSchemaFetch = link.AllowUnauthenticatedSchemaFetch,
                 DisplayPlatformKeyOverride = NormalizeString(link.DisplayPlatformKeyOverride),
                 CreatedUtc = createdUtc,
                 LastModifiedUtc = lastModifiedUtc
