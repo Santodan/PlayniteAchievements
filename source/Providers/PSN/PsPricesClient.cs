@@ -21,7 +21,6 @@ namespace PlayniteAchievements.Providers.PSN
         private const int ChallengePollMs = 500;
         private const int RequestGapMs = 1000;
         private const int MaxGamePagesPerSearch = 4;
-        private const int MaxRelatedPages = 8;
 
         private readonly OffscreenViewLeaseSource _views;
         private readonly ILogger _logger;
@@ -103,38 +102,13 @@ namespace PlayniteAchievements.Providers.PSN
             return Array.Empty<string>();
         }
 
-        /// <summary>
-        /// Game pages of PlayStation results whose title starts with <paramref name="baseName"/>, for
-        /// trophy sets sold separately from the base game: DLC lists and collection parts.
-        /// </summary>
-        public async Task<IReadOnlyList<string>> FindRelatedGamePagePathsAsync(string baseName, CancellationToken ct)
-        {
-            var prefix = GameNameNormalizer.ToLooseKey(baseName);
-            if (prefix.Length == 0 || _views == null)
-            {
-                return Array.Empty<string>();
-            }
-
-            var related = await FindAsync(
-                baseName,
-                title =>
-                {
-                    var key = GameNameNormalizer.ToLooseKey(title);
-                    return key == prefix || key.StartsWith(prefix + " ", StringComparison.Ordinal);
-                },
-                ct,
-                MaxRelatedPages).ConfigureAwait(false);
-            _logger?.Debug($"[PsPrices] '{baseName}': {related.Count} related PlayStation results.");
-            return related;
-        }
-
-        private async Task<List<string>> FindAsync(string query, Func<string, bool> accepts, CancellationToken ct, int take = MaxGamePagesPerSearch)
+        private async Task<List<string>> FindAsync(string query, Func<string, bool> accepts, CancellationToken ct)
         {
             return (await SearchAsync(query, ct).ConfigureAwait(false))
                 .Where(result => result.IsPlayStation && accepts(result.Title))
                 .OrderBy(result => result.IsPs5 ? 0 : 1)
                 .Select(result => result.Path)
-                .Take(take)
+                .Take(MaxGamePagesPerSearch)
                 .ToList();
         }
 
