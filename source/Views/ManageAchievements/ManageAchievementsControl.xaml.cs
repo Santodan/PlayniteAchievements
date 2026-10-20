@@ -372,6 +372,10 @@ namespace PlayniteAchievements.Views.ManageAchievements
                 }
             }
 
+            // The editor holds back background capstone writes only while it shows; on another
+            // tab they land at once, and the editor reloads from them when it shows again.
+            _editorViewModel?.SetVisible(_viewModel.SelectedTab == ManageAchievementsTab.Editor);
+
             // Tabs stay lazy: only the selected one is built. Building the editor with the
             // window was tried and rejected - it put its construction and layout into every
             // open, including the ones that never touch it. The cost belongs on the click; the
