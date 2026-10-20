@@ -53,7 +53,27 @@ namespace PlayniteAchievements.Views.Settings.Notifications
             {
                 _providerOverridesViewModel?.RefreshProviderAppearance();
             }
+
+            if (string.IsNullOrEmpty(e?.PropertyName) || InheritedGlobals.Contains(e.PropertyName))
+            {
+                _providerOverridesViewModel?.RefreshInherited();
+            }
         }
+
+        // The global switches the grid's "Default" cells stand for.
+        private static readonly System.Collections.Generic.HashSet<string> InheritedGlobals =
+            new System.Collections.Generic.HashSet<string>
+            {
+                nameof(PersistedSettings.EnableUnlockToasts),
+                nameof(PersistedSettings.EnableFriendUnlockToasts),
+                nameof(PersistedSettings.EnableProgressToasts),
+                nameof(PersistedSettings.UnlockScreenshotClean),
+                nameof(PersistedSettings.UnlockScreenshotWithToast),
+                nameof(PersistedSettings.UnlockScreenshotFramed),
+                nameof(PersistedSettings.UnlockRecordingClean),
+                nameof(PersistedSettings.UnlockRecordingWithToast),
+                nameof(PersistedSettings.UnlockRecordingFramed)
+            };
 
         public void Dispose()
         {

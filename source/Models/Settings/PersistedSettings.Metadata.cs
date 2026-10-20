@@ -14,6 +14,7 @@ namespace PlayniteAchievements.Models.Settings
         public const string SteamHunters = "SteamHunters";
         public const string Exophase = "Exophase";
         public const string PlayStation = "PlayStation";
+        public const string Xbox = "Xbox";
 
         /// <summary>Platforms whose scanners can take rarity from Exophase.</summary>
         public static readonly IReadOnlyCollection<string> ExophaseRarityProviders =
@@ -21,6 +22,31 @@ namespace PlayniteAchievements.Models.Settings
             {
                 "Xbox", "Xenia", "EA", "Ubisoft", "RPCS3", "ShadPS4", "Vita3K"
             };
+
+        /// <summary>
+        /// Platforms whose achievements carry their own points, on every achievement: they never
+        /// take points from a source, so they have no points choice.
+        /// </summary>
+        public static readonly IReadOnlyCollection<string> OwnPointsProviders =
+            new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+            {
+                "Epic", "RetroAchievements", "FFXIV", "GW2", "Hypixel", "Hoyoverse", "BattleNet", "GameJolt", "Exophase"
+            };
+
+        /// <summary>Platforms whose achievements carry their own trophy types, so they have no trophy type choice.</summary>
+        public static readonly IReadOnlyCollection<string> OwnTrophyTypeProviders =
+            new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+            {
+                "RetroAchievements", "Hoyoverse", "BattleNet", "GameJolt", "Exophase"
+            };
+
+        /// <summary>Whether a platform can take points from a source; the defaults row (null) can.</summary>
+        public static bool TakesPoints(string providerKey) =>
+            string.IsNullOrWhiteSpace(providerKey) || !OwnPointsProviders.Contains(providerKey.Trim());
+
+        /// <summary>Whether a platform can take trophy types from a source; the defaults row (null) can.</summary>
+        public static bool TakesTrophyTypes(string providerKey) =>
+            string.IsNullOrWhiteSpace(providerKey) || !OwnTrophyTypeProviders.Contains(providerKey.Trim());
 
         public string Icons { get; set; }
 
@@ -56,9 +82,32 @@ namespace PlayniteAchievements.Models.Settings
                 CategoryMode = MetadataCategoryMode.Merge,
                 Rarity = Exophase,
                 CapstoneArt = PlayStation,
-                TrophyTypes = string.Empty,
-                Points = string.Empty
+                TrophyTypes = PlayStation,
+                Points = Xbox
             };
+        }
+
+        /// <summary>
+        /// The defaults with every field set, taking <see cref="CreateDefaults"/>'s value for any
+        /// field a configuration saved before the field existed lacks.
+        /// </summary>
+        internal static MetadataChoices CompleteDefaults(MetadataChoices stored)
+        {
+            var defaults = CreateDefaults();
+            if (stored == null)
+            {
+                return defaults;
+            }
+
+            var complete = stored.Clone();
+            complete.Icons = complete.Icons ?? defaults.Icons;
+            complete.Categories = complete.Categories ?? defaults.Categories;
+            complete.CategoryMode = complete.CategoryMode ?? defaults.CategoryMode;
+            complete.Rarity = complete.Rarity ?? defaults.Rarity;
+            complete.CapstoneArt = complete.CapstoneArt ?? defaults.CapstoneArt;
+            complete.TrophyTypes = complete.TrophyTypes ?? defaults.TrophyTypes;
+            complete.Points = complete.Points ?? defaults.Points;
+            return complete;
         }
 
         public bool SameAs(MetadataChoices other)
@@ -99,7 +148,7 @@ namespace PlayniteAchievements.Models.Settings
         public MetadataChoices MetadataDefaults
         {
             get => _metadataDefaults;
-            set => SetValue(ref _metadataDefaults, value ?? MetadataChoices.CreateDefaults());
+            set => SetValue(ref _metadataDefaults, MetadataChoices.CompleteDefaults(value));
         }
 
         /// <summary>Per-platform overrides keyed by provider key; absent platforms follow the defaults.</summary>
@@ -142,8 +191,12 @@ namespace PlayniteAchievements.Models.Settings
                 CategoryMode = categories.CategoryMode ?? MetadataCategoryMode.Merge,
                 Rarity = platform?.Rarity ?? defaults.Rarity ?? string.Empty,
                 CapstoneArt = game?.CapstoneArt ?? platform?.CapstoneArt ?? defaults.CapstoneArt ?? string.Empty,
-                TrophyTypes = game?.TrophyTypes ?? platform?.TrophyTypes ?? defaults.TrophyTypes ?? string.Empty,
-                Points = game?.Points ?? platform?.Points ?? defaults.Points ?? string.Empty
+                TrophyTypes = MetadataChoices.TakesTrophyTypes(providerKey)
+                    ? game?.TrophyTypes ?? platform?.TrophyTypes ?? defaults.TrophyTypes ?? string.Empty
+                    : string.Empty,
+                Points = MetadataChoices.TakesPoints(providerKey)
+                    ? game?.Points ?? platform?.Points ?? defaults.Points ?? string.Empty
+                    : string.Empty
             };
         }
 

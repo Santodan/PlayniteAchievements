@@ -159,8 +159,11 @@ namespace PlayniteAchievements.Tests.Services
             var master = Row("ACH_MASTER", "Master");
             master.Points = 10;
             var dragon = Row("ACH_DRAGON", "Dragon Slayer");
-            dragon.Points = 10;
-            var data = Game("Steam", master, dragon);
+            var bonus = Row("ACH_BONUS", "Bonus");
+            bonus.TrophyType = "bronze";
+            var data = Game("Steam", master, dragon, bonus);
+            playstation.Rows.Add(Row("p3", "Bonus"));
+            playstation.Rows[2].TrophyType = "gold";
             var overlay = Overlay(new IMetadataProvider[] { playstation, xbox }, Choices(trophyTypes: "PlayStation", points: "Xbox"));
 
             using (var run = overlay.BeginRun())
@@ -170,9 +173,41 @@ namespace PlayniteAchievements.Tests.Services
 
             Assert.AreEqual("platinum", master.TrophyType);
             Assert.IsFalse(master.IsCapstone, "A borrowed platinum type only labels the trophy.");
-            Assert.AreEqual(10, master.Points, "Points come only from the source chosen for points.");
+            Assert.AreEqual(10, master.Points, "An achievement's own points are kept.");
             Assert.AreEqual("gold", dragon.TrophyType);
-            Assert.AreEqual(50, dragon.Points);
+            Assert.AreEqual(50, dragon.Points, "Points the platform lacks come from the source chosen for points.");
+            Assert.AreEqual("bronze", bonus.TrophyType, "An achievement's own trophy type is kept.");
+        }
+
+        [TestMethod]
+        public void PlatformsWithTheirOwnPointsOrTrophyTypes_TakeNone()
+        {
+            var settings = new PersistedSettings();
+            var game = new MetadataChoices { Points = MetadataChoices.Xbox, TrophyTypes = MetadataChoices.PlayStation };
+
+            var epic = settings.ResolveMetadataChoices("Epic", game);
+            var retro = settings.ResolveMetadataChoices("RetroAchievements");
+            var steam = settings.ResolveMetadataChoices("Steam");
+
+            Assert.AreEqual(string.Empty, epic.Points);
+            Assert.AreEqual(MetadataChoices.PlayStation, epic.TrophyTypes, "Epic has points of its own but no trophy types.");
+            Assert.AreEqual(string.Empty, retro.Points);
+            Assert.AreEqual(string.Empty, retro.TrophyTypes);
+            Assert.AreEqual(MetadataChoices.Xbox, steam.Points);
+            Assert.AreEqual(MetadataChoices.PlayStation, steam.TrophyTypes);
+        }
+
+        [TestMethod]
+        public void MetadataDefaults_FillFieldsAnOlderConfigurationLacks()
+        {
+            var settings = new PersistedSettings
+            {
+                MetadataDefaults = new MetadataChoices { Icons = "PlayStation", Categories = string.Empty, Rarity = string.Empty }
+            };
+
+            Assert.AreEqual("PlayStation", settings.MetadataDefaults.Icons);
+            Assert.AreEqual(MetadataChoices.PlayStation, settings.MetadataDefaults.TrophyTypes);
+            Assert.AreEqual(MetadataChoices.Xbox, settings.MetadataDefaults.Points);
         }
 
         [TestMethod]

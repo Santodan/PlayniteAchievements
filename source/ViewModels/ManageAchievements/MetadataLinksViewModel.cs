@@ -107,28 +107,35 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         /// </summary>
         public IReadOnlyList<MetadataChoiceRow> ChoiceRows { get; private set; } = Array.Empty<MetadataChoiceRow>();
 
+        private Guid _choicesGameId;
+        private string _choicesProviderKey;
+
         internal void Load(Guid gameId, string servicingProviderKey)
         {
             Rows.Clear();
-            ChoiceRows = Array.Empty<MetadataChoiceRow>();
             var store = _store?.Invoke();
-            if (gameId != Guid.Empty && store != null)
+            if (gameId == Guid.Empty || store == null)
+            {
+                SetChoiceRows(Guid.Empty, null, Array.Empty<MetadataChoiceRow>());
+            }
+            else
             {
                 var gameChoices = store.GetChoices(gameId);
-                ChoiceRows = new[]
+                // The same row for the same game, so a reload never replaces a dropdown mid-selection.
+                if (_choicesGameId != gameId || !string.Equals(_choicesProviderKey, servicingProviderKey, StringComparison.OrdinalIgnoreCase))
                 {
-                    new MetadataChoiceRow(
-                        _providers?.Invoke() ?? Array.Empty<IMetadataProvider>(),
-                        servicingProviderKey,
-                        gameChoices,
-                        changed =>
-                        {
-                            if (store.SetChoices(gameId, changed))
-                            {
-                                _onChanged?.Invoke();
-                            }
-                        })
-                };
+                    SetChoiceRows(gameId, servicingProviderKey, new[]
+                    {
+                        new MetadataChoiceRow(
+                            _providers?.Invoke() ?? Array.Empty<IMetadataProvider>(),
+                            servicingProviderKey,
+                            gameChoices,
+                            // "Default" stands for the platform's choices, without the game's own.
+                            () => _settings?.Invoke()?.ResolveMetadataChoices(servicingProviderKey),
+                            changed => SaveChoices(gameId, servicingProviderKey, changed))
+                    });
+                }
+
                 var choices = _settings?.Invoke()?.ResolveMetadataChoices(servicingProviderKey, gameChoices);
                 foreach (var provider in (_providers?.Invoke() ?? Array.Empty<IMetadataProvider>())
                     .Where(provider => !provider.IsNativeFor(servicingProviderKey)))
@@ -148,7 +155,38 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             }
 
             OnPropertyChanged(nameof(HasRows));
+        }
+
+        private void SetChoiceRows(Guid gameId, string servicingProviderKey, IReadOnlyList<MetadataChoiceRow> rows)
+        {
+            _choicesGameId = gameId;
+            _choicesProviderKey = servicingProviderKey;
+            ChoiceRows = rows;
             OnPropertyChanged(nameof(ChoiceRows));
+        }
+
+        /// <summary>
+        /// Saves the game's choices and updates what each source supplies. No refresh: several
+        /// choices can be changed, then the game's Refresh applies them together.
+        /// </summary>
+        private void SaveChoices(Guid gameId, string servicingProviderKey, MetadataChoices changed)
+        {
+            var store = _store?.Invoke();
+            if (store == null || !store.SetChoices(gameId, changed))
+            {
+                return;
+            }
+
+            var choices = _settings?.Invoke()?.ResolveMetadataChoices(servicingProviderKey, store.GetChoices(gameId));
+            var providers = (_providers?.Invoke() ?? Array.Empty<IMetadataProvider>())
+                .ToDictionary(provider => provider.Key, StringComparer.OrdinalIgnoreCase);
+            foreach (var row in Rows)
+            {
+                if (row.SourceKey != null && providers.TryGetValue(row.SourceKey, out var provider))
+                {
+                    row.Supplies = DescribeSupplies(choices, provider);
+                }
+            }
         }
 
         /// <summary>Adds a row for a link stored elsewhere, after the metadata sources.</summary>
@@ -209,6 +247,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
     {
         private readonly string _linkedId;
         private string _input;
+        private string _supplies = string.Empty;
 
         /// <summary>
         /// A row for a link kept outside the metadata link store (the Exophase rarity page): the
@@ -283,7 +322,15 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         public string Placeholder { get; }
 
         /// <summary>What the source adds to this game ("Icons, Auto Capstone"); empty when nothing.</summary>
-        public string Supplies { get; }
+        public string Supplies
+        {
+            get => _supplies;
+            internal set
+            {
+                SetValue(ref _supplies, value ?? string.Empty);
+                OnPropertyChanged(nameof(HasSupplies));
+            }
+        }
 
         public bool HasSupplies => !string.IsNullOrEmpty(Supplies);
 
