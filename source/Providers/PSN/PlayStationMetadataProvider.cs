@@ -48,6 +48,8 @@ namespace PlayniteAchievements.Providers.PSN
 
         public string DisplayNameKey => "LOCPlayAch_Metadata_Source_PlayStation";
 
+        public string LinkPlaceholder => "exophase-game-id";
+
         public MetadataField SupportedFields => MetadataField.Icons | MetadataField.CapstoneArt;
 
         public bool IsNativeFor(string servicingProviderKey) =>
