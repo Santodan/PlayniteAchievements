@@ -986,7 +986,8 @@ namespace PlayniteAchievements
                         () => _providerRegistry.GetMetadataProviders(),
                         () => Settings?.Persisted,
                         _metadataLinkStore,
-                        _logger);
+                        _logger,
+                        _diskImageService.GetPixelWidthAsync);
                     _cacheManager = _refreshService.Cache;
                     _friendCacheManager = _cacheManager as Services.Friends.IFriendCacheManager;
                     _friendsOverviewDataCoordinator = new FriendsOverviewDataCoordinator(
