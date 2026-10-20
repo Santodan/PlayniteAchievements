@@ -41,6 +41,33 @@ namespace PlayniteAchievements.Views.ManageAchievements
                     affectsOverrideMirror: false),
                 value => PlayniteAchievementsPlugin.Instance?.PickColor(Window.GetWindow(this), value),
                 definition => MakeGlobal(definition, settings, saveSettings));
+
+            ShowGlobalTags();
+            // The global list changes when a tag is made global here or settings are saved.
+            AchievementTagRegistry.Changed += OnTagsChanged;
+            Unloaded += (_, __) => AchievementTagRegistry.Changed -= OnTagsChanged;
+            Loaded += (_, __) =>
+            {
+                AchievementTagRegistry.Changed -= OnTagsChanged;
+                AchievementTagRegistry.Changed += OnTagsChanged;
+                ShowGlobalTags();
+            };
+        }
+
+        private void ShowGlobalTags()
+        {
+            GlobalTags.ItemsSource = AchievementTagRegistry.Global
+                .Where(definition => !AchievementTagHelper.IsDerivedTag(definition.Key))
+                .Select(definition => new AchievementTagPreviewRow(definition))
+                .ToList();
+        }
+
+        private void OnTagsChanged(object sender, AchievementTagsChangedEventArgs e)
+        {
+            if (e?.GameId == null)
+            {
+                Dispatcher.BeginInvoke(new Action(ShowGlobalTags));
+            }
         }
 
         private static void MakeGlobal(

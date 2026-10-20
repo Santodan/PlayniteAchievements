@@ -394,6 +394,8 @@
     <sys:String x:Key="LOCPlayAch_Settings_CategoryGridUseCoverImages">Use Covers Instead of Icons for Missing Art</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Tab_CustomIcons">Icons</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Tab_Editor">Editor</sys:String>
+    <sys:String x:Key="LOCPlayAch_ManageAchievements_Tags_GameTags">This Game's Tags</sys:String>
+    <sys:String x:Key="LOCPlayAch_ManageAchievements_Tags_GlobalTags">Global Tags</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Tags_Hint">Tags only this game uses. Make one global to offer it to every game.</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Tags_MakeGlobal">Make Global</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Editor_Goal">Goal</sys:String>

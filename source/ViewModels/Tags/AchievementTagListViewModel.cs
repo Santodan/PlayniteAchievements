@@ -72,17 +72,55 @@ namespace PlayniteAchievements.ViewModels.Tags
             Commit();
         }
 
-        internal void Move(AchievementTagEditorRow row, int offset)
+        /// <summary>
+        /// Moves the rows with <paramref name="keys"/> before or after the row with
+        /// <paramref name="targetKey"/>, keeping their order; a drag-and-drop drop. True when
+        /// anything moved.
+        /// </summary>
+        public bool MoveRows(IReadOnlyList<string> keys, string targetKey, bool insertAfter)
         {
-            var index = Rows.IndexOf(row);
-            var target = index + offset;
-            if (index < 0 || target < 0 || target >= Rows.Count)
+            var moving = Rows.Where(row => keys?.Contains(row.Key, StringComparer.OrdinalIgnoreCase) == true).ToList();
+            if (moving.Count == 0 || moving.Any(row => string.Equals(row.Key, targetKey, StringComparison.OrdinalIgnoreCase)))
             {
-                return;
+                return false;
             }
 
-            Rows.Move(index, target);
+            var remaining = Rows.Except(moving).ToList();
+            var targetIndex = remaining.FindIndex(row => string.Equals(row.Key, targetKey, StringComparison.OrdinalIgnoreCase));
+            if (targetIndex < 0)
+            {
+                return false;
+            }
+
+            remaining.InsertRange(insertAfter ? targetIndex + 1 : targetIndex, moving);
+            return Reorder(remaining);
+        }
+
+        /// <summary>Moves the rows with <paramref name="keys"/> to the end of the list.</summary>
+        public bool MoveRowsToEnd(IReadOnlyList<string> keys)
+        {
+            var moving = Rows.Where(row => keys?.Contains(row.Key, StringComparer.OrdinalIgnoreCase) == true).ToList();
+            return moving.Count > 0 && Reorder(Rows.Except(moving).Concat(moving).ToList());
+        }
+
+        private bool Reorder(IList<AchievementTagEditorRow> ordered)
+        {
+            if (ordered.SequenceEqual(Rows))
+            {
+                return false;
+            }
+
+            for (var i = 0; i < ordered.Count; i++)
+            {
+                var current = Rows.IndexOf(ordered[i]);
+                if (current != i)
+                {
+                    Rows.Move(current, i);
+                }
+            }
+
             Commit();
+            return true;
         }
 
         private void Add()
@@ -119,8 +157,6 @@ namespace PlayniteAchievements.ViewModels.Tags
             PickIconCommand = new RelayCommand(_ => PickIcon());
             DeleteCommand = new RelayCommand(_ => _owner.Delete(this), _ => !IsSystem);
             MakeGlobalCommand = new RelayCommand(_ => _owner.MakeGlobal(this));
-            MoveUpCommand = new RelayCommand(_ => _owner.Move(this, -1));
-            MoveDownCommand = new RelayCommand(_ => _owner.Move(this, 1));
         }
 
         public string Key { get; }
@@ -166,9 +202,40 @@ namespace PlayniteAchievements.ViewModels.Tags
 
                 _color = normalized;
                 OnPropertyChanged();
+                OnPropertyChanged(nameof(ColorText));
                 OnPropertyChanged(nameof(Brush));
                 OnPropertyChanged(nameof(HasColor));
                 _owner.Commit();
+            }
+        }
+
+        /// <summary>
+        /// The color as typed in the hex box: blank for the default; text that is not a color leaves
+        /// the color as it was.
+        /// </summary>
+        public string ColorText
+        {
+            get => _color ?? string.Empty;
+            set
+            {
+                var text = (value ?? string.Empty).Trim();
+                if (text.Length > 0 && !text.StartsWith("#", StringComparison.Ordinal))
+                {
+                    text = "#" + text;
+                }
+
+                if (text.Length == 0)
+                {
+                    Color = null;
+                }
+                else if (AchievementTagHelper.NormalizeColor(text) != null)
+                {
+                    Color = text;
+                }
+                else
+                {
+                    OnPropertyChanged();
+                }
             }
         }
 
@@ -209,10 +276,6 @@ namespace PlayniteAchievements.ViewModels.Tags
 
         public ICommand MakeGlobalCommand { get; }
 
-        public ICommand MoveUpCommand { get; }
-
-        public ICommand MoveDownCommand { get; }
-
         private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, Brush> BrushByColor =
             new System.Collections.Concurrent.ConcurrentDictionary<string, Brush>(StringComparer.OrdinalIgnoreCase);
 
@@ -252,5 +315,31 @@ namespace PlayniteAchievements.ViewModels.Tags
                 Icon = code;
             }
         }
+    }
+}
+
+namespace PlayniteAchievements.ViewModels.Tags
+{
+    /// <summary>A tag shown but not edited: the global list beside a game's own tags.</summary>
+    public sealed class AchievementTagPreviewRow
+    {
+        public AchievementTagPreviewRow(AchievementTagDefinition definition)
+        {
+            Name = AchievementTagRegistry.GetName(definition);
+            Glyph = AchievementTagHelper.IconGlyph(definition?.Icon);
+            Color = AchievementTagHelper.NormalizeColor(definition?.Color);
+        }
+
+        public string Name { get; }
+
+        public string Glyph { get; }
+
+        public bool HasGlyph => Glyph != null;
+
+        public string Color { get; }
+
+        public Brush Brush => Color == null ? null : new SolidColorBrush((System.Windows.Media.Color)ColorConverter.ConvertFromString(Color));
+
+        public bool HasColor => Color != null;
     }
 }
