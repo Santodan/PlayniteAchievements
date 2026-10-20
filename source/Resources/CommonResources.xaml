@@ -1507,6 +1507,18 @@
         <Setter Property="TextWrapping" Value="Wrap"/>
     </Style>
 
+    <!-- The "Default" option of a combo whose Tag holds the value Default stands for: the open
+         list reads "Default", the closed box shows that inherited value, muted. -->
+    <DataTemplate x:Key="PlayAch.ComboBox.InheritedOptionTemplate">
+        <TextBlock x:Name="OptionText" Text="{Binding}"/>
+        <DataTemplate.Triggers>
+            <DataTrigger Binding="{Binding RelativeSource={RelativeSource AncestorType=ComboBoxItem}}" Value="{x:Null}">
+                <Setter TargetName="OptionText" Property="Text" Value="{Binding Tag, RelativeSource={RelativeSource AncestorType=ComboBox}}"/>
+                <Setter TargetName="OptionText" Property="Opacity" Value="{StaticResource PlayAch.Opacity.Muted}"/>
+            </DataTrigger>
+        </DataTemplate.Triggers>
+    </DataTemplate>
+
     <Style x:Key="PlayAch.SecondaryMetadataTextStyle" TargetType="TextBlock" BasedOn="{StaticResource PlayAch.MutedTextStyle}">
         <Setter Property="Margin" Value="0,4,0,0"/>
         <Setter Property="TextTrimming" Value="CharacterEllipsis"/>
