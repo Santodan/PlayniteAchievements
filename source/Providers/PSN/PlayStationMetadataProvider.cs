@@ -1,4 +1,5 @@
 using Playnite.SDK;
+using PlayniteAchievements.Common;
 using PlayniteAchievements.Models;
 using PlayniteAchievements.Models.Achievements;
 using PlayniteAchievements.Providers.Exophase;
@@ -15,7 +16,7 @@ namespace PlayniteAchievements.Providers.PSN
     /// PlayStation trophy icons and platinum art for games another provider services, read from
     /// Exophase's public trophy pages: original-size icons (512px for PS5), trophy types and DLC
     /// lists, in the plugin's language where Exophase translates them. No sign-in is needed. A
-    /// game links to an Exophase PlayStation page slug, found by name and preferring the PS5 page.
+    /// game links to an Exophase PlayStation page slug, built from its name and preferring the PS5 page.
     /// </summary>
     internal sealed class PlayStationMetadataProvider : IMetadataProvider
     {
@@ -23,8 +24,6 @@ namespace PlayniteAchievements.Providers.PSN
 
         /// <summary>Separates the pages of a link that spans several.</summary>
         internal const char SetSeparator = ',';
-
-        private static readonly string[] PlatformPreference = { "ps5", "ps4", "ps3", "psvita" };
 
         private static readonly HashSet<string> NativeProviders = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
         {
@@ -36,8 +35,6 @@ namespace PlayniteAchievements.Providers.PSN
         private readonly ILogger _logger;
         private readonly Dictionary<string, ExophaseApiClient.AchievementFetchResult> _pages =
             new Dictionary<string, ExophaseApiClient.AchievementFetchResult>(StringComparer.OrdinalIgnoreCase);
-        private readonly Dictionary<string, List<ExophaseGame>> _searches =
-            new Dictionary<string, List<ExophaseGame>>(StringComparer.OrdinalIgnoreCase);
 
         public PlayStationMetadataProvider(IPlayniteAPI api, PlayniteAchievementsSettings settings, ILogger logger)
         {
@@ -75,16 +72,12 @@ namespace PlayniteAchievements.Providers.PSN
             {
                 _pages.Clear();
             }
-
-            lock (_searches)
-            {
-                _searches.Clear();
-            }
         }
 
         /// <summary>
-        /// The best PlayStation search match for the first name that finds one, PS5 first. A PS4 or
-        /// older match whose page links a PS5 version of the same game takes that page instead.
+        /// The PlayStation page named after the first of the game's names that has one
+        /// (<c>&lt;name&gt;-psn</c>, Exophase's slug for the first PlayStation release). When that
+        /// page links a PS5 version of the same game, the PS5 page is taken instead.
         /// </summary>
         public async Task<MetadataSourceLink> ResolveLinkAsync(MetadataLinkRequest request, CancellationToken ct)
         {
@@ -93,66 +86,43 @@ namespace PlayniteAchievements.Providers.PSN
                 return null;
             }
 
-            foreach (var name in DistinctNames(request.SearchNames))
+            foreach (var slug in CandidateSlugs(request.SearchNames))
             {
-                var games = await SearchAsync(name, ct).ConfigureAwait(false);
-                foreach (var platform in PlatformPreference)
+                var page = await GetPageAsync(slug, ct).ConfigureAwait(false);
+                if (page?.Achievements == null || page.Achievements.Count == 0)
                 {
-                    var match = ExophaseGameNameMatcher.SelectBestSearchMatch(name, games, platform);
-                    var slug = ExophaseApiClient.ExtractSlugFromUrl(match?.EndpointAwards);
-                    if (string.IsNullOrWhiteSpace(slug))
-                    {
-                        continue;
-                    }
-
-                    if (platform != PlatformPreference[0])
-                    {
-                        slug = await FindPs5PageAsync(slug, ct).ConfigureAwait(false) ?? slug;
-                    }
-
-                    _logger?.Debug($"[PlayStationMetadata] '{name}' -> {slug} ({platform}).");
-                    return new MetadataSourceLink(slug, match.Title, foundByName: true);
+                    continue;
                 }
+
+                var ps5 = ExophaseGamePageParser.ParseRelatedPages(page.Html)
+                    .FirstOrDefault(related => string.Equals(related.Platform, "PS5", StringComparison.OrdinalIgnoreCase))
+                    ?.Slug;
+                var chosen = slug;
+                if (!string.IsNullOrWhiteSpace(ps5))
+                {
+                    var ps5Page = await GetPageAsync(ps5, ct).ConfigureAwait(false);
+                    if (ps5Page?.Achievements?.Count > 0)
+                    {
+                        chosen = ps5;
+                    }
+                }
+
+                _logger?.Debug($"[PlayStationMetadata] '{request.Game?.Name}' -> {chosen}.");
+                return new MetadataSourceLink(chosen, request.Game?.Name, foundByName: true);
             }
 
+            _logger?.Debug($"[PlayStationMetadata] '{request.Game?.Name}': no PlayStation page.");
             return null;
         }
 
-        private async Task<string> FindPs5PageAsync(string slug, CancellationToken ct)
-        {
-            var page = await GetPageAsync(slug, ct).ConfigureAwait(false);
-            return ExophaseGamePageParser.ParseRelatedPages(page?.Html)
-                .FirstOrDefault(related => string.Equals(related.Platform, "PS5", StringComparison.OrdinalIgnoreCase))
-                ?.Slug;
-        }
-
-        private static IEnumerable<string> DistinctNames(IEnumerable<string> names)
+        /// <summary>The <c>-psn</c> page slug of each name, accents removed, without repeats.</summary>
+        internal static IEnumerable<string> CandidateSlugs(IEnumerable<string> names)
         {
             return (names ?? Enumerable.Empty<string>())
-                .Select(name => ExophaseGameNameMatcher.NormalizeGameName(name))
-                .Where(name => !string.IsNullOrWhiteSpace(name))
+                .Select(name => ExophaseGameNameMatcher.NormalizeGameNameForSlug(GameNameNormalizer.StripDiacritics(name ?? string.Empty)))
+                .Where(slug => !string.IsNullOrWhiteSpace(slug))
+                .Select(slug => slug + "-psn")
                 .Distinct(StringComparer.OrdinalIgnoreCase);
-        }
-
-        /// <summary>PlayStation search results for a name, fetched once per run.</summary>
-        private async Task<List<ExophaseGame>> SearchAsync(string name, CancellationToken ct)
-        {
-            lock (_searches)
-            {
-                if (_searches.TryGetValue(name, out var cached))
-                {
-                    return cached;
-                }
-            }
-
-            // The PlayStation search endpoint covers every PlayStation platform when given ps5.
-            var games = await _exophase.SearchGamesAsync(name, "ps5", ct).ConfigureAwait(false) ?? new List<ExophaseGame>();
-            lock (_searches)
-            {
-                _searches[name] = games;
-            }
-
-            return games;
         }
 
         /// <summary>A trophy page in the plugin's language, loaded once per run.</summary>
