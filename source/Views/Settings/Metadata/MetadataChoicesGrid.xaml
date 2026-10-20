@@ -155,13 +155,22 @@
                 </DataGridTemplateColumn.CellTemplate>
             </DataGridTemplateColumn>
 
+            <!-- Platforms with trophy types or points of their own get no choice for them. -->
             <DataGridTemplateColumn Header="{DynamicResource LOCPlayAch_Column_Trophy}" Width="Auto" IsReadOnly="True">
                 <DataGridTemplateColumn.CellTemplate>
                     <DataTemplate>
-                        <ComboBox Style="{StaticResource MetadataChoiceComboStyle}"
-                                  ItemsSource="{Binding TrophyTypeOptions}"
-                                  Tag="{Binding InheritedTrophyTypes}"
-                                  SelectedValue="{Binding TrophyTypes, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
+                        <Grid>
+                            <ComboBox Style="{StaticResource MetadataChoiceComboStyle}"
+                                      ItemsSource="{Binding TrophyTypeOptions}"
+                                      Tag="{Binding InheritedTrophyTypes}"
+                                      SelectedValue="{Binding TrophyTypes, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                      Visibility="{Binding SupportsTrophyTypes, Converter={StaticResource BoolToVis}}"/>
+                            <TextBlock Text="—"
+                                       Style="{StaticResource MutedTextStyle}"
+                                       Margin="12,0"
+                                       VerticalAlignment="Center"
+                                       Visibility="{Binding SupportsTrophyTypes, Converter={StaticResource InverseBoolToVis}}"/>
+                        </Grid>
                     </DataTemplate>
                 </DataGridTemplateColumn.CellTemplate>
             </DataGridTemplateColumn>
@@ -169,10 +178,18 @@
             <DataGridTemplateColumn Header="{DynamicResource LOCPlayAch_Column_Points}" Width="Auto" IsReadOnly="True">
                 <DataGridTemplateColumn.CellTemplate>
                     <DataTemplate>
-                        <ComboBox Style="{StaticResource MetadataChoiceComboStyle}"
-                                  ItemsSource="{Binding PointsOptions}"
-                                  Tag="{Binding InheritedPoints}"
-                                  SelectedValue="{Binding Points, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
+                        <Grid>
+                            <ComboBox Style="{StaticResource MetadataChoiceComboStyle}"
+                                      ItemsSource="{Binding PointsOptions}"
+                                      Tag="{Binding InheritedPoints}"
+                                      SelectedValue="{Binding Points, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                      Visibility="{Binding SupportsPoints, Converter={StaticResource BoolToVis}}"/>
+                            <TextBlock Text="—"
+                                       Style="{StaticResource MutedTextStyle}"
+                                       Margin="12,0"
+                                       VerticalAlignment="Center"
+                                       Visibility="{Binding SupportsPoints, Converter={StaticResource InverseBoolToVis}}"/>
+                        </Grid>
                     </DataTemplate>
                 </DataGridTemplateColumn.CellTemplate>
             </DataGridTemplateColumn>
