@@ -306,7 +306,7 @@
                     <TextBlock Grid.Row="0"
                                Grid.Column="0"
                                Grid.ColumnSpan="2"
-                               Text="{DynamicResource LOCPlayAch_ManageAchievements_Category_TypeSelectorLabel}"
+                               Text="{DynamicResource LOCTagsLabel}"
                                Foreground="{DynamicResource PlayAch.Brush.Text}"
                                Opacity="0.9" />
 
