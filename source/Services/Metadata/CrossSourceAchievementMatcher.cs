@@ -154,7 +154,7 @@ namespace PlayniteAchievements.Services.Metadata
 
         /// <summary>
         /// Lowercase letters and digits without accents, with each run of anything else collapsed
-        /// to one space.
+        /// to one space. Apostrophes are dropped rather than spaced, so "Don't" reads as "dont".
         /// </summary>
         public static string NormalizeText(string value)
         {
@@ -170,6 +170,11 @@ namespace PlayniteAchievements.Services.Metadata
 
             foreach (var c in folded)
             {
+                if (GameNameNormalizer.IsApostrophe(c))
+                {
+                    continue;
+                }
+
                 if (char.IsLetterOrDigit(c))
                 {
                     chars[index++] = c;
