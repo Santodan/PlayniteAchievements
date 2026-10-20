@@ -49,7 +49,9 @@ namespace PlayniteAchievements.Providers.Exophase
                 { "dutch", "nl" },
                 { "polish", "pl" },
                 { "portuguese", "pt" },
-                { "brazilian", "pt" },
+                { "brazilian", "pt-BR" },
+                { "schinese", "zh-CN" },
+                { "tchinese", "zh-TW" },
                 { "russian", "ru" },
                 { "thai", "th" },
                 { "turkish", "tr" }
