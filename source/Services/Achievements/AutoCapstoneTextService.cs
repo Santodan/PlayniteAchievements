@@ -106,8 +106,12 @@ namespace PlayniteAchievements.Services.Achievements
 
             var gameNames = ResolveGameNames(gameId);
 
+            // A whole-game capstone with platinum text takes its text from the platinum, which the
+            // capstone refresh after each game refresh keeps current.
+            var platinumText = !string.IsNullOrWhiteSpace(AutoCapstoneTemplate.MetadataTextAccessor?.Invoke(gameId).Title);
+
             // Looked at before writing: a save reaches every subscriber, and most games need none.
-            if (!_store.QueryGame(gameId, data => RewriteAll(data, gameNames, current, known, commit: false), false))
+            if (!_store.QueryGame(gameId, data => RewriteAll(data, gameNames, current, known, platinumText, commit: false), false))
             {
                 return false;
             }
@@ -115,7 +119,7 @@ namespace PlayniteAchievements.Services.Achievements
             var changed = false;
             try
             {
-                _store.Update(gameId, data => changed = RewriteAll(data, gameNames, current, known, commit: true));
+                _store.Update(gameId, data => changed = RewriteAll(data, gameNames, current, known, platinumText, commit: true));
             }
             catch (Exception ex)
             {
@@ -131,6 +135,7 @@ namespace PlayniteAchievements.Services.Achievements
             IReadOnlyList<string> gameNames,
             AutoCapstoneTemplates current,
             AutoCapstoneKnownTemplates known,
+            bool platinumText,
             bool commit)
         {
             var definitions = data?.CustomAchievements;
@@ -150,6 +155,7 @@ namespace PlayniteAchievements.Services.Achievements
                 }
 
                 if (copy.IsAutoCapstone &&
+                    !(platinumText && copy.IsWholeGameAutoCapstone) &&
                     AutoCapstoneTextRewriter.Rewrite(copy, ResolveCategory(data, copy), gameNames, current, known))
                 {
                     changed = true;
