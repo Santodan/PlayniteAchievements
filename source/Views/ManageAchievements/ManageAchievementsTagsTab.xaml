@@ -55,14 +55,12 @@
                                                 BorderThickness="1"
                                                 CornerRadius="4"
                                                 Visibility="{Binding HasGlyph, Converter={StaticResource TagsTabBoolToVisibility}}">
-                                            <TextBlock Text="{Binding Glyph}"
+                                            <controls:GlyphIcon Glyph="{Binding Glyph}"
                                                        FontFamily="{DynamicResource PlayAch.FontFamily.Icon}"
-                                                       FontSize="16"
+                                                       Size="18"
                                                        Foreground="{DynamicResource PlayAch.Brush.Text}"
                                                        HorizontalAlignment="Center"
-                                                       VerticalAlignment="Center"
-                                                       TextOptions.TextFormattingMode="Display"
-                                                       TextOptions.TextRenderingMode="Grayscale"/>
+                                                       VerticalAlignment="Center"/>
                                         </Border>
                                     </Grid>
                                     <Border Width="14"
