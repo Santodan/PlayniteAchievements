@@ -118,24 +118,75 @@
                             </TextBlock>
                         </StackPanel>
 
-                        <StackPanel Grid.Column="1"
-                                    Orientation="Horizontal"
-                                    VerticalAlignment="Top">
-                            <Button Content="{DynamicResource LOCClearLabel}"
-                                    Command="{Binding ClearGameDataCommand}"
+                        <!-- The game's actions: Clear (achievement data or custom data), Refresh and
+                             View on top, moving custom data out and in underneath. -->
+                        <Grid Grid.Column="1" VerticalAlignment="Top">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                            </Grid.RowDefinitions>
+                            <Button Grid.Row="0" Grid.Column="0"
+                                    Content="{DynamicResource LOCClearLabel}"
+                                    Click="ContextMenuButton_Click"
                                     Padding="{StaticResource PlayAch.Thickness.ButtonPadding}"
                                     MinWidth="100"
-                                    Margin="{StaticResource PlayAch.Thickness.Right.Sm}" />
-                            <Button Content="{DynamicResource LOCPlayAch_Button_Refresh}"
+                                    Margin="{StaticResource PlayAch.Thickness.Right.Sm}">
+                                <Button.ContextMenu>
+                                    <ContextMenu>
+                                        <MenuItem Header="{DynamicResource LOCPlayAch_Menu_ClearData}"
+                                                  Command="{Binding ClearGameDataCommand}" />
+                                        <MenuItem Header="{DynamicResource LOCPlayAch_ManageAchievements_Overrides_ClearCustomDataButton}"
+                                                  Command="{Binding ClearCustomDataCommand}" />
+                                    </ContextMenu>
+                                </Button.ContextMenu>
+                            </Button>
+                            <Button Grid.Row="0" Grid.Column="1"
+                                    Content="{DynamicResource LOCPlayAch_Button_Refresh}"
                                     Command="{Binding RefreshGameCommand}"
                                     Padding="{StaticResource PlayAch.Thickness.ButtonPadding}"
                                     MinWidth="100"
                                     Margin="{StaticResource PlayAch.Thickness.Right.Sm}" />
-                            <Button Content="{DynamicResource LOCPlayAch_Menu_ViewAchievements}"
+                            <Button Grid.Row="0" Grid.Column="2"
+                                    Content="{DynamicResource LOCPlayAch_Menu_ViewAchievements}"
                                     Command="{Binding OpenAchievementsCommand}"
                                     Padding="{StaticResource PlayAch.Thickness.ButtonPadding}"
                                     MinWidth="130" />
-                        </StackPanel>
+                            <Button Grid.Row="1" Grid.Column="0"
+                                    Content="{DynamicResource LOCPlayAch_ManageAchievements_Overrides_ExportButton}" ContentTemplate="{DynamicResource PlayAch.ButtonContent.Export}"
+                                    Click="ContextMenuButton_Click"
+                                    Padding="{StaticResource PlayAch.Thickness.ButtonPadding}"
+                                    MinWidth="100"
+                                    Margin="0,6,8,0">
+                                <Button.ContextMenu>
+                                    <ContextMenu>
+                                        <MenuItem Header="{DynamicResource LOCPlayAch_Workshop_Menu_ToFile}"
+                                                  Command="{Binding ExportCustomCommand}" />
+                                        <MenuItem Header="{DynamicResource LOCPlayAch_Workshop_Share}"
+                                                  Command="{Binding ShareToWorkshopCommand}" />
+                                    </ContextMenu>
+                                </Button.ContextMenu>
+                            </Button>
+                            <Button Grid.Row="1" Grid.Column="1"
+                                    Content="{DynamicResource LOCImportLabel}" ContentTemplate="{DynamicResource PlayAch.ButtonContent.Import}"
+                                    Click="ContextMenuButton_Click"
+                                    Padding="{StaticResource PlayAch.Thickness.ButtonPadding}"
+                                    MinWidth="100"
+                                    Margin="0,6,8,0">
+                                <Button.ContextMenu>
+                                    <ContextMenu>
+                                        <MenuItem Header="{DynamicResource LOCPlayAch_Workshop_Menu_FromFile}"
+                                                  Command="{Binding ImportCustomJsonCommand}" />
+                                        <MenuItem Header="{DynamicResource LOCPlayAch_Workshop_Menu_FromWorkshop}"
+                                                  Command="{Binding ImportFromWorkshopCommand}" />
+                                    </ContextMenu>
+                                </Button.ContextMenu>
+                            </Button>
+                        </Grid>
                     </Grid>
 
                     <!-- Per-game settings, one aligned row each: name on the left (hint on hover), control on the right. -->
@@ -349,48 +400,9 @@
             <!-- What this game's stored custom data holds, and moving it in and out. -->
             <Border Style="{StaticResource CardBorderStyle}">
                 <StackPanel>
-                    <Grid>
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*" />
-                            <ColumnDefinition Width="Auto" />
-                        </Grid.ColumnDefinitions>
-                        <TextBlock Grid.Column="0"
-                                   Style="{StaticResource SectionHeaderStyle}"
-                                   Text="{DynamicResource LOCPlayAch_ManageAchievements_Overrides_CustomDataHeader}"
-                                   ToolTip="{DynamicResource LOCPlayAch_ManageAchievements_Overrides_CustomDataHint}"
-                                   VerticalAlignment="Center" />
-                        <StackPanel Grid.Column="1" Orientation="Horizontal">
-                            <Button Content="{DynamicResource LOCPlayAch_ManageAchievements_Overrides_ExportButton}" ContentTemplate="{DynamicResource PlayAch.ButtonContent.Export}"
-                                    Click="ContextMenuButton_Click"
-                                    Padding="{StaticResource PlayAch.Thickness.ButtonPadding}"
-                                    Margin="{StaticResource PlayAch.Thickness.Right.Sm}">
-                                <Button.ContextMenu>
-                                    <ContextMenu>
-                                        <MenuItem Header="{DynamicResource LOCPlayAch_Workshop_Menu_ToFile}"
-                                                  Command="{Binding ExportCustomCommand}" />
-                                        <MenuItem Header="{DynamicResource LOCPlayAch_Workshop_Share}"
-                                                  Command="{Binding ShareToWorkshopCommand}" />
-                                    </ContextMenu>
-                                </Button.ContextMenu>
-                            </Button>
-                            <Button Content="{DynamicResource LOCImportLabel}" ContentTemplate="{DynamicResource PlayAch.ButtonContent.Import}"
-                                    Click="ContextMenuButton_Click"
-                                    Padding="{StaticResource PlayAch.Thickness.ButtonPadding}"
-                                    Margin="{StaticResource PlayAch.Thickness.Right.Sm}">
-                                <Button.ContextMenu>
-                                    <ContextMenu>
-                                        <MenuItem Header="{DynamicResource LOCPlayAch_Workshop_Menu_FromFile}"
-                                                  Command="{Binding ImportCustomJsonCommand}" />
-                                        <MenuItem Header="{DynamicResource LOCPlayAch_Workshop_Menu_FromWorkshop}"
-                                                  Command="{Binding ImportFromWorkshopCommand}" />
-                                    </ContextMenu>
-                                </Button.ContextMenu>
-                            </Button>
-                            <Button Content="{DynamicResource LOCPlayAch_ManageAchievements_Overrides_ClearCustomDataButton}"
-                                    Command="{Binding ClearCustomDataCommand}"
-                                    Padding="{StaticResource PlayAch.Thickness.ButtonPadding}" />
-                        </StackPanel>
-                    </Grid>
+                    <TextBlock Style="{StaticResource SectionHeaderStyle}"
+                               Text="{DynamicResource LOCPlayAch_ManageAchievements_Overrides_CustomDataHeader}"
+                               ToolTip="{DynamicResource LOCPlayAch_ManageAchievements_Overrides_CustomDataHint}" />
 
                     <!-- The Workshop item this data came from: its version and state, and Update
                          (download, merge), Reset (as published) and Unlink. -->
