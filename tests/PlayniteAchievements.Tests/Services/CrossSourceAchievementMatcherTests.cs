@@ -42,6 +42,31 @@ namespace PlayniteAchievements.Tests.Services
         }
 
         [TestMethod]
+        public void NormalizeText_FoldsBritishAndAmericanSpellings()
+        {
+            Assert.AreEqual(
+                CrossSourceAchievementMatcher.NormalizeText("Dragonslayer Armor"),
+                CrossSourceAchievementMatcher.NormalizeText("Dragonslayer Armour"));
+            Assert.AreEqual(
+                CrossSourceAchievementMatcher.NormalizeText("Realize your Organization"),
+                CrossSourceAchievementMatcher.NormalizeText("Realise your Organisation"));
+            Assert.AreEqual(
+                CrossSourceAchievementMatcher.NormalizeText("Analyze This"),
+                CrossSourceAchievementMatcher.NormalizeText("Analyse This"));
+        }
+
+        [TestMethod]
+        public void BritishSpelling_StillMatchesByTitle()
+        {
+            var target = Achievement("ACH_ARMOUR", "Dragonslayer Armour");
+            var source = Achievement("p1", "Dragonslayer Armor");
+
+            var matches = CrossSourceAchievementMatcher.Match(new[] { target }, new[] { source });
+
+            Assert.AreEqual(1, matches.Count);
+        }
+
+        [TestMethod]
         public void NormalizeText_KeepsMarksThatChangeJapaneseLetters()
         {
             Assert.AreNotEqual(
