@@ -33,7 +33,7 @@ namespace PlayniteAchievements.Providers.Metadata
 
         public override string DisplayNameKey => "LOCPlayAch_Provider_Xbox";
 
-        public override MetadataField SupportedFields => MetadataField.Icons | MetadataField.Points;
+        public override MetadataField SupportedFields => MetadataField.Icons | MetadataField.Points | MetadataField.Categories | MetadataField.CategoryArt;
 
         protected override ICollection<string> NativeProviders => Native;
 
