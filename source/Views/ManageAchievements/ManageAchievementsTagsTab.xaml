@@ -20,10 +20,6 @@
          greyed so it reads as available here but owned elsewhere. -->
     <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto">
         <StackPanel Margin="20">
-            <TextBlock Text="{DynamicResource LOCPlayAch_ManageAchievements_Tags_Hint}"
-                       Style="{StaticResource PlayAch.MutedTextStyle}"
-                       Margin="{StaticResource PlayAch.Thickness.Bottom.Md}"
-                       TextWrapping="Wrap"/>
             <Grid>
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="Auto"/>
@@ -32,14 +28,10 @@
                 </Grid.ColumnDefinitions>
 
                 <StackPanel Grid.Column="0">
-                    <TextBlock Text="{DynamicResource LOCPlayAch_ManageAchievements_Tags_GameTags}"
-                               Style="{StaticResource PlayAch.SectionHeaderTextStyle}"/>
                     <controls:AchievementTagListEditor x:Name="Editor"/>
                 </StackPanel>
 
                 <StackPanel Grid.Column="2" Opacity="{StaticResource PlayAch.Opacity.Hint}">
-                    <TextBlock Text="{DynamicResource LOCPlayAch_ManageAchievements_Tags_GlobalTags}"
-                               Style="{StaticResource PlayAch.SectionHeaderTextStyle}"/>
                     <ItemsControl x:Name="GlobalTags" Focusable="False">
                         <ItemsControl.ItemTemplate>
                             <DataTemplate>
