@@ -69,17 +69,6 @@ namespace PlayniteAchievements.Views.Settings.Metadata
             }
         }
 
-        private void Apply_Click(object sender, RoutedEventArgs e)
-        {
-            // A template still being typed is committed first, so Apply uses what the box shows.
-            foreach (var row in TemplateRows)
-            {
-                row.Commit();
-            }
-
-            _plugin.ApplyAutoCapstoneTextWithProgress();
-        }
-
         /// <summary>
         /// Stores a committed template, or null when it is the language's default so it keeps
         /// following the language, and remembers it so text written with it stays recognizable.
