@@ -180,6 +180,24 @@ namespace PlayniteAchievements.Tests.Services
         }
 
         [TestMethod]
+        public void PlatformsWithTheirOwnPointsOrTrophyTypes_TakeNone()
+        {
+            var settings = new PersistedSettings();
+            var game = new MetadataChoices { Points = MetadataChoices.Xbox, TrophyTypes = MetadataChoices.PlayStation };
+
+            var epic = settings.ResolveMetadataChoices("Epic", game);
+            var retro = settings.ResolveMetadataChoices("RetroAchievements");
+            var steam = settings.ResolveMetadataChoices("Steam");
+
+            Assert.AreEqual(string.Empty, epic.Points);
+            Assert.AreEqual(MetadataChoices.PlayStation, epic.TrophyTypes, "Epic has points of its own but no trophy types.");
+            Assert.AreEqual(string.Empty, retro.Points);
+            Assert.AreEqual(string.Empty, retro.TrophyTypes);
+            Assert.AreEqual(MetadataChoices.Xbox, steam.Points);
+            Assert.AreEqual(MetadataChoices.PlayStation, steam.TrophyTypes);
+        }
+
+        [TestMethod]
         public void MetadataDefaults_FillFieldsAnOlderConfigurationLacks()
         {
             var settings = new PersistedSettings
