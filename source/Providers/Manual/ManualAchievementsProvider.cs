@@ -146,7 +146,7 @@ namespace PlayniteAchievements.Providers.Manual
                 return null;
             }
 
-            await EnsureManualSourceAuthenticatedAsync(source, link, cancel).ConfigureAwait(false);
+            await EnsureManualSourceAuthenticatedAsync(source, cancel).ConfigureAwait(false);
 
             // Prefers the user's display platform override, else derives it from the source game id.
             // Null when neither resolves a platform; the game then displays as Manual.
@@ -230,17 +230,8 @@ namespace PlayniteAchievements.Providers.Manual
 
         private async Task EnsureManualSourceAuthenticatedAsync(
             IManualSource source,
-            ManualAchievementLink link,
             CancellationToken ct)
         {
-            if (!ManualSourceAuthentication.ShouldRequireAuthentication(
-                    source,
-                    ProviderSettings.RequireExophaseAuthentication,
-                    link))
-            {
-                return;
-            }
-
             var sourceKey = string.IsNullOrWhiteSpace(source.SourceKey)
                 ? source.GetType().FullName
                 : source.SourceKey.Trim();
