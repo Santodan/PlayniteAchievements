@@ -24,7 +24,19 @@
             </Style>
 
             <Style x:Key="MetadataChoiceComboStyle" TargetType="ComboBox" BasedOn="{StaticResource {x:Type ComboBox}}">
-                <Setter Property="DisplayMemberPath" Value="Label"/>
+                <!-- Tag holds what "Default" stands for, which the closed box shows muted. -->
+                <Setter Property="ItemTemplate">
+                    <Setter.Value>
+                        <DataTemplate>
+                            <ContentPresenter x:Name="Option" Content="{Binding Label}"/>
+                            <DataTemplate.Triggers>
+                                <DataTrigger Binding="{Binding IsInherited}" Value="True">
+                                    <Setter TargetName="Option" Property="ContentTemplate" Value="{StaticResource PlayAch.ComboBox.InheritedOptionTemplate}"/>
+                                </DataTrigger>
+                            </DataTemplate.Triggers>
+                        </DataTemplate>
+                    </Setter.Value>
+                </Setter>
                 <Setter Property="SelectedValuePath" Value="Key"/>
                 <Setter Property="MinWidth" Value="120"/>
                 <Setter Property="VerticalAlignment" Value="Center"/>
@@ -94,6 +106,7 @@
                     <DataTemplate>
                         <ComboBox Style="{StaticResource MetadataChoiceComboStyle}"
                                   ItemsSource="{Binding IconOptions}"
+                                  Tag="{Binding InheritedIcons}"
                                   SelectedValue="{Binding Icons, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
                     </DataTemplate>
                 </DataGridTemplateColumn.CellTemplate>
@@ -105,6 +118,7 @@
                         <ComboBox Style="{StaticResource MetadataChoiceComboStyle}"
                                   MinWidth="170"
                                   ItemsSource="{Binding CategoryOptions}"
+                                  Tag="{Binding InheritedCategories}"
                                   SelectedValue="{Binding Categories, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
                     </DataTemplate>
                 </DataGridTemplateColumn.CellTemplate>
@@ -117,6 +131,7 @@
                         <Grid>
                             <ComboBox Style="{StaticResource MetadataChoiceComboStyle}"
                                       ItemsSource="{Binding RarityOptions}"
+                                      Tag="{Binding InheritedRarity}"
                                       SelectedValue="{Binding Rarity, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                       Visibility="{Binding SupportsRarity, Converter={StaticResource BoolToVis}}"/>
                             <TextBlock Text="—"
@@ -134,6 +149,7 @@
                     <DataTemplate>
                         <ComboBox Style="{StaticResource MetadataChoiceComboStyle}"
                                   ItemsSource="{Binding CapstoneArtOptions}"
+                                  Tag="{Binding InheritedCapstoneArt}"
                                   SelectedValue="{Binding CapstoneArt, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
                     </DataTemplate>
                 </DataGridTemplateColumn.CellTemplate>
@@ -144,6 +160,7 @@
                     <DataTemplate>
                         <ComboBox Style="{StaticResource MetadataChoiceComboStyle}"
                                   ItemsSource="{Binding TrophyTypeOptions}"
+                                  Tag="{Binding InheritedTrophyTypes}"
                                   SelectedValue="{Binding TrophyTypes, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
                     </DataTemplate>
                 </DataGridTemplateColumn.CellTemplate>
@@ -154,6 +171,7 @@
                     <DataTemplate>
                         <ComboBox Style="{StaticResource MetadataChoiceComboStyle}"
                                   ItemsSource="{Binding PointsOptions}"
+                                  Tag="{Binding InheritedPoints}"
                                   SelectedValue="{Binding Points, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
                     </DataTemplate>
                 </DataGridTemplateColumn.CellTemplate>
