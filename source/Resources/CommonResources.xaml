@@ -1012,6 +1012,61 @@
         </Setter>
     </Style>
 
+    <!-- A ToggleButton drawn as a closed PlayAch.ComboBox.BaseStyle (same box, chevron and states),
+         for a dropdown whose list is a custom popup, such as one with a search box. -->
+    <Style x:Key="PlayAch.ToggleButton.ComboBoxLookStyle" TargetType="ToggleButton">
+        <Setter Property="MinHeight" Value="{StaticResource PlayAch.Size.Control.Height}"/>
+        <Setter Property="Padding" Value="5,0,0,0"/>
+        <Setter Property="Background" Value="{DynamicResource PlayAch.Brush.Input.Background}"/>
+        <Setter Property="BorderBrush" Value="{DynamicResource PlayAch.Brush.Input.Border}"/>
+        <Setter Property="BorderThickness" Value="{StaticResource PlayAch.Thickness.Border}"/>
+        <Setter Property="Foreground" Value="{DynamicResource PlayAch.Brush.Text}"/>
+        <Setter Property="FontSize" Value="{DynamicResource PlayAch.FontSize.Body}"/>
+        <Setter Property="FontFamily" Value="{DynamicResource PlayAch.FontFamily.Body}"/>
+        <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+        <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="ToggleButton">
+                    <Border x:Name="Border"
+                            Background="{TemplateBinding Background}"
+                            BorderBrush="{TemplateBinding BorderBrush}"
+                            BorderThickness="{TemplateBinding BorderThickness}"
+                            CornerRadius="{StaticResource PlayAch.Radius.Small}"
+                            SnapsToDevicePixels="True">
+                        <DockPanel Margin="0,0,2,0">
+                            <Viewbox DockPanel.Dock="Right" Width="20">
+                                <TextBlock Text="6"
+                                           FontFamily="Marlett"
+                                           Foreground="{DynamicResource PlayAch.Brush.Glyph}"
+                                           VerticalAlignment="Center"/>
+                            </Viewbox>
+                            <ContentPresenter Margin="{TemplateBinding Padding}"
+                                              HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                              VerticalAlignment="Center"
+                                              TextElement.Foreground="{TemplateBinding Foreground}"/>
+                        </DockPanel>
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Border" Property="BorderBrush" Value="{DynamicResource PlayAch.Brush.Accent}"/>
+                        </Trigger>
+                        <Trigger Property="IsKeyboardFocused" Value="True">
+                            <Setter TargetName="Border" Property="BorderBrush" Value="{DynamicResource PlayAch.Brush.Selection}"/>
+                        </Trigger>
+                        <Trigger Property="IsChecked" Value="True">
+                            <Setter TargetName="Border" Property="Background" Value="{DynamicResource PlayAch.Brush.Button.Background.Selected}"/>
+                            <Setter TargetName="Border" Property="BorderBrush" Value="{DynamicResource PlayAch.Brush.Accent}"/>
+                        </Trigger>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter TargetName="Border" Property="Opacity" Value="{StaticResource PlayAch.Opacity.Disabled}"/>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
     <Style x:Key="PlayAch.ScrollBar.TrackButtonStyle" TargetType="RepeatButton">
         <Setter Property="SnapsToDevicePixels" Value="True"/>
         <Setter Property="OverridesDefaultStyle" Value="True"/>
