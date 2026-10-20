@@ -3,6 +3,8 @@ using PlayniteAchievements.Common;
 using PlayniteAchievements.Models;
 using PlayniteAchievements.Models.Achievements;
 using PlayniteAchievements.Providers.Exophase;
+using PlayniteAchievements.Providers.Steam;
+using PlayniteAchievements.Services.Achievements;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -178,13 +180,64 @@ namespace PlayniteAchievements.Providers.Metadata
             // One page, or several comma-separated. Rows keep that order, so the first page's
             // platinum is the capstone art.
             var rows = new List<AchievementDetail>();
+            var categoryArt = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
             foreach (var slug in SplitSets(linkId))
             {
                 var page = await GetPageAsync(slug, ct).ConfigureAwait(false);
-                rows.AddRange(page?.Achievements ?? new List<AchievementDetail>());
+                var pageRows = page?.Achievements ?? new List<AchievementDetail>();
+                ApplySections(pageRows, ExophaseGamePageParser.ParseAwardSections(page?.Html), categoryArt);
+                rows.AddRange(pageRows);
             }
 
-            return rows.Count == 0 ? null : new AchievementSourceSet(Key, linkId, rows);
+            if (rows.Count == 0)
+            {
+                return null;
+            }
+
+            var set = new AchievementSourceSet(Key, linkId, rows);
+            foreach (var art in categoryArt)
+            {
+                set.CategoryArtUrls[art.Key] = art.Value;
+            }
+
+            return set;
+        }
+
+        /// <summary>
+        /// Files each row under its page's list: Base for the game's own, DLC under the DLC's name
+        /// for the rest, with the DLC's own image as its category art.
+        /// </summary>
+        private static void ApplySections(
+            IList<AchievementDetail> rows,
+            IReadOnlyList<ExophaseAwardSection> sections,
+            IDictionary<string, string> categoryArt)
+        {
+            var byApiName = new Dictionary<string, ExophaseAwardSection>(StringComparer.OrdinalIgnoreCase);
+            foreach (var section in sections ?? Array.Empty<ExophaseAwardSection>())
+            {
+                foreach (var apiName in section.ApiNames)
+                {
+                    byApiName[apiName] = section;
+                }
+
+                var label = CategoryPathHelper.SanitizeSegment(section.Title);
+                if (!string.IsNullOrWhiteSpace(label) && !string.IsNullOrWhiteSpace(section.ArtUrl))
+                {
+                    categoryArt[label] = section.ArtUrl;
+                }
+            }
+
+            foreach (var row in rows)
+            {
+                if (row?.ApiName == null || !byApiName.TryGetValue(row.ApiName, out var section))
+                {
+                    continue;
+                }
+
+                var isDlc = !string.IsNullOrWhiteSpace(section.Title);
+                row.CategoryType = isDlc ? SteamCategoryLabels.DlcCategoryType : SteamCategoryLabels.BaseCategoryType;
+                row.Category = isDlc ? CategoryPathHelper.SanitizeSegment(section.Title) : null;
+            }
         }
 
         /// <summary>The page slugs in a link: one, or several separated by commas. Full page addresses are accepted.</summary>
