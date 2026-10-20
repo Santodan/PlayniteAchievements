@@ -19,7 +19,9 @@ namespace PlayniteAchievements.Tests.Models
             var platforms = (JObject)persisted["MetadataPlatformChoices"];
             Assert.AreEqual("Exophase", (string)platforms["Xbox"]["Rarity"]);
             Assert.AreEqual("Exophase", (string)platforms["Ubisoft"]["Rarity"]);
-            Assert.IsNull(platforms["Xenia"]);
+            // Off, or never saved, keeps the platform's own rarity under the Exophase default.
+            Assert.AreEqual(string.Empty, (string)platforms["Xenia"]["Rarity"]);
+            Assert.AreEqual(string.Empty, (string)platforms["EA"]["Rarity"]);
             Assert.IsNull(platforms["Steam"]);
             Assert.IsTrue((bool)persisted["MetadataChoicesSeeded"]);
         }
