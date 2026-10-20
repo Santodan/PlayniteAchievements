@@ -47,6 +47,12 @@ namespace PlayniteAchievements.Providers.Metadata
         /// <summary>Localization key of the name shown in settings and on the per-game link row.</summary>
         string DisplayNameKey { get; }
 
+        /// <summary>
+        /// An example of the id a link holds ("exophase-game-id", "123456"), shown in the empty
+        /// link box on Manage Achievements. Not localized: it is the id's shape, not a word.
+        /// </summary>
+        string LinkPlaceholder { get; }
+
         MetadataField SupportedFields { get; }
 
         /// <summary>
