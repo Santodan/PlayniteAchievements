@@ -676,6 +676,53 @@ namespace PlayniteAchievements.Services.Images
 
 
         /// <summary>
+        /// The pixel width of the image at a local path or http(s) address, or 0 when it cannot be
+        /// read. Remote images are downloaded without being cached.
+        /// </summary>
+        public async Task<int> GetPixelWidthAsync(string pathOrUri, CancellationToken cancel)
+        {
+            if (string.IsNullOrWhiteSpace(pathOrUri))
+            {
+                return 0;
+            }
+
+            if (!pathOrUri.StartsWith("http", StringComparison.OrdinalIgnoreCase))
+            {
+                return ImagePixelSize.TryRead(pathOrUri, out var localWidth, out _) ? localWidth : 0;
+            }
+
+            try
+            {
+                var bytes = await DownloadBytesAsync(pathOrUri, cancel).ConfigureAwait(false);
+                if (bytes == null || bytes.Length == 0)
+                {
+                    return 0;
+                }
+
+                using (var stream = new MemoryStream(bytes, writable: false))
+                {
+                    if (ImageHeaderDimensions.TryRead(stream, out var width, out _))
+                    {
+                        return width;
+                    }
+
+                    stream.Position = 0;
+                    var frame = BitmapFrame.Create(stream, BitmapCreateOptions.DelayCreation, BitmapCacheOption.None);
+                    return frame.PixelWidth;
+                }
+            }
+            catch (OperationCanceledException) when (cancel.IsCancellationRequested)
+            {
+                throw;
+            }
+            catch (Exception ex)
+            {
+                _logger?.Debug($"Could not read the pixel size of {pathOrUri}: {ex.Message}");
+                return 0;
+            }
+        }
+
+        /// <summary>
         /// Get or download an icon by URI, caching to disk by URI hash.
         /// If gameId is provided, stores in per-game subfolder.
         /// Returns the file path to the cached PNG file, or null on failure.
