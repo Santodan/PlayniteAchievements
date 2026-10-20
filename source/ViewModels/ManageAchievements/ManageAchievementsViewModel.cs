@@ -178,6 +178,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             MetadataLinks = new MetadataLinksViewModel(
                 () => _plugin?.MetadataLinks,
                 () => _plugin?.ProviderRegistry?.GetMetadataProviders(),
+                gameId => _plugin?.AchievementDataService?.GetGameAchievementData(gameId)?.Achievements,
                 () =>
                 {
                     Reload();
