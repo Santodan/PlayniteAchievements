@@ -29,8 +29,6 @@ namespace PlayniteAchievements.Services.Achievements
         // One pass at a time: a retroactive pass and a refresh's pass reaching the same game
         // together would each find it unhandled and author two capstones.
         private readonly SemaphoreSlim _gate = new SemaphoreSlim(1, 1);
-        private readonly object _waitingSync = new object();
-        private readonly HashSet<Guid> _waitingForEditor = new HashSet<Guid>();
 
         public AutoCapstoneGenerator(
             GameCustomDataStore store,
@@ -44,7 +42,6 @@ namespace PlayniteAchievements.Services.Achievements
             _authoring = authoring;
             _isEnabled = isEnabled;
             _logger = logger;
-            OpenEditorRegistry.Closed += OnEditorClosed;
         }
 
         /// <summary>
@@ -103,13 +100,8 @@ namespace PlayniteAchievements.Services.Achievements
 
             // The open editor saves the definitions from its own rows, so an achievement added
             // underneath it would be gone at its next save. The game is looked at when it closes.
-            if (OpenEditorRegistry.IsOpen(gameId))
+            if (OpenEditorRegistry.DeferWhileOpen(gameId, this, () => _ = GenerateAsync(new[] { gameId })))
             {
-                lock (_waitingSync)
-                {
-                    _waitingForEditor.Add(gameId);
-                }
-
                 return;
             }
 
@@ -142,19 +134,6 @@ namespace PlayniteAchievements.Services.Achievements
                     await _authoring.AuthorAsync(gameId).ConfigureAwait(false);
                     break;
             }
-        }
-
-        private void OnEditorClosed(Guid gameId)
-        {
-            lock (_waitingSync)
-            {
-                if (!_waitingForEditor.Remove(gameId))
-                {
-                    return;
-                }
-            }
-
-            _ = GenerateAsync(new[] { gameId });
         }
     }
 }
