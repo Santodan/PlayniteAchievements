@@ -290,6 +290,7 @@ namespace PlayniteAchievements.ViewModels.Workshop
                     Count("achievementOverrides", "Overrides");
                     Count("notes", "Notes");
                     Count("achievementOrder", "Order");
+                    Count("metadataLinks", "Metadata links");
                     break;
                 case WorkshopItemKind.UnlockSounds:
                     if (contents["slots"] is JArray slots)
