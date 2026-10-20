@@ -119,6 +119,17 @@ namespace PlayniteAchievements.Services.Metadata
                 _ownIcons[gameId] = ownIcons;
             }
             ApplyCategories(plan.CategoryKeys, plan.CategoryMode, sets);
+            // A borrowed platinum type only labels the trophy; capstones keep their own rules.
+            ApplyField(
+                plan.TrophyTypeKeys,
+                sets,
+                source => !string.IsNullOrWhiteSpace(source.TrophyType),
+                (target, source) => target.TrophyType = source.TrophyType);
+            ApplyField(
+                plan.PointsKeys,
+                sets,
+                source => source.Points.HasValue,
+                (target, source) => target.Points = source.Points);
             var capstone = ResolveCapstone(plan.CapstoneArtKeys, sets);
             var capstoneArt = FirstNonBlank(capstone?.UnlockedIconPath, capstone?.LockedIconPath);
             // A source that supplies achievement data is judged, and shown, by how many of the
@@ -126,8 +137,7 @@ namespace PlayniteAchievements.Services.Metadata
             var coverage = new Dictionary<string, MetadataCoverage>(StringComparer.OrdinalIgnoreCase);
             foreach (var pair in sets)
             {
-                var perAchievement = plan.IconKeys.Contains(pair.Key, StringComparer.OrdinalIgnoreCase) ||
-                                     plan.CategoryKeys.Contains(pair.Key, StringComparer.OrdinalIgnoreCase);
+                var perAchievement = plan.PerAchievementKeys.Contains(pair.Key, StringComparer.OrdinalIgnoreCase);
                 if (perAchievement)
                 {
                     coverage[pair.Key] = new MetadataCoverage { Matched = pair.Value.Matches.Count, Total = data.Achievements.Count };
@@ -264,7 +274,9 @@ namespace PlayniteAchievements.Services.Metadata
                 Chosen(choices.Icons, MetadataField.Icons),
                 Chosen(choices.Categories, MetadataField.Categories),
                 choices.CategoryMode ?? MetadataCategoryMode.Merge,
-                Chosen(choices.CapstoneArt, MetadataField.CapstoneArt));
+                Chosen(choices.CapstoneArt, MetadataField.CapstoneArt),
+                Chosen(choices.TrophyTypes, MetadataField.TrophyTypes),
+                Chosen(choices.Points, MetadataField.Points));
         }
 
         /// <summary>A link request carrying the labels of the game's saved links as alternate names.</summary>
@@ -497,6 +509,34 @@ namespace PlayniteAchievements.Services.Metadata
         }
 
         /// <summary>
+        /// Copies one field to each achievement from the first preferred source that matched it
+        /// and has a value for it.
+        /// </summary>
+        private static void ApplyField(
+            IReadOnlyList<string> keys,
+            IReadOnlyDictionary<string, MatchedSet> sets,
+            Func<AchievementDetail, bool> hasValue,
+            Action<AchievementDetail, AchievementDetail> copy)
+        {
+            var done = new HashSet<AchievementDetail>();
+            foreach (var key in keys)
+            {
+                if (!sets.TryGetValue(key, out var set))
+                {
+                    continue;
+                }
+
+                foreach (var match in set.Matches)
+                {
+                    if (hasValue(match.Source) && done.Add(match.Target))
+                    {
+                        copy(match.Target, match.Source);
+                    }
+                }
+            }
+        }
+
+        /// <summary>
         /// Applies each achievement's category and types from the first source that matched it.
         /// Merge keeps a category the provider named and adds the source's types; Override replaces both.
         /// </summary>
@@ -608,16 +648,30 @@ namespace PlayniteAchievements.Services.Metadata
                 List<string> iconKeys,
                 List<string> categoryKeys,
                 MetadataCategoryMode categoryMode,
-                List<string> capstoneArtKeys)
+                List<string> capstoneArtKeys,
+                List<string> trophyTypeKeys,
+                List<string> pointsKeys)
             {
                 IconKeys = iconKeys;
                 CategoryKeys = categoryKeys;
                 CategoryMode = categoryMode;
                 CapstoneArtKeys = capstoneArtKeys;
-                AllKeys = iconKeys.Concat(categoryKeys).Concat(capstoneArtKeys)
+                TrophyTypeKeys = trophyTypeKeys;
+                PointsKeys = pointsKeys;
+                PerAchievementKeys = iconKeys.Concat(categoryKeys).Concat(trophyTypeKeys).Concat(pointsKeys)
+                    .Distinct(StringComparer.OrdinalIgnoreCase)
+                    .ToList();
+                AllKeys = PerAchievementKeys.Concat(capstoneArtKeys)
                     .Distinct(StringComparer.OrdinalIgnoreCase)
                     .ToList();
             }
+
+            public List<string> TrophyTypeKeys { get; }
+
+            public List<string> PointsKeys { get; }
+
+            /// <summary>Sources supplying achievement fields, judged by how many achievements they match.</summary>
+            public List<string> PerAchievementKeys { get; }
 
             public List<string> IconKeys { get; }
 
