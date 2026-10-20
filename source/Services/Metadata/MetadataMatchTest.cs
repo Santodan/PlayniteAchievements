@@ -61,8 +61,6 @@ namespace PlayniteAchievements.Services.Metadata
 
         public int AchievementsTotal { get; set; }
 
-        public bool SourceUnavailable { get; set; }
-
         public bool Cancelled { get; set; }
     }
 
@@ -117,7 +115,6 @@ namespace PlayniteAchievements.Services.Metadata
 
                     if (result.Outcome == MetadataProbeOutcome.SourceUnavailable)
                     {
-                        summary.SourceUnavailable = true;
                         break;
                     }
 
