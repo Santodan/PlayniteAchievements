@@ -59,6 +59,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
     internal static class ManageOverviewSummaryBuilder
     {
         public const string CustomAchievementsLabelKey = "LOCCustomLabel";
+        public const string AutoCapstoneLabelKey = "LOCPlayAch_ManageAchievements_Custom_AutoCapstone";
         public const string OrderLabelKey = "LOCPlayAch_ManageAchievements_Tab_AchievementOrder";
         public const string CategoryArtLabelKey = "LOCPlayAch_Column_CategoryArt";
         public const string NotificationsLabelKey = "LOCNotifications";
@@ -173,17 +174,35 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 return result;
             }
 
-            AddCount(result, CustomAchievementsLabelKey, data.CustomAchievements?.Count(item => item != null) ?? 0);
+            // Auto capstones are written by the plugin, not the user: one count of their own, and
+            // left out of every other count, Custom included.
+            var autoCapstones = (data.CustomAchievements ?? new List<CustomAchievementDefinition>())
+                .Where(item => item?.IsAutoCapstone == true)
+                .ToList();
+            var autoCapstoneNames = new HashSet<string>(
+                autoCapstones
+                    .Select(item => CustomAchievementProjectionService.BuildApiName(item.Id))
+                    .Where(HasText),
+                StringComparer.OrdinalIgnoreCase);
+            bool IsUserAchievement(string apiName) => !autoCapstoneNames.Contains(apiName?.Trim() ?? string.Empty);
+
+            AddCount(
+                result,
+                CustomAchievementsLabelKey,
+                data.CustomAchievements?.Count(item => item != null && !item.IsAutoCapstone) ?? 0);
+            AddCount(result, AutoCapstoneLabelKey, autoCapstones.Count);
 
             var overrides = (data.AchievementOverrides ?? new Dictionary<string, AchievementOverride>())
-                .Where(pair => !string.IsNullOrWhiteSpace(pair.Key) && pair.Value != null)
+                .Where(pair => !string.IsNullOrWhiteSpace(pair.Key) && pair.Value != null && IsUserAchievement(pair.Key))
                 .ToList();
             var customs = (data.CustomAchievements ?? new List<CustomAchievementDefinition>())
-                .Where(item => item != null)
+                .Where(item => item != null && !item.IsAutoCapstone)
                 .Select(item => new KeyValuePair<string, CustomAchievementDefinition>(
                     CustomAchievementProjectionService.BuildApiName(item.Id), item))
                 .Where(pair => pair.Key != null)
                 .ToList();
+            int CountUserDistinct(IEnumerable<string> apiNames) =>
+                CountDistinct((apiNames ?? Enumerable.Empty<string>()).Where(IsUserAchievement));
 
             int Count(Func<AchievementOverride, bool> inOverride, Func<CustomAchievementDefinition, bool> inCustom)
             {
@@ -233,17 +252,17 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                         count = overrides.Count(pair => HasText(pair.Value.Note));
                         break;
                     case AchievementCustomizationFacet.FilterScope:
-                        count = CountDistinct((data.FilteredAchievementApiNames ?? new List<string>())
+                        count = CountUserDistinct((data.FilteredAchievementApiNames ?? new List<string>())
                             .Concat(data.SummaryFilteredAchievementApiNames ?? new List<string>()));
                         break;
                     case AchievementCustomizationFacet.Goal:
-                        count = CountDistinct(data.GoalAchievementApiNames);
+                        count = CountUserDistinct(data.GoalAchievementApiNames);
                         break;
                     case AchievementCustomizationFacet.Capstone:
                         // A materialized set names every capstone, custom ones included; before
                         // that, a custom achievement's own flag is what makes it one.
                         count = data.CapstonesMaterialized
-                            ? data.Capstones?.Count(item => item != null) ?? 0
+                            ? CountUserDistinct(data.Capstones?.Where(item => item != null).Select(item => item.ApiName))
                             : customs.Count(pair => pair.Value.IsCapstone);
                         break;
                     default:
