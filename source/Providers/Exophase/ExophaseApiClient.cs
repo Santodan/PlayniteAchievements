@@ -1195,7 +1195,7 @@ namespace PlayniteAchievements.Providers.Exophase
             };
         }
 
-        private static bool TryParseStableAwardId(HtmlNode node, out long stableAwardId)
+        internal static bool TryParseStableAwardId(HtmlNode node, out long stableAwardId)
         {
             stableAwardId = 0;
             var candidate = node.GetAttributeValue("data-master", "");
