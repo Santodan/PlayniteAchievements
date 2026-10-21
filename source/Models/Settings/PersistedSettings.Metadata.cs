@@ -170,7 +170,6 @@ namespace PlayniteAchievements.Models.Settings
         private Dictionary<string, MetadataChoices> _metadataPlatformChoices =
             new Dictionary<string, MetadataChoices>(StringComparer.OrdinalIgnoreCase);
         private bool _metadataChoicesSeeded = true;
-        private bool _metadataTagChoicesSeeded = true;
 
         public MetadataChoices MetadataDefaults
         {
@@ -194,17 +193,6 @@ namespace PlayniteAchievements.Models.Settings
         {
             get => _metadataChoicesSeeded;
             set => SetValue(ref _metadataChoicesSeeded, value);
-        }
-
-        /// <summary>
-        /// One-time copy of each stored Categories choice into Tags, which categories carried until
-        /// tags got their own choice. Defaults true so configs written by this build are never
-        /// re-seeded; the migration keys off the flag's absence.
-        /// </summary>
-        public bool MetadataTagChoicesSeeded
-        {
-            get => _metadataTagChoicesSeeded;
-            set => SetValue(ref _metadataTagChoicesSeeded, value);
         }
 
         /// <summary>
