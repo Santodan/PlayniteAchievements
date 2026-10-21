@@ -732,6 +732,9 @@ namespace PlayniteAchievements.Services.Achievements
                 "CategoryType" => ApplyDirection(
                     (a, b) => CompareByCategoryTypeThenUnlock(a, b, scope),
                     direction),
+                "CategoryKind" => ApplyDirection(
+                    (a, b) => CompareByCategoryKindThenUnlock(a, b, scope),
+                    direction),
                 "CategoryLabel" => ApplyDirection(
                     (a, b) => CompareByCategoryLabelThenUnlock(a, b, scope),
                     direction),
@@ -1007,6 +1010,22 @@ namespace PlayniteAchievements.Services.Achievements
             if (typeComparison != 0)
             {
                 return typeComparison;
+            }
+
+            return CompareByUnlockTime(a, b, ListSortDirection.Ascending, scope);
+        }
+
+        private static int CompareByCategoryKindThenUnlock(
+            AchievementDisplayItem a,
+            AchievementDisplayItem b,
+            AchievementSortScope scope)
+        {
+            var kindComparison = string.CompareOrdinal(
+                CategoryKindHelper.ToSortKey(a?.CategoryKind),
+                CategoryKindHelper.ToSortKey(b?.CategoryKind));
+            if (kindComparison != 0)
+            {
+                return kindComparison;
             }
 
             return CompareByUnlockTime(a, b, ListSortDirection.Ascending, scope);
