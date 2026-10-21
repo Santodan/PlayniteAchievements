@@ -661,6 +661,39 @@ namespace PlayniteAchievements.Tests.Services
         }
 
         [TestMethod]
+        public async Task ExtendedLink_ReplacesAnAutoLinkWithItsPairings_ButNotAUsersLink()
+        {
+            var trueGaming = new FakeSource("TrueGaming", MetadataField.Categories | MetadataField.Tags) { ExtendedId = "X, tt:X" };
+            trueGaming.Rows.Add(Row("t1", "One", category: "Pack"));
+            var data = Game("Steam", Row("s1", "One"));
+            var gameId = data.PlayniteGameId.Value;
+            var overlay = Overlay(new[] { trueGaming }, Choices(categories: trueGaming.Key));
+            overlay.Links.SetAuto(gameId, trueGaming.Key, "X");
+            overlay.Links.SetPairing(gameId, trueGaming.Key, "s1", "t1");
+
+            using (var run = overlay.BeginRun())
+            {
+                await run.ApplyAsync(data.Game, data, CancellationToken.None);
+            }
+
+            Assert.AreEqual(MetadataField.Categories | MetadataField.CategoryArt, trueGaming.LastWanted, "the source is told what it is used for");
+            Assert.IsTrue(overlay.Links.TryGet(gameId, trueGaming.Key, out var extended));
+            Assert.AreEqual("X, tt:X", extended.Id);
+            Assert.AreEqual("t1", extended.Pairings["s1"], "pairings stay with the extended link");
+
+            overlay.Links.SetUser(gameId, trueGaming.Key, "X");
+            var next = Game("Steam", Row("s1", "One"));
+            next.PlayniteGameId = gameId;
+            using (var run = overlay.BeginRun())
+            {
+                await run.ApplyAsync(data.Game, next, CancellationToken.None);
+            }
+
+            Assert.IsTrue(overlay.Links.TryGet(gameId, trueGaming.Key, out var user));
+            Assert.AreEqual("X", user.Id, "a user's link is kept as set");
+        }
+
+        [TestMethod]
         public async Task Rarity_TakesTheSourcesShare_OnPlatformsThatUseIt()
         {
             var exophase = new FakeSource("Exophase", MetadataField.Rarity);
@@ -821,6 +854,12 @@ namespace PlayniteAchievements.Tests.Services
             /// <summary>Fields the fetched set reports it could not read.</summary>
             public MetadataField Unavailable { get; set; }
 
+            /// <summary>The fuller link the fetched set reports.</summary>
+            public string ExtendedId { get; set; }
+
+            /// <summary>The fields the last fetch was asked for.</summary>
+            public MetadataField LastWanted { get; private set; }
+
             public string NativeFor { get; set; }
 
             public List<AchievementDetail> Rows { get; } = new List<AchievementDetail>();
@@ -853,12 +892,13 @@ namespace PlayniteAchievements.Tests.Services
             public Task<AchievementSourceSet> FetchAsync(MetadataLinkRequest request, string linkId, CancellationToken ct)
             {
                 FetchCount++;
+                LastWanted = request.WantedFields;
                 if (FailFetch)
                 {
                     throw new InvalidOperationException("unreachable");
                 }
 
-                var set = new AchievementSourceSet(Key, linkId, Rows) { ApiNamesMayBeShared = IdsMayBeShared, UnavailableFields = Unavailable };
+                var set = new AchievementSourceSet(Key, linkId, Rows) { ApiNamesMayBeShared = IdsMayBeShared, UnavailableFields = Unavailable, ExtendedLinkId = ExtendedId };
                 foreach (var art in CategoryArt)
                 {
                     set.CategoryArtUrls[art.Key] = art.Value;
