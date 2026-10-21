@@ -60,12 +60,12 @@ namespace PlayniteAchievements.Services.Achievements
         }
 
         /// <summary>
-        /// The filter keys that occur on <paramref name="items"/>, in option order: kinds, then tags
-        /// in list order, then the derived unlock modes. Tags without a definition are left out.
+        /// The tag keys that occur on <paramref name="items"/>, in list order, then the derived unlock
+        /// modes: the options of the in-app Tags filters. Kinds are filtered by category instead, and
+        /// tags without a definition are left out.
         /// </summary>
         public static List<string> GetPresentKeys<T>(
             IEnumerable<T> items,
-            Func<T, string> kindSelector,
             Func<T, string> tagsSelector,
             Guid? gameId = null)
         {
@@ -77,11 +77,10 @@ namespace PlayniteAchievements.Services.Achievements
                     continue;
                 }
 
-                present.UnionWith(CategoryKindHelper.GetComponents(kindSelector(item)));
                 present.UnionWith(AchievementTagHelper.GetComponents(tagsSelector(item)));
             }
 
-            return GetFilterKeys(gameId)
+            return AchievementTagRegistry.GetAssignableKeys(gameId)
                 .Concat(new[] { AchievementTagHelper.Softcore, AchievementTagHelper.Hardcore })
                 .Where(present.Contains)
                 .ToList();
