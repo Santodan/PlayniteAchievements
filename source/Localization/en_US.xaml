@@ -390,6 +390,7 @@
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Tags_GlobalHeader">Global Tags</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Tags_GameHeader">Game Tags</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Tags_Empty">No tags for this game yet.</sys:String>
+    <sys:String x:Key="LOCPlayAch_ManageAchievements_Tags_FetchedHint">From this game's achievement data: it can be renamed and recolored, but not deleted.</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Editor_Goal">Goal</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Editor_Revert">Revert</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Editor_RevertHint">Discard your changes to the selected achievements and show the provider's values again.</sys:String>
