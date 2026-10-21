@@ -1886,8 +1886,85 @@ namespace PlayniteAchievements
 
         private void OnSettingsSavedForAutoCapstoneText(object sender, EventArgs e) => StartAutoCapstoneTextApply();
 
-        private void OnSettingsSavedForAchievementTags(object sender, EventArgs e) =>
-            AchievementTagRegistry.SetGlobal(_settingsViewModel?.Settings?.Persisted?.ResolveAchievementTags());
+        private void OnSettingsSavedForAchievementTags(object sender, EventArgs e)
+        {
+            var updated = _settingsViewModel?.Settings?.Persisted?.ResolveAchievementTags();
+            if (updated == null)
+            {
+                return;
+            }
+
+            var removed = AchievementTagRegistry.Global
+                .Where(old => !AchievementTagHelper.IsDerivedTag(old.Key) &&
+                              !updated.Any(definition => string.Equals(definition.Key, old.Key, StringComparison.OrdinalIgnoreCase)))
+                .Select(old => old.Clone())
+                .ToList();
+            AchievementTagRegistry.SetGlobal(updated);
+            if (removed.Count > 0)
+            {
+                _ = Task.Run(() => DemoteDeletedTags(removed));
+            }
+        }
+
+        /// <summary>
+        /// Moves tags deleted from the global list into the own list of each game whose
+        /// achievements carry them, through the user's tag edits or the cached provider and source
+        /// data, keeping their names, colors and icons. Other games are not touched, and a game
+        /// that already defines the key keeps its own definition.
+        /// </summary>
+        private void DemoteDeletedTags(IReadOnlyList<AchievementTagDefinition> removed)
+        {
+            var store = _gameCustomDataStore;
+            if (store == null)
+            {
+                return;
+            }
+
+            try
+            {
+                var gamesByKey = removed.ToDictionary(
+                    definition => definition.Key,
+                    definition => (_cacheManager as ICacheReadOptimizations)?.GetGameIdsWithTag(definition.Key) ?? new HashSet<Guid>(),
+                    StringComparer.OrdinalIgnoreCase);
+                store.QueryAll(files =>
+                {
+                    foreach (var file in files.Where(file => file?.AchievementOverrides != null))
+                    {
+                        foreach (var key in file.AchievementOverrides.Values
+                                     .SelectMany(entry => AchievementTagHelper.GetComponents(entry?.Tags))
+                                     .Where(gamesByKey.ContainsKey))
+                        {
+                            gamesByKey[key].Add(file.PlayniteGameId);
+                        }
+                    }
+
+                    return 0;
+                });
+
+                foreach (var gameId in gamesByKey.Values.SelectMany(ids => ids).Where(id => id != Guid.Empty).Distinct().ToList())
+                {
+                    var demoted = removed.Where(definition => gamesByKey[definition.Key].Contains(gameId)).ToList();
+                    store.Update(
+                        gameId,
+                        customData =>
+                        {
+                            var own = customData.AchievementTags ?? new List<AchievementTagDefinition>();
+                            own.AddRange(demoted
+                                .Where(definition => own.All(existing => !string.Equals(existing.Key, definition.Key, StringComparison.OrdinalIgnoreCase)))
+                                .Select(definition => definition.Clone()));
+                            customData.AchievementTags = own.Count > 0 ? own : null;
+                        },
+                        affectsSummaryData: false,
+                        affectsOverrideMirror: false);
+                }
+
+                _logger?.Info($"[Tags] Moved {removed.Count} deleted global tag(s) into {gamesByKey.Values.SelectMany(ids => ids).Distinct().Count()} game(s).");
+            }
+            catch (Exception ex)
+            {
+                _logger?.Warn(ex, "[Tags] Moving deleted global tags into their games failed.");
+            }
+        }
 
         // Cheap and synchronous: only drops the game's cached tag list, so names and colors re-read it.
         private void GameCustomDataStore_CustomDataChangedForTags(object sender, GameCustomDataChangedEventArgs e)
