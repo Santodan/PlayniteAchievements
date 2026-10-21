@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Collections.Specialized;
+using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
@@ -33,6 +34,7 @@ namespace PlayniteAchievements.Views.Controls
             InitializeComponent();
             PickerComboBox.SelectionChanged += PickerComboBox_SelectionChanged;
             Helpers.SelectorSearch.SetCreateAction(PickerComboBox, RequestCreate);
+            Helpers.SelectorSearch.SetSearchHandler(PickerComboBox, ShowSearchResults);
 
             // A TabControl unloads the tab this box sits on, so the watcher has to come back with
             // it: the bound collection is delivered once and never replaced, which left a box that
@@ -100,6 +102,56 @@ namespace PlayniteAchievements.Views.Controls
         private void RequestCreate(string name)
         {
             CreateRequested?.Invoke(this, name);
+        }
+
+        /// <summary>
+        /// Lists the categories whose name holds <paramref name="query"/>, each under the categories
+        /// above it, as a tree of its own so the connectors join what is shown; "" puts the full
+        /// list back. Returns whether any category matched.
+        /// </summary>
+        private bool ShowSearchResults(string query)
+        {
+            List<CategoryPickerOption> shown;
+            var matched = true;
+            if (string.IsNullOrEmpty(query))
+            {
+                shown = _options;
+            }
+            else
+            {
+                var labels = _options
+                    .Where(option => option.IsSelectable &&
+                                     (option.LeafDisplay ?? string.Empty).IndexOf(query, StringComparison.OrdinalIgnoreCase) >= 0)
+                    .Select(option => option.Label)
+                    .ToList();
+                matched = labels.Count > 0;
+
+                // The parents come back from the tree build; the full list's order keeps them where
+                // they were.
+                shown = CategoryPickerResolver.BuildOptions(
+                    labels,
+                    _options.Select(option => option.Label).ToList(),
+                    synthesizedAreSelectable: true);
+            }
+
+            if (!ReferenceEquals(PickerComboBox.ItemsSource, shown))
+            {
+                var carriedLabel = _lastPickedOption?.Label;
+                _isSyncingSelection = true;
+                try
+                {
+                    PickerComboBox.ItemsSource = shown;
+                    PickerComboBox.SelectedItem = carriedLabel == null
+                        ? null
+                        : shown.FirstOrDefault(option => CategoryPathHelper.IsSame(option.Label, carriedLabel));
+                }
+                finally
+                {
+                    _isSyncingSelection = false;
+                }
+            }
+
+            return matched;
         }
 
         /// <summary>
