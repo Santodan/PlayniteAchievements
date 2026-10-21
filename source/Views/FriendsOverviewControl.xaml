@@ -168,6 +168,7 @@
                                 VerticalAlignment="Center">
                             <Button.ContextMenu>
                                 <ContextMenu x:Name="RefreshModeSelectionContextMenu"
+                                             helpers:SelectorSearch.IsDisabled="True"
                                              Style="{StaticResource AchievementSelectorContextMenuStyle}"
                                              ItemContainerStyle="{StaticResource AchievementMultiSelectMenuItemStyle}"/>
                             </Button.ContextMenu>
