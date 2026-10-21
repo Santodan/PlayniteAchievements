@@ -1,7 +1,6 @@
 using Newtonsoft.Json;
 using Playnite.SDK;
 using PlayniteAchievements.Models.Settings;
-using PlayniteAchievements.Providers.Metadata;
 using PlayniteAchievements.Services.GameCustomData;
 using System;
 using System.Collections.Generic;
@@ -74,7 +73,7 @@ namespace PlayniteAchievements.Services.Metadata
         public List<string> IconFallbackApiNames { get; set; }
     }
 
-    /// <summary>One source's match count for a game at its last overlay, and the fields it was applied for.</summary>
+    /// <summary>One source's match count for a game at its last overlay.</summary>
     public sealed class MetadataCoverage
     {
         [JsonProperty("matched")]
@@ -83,12 +82,8 @@ namespace PlayniteAchievements.Services.Metadata
         [JsonProperty("total")]
         public int Total { get; set; }
 
-        /// <summary>The fields the source was used for; a refresh that would use it for others loads it again.</summary>
-        [JsonProperty("fields", DefaultValueHandling = DefaultValueHandling.Ignore)]
-        internal MetadataField Fields { get; set; }
-
         public bool SameAs(MetadataCoverage other) =>
-            other != null && other.Matched == Matched && other.Total == Total && other.Fields == Fields;
+            other != null && other.Matched == Matched && other.Total == Total;
     }
 
     /// <summary>
