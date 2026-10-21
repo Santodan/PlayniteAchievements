@@ -7,6 +7,7 @@ using PlayniteAchievements.Models;
 using PlayniteAchievements.Models.Settings;
 using PlayniteAchievements.Providers;
 using PlayniteAchievements.Providers.Metadata;
+using PlayniteAchievements.Services.Metadata;
 using ObservableObject = PlayniteAchievements.Common.ObservableObject;
 
 namespace PlayniteAchievements.Views.Settings.Metadata
@@ -315,8 +316,8 @@ namespace PlayniteAchievements.Views.Settings.Metadata
         /// Off, or each source that supplies <paramref name="field"/>. Every row offers the same
         /// sources: one native to the platform (PlayStation on PSN) is the platform's own data, so
         /// choosing it changes nothing, and SteamHunters on Steam is applied by the Steam scan.
-        /// Exophase's own-platform source is not offered: it applies by itself, rarity on the
-        /// platforms that use it (the Rarity column) and icons on EA and Ubisoft.
+        /// Sources that are never picked by themselves are not offered; see
+        /// <see cref="MetadataSourceRouting.IsChoice"/>.
         /// </summary>
         private IReadOnlyList<ChoiceOption> BuildOptions(IReadOnlyList<IMetadataProvider> providers, MetadataField field)
         {
@@ -325,8 +326,7 @@ namespace PlayniteAchievements.Views.Settings.Metadata
                 new ChoiceOption(string.Empty, ResourceProvider.GetString("LOCPlayAch_Settings_Override_Off"))
             };
             options.AddRange(providers
-                .Where(provider => (provider.SupportedFields & field) != 0 &&
-                                   !string.Equals(provider.Key, MetadataChoices.Exophase, StringComparison.OrdinalIgnoreCase))
+                .Where(provider => (provider.SupportedFields & field) != 0 && MetadataSourceRouting.IsChoice(provider, field))
                 .Select(provider => new ChoiceOption(provider.Key, ResourceProvider.GetString(provider.DisplayNameKey))));
             return WithDefault(options);
         }
