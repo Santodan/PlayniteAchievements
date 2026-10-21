@@ -317,7 +317,8 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 _ => owner.Apply(this),
                 _ => !string.IsNullOrWhiteSpace(Input) &&
                      !string.Equals(Input.Trim(), _linkedId, StringComparison.OrdinalIgnoreCase));
-            ClearCommand = new RelayCommand(_ => owner.Clear(this), _ => IsUserSet);
+            CanReset = IsUserSet || record?.IsNoMatch == true;
+            ClearCommand = new RelayCommand(_ => owner.Clear(this), _ => CanReset);
             OpenMatchesCommand = new RelayCommand(_ => owner.OpenMatches(this), _ => HasMatches);
         }
 
@@ -351,6 +352,12 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
 
         /// <summary>The link was entered by the user, so Reset can hand it back to matching.</summary>
         public bool IsUserSet { get; }
+
+        /// <summary>
+        /// Reset hands the link back to matching: one the user entered, or a "no match" the
+        /// source's matching stored, so it looks again on the next refresh.
+        /// </summary>
+        public bool CanReset { get; }
 
         /// <summary>The source's list and matches from the last refresh; null before one, or for a capstone-only source.</summary>
         internal MetadataSourceSnapshot Snapshot { get; }
