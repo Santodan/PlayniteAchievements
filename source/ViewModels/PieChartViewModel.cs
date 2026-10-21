@@ -521,6 +521,81 @@ namespace PlayniteAchievements.ViewModels
             ApplySmallSliceMode(dataPoints);
         }
 
+        // Maps display labels to tag keys for the tag pie, whose labels are user-named.
+        private readonly Dictionary<string, string> _labelToTagKey = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+
+        public string GetTagKeyFromLabel(string label) =>
+            !string.IsNullOrWhiteSpace(label) && _labelToTagKey.TryGetValue(label, out var key) ? key : null;
+
+        public string GetLabelForTagKey(string tagKey) =>
+            string.IsNullOrWhiteSpace(tagKey)
+                ? null
+                : _labelToTagKey
+                    .Where(pair => string.Equals(pair.Value, tagKey, StringComparison.OrdinalIgnoreCase))
+                    .Select(pair => pair.Key)
+                    .FirstOrDefault();
+
+        /// <summary>
+        /// Sets the pie chart data for tags: one slice per tag of its unlocked achievements, in the
+        /// order given, then the locked slice. An achievement with several tags counts under each,
+        /// so the slices can overlap.
+        /// </summary>
+        public void SetTagData(
+            IReadOnlyList<(string Key, string Label, int Unlocked, int Total, string ColorHex, string IconKey)> tags,
+            int locked,
+            string lockedLabel)
+        {
+            _labelToTagKey.Clear();
+            var dataPoints = new List<PieSliceInputData>();
+            foreach (var tag in tags ?? Array.Empty<(string, string, int, int, string, string)>())
+            {
+                if (tag.Unlocked <= 0 && tag.Total <= 0)
+                {
+                    continue;
+                }
+
+                var colorHex = Services.Achievements.AchievementTagHelper.NormalizeColor(tag.ColorHex) ?? "#888888";
+                var color = (Color)ColorConverter.ConvertFromString(colorHex);
+
+                _labelToTagKey[tag.Label ?? tag.Key] = tag.Key;
+                dataPoints.Add(new PieSliceInputData
+                {
+                    Label = tag.Label ?? tag.Key,
+                    Count = tag.Unlocked,
+                    IconKey = tag.IconKey ?? string.Empty,
+                    Color = color,
+                    OriginalColorHex = colorHex,
+                    UnlockedCount = tag.Unlocked,
+                    TotalCount = tag.Total,
+                    IsLocked = false
+                });
+            }
+
+            if (dataPoints.Count == 0)
+            {
+                UpdateExactCounts(0, 0);
+                SynchronizePieChartAndLegend(new List<PieSliceData>());
+                return;
+            }
+
+            if (_includeLocked)
+            {
+                dataPoints.Add(new PieSliceInputData
+                {
+                    Label = lockedLabel,
+                    Count = locked,
+                    IconKey = "BadgeLocked",
+                    Color = GetLockedColor(),
+                    OriginalColorHex = string.Empty,
+                    UnlockedCount = locked,
+                    TotalCount = locked,
+                    IsLocked = true
+                });
+            }
+
+            ApplySmallSliceMode(dataPoints);
+        }
+
         /// <summary>
         /// Sets the pie chart data for trophy distribution (Platinum, Gold, Silver, Bronze, Locked).
         /// </summary>
