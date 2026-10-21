@@ -623,6 +623,32 @@ namespace PlayniteAchievements.Tests.Services
         }
 
         [TestMethod]
+        public async Task Rarity_TakesTheSourcesShare_OnPlatformsThatUseIt()
+        {
+            var exophase = new FakeSource("Exophase", MetadataField.Rarity);
+            var rare = Row("x1", "One");
+            rare.GlobalPercentUnlocked = 3.5;
+            exophase.Rows.Add(rare);
+            exophase.Rows.Add(Row("x2", "Two"));
+            var settings = Choices();
+            settings.MetadataDefaults.Rarity = "Exophase";
+            var xbox = Game("Xbox", Row("a1", "One"), Row("a2", "Two"));
+            xbox.Achievements[1].Rarity = RarityTier.Rare;
+            var epic = Game("Epic", Row("e1", "One"));
+
+            using (var run = Overlay(new[] { exophase }, settings).BeginRun())
+            {
+                await run.ApplyAsync(xbox.Game, xbox, CancellationToken.None);
+                await run.ApplyAsync(epic.Game, epic, CancellationToken.None);
+            }
+
+            Assert.AreEqual(3.5, xbox.Achievements[0].GlobalPercentUnlocked);
+            Assert.AreEqual(PercentRarityHelper.GetRarityTier(3.5), xbox.Achievements[0].Rarity);
+            Assert.AreEqual(RarityTier.Rare, xbox.Achievements[1].Rarity, "no share keeps the platform's tier");
+            Assert.IsNull(epic.Achievements[0].GlobalPercentUnlocked, "Epic does not take Exophase rarity");
+        }
+
+        [TestMethod]
         public async Task NoMatch_IsNotAFailure_AndKeepsNothing()
         {
             var hunters = new FakeSource("SteamHunters", MetadataField.Categories) { FoundByName = true };
