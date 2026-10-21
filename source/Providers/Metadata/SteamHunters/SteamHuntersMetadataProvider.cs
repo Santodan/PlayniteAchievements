@@ -54,7 +54,7 @@ namespace PlayniteAchievements.Providers.Metadata
 
         public string LinkPlaceholder => "123456";
 
-        public MetadataField SupportedFields => MetadataField.Categories | MetadataField.CategoryArt;
+        public MetadataField SupportedFields => MetadataField.Categories | MetadataField.CategoryArt | MetadataField.Tags;
 
         private IManualSource SteamSchema => _manualSources?.GetSourceByKey("Steam");
 
