@@ -603,6 +603,37 @@ namespace PlayniteAchievements.Services.Database
             });
         }
 
+        /// <summary>
+        /// Cache keys of the current user's games whose achievement definitions carry the tag
+        /// <paramref name="tagKey"/> (stored tags are pipe-joined keys). One query, for demoting a
+        /// deleted global tag to the games that use it.
+        /// </summary>
+        public List<string> GetCacheKeysWithTag(string tagKey)
+        {
+            if (string.IsNullOrWhiteSpace(tagKey))
+            {
+                return new List<string>();
+            }
+
+            var escaped = tagKey.Trim().Replace("\\", "\\\\").Replace("%", "\\%").Replace("_", "\\_");
+            return WithReadDb(db =>
+            {
+                var rows = db.Load<CacheKeyRow>(
+                    @"SELECT DISTINCT ugp.CacheKey AS CacheKey
+                      FROM AchievementDefinitions ad
+                      INNER JOIN UserGameProgress ugp ON ugp.GameId = ad.GameId
+                      INNER JOIN Users u ON u.Id = ugp.UserId
+                      WHERE u.IsCurrentUser = 1 AND ('|' || ad.Tags || '|') LIKE ? ESCAPE '\';",
+                    "%|" + escaped + "|%").ToList();
+
+                return rows
+                    .Select(a => a.CacheKey)
+                    .Where(a => !string.IsNullOrWhiteSpace(a))
+                    .Distinct(StringComparer.OrdinalIgnoreCase)
+                    .ToList();
+            });
+        }
+
         public GameAchievementData LoadCurrentUserGameData(string key)
         {
             if (string.IsNullOrWhiteSpace(key))
