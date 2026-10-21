@@ -357,7 +357,10 @@ namespace PlayniteAchievements.Views.Helpers
         private static void OnComboOpened(ComboSearchState state)
         {
             var combo = state.Combo;
-            state.IsActive = !GetIsDisabled(combo) && CountOptions(combo.Items) > MaxUnsearchedOptions;
+            // A list that can create always searches: the search is the only way to name the new
+            // entry, however few there are.
+            state.IsActive = !GetIsDisabled(combo) &&
+                             (CountOptions(combo.Items) > MaxUnsearchedOptions || GetCreateAction(combo) != null);
             state.Host.Visibility = state.IsActive ? Visibility.Visible : Visibility.Collapsed;
             UpdateComboCreate(state, matches: true);
             if (!state.IsActive)
@@ -664,7 +667,8 @@ namespace PlayniteAchievements.Views.Helpers
 
             // Only where the hierarchy ends: a level that opens further submenus is navigation,
             // and its own search would hide the way to them.
-            if (options.Count <= MaxUnsearchedOptions || options.Any(item => item.HasItems))
+            if (options.Any(item => item.HasItems) ||
+                (options.Count <= MaxUnsearchedOptions && GetCreateAction(level) == null))
             {
                 return;
             }
