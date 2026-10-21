@@ -56,7 +56,7 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
             // its own cover's width at that height (see GameTileViewModel).
             var coverHeight = useCovers ? Math.Round(coverWidth * 1.4) : coverWidth;
             var layout = new GameMosaicTileLayout(
-                ShowcaseWidgetOptions.GetGameMosaicSource(Projection?.Instance) == ShowcaseGameMosaicSource.Pinned,
+                Projection?.ResolvedPinCollectionId != null,
                 Projection?.ResolvedPinCollectionId,
                 coverWidth,
                 coverHeight,
@@ -95,6 +95,7 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
                 .Where(game => game != null)
                 .ToList();
             adapter.UpdateOptions(Projection?.Snapshot?.GameSummaries);
+            adapter.GameFilter.SetScope(Projection?.Collection?.GameIds);
 
             var capped = adapter.Apply(list)
                 .Take(ShowcaseWidgetOptions.GetGameMosaicCount(Projection?.Instance));
