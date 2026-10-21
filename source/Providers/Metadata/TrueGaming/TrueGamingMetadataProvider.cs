@@ -71,8 +71,8 @@ namespace PlayniteAchievements.Providers.Metadata.TrueGaming
         }
 
         /// <summary>
-        /// The first slug built from the game's names whose page lists achievements, on the
-        /// platform's own site and then the other two.
+        /// The first slug built from the game's names whose page lists achievements, trying the
+        /// sites in <see cref="TrueGamingSite.LookupOrder"/>.
         /// </summary>
         public async Task<MetadataSourceLink> ResolveLinkAsync(MetadataLinkRequest request, CancellationToken ct)
         {
@@ -81,7 +81,7 @@ namespace PlayniteAchievements.Providers.Metadata.TrueGaming
                 return null;
             }
 
-            foreach (var site in TrueGamingSite.LookupOrder(request.ServicingProviderKey))
+            foreach (var site in TrueGamingSite.LookupOrder)
             {
                 foreach (var slug in TrueGamingLinks.CandidateSlugs(request.SearchNames, site.Suffixes))
                 {
