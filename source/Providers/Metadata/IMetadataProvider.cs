@@ -20,7 +20,8 @@ namespace PlayniteAchievements.Providers.Metadata
         CategoryArt = 8,
         CapstoneArt = 16,
         TrophyTypes = 32,
-        Points = 64
+        Points = 64,
+        Tags = 128
     }
 
     /// <summary>
