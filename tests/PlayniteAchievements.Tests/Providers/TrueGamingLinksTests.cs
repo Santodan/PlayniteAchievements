@@ -59,6 +59,19 @@ namespace PlayniteAchievements.Tests.Providers
         }
 
         [TestMethod]
+        public void Links_NameOnePagePerSite_InLookupOrder()
+        {
+            var pages = TrueGamingLinks.ParsePages("tsa:Hades, tt:Hades-PS5,  Hades , ta:Other, two words", "Xbox");
+
+            CollectionAssert.AreEqual(
+                new[] { "trueachievements:Hades", "truetrophies:Hades-PS5", "truesteamachievements:Hades" },
+                pages.Select(page => page.Site.Name + ":" + page.Slug).ToList(),
+                "the bare slug is the platform's own site; a second page on a site is dropped");
+            Assert.AreEqual("Hades, tt:Hades-PS5, tsa:Hades", TrueGamingLinks.Format(pages, "Xbox"));
+            Assert.AreEqual("ta:Hades, tt:Hades-PS5, Hades", TrueGamingLinks.Format(pages, "Steam"));
+        }
+
+        [TestMethod]
         public void Links_RejectBlankAndMalformedIds()
         {
             Assert.IsFalse(TrueGamingLinks.TryParse("  ", "Steam", out _, out _));
