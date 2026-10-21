@@ -279,6 +279,8 @@ namespace PlayniteAchievements.Models.Achievements
 
         public bool UseSeparateLockedIconsWhenAvailable { get; set; }
 
+        public MetadataHints MetadataHints { get; set; }
+
         public List<string> GoalAchievements { get; set; }
 
         public string GameName { get; set; }
