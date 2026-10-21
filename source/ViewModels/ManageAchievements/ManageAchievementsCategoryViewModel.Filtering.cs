@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Linq;
 using PlayniteAchievements.Common;
 using PlayniteAchievements.Services.Achievements;
 using PlayniteAchievements.Services.GameCustomData;
@@ -89,6 +90,11 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
 
             var filtered = GameCustomDataLookup.GetFilteredAchievementApiNames(_gameId, _settings?.Persisted);
             var summaryFiltered = GameCustomDataLookup.GetSummaryFilteredAchievementApiNames(_gameId, _settings?.Persisted);
+            var storedKinds = GameCustomDataLookup.GetAchievementCategoryKinds(_gameId, _settings?.Persisted);
+            var rowsByApiName = _allRows
+                .Where(item => item != null && !string.IsNullOrWhiteSpace(item.ApiName))
+                .GroupBy(item => item.ApiName.Trim(), StringComparer.OrdinalIgnoreCase)
+                .ToDictionary(group => group.Key, group => group.First(), StringComparer.OrdinalIgnoreCase);
 
             _isStampingFilterScopes = true;
             try
@@ -121,6 +127,12 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                     }
 
                     row.SetFilterScopeFromMembers(apiNames.Count, filteredCount, summaryEffectiveCount);
+
+                    // A stored kind is the category's; otherwise it has one only when every member agrees.
+                    var storedKind = ResolveStoredCategoryKind(storedKinds, row.CategoryLabel);
+                    var memberKind = CategoryKindHelper.ResolveUnanimous(apiNames
+                        .Select(apiName => rowsByApiName.TryGetValue(apiName, out var member) ? member.CategoryKind : null));
+                    row.SetKind(storedKind, storedKind != null ? storedKind : memberKind);
                 }
             }
             finally
@@ -129,9 +141,35 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             }
         }
 
+        /// <summary>
+        /// Sets the kind stored for <paramref name="row"/>'s category: a kind, None, or null to let the
+        /// providers decide. Its achievements take it at once, here and in the rest of the plugin.
+        /// </summary>
+        public void ApplyCategoryKind(ManageAchievementsCategoryMetadataItem row, string kind)
+        {
+            if (row == null)
+            {
+                return;
+            }
+
+            var apiNames = ResolveMemberApiNames(row.CategoryLabel);
+            _achievementOverridesService.SetCategoryKind(_gameId, row.CategoryLabel, kind, apiNames);
+
+            var stored = CategoryKindHelper.NormalizeStored(kind);
+            var members = new HashSet<string>(apiNames, StringComparer.OrdinalIgnoreCase);
+            foreach (var item in _allRows.Where(item => item != null && members.Contains(item.ApiName ?? string.Empty)))
+            {
+                item.LegacyCategoryKind = null;
+                item.CategoryKind = CategoryKindHelper.ResolveEffective(stored, null, item.ProviderCategoryKind);
+            }
+
+            RaiseCategoryMetadataPersisted();
+            RefreshCategoryFilterScopes();
+        }
+
         private List<string> ResolveMemberApiNames(string categoryLabel)
         {
-            var label = AchievementCategoryTypeHelper.NormalizeCategoryOrDefault(categoryLabel);
+            var label = AchievementCategoryHelper.NormalizeCategoryOrDefault(categoryLabel);
             return _memberApiNamesByLabel.TryGetValue(label, out var apiNames) && apiNames != null
                 ? apiNames
                 : new List<string>();

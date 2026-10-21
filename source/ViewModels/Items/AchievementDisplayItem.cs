@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using System.Collections.Generic;
 using System.Runtime.CompilerServices;
 using System.Runtime.Serialization;
@@ -107,7 +108,8 @@ namespace PlayniteAchievements.ViewModels.Items
         private string _friendAvatarPath;
         private bool _friendIsFavorite;
         private int? _pointsValue;
-        private string _categoryType;
+        private string _tags;
+        private string _categoryKind;
         private string _categoryLabel;
         private string _gameIconPath;
         private string _gameCoverPath;
@@ -984,42 +986,78 @@ namespace PlayniteAchievements.ViewModels.Items
             }
         }
 
-        public string CategoryType
+        /// <summary>Pipe-joined tag keys, derived Softcore/Hardcore included.</summary>
+        public string Tags
         {
-            get => _categoryType;
+            get => _tags;
             set
             {
-                if (SetValueAndReturn(ref _categoryType, value))
+                if (SetValueAndReturn(ref _tags, value))
                 {
-                    OnPropertyChanged(nameof(CategoryTypeDisplay));
-                    OnPropertyChanged(nameof(IsHardcore));
-                    OnPropertyChanged(nameof(IsMissable));
-                    OnPropertyChanged(nameof(IsUnobtainable));                }
+                    NotifyTagsChanged();
+                }
             }
         }
 
-        public string CategoryTypeDisplay => AchievementCategoryTypeHelper.ToDisplayText(CategoryType);
+        /// <summary>The kind of the achievement's category (Base, DLC, ...); null for none.</summary>
+        public string CategoryKind
+        {
+            get => _categoryKind;
+            set
+            {
+                if (SetValueAndReturn(ref _categoryKind, value))
+                {
+                    OnPropertyChanged(nameof(CategoryKindDisplay));
+                    OnPropertyChanged(nameof(CategoryType));
+                    OnPropertyChanged(nameof(CategoryTypeDisplay));
+                }
+            }
+        }
+
+        /// <summary>Names of the visible tags, in the tag list's order.</summary>
+        public string TagsDisplay => AchievementTagHelper.ToDisplayText(Tags, PlayniteGameId);
+
+        public string CategoryKindDisplay => CategoryKindHelper.ToDisplayText(CategoryKind);
 
         /// <summary>
-        /// True when the achievement is classified as Hardcore (RetroAchievements unlock mode).
-        /// Drives the solid rarity border in place of the soft glow. Robust to category types
-        /// combined with other values.
+        /// Theme compatibility: the kind and tag keys joined, as the single type value themes bound
+        /// before kinds and tags split.
         /// </summary>
-        public bool IsHardcore =>
-            AchievementCategoryTypeHelper.ParseValues(CategoryType)
-                .Contains(AchievementCategoryTypeHelper.HardcoreCategoryType);
+        public string CategoryType => string.Join("|",
+            CategoryKindHelper.GetComponents(CategoryKind).Concat(AchievementTagHelper.GetComponents(Tags)));
+
+        /// <summary>Theme compatibility: kind and tag names joined.</summary>
+        public string CategoryTypeDisplay => string.Join(", ",
+            new[] { CategoryKindDisplay, TagsDisplay }.Where(text => !string.IsNullOrEmpty(text)));
 
         /// <summary>
-        /// True when the achievement's category type includes Missable. Drives the status
-        /// column's missable lock fill and tooltip.
+        /// True when the achievement was earned in RetroAchievements hardcore mode. Drives the solid
+        /// rarity border in place of the soft glow.
         /// </summary>
-        public bool IsMissable => AchievementCategoryTypeHelper.IsMissable(CategoryType);
+        public bool IsHardcore => AchievementTagHelper.IsHardcore(Tags);
+
+        /// <summary>True when tagged Missable. Drives the status column's lock fill and tooltip.</summary>
+        public bool IsMissable => AchievementTagHelper.IsMissable(Tags);
 
         /// <summary>
-        /// True when the achievement's category type includes Unobtainable (can no longer be
-        /// earned). Drives the status column's lock fill and tooltip alongside Missable.
+        /// True when tagged Unobtainable (can no longer be earned). Drives the status column's lock
+        /// fill and tooltip alongside Missable.
         /// </summary>
-        public bool IsUnobtainable => AchievementCategoryTypeHelper.IsUnobtainable(CategoryType);
+        public bool IsUnobtainable => AchievementTagHelper.IsUnobtainable(Tags);
+
+        /// <summary>Re-reads tag names and colors after the tag lists change.</summary>
+        public void RefreshTagPresentation() => NotifyTagsChanged();
+
+        private void NotifyTagsChanged()
+        {
+            OnPropertyChanged(nameof(TagsDisplay));
+            OnPropertyChanged(nameof(CategoryType));
+            OnPropertyChanged(nameof(CategoryTypeDisplay));
+            OnPropertyChanged(nameof(IsHardcore));
+            OnPropertyChanged(nameof(IsMissable));
+            OnPropertyChanged(nameof(IsUnobtainable));
+        }
+
         public string CategoryLabel
         {
             get => _categoryLabel;
@@ -1032,10 +1070,10 @@ namespace PlayniteAchievements.ViewModels.Items
             }
         }
 
-        public string CategoryLabelDisplay => AchievementCategoryTypeHelper.ToCategoryLabelCellText(CategoryLabel);
+        public string CategoryLabelDisplay => AchievementCategoryHelper.ToCategoryLabelCellText(CategoryLabel);
 
         /// <summary>Full path for the category cell's tooltip; the cell itself shows the leaf.</summary>
-        public string CategoryLabelPathDisplay => AchievementCategoryTypeHelper.ToCategoryLabelCellPathText(CategoryLabel);
+        public string CategoryLabelPathDisplay => AchievementCategoryHelper.ToCategoryLabelCellPathText(CategoryLabel);
 
         /// <summary>
         /// Path to the game's icon image.
@@ -1346,7 +1384,8 @@ namespace PlayniteAchievements.ViewModels.Items
             PlayniteGameId = playniteGameId;
             ApplyAppearanceSettings(appearance);
             PointsValue = source?.Points;
-            CategoryType = source?.CategoryType;
+            Tags = source?.Tags;
+            CategoryKind = source?.CategoryKind;
             CategoryLabel = source?.Category;
             var resolvedGameIconPath = gameIconPath ?? ResolveGameAssetPath(source?.Game?.Icon);
             var resolvedGameCoverPath = gameCoverPath ?? ResolveGameAssetPath(source?.Game?.CoverImage);
@@ -1384,7 +1423,8 @@ namespace PlayniteAchievements.ViewModels.Items
                 sourceItem.CategoryArtPath);
             ProviderKey = sourceItem.ProviderKey;
             PointsValue = sourceItem.PointsValue;
-            CategoryType = sourceItem.CategoryType;
+            Tags = sourceItem.Tags;
+            CategoryKind = sourceItem.CategoryKind;
             CategoryLabel = sourceItem.CategoryLabel;
             IsRevealed = sourceItem.IsRevealed;
             // The marker stamps items, not their Source details, so the detail-based
@@ -1651,7 +1691,8 @@ namespace PlayniteAchievements.ViewModels.Items
             // and the grids clone before they render, so the reset is what the user sees.
             clone.ApplyAppearanceSettings(CaptureAppearanceSettings());
             clone.MaskAsLocked = MaskAsLocked;
-            clone.CategoryType = _categoryType;
+            clone.Tags = _tags;
+            clone.CategoryKind = _categoryKind;
             clone.CategoryLabel = _categoryLabel;
             clone.GameIconPath = _gameIconPath;
             clone.GameCoverPath = _gameCoverPath;
@@ -2039,8 +2080,9 @@ namespace PlayniteAchievements.ViewModels.Items
             item.SortingName = gameData?.SortingName ?? gameData?.GameName ?? "Unknown";
             item.PlayniteGameId = playniteGameId;
             item.PointsValue = pointsValue;
-            item.CategoryType = AchievementCategoryTypeHelper.NormalizeOrDefault(achievement.CategoryType);
-            item.CategoryLabel = AchievementCategoryTypeHelper.NormalizeCategoryOrDefault(achievement.Category);
+            item.Tags = AchievementTagHelper.Normalize(achievement.Tags);
+            item.CategoryKind = CategoryKindHelper.Normalize(achievement.CategoryKind);
+            item.CategoryLabel = AchievementCategoryHelper.NormalizeCategoryOrDefault(achievement.Category);
             item.GameIconPath = ResolveGameAssetPath(gameData?.Game?.Icon);
             item.GameCoverPath = ResolveGameAssetPath(gameData?.Game?.CoverImage);
             // Usually null on cache-hydrated details; the capture presence marker overwrites

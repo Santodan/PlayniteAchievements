@@ -224,8 +224,8 @@
                                         CellTemplate="{StaticResource ManageAchievementInfoTemplate}" />
 
                 <DataGridTextColumn Width="160"
-                    Header="{DynamicResource LOCTypeLabel}"
-                    Binding="{Binding CategoryTypeDisplay}">
+                    Header="{DynamicResource LOCTagsLabel}"
+                    Binding="{Binding TagsDisplay}">
                     <DataGridTextColumn.ElementStyle>
                         <Style TargetType="TextBlock" BasedOn="{StaticResource EllipsisWrappedCenteredDataGridTextStyle}">
                             <Setter Property="HorizontalAlignment" Value="Center" />
@@ -233,7 +233,7 @@
                             <Setter Property="TextAlignment" Value="Center" />
                             <Setter Property="Foreground" Value="{DynamicResource PlayAch.Brush.Text}" />
                             <Setter Property="Opacity" Value="0.85" />
-                            <Setter Property="ToolTip" Value="{Binding CategoryTypeDisplay}" />
+                            <Setter Property="ToolTip" Value="{Binding TagsDisplay}" />
                             <Style.Triggers>
                                 <DataTrigger Binding="{Binding IsSelected}" Value="True">
                                     <Setter Property="Foreground" Value="{DynamicResource PlayAch.Brush.Accent}" />
@@ -306,7 +306,7 @@
                     <TextBlock Grid.Row="0"
                                Grid.Column="0"
                                Grid.ColumnSpan="2"
-                               Text="{DynamicResource LOCPlayAch_ManageAchievements_Category_TypeSelectorLabel}"
+                               Text="{DynamicResource LOCTagsLabel}"
                                Foreground="{DynamicResource PlayAch.Brush.Text}"
                                Opacity="0.9" />
 
@@ -715,6 +715,36 @@
                                                  Focusable="True"
                                                  HorizontalAlignment="Center"
                                                  VerticalAlignment="Center" />
+                                </DataTemplate>
+                            </DataGridTemplateColumn.CellTemplate>
+                        </DataGridTemplateColumn>
+
+                        <DataGridTemplateColumn Width="Auto"
+                                                MinWidth="110"
+                                                CanUserResize="False"
+                                                CanUserSort="False"
+                                                Header="{DynamicResource LOCPlayAch_Common_Kind}">
+                            <DataGridTemplateColumn.CellTemplate>
+                                <DataTemplate>
+                                    <!-- Built per click like the Filters cell beside it. A kind the
+                                         providers decide reads dimmed; one set here reads in full. -->
+                                    <Button Content="{Binding KindDisplayText}"
+                                            Click="CategoryKindButton_Click"
+                                            MinHeight="22"
+                                            HorizontalAlignment="Stretch"
+                                            VerticalAlignment="Center"
+                                            Margin="4,0">
+                                        <Button.Style>
+                                            <Style TargetType="Button" BasedOn="{StaticResource AchievementSelectorButtonStyle}">
+                                                <Setter Property="Opacity" Value="{StaticResource PlayAch.Opacity.Hint}" />
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding IsKindStored}" Value="True">
+                                                        <Setter Property="Opacity" Value="1" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </Button.Style>
+                                    </Button>
                                 </DataTemplate>
                             </DataGridTemplateColumn.CellTemplate>
                         </DataGridTemplateColumn>

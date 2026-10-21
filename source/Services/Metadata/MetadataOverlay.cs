@@ -608,12 +608,12 @@ namespace PlayniteAchievements.Services.Metadata
 
                 var given = new HashSet<string>(
                     set.Matches
-                        .Select(match => AchievementCategoryTypeHelper.NormalizeCategory(match.Target.Category))
+                        .Select(match => AchievementCategoryHelper.NormalizeCategory(match.Target.Category))
                         .Where(label => label != null),
                     StringComparer.OrdinalIgnoreCase);
                 foreach (var pair in set.Set.CategoryArtUrls)
                 {
-                    var label = AchievementCategoryTypeHelper.NormalizeCategory(pair.Key);
+                    var label = AchievementCategoryHelper.NormalizeCategory(pair.Key);
                     if (label != null && given.Contains(label) && seen.Add(label))
                     {
                         art.Add((label, pair.Value));
@@ -626,23 +626,28 @@ namespace PlayniteAchievements.Services.Metadata
 
         internal static void ApplyCategory(AchievementDetail target, AchievementDetail source, MetadataCategoryMode mode)
         {
-            var sourceCategory = AchievementCategoryTypeHelper.NormalizeCategory(source.Category);
-            var sourceType = AchievementCategoryTypeHelper.Normalize(source.CategoryType);
+            var sourceCategory = AchievementCategoryHelper.NormalizeCategory(source.Category);
+            var sourceKind = CategoryKindHelper.Normalize(source.CategoryKind);
+            var sourceTags = AchievementTagHelper.StripDerived(source.Tags);
+            // The unlock mode says how this user earned it, which only the game's own provider knows.
+            var targetDerived = AchievementTagHelper.DerivedOnly(target.Tags);
             if (mode == MetadataCategoryMode.Override)
             {
                 target.Category = sourceCategory;
-                target.CategoryType = sourceType;
+                target.CategoryKind = sourceKind;
+                target.Tags = AchievementTagHelper.Combine(new[] { sourceTags, targetDerived });
                 return;
             }
 
-            if (AchievementCategoryTypeHelper.NormalizeCategory(target.Category) == null)
+            if (AchievementCategoryHelper.NormalizeCategory(target.Category) == null)
             {
                 target.Category = sourceCategory;
             }
 
-            target.CategoryType = AchievementCategoryTypeHelper.Combine(
-                AchievementCategoryTypeHelper.ParseValues(target.CategoryType)
-                    .Concat(AchievementCategoryTypeHelper.ParseValues(sourceType)));
+            // A kind is one coherent value, so the source fills it only where the target has none;
+            // tags add up.
+            target.CategoryKind = CategoryKindHelper.Normalize(target.CategoryKind) ?? sourceKind;
+            target.Tags = AchievementTagHelper.Combine(new[] { target.Tags, sourceTags });
         }
 
         /// <summary>The first preferred source's capstone (platinum) icon, when that source matched the game.</summary>

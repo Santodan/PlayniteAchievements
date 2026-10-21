@@ -2893,6 +2893,8 @@ namespace PlayniteAchievements.Views.Controls
 
         private void OnLoaded(object sender, RoutedEventArgs e)
         {
+            AchievementTagRegistry.Changed -= OnTagsChanged;
+            AchievementTagRegistry.Changed += OnTagsChanged;
             UpdateColumnVisibility();
             UpdateColumnHeadersVisibility();
             UpdateRealizedRowHeights();
@@ -2968,6 +2970,8 @@ namespace PlayniteAchievements.Views.Controls
 
         private void OnUnloaded(object sender, RoutedEventArgs e)
         {
+            AchievementTagRegistry.Changed -= OnTagsChanged;
+
             // Restore the control bar so a bar reused across navigations does not keep our injected
             // items or hidden dropdowns; everything is re-applied on the next load.
             if (_controlBarWithToggle != null)
@@ -2975,6 +2979,22 @@ namespace PlayniteAchievements.Views.Controls
                 RestoreControlBar(_controlBarWithToggle);
                 _controlBarWithToggle = null;
             }
+        }
+
+        // A renamed or deleted tag re-reads its name on the rows that show it. Raised off the UI
+        // thread by store writes, so it is marshalled here.
+        private void OnTagsChanged(object sender, AchievementTagsChangedEventArgs e)
+        {
+            Dispatcher.BeginInvoke(new Action(() =>
+            {
+                foreach (var item in ItemsSource ?? Enumerable.Empty<AchievementDisplayItem>())
+                {
+                    if (item != null && (e?.GameId == null || item.PlayniteGameId == e.GameId))
+                    {
+                        item.RefreshTagPresentation();
+                    }
+                }
+            }));
         }
 
         private void AchievementsDataGrid_LoadingRow(object sender, DataGridRowEventArgs e)

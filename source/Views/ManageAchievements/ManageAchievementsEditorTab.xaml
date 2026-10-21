@@ -622,7 +622,7 @@
                                 Height="{StaticResource PlayAch.Size.Control.Height}"
                                 Margin="0,0,6,0"
                                 VerticalAlignment="Center"
-                                ToolTip="{DynamicResource LOCTypeLabel}">
+                                ToolTip="{DynamicResource LOCTagsLabel}">
                             <Button.ContextMenu>
                                 <ContextMenu Style="{StaticResource AchievementSelectorContextMenuStyle}"
                                              ItemContainerStyle="{StaticResource AchievementMultiSelectMenuItemStyle}" />
@@ -1893,18 +1893,18 @@
                         </DataGridTemplateColumn.CellTemplate>
                     </DataGridTemplateColumn>
 
-                    <DataGridTemplateColumn Header="{DynamicResource LOCTypeLabel}"
+                    <DataGridTemplateColumn Header="{DynamicResource LOCTagsLabel}"
                                             Width="144"
                                             MinWidth="100"
                                             IsReadOnly="True"
                                             CanUserSort="False"
-                                            SortMemberPath="CategoryTypeDisplayText"
+                                            SortMemberPath="TagsDisplayText"
                                             helpers:ColumnVisibilityHelper.ColumnKey="EditorType"
                                             helpers:EditorCellRouting.RoutesToSelection="True">
                         <DataGridTemplateColumn.CellTemplate>
                             <DataTemplate>
-                                <Button Content="{Binding CategoryTypeDisplayText}"
-                                        ToolTip="{Binding CategoryTypeDisplayText}"
+                                <Button Content="{Binding TagsDisplayText}"
+                                        ToolTip="{Binding TagsDisplayText}"
                                         Style="{StaticResource AchievementSelectorButtonStyle}"
                                         IsEnabled="{Binding CanEditAssignments}"
                                         Click="TypeCell_Click"
@@ -2585,11 +2585,11 @@
                                                         CreateNewText="{DynamicResource LOCPlayAch_ManageAchievements_Category_NewCategoryEllipsis}"
                                                         IsEnabled="{Binding CanEditAssignments}" />
 
-                            <TextBlock Text="{DynamicResource LOCTypeLabel}"
+                            <TextBlock Text="{DynamicResource LOCTagsLabel}"
                                        Style="{StaticResource FieldLabelStyle}" />
                             <Button x:Name="TypeSelectionButton"
                                     Style="{StaticResource AchievementSelectorButtonStyle}"
-                                    Content="{Binding CategoryTypeDisplayText}"
+                                    Content="{Binding TagsDisplayText}"
                                     IsEnabled="{Binding CanEditAssignments}"
                                     Click="TypeSelectionButton_Click"
                                     MinHeight="26"

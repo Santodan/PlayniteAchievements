@@ -943,6 +943,13 @@ namespace PlayniteAchievements
                     id => _customProviderStore.TryGet(id, out var definition) ? definition : null,
                     definition => _customProviderStore.ImportIfMissing(definition));
                 _gameCustomDataStore.AttachGameKeyResolver(ResolvePortableGameKeys);
+                AchievementTagRegistry.SetGlobal(settings.Persisted?.ResolveAchievementTags());
+                var tagStore = _gameCustomDataStore;
+                AchievementTagRegistry.SetGameResolver(gameId =>
+                    tagStore.TryLoad(gameId, out var tagData) && tagData?.AchievementTags != null
+                        ? (IReadOnlyList<AchievementTagDefinition>)tagData.AchievementTags
+                        : Array.Empty<AchievementTagDefinition>());
+                SettingsSaved += OnSettingsSavedForAchievementTags;
                 TryWarmCustomDataCache();
 
                 List<IDataProvider> providers;
@@ -1877,6 +1884,18 @@ namespace PlayniteAchievements
 
         private void OnSettingsSavedForAutoCapstoneText(object sender, EventArgs e) => StartAutoCapstoneTextApply();
 
+        private void OnSettingsSavedForAchievementTags(object sender, EventArgs e) =>
+            AchievementTagRegistry.SetGlobal(_settingsViewModel?.Settings?.Persisted?.ResolveAchievementTags());
+
+        // Cheap and synchronous: only drops the game's cached tag list, so names and colors re-read it.
+        private void GameCustomDataStore_CustomDataChangedForTags(object sender, GameCustomDataChangedEventArgs e)
+        {
+            if (e != null)
+            {
+                AchievementTagRegistry.InvalidateGame(e.PlayniteGameId);
+            }
+        }
+
         /// <summary>
         /// Applies the auto capstone text templates in the background when they differ from the
         /// ones last applied: at startup, which is how a language change reaches existing
@@ -2253,6 +2272,7 @@ namespace PlayniteAchievements
             // After the recordings: a session in flight still reads the host's pid until then.
             SettingsSaved -= OnSettingsSavedForUnlockSounds;
             SettingsSaved -= OnSettingsSavedForAutoCapstoneText;
+            SettingsSaved -= OnSettingsSavedForAchievementTags;
             try { _unlockSounds?.Dispose(); } catch (Exception ex) { _logger?.Debug(ex, "Failed to dispose unlockSounds"); }
             try { _captureLibraryService?.Dispose(); } catch (Exception ex) { _logger?.Debug(ex, "Failed to dispose captureLibraryService"); }
             try { _windowTracker?.Dispose(); } catch (Exception ex) { _logger?.Debug(ex, "Failed to dispose windowTracker"); }
@@ -2398,12 +2418,14 @@ namespace PlayniteAchievements
             {
                 if (_gameCustomDataStore != null)
                 {
+                    _gameCustomDataStore.CustomDataChanged += GameCustomDataStore_CustomDataChangedForTags;
                     _gameCustomDataStore.CustomDataChanged += GameCustomDataStore_CustomDataChanged;
                     _gameCustomDataStore.CustomDataWritten += GameCustomDataStore_CustomDataWrittenForCaptures;
                     _eventSubscriptions.Add(() =>
                     {
                         _gameCustomDataStore.CustomDataWritten -= GameCustomDataStore_CustomDataWrittenForCaptures;
                         _gameCustomDataStore.CustomDataChanged -= GameCustomDataStore_CustomDataChanged;
+                        _gameCustomDataStore.CustomDataChanged -= GameCustomDataStore_CustomDataChangedForTags;
                         lock (_customDataChangeSync)
                         {
                             _customDataChangeTimer?.Dispose();

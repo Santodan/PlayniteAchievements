@@ -10,6 +10,8 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         // Goals, Notes, Order and Icons tabs, which each owned a slice of what it now does.
         Editor,
         Category,
+        // The game's own tags, beside the global list in settings.
+        Tags,
         Notifications
     }
 

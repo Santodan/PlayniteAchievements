@@ -75,7 +75,7 @@ namespace PlayniteAchievements.Riot.Tests
         }
 
         private static string TypeOf(List<AchievementDetail> results, string apiName) =>
-            results.Single(a => a.ApiName == apiName).CategoryType;
+            results.Single(a => a.ApiName == apiName).Tags;
 
         [TestMethod]
         public void ParseArchivedChallengeIds_KeepsOnlyArchived()

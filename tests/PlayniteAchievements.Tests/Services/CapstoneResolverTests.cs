@@ -22,7 +22,8 @@ namespace PlayniteAchievements.Services.Tests
                 ApiName = apiName,
                 DisplayName = apiName,
                 Category = category,
-                CategoryType = categoryType,
+                CategoryKind = PlayniteAchievements.Services.Achievements.LegacyCategoryTypes.SplitKind(categoryType),
+                Tags = PlayniteAchievements.Services.Achievements.AchievementTagHelper.Normalize(categoryType),
                 IsCapstone = isCapstone,
                 Unlocked = unlocked
             };

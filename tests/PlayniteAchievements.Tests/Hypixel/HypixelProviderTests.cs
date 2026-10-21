@@ -211,7 +211,7 @@ namespace PlayniteAchievements.Hypixel.Tests
             Assert.AreEqual(PercentRarityHelper.GetRarityTier(12.4), ironPunch.Rarity);
             Assert.AreEqual("https://hypixel.net/styles/hypixel-uix/hypixel/game-icons/Skywars-44.png", ironPunch.UnlockedIconPath);
             Assert.AreEqual(ironPunch.UnlockedIconPath, ironPunch.LockedIconPath);
-            Assert.IsNull(ironPunch.CategoryType);
+            Assert.IsNull(ironPunch.Tags);
         }
 
         [TestMethod]
@@ -253,7 +253,7 @@ namespace PlayniteAchievements.Hypixel.Tests
         {
             var rows = HypixelAchievementMapper.BuildAchievements(HypixelParsing.ParseProfile(ProfileHtml), Catalog());
 
-            Assert.AreEqual("Unobtainable", rows.Single(r => r.ApiName == "skywars_old_times").CategoryType);
+            Assert.AreEqual("Unobtainable", rows.Single(r => r.ApiName == "skywars_old_times").Tags);
         }
 
         [TestMethod]

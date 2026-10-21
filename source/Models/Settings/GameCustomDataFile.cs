@@ -148,6 +148,15 @@ namespace PlayniteAchievements.Models.Settings
 
         public Dictionary<string, CategoryImageOverrideData> AchievementCategoryImageOverrides { get; set; }
 
+        /// <summary>
+        /// Kind of each category, keyed by category path (see CategoryKindHelper). A category absent
+        /// here takes its kind from the provider; CategoryKindHelper.None says it has none.
+        /// </summary>
+        public Dictionary<string, string> AchievementCategoryKinds { get; set; }
+
+        /// <summary>Tags only this game offers, alongside the global list in settings.</summary>
+        public List<PlayniteAchievements.Models.Achievements.AchievementTagDefinition> AchievementTags { get; set; }
+
         public GameSummaryCategoryData GameSummaryCategory { get; set; }
 
         public List<string> FilteredAchievementApiNames { get; set; }
@@ -274,6 +283,8 @@ namespace PlayniteAchievements.Models.Settings
                     ? new List<string>(AchievementCategoryOrder)
                     : null,
                 AchievementCategoryImageOverrides = CloneCategoryImageOverrideMap(AchievementCategoryImageOverrides),
+                AchievementCategoryKinds = GameCustomDataFile.CloneCategoryKindMap(AchievementCategoryKinds),
+                AchievementTags = GameCustomDataFile.CloneTagList(AchievementTags),
                 GameSummaryCategory = GameSummaryCategory?.Clone(),
                 FilteredAchievementApiNames = FilteredAchievementApiNames != null
                     ? new List<string>(FilteredAchievementApiNames)
@@ -341,6 +352,8 @@ namespace PlayniteAchievements.Models.Settings
                     ? new List<string>(AchievementCategoryOrder)
                     : null,
                 AchievementCategoryImageOverrides = CloneCategoryImageOverrideMap(AchievementCategoryImageOverrides),
+                AchievementCategoryKinds = GameCustomDataFile.CloneCategoryKindMap(AchievementCategoryKinds),
+                AchievementTags = GameCustomDataFile.CloneTagList(AchievementTags),
                 GameSummaryCategory = GameSummaryCategory?.Clone(),
                 FilteredAchievementApiNames = FilteredAchievementApiNames != null
                     ? new List<string>(FilteredAchievementApiNames)
@@ -413,6 +426,8 @@ namespace PlayniteAchievements.Models.Settings
                     ? new List<string>(portable.AchievementCategoryOrder)
                     : null,
                 AchievementCategoryImageOverrides = CloneCategoryImageOverrideMap(portable?.AchievementCategoryImageOverrides),
+                AchievementCategoryKinds = GameCustomDataFile.CloneCategoryKindMap(portable?.AchievementCategoryKinds),
+                AchievementTags = GameCustomDataFile.CloneTagList(portable?.AchievementTags),
                 GameSummaryCategory = portable?.GameSummaryCategory?.Clone(),
                 FilteredAchievementApiNames = portable?.FilteredAchievementApiNames != null
                     ? new List<string>(portable.FilteredAchievementApiNames)
@@ -464,6 +479,45 @@ namespace PlayniteAchievements.Models.Settings
                 if (claim != null)
                 {
                     clone.Add(claim.Clone());
+                }
+            }
+
+            return clone;
+        }
+
+        internal static Dictionary<string, string> CloneCategoryKindMap(IReadOnlyDictionary<string, string> source)
+        {
+            if (source == null)
+            {
+                return null;
+            }
+
+            var clone = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var pair in source)
+            {
+                if (!string.IsNullOrWhiteSpace(pair.Key) && !string.IsNullOrWhiteSpace(pair.Value))
+                {
+                    clone[pair.Key] = pair.Value;
+                }
+            }
+
+            return clone;
+        }
+
+        internal static List<PlayniteAchievements.Models.Achievements.AchievementTagDefinition> CloneTagList(
+            IEnumerable<PlayniteAchievements.Models.Achievements.AchievementTagDefinition> source)
+        {
+            if (source == null)
+            {
+                return null;
+            }
+
+            var clone = new List<PlayniteAchievements.Models.Achievements.AchievementTagDefinition>();
+            foreach (var definition in source)
+            {
+                if (definition != null)
+                {
+                    clone.Add(definition.Clone());
                 }
             }
 

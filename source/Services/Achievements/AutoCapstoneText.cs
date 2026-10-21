@@ -237,7 +237,7 @@ namespace PlayniteAchievements.Services.Achievements
             }
 
             // The display label, not the raw path, so a nested category reads as the list shows it.
-            var label = AchievementCategoryTypeHelper.ToCategoryLabelDisplayText(category);
+            var label = AchievementCategoryHelper.ToCategoryLabelDisplayText(category);
 
             // A base category named after the game (Steam names its base set that way) would
             // render "Game: Game", so it takes the game's title.

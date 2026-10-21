@@ -429,7 +429,7 @@ namespace PlayniteAchievements.Providers.ShadPS4
                         Rarity = GetRarityFromTrophyType(trophyTypeNormalized),
                         TrophyType = trophyTypeNormalized,
                         IsCapstone = trophyType?.ToUpperInvariant() == "P",
-                        CategoryType = MapGroupIdToCategoryType(groupId),
+                        CategoryKind = MapGroupIdToCategoryKind(groupId),
                         Category = string.IsNullOrWhiteSpace(groupName) ? null : groupName.Trim()
                     });
                 }
@@ -798,8 +798,8 @@ namespace PlayniteAchievements.Providers.ShadPS4
             var gameIdText = game.Id.ToString("D");
             foreach (var entry in groupIdsByLabel)
             {
-                var label = AchievementCategoryTypeHelper.NormalizeCategoryOrDefault(entry.Key);
-                if (string.Equals(label, AchievementCategoryTypeHelper.DefaultCategoryLabel, StringComparison.OrdinalIgnoreCase))
+                var label = AchievementCategoryHelper.NormalizeCategoryOrDefault(entry.Key);
+                if (string.Equals(label, AchievementCategoryHelper.DefaultCategoryLabel, StringComparison.OrdinalIgnoreCase))
                 {
                     continue;
                 }
@@ -821,7 +821,7 @@ namespace PlayniteAchievements.Providers.ShadPS4
 
         private static string GetTrophyGroupIconPath(string iconsFolder, string groupId)
         {
-            var fileName = string.Equals(MapGroupIdToCategoryType(groupId), "Base", StringComparison.Ordinal)
+            var fileName = string.Equals(MapGroupIdToCategoryKind(groupId), "Base", StringComparison.Ordinal)
                 ? "ICON0.PNG"
                 : int.TryParse(groupId?.Trim(), out var number) && number > 0
                     ? $"GR{number:D3}.PNG"
@@ -866,7 +866,7 @@ namespace PlayniteAchievements.Providers.ShadPS4
             }
         }
 
-        private static string MapGroupIdToCategoryType(string groupId)
+        private static string MapGroupIdToCategoryKind(string groupId)
         {
             var n = (groupId ?? string.Empty).Trim();
             return string.IsNullOrWhiteSpace(n) ||

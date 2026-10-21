@@ -28,6 +28,7 @@ namespace PlayniteAchievements.Views.Settings.Metadata
 
             Sections.Children.Add(new MetadataSourcesSection(settings, registry));
             Sections.Children.Add(new AutoCapstoneSettingsSection(settings, plugin));
+            Sections.Children.Add(new AchievementTagsSettingsSection(settings, plugin));
         }
     }
 }

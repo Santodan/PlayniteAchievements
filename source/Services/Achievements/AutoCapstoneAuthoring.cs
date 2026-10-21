@@ -293,7 +293,7 @@ namespace PlayniteAchievements.Services.Achievements
             return AutoCapstoneTemplate.SelectPlatinum(
                 achievementsInOrder,
                 achievement => achievement.TrophyType,
-                achievement => achievement.CategoryType);
+                achievement => achievement.CategoryKind);
         }
 
         /// <summary>
@@ -337,7 +337,7 @@ namespace PlayniteAchievements.Services.Achievements
 
             // Worked out now, so a game already finished gets a capstone already unlocked and the
             // first refresh after this sees no crossing to announce.
-            var normalizedCategory = AchievementCategoryTypeHelper.NormalizeCategory(category);
+            var normalizedCategory = AchievementCategoryHelper.NormalizeCategory(category);
             var derived = AutoCapstoneCalculator.Derive(
                 achievements,
                 normalizedCategory,
@@ -374,7 +374,7 @@ namespace PlayniteAchievements.Services.Achievements
                 Unlocked = derived.Unlocked,
                 UnlockTimeUtc = derived.Unlocked ? derived.UnlockTimeUtc : null,
                 UnlockedIconPath = iconPath,
-                CategoryType = derived.CategoryType,
+                CategoryKind = derived.CategoryKind,
                 TrophyType = AutoCapstoneTemplate.PlatinumTrophyType,
                 Hidden = false,
                 Rarity = derived.Rarity ?? "Common",

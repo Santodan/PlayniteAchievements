@@ -257,13 +257,14 @@ namespace PlayniteAchievements.Models.Tests
 
             Assert.AreEqual(1, settings.AchievementCategoryTypeOverrides.Count);
             var categoryTypeMap = settings.AchievementCategoryTypeOverrides[gameId];
-            Assert.AreEqual(3, categoryTypeMap.Count);
+            // Kept as written: the custom data normalizer splits these into kinds and tags.
+            Assert.AreEqual(4, categoryTypeMap.Count);
             Assert.IsTrue(categoryTypeMap.TryGetValue("acha", out var categoryTypeValue));
-            Assert.AreEqual("Base", categoryTypeValue);
+            Assert.AreEqual("base", categoryTypeValue);
             Assert.IsTrue(categoryTypeMap.TryGetValue("achb", out var multiCategoryTypeValue));
-            Assert.AreEqual("DLC|Multiplayer", multiCategoryTypeValue);
+            Assert.AreEqual("multiplayer, dlc", multiCategoryTypeValue);
             Assert.IsTrue(categoryTypeMap.TryGetValue("achd", out var defaultCategoryTypeValue));
-            Assert.AreEqual("Default", defaultCategoryTypeValue);
+            Assert.AreEqual("default", defaultCategoryTypeValue);
         }
 
         [TestMethod]
@@ -425,25 +426,19 @@ namespace PlayniteAchievements.Models.Tests
         }
 
         [TestMethod]
-        public void AchievementCategoryTypeHelper_NormalizesAndFormatsMultiValues()
+        public void KindsAndTags_NormalizeAndFormatMultiValues()
         {
-            var normalized = AchievementCategoryTypeHelper.Normalize("multiplayer, dlc | base");
-            Assert.AreEqual("Base|DLC|Multiplayer", normalized);
-            Assert.AreEqual("Base, DLC, Multiplayer", AchievementCategoryTypeHelper.ToDisplayText(normalized));
-
-            var filteredLegacyNormalized = AchievementCategoryTypeHelper.Normalize("ignored|dlc");
-            Assert.AreEqual("DLC", filteredLegacyNormalized);
-            Assert.AreEqual("DLC", AchievementCategoryTypeHelper.ToDisplayText(filteredLegacyNormalized));
+            Assert.AreEqual("Base|DLC", CategoryKindHelper.Normalize("dlc | base"));
+            Assert.AreEqual("Multiplayer", AchievementTagHelper.Normalize("multiplayer, dlc | base"));
+            Assert.AreEqual("Base, DLC", CategoryKindHelper.ToDisplayText("base|dlc"));
+            Assert.AreEqual("Multiplayer", AchievementTagHelper.ToDisplayText("multiplayer"));
         }
 
         [TestMethod]
-        public void AchievementCategoryTypeHelper_DefaultFallbacksAndMerging()
+        public void CategoryLabels_DefaultFallbacks()
         {
-            Assert.AreEqual("Default", AchievementCategoryTypeHelper.NormalizeOrDefault(null));
-            Assert.AreEqual("Default", AchievementCategoryTypeHelper.NormalizeOrDefault("unknown"));
-            Assert.AreEqual("DLC|Multiplayer", AchievementCategoryTypeHelper.Normalize("default|dlc|multiplayer"));
-            Assert.AreEqual("Default", AchievementCategoryTypeHelper.NormalizeCategoryOrDefault(null));
-            Assert.AreEqual("Label", AchievementCategoryTypeHelper.NormalizeCategoryOrDefault(" Label "));
+            Assert.AreEqual("Default", AchievementCategoryHelper.NormalizeCategoryOrDefault(null));
+            Assert.AreEqual("Label", AchievementCategoryHelper.NormalizeCategoryOrDefault(" Label "));
         }
     }
 }

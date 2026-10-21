@@ -33,10 +33,37 @@ namespace PlayniteAchievements.Models.Achievements
         public int? ScaledPoints { get; set; }
 
         /// <summary>
-        /// Optional structured category classification.
-        /// Canonical values are listed in AchievementCategoryTypeHelper.AllowedCategoryTypes.
+        /// Pipe-joined tag keys (see AchievementTagHelper). Null for no tags. Also carries the
+        /// provider-derived Softcore/Hardcore unlock mode, which is never shown as a tag.
         /// </summary>
-        public string CategoryType { get; set; }
+        public string Tags { get; set; }
+
+        /// <summary>
+        /// The kind of the category this achievement belongs to (see CategoryKindHelper): the
+        /// provider's value until hydration, then the effective one. Null for no kind.
+        /// </summary>
+        public string CategoryKind { get; set; }
+
+        /// <summary>
+        /// Theme compatibility: the kind and tag keys joined, the single type value themes bound
+        /// before kinds and tags split.
+        /// </summary>
+        [IgnoreDataMember]
+        public string CategoryType => string.Join("|",
+            System.Linq.Enumerable.Concat(
+                Services.Achievements.CategoryKindHelper.GetComponents(CategoryKind),
+                Services.Achievements.AchievementTagHelper.GetComponents(Tags)));
+
+        /// <summary>Names of the visible tags, in the tag list's order.</summary>
+        [IgnoreDataMember]
+        public string TagsDisplay => Services.Achievements.AchievementTagHelper.ToDisplayText(Tags, Game?.Id);
+
+        /// <summary>Theme compatibility: kind and tag names joined.</summary>
+        [IgnoreDataMember]
+        public string CategoryTypeDisplay => string.Join(", ",
+            System.Linq.Enumerable.Where(
+                new[] { Services.Achievements.CategoryKindHelper.ToDisplayText(CategoryKind), TagsDisplay },
+                text => !string.IsNullOrEmpty(text)));
 
         public string Category { get; set; }
 
@@ -114,6 +141,17 @@ namespace PlayniteAchievements.Models.Achievements
         /// </summary>
         [IgnoreDataMember]
         public string ProviderCategory { get; set; }
+
+        /// <summary>
+        /// Runtime-only provider tags and kind, captured by the hydrator before user overrides
+        /// replace <see cref="Tags"/> and <see cref="CategoryKind"/>, so re-hydrating an instance
+        /// and comparing an edit against the provider value both see what the provider gave.
+        /// </summary>
+        [IgnoreDataMember]
+        public string ProviderTags { get; set; }
+
+        [IgnoreDataMember]
+        public string ProviderCategoryKind { get; set; }
 
         /// <summary>
         /// Runtime-only category art path for theme/display bindings: custom override when

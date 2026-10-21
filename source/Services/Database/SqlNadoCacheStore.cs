@@ -53,7 +53,8 @@ namespace PlayniteAchievements.Services.Database
                         ad.Points AS Points,
                         ad.ScaledPoints AS ScaledPoints,
                         ad.Category AS Category,
-                        ad.CategoryType AS CategoryType,
+                        ad.Tags AS Tags,
+                        ad.CategoryKind AS CategoryKind,
                         ad.TrophyType AS TrophyType,
                         ad.Hidden AS Hidden,
                         ad.IsCapstone AS IsCapstone,
@@ -137,7 +138,8 @@ namespace PlayniteAchievements.Services.Database
             int? Points { get; }
             int? ScaledPoints { get; }
             string Category { get; }
-            string CategoryType { get; }
+            string Tags { get; }
+            string CategoryKind { get; }
             string TrophyType { get; }
             long Hidden { get; }
             long IsCapstone { get; }
@@ -160,7 +162,8 @@ namespace PlayniteAchievements.Services.Database
             public int? Points { get; set; }
             public int? ScaledPoints { get; set; }
             public string Category { get; set; }
-            public string CategoryType { get; set; }
+            public string Tags { get; set; }
+            public string CategoryKind { get; set; }
             public string TrophyType { get; set; }
             public long Hidden { get; set; }
             public long IsCapstone { get; set; }
@@ -182,7 +185,8 @@ namespace PlayniteAchievements.Services.Database
             public int? Points { get; set; }
             public int? ScaledPoints { get; set; }
             public string Category { get; set; }
-            public string CategoryType { get; set; }
+            public string Tags { get; set; }
+            public string CategoryKind { get; set; }
             public string TrophyType { get; set; }
             public long Hidden { get; set; }
             public long IsCapstone { get; set; }
@@ -327,7 +331,8 @@ namespace PlayniteAchievements.Services.Database
             public int? Points { get; set; }
             public int? ScaledPoints { get; set; }
             public string Category { get; set; }
-            public string CategoryType { get; set; }
+            public string Tags { get; set; }
+            public string CategoryKind { get; set; }
             public string TrophyType { get; set; }
             public long Hidden { get; set; }
             public long IsCapstone { get; set; }
@@ -804,8 +809,9 @@ namespace PlayniteAchievements.Services.Database
                 LockedIconPath = MakeAbsolutePath(row.LockedIconPath),
                 Points = row.Points,
                 ScaledPoints = row.ScaledPoints,
-                Category = AchievementCategoryTypeHelper.NormalizeCategoryOrDefault(row.Category),
-                CategoryType = AchievementCategoryTypeHelper.NormalizeOrDefault(row.CategoryType),
+                Category = AchievementCategoryHelper.NormalizeCategoryOrDefault(row.Category),
+                Tags = AchievementTagHelper.Normalize(row.Tags),
+                CategoryKind = CategoryKindHelper.Normalize(row.CategoryKind),
                 TrophyType = row.TrophyType,
                 Hidden = row.Hidden != 0,
                 IsCapstone = row.IsCapstone != 0,
@@ -2313,7 +2319,8 @@ namespace PlayniteAchievements.Services.Database
                         ad.Points AS Points,
                         ad.ScaledPoints AS ScaledPoints,
                         ad.Category AS Category,
-                        ad.CategoryType AS CategoryType,
+                        ad.Tags AS Tags,
+                        ad.CategoryKind AS CategoryKind,
                         ad.TrophyType AS TrophyType,
                         ad.Hidden AS Hidden,
                         ad.IsCapstone AS IsCapstone,
@@ -2350,8 +2357,9 @@ namespace PlayniteAchievements.Services.Database
                         LockedIconUrl = MakeAbsolutePath(row.LockedIconPath),
                         Points = row.Points,
                         ScaledPoints = row.ScaledPoints,
-                        Category = AchievementCategoryTypeHelper.NormalizeCategoryOrDefault(row.Category),
-                        CategoryType = AchievementCategoryTypeHelper.NormalizeOrDefault(row.CategoryType),
+                        Category = AchievementCategoryHelper.NormalizeCategoryOrDefault(row.Category),
+                        Tags = AchievementTagHelper.Normalize(row.Tags),
+                        CategoryKind = CategoryKindHelper.Normalize(row.CategoryKind),
                         TrophyType = row.TrophyType,
                         Hidden = row.Hidden != 0,
                         IsCapstone = row.IsCapstone != 0,
@@ -4091,7 +4099,7 @@ namespace PlayniteAchievements.Services.Database
         {
             return db.Load<AchievementDefinitionRow>(
                 @"SELECT Id, GameId, ApiName, DisplayName, Description, UnlockedIconPath, LockedIconPath,
-                         Points, ScaledPoints, Category, CategoryType, TrophyType, Hidden, IsCapstone,
+                         Points, ScaledPoints, Category, Tags, CategoryKind, TrophyType, Hidden, IsCapstone,
                          GlobalPercentUnlocked, Rarity, ProgressMax, CreatedUtc, UpdatedUtc
                   FROM AchievementDefinitions
                   WHERE GameId = ?
@@ -4230,7 +4238,8 @@ namespace PlayniteAchievements.Services.Database
                 Points = row?.Points,
                 ScaledPoints = row?.ScaledPoints,
                 Category = row?.Category,
-                CategoryType = row?.CategoryType,
+                Tags = row?.Tags,
+                CategoryKind = row?.CategoryKind,
                 TrophyType = row?.TrophyType,
                 Hidden = row != null && row.Hidden != 0,
                 IsCapstone = row != null && row.IsCapstone != 0,
@@ -5138,7 +5147,8 @@ namespace PlayniteAchievements.Services.Database
                     ad.Points AS Points,
                     ad.ScaledPoints AS ScaledPoints,
                     ad.Category AS Category,
-                    ad.CategoryType AS CategoryType,
+                    ad.Tags AS Tags,
+                    ad.CategoryKind AS CategoryKind,
                     ad.TrophyType AS TrophyType,
                     ad.Hidden AS Hidden,
                     ad.IsCapstone AS IsCapstone,
@@ -5297,8 +5307,9 @@ namespace PlayniteAchievements.Services.Database
                     LockedIconPath = MakeAbsolutePath(row.LockedIconPath),
                     Points = row.Points,
                     ScaledPoints = row.ScaledPoints,
-                    Category = AchievementCategoryTypeHelper.NormalizeCategoryOrDefault(row.Category),
-                    CategoryType = AchievementCategoryTypeHelper.NormalizeOrDefault(row.CategoryType),
+                    Category = AchievementCategoryHelper.NormalizeCategoryOrDefault(row.Category),
+                    Tags = AchievementTagHelper.Normalize(row.Tags),
+                    CategoryKind = CategoryKindHelper.Normalize(row.CategoryKind),
                     TrophyType = row.TrophyType,
                     Hidden = row.Hidden != 0,
                     IsCapstone = row.IsCapstone != 0,
@@ -5321,7 +5332,8 @@ namespace PlayniteAchievements.Services.Database
                     LockedIconPath = detail.LockedIconPath,
                     PointsValue = detail.ScaledPoints ?? detail.Points,
                     CategoryLabel = detail.Category,
-                    CategoryType = detail.CategoryType,
+                    Tags = detail.Tags,
+                    CategoryKind = detail.CategoryKind,
                     TrophyType = detail.TrophyType,
                     Hidden = detail.Hidden,
                     IsCapstone = detail.IsCapstone,
@@ -5428,15 +5440,22 @@ namespace PlayniteAchievements.Services.Database
                 customData.AchievementCategoryOverrides.TryGetValue(apiName, out var categoryOverride) &&
                 !string.IsNullOrWhiteSpace(categoryOverride))
             {
-                item.CategoryLabel = AchievementCategoryTypeHelper.NormalizeCategoryOrDefault(categoryOverride);
+                item.CategoryLabel = AchievementCategoryHelper.NormalizeCategoryOrDefault(categoryOverride);
             }
 
-            if (customData.AchievementCategoryTypeOverrides != null &&
-                customData.AchievementCategoryTypeOverrides.TryGetValue(apiName, out var categoryTypeOverride) &&
-                !string.IsNullOrWhiteSpace(categoryTypeOverride))
+            PlayniteAchievements.Models.Settings.AchievementOverride userOverride = null;
+            customData.ResolveAchievementOverrides()?.TryGetValue(apiName, out userOverride);
+            if (userOverride != null && (userOverride.ClearTags || userOverride.Tags != null))
             {
-                item.CategoryType = AchievementCategoryTypeHelper.ApplyOverride(item.CategoryType, categoryTypeOverride);
+                item.Tags = AchievementTagHelper.ApplyOverride(
+                    item.Tags,
+                    userOverride.ClearTags ? string.Empty : userOverride.Tags);
             }
+
+            item.CategoryKind = CategoryKindHelper.ResolveEffective(
+                customData.GetStoredCategoryKind(item.CategoryLabel),
+                userOverride?.LegacyCategoryKind,
+                item.CategoryKind);
 
             item.AchievementNote = customData.AchievementNotes != null &&
                                    customData.AchievementNotes.TryGetValue(apiName, out var note)
@@ -6727,7 +6746,7 @@ namespace PlayniteAchievements.Services.Database
             return existing.Id;
         }
 
-        // Fills Category/CategoryType on existing definition rows that still hold the Default
+        // Fills Category, Tags and CategoryKind on existing definition rows that still hold the Default
         // placeholder, matched by ApiName. Used for mapped friend proxy rows: the current user's
         // schema stays canonical, so a friend definition fetch only supplies category data that
         // is missing and never rewrites rows a user scan already categorized.
@@ -6738,12 +6757,12 @@ namespace PlayniteAchievements.Services.Database
             string updatedIso)
         {
             var existingDefinitions = db.Load<AchievementDefinitionRow>(
-                    @"SELECT Id, GameId, ApiName, Category, CategoryType
+                    @"SELECT Id, GameId, ApiName, Category, Tags, CategoryKind
                       FROM AchievementDefinitions
                       WHERE GameId = ?;",
                     gameId)
                 .Where(a => a != null)
-                .Select(a => (a.Id, a.ApiName, a.Category, a.CategoryType))
+                .Select(a => (a.Id, a.ApiName, a.Category, a.Tags, a.CategoryKind))
                 .ToList();
 
             var backfills = SqlNadoCacheBehavior.ComputeDefinitionCategoryBackfills(
@@ -6754,11 +6773,13 @@ namespace PlayniteAchievements.Services.Database
                 db.ExecuteNonQuery(
                     @"UPDATE AchievementDefinitions
                       SET Category = ?,
-                          CategoryType = ?,
+                          Tags = ?,
+                          CategoryKind = ?,
                           UpdatedUtc = ?
                       WHERE Id = ?;",
                     DbValue(backfill.Category),
-                    DbValue(backfill.CategoryType),
+                    DbValue(backfill.Tags),
+                    DbValue(backfill.CategoryKind),
                     updatedIso,
                     backfill.DefinitionId);
             }
@@ -6798,7 +6819,7 @@ namespace PlayniteAchievements.Services.Database
             var desiredApiNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
             var existingByApiName = db.Load<AchievementDefinitionRow>(
-                    @"SELECT Id, GameId, ApiName, DisplayName, Description, UnlockedIconPath, LockedIconPath, Points, ScaledPoints, Category, CategoryType, TrophyType, Hidden, IsCapstone, GlobalPercentUnlocked, Rarity, ProgressMax, CreatedUtc, UpdatedUtc
+                    @"SELECT Id, GameId, ApiName, DisplayName, Description, UnlockedIconPath, LockedIconPath, Points, ScaledPoints, Category, Tags, CategoryKind, TrophyType, Hidden, IsCapstone, GlobalPercentUnlocked, Rarity, ProgressMax, CreatedUtc, UpdatedUtc
                       FROM AchievementDefinitions
                       WHERE GameId = ?;",
                     gameId)
@@ -6862,7 +6883,10 @@ namespace PlayniteAchievements.Services.Database
                 // stores what the provider said rather than what the user filed it under.
                 var incomingCategory = CategoryPathHelper.NormalizePath(
                     achievement.ProviderCategory ?? achievement.Category);
-                var incomingCategoryType = AchievementCategoryTypeHelper.NormalizeOrDefault(achievement.CategoryType);
+                // Tags and kind likewise: hydration replaces them with the user's, and the captured
+                // provider values ("" when the provider gave none) are what this table stores.
+                var incomingTags = AchievementTagHelper.Normalize(achievement.ProviderTags ?? achievement.Tags);
+                var incomingKind = CategoryKindHelper.Normalize(achievement.ProviderCategoryKind ?? achievement.CategoryKind);
                 var incomingGlobalPercent = NormalizeStoredPercent(achievement.GlobalPercentUnlocked);
                 var incomingRarity = achievement.Rarity.ToString();
 
@@ -6876,9 +6900,9 @@ namespace PlayniteAchievements.Services.Database
                 {
                     db.ExecuteNonQuery(
                         @"INSERT INTO AchievementDefinitions
-                            (GameId, ApiName, DisplayName, Description, UnlockedIconPath, LockedIconPath, Points, ScaledPoints, Category, CategoryType, TrophyType, Hidden, IsCapstone, GlobalPercentUnlocked, Rarity, ProgressMax, CreatedUtc, UpdatedUtc)
+                            (GameId, ApiName, DisplayName, Description, UnlockedIconPath, LockedIconPath, Points, ScaledPoints, Category, Tags, CategoryKind, TrophyType, Hidden, IsCapstone, GlobalPercentUnlocked, Rarity, ProgressMax, CreatedUtc, UpdatedUtc)
                           VALUES
-                            (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);",
+                            (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);",
                         gameId,
                         apiName,
                         DbValue(achievement.DisplayName),
@@ -6888,7 +6912,8 @@ namespace PlayniteAchievements.Services.Database
                         DbParam(achievement.Points),
                         DbParam(achievement.ScaledPoints),
                         DbValue(incomingCategory),
-                        DbValue(incomingCategoryType),
+                        DbValue(incomingTags),
+                        DbValue(incomingKind),
                         DbValue(achievement.TrophyType),
                         achievement.Hidden ? 1 : 0,
                         isCapstone ? 1 : 0,
@@ -6942,7 +6967,8 @@ namespace PlayniteAchievements.Services.Database
                               existing.Points != incomingPoints ||
                               existing.ScaledPoints != incomingScaledPoints ||
                               !NullableEquals(NormalizeDbText(existing.Category), incomingCategory) ||
-                              !NullableEquals(NormalizeDbText(existing.CategoryType), incomingCategoryType) ||
+                              !NullableEquals(NormalizeDbText(existing.Tags), incomingTags) ||
+                              !NullableEquals(NormalizeDbText(existing.CategoryKind), incomingKind) ||
                               !NullableEquals(NormalizeDbText(existing.TrophyType), incomingTrophyType) ||
                               existing.Hidden != incomingHidden ||
                               existing.GlobalPercentUnlocked != incomingGlobalPercent ||
@@ -6964,7 +6990,8 @@ namespace PlayniteAchievements.Services.Database
                           Points = ?,
                           ScaledPoints = ?,
                           Category = ?,
-                          CategoryType = ?,
+                          Tags = ?,
+                          CategoryKind = ?,
                           TrophyType = ?,
                           Hidden = ?,
                           IsCapstone = ?,
@@ -6980,7 +7007,8 @@ namespace PlayniteAchievements.Services.Database
                                         DbParam(incomingPoints),
                                         DbParam(incomingScaledPoints),
                                         DbValue(incomingCategory),
-                                        DbValue(incomingCategoryType),
+                                        DbValue(incomingTags),
+                                        DbValue(incomingKind),
                                         DbValue(incomingTrophyType),
                                         incomingHidden,
                                         incomingIsCapstone,

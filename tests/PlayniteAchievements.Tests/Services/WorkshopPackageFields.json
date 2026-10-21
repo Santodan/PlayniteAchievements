@@ -29,6 +29,7 @@
       "Category": "value",
       "CategoryType": "value",
       "ClearDescription": "value",
+      "ClearTags": "value",
       "ClearTrophyType": "value",
       "ClearUnlockTime": "value",
       "Description": "value",
@@ -37,9 +38,16 @@
       "LockedIconPath": "value",
       "Note": "value",
       "Points": "value",
+      "Tags": "value",
       "TrophyType": "value",
       "UnlockTimeUtc": "value",
       "UnlockedIconPath": "value"
+    },
+    "AchievementTagDefinition": {
+      "Color": "value",
+      "Icon": "value",
+      "Key": "value",
+      "Name": "value"
     },
     "BundleFile": {
       "Kind": "value",
@@ -82,6 +90,7 @@
       "ProgressNum": "value",
       "Rarity": "value",
       "ScaledPoints": "value",
+      "Tags": "value",
       "TrophyType": "value",
       "UnlockTimeUtc": "value",
       "Unlocked": "value",
@@ -97,6 +106,9 @@
     "GameCustomDataPortableFile": {
       "AchievementCategoryImageOverrides": {
         "map": "CategoryImageOverrideData"
+      },
+      "AchievementCategoryKinds": {
+        "map": "value"
       },
       "AchievementCategoryOrder": {
         "list": "value"
@@ -118,6 +130,9 @@
       },
       "AchievementOverrides": {
         "map": "AchievementOverride"
+      },
+      "AchievementTags": {
+        "list": "AchievementTagDefinition"
       },
       "AchievementUnlockedIconOverrides": {
         "map": "value"

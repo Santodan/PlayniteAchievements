@@ -148,7 +148,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
 
             var normalized = (labels ?? Array.Empty<string>())
                 .Where(label => !string.IsNullOrWhiteSpace(label))
-                .Select(AchievementCategoryTypeHelper.NormalizeCategoryOrDefault)
+                .Select(AchievementCategoryHelper.NormalizeCategoryOrDefault)
                 .Distinct(StringComparer.OrdinalIgnoreCase)
                 .ToList();
             _sidebarScopeLabels = normalized.Count > 0 ? normalized : null;
@@ -171,7 +171,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 var labelSet = new HashSet<string>(labels, StringComparer.OrdinalIgnoreCase);
                 var scoped = _sidebarSourceAchievements
                     .Where(achievement => achievement != null &&
-                                          labelSet.Contains(AchievementCategoryTypeHelper.NormalizeCategoryOrDefault(achievement.Category)))
+                                          labelSet.Contains(AchievementCategoryHelper.NormalizeCategoryOrDefault(achievement.Category)))
                     .ToList();
 
                 // No custom data: the per-kind customization counts are an Overview tab section,
@@ -179,8 +179,8 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 SidebarSummary = BuildOverviewSummary(scoped, null, _showsRarity);
                 _sidebarTotalAchievements = scoped.Count;
                 _sidebarUnlockedAchievements = scoped.Count(achievement => achievement.Unlocked);
-                SidebarScopeLabel = string.Join(", ", labels.Select(AchievementCategoryTypeHelper.ToCategoryLeafDisplayText));
-                SidebarScopeToolTip = string.Join(Environment.NewLine, labels.Select(AchievementCategoryTypeHelper.ToCategoryLabelDisplayText));
+                SidebarScopeLabel = string.Join(", ", labels.Select(AchievementCategoryHelper.ToCategoryLeafDisplayText));
+                SidebarScopeToolTip = string.Join(Environment.NewLine, labels.Select(AchievementCategoryHelper.ToCategoryLabelDisplayText));
             }
 
             OnPropertyChanged(nameof(IsSidebarCategoryScoped));

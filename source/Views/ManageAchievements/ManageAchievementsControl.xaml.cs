@@ -35,6 +35,7 @@ namespace PlayniteAchievements.Views.ManageAchievements
             ManageAchievementsTab.Overview,
             ManageAchievementsTab.Editor,
             ManageAchievementsTab.Category,
+            ManageAchievementsTab.Tags,
             ManageAchievementsTab.Notifications
         };
 
@@ -69,6 +70,7 @@ namespace PlayniteAchievements.Views.ManageAchievements
         private bool _selectManageCategoriesSubTab;
         // The Notifications tab's surface to show once its section exists: true for the frame.
         private NotificationSurface? _pendingNotificationsSurface;
+        private ManageAchievementsTagsTab _tagsControl;
         private bool _ensureTabContentQueued;
         private bool _categoryEditsPendingPropagation;
 
@@ -220,6 +222,7 @@ namespace PlayniteAchievements.Views.ManageAchievements
 
             CleanupEditor();
             CleanupCategory();
+            CleanupTags();
             CleanupNotifications();
 
             // A deferred shell reload must not be dropped on the way out: it is what leaves the
@@ -349,6 +352,10 @@ namespace PlayniteAchievements.Views.ManageAchievements
 
                     _categoryRefreshPending = false;
                 }
+            }
+            else if (_viewModel.SelectedTab == ManageAchievementsTab.Tags)
+            {
+                EnsureTagsControl();
             }
             else if (_viewModel.SelectedTab == ManageAchievementsTab.Notifications)
             {
@@ -536,6 +543,7 @@ namespace PlayniteAchievements.Views.ManageAchievements
                     OverviewTabButton,
                     EditorTabButton,
                     CategoryTabButton,
+                    TagsTabButton,
                     NotificationsTabButton
                 }
                 .Where(button => button != null && button.IsVisible && button.IsEnabled)
@@ -575,6 +583,9 @@ namespace PlayniteAchievements.Views.ManageAchievements
                     return _editorControl?.GetControllerElements() ?? new List<UIElement>();
                 case ManageAchievementsTab.Category:
                     return _categoryControl?.GetControllerElements() ?? new List<UIElement>();
+                case ManageAchievementsTab.Tags:
+                    root = _tagsControl ?? (DependencyObject)TagsHost;
+                    break;
                 case ManageAchievementsTab.Notifications:
                     root = _notificationsControl ?? (DependencyObject)NotificationsHost;
                     break;
@@ -1002,6 +1013,27 @@ namespace PlayniteAchievements.Views.ManageAchievements
             _categoryControl.SelectManageCategoriesSubTab();
         }
 
+        private void EnsureTagsControl()
+        {
+            var store = PlayniteAchievementsPlugin.Instance?.GameCustomDataStore;
+            if (_tagsControl != null || store == null)
+            {
+                return;
+            }
+
+            _tagsControl = new ManageAchievementsTagsTab(_viewModel.GameId, store, _settings, SaveSettings);
+            TagsHost.Content = _tagsControl;
+        }
+
+        private void CleanupTags()
+        {
+            _tagsControl = null;
+            if (TagsHost != null)
+            {
+                TagsHost.Content = null;
+            }
+        }
+
         private void EnsureNotificationsControl(bool forceRecreate)
         {
             if (_notificationsControl != null && !forceRecreate)
@@ -1314,6 +1346,7 @@ namespace PlayniteAchievements.Views.ManageAchievements
                 _categoryViewModel.FlushDeferredLibraryRefresh();
                 _categoryViewModel.CategoryMetadataPersisted -= CategoryViewModel_CategoryMetadataPersisted;
                 _categoryViewModel.DeferredLibraryRefreshRequired -= CategoryViewModel_DeferredLibraryRefreshRequired;
+                _categoryViewModel.Detach();
             }
 
             if (_categoryControl != null)

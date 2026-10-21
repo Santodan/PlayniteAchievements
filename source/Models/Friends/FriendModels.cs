@@ -247,7 +247,8 @@ namespace PlayniteAchievements.Models.Friends
         public int? Points { get; set; }
         public int? ScaledPoints { get; set; }
         public string Category { get; set; }
-        public string CategoryType { get; set; }
+        public string Tags { get; set; }
+        public string CategoryKind { get; set; }
         public string TrophyType { get; set; }
         public bool Hidden { get; set; }
         public bool IsCapstone { get; set; }

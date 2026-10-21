@@ -427,7 +427,7 @@ namespace PlayniteAchievements.Tests.Services
         }
 
         [TestMethod]
-        public async Task Categories_MergeKeepsProviderNamedCategory_AndAddsTypes()
+        public async Task Categories_MergeKeepsProviderNamedCategory_AndAddsKindAndTags()
         {
             var hunters = new FakeSource("SteamHunters", MetadataField.Categories) { Mode = MetadataCategoryMode.Merge };
             hunters.Rows.Add(Row("A", "One", category: "Story", type: "Missable"));
@@ -443,9 +443,9 @@ namespace PlayniteAchievements.Tests.Services
             }
 
             Assert.AreEqual("Chapter 1", named.Category);
-            StringAssert.Contains(named.CategoryType, "Missable");
+            StringAssert.Contains(named.Tags, "Missable");
             Assert.AreEqual("DLC Pack", plain.Category);
-            StringAssert.Contains(plain.CategoryType, "DLC");
+            Assert.AreEqual("DLC", plain.CategoryKind);
         }
 
         [TestMethod]
@@ -462,7 +462,7 @@ namespace PlayniteAchievements.Tests.Services
             }
 
             Assert.AreEqual("Story", named.Category);
-            Assert.IsFalse((named.CategoryType ?? string.Empty).Contains("Missable"));
+            Assert.IsFalse((named.Tags ?? string.Empty).Contains("Missable"));
         }
 
         [TestMethod]
@@ -684,7 +684,8 @@ namespace PlayniteAchievements.Tests.Services
                 UnlockedIconPath = icon,
                 LockedIconPath = locked,
                 Category = category,
-                CategoryType = type
+                CategoryKind = PlayniteAchievements.Services.Achievements.LegacyCategoryTypes.SplitKind(type),
+                Tags = PlayniteAchievements.Services.Achievements.AchievementTagHelper.Normalize(type)
             };
         }
 

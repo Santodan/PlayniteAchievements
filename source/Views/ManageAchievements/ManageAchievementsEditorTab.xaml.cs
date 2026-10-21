@@ -1103,7 +1103,7 @@ namespace PlayniteAchievements.Views.ManageAchievements
             SelectorContextMenuHelper.OpenCategoryTypeMenu(
                 TypeSelectionButton,
                 TypeSelectionContextMenu,
-                ViewModel.TypeSelectionOptions);
+                ViewModel.TagSelectionOptions);
         }
 
         public void RefreshData()
@@ -1516,10 +1516,10 @@ namespace PlayniteAchievements.Views.ManageAchievements
 
             var typeMenu = new MenuItem
             {
-                Header = ResourceProvider.GetString("LOCTypeLabel"),
+                Header = ResourceProvider.GetString("LOCTagsLabel"),
                 IsEnabled = selection.All(row => row.CanEditAssignments)
             };
-            AppendCategoryTypeItems(typeMenu.Items, selection);
+            AppendTagItems(typeMenu.Items, selection);
             menu.Items.Add(typeMenu);
 
             menu.Items.Add(CreateMenuItem(
@@ -1875,7 +1875,7 @@ namespace PlayniteAchievements.Views.ManageAchievements
 
         private void TypeCell_Click(object sender, RoutedEventArgs e)
         {
-            OpenCellMenu(sender, AppendCategoryTypeItems);
+            OpenCellMenu(sender, AppendTagItems);
         }
 
         private void NoteCell_Click(object sender, RoutedEventArgs e)
@@ -2070,7 +2070,7 @@ namespace PlayniteAchievements.Views.ManageAchievements
         /// The category-type ticks for a selection. Shared by the row menu and the Type column's
         /// cell menu.
         /// </summary>
-        private void AppendCategoryTypeItems(ItemCollection items, IReadOnlyList<AchievementEditorRow> selection)
+        private void AppendTagItems(ItemCollection items, IReadOnlyList<AchievementEditorRow> selection)
         {
             var viewModel = ViewModel;
             if (items == null || viewModel == null || selection == null)
@@ -2081,12 +2081,12 @@ namespace PlayniteAchievements.Views.ManageAchievements
             // Kept so a click can read every tick, not just its own: the menu stays open, and the
             // set the user leaves it in is what the whole selection takes.
             var typeItems = new List<MenuItem>();
-            foreach (var categoryType in AchievementCategoryTypeHelper.AssignableCategoryTypes)
+            foreach (var tag in AchievementTagRegistry.GetAssignableKeys(viewModel.GameId))
             {
-                var captured = categoryType;
+                var captured = tag;
                 var typeItem = new MenuItem
                 {
-                    Header = ManageAchievementsCategoryViewModel.GetCategoryTypeDisplayName(captured),
+                    Header = ManageAchievementsCategoryViewModel.GetTagDisplayName(captured, viewModel.GameId),
                     IsCheckable = true,
                     StaysOpenOnClick = true,
                     Tag = captured,
@@ -2094,10 +2094,10 @@ namespace PlayniteAchievements.Views.ManageAchievements
                     // pane: reading the override alone left a provider-typed row showing the type
                     // unticked here and ticked there.
                     IsChecked = selection.All(row =>
-                        AchievementCategoryTypeHelper.ParseValues(row.EffectiveCategoryTypeValue)
+                        AchievementTagHelper.Parse(row.EffectiveTagsValue)
                             .Any(value => string.Equals(value, captured, StringComparison.OrdinalIgnoreCase)))
                 };
-                typeItem.Click += (_, __) => viewModel.SetCategoryTypesForSelection(
+                typeItem.Click += (_, __) => viewModel.SetTagsForSelection(
                     typeItems.Where(item => item.IsChecked).Select(item => item.Tag as string));
                 typeItems.Add(typeItem);
                 items.Add(typeItem);

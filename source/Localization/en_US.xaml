@@ -18,6 +18,10 @@
     <sys:String x:Key="LOCPlayAch_Common_Continue">Continue</sys:String>
     <sys:String x:Key="LOCPlayAch_Common_Transparent">Transparent</sys:String>
     <sys:String x:Key="LOCPlayAch_Common_Color">Color</sys:String>
+    <sys:String x:Key="LOCPlayAch_Common_ChooseIcon">Choose Icon</sys:String>
+    <sys:String x:Key="LOCPlayAch_Common_BuiltInTagHint">Built-in tag: it can be renamed and recolored, but not deleted.</sys:String>
+    <!-- Kind: what part of a game a category covers (Base, DLC, Update, Subset) -->
+    <sys:String x:Key="LOCPlayAch_Common_Kind">Kind</sys:String>
     <sys:String x:Key="LOCPlayAch_Common_Delete">Delete</sys:String>
     <!-- Common_Desktop / Common_Fullscreen: bare names of Playnite's two modes (and their themes) -->
     <sys:String x:Key="LOCPlayAch_Common_Desktop">Desktop</sys:String>
@@ -239,7 +243,7 @@
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Category_DeleteConfirmSelected">Delete {0} categories? {1} achievement(s) will move back to the Default category.</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Category_DeleteConfirmSingle">Delete "{0}"? {1} achievement(s) will move back to the Default category.</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Category_Filter_Label">Filter by Category Label</sys:String>
-    <sys:String x:Key="LOCPlayAch_ManageAchievements_Category_Filter_Type">Filter by Category Type</sys:String>
+    <sys:String x:Key="LOCPlayAch_ManageAchievements_Category_Filter_Type">Filter by Kind or Tag</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Category_FilterScopeTooltip">Apply a filter to every achievement in this category. Subcategories keep their own. Shows blank when they differ.</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Category_Hint">Set categories for this game's achievements.</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Category_InputPlaceholder">Category label for selected achievements</sys:String>
@@ -275,7 +279,6 @@
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Category_Type_Unobtainable">Unobtainable</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Category_Type_Update">Update</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Category_Type_WinCondition">Win Condition</sys:String>
-    <sys:String x:Key="LOCPlayAch_ManageAchievements_Category_TypeSelectorLabel">Category Type</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_CustomIcons_LocalFileMissing">The selected image file no longer exists.</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_CustomIcons_OpenFolderButton">Open Icons Folder</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_CustomIcons_OpenFolderUnavailable">The extension data path is unavailable.</sys:String>
@@ -391,6 +394,7 @@
     <sys:String x:Key="LOCPlayAch_Settings_CategoryGridUseCoverImages">Use Covers Instead of Icons for Missing Art</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Tab_CustomIcons">Icons</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Tab_Editor">Editor</sys:String>
+    <sys:String x:Key="LOCPlayAch_ManageAchievements_Tags_MakeGlobal">Make Global</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Editor_Goal">Goal</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Editor_Revert">Revert</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Editor_RevertHint">Discard your changes to the selected achievements and show the provider's values again.</sys:String>
@@ -561,6 +565,7 @@
     <sys:String x:Key="LOCPlayAch_Settings_AutoCapstoneGeneration_ApplyToExisting">Also add auto capstones to games already in your library?</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_AutoCapstoneGeneration_Progress">Adding auto capstones...</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_AutoCapstoneText_Hint">The text new auto capstones get. {0} is the game's name and {1} the category's. Saving also updates existing auto capstones still on default text; ones whose title or description you edited keep it.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_Tags_Hint">Tags every game can put on its achievements. A game can also add its own in Manage Achievements.</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_AutoCapstoneText_TemplateInvalid">Not a valid template. Use {0} for the game and {1} for the category, and double braces for literal ones.</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_EnableFriendsFeatures">Enable Friends Features</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_EnableUnlockToasts">Show my unlock notifications</sys:String>

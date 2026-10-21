@@ -1,0 +1,67 @@
+<UserControl x:Class="PlayniteAchievements.Views.ManageAchievements.ManageAchievementsTagsTab"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:controls="clr-namespace:PlayniteAchievements.Views.Controls"
+             mc:Ignorable="d"
+             d:DesignHeight="500"
+             d:DesignWidth="1000">
+    <UserControl.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceDictionary Source="pack://application:,,,/PlayniteAchievements;component/Resources/CommonResources.xaml"/>
+            </ResourceDictionary.MergedDictionaries>
+            <BooleanToVisibilityConverter x:Key="TagsTabBoolToVisibility"/>
+        </ResourceDictionary>
+    </UserControl.Resources>
+
+    <!-- The game's own tags, editable, beside the global list (edited in Settings > Metadata),
+         greyed so it reads as available here but owned elsewhere. -->
+    <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto">
+        <StackPanel Margin="20">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="32"/>
+                    <ColumnDefinition Width="*"/>
+                </Grid.ColumnDefinitions>
+
+                <StackPanel Grid.Column="0">
+                    <controls:AchievementTagListEditor x:Name="Editor"/>
+                </StackPanel>
+
+                <StackPanel Grid.Column="2" Opacity="{StaticResource PlayAch.Opacity.Hint}">
+                    <ItemsControl x:Name="GlobalTags" Focusable="False">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <StackPanel Orientation="Horizontal" Height="36">
+                                    <!-- Fixed width so names line up; blank when the tag has no icon. -->
+                                    <Grid Width="24" Margin="0,0,8,0" VerticalAlignment="Center">
+                                        <controls:GlyphIcon Glyph="{Binding Glyph}"
+                                                            FontFamily="{DynamicResource PlayAch.FontFamily.Icon}"
+                                                            Size="18"
+                                                            Foreground="{DynamicResource PlayAch.Brush.Text}"
+                                                            HorizontalAlignment="Center"
+                                                            VerticalAlignment="Center"
+                                                            Visibility="{Binding HasGlyph, Converter={StaticResource TagsTabBoolToVisibility}}"/>
+                                    </Grid>
+                                    <Border Width="14"
+                                            Height="14"
+                                            Margin="0,0,8,0"
+                                            Background="{Binding Brush}"
+                                            BorderBrush="{DynamicResource PlayAch.Brush.Border}"
+                                            BorderThickness="{StaticResource PlayAch.Thickness.Border}"
+                                            Visibility="{Binding HasColor, Converter={StaticResource TagsTabBoolToVisibility}}"/>
+                                    <TextBlock Text="{Binding Name}"
+                                               Foreground="{DynamicResource PlayAch.Brush.Text}"
+                                               VerticalAlignment="Center"/>
+                                </StackPanel>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </StackPanel>
+            </Grid>
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

@@ -200,7 +200,7 @@ namespace PlayniteAchievements.Services.Achievements
             var gameIdText = gameId.ToString("D");
             foreach (var pair in source)
             {
-                var category = AchievementCategoryTypeHelper.NormalizeCategoryOrDefault(pair.Key);
+                var category = AchievementCategoryHelper.NormalizeCategoryOrDefault(pair.Key);
                 if (string.IsNullOrWhiteSpace(category) || pair.Value == null)
                 {
                     continue;

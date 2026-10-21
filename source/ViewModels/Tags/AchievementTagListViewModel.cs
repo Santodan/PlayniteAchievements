@@ -1,0 +1,354 @@
+using System;
+using System.Collections.Generic;
+using System.Collections.ObjectModel;
+using System.Linq;
+using System.Windows.Input;
+using System.Windows.Media;
+using PlayniteAchievements.Models.Achievements;
+using PlayniteAchievements.Services.Achievements;
+using PlayniteAchievements.Views.Dialogs;
+using ObservableObject = PlayniteAchievements.Common.ObservableObject;
+using RelayCommand = PlayniteAchievements.Common.RelayCommand;
+
+namespace PlayniteAchievements.ViewModels.Tags
+{
+    /// <summary>
+    /// An editable tag list: the global one in settings or a game's own. Every edit is committed
+    /// at once through the callback the host passes, the same instant-persist rule the Manage
+    /// Achievements tabs follow.
+    /// </summary>
+    public sealed class AchievementTagListViewModel : ObservableObject
+    {
+        private readonly Action<IReadOnlyList<AchievementTagDefinition>> _commit;
+        private readonly Func<string, string> _pickColor;
+        private readonly Action<AchievementTagDefinition> _makeGlobal;
+
+        /// <param name="definitions">The list to edit.</param>
+        /// <param name="commit">Stores the edited list.</param>
+        /// <param name="pickColor">Opens the color picker on a #RRGGBB value; null when cancelled.</param>
+        /// <param name="makeGlobal">Moves one of a game's tags into the global list; null hides the action.</param>
+        public AchievementTagListViewModel(
+            IEnumerable<AchievementTagDefinition> definitions,
+            Action<IReadOnlyList<AchievementTagDefinition>> commit,
+            Func<string, string> pickColor,
+            Action<AchievementTagDefinition> makeGlobal = null)
+        {
+            _commit = commit ?? throw new ArgumentNullException(nameof(commit));
+            _pickColor = pickColor;
+            _makeGlobal = makeGlobal;
+            Rows = new ObservableCollection<AchievementTagEditorRow>(
+                (definitions ?? Enumerable.Empty<AchievementTagDefinition>())
+                    .Where(definition => definition != null)
+                    .Select(definition => new AchievementTagEditorRow(this, definition)));
+            AddCommand = new RelayCommand(_ => Add());
+        }
+
+        public ObservableCollection<AchievementTagEditorRow> Rows { get; }
+
+        public ICommand AddCommand { get; }
+
+        public bool CanMakeGlobal => _makeGlobal != null;
+
+        internal void Commit() => _commit(Rows.Select(row => row.ToDefinition()).ToList());
+
+        internal string PickColor(string current) => _pickColor?.Invoke(current);
+
+        internal void Delete(AchievementTagEditorRow row)
+        {
+            if (row != null && !row.IsSystem && Rows.Remove(row))
+            {
+                Commit();
+            }
+        }
+
+        internal void MakeGlobal(AchievementTagEditorRow row)
+        {
+            if (row == null || _makeGlobal == null || !Rows.Remove(row))
+            {
+                return;
+            }
+
+            _makeGlobal(row.ToDefinition());
+            Commit();
+        }
+
+        /// <summary>
+        /// Moves the rows with <paramref name="keys"/> before or after the row with
+        /// <paramref name="targetKey"/>, keeping their order; a drag-and-drop drop. True when
+        /// anything moved.
+        /// </summary>
+        public bool MoveRows(IReadOnlyList<string> keys, string targetKey, bool insertAfter)
+        {
+            var moving = Rows.Where(row => keys?.Contains(row.Key, StringComparer.OrdinalIgnoreCase) == true).ToList();
+            if (moving.Count == 0 || moving.Any(row => string.Equals(row.Key, targetKey, StringComparison.OrdinalIgnoreCase)))
+            {
+                return false;
+            }
+
+            var remaining = Rows.Except(moving).ToList();
+            var targetIndex = remaining.FindIndex(row => string.Equals(row.Key, targetKey, StringComparison.OrdinalIgnoreCase));
+            if (targetIndex < 0)
+            {
+                return false;
+            }
+
+            remaining.InsertRange(insertAfter ? targetIndex + 1 : targetIndex, moving);
+            return Reorder(remaining);
+        }
+
+        /// <summary>Moves the rows with <paramref name="keys"/> to the end of the list.</summary>
+        public bool MoveRowsToEnd(IReadOnlyList<string> keys)
+        {
+            var moving = Rows.Where(row => keys?.Contains(row.Key, StringComparer.OrdinalIgnoreCase) == true).ToList();
+            return moving.Count > 0 && Reorder(Rows.Except(moving).Concat(moving).ToList());
+        }
+
+        private bool Reorder(IList<AchievementTagEditorRow> ordered)
+        {
+            if (ordered.SequenceEqual(Rows))
+            {
+                return false;
+            }
+
+            for (var i = 0; i < ordered.Count; i++)
+            {
+                var current = Rows.IndexOf(ordered[i]);
+                if (current != i)
+                {
+                    Rows.Move(current, i);
+                }
+            }
+
+            Commit();
+            return true;
+        }
+
+        private void Add()
+        {
+            var row = new AchievementTagEditorRow(
+                this,
+                new AchievementTagDefinition
+                {
+                    Key = AchievementTagHelper.NewUserKey(),
+                    Name = Playnite.SDK.ResourceProvider.GetString("LOCTagLabel")
+                });
+            Rows.Add(row);
+            Commit();
+        }
+    }
+
+    /// <summary>One editable tag: its name, color and icon.</summary>
+    public sealed class AchievementTagEditorRow : ObservableObject
+    {
+        private readonly AchievementTagListViewModel _owner;
+        private string _name;
+        private string _color;
+        private string _icon;
+
+        internal AchievementTagEditorRow(AchievementTagListViewModel owner, AchievementTagDefinition definition)
+        {
+            _owner = owner;
+            Key = definition.Key;
+            _name = definition.Name;
+            _color = AchievementTagHelper.NormalizeColor(definition.Color);
+            _icon = AchievementTagHelper.NormalizeIcon(definition.Icon);
+            PickColorCommand = new RelayCommand(_ => PickColor());
+            ClearColorCommand = new RelayCommand(_ => Color = null);
+            PickIconCommand = new RelayCommand(_ => PickIcon());
+            DeleteCommand = new RelayCommand(_ => _owner.Delete(this), _ => !IsSystem);
+            MakeGlobalCommand = new RelayCommand(_ => _owner.MakeGlobal(this));
+        }
+
+        public string Key { get; }
+
+        /// <summary>The localized default name of a built-in tag, shown while its name is blank.</summary>
+        public string DefaultName => AchievementTagHelper.GetBuiltInName(Key);
+
+        public bool IsSystem => AchievementTagHelper.IsSystemTag(Key);
+
+        public bool CanMakeGlobal => _owner.CanMakeGlobal;
+
+        /// <summary>The user's name, or a built-in tag's default name until it is renamed; clearing it restores the default.</summary>
+        public string Name
+        {
+            get => _name ?? DefaultName ?? string.Empty;
+            set
+            {
+                var trimmed = (value ?? string.Empty).Trim();
+                var stored = trimmed.Length == 0 || string.Equals(trimmed, DefaultName, StringComparison.Ordinal)
+                    ? null
+                    : trimmed;
+                if (string.Equals(_name, stored, StringComparison.Ordinal))
+                {
+                    return;
+                }
+
+                _name = stored;
+                OnPropertyChanged();
+                _owner.Commit();
+            }
+        }
+
+        public string Color
+        {
+            get => _color;
+            set
+            {
+                var normalized = AchievementTagHelper.NormalizeColor(value);
+                if (string.Equals(_color, normalized, StringComparison.Ordinal))
+                {
+                    return;
+                }
+
+                _color = normalized;
+                OnPropertyChanged();
+                OnPropertyChanged(nameof(ColorText));
+                OnPropertyChanged(nameof(Brush));
+                OnPropertyChanged(nameof(HasColor));
+                _owner.Commit();
+            }
+        }
+
+        /// <summary>
+        /// The color as typed in the hex box: blank for the default; text that is not a color leaves
+        /// the color as it was.
+        /// </summary>
+        public string ColorText
+        {
+            get => _color ?? string.Empty;
+            set
+            {
+                var text = (value ?? string.Empty).Trim();
+                if (text.Length > 0 && !text.StartsWith("#", StringComparison.Ordinal))
+                {
+                    text = "#" + text;
+                }
+
+                if (text.Length == 0)
+                {
+                    Color = null;
+                }
+                else if (AchievementTagHelper.NormalizeColor(text) != null)
+                {
+                    Color = text;
+                }
+                else
+                {
+                    OnPropertyChanged();
+                }
+            }
+        }
+
+        public Brush Brush => ToBrush(_color);
+
+        public bool HasColor => _color != null;
+
+        public string Icon
+        {
+            get => _icon;
+            set
+            {
+                var normalized = AchievementTagHelper.NormalizeIcon(value);
+                if (string.Equals(_icon, normalized, StringComparison.Ordinal))
+                {
+                    return;
+                }
+
+                _icon = normalized;
+                OnPropertyChanged();
+                OnPropertyChanged(nameof(Glyph));
+                OnPropertyChanged(nameof(HasGlyph));
+                _owner.Commit();
+            }
+        }
+
+        public string Glyph => AchievementTagHelper.IconGlyph(_icon);
+
+        public bool HasGlyph => _icon != null;
+
+        public ICommand PickColorCommand { get; }
+
+        public ICommand ClearColorCommand { get; }
+
+        public ICommand PickIconCommand { get; }
+
+        public ICommand DeleteCommand { get; }
+
+        public ICommand MakeGlobalCommand { get; }
+
+        private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, Brush> BrushByColor =
+            new System.Collections.Concurrent.ConcurrentDictionary<string, Brush>(StringComparer.OrdinalIgnoreCase);
+
+        // One frozen brush per color for the swatch.
+        private static Brush ToBrush(string color)
+        {
+            var normalized = AchievementTagHelper.NormalizeColor(color);
+            if (normalized == null)
+            {
+                return null;
+            }
+
+            return BrushByColor.GetOrAdd(normalized, value =>
+            {
+                var brush = new SolidColorBrush((System.Windows.Media.Color)ColorConverter.ConvertFromString(value));
+                brush.Freeze();
+                return brush;
+            });
+        }
+
+        internal AchievementTagDefinition ToDefinition() =>
+            new AchievementTagDefinition { Key = Key, Name = _name, Color = _color, Icon = _icon };
+
+        private void PickColor()
+        {
+            var picked = _owner.PickColor(_color ?? DefaultColorHex());
+            if (picked != null)
+            {
+                Color = picked;
+            }
+        }
+
+        // A tag without a color uses the theme's text color, so the picker opens on it.
+        private static string DefaultColorHex()
+        {
+            var brush = System.Windows.Application.Current?.TryFindResource("PlayAch.Brush.Text") as SolidColorBrush;
+            return brush == null
+                ? "#FFFFFF"
+                : string.Format(System.Globalization.CultureInfo.InvariantCulture, "#{0:X2}{1:X2}{2:X2}", brush.Color.R, brush.Color.G, brush.Color.B);
+        }
+
+        private void PickIcon()
+        {
+            if (IcoFontPickerDialog.TryPick(_icon, out var code))
+            {
+                Icon = code;
+            }
+        }
+    }
+}
+
+namespace PlayniteAchievements.ViewModels.Tags
+{
+    /// <summary>A tag shown but not edited: the global list beside a game's own tags.</summary>
+    public sealed class AchievementTagPreviewRow
+    {
+        public AchievementTagPreviewRow(AchievementTagDefinition definition)
+        {
+            Name = AchievementTagRegistry.GetName(definition);
+            Glyph = AchievementTagHelper.IconGlyph(definition?.Icon);
+            Color = AchievementTagHelper.NormalizeColor(definition?.Color);
+        }
+
+        public string Name { get; }
+
+        public string Glyph { get; }
+
+        public bool HasGlyph => Glyph != null;
+
+        public string Color { get; }
+
+        public Brush Brush => Color == null ? null : new SolidColorBrush((System.Windows.Media.Color)ColorConverter.ConvertFromString(Color));
+
+        public bool HasColor => Color != null;
+    }
+}

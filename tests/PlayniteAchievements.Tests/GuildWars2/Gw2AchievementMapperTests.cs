@@ -245,8 +245,8 @@ namespace PlayniteAchievements.GuildWars2.Tests
         {
             var results = Build();
 
-            Assert.AreEqual("Unobtainable", Find(results, "5:t1").CategoryType);
-            Assert.IsNull(Find(results, "1:t1").CategoryType, "an ordinary group carries no classification");
+            Assert.AreEqual("Unobtainable", Find(results, "5:t1").Tags);
+            Assert.IsNull(Find(results, "1:t1").Tags, "an ordinary group carries no classification");
         }
 
         [TestMethod]

@@ -4,6 +4,7 @@ using System.Windows.Input;
 using Playnite.SDK.Data;
 using PlayniteAchievements.Common;
 using PlayniteAchievements.Models.Achievements;
+using PlayniteAchievements.Services.Achievements;
 
 namespace PlayniteAchievements.Models.ThemeIntegration
 {
@@ -143,7 +144,7 @@ namespace PlayniteAchievements.Models.ThemeIntegration
 
         /// <summary>
         /// True when this summary represents a base-game achievement category (dynamic category cards
-        /// only). The flags below are precomputed from the card's canonical group-type token so themes
+        /// only). The flags below are precomputed from the card's kind so themes
         /// can bind a plain boolean (e.g. IsBaseCategory) instead of string-matching the localized name.
         /// All false for ordinary per-game summaries.
         /// </summary>
@@ -157,6 +158,12 @@ namespace PlayniteAchievements.Models.ThemeIntegration
 
         /// <summary>True when this summary represents a subset achievement category.</summary>
         public bool IsSubsetCategory { get; }
+
+        /// <summary>
+        /// The category's kind ("Base", "DLC|Update", ...), or null for none and for ordinary
+        /// per-game summaries.
+        /// </summary>
+        public string CategoryKind { get; }
 
         /// <summary>
         /// Date of the most recent achievement unlock.
@@ -258,7 +265,7 @@ namespace PlayniteAchievements.Models.ThemeIntegration
             ICommand openViewAchievementsWindow = null,
             ICommand openManageAchievementsWindow = null,
             string sortingName = null,
-            string categoryType = null)
+            string categoryKind = null)
         {
             GameId = gameId;
             Name = name ?? string.Empty;
@@ -272,12 +279,13 @@ namespace PlayniteAchievements.Models.ThemeIntegration
             _silverCount = Math.Max(0, silverCount);
             _bronzeCount = Math.Max(0, bronzeCount);
             IsCompleted = isCompleted;
-            // categoryType is a single canonical group token from CategorySummaryBuilder
-            // (Base/DLC/Update/Subset, or Default/null for non-category summaries).
-            IsBaseCategory = string.Equals(categoryType, "Base", StringComparison.OrdinalIgnoreCase);
-            IsDlcCategory = string.Equals(categoryType, "DLC", StringComparison.OrdinalIgnoreCase);
-            IsUpdateCategory = string.Equals(categoryType, "Update", StringComparison.OrdinalIgnoreCase);
-            IsSubsetCategory = string.Equals(categoryType, "Subset", StringComparison.OrdinalIgnoreCase);
+            // categoryKind is the category's kind from CategorySummaryBuilder (null for non-category
+            // summaries). Kinds combine, so a "DLC|Update" category is both a DLC and an update.
+            CategoryKind = CategoryKindHelper.Normalize(categoryKind);
+            IsBaseCategory = CategoryKindHelper.IsBase(categoryKind);
+            IsDlcCategory = CategoryKindHelper.IsDlc(categoryKind);
+            IsUpdateCategory = CategoryKindHelper.IsUpdate(categoryKind);
+            IsSubsetCategory = CategoryKindHelper.IsSubset(categoryKind);
             LastUnlockDate = lastUnlockDate;
             LastPlayed = lastPlayed;
             UnlockedCount = Math.Max(0, unlockedCount);

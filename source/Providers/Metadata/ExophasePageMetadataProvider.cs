@@ -235,7 +235,7 @@ namespace PlayniteAchievements.Providers.Metadata
                 }
 
                 var isDlc = !string.IsNullOrWhiteSpace(section.Title);
-                row.CategoryType = isDlc ? SteamCategoryLabels.DlcCategoryType : SteamCategoryLabels.BaseCategoryType;
+                row.CategoryKind = isDlc ? CategoryKindHelper.Dlc : CategoryKindHelper.Base;
                 row.Category = isDlc ? CategoryPathHelper.SanitizeSegment(section.Title) : null;
             }
         }

@@ -1,18 +1,19 @@
 using System;
+using PlayniteAchievements.Services.Achievements;
 
 namespace PlayniteAchievements.Providers.Steam
 {
     /// <summary>
-    /// Category types and label rules shared by every Steam category source (Steam's own
+    /// Category kinds, tags and label rules shared by every Steam category source (Steam's own
     /// achievement sets and SteamHunters groups), so both produce identical labels for the same
     /// DLC and the same default-art file keys.
     /// </summary>
     internal static class SteamCategoryLabels
     {
-        internal const string BaseCategoryType = "Base";
-        internal const string DlcCategoryType = "DLC";
-        internal const string UpdateCategoryType = "Update";
-        internal const string MultiplayerCategoryType = "Multiplayer";
+        internal const string BaseKind = CategoryKindHelper.Base;
+        internal const string DlcKind = CategoryKindHelper.Dlc;
+        internal const string UpdateKind = CategoryKindHelper.Update;
+        internal const string MultiplayerTag = "Multiplayer";
 
         // Steam store DLC names usually repeat the game name ("Cyberpunk 2077: Phantom
         // Liberty"); drop that prefix so category labels read as just the DLC/update name.

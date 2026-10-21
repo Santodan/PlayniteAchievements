@@ -1,4 +1,5 @@
 ﻿using System;
+using Newtonsoft.Json;
 
 namespace PlayniteAchievements.Models.Settings
 {
@@ -56,7 +57,23 @@ namespace PlayniteAchievements.Models.Settings
 
         public string Category { get; set; }
 
-        public string CategoryType { get; set; }
+        /// <summary>
+        /// Legacy per-achievement category kind, from files written before kinds moved onto the
+        /// category. Holds kind tokens only once normalized; tags moved to <see cref="Tags"/>.
+        /// Honored below the category's own kind and cleared when that kind is set.
+        /// </summary>
+        [JsonProperty("CategoryType")]
+        public string LegacyCategoryKind { get; set; }
+
+        /// <summary>Pipe-joined tag keys replacing the provider's tags. Null means "not customized".</summary>
+        public string Tags { get; set; }
+
+        /// <summary>
+        /// True when the user removed every tag. A null <see cref="Tags"/> alone means "not
+        /// customized" and falls back to the provider's tags, so this flag is what lets the tags
+        /// be removed and stay removed.
+        /// </summary>
+        public bool ClearTags { get; set; }
 
         public string Note { get; set; }
 
@@ -86,7 +103,9 @@ namespace PlayniteAchievements.Models.Settings
             !UnlockTimeUtc.HasValue &&
             !ClearUnlockTime &&
             string.IsNullOrWhiteSpace(Category) &&
-            string.IsNullOrWhiteSpace(CategoryType) &&
+            string.IsNullOrWhiteSpace(LegacyCategoryKind) &&
+            string.IsNullOrWhiteSpace(Tags) &&
+            !ClearTags &&
             string.IsNullOrWhiteSpace(Note) &&
             string.IsNullOrWhiteSpace(UnlockedIconPath) &&
             string.IsNullOrWhiteSpace(LockedIconPath) &&
@@ -105,7 +124,9 @@ namespace PlayniteAchievements.Models.Settings
                 UnlockTimeUtc = UnlockTimeUtc,
                 ClearUnlockTime = ClearUnlockTime,
                 Category = Category,
-                CategoryType = CategoryType,
+                LegacyCategoryKind = LegacyCategoryKind,
+                Tags = Tags,
+                ClearTags = ClearTags,
                 Note = Note,
                 UnlockedIconPath = UnlockedIconPath,
                 LockedIconPath = LockedIconPath,

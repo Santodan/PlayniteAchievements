@@ -13,10 +13,10 @@ namespace PlayniteAchievements.Providers.Metadata
 {
     internal sealed class SteamHuntersCategoryEnricher
     {
-        private const string BaseCategoryType = SteamCategoryLabels.BaseCategoryType;
-        private const string DlcCategoryType = SteamCategoryLabels.DlcCategoryType;
-        private const string UpdateCategoryType = SteamCategoryLabels.UpdateCategoryType;
-        private const string MultiplayerCategoryType = SteamCategoryLabels.MultiplayerCategoryType;
+        private const string BaseKind = SteamCategoryLabels.BaseKind;
+        private const string DlcKind = SteamCategoryLabels.DlcKind;
+        private const string UpdateKind = SteamCategoryLabels.UpdateKind;
+        private const string MultiplayerTag = SteamCategoryLabels.MultiplayerTag;
 
         // The group name the includeMultiplayerGroup request flag gives base-game achievements
         // tagged Multiplayer.
@@ -101,7 +101,7 @@ namespace PlayniteAchievements.Providers.Metadata
 
             ApplyGroups(achievements, response.Groups, response.GroupBy, gameName, preserveApiNames);
 
-            // After ApplyGroups, which resets every achievement's type, so the Unobtainable tag
+            // After ApplyGroups, which resets every achievement's kind and tags, so the Unobtainable tag
             // is re-derived on each refresh rather than accumulating.
             var obtainability = await GetAchievementsAsync(appId, cancel).ConfigureAwait(false);
             ApplyObtainability(achievements, obtainability);
@@ -139,7 +139,7 @@ namespace PlayniteAchievements.Providers.Metadata
             if (baseLabel != null && appId > 0 && seenLabels.Add(baseLabel))
             {
                 plan.Add(new KeyValuePair<string, int>(
-                    AchievementCategoryTypeHelper.NormalizeCategoryOrDefault(baseLabel),
+                    AchievementCategoryHelper.NormalizeCategoryOrDefault(baseLabel),
                     appId));
             }
 
@@ -175,7 +175,7 @@ namespace PlayniteAchievements.Providers.Metadata
                 }
 
                 plan.Add(new KeyValuePair<string, int>(
-                    AchievementCategoryTypeHelper.NormalizeCategoryOrDefault(label),
+                    AchievementCategoryHelper.NormalizeCategoryOrDefault(label),
                     entryAppId));
             }
 
@@ -219,7 +219,7 @@ namespace PlayniteAchievements.Providers.Metadata
                     continue;
                 }
 
-                if (SetCategory(achievement, BaseCategoryType, baseFallbackLabel))
+                if (SetCategory(achievement, BaseKind, null, baseFallbackLabel))
                 {
                     updated++;
                 }
@@ -230,15 +230,14 @@ namespace PlayniteAchievements.Providers.Metadata
             {
                 var group = groups[i];
                 var isMultiplayer = IsMultiplayerGroup(groupBy, group);
-                var type = isMultiplayer
-                    ? AchievementCategoryTypeHelper.Combine(new[] { BaseCategoryType, MultiplayerCategoryType })
-                    : ResolveCategoryType(groupBy, group);
+                var kind = isMultiplayer ? BaseKind : ResolveCategoryKind(groupBy, group);
+                var tags = isMultiplayer ? MultiplayerTag : null;
                 // Multiplayer achievements are still base-game achievements, so they keep the
                 // base category label rather than becoming a "Multiplayer" category.
                 var label = isMultiplayer
                     ? baseFallbackLabel
                     : NormalizeGroupLabel(group, gameName)
-                        ?? (string.Equals(type, BaseCategoryType, StringComparison.Ordinal)
+                        ?? (string.Equals(kind, BaseKind, StringComparison.Ordinal)
                             ? baseFallbackLabel
                             : null);
 
@@ -259,7 +258,7 @@ namespace PlayniteAchievements.Providers.Metadata
                             continue;
                         }
 
-                        if (SetCategory(achievement, type, label))
+                        if (SetCategory(achievement, kind, tags, label))
                         {
                             updated++;
                         }
@@ -271,7 +270,7 @@ namespace PlayniteAchievements.Providers.Metadata
         }
 
         // Adds Unobtainable to achievements SteamHunters' moderators mark Unobtainable or broken
-        // but obtainable. Conditionally obtainable achievements get no type.
+        // but obtainable. Conditionally obtainable achievements get no tag.
         internal static int ApplyObtainability(
             IList<AchievementDetail> achievements,
             IList<SteamHuntersAchievement> steamHuntersAchievements)
@@ -303,11 +302,11 @@ namespace PlayniteAchievements.Providers.Metadata
                     continue;
                 }
 
-                var combined = AchievementCategoryTypeHelper.Combine(
-                    new[] { achievement.CategoryType, AchievementCategoryTypeHelper.UnobtainableCategoryType });
-                if (!string.Equals(achievement.CategoryType, combined, StringComparison.Ordinal))
+                var combined = AchievementTagHelper.Combine(
+                    new[] { achievement.Tags, AchievementTagHelper.Unobtainable });
+                if (!string.Equals(achievement.Tags, combined, StringComparison.Ordinal))
                 {
-                    achievement.CategoryType = combined;
+                    achievement.Tags = combined;
                     updated++;
                 }
             }
@@ -325,22 +324,22 @@ namespace PlayniteAchievements.Providers.Metadata
                    string.Equals(group.Name?.Trim(), MultiplayerGroupName, StringComparison.OrdinalIgnoreCase);
         }
 
-        private static string ResolveCategoryType(string groupBy, SteamHuntersAchievementGroup group)
+        private static string ResolveCategoryKind(string groupBy, SteamHuntersAchievementGroup group)
         {
             if (string.Equals(groupBy, "game", StringComparison.OrdinalIgnoreCase))
             {
-                return BaseCategoryType;
+                return BaseKind;
             }
 
             // Two independent signals. A DlcAppId means the achievements belong to a separate
             // DLC product (DLC) rather than the base game (Base). A group Name means they were
-            // added by a post-launch update (Update). So a DLC that received an update types as
+            // added by a post-launch update (Update). So a DLC that received an update is
             // "DLC|Update" and a base-game update as "Base|Update"; Combine emits canonical order
             // (Base/DLC precede Update).
-            var ownerType = group?.DlcAppId.HasValue == true ? DlcCategoryType : BaseCategoryType;
+            var ownerKind = group?.DlcAppId.HasValue == true ? DlcKind : BaseKind;
             return string.IsNullOrWhiteSpace(group?.Name)
-                ? ownerType
-                : AchievementCategoryTypeHelper.Combine(new[] { ownerType, UpdateCategoryType });
+                ? ownerKind
+                : CategoryKindHelper.Combine(new[] { ownerKind, UpdateKind });
         }
 
         private Task<SteamHuntersAchievementGroupsResponse> GetGroupsAsync(
@@ -447,7 +446,8 @@ namespace PlayniteAchievements.Providers.Metadata
 
         private static bool SetCategory(
             AchievementDetail achievement,
-            string categoryType,
+            string kind,
+            string tags,
             string category)
         {
             if (achievement == null)
@@ -455,13 +455,16 @@ namespace PlayniteAchievements.Providers.Metadata
                 return false;
             }
 
-            var normalizedType = string.IsNullOrWhiteSpace(categoryType) ? null : categoryType.Trim();
+            var normalizedKind = CategoryKindHelper.Normalize(kind);
+            var normalizedTags = AchievementTagHelper.Normalize(tags);
             var normalizedCategory = string.IsNullOrWhiteSpace(category) ? null : category.Trim();
             var changed =
-                !string.Equals(achievement.CategoryType, normalizedType, StringComparison.Ordinal) ||
+                !string.Equals(achievement.CategoryKind, normalizedKind, StringComparison.Ordinal) ||
+                !string.Equals(achievement.Tags, normalizedTags, StringComparison.Ordinal) ||
                 !string.Equals(achievement.Category, normalizedCategory, StringComparison.Ordinal);
 
-            achievement.CategoryType = normalizedType;
+            achievement.CategoryKind = normalizedKind;
+            achievement.Tags = normalizedTags;
             achievement.Category = normalizedCategory;
             return changed;
         }

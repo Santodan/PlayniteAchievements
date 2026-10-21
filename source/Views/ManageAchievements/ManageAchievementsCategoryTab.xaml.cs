@@ -124,7 +124,7 @@ namespace PlayniteAchievements.Views.ManageAchievements
             OpenCategoryTypeContextMenu(
                 TypeSelectionButton,
                 TypeSelectionContextMenu,
-                ViewModel.TypeSelectionOptions);
+                ViewModel.TagSelectionOptions);
         }
 
         private void FilterTypeSelectionButton_Click(object sender, RoutedEventArgs e)
@@ -329,6 +329,61 @@ namespace PlayniteAchievements.Views.ManageAchievements
                 };
                 menu.Items.Add(scopeItem);
             }
+
+            ContextMenuStyleHelper.ApplyAchievementContextMenuStyle(this, menu);
+            SelectorContextMenuHelper.Open(button, menu);
+        }
+
+        /// <summary>
+        /// The Kind cell's menu: kinds tick on and off and combine (DLC with Update), None says the
+        /// category has none, and Reset hands it back to the providers.
+        /// </summary>
+        private void CategoryKindButton_Click(object sender, RoutedEventArgs e)
+        {
+            var viewModel = ViewModel;
+            if (viewModel == null ||
+                !(sender is Button button) ||
+                !TryResolveCategoryImageRow(button, out var row))
+            {
+                return;
+            }
+
+            var menu = new ContextMenu();
+            foreach (var kind in CategoryKindHelper.AssignableKinds)
+            {
+                var captured = kind;
+                var kindItem = new MenuItem
+                {
+                    Header = CategoryKindHelper.ToKindDisplayText(captured),
+                    IsCheckable = true,
+                    IsChecked = CategoryKindHelper.Contains(row.Kind, captured)
+                };
+                kindItem.Click += (_, __) =>
+                {
+                    var updated = CategoryKindHelper.WithKind(row.Kind, captured, kindItem.IsChecked);
+                    viewModel.ApplyCategoryKind(row, updated ?? CategoryKindHelper.None);
+                };
+                menu.Items.Add(kindItem);
+            }
+
+            menu.Items.Add(new Separator());
+
+            var noneItem = new MenuItem
+            {
+                Header = L("LOCNone"),
+                IsCheckable = true,
+                IsChecked = string.Equals(row.StoredKind, CategoryKindHelper.None, StringComparison.OrdinalIgnoreCase)
+            };
+            noneItem.Click += (_, __) => viewModel.ApplyCategoryKind(row, CategoryKindHelper.None);
+            menu.Items.Add(noneItem);
+
+            var resetItem = new MenuItem
+            {
+                Header = L("LOCResetLabel"),
+                IsEnabled = row.IsKindStored
+            };
+            resetItem.Click += (_, __) => viewModel.ApplyCategoryKind(row, null);
+            menu.Items.Add(resetItem);
 
             ContextMenuStyleHelper.ApplyAchievementContextMenuStyle(this, menu);
             SelectorContextMenuHelper.Open(button, menu);
@@ -951,20 +1006,21 @@ namespace PlayniteAchievements.Views.ManageAchievements
             var rows = ResolveActionRows(contextItem);
             var typesMenu = new MenuItem
             {
-                Header = L("LOCTypeLabel")
+                Header = L("LOCTagsLabel")
             };
-            foreach (var categoryType in AchievementCategoryTypeHelper.AssignableCategoryTypes)
+            var gameId = ViewModel?.GameId;
+            foreach (var tag in AchievementTagRegistry.GetAssignableKeys(gameId))
             {
-                var capturedType = categoryType;
+                var capturedType = tag;
                 var typeItem = new MenuItem
                 {
-                    Header = ManageAchievementsCategoryViewModel.GetCategoryTypeDisplayName(capturedType),
+                    Header = ManageAchievementsCategoryViewModel.GetTagDisplayName(capturedType, gameId),
                     IsCheckable = true,
                     StaysOpenOnClick = true,
-                    IsChecked = IsCategoryTypeOnAllRows(rows, capturedType)
+                    IsChecked = IsTagOnAllRows(rows, capturedType)
                 };
                 typeItem.Click += (_, __) =>
-                    ViewModel?.SetCategoryTypeForSelection(rows, capturedType, typeItem.IsChecked);
+                    ViewModel?.SetTagForSelection(rows, capturedType, typeItem.IsChecked);
                 typesMenu.Items.Add(typeItem);
             }
             menu.Items.Add(typesMenu);
@@ -997,9 +1053,9 @@ namespace PlayniteAchievements.Views.ManageAchievements
             }
         }
 
-        private static bool IsCategoryTypeOnAllRows(
+        private static bool IsTagOnAllRows(
             IReadOnlyList<ManageAchievementsCategoryItem> rows,
-            string categoryType)
+            string tag)
         {
             if (rows == null || rows.Count == 0)
             {
@@ -1007,8 +1063,8 @@ namespace PlayniteAchievements.Views.ManageAchievements
             }
 
             return rows.All(row => row != null &&
-                AchievementCategoryTypeHelper.ParseValues(row.CategoryType)
-                    .Any(value => string.Equals(value, categoryType, StringComparison.OrdinalIgnoreCase)));
+                AchievementTagHelper.Parse(row.Tags)
+                    .Any(value => string.Equals(value, tag, StringComparison.OrdinalIgnoreCase)));
         }
 
         private void SetLabelFromContext(ManageAchievementsCategoryItem contextItem)
@@ -1276,7 +1332,7 @@ namespace PlayniteAchievements.Views.ManageAchievements
 
             var selectedLabels = new HashSet<string>(
                 (labels ?? Enumerable.Empty<string>())
-                    .Select(AchievementCategoryTypeHelper.NormalizeCategoryOrDefault)
+                    .Select(AchievementCategoryHelper.NormalizeCategoryOrDefault)
                     .Where(label => !string.IsNullOrWhiteSpace(label)),
                 StringComparer.OrdinalIgnoreCase);
             CategoryManagerDataGrid.SelectedItems.Clear();
@@ -1332,7 +1388,7 @@ namespace PlayniteAchievements.Views.ManageAchievements
         private static void OpenCategoryTypeContextMenu(
             Button button,
             ContextMenu menu,
-            IEnumerable<CategoryTypeSelectionOption> options)
+            IEnumerable<TagSelectionOption> options)
         {
             SelectorContextMenuHelper.OpenCategoryTypeMenu(button, menu, options);
         }

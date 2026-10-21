@@ -52,8 +52,8 @@ namespace PlayniteAchievements.Services.Achievements
                     continue;
                 }
 
-                var before = AchievementCategoryTypeHelper.NormalizeCategoryOrDefault(categoryBefore(apiName));
-                var after = AchievementCategoryTypeHelper.NormalizeCategoryOrDefault(categoryAfter(apiName));
+                var before = AchievementCategoryHelper.NormalizeCategoryOrDefault(categoryBefore(apiName));
+                var after = AchievementCategoryHelper.NormalizeCategoryOrDefault(categoryAfter(apiName));
                 if (string.Equals(before, after, StringComparison.OrdinalIgnoreCase))
                 {
                     continue;
@@ -61,7 +61,7 @@ namespace PlayniteAchievements.Services.Achievements
 
                 var wholeGame = string.Equals(
                     after,
-                    AchievementCategoryTypeHelper.DefaultCategoryLabel,
+                    AchievementCategoryHelper.DefaultCategoryLabel,
                     StringComparison.OrdinalIgnoreCase);
                 if (definition.IsWholeGameAutoCapstone != wholeGame)
                 {

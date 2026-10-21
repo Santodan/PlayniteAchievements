@@ -77,6 +77,7 @@ namespace PlayniteAchievements.Services.GameCustomData
 
             portable.AchievementCategoryOrder = Distinct(portable.AchievementCategoryOrder?.Select(path => TokenizeAnyScope(path, game)));
             portable.AchievementCategoryImageOverrides = CollapseCategoryImages(portable.AchievementCategoryImageOverrides, game, icon);
+            portable.AchievementCategoryKinds = CollapseCategoryKinds(portable.AchievementCategoryKinds, game);
             if (portable.GameSummaryCategory != null)
             {
                 portable.GameSummaryCategory.Label = TokenizeAnyScope(portable.GameSummaryCategory.Label, game);
@@ -155,6 +156,7 @@ namespace PlayniteAchievements.Services.GameCustomData
             portable.AchievementCategoryOrder = Distinct(portable.AchievementCategoryOrder?
                 .SelectMany(path => ResolveForEveryScope(path, game, foreign)));
             portable.AchievementCategoryImageOverrides = ExpandCategoryImages(portable.AchievementCategoryImageOverrides, game, foreign);
+            portable.AchievementCategoryKinds = ExpandCategoryKinds(portable.AchievementCategoryKinds, game, foreign);
             if (portable.GameSummaryCategory != null)
             {
                 portable.GameSummaryCategory.Label = ResolveForFirstScope(portable.GameSummaryCategory.Label, game, foreign);
@@ -223,7 +225,7 @@ namespace PlayniteAchievements.Services.GameCustomData
                     if (!game.NameByScope.ContainsKey(rowScope) && !string.IsNullOrWhiteSpace(category))
                     {
                         var root = CategoryPathHelper.Split(category)[0];
-                        if (!string.Equals(root, AchievementCategoryTypeHelper.DefaultCategoryLabel, StringComparison.OrdinalIgnoreCase))
+                        if (!string.Equals(root, AchievementCategoryHelper.DefaultCategoryLabel, StringComparison.OrdinalIgnoreCase))
                         {
                             game.NameByScope[rowScope] = root;
                             game.Names.Add(root);
@@ -390,6 +392,66 @@ namespace PlayniteAchievements.Services.GameCustomData
             return result;
         }
 
+        /// <summary>
+        /// Category kinds keyed by path, collapsed like category art: one portable entry when every
+        /// scope's copy of the path has the same kind.
+        /// </summary>
+        private static Dictionary<string, string> CollapseCategoryKinds(Dictionary<string, string> map, GameScopes game)
+        {
+            if (map == null || map.Count == 0)
+            {
+                return map;
+            }
+
+            var result = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var group in map
+                .Where(pair => !string.IsNullOrWhiteSpace(pair.Key) && !string.IsNullOrWhiteSpace(pair.Value))
+                .GroupBy(pair => TokenizeAnyScope(pair.Key, game), StringComparer.OrdinalIgnoreCase))
+            {
+                var entries = group.ToList();
+                var collapses = !string.Equals(group.Key, entries[0].Key, StringComparison.OrdinalIgnoreCase) &&
+                                ScopedPathCount(group.Key, map.Keys, game) == game.Names.Count &&
+                                entries.All(pair => string.Equals(pair.Value, entries[0].Value, StringComparison.OrdinalIgnoreCase));
+                if (collapses)
+                {
+                    result[group.Key] = entries[0].Value;
+                    continue;
+                }
+
+                foreach (var pair in entries)
+                {
+                    result[pair.Key] = pair.Value;
+                }
+            }
+
+            return result;
+        }
+
+        private static Dictionary<string, string> ExpandCategoryKinds(
+            Dictionary<string, string> map,
+            GameScopes game,
+            ISet<string> foreign)
+        {
+            if (map == null || map.Count == 0)
+            {
+                return map;
+            }
+
+            var result = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var pair in map.Where(pair => !string.IsNullOrWhiteSpace(pair.Key) && !string.IsNullOrWhiteSpace(pair.Value)))
+            {
+                foreach (var path in ResolveForEveryScope(pair.Key, game, foreign))
+                {
+                    if (!result.ContainsKey(path))
+                    {
+                        result[path] = pair.Value;
+                    }
+                }
+            }
+
+            return result;
+        }
+
         /// <summary>How many of the game's scope names root a path that tokenizes to <paramref name="tokenized"/>.</summary>
         private static int ScopedPathCount(string tokenized, IEnumerable<string> paths, GameScopes game)
         {
@@ -436,7 +498,8 @@ namespace PlayniteAchievements.Services.GameCustomData
             }
 
             portable.AchievementCategoryOverrides = Project(value => value.Category);
-            portable.AchievementCategoryTypeOverrides = Project(value => value.CategoryType);
+            // Tags and kinds live on the record and the kind map now; the old type map is not written.
+            portable.AchievementCategoryTypeOverrides = null;
             portable.AchievementNotes = Project(value => value.Note);
             portable.AchievementUnlockedIconOverrides = Project(value => value.UnlockedIconPath);
             portable.AchievementLockedIconOverrides = Project(value => value.LockedIconPath);
@@ -675,7 +738,7 @@ namespace PlayniteAchievements.Services.GameCustomData
                 ? tail
                 : new[] { scopeName }.Concat(tail).ToList();
             return segments.Count == 0
-                ? AchievementCategoryTypeHelper.DefaultCategoryLabel
+                ? AchievementCategoryHelper.DefaultCategoryLabel
                 : CategoryPathHelper.Join(segments);
         }
 

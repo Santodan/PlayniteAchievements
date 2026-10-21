@@ -180,7 +180,9 @@ namespace PlayniteAchievements.Services.Cache
         /// </summary>
         public string ProviderCategory { get; set; }
 
-        public string CategoryType { get; set; }
+        public string Tags { get; set; }
+
+        public string CategoryKind { get; set; }
 
         public string TrophyType { get; set; }
 

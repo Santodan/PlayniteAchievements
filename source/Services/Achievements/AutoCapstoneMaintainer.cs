@@ -215,15 +215,11 @@ namespace PlayniteAchievements.Services.Achievements
                 updated.GlobalPercentUnlocked = derived.GlobalPercentUnlocked;
                 updated.Rarity = derived.Rarity ?? updated.Rarity;
 
-                // Capstones authored, or imported, before they carried a group type sat alone in
-                // Default beside a game typed Base. A type of their own is left alone.
-                if (derived.CategoryType != null &&
-                    string.Equals(
-                        AchievementCategoryTypeHelper.NormalizeOrDefault(current.CategoryType),
-                        AchievementCategoryTypeHelper.DefaultCategoryType,
-                        StringComparison.OrdinalIgnoreCase))
+                // Capstones authored, or imported, before they carried a kind sat without one beside a
+                // game of kind Base. A kind of their own is left alone.
+                if (derived.CategoryKind != null && CategoryKindHelper.Normalize(current.CategoryKind) == null)
                 {
-                    updated.CategoryType = derived.CategoryType;
+                    updated.CategoryKind = derived.CategoryKind;
                 }
 
                 if (!HasChanges(current, updated))
@@ -296,8 +292,8 @@ namespace PlayniteAchievements.Services.Achievements
                 ? entry?.Category
                 : null;
             return string.Equals(
-                AchievementCategoryTypeHelper.NormalizeCategoryOrDefault(category),
-                AchievementCategoryTypeHelper.DefaultCategoryLabel,
+                AchievementCategoryHelper.NormalizeCategoryOrDefault(category),
+                AchievementCategoryHelper.DefaultCategoryLabel,
                 StringComparison.OrdinalIgnoreCase);
         }
 
@@ -307,7 +303,7 @@ namespace PlayniteAchievements.Services.Achievements
                    !Nullable.Equals(current.UnlockTimeUtc, updated.UnlockTimeUtc) ||
                    !Nullable.Equals(current.GlobalPercentUnlocked, updated.GlobalPercentUnlocked) ||
                    !string.Equals(current.Rarity, updated.Rarity, StringComparison.OrdinalIgnoreCase) ||
-                   !string.Equals(current.CategoryType, updated.CategoryType, StringComparison.OrdinalIgnoreCase);
+                   !string.Equals(current.CategoryKind, updated.CategoryKind, StringComparison.OrdinalIgnoreCase);
         }
 
         /// <summary>

@@ -312,7 +312,7 @@ namespace PlayniteAchievements.Providers.PSN
                     DisplayName = detail.TrophyName,
                     Description = detail.TrophyDetail,
                     UnlockedIconPath = detail.TrophyIconUrl,
-                    CategoryType = PsnTrophyCategoryHelper.MapTrophyGroupToCategoryType(detail.TrophyGroupId),
+                    CategoryKind = PsnTrophyCategoryHelper.MapTrophyGroupToCategoryKind(detail.TrophyGroupId),
                     Category = isCollection
                         ? PsnTrophyCategoryHelper.ResolveCollectionCategory(detail.TrophyGroupId, groupNameById, setTitle)
                         : PsnTrophyCategoryHelper.ResolveCategory(detail.TrophyGroupId, groupNameById),
@@ -464,7 +464,7 @@ namespace PlayniteAchievements.Providers.PSN
         /// Fetches the trophy-group metadata (base group plus each DLC group) and returns a
         /// normalized groupId -> group title map. Non-fatal: any failure (private profile, missing
         /// metadata) yields an empty map so categorization degrades to the base/DLC
-        /// <see cref="MapTrophyGroupToCategoryType"/> classification without a named label.
+        /// <see cref="MapTrophyGroupToCategoryKind"/> classification without a named label.
         /// </summary>
         private async Task<IReadOnlyDictionary<string, string>> FetchGroupNamesAsync(
             HttpClient http,

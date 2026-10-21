@@ -386,9 +386,9 @@ namespace PlayniteAchievements.Tests.Services
         }
 
         [TestMethod]
-        public void Derive_TakesTheBaseGameGroupType()
+        public void Derive_TakesTheBaseGameKind()
         {
-            // A PSN game types its base trophies Base; the capstone groups with them.
+            // A PSN game gives its base trophies the kind Base; the capstone shares it.
             var derived = AutoCapstoneCalculator.Derive(new[]
             {
                 Achievement("a", categoryType: "Base"),
@@ -396,11 +396,11 @@ namespace PlayniteAchievements.Tests.Services
                 Achievement("dlc", categoryType: "DLC")
             });
 
-            Assert.AreEqual("Base", derived.CategoryType);
+            Assert.AreEqual("Base", derived.CategoryKind);
         }
 
         [TestMethod]
-        public void Derive_GroupTypeLeavesOutUpdate()
+        public void Derive_KindLeavesOutUpdate()
         {
             var derived = AutoCapstoneCalculator.Derive(new[]
             {
@@ -409,11 +409,11 @@ namespace PlayniteAchievements.Tests.Services
                 Achievement("c", categoryType: "Base")
             });
 
-            Assert.AreEqual("Base", derived.CategoryType);
+            Assert.AreEqual("Base", derived.CategoryKind);
         }
 
         [TestMethod]
-        public void Derive_DlcCategoryTakesTheDlcGroupType()
+        public void Derive_DlcCategoryTakesTheDlcKind()
         {
             var derived = AutoCapstoneCalculator.Derive(new[]
             {
@@ -422,11 +422,11 @@ namespace PlayniteAchievements.Tests.Services
                 Achievement("dlc2", categoryType: "DLC", category: "Expansion")
             }, "Expansion");
 
-            Assert.AreEqual("DLC", derived.CategoryType);
+            Assert.AreEqual("DLC", derived.CategoryKind);
         }
 
         [TestMethod]
-        public void Derive_UngroupedGameHasNoGroupType()
+        public void Derive_UngroupedGameHasNoKind()
         {
             var derived = AutoCapstoneCalculator.Derive(new[]
             {
@@ -434,7 +434,7 @@ namespace PlayniteAchievements.Tests.Services
                 Achievement("b", categoryType: "Missable")
             });
 
-            Assert.IsNull(derived.CategoryType);
+            Assert.IsNull(derived.CategoryKind);
         }
 
         private static AchievementDetail Achievement(
@@ -452,7 +452,8 @@ namespace PlayniteAchievements.Tests.Services
                 Unlocked = unlocked,
                 UnlockTimeUtc = unlockTimeUtc,
                 GlobalPercentUnlocked = percent,
-                CategoryType = categoryType,
+                CategoryKind = PlayniteAchievements.Services.Achievements.LegacyCategoryTypes.SplitKind(categoryType),
+                Tags = PlayniteAchievements.Services.Achievements.AchievementTagHelper.Normalize(categoryType),
                 Category = category
             };
         }

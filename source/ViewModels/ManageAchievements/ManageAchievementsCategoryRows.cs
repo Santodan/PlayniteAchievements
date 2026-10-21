@@ -31,7 +31,12 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
 
         public string ProviderCategory { get; set; }
 
-        public string ProviderCategoryType { get; set; }
+        public string ProviderTags { get; set; }
+
+        public string ProviderCategoryKind { get; set; }
+
+        /// <summary>The achievement's own leftover kind from before kinds moved onto categories.</summary>
+        public string LegacyCategoryKind { get; set; }
 
         public string Category
         {
@@ -49,10 +54,10 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             set => SetValue(ref _isSelected, value);
         }
 
-        public string CategoryDisplay => AchievementCategoryTypeHelper.ToCategoryLeafDisplayText(Category);
+        public string CategoryDisplay => AchievementCategoryHelper.ToCategoryLeafDisplayText(Category);
 
         /// <summary>Full path for the category cell's tooltip; the cell itself shows the leaf.</summary>
-        public string CategoryPathDisplay => AchievementCategoryTypeHelper.ToCategoryLabelDisplayText(Category);
+        public string CategoryPathDisplay => AchievementCategoryHelper.ToCategoryLabelDisplayText(Category);
     }
 
     public sealed class ManageAchievementsCategoryMetadataItem : ObservableObject
@@ -79,7 +84,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
 
         public string CategoryLabel { get; private set; }
 
-        public string CategoryDisplay => AchievementCategoryTypeHelper.ToCategoryLabelDisplayText(CategoryLabel);
+        public string CategoryDisplay => AchievementCategoryHelper.ToCategoryLabelDisplayText(CategoryLabel);
 
         /// <summary>
         /// Depth of this row's category path, 1 for a root. The grid is a flat list, so nesting is
@@ -132,12 +137,12 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         /// </summary>
         public bool IsDefaultCategory => string.Equals(
             CategoryLabel,
-            AchievementCategoryTypeHelper.DefaultCategoryLabel,
+            AchievementCategoryHelper.DefaultCategoryLabel,
             StringComparison.OrdinalIgnoreCase);
 
         public string ProviderCategoryLabel { get; private set; }
 
-        public string ProviderCategoryDisplay => AchievementCategoryTypeHelper.ToCategoryLabelDisplayText(ProviderCategoryLabel);
+        public string ProviderCategoryDisplay => AchievementCategoryHelper.ToCategoryLabelDisplayText(ProviderCategoryLabel);
 
         /// <summary>Placeholder for the leaf-scoped rename box.</summary>
         public string ProviderCategoryLeafDisplay => CategoryPathHelper.ToDisplayLeaf(ProviderCategoryLabel);
@@ -239,6 +244,44 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         /// <summary>False for a category holding no achievements of its own, so there is nothing to push to.</summary>
         public bool CanEditFilterScope => _memberAchievementCount > 0;
 
+        private string _storedKind;
+        private string _kind;
+
+        /// <summary>
+        /// The kind the user set on this category: a kind, <see cref="CategoryKindHelper.None"/>, or
+        /// null when the providers decide.
+        /// </summary>
+        public string StoredKind => _storedKind;
+
+        /// <summary>The category's kind: the stored one, else what its achievements all agree on.</summary>
+        public string Kind => _kind;
+
+        public bool IsKindStored => _storedKind != null;
+
+        /// <summary>The Kind cell's face: the kind's name, None when set to none, blank otherwise.</summary>
+        public string KindDisplayText =>
+            string.Equals(_storedKind, CategoryKindHelper.None, StringComparison.OrdinalIgnoreCase)
+                ? ResourceProvider.GetString("LOCNone")
+                : CategoryKindHelper.ToDisplayText(_kind);
+
+        internal void SetKind(string storedKind, string kind)
+        {
+            var stored = CategoryKindHelper.NormalizeStored(storedKind);
+            var normalized = CategoryKindHelper.Normalize(kind);
+            if (string.Equals(_storedKind, stored, StringComparison.Ordinal) &&
+                string.Equals(_kind, normalized, StringComparison.Ordinal))
+            {
+                return;
+            }
+
+            _storedKind = stored;
+            _kind = normalized;
+            OnPropertyChanged(nameof(StoredKind));
+            OnPropertyChanged(nameof(Kind));
+            OnPropertyChanged(nameof(IsKindStored));
+            OnPropertyChanged(nameof(KindDisplayText));
+        }
+
         /// <summary>
         /// Stamps the scope this row's own achievements agree on.
         /// <paramref name="summaryEffectiveCount"/> includes the fully filtered, matching how the
@@ -264,8 +307,8 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             bool isSummarySelected = false,
             IReadOnlyList<ManageAchievementsCategoryItem> artFallbackSource = null)
         {
-            var normalizedLabel = AchievementCategoryTypeHelper.NormalizeCategoryOrDefault(categoryLabel);
-            var normalizedProviderLabel = AchievementCategoryTypeHelper.NormalizeCategoryOrDefault(providerCategoryLabel);
+            var normalizedLabel = AchievementCategoryHelper.NormalizeCategoryOrDefault(categoryLabel);
+            var normalizedProviderLabel = AchievementCategoryHelper.NormalizeCategoryOrDefault(providerCategoryLabel);
             var playniteGameId = Guid.TryParse(gameIdText, out var parsedGameId) ? parsedGameId : (Guid?)null;
             // An empty bucket (the always-listed Default row) still resolves game art
             // from the fallback source so its preview matches the other rows.
@@ -471,19 +514,67 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         }
     }
 
-    public sealed class CategoryTypeSelectionOption : ObservableObject
+    public sealed class TagSelectionOption : ObservableObject
     {
         private bool _isSelected;
 
-        public CategoryTypeSelectionOption(string value, string displayName)
+        private string _displayName;
+
+        public TagSelectionOption(string value, string displayName)
         {
             Value = value;
-            DisplayName = displayName;
+            _displayName = displayName;
         }
 
         public string Value { get; }
 
-        public string DisplayName { get; }
+        public string DisplayName
+        {
+            get => _displayName;
+            private set => SetValue(ref _displayName, value);
+        }
+
+        /// <summary>
+        /// Brings <paramref name="options"/> in line with <paramref name="keys"/> after the tag lists
+        /// changed: options for kept keys stay (and keep their selection) under their current names,
+        /// new keys get an option passed through <paramref name="attach"/>, removed keys go.
+        /// </summary>
+        public static void Sync(
+            ObservableCollection<TagSelectionOption> options,
+            IReadOnlyList<string> keys,
+            Func<string, string> getName,
+            Action<TagSelectionOption> attach)
+        {
+            if (options == null || keys == null)
+            {
+                return;
+            }
+
+            var existing = options.ToDictionary(option => option.Value, StringComparer.OrdinalIgnoreCase);
+            var ordered = keys.Select(key =>
+            {
+                if (existing.TryGetValue(key, out var option))
+                {
+                    option.DisplayName = getName(key);
+                    return option;
+                }
+
+                var created = new TagSelectionOption(key, getName(key));
+                attach?.Invoke(created);
+                return created;
+            }).ToList();
+
+            if (ordered.SequenceEqual(options))
+            {
+                return;
+            }
+
+            options.Clear();
+            foreach (var option in ordered)
+            {
+                options.Add(option);
+            }
+        }
 
         public bool IsSelected
         {

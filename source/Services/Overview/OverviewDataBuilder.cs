@@ -854,7 +854,8 @@ namespace PlayniteAchievements.Services.Overview
                     ScaledPoints = achievement.ScaledPoints,
                     Category = achievement.Category,
                     ProviderCategory = achievement.ProviderCategory,
-                    CategoryType = achievement.CategoryType,
+                    Tags = achievement.Tags,
+                    CategoryKind = achievement.CategoryKind,
                     TrophyType = achievement.TrophyType,
                     Hidden = achievement.Hidden,
                     IsCapstone = achievement.IsCapstone,
@@ -1036,7 +1037,7 @@ namespace PlayniteAchievements.Services.Overview
             var result = new Dictionary<string, CategoryImageOverrideData>(StringComparer.OrdinalIgnoreCase);
             foreach (var pair in source)
             {
-                var category = AchievementCategoryTypeHelper.NormalizeCategoryOrDefault(pair.Key);
+                var category = AchievementCategoryHelper.NormalizeCategoryOrDefault(pair.Key);
                 if (string.IsNullOrWhiteSpace(category) || pair.Value == null)
                 {
                     continue;

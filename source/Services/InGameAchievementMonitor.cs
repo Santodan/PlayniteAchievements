@@ -1986,13 +1986,6 @@ namespace PlayniteAchievements.Services
             return newestByTime ?? unlocked.LastOrDefault();
         }
 
-        private static bool IsHardcoreCategory(string categoryType)
-        {
-            return AchievementCategoryTypeHelper
-                .ParseValues(categoryType)
-                .Contains(AchievementCategoryTypeHelper.HardcoreCategoryType);
-        }
-
         /// <summary>
         /// The first friend-achievement icon candidate that is already a cached local file.
         /// Friend rows loaded from the store carry absolute paths to the images the refresh
@@ -2098,7 +2091,7 @@ namespace PlayniteAchievements.Services
                 TrophyType = achievement?.TrophyType,
                 IsCapstone = achievement?.IsCapstone == true,
                 IsHidden = achievement?.Hidden == true,
-                IsHardcore = IsHardcoreCategory(achievement?.CategoryType),
+                IsHardcore = AchievementTagHelper.IsHardcore(achievement?.Tags),
                 Points = achievement?.Points,
                 ScaledPoints = achievement?.ScaledPoints,
                 UnlockTimeUtc = reportedUtc,
@@ -2214,7 +2207,7 @@ namespace PlayniteAchievements.Services
                 RarityTier = achievement?.Rarity.ToString(),
                 TrophyType = achievement?.TrophyType,
                 IsHidden = achievement?.Hidden == true,
-                IsHardcore = IsHardcoreCategory(achievement?.CategoryType),
+                IsHardcore = AchievementTagHelper.IsHardcore(achievement?.Tags),
                 Points = achievement?.Points,
                 ScaledPoints = achievement?.ScaledPoints,
                 ObservedUtc = observedUtc,
@@ -2282,7 +2275,7 @@ namespace PlayniteAchievements.Services
                 TrophyType = row?.TrophyType,
                 IsCapstone = row?.IsCapstone == true,
                 IsHidden = row?.Hidden == true,
-                IsHardcore = IsHardcoreCategory(row?.CategoryType),
+                IsHardcore = AchievementTagHelper.IsHardcore(row?.Tags),
                 Points = row?.Points,
                 ScaledPoints = row?.ScaledPoints,
                 UnlockTimeUtc = row?.UnlockTimeUtc,

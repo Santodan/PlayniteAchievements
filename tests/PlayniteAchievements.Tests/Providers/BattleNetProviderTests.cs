@@ -514,7 +514,7 @@ namespace PlayniteAchievements.Tests.Providers
 
             var unobtainable = data.Achievements.Single(item => item.ApiName == "2");
             Assert.IsFalse(unobtainable.Unlocked);
-            Assert.AreEqual("Unobtainable", unobtainable.CategoryType);
+            Assert.AreEqual("Unobtainable", unobtainable.Tags);
             Assert.IsTrue(unobtainable.Hidden);
             Assert.AreEqual("Legacy", unobtainable.Category);
         }
@@ -633,7 +633,7 @@ namespace PlayniteAchievements.Tests.Providers
 
                     Assert.IsNotNull(data);
                     Assert.IsTrue(data.Achievements.Any(item => item.ApiName == "1" && item.Unlocked));
-                    Assert.IsTrue(data.Achievements.Any(item => item.ApiName == "2" && item.CategoryType == "Unobtainable"));
+                    Assert.IsTrue(data.Achievements.Any(item => item.ApiName == "2" && item.Tags == "Unobtainable"));
                 }
 
                 Assert.IsFalse(secondHandler.Requests.Any(IsPublicWowCategoryRequest));

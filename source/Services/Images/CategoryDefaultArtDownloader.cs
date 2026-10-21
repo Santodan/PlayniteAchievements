@@ -33,11 +33,11 @@ namespace PlayniteAchievements.Services.Images
             foreach (var entry in entries)
             {
                 cancel.ThrowIfCancellationRequested();
-                var label = AchievementCategoryTypeHelper.NormalizeCategoryOrDefault(entry.Label);
+                var label = AchievementCategoryHelper.NormalizeCategoryOrDefault(entry.Label);
                 if (string.IsNullOrWhiteSpace(entry.ImageUrl) ||
                     string.Equals(
                         label,
-                        AchievementCategoryTypeHelper.DefaultCategoryLabel,
+                        AchievementCategoryHelper.DefaultCategoryLabel,
                         StringComparison.OrdinalIgnoreCase) ||
                     !seenLabels.Add(label))
                 {

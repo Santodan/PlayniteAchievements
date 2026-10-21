@@ -364,7 +364,7 @@ namespace PlayniteAchievements.Views.Workshop.Preview
                     UnlockedIconPath = row.After.UnlockedIcon as string,
                     LockedIconPath = row.After.LockedIcon as string,
                     Category = row.After.Category,
-                    CategoryType = row.After.CategoryType,
+                    Tags = row.After.Tags,
                     IsCapstone = row.After.IsCapstone,
                     IsGoal = row.After.IsGoal,
                     AchievementNote = row.After.Note,

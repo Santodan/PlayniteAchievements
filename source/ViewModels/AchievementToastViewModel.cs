@@ -688,7 +688,7 @@ namespace PlayniteAchievements.ViewModels
         // The category's leaf name, as the grid cells show it: "DLC::Season Pass" reads as
         // "Season Pass", and the Default bucket reads as blank.
         public string Category =>
-            Services.Achievements.AchievementCategoryTypeHelper.ToCategoryLabelCellText(_args.Category);
+            Services.Achievements.AchievementCategoryHelper.ToCategoryLabelCellText(_args.Category);
         public string GameName => _args.GameName;
 
         // Absolute local paths to the Playnite game's icon and cover art; null when the game has
