@@ -456,6 +456,7 @@ namespace PlayniteAchievements.Services.Metadata
                         _logger?.Debug(
                             $"[Metadata] {key} name match '{unconfirmed.Label ?? linkId}' rejected for '{request.Game?.Name}': " +
                             $"{matches.Count}/{targets.Count} achievements matched.");
+                        _links?.SetAutoNoMatch(gameId, provider.Key);
                         return (null, false);
                     }
 
@@ -610,6 +611,12 @@ namespace PlayniteAchievements.Services.Metadata
             }
 
             var resolved = await provider.ResolveLinkAsync(request, ct).ConfigureAwait(false);
+            if (resolved == null || string.IsNullOrWhiteSpace(resolved.Id))
+            {
+                // Looked for and not found: later refreshes skip the search until the link is reset.
+                _links?.SetAutoNoMatch(gameId, provider.Key);
+            }
+
             if (resolved == null || string.IsNullOrWhiteSpace(resolved.Id))
             {
                 return (null, null);
