@@ -17,7 +17,7 @@
         </ResourceDictionary>
     </UserControl.Resources>
     <Grid Background="{DynamicResource PlayAch.Brush.Panel}">
-        <!-- Scrolled by the Metadata tab, which stacks this above the auto capstone section. -->
+        <!-- Scrolled by the Metadata tab, which shows it as its own page. -->
                 <Border Style="{StaticResource SectionBorderStyle}">
                     <StackPanel>
                         <TextBlock Text="{DynamicResource LOCPlayAch_Settings_Metadata_Sources}"
