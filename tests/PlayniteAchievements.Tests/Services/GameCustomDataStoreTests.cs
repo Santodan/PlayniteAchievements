@@ -291,7 +291,7 @@ namespace PlayniteAchievements.Services.Tests
         }
 
         [TestMethod]
-        public void Save_ExophaseEnrichmentSlugOverrideOnly_RoundTripsWithoutProviderOverride()
+        public void Save_ExophaseEnrichmentSlugOverride_BecomesTheExophaseLink()
         {
             var tempDir = CreateTempDirectory();
             var gameId = Guid.NewGuid();
@@ -306,39 +306,10 @@ namespace PlayniteAchievements.Services.Tests
                 });
 
                 Assert.IsTrue(store.TryLoad(gameId, out var loaded));
-                Assert.AreEqual("guitar-hero-hits-xbox-360", loaded.ExophaseEnrichmentSlugOverride);
+                Assert.IsNull(loaded.ExophaseEnrichmentSlugOverride);
+                Assert.AreEqual("guitar-hero-hits-xbox-360", loaded.MetadataLinks["Exophase"].Id);
+                Assert.IsTrue(loaded.MetadataLinks["Exophase"].IsUserSet);
                 Assert.IsNull(loaded.ProviderOverride);
-                Assert.IsTrue(GameCustomDataNormalizer.HasVisibleCustomization(loaded));
-
-                Assert.IsTrue(GameCustomDataLookup.TryGetExophaseEnrichmentSlugOverride(gameId, out var slug, store));
-                Assert.AreEqual("guitar-hero-hits-xbox-360", slug);
-
-                store.Update(gameId, customData => customData.ExophaseEnrichmentSlugOverride = null);
-                Assert.IsFalse(GameCustomDataLookup.TryGetExophaseEnrichmentSlugOverride(gameId, out _, store));
-            }
-            finally
-            {
-                DeleteDirectory(tempDir);
-            }
-        }
-
-        [TestMethod]
-        public void Save_ExophaseEnrichmentSlugOverrideAsUrl_LookupExtractsSlug()
-        {
-            var tempDir = CreateTempDirectory();
-            var gameId = Guid.NewGuid();
-
-            try
-            {
-                var store = new GameCustomDataStore(tempDir);
-                store.Save(gameId, new GameCustomDataFile
-                {
-                    PlayniteGameId = gameId,
-                    ExophaseEnrichmentSlugOverride = "https://www.exophase.com/game/guitar-hero-hits-xbox-360/achievements/"
-                });
-
-                Assert.IsTrue(GameCustomDataLookup.TryGetExophaseEnrichmentSlugOverride(gameId, out var slug, store));
-                Assert.AreEqual("guitar-hero-hits-xbox-360", slug);
             }
             finally
             {
