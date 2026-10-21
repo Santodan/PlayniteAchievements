@@ -55,10 +55,10 @@ namespace PlayniteAchievements.Providers.Metadata
         public string LinkPlaceholder => "123456";
 
         /// <summary>The app's achievement page; the link is the Steam app id.</summary>
-        public IReadOnlyList<string> PageUrls(Guid gameId, string linkId, string servicingProviderKey) =>
+        public IReadOnlyList<MetadataPageLink> PageLinks(Guid gameId, string linkId, string servicingProviderKey) =>
             int.TryParse(linkId?.Trim(), out var appId) && appId > 0
-                ? new[] { $"https://steamhunters.com/apps/{appId}/achievements" }
-                : Array.Empty<string>();
+                ? new[] { new MetadataPageLink("SteamHunters", $"https://steamhunters.com/apps/{appId}/achievements") }
+                : Array.Empty<MetadataPageLink>();
 
         public MetadataField SupportedFields => MetadataField.Categories | MetadataField.CategoryArt | MetadataField.Tags;
 
