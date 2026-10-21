@@ -47,7 +47,7 @@ namespace PlayniteAchievements.Views.Workshop.Preview
 
         private static readonly HashSet<string> NeutralColumns = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
         {
-            "Status", "Icon", "Achievement", "CategoryType", "CategoryLabel", "Trophy", "Rarity", "Points"
+            "Status", "Icon", "Achievement", "CategoryKind", "CategoryType", "CategoryLabel", "Trophy", "Rarity", "Points"
         };
 
         // Shown in the published image whatever the rows hold; the rest of the fixed set is shown
@@ -79,7 +79,7 @@ namespace PlayniteAchievements.Views.Workshop.Preview
         // Columns a package's own entries can leave empty; the live grid hides each one none fills.
         private static readonly string[] PackageOptionalColumns =
         {
-            "CategoryType", "CategoryLabel", "CategoryIcon", "Note", "Trophy", "Points", "Rarity", "RarityTier",
+            "CategoryKind", "CategoryType", "CategoryLabel", "CategoryIcon", "Note", "Trophy", "Points", "Rarity", "RarityTier",
             "RarityPercent", "UnlockDate", "CollectionScore", "PrestigeScore"
         };
 
@@ -315,8 +315,10 @@ namespace PlayniteAchievements.Views.Workshop.Preview
         {
             switch (key)
             {
+                case "CategoryKind":
+                    return !string.IsNullOrWhiteSpace(item.CategoryKindDisplay);
                 case "CategoryType":
-                    return !string.IsNullOrWhiteSpace(item.CategoryTypeDisplay);
+                    return !string.IsNullOrWhiteSpace(item.TagsDisplay);
                 case "CategoryLabel":
                 case "CategoryIcon":
                     return !string.IsNullOrWhiteSpace(item.CategoryLabelDisplay);
