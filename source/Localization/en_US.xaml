@@ -22,7 +22,7 @@
     <sys:String x:Key="LOCPlayAch_Common_ChooseIcon">Choose Icon</sys:String>
     <sys:String x:Key="LOCPlayAch_Common_BuiltInTagHint">Built-in tag: it can be renamed and recolored, but not deleted.</sys:String>
     <!-- Kind: what part of a game a category covers (Base, DLC, Update, Subset) -->
-    <sys:String x:Key="LOCPlayAch_Common_Kind">Kind</sys:String>
+    <sys:String x:Key="LOCPlayAch_Common_Kind">Type</sys:String>
     <sys:String x:Key="LOCPlayAch_Common_Delete">Delete</sys:String>
     <!-- Common_Desktop / Common_Fullscreen: bare names of Playnite's two modes (and their themes) -->
     <sys:String x:Key="LOCPlayAch_Common_Desktop">Desktop</sys:String>
