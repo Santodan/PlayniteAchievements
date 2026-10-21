@@ -1,0 +1,93 @@
+using Microsoft.VisualStudio.TestTools.UnitTesting;
+using PlayniteAchievements.Providers.Metadata;
+using PlayniteAchievements.Providers.Metadata.TrueGaming;
+using System.Linq;
+
+namespace PlayniteAchievements.Tests.Providers
+{
+    [TestClass]
+    [TestCategory("Providers")]
+    public class TrueGamingPageSetTests
+    {
+        private static readonly string[] Targets = { "Lumière", "Spring Meadows", "The End" };
+
+        [TestMethod]
+        public void TagsAndCategories_NeedNoMorePages_OnceEveryAchievementIsListedWithFlags()
+        {
+            var full = Page(Row("a1", "Lumière", "Single Player"), Row("a2", "Spring Meadows", "Missable"), Row("a3", "The End", "Story Completed"));
+            var unflagged = Page(Row("a1", "Lumière", "Single Player"), Row("a2", "Spring Meadows"), Row("a3", "The End", "Story Completed"));
+            var partial = Page(Row("a1", "Lumière", "Single Player"), Row("a2", "Spring Meadows", "Missable"));
+            var wanted = MetadataField.Tags | MetadataField.Categories;
+
+            Assert.IsFalse(TrueGamingPageSet.NeedsPage(TrueGamingSite.TrueTrophies, wanted, new[] { full }, Targets));
+            Assert.IsTrue(TrueGamingPageSet.NeedsPage(TrueGamingSite.TrueTrophies, wanted, new[] { unflagged }, Targets), "a row without flags");
+            Assert.IsFalse(TrueGamingPageSet.NeedsPage(TrueGamingSite.TrueTrophies, MetadataField.Categories, new[] { unflagged }, Targets), "categories need only the row");
+            Assert.IsTrue(TrueGamingPageSet.NeedsPage(TrueGamingSite.TrueTrophies, wanted, new[] { partial }, Targets), "a missing row");
+            Assert.IsTrue(TrueGamingPageSet.NeedsPage(TrueGamingSite.TrueAchievements, wanted, new TrueGamingPage[0], Targets));
+        }
+
+        [TestMethod]
+        public void PointsAndRanks_NeedTheirOwnSite_WhateverElseCovers()
+        {
+            var full = Page(Row("a1", "Lumière", "Single Player"), Row("a2", "Spring Meadows", "Missable"), Row("a3", "The End", "Story Completed"));
+
+            Assert.IsTrue(TrueGamingPageSet.NeedsPage(TrueGamingSite.TrueTrophies, MetadataField.Tags | MetadataField.TrophyTypes, new[] { full }, Targets));
+            Assert.IsFalse(TrueGamingPageSet.NeedsPage(TrueGamingSite.TrueSteamAchievements, MetadataField.Tags | MetadataField.TrophyTypes, new[] { full }, Targets));
+            Assert.IsTrue(TrueGamingPageSet.NeedsPage(TrueGamingSite.TrueAchievements, MetadataField.Points, new[] { full }, Targets));
+            Assert.IsFalse(TrueGamingPageSet.NeedsPage(TrueGamingSite.TrueTrophies, MetadataField.Points, new TrueGamingPage[0], Targets));
+        }
+
+        [TestMethod]
+        public void Combine_TakesEachFieldFromItsPage()
+        {
+            var ta = Page(Row("a1", "Lumière", "Single Player"), Row("a2", "Spring Meadows"));
+            ta.Achievements[0].Points = 10;
+            ta.Achievements[1].Points = 20;
+            var tt = Page(Row("t1", "Lumiere", "Missable"), Row("t2", "Spring Meadows", "Collectable"), Row("t3", "The End", "Story Completed"));
+            tt.Achievements[0].TrophyType = "bronze";
+            tt.Achievements[2].TrophyType = "gold";
+            tt.Achievements[2].Dlc = "Epilogue";
+
+            var rows = TrueGamingPageSet.Combine(
+                new[]
+                {
+                    new TrueGamingFoundPage(TrueGamingSite.TrueAchievements, "Clair", ta),
+                    new TrueGamingFoundPage(TrueGamingSite.TrueTrophies, "Clair", tt)
+                },
+                "Clair Obscur");
+
+            Assert.AreEqual(3, rows.Count, "a row only the second page lists is added");
+            var lumiere = rows[0];
+            Assert.AreEqual("a1", lumiere.ApiName, "the first page's row names it");
+            Assert.AreEqual("Singleplayer", lumiere.Tags, "tags from the first page that flags it");
+            Assert.AreEqual(10, lumiere.Points);
+            Assert.AreEqual("bronze", lumiere.TrophyType);
+            Assert.AreEqual("Clair Obscur", lumiere.Category);
+            Assert.AreEqual("Collectable", rows[1].Tags, "an unflagged row takes the next page's flags");
+            Assert.AreEqual("Epilogue", rows[2].Category);
+            Assert.IsNull(rows[2].Points, "points come from TrueAchievements only");
+        }
+
+        [TestMethod]
+        public void SameGame_NeedsHalfTheShorterListByName()
+        {
+            Assert.IsTrue(TrueGamingPageSet.IsSameGame(Page(Row("a1", "LUMIÈRE"), Row("a9", "Other")), Targets));
+            Assert.IsFalse(TrueGamingPageSet.IsSameGame(Page(Row("a8", "Peaky"), Row("a9", "Blinders"), Row("a1", "Lumière")), Targets));
+            Assert.IsFalse(TrueGamingPageSet.IsSameGame(Page(), Targets));
+        }
+
+        private static TrueGamingPage Page(params TrueGamingAchievement[] rows)
+        {
+            var page = new TrueGamingPage { FlagsDecoded = true };
+            page.Achievements.AddRange(rows);
+            return page;
+        }
+
+        private static TrueGamingAchievement Row(string id, string name, params string[] flags)
+        {
+            var row = new TrueGamingAchievement { Id = id, Name = name };
+            row.Flags.AddRange(flags);
+            return row;
+        }
+    }
+}
