@@ -185,7 +185,7 @@ namespace PlayniteAchievements.Providers.Metadata
             {
                 var page = await GetPageAsync(slug, ct).ConfigureAwait(false);
                 var pageRows = page?.Achievements ?? new List<AchievementDetail>();
-                ApplySections(pageRows, ExophaseGamePageParser.ParseAwardSections(page?.Html), categoryArt);
+                ApplySections(pageRows, ExophaseGamePageParser.ParseAwardSections(page?.Html), categoryArt, request?.BaseCategoryLabel);
                 rows.AddRange(pageRows);
             }
 
@@ -204,13 +204,15 @@ namespace PlayniteAchievements.Providers.Metadata
         }
 
         /// <summary>
-        /// Files each row under its page's list: Base for the game's own, DLC under the DLC's name
-        /// for the rest, with the DLC's own image as its category art.
+        /// Files each row under its page's list: Base under <paramref name="baseLabel"/> for the
+        /// game's own, DLC under the DLC's name for the rest, with the DLC's own image as its
+        /// category art.
         /// </summary>
         private static void ApplySections(
             IList<AchievementDetail> rows,
             IReadOnlyList<ExophaseAwardSection> sections,
-            IDictionary<string, string> categoryArt)
+            IDictionary<string, string> categoryArt,
+            string baseLabel)
         {
             var byApiName = new Dictionary<string, ExophaseAwardSection>(StringComparer.OrdinalIgnoreCase);
             foreach (var section in sections ?? Array.Empty<ExophaseAwardSection>())
@@ -236,7 +238,7 @@ namespace PlayniteAchievements.Providers.Metadata
 
                 var isDlc = !string.IsNullOrWhiteSpace(section.Title);
                 row.CategoryKind = isDlc ? CategoryKindHelper.Dlc : CategoryKindHelper.Base;
-                row.Category = isDlc ? CategoryPathHelper.SanitizeSegment(section.Title) : null;
+                row.Category = isDlc ? CategoryPathHelper.SanitizeSegment(section.Title) : baseLabel;
             }
         }
 
