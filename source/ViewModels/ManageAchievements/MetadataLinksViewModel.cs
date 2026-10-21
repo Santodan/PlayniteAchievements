@@ -49,19 +49,35 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         }
 
         /// <summary>
-        /// What a source supplies to this game under its platform's Sources settings, as the
-        /// Sources grid names the fields ("Icons, Auto Capstone"); empty when nothing.
+        /// What a source supplies to this game, as the Sources grid names the fields ("Icons,
+        /// Auto Capstone"); empty when nothing. <paramref name="choices"/> are the routed ones, so
+        /// a field one source serves for another's choice names that choice ("Points (Xbox)").
         /// </summary>
-        private static string DescribeSupplies(MetadataChoices choices, IMetadataProvider provider)
+        private static string DescribeSupplies(
+            MetadataChoices choices,
+            MetadataChoices chosen,
+            IMetadataProvider provider,
+            IReadOnlyList<IMetadataProvider> providers)
         {
             if (choices == null || provider == null)
             {
                 return string.Empty;
             }
 
-            bool Uses(string chosen, MetadataField field) =>
+            bool Uses(string routed, MetadataField field) =>
                 (provider.SupportedFields & field) == field &&
-                string.Equals(chosen, provider.Key, StringComparison.OrdinalIgnoreCase);
+                string.Equals(routed, provider.Key, StringComparison.OrdinalIgnoreCase);
+
+            string Served(string label, string picked)
+            {
+                if (string.IsNullOrWhiteSpace(picked) || string.Equals(picked, provider.Key, StringComparison.OrdinalIgnoreCase))
+                {
+                    return label;
+                }
+
+                var source = providers?.FirstOrDefault(candidate => string.Equals(candidate?.Key, picked, StringComparison.OrdinalIgnoreCase));
+                return source == null ? label : $"{label} ({ResourceProvider.GetString(source.DisplayNameKey)})";
+            }
 
             var fields = new List<string>();
             if (Uses(choices.Icons, MetadataField.Icons))
@@ -91,12 +107,12 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
 
             if (Uses(choices.TrophyTypes, MetadataField.TrophyTypes))
             {
-                fields.Add(ResourceProvider.GetString("LOCPlayAch_Column_Trophy"));
+                fields.Add(Served(ResourceProvider.GetString("LOCPlayAch_Column_Trophy"), chosen?.TrophyTypes));
             }
 
             if (Uses(choices.Points, MetadataField.Points))
             {
-                fields.Add(ResourceProvider.GetString("LOCPlayAch_Column_Points"));
+                fields.Add(Served(ResourceProvider.GetString("LOCPlayAch_Column_Points"), chosen?.Points));
             }
 
             return string.Join(", ", fields);
@@ -146,12 +162,15 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
 
                 // A source's link shows while the game uses the source, or while it holds a link the
                 // user set, so a hand-entered link never disappears with a choice.
-                var choices = _settings?.Invoke()?.ResolveMetadataChoices(servicingProviderKey, gameChoices);
-                foreach (var provider in (_providers?.Invoke() ?? Array.Empty<IMetadataProvider>())
-                    .Where(provider => !provider.IsNativeFor(servicingProviderKey)))
+                // Rows follow where the data comes from: points and ranks show on the source that
+                // serves them, named after the choice they serve.
+                var providers = _providers?.Invoke() ?? Array.Empty<IMetadataProvider>();
+                var chosen = _settings?.Invoke()?.ResolveMetadataChoices(servicingProviderKey, gameChoices);
+                var choices = MetadataSourceRouting.Route(chosen, providers.ToList(), servicingProviderKey);
+                foreach (var provider in providers.Where(provider => !provider.IsNativeFor(servicingProviderKey)))
                 {
                     store.TryGet(gameId, provider.Key, out var record);
-                    var supplies = DescribeSupplies(choices, provider);
+                    var supplies = DescribeSupplies(choices, chosen, provider, providers);
                     if (string.IsNullOrEmpty(supplies) && record?.Origin != MetadataLinkOrigin.User)
                     {
                         continue;
