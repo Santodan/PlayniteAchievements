@@ -212,7 +212,7 @@ namespace PlayniteAchievements.Services.Achievements
                 return canonical;
             }
 
-            var value = ResourceProvider.GetString($"LOCPlayAch_ManageAchievements_Category_Type_{canonical}");
+            var value = ResourceProvider.GetString($"LOCPlayAch_CategoryKind_{canonical}");
             return string.IsNullOrWhiteSpace(value) || value.StartsWith("<!", StringComparison.Ordinal)
                 ? canonical
                 : value;
