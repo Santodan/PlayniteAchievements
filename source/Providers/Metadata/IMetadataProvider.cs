@@ -73,6 +73,16 @@ namespace PlayniteAchievements.Providers.Metadata
     }
 
     /// <summary>
+    /// A source whose one link stands for several pages, which can say where it led for a game
+    /// (the TrueGaming page on each site), shown on the game's link row.
+    /// </summary>
+    internal interface IMetadataLinkDetails
+    {
+        /// <summary>One line per page the link led to, or null when nothing is known yet.</summary>
+        string DescribeLink(Guid gameId, string linkId);
+    }
+
+    /// <summary>
     /// Several metadata sources that share one implementation, such as the Exophase pages of
     /// different platforms. Discovered by reflection like a provider; each of its providers is
     /// registered on its own. A provider type without a public constructor belongs to a family
