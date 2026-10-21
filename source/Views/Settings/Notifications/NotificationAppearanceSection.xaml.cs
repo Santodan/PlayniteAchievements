@@ -452,11 +452,18 @@ namespace PlayniteAchievements.Views.Settings.Notifications
             var imageOwner = NotificationImageOwner
                 .ForProvider(editable ? option.Key : null)
                 .ForNotificationKind(editingKind ? ActiveKind : NotificationKind.Base);
+            // Captured rather than read at flush time: the editors flush a pending edit only
+            // after this method has already moved the fields to the next selection.
+            var scopeKey = option.Key;
+            var scopeStyle = style;
+            Action<NotificationStyleSettings> persist = editable && scopeKey != null
+                ? _ => PersistProviderStyle(scopeKey, scopeStyle)
+                : (Action<NotificationStyleSettings>)null;
             _toastEditorViewModel.SetStyle(
-                kindStyle, imageOwner, editable, persistStyle: null, providerKey: editable ? option.Key : null,
+                kindStyle, imageOwner, editable, persist, providerKey: editable ? option.Key : null,
                 isKindStyle: editingKind);
             _frameEditorViewModel.SetStyle(
-                kindStyle, imageOwner, editable, persistStyle: null, providerKey: editable ? option.Key : null);
+                kindStyle, imageOwner, editable, persist, providerKey: editable ? option.Key : null);
             ApplySoundsSelection();
             UpdateMockups();
             RefreshPresetRow();
@@ -740,6 +747,24 @@ namespace PlayniteAchievements.Views.Settings.Notifications
 
                 appearance.Style = style.Clone();
             });
+        }
+
+        /// <summary>
+        /// Stores the platform's style. Like <see cref="PersistGameStyle"/>, it stores the scope
+        /// style that owns the kind copies rather than the kind copy the editor may hold, so a
+        /// kind edit cannot replace the platform's whole style with that kind's.
+        /// </summary>
+        private void PersistProviderStyle(string providerKey, NotificationStyleSettings scopeStyle)
+        {
+            var persisted = _settings?.Persisted;
+            if (IsGameMode || persisted == null || scopeStyle == null || providerKey == null ||
+                persisted.GetProviderNotificationStyle(providerKey) == null)
+            {
+                return;
+            }
+
+            persisted.SetProviderNotificationStyle(providerKey, scopeStyle);
+            _plugin.PersistSettingsForUi();
         }
 
         /// <summary>
@@ -1303,6 +1328,13 @@ namespace PlayniteAchievements.Views.Settings.Notifications
             if (IsGameMode)
             {
                 PersistGameStyle(_currentScopeStyle);
+                return;
+            }
+
+            if (_selectedProviderKey != null)
+            {
+                // The store holds a clone of the working style, so the change is stored again.
+                PersistProviderStyle(_selectedProviderKey, _currentScopeStyle);
                 return;
             }
 
