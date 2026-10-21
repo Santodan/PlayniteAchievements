@@ -604,7 +604,7 @@ namespace PlayniteAchievements.Tests.Services
         {
             var hunters = new FakeSource("SteamHunters", MetadataField.Categories);
             hunters.Rows.Add(Row("A", "One", category: "Story"));
-            var settings = new PersistedSettings();
+            var settings = Choices();
             settings.MetadataPlatformChoices = new Dictionary<string, MetadataChoices>
             {
                 ["Xbox"] = new MetadataChoices { Categories = "SteamHunters" }
