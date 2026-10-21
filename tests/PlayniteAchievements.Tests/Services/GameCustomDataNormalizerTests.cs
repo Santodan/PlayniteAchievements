@@ -418,7 +418,7 @@ namespace PlayniteAchievements.Services.Tests
         }
 
         [TestMethod]
-        public void NormalizeInternal_CategoryTypeOverrides_SplitIntoKindAndTagsWithoutUnlockModes()
+        public void NormalizeInternal_CategoryTypeOverrides_KeepOnlyTags()
         {
             var gameId = Guid.NewGuid();
             var normalized = GameCustomDataNormalizer.NormalizeInternal(
@@ -434,11 +434,11 @@ namespace PlayniteAchievements.Services.Tests
                 },
                 gameId);
 
-            // The type map is split onto the records and no longer written.
+            // The type map's tags move onto the records; its kinds and unlock modes are dropped,
+            // and neither the map nor the record's type is written again.
             Assert.IsNull(normalized.AchievementCategoryTypeOverrides);
-            Assert.AreEqual("Base", normalized.AchievementOverrides["mixed"].LegacyCategoryKind);
+            Assert.IsNull(normalized.AchievementOverrides["mixed"].LegacyCategoryType);
             Assert.AreEqual("Missable", normalized.AchievementOverrides["mixed"].Tags);
-            Assert.AreEqual(CategoryKindHelper.None, normalized.AchievementOverrides["legacy"].LegacyCategoryKind);
             Assert.AreEqual("SideQuest", normalized.AchievementOverrides["legacy"].Tags);
             Assert.IsFalse(normalized.AchievementOverrides.ContainsKey("derived_only"), "an unlock mode alone overrode nothing");
         }
@@ -865,9 +865,7 @@ namespace PlayniteAchievements.Services.Tests
             CollectionAssert.AreEquivalent(
                 new[] { "existing_summary", "ach_summary" },
                 normalized.SummaryFilteredAchievementApiNames);
-            Assert.AreEqual("DLC", normalized.AchievementOverrides["ach_filtered"].LegacyCategoryKind);
             Assert.IsTrue(normalized.AchievementOverrides["ach_filtered"].ClearTags);
-            Assert.AreEqual("Base", normalized.AchievementOverrides["ach_normal"].LegacyCategoryKind);
             Assert.AreEqual("Stackable", normalized.AchievementOverrides["ach_normal"].Tags);
             Assert.IsFalse(normalized.AchievementOverrides.ContainsKey("ach_summary"));
             Assert.IsFalse(normalized.AchievementOverrides.ContainsKey("ach_both"));
