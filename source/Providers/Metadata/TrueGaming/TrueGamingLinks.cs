@@ -15,16 +15,25 @@ namespace PlayniteAchievements.Providers.Metadata.TrueGaming
             @"^(?:https?://)?(?:www\.)?(trueachievements|truetrophies|truesteamachievements)\.com/game/([^/?#]+)",
             RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
 
+        private static readonly Regex SitePrefix = new Regex(
+            @"^(ta|tt|tsa):(.+)$", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+
         /// <summary>
-        /// A stored or pasted link: a bare slug for the platform's own site, or a page address on
-        /// any of the three sites.
+        /// A stored or pasted link: a bare slug for the platform's own site, a slug with a site
+        /// prefix (<c>ta:</c>, <c>tt:</c>, <c>tsa:</c>), or a page address on any of the three sites.
         /// </summary>
         internal static bool TryParse(string linkId, string servicingProviderKey, out TrueGamingSite site, out string slug)
         {
             site = TrueGamingSite.For(servicingProviderKey);
             slug = (linkId ?? string.Empty).Trim().Trim('/');
             var address = PageAddress.Match(slug);
-            if (address.Success)
+            var prefixed = SitePrefix.Match(slug);
+            if (prefixed.Success)
+            {
+                site = TrueGamingSite.ByPrefix(prefixed.Groups[1].Value) ?? site;
+                slug = prefixed.Groups[2].Value.Trim().Trim('/');
+            }
+            else if (address.Success)
             {
                 site = TrueGamingSite.ByName(address.Groups[1].Value) ?? site;
                 slug = address.Groups[2].Value;
@@ -78,14 +87,14 @@ namespace PlayniteAchievements.Providers.Metadata.TrueGaming
     internal sealed class TrueGamingSite
     {
         public static readonly TrueGamingSite TrueAchievements = new TrueGamingSite(
-            "trueachievements", "www.trueachievements.com", "achievements", new[] { "-Xbox-One", "-Xbox-360" });
+            "trueachievements", "ta", "www.trueachievements.com", "achievements", new[] { "-Xbox-One", "-Xbox-360" });
 
         // PlayStation versions are separate lists; the newest console's is tried first.
         public static readonly TrueGamingSite TrueTrophies = new TrueGamingSite(
-            "truetrophies", "www.truetrophies.com", "trophies", new[] { "-PS5", "-PS4", "-PS3", "-PS-Vita" });
+            "truetrophies", "tt", "www.truetrophies.com", "trophies", new[] { "-PS5", "-PS4", "-PS3", "-PS-Vita" });
 
         public static readonly TrueGamingSite TrueSteamAchievements = new TrueGamingSite(
-            "truesteamachievements", "truesteamachievements.com", "achievements", Array.Empty<string>());
+            "truesteamachievements", "tsa", "truesteamachievements.com", "achievements", Array.Empty<string>());
 
         private static readonly HashSet<string> XboxProviders =
             new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "Xbox", "Xenia" };
@@ -93,15 +102,19 @@ namespace PlayniteAchievements.Providers.Metadata.TrueGaming
         private static readonly HashSet<string> PlayStationProviders =
             new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "PSN", "RPCS3", "ShadPS4", "Vita3K" };
 
-        private TrueGamingSite(string name, string host, string listPath, IReadOnlyList<string> suffixes)
+        private TrueGamingSite(string name, string prefix, string host, string listPath, IReadOnlyList<string> suffixes)
         {
             Name = name;
+            Prefix = prefix;
             Host = host;
             ListPath = listPath;
             Suffixes = suffixes;
         }
 
         public string Name { get; }
+
+        /// <summary>The short site tag of a stored link to a site other than the platform's own.</summary>
+        public string Prefix { get; }
 
         public string Host { get; }
 
@@ -127,9 +140,12 @@ namespace PlayniteAchievements.Providers.Metadata.TrueGaming
         public static readonly IReadOnlyList<TrueGamingSite> LookupOrder =
             new[] { TrueAchievements, TrueTrophies, TrueSteamAchievements };
 
-        /// <summary>The stored link of a page: the bare slug on the platform's own site, else its address.</summary>
+        /// <summary>The stored link of a page: the bare slug on the platform's own site, else the slug with the site's prefix.</summary>
         public string LinkId(string slug, string servicingProviderKey) =>
-            For(servicingProviderKey) == this ? slug : $"{Host}/game/{slug}";
+            For(servicingProviderKey) == this ? slug : $"{Prefix}:{slug}";
+
+        public static TrueGamingSite ByPrefix(string prefix) =>
+            LookupOrder.FirstOrDefault(site => string.Equals(site.Prefix, prefix, StringComparison.OrdinalIgnoreCase));
 
         public static TrueGamingSite ByName(string name) =>
             new[] { TrueAchievements, TrueTrophies, TrueSteamAchievements }
