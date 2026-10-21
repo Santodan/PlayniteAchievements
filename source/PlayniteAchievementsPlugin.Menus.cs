@@ -904,6 +904,32 @@ namespace PlayniteAchievements
                     })
                 };
             }
+
+            // Developer-only, hidden unless the hardcoded TrueGamingProbe.Enabled flag is on.
+            // Deliberately not localized.
+            if (global::PlayniteAchievements.Providers.Metadata.TrueGaming.TrueGamingProbe.Enabled)
+            {
+                yield return new MainMenuItem
+                {
+                    Description = "Probe TrueGaming",
+                    MenuSection = PluginMainMenuSection,
+                    Action = (a) => _ = Task.Run(async () =>
+                    {
+                        try
+                        {
+                            await global::PlayniteAchievements.Providers.Metadata.TrueGaming.TrueGamingProbe.RunAsync(
+                                PlayniteApi,
+                                _logger,
+                                System.IO.Path.Combine(GetPluginUserDataPath(), "diagnostics", "truegaming"),
+                                CancellationToken.None).ConfigureAwait(false);
+                        }
+                        catch (Exception ex)
+                        {
+                            _logger?.Warn(ex, "TrueGaming probe failed.");
+                        }
+                    })
+                };
+            }
         }
     }
 }
