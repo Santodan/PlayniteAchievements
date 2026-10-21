@@ -1366,7 +1366,7 @@ namespace PlayniteAchievements.Views.Settings.Notifications
                 args.PlayniteGameId = _gameId;
             }
 
-            args.PreviewStyleOverride = _currentStyle;
+            args.PreviewStyleOverride = _currentScopeStyle ?? _currentStyle;
 
             PlayniteAchievementsPlugin.NotifyAchievementUnlocked(args);
         }
