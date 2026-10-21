@@ -5,6 +5,7 @@
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:controls="clr-namespace:PlayniteAchievements.Views.Controls"
              xmlns:helpers="clr-namespace:PlayniteAchievements.Views.Helpers"
+             xmlns:converters="clr-namespace:PlayniteAchievements.Views.Converters"
              mc:Ignorable="d"
              d:DesignHeight="500"
              d:DesignWidth="1000">
@@ -15,55 +16,134 @@
                 <helpers:SharedResourceDictionary Source="pack://application:,,,/PlayniteAchievements;component/Resources/ManageAchievementsScopedControlStyles.xaml"/>
             </ResourceDictionary.MergedDictionaries>
             <BooleanToVisibilityConverter x:Key="TagsTabBoolToVisibility"/>
+            <converters:BrushToHexConverter x:Key="TagsTabBrushToHex"/>
+
+            <!-- Same height as the editor's rows, so the two lists step down together. -->
+            <Style x:Key="GlobalTagRowStyle" TargetType="DataGridRow" BasedOn="{StaticResource AchievementRowStyle}">
+                <Setter Property="MinHeight" Value="36"/>
+                <Setter Property="Height" Value="36"/>
+            </Style>
         </ResourceDictionary>
     </UserControl.Resources>
 
-    <!-- Two cards like the Overview tab's: the game's own tags, editable, then the global list
-         (edited in Settings > Metadata), greyed so it reads as available here but owned elsewhere. -->
+    <!-- One card: the game's own tags, editable, beside the global list (edited in Settings >
+         Metadata) drawn as the same grid rows, greyed and inert so it reads as available here but
+         owned elsewhere. -->
     <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto">
-        <StackPanel>
-            <Border Style="{StaticResource CardBorderStyle}" Margin="{StaticResource PlayAch.Thickness.Bottom.Md}">
-                <controls:AchievementTagListEditor x:Name="Editor"/>
-            </Border>
+        <Border Style="{StaticResource CardBorderStyle}" HorizontalAlignment="Left">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
 
-            <Border Style="{StaticResource CardBorderStyle}">
-                <ItemsControl x:Name="GlobalTags"
-                              Focusable="False"
-                              Opacity="{StaticResource PlayAch.Opacity.Hint}">
-                    <ItemsControl.ItemTemplate>
-                        <DataTemplate>
-                            <!-- Columns line up with the editor's rows above: drag handle, icon
-                                 button, then the name. -->
-                            <StackPanel Orientation="Horizontal" Height="36">
-                                <Border Width="32"/>
-                                <Grid Width="58" Margin="4,0" VerticalAlignment="Center">
-                                    <controls:GlyphIcon Glyph="{Binding Glyph}"
-                                                        FontFamily="{DynamicResource PlayAch.FontFamily.Icon}"
-                                                        Size="16"
-                                                        Foreground="{DynamicResource PlayAch.Brush.Text}"
-                                                        HorizontalAlignment="Center"
-                                                        VerticalAlignment="Center"
-                                                        Visibility="{Binding HasGlyph, Converter={StaticResource TagsTabBoolToVisibility}}"/>
-                                </Grid>
-                                <TextBlock Text="{Binding Name}"
-                                           Width="220"
-                                           Margin="10,0,4,0"
-                                           TextTrimming="CharacterEllipsis"
-                                           Foreground="{DynamicResource PlayAch.Brush.Text}"
-                                           VerticalAlignment="Center"/>
-                                <Border Width="22"
-                                        Height="22"
-                                        Margin="8,0,0,0"
-                                        VerticalAlignment="Center"
-                                        Background="{Binding Brush}"
-                                        BorderBrush="{DynamicResource PlayAch.Brush.Border}"
-                                        BorderThickness="{StaticResource PlayAch.Thickness.Border}"
-                                        Visibility="{Binding HasColor, Converter={StaticResource TagsTabBoolToVisibility}}"/>
-                            </StackPanel>
-                        </DataTemplate>
-                    </ItemsControl.ItemTemplate>
-                </ItemsControl>
-            </Border>
-        </StackPanel>
+                <controls:AchievementTagListEditor Grid.Column="0" x:Name="Editor" VerticalAlignment="Top"/>
+
+                <Border Grid.Column="1"
+                        Width="1"
+                        Margin="16,0"
+                        Background="{DynamicResource PlayAch.Brush.Border}"/>
+
+                <DataGrid Grid.Column="2"
+                          x:Name="GlobalTags"
+                          VerticalAlignment="Top"
+                          Style="{StaticResource PlayAch.DataGrid.BaseStyle}"
+                          AutoGenerateColumns="False"
+                          IsReadOnly="True"
+                          IsHitTestVisible="False"
+                          Focusable="False"
+                          HeadersVisibility="None"
+                          GridLinesVisibility="None"
+                          BorderThickness="0"
+                          Background="{DynamicResource PlayAch.Brush.Grid.Background}"
+                          RowBackground="{DynamicResource PlayAch.Brush.Grid.RowBackground}"
+                          Foreground="{DynamicResource PlayAch.Brush.Text}"
+                          CellStyle="{StaticResource AchievementCellStyle}"
+                          RowStyle="{StaticResource GlobalTagRowStyle}"
+                          Opacity="{StaticResource PlayAch.Opacity.Hint}">
+                    <DataGrid.Columns>
+                        <DataGridTemplateColumn Width="40">
+                            <DataGridTemplateColumn.CellTemplate>
+                                <!-- As in the editor: the icon, or a dimmed tag when none is set. -->
+                                <DataTemplate>
+                                    <Grid>
+                                        <controls:GlyphIcon Glyph="&#xF004;"
+                                                            FontFamily="{DynamicResource PlayAch.FontFamily.Icon}"
+                                                            Size="16"
+                                                            Foreground="{DynamicResource PlayAch.Brush.Text}"
+                                                            HorizontalAlignment="Center"
+                                                            VerticalAlignment="Center"
+                                                            Opacity="{StaticResource PlayAch.Opacity.Hint}">
+                                            <controls:GlyphIcon.Style>
+                                                <Style TargetType="controls:GlyphIcon">
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding HasGlyph}" Value="True">
+                                                            <Setter Property="Visibility" Value="Collapsed"/>
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </controls:GlyphIcon.Style>
+                                        </controls:GlyphIcon>
+                                        <controls:GlyphIcon Glyph="{Binding Glyph}"
+                                                            FontFamily="{DynamicResource PlayAch.FontFamily.Icon}"
+                                                            Size="16"
+                                                            Foreground="{DynamicResource PlayAch.Brush.Text}"
+                                                            HorizontalAlignment="Center"
+                                                            VerticalAlignment="Center"
+                                                            Visibility="{Binding HasGlyph, Converter={StaticResource TagsTabBoolToVisibility}}"/>
+                                    </Grid>
+                                </DataTemplate>
+                            </DataGridTemplateColumn.CellTemplate>
+                        </DataGridTemplateColumn>
+                        <DataGridTemplateColumn Width="200">
+                            <DataGridTemplateColumn.CellTemplate>
+                                <DataTemplate>
+                                    <TextBlock Text="{Binding Name}"
+                                               Margin="4,0"
+                                               TextTrimming="CharacterEllipsis"
+                                               Foreground="{DynamicResource PlayAch.Brush.Text}"
+                                               VerticalAlignment="Center"/>
+                                </DataTemplate>
+                            </DataGridTemplateColumn.CellTemplate>
+                        </DataGridTemplateColumn>
+                        <!-- As in the editor: the swatch and hex, the theme's text color when unset. -->
+                        <DataGridTemplateColumn Width="Auto">
+                            <DataGridTemplateColumn.CellTemplate>
+                                <DataTemplate>
+                                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="8,0">
+                                        <Grid Width="22" Height="22" VerticalAlignment="Center">
+                                            <Border x:Name="DefaultSwatch"
+                                                    Background="{DynamicResource PlayAch.Brush.Text}"
+                                                    BorderBrush="{DynamicResource PlayAch.Brush.Border}"
+                                                    BorderThickness="{StaticResource PlayAch.Thickness.Border}"/>
+                                            <Border Background="{Binding Brush}"
+                                                    BorderBrush="{DynamicResource PlayAch.Brush.Border}"
+                                                    BorderThickness="{StaticResource PlayAch.Thickness.Border}"
+                                                    Visibility="{Binding HasColor, Converter={StaticResource TagsTabBoolToVisibility}}"/>
+                                        </Grid>
+                                        <TextBlock Width="70"
+                                                   Margin="8,0,0,0"
+                                                   VerticalAlignment="Center"
+                                                   Foreground="{DynamicResource PlayAch.Brush.Text}">
+                                            <TextBlock.Style>
+                                                <Style TargetType="TextBlock">
+                                                    <Setter Property="Text" Value="{Binding Brush, Converter={StaticResource TagsTabBrushToHex}}"/>
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding HasColor}" Value="False">
+                                                            <Setter Property="Text" Value="{Binding Background, ElementName=DefaultSwatch, Converter={StaticResource TagsTabBrushToHex}}"/>
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </TextBlock.Style>
+                                        </TextBlock>
+                                    </StackPanel>
+                                </DataTemplate>
+                            </DataGridTemplateColumn.CellTemplate>
+                        </DataGridTemplateColumn>
+                    </DataGrid.Columns>
+                </DataGrid>
+            </Grid>
+        </Border>
     </ScrollViewer>
 </UserControl>
