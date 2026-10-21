@@ -23,6 +23,12 @@ namespace PlayniteAchievements.Providers.Metadata.TrueGaming
 
         /// <summary>The site's flag names on the row ("Missable", "Single Player").</summary>
         public List<string> Flags { get; } = new List<string>();
+
+        /// <summary>The score shown before the description (<c>data-bf="70 - "</c>): gamerscore on TrueAchievements.</summary>
+        public int? Points { get; set; }
+
+        /// <summary>The rank in the description's class (<c>class="t g"</c>) on TrueTrophies: "platinum", "gold", "silver" or "bronze".</summary>
+        public string TrophyType { get; set; }
     }
 
     internal sealed class TrueGamingPage
@@ -50,6 +56,7 @@ namespace PlayniteAchievements.Providers.Metadata.TrueGaming
         private static readonly Regex FlagMask = new Regex(@"\bflg-([0-9a-fA-F]{8})\b", RegexOptions.CultureInvariant);
         private static readonly Regex FilterInput = new Regex(@"^chkFlag_(\d+)$", RegexOptions.CultureInvariant);
         private static readonly Regex FilterLabel = new Regex(@"^\s*([\d,]+)\s+(.+?)\s*$", RegexOptions.CultureInvariant | RegexOptions.Singleline);
+        private static readonly Regex LeadingScore = new Regex(@"^\s*([\d,]+)\s*-", RegexOptions.CultureInvariant);
         private static readonly Regex ShareImage = new Regex(@"ImagerShare\.share\('([^']+)'", RegexOptions.CultureInvariant);
 
         public static TrueGamingPage Parse(string html)
@@ -143,14 +150,28 @@ namespace PlayniteAchievements.Providers.Metadata.TrueGaming
                 mask = uint.Parse(flagNode.Groups[1].Value, NumberStyles.HexNumber, CultureInfo.InvariantCulture);
             }
 
+            var description = item.ChildNodes.FirstOrDefault(child => child.Name == "p");
+            var score = LeadingScore.Match(description?.GetAttributeValue("data-bf", string.Empty) ?? string.Empty);
             return new TrueGamingAchievement
             {
                 Id = link.Groups[1].Value.ToLowerInvariant(),
                 Name = name,
-                Description = Text(item.ChildNodes.FirstOrDefault(child => child.Name == "p")),
-                Dlc = dlc
+                Description = Text(description),
+                Dlc = dlc,
+                Points = score.Success &&
+                         int.TryParse(score.Groups[1].Value.Replace(",", string.Empty), NumberStyles.Integer, CultureInfo.InvariantCulture, out var points)
+                    ? points
+                    : (int?)null,
+                TrophyType = description != null && HasClass(description, "t") ? ReadTrophyType(description) : null
             };
         }
+
+        private static string ReadTrophyType(HtmlNode description) =>
+            HasClass(description, "p") ? "platinum"
+            : HasClass(description, "g") ? "gold"
+            : HasClass(description, "s") ? "silver"
+            : HasClass(description, "b") ? "bronze"
+            : null;
 
         /// <summary>The page's flag filter: (flag id, name, row count) for each flag present.</summary>
         private static List<(int Id, string Name, int Count)> ReadFilter(HtmlDocument document)
