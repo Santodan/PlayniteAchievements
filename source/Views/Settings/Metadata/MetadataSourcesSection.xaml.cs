@@ -127,7 +127,8 @@ namespace PlayniteAchievements.Views.Settings.Metadata
                 ProviderIconKey = iconKey;
             }
 
-            SupportsRarity = supportsRarity;
+            SupportsSources = MetadataChoices.TakesSources(providerKey);
+            SupportsRarity = supportsRarity && SupportsSources;
             SupportsTrophyTypes = MetadataChoices.TakesTrophyTypes(providerKey);
             SupportsPoints = MetadataChoices.TakesPoints(providerKey);
             IconOptions = BuildOptions(providers, MetadataField.Icons);
@@ -162,6 +163,9 @@ namespace PlayniteAchievements.Views.Settings.Metadata
         public string ProviderColorHex => IsDefaults ? null : ProviderRegistry.GetProviderColorHex(ProviderKey);
 
         public bool HasProviderIcon => !string.IsNullOrWhiteSpace(ProviderIconKey);
+
+        /// <summary>False for a platform no source has, whose row shows a dash in every column.</summary>
+        public bool SupportsSources { get; }
 
         public bool SupportsRarity { get; }
 
@@ -277,13 +281,13 @@ namespace PlayniteAchievements.Views.Settings.Metadata
         {
             var choices = new MetadataChoices
             {
-                Icons = FromKey(_icons),
+                Icons = SupportsSources ? FromKey(_icons) : null,
                 Rarity = SupportsRarity ? FromKey(_rarity) : null,
-                CapstoneArt = FromKey(_capstoneArt),
+                CapstoneArt = SupportsSources ? FromKey(_capstoneArt) : null,
                 TrophyTypes = SupportsTrophyTypes ? FromKey(_trophyTypes) : null,
                 Points = SupportsPoints ? FromKey(_points) : null,
-                Categories = FromKey(_categories),
-                Tags = FromKey(_tags)
+                Categories = SupportsSources ? FromKey(_categories) : null,
+                Tags = SupportsSources ? FromKey(_tags) : null
             };
 
             if (_saveGame != null)
