@@ -237,6 +237,29 @@ namespace PlayniteAchievements.Services.Metadata
         }
 
         /// <summary>
+        /// Replaces the id of an automatic link that the source extended, keeping its label and
+        /// pairings; a user's link, a stored no-match or a missing link is left alone.
+        /// </summary>
+        public bool ExtendAuto(Guid gameId, string sourceKey, string id)
+        {
+            if (string.IsNullOrWhiteSpace(id))
+            {
+                return false;
+            }
+
+            return Write(gameId, sourceKey, existing => existing == null || existing.IsUserSet || string.IsNullOrWhiteSpace(existing.Id)
+                ? null
+                : new MetadataLinkData
+                {
+                    Id = id.Trim(),
+                    Label = existing.Label,
+                    Pairings = existing.Pairings == null
+                        ? null
+                        : new Dictionary<string, string>(existing.Pairings, StringComparer.OrdinalIgnoreCase)
+                });
+        }
+
+        /// <summary>
         /// Records that the source's own matching found no page for the game, unless the user set
         /// this link, so later refreshes do not look again; <see cref="Clear"/> lets matching retry.
         /// </summary>
