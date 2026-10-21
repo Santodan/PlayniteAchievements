@@ -315,6 +315,8 @@ namespace PlayniteAchievements.Views.Settings.Metadata
         /// Off, or each source that supplies <paramref name="field"/>. Every row offers the same
         /// sources: one native to the platform (PlayStation on PSN) is the platform's own data, so
         /// choosing it changes nothing, and SteamHunters on Steam is applied by the Steam scan.
+        /// Exophase's own-platform source is not offered: it applies by itself, rarity on the
+        /// platforms that use it (the Rarity column) and icons on EA and Ubisoft.
         /// </summary>
         private IReadOnlyList<ChoiceOption> BuildOptions(IReadOnlyList<IMetadataProvider> providers, MetadataField field)
         {
@@ -323,7 +325,8 @@ namespace PlayniteAchievements.Views.Settings.Metadata
                 new ChoiceOption(string.Empty, ResourceProvider.GetString("LOCPlayAch_Settings_Override_Off"))
             };
             options.AddRange(providers
-                .Where(provider => (provider.SupportedFields & field) != 0)
+                .Where(provider => (provider.SupportedFields & field) != 0 &&
+                                   !string.Equals(provider.Key, MetadataChoices.Exophase, StringComparison.OrdinalIgnoreCase))
                 .Select(provider => new ChoiceOption(provider.Key, ResourceProvider.GetString(provider.DisplayNameKey))));
             return WithDefault(options);
         }
