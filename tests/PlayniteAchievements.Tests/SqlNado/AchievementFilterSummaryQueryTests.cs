@@ -259,11 +259,12 @@ namespace PlayniteAchievements.SqlNado.Tests
         {
             var reader = File.ReadAllText(FindRepoFile("source", "Services", "Database", "SummaryCacheReader.cs"));
             var predicateCount = CountOccurrences(reader, "NOT EXISTS (SELECT 1 FROM AchievementOverrides ao");
-            Assert.AreEqual(4, predicateCount, "All four summary queries must carry the AchievementOverrides anti-join.");
+            // Four summary queries, the tag totals and the tagged-achievement states.
+            Assert.AreEqual(6, predicateCount, "All six summary queries must carry the AchievementOverrides anti-join.");
             // The mirror now also holds rows that only carry points or trophy type. Without the
             // flag test those rows would silently drop an achievement from every summary.
             Assert.AreEqual(
-                4,
+                6,
                 CountOccurrences(reader, "AND (ao.IsFiltered = 1 OR ao.IsSummaryFiltered = 1))"),
                 "Each anti-join must test the filter flags, not merely the row's presence.");
             // The user-editable fields aggregates read must resolve the override first.
