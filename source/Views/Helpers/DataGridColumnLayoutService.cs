@@ -2128,6 +2128,8 @@ namespace PlayniteAchievements.Views.Helpers
             }
 
             var menu = new ContextMenu();
+            // The column switches are read whole, not searched for.
+            SelectorSearch.SetIsDisabled(menu, true);
             var hasColumnSection = AddColumnSection(menu, contextColumn);
             var separatorIndex = menu.Items.Count;
             var hasVisibilitySection = AddVisibilitySection(menu);
