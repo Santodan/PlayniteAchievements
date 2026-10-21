@@ -64,7 +64,6 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         public const string CategoryArtLabelKey = "LOCPlayAch_Column_CategoryArt";
         public const string NotificationsLabelKey = "LOCNotifications";
         public const string ProviderOverrideLabelKey = "LOCPlayAch_ManageAchievements_Overrides_ProviderHeader";
-        public const string ExophaseEnrichmentLabelKey = "LOCPlayAch_ManageAchievements_Overrides_ExophaseEnrichmentHeader";
         public const string SeparateLockedIconsLabelKey = "LOCPlayAch_ManageAchievements_Overrides_LockedIconsHeader";
 
         public static ManageOverviewBreakdown BuildBreakdown(IEnumerable<AchievementDetail> achievements)
@@ -294,7 +293,6 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 HasText(data.ShadPS4MatchIdOverride) ||
                 data.ForceUseExophase == true ||
                 HasText(data.ExophaseSlugOverride));
-            AddFlag(result, ExophaseEnrichmentLabelKey, HasText(data.ExophaseEnrichmentSlugOverride));
             AddFlag(result, SeparateLockedIconsLabelKey, data.UseSeparateLockedIconsOverride == true);
 
             return result;

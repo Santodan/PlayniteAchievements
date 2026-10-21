@@ -29,11 +29,34 @@ namespace PlayniteAchievements.Tests.Models
         [TestMethod]
         public void SteamHuntersMode_BecomesSteamCategoryChoice()
         {
-            Assert.AreEqual("Override", SteamMode(@"{ ""SteamHuntersCategoryMode"": ""Override"" }"));
-            Assert.AreEqual("Merge", SteamMode(@"{ ""UseSteamHuntersForCategories"": true }"));
-            Assert.IsNull(SteamMode(@"{ ""UseSteamHuntersForCategories"": false }"));
+            Assert.AreEqual("SteamHunters", SteamCategories(@"{ ""SteamHuntersCategoryMode"": ""Override"" }"));
+            Assert.AreEqual("SteamHunters", SteamCategories(@"{ ""SteamHuntersCategoryMode"": ""Merge"" }"));
+            Assert.IsNull(SteamCategories(@"{ ""SteamHuntersCategoryMode"": ""Off"" }"));
+            Assert.AreEqual("SteamHunters", SteamCategories(@"{ ""UseSteamHuntersForCategories"": true }"));
+            Assert.IsNull(SteamCategories(@"{ ""UseSteamHuntersForCategories"": false }"));
             // Merge was the setting's default, so a config that never saved it keeps SteamHunters.
-            Assert.AreEqual("Merge", SteamMode(@"{ }"));
+            Assert.AreEqual("SteamHunters", SteamCategories(@"{ }"));
+        }
+
+        [TestMethod]
+        public void CategoryChoices_AreCopiedIntoTags_Once()
+        {
+            const string json = @"{ ""Persisted"": {
+                ""MetadataChoicesSeeded"": true,
+                ""MetadataDefaults"": { ""Categories"": """" },
+                ""MetadataPlatformChoices"": {
+                    ""Steam"": { ""Categories"": ""SteamHunters"" },
+                    ""Xbox"": { ""Rarity"": ""Exophase"" },
+                    ""GOG"": { ""Categories"": ""SteamHunters"", ""Tags"": """" } } } }";
+
+            var migrated = MetadataSettingsMigration.MigrateFromJson(json);
+            var persisted = (JObject)JObject.Parse(migrated)["Persisted"];
+            Assert.AreEqual("", (string)persisted["MetadataDefaults"]["Tags"]);
+            Assert.AreEqual("SteamHunters", (string)persisted["MetadataPlatformChoices"]["Steam"]["Tags"]);
+            Assert.IsNull(persisted["MetadataPlatformChoices"]["Xbox"]["Tags"]);
+            Assert.AreEqual("", (string)persisted["MetadataPlatformChoices"]["GOG"]["Tags"]);
+            Assert.IsTrue((bool)persisted["MetadataTagChoicesSeeded"]);
+            Assert.AreEqual(migrated, MetadataSettingsMigration.MigrateFromJson(migrated));
         }
 
         [TestMethod]
@@ -49,17 +72,12 @@ namespace PlayniteAchievements.Tests.Models
             Assert.AreEqual(migrated, MetadataSettingsMigration.MigrateFromJson(migrated));
         }
 
-        private static string SteamMode(string steamJson)
+        private static string SteamCategories(string steamJson)
         {
             var persisted = Migrate(@"{ ""ProviderSettings"": { ""Steam"": " + steamJson + " } }");
             var steam = persisted["MetadataPlatformChoices"]?["Steam"];
-            if (steam == null)
-            {
-                return null;
-            }
-
-            Assert.AreEqual("SteamHunters", (string)steam["Categories"]);
-            return (string)steam["CategoryMode"];
+            Assert.IsNull(steam?["CategoryMode"]);
+            return (string)steam?["Categories"];
         }
 
         private static JObject Migrate(string persistedJson)

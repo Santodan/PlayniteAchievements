@@ -196,14 +196,19 @@
                                             ToolTip="{DynamicResource LOCPlayAch_ManageAchievements_Tags_MakeGlobal}"
                                             Style="{StaticResource TagIconButtonStyle}"
                                             Visibility="{Binding CanMakeGlobal, Converter={StaticResource TagEditorBoolToVisibility}}"/>
-                                    <!-- System tags carry behavior, so they can be renamed and recolored
-                                         but not removed; a lock stands where Remove would be. -->
+                                    <!-- System tags carry behavior, and a game's fetched tags come back with
+                                         its data, so both can be renamed and recolored but not removed; a
+                                         lock stands where Remove would be. -->
                                     <Button Command="{Binding DeleteCommand}">
                                         <Button.Style>
                                             <Style TargetType="Button" BasedOn="{StaticResource TagIconButtonStyle}">
                                                 <Setter Property="Content" Value="&#xEC53;"/>
                                                 <Setter Property="ToolTip" Value="{DynamicResource LOCRemoveTitle}"/>
                                                 <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding IsFetched}" Value="True">
+                                                        <Setter Property="Content" Value="&#xEC61;"/>
+                                                        <Setter Property="ToolTip" Value="{DynamicResource LOCPlayAch_ManageAchievements_Tags_FetchedHint}"/>
+                                                    </DataTrigger>
                                                     <DataTrigger Binding="{Binding IsSystem}" Value="True">
                                                         <Setter Property="Content" Value="&#xEC61;"/>
                                                         <Setter Property="ToolTip" Value="{DynamicResource LOCPlayAch_Common_BuiltInTagHint}"/>

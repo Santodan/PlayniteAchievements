@@ -590,7 +590,7 @@ namespace PlayniteAchievements.Services.Tests
         }
 
         [TestMethod]
-        public void NormalizeInternal_ExophaseEnrichmentSlugOverride_TrimsAndKeepsField()
+        public void NormalizeInternal_ExophaseEnrichmentSlugOverride_MovesToTheExophaseLink()
         {
             var gameId = Guid.NewGuid();
             var normalized = GameCustomDataNormalizer.NormalizeInternal(
@@ -601,7 +601,8 @@ namespace PlayniteAchievements.Services.Tests
                 },
                 gameId);
 
-            Assert.AreEqual("guitar-hero-hits-xbox-360", normalized.ExophaseEnrichmentSlugOverride);
+            Assert.IsNull(normalized.ExophaseEnrichmentSlugOverride);
+            Assert.AreEqual("guitar-hero-hits-xbox-360", normalized.MetadataLinks["Exophase"].Id);
             Assert.IsNull(normalized.ProviderOverride);
             Assert.IsTrue(GameCustomDataNormalizer.HasVisibleCustomization(normalized));
             Assert.IsTrue(GameCustomDataNormalizer.HasInternalData(normalized));
@@ -624,7 +625,7 @@ namespace PlayniteAchievements.Services.Tests
         }
 
         [TestMethod]
-        public void NormalizeInternal_LegacyExophaseMigration_LeavesEnrichmentSlugAlone()
+        public void NormalizeInternal_LegacyExophaseMigration_MovesTheEnrichmentSlugToItsLink()
         {
             var gameId = Guid.NewGuid();
             var normalized = GameCustomDataNormalizer.NormalizeInternal(
@@ -640,7 +641,7 @@ namespace PlayniteAchievements.Services.Tests
             Assert.AreEqual("Exophase", normalized.ProviderOverride.ProviderKey);
             Assert.AreEqual("legacy-slug", normalized.ProviderOverride.Value);
             Assert.IsNull(normalized.ExophaseSlugOverride);
-            Assert.AreEqual("enrichment-slug", normalized.ExophaseEnrichmentSlugOverride);
+            Assert.AreEqual("enrichment-slug", normalized.MetadataLinks["Exophase"].Id);
         }
 
         [TestMethod]

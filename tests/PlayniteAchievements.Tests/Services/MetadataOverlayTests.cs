@@ -124,7 +124,7 @@ namespace PlayniteAchievements.Tests.Services
             var saved = new List<(string Label, string ImageUrl)>();
             var overlay = Overlay(
                 new[] { source },
-                Choices(categories: MetadataCategoryMode.Override),
+                Choices(categories: "SteamHunters"),
                 (gameId, art, ct) =>
                 {
                     saved.AddRange(art);
@@ -427,42 +427,41 @@ namespace PlayniteAchievements.Tests.Services
         }
 
         [TestMethod]
-        public async Task Categories_MergeKeepsProviderNamedCategory_AndAddsKindAndTags()
+        public async Task Categories_ReplaceProviderCategory_AndKeepItsTags()
         {
-            var hunters = new FakeSource("SteamHunters", MetadataField.Categories) { Mode = MetadataCategoryMode.Merge };
-            hunters.Rows.Add(Row("A", "One", category: "Story", type: "Missable"));
-            hunters.Rows.Add(Row("B", "Two", category: "DLC Pack", type: "DLC"));
-            var named = Row("e1", "One", category: "Chapter 1");
-            var plain = Row("e2", "Two");
-            var data = Game("Epic", named, plain);
-            var overlay = Overlay(new[] { hunters }, Choices(categories: hunters.Mode));
-
-            using (var run = overlay.BeginRun())
-            {
-                await run.ApplyAsync(data.Game, data, CancellationToken.None);
-            }
-
-            Assert.AreEqual("Chapter 1", named.Category);
-            StringAssert.Contains(named.Tags, "Missable");
-            Assert.AreEqual("DLC Pack", plain.Category);
-            Assert.AreEqual("DLC", plain.CategoryKind);
-        }
-
-        [TestMethod]
-        public async Task Categories_OverrideReplacesProviderCategory()
-        {
-            var hunters = new FakeSource("SteamHunters", MetadataField.Categories) { Mode = MetadataCategoryMode.Override };
-            hunters.Rows.Add(Row("A", "One", category: "Story"));
+            var hunters = new FakeSource("SteamHunters", MetadataField.Categories | MetadataField.Tags);
+            hunters.Rows.Add(Row("A", "One", category: "Story", type: "DLC|Multiplayer"));
             var named = Row("e1", "One", category: "Chapter 1", type: "Missable");
             var data = Game("Epic", named);
 
-            using (var run = Overlay(new[] { hunters }, Choices(categories: hunters.Mode)).BeginRun())
+            using (var run = Overlay(new[] { hunters }, Choices(categories: hunters.Key)).BeginRun())
             {
                 await run.ApplyAsync(data.Game, data, CancellationToken.None);
             }
 
             Assert.AreEqual("Story", named.Category);
-            Assert.IsFalse((named.Tags ?? string.Empty).Contains("Missable"));
+            Assert.AreEqual("DLC", named.CategoryKind);
+            Assert.AreEqual("Missable", named.Tags);
+        }
+
+        [TestMethod]
+        public async Task Tags_ReplaceProviderTags_AndKeepItsCategory()
+        {
+            var hunters = new FakeSource("SteamHunters", MetadataField.Categories | MetadataField.Tags);
+            hunters.Rows.Add(Row("A", "One", category: "Story", type: "Multiplayer"));
+            var named = Row("e1", "One", category: "Chapter 1", type: "Missable|Hardcore");
+            var data = Game("Epic", named);
+
+            using (var run = Overlay(new[] { hunters }, Choices(tags: hunters.Key)).BeginRun())
+            {
+                await run.ApplyAsync(data.Game, data, CancellationToken.None);
+            }
+
+            Assert.AreEqual("Chapter 1", named.Category);
+            // The source's tags replace the provider's; the unlock mode stays.
+            CollectionAssert.AreEquivalent(
+                new[] { "Multiplayer", "Hardcore" },
+                PlayniteAchievements.Services.Achievements.AchievementTagHelper.Parse(named.Tags));
         }
 
         [TestMethod]
@@ -505,7 +504,7 @@ namespace PlayniteAchievements.Tests.Services
         public async Task SharedIds_MatchAcrossLanguages_AndCoverageIsRecorded()
         {
             // German platform titles, English Steam titles: only the reused IDs can pair them.
-            var hunters = new FakeSource("SteamHunters", MetadataField.Categories) { Mode = MetadataCategoryMode.Override, IdsMayBeShared = true };
+            var hunters = new FakeSource("SteamHunters", MetadataField.Categories) { IdsMayBeShared = true };
             hunters.Rows.Add(Row("ACH_DRAGON", "Dragon Slayer", category: "Story"));
             hunters.Rows.Add(Row("ACH_COINS", "Collector", category: "Collectibles"));
             hunters.Rows.Add(Row("ACH_EXTRA", "Extra", category: "DLC"));
@@ -513,7 +512,7 @@ namespace PlayniteAchievements.Tests.Services
             var coins = Row("ACH_COINS", "Sammler");
             var unknown = Row("GOG_ONLY", "Nur auf GOG");
             var data = Game("GOG", dragon, coins, unknown);
-            var overlay = Overlay(new[] { hunters }, Choices(categories: hunters.Mode));
+            var overlay = Overlay(new[] { hunters }, Choices(categories: hunters.Key));
 
             using (var run = overlay.BeginRun())
             {
@@ -531,7 +530,7 @@ namespace PlayniteAchievements.Tests.Services
         [TestMethod]
         public async Task LowIdOverlap_FallsBackToTitles()
         {
-            var hunters = new FakeSource("SteamHunters", MetadataField.Categories) { Mode = MetadataCategoryMode.Override, IdsMayBeShared = true };
+            var hunters = new FakeSource("SteamHunters", MetadataField.Categories) { IdsMayBeShared = true };
             hunters.Rows.Add(Row("ACH_ONE", "One", category: "Story"));
             hunters.Rows.Add(Row("ACH_TWO", "Two", category: "Side"));
             // One of three distinctive IDs coincides (33%), under the threshold; "ACH_TWO" names a
@@ -541,7 +540,7 @@ namespace PlayniteAchievements.Tests.Services
             var three = Row("e_three", "Two");
             var data = Game("Epic", one, two, three);
 
-            using (var run = Overlay(new[] { hunters }, Choices(categories: hunters.Mode)).BeginRun())
+            using (var run = Overlay(new[] { hunters }, Choices(categories: hunters.Key)).BeginRun())
             {
                 await run.ApplyAsync(data.Game, data, CancellationToken.None);
             }
@@ -555,12 +554,12 @@ namespace PlayniteAchievements.Tests.Services
         public async Task NameFoundLink_WithFewMatches_IsNeitherKeptNorUsed()
         {
             // "Thief: Definitive Edition" found as "Thief Gold": a different game's achievements.
-            var hunters = new FakeSource("SteamHunters", MetadataField.Categories) { Mode = MetadataCategoryMode.Override, FoundByName = true };
+            var hunters = new FakeSource("SteamHunters", MetadataField.Categories) { FoundByName = true };
             hunters.Rows.Add(Row("A", "Keeper of Secrets", category: "Story"));
             var first = Row("g1", "Ghost");
             var second = Row("g2", "Opportunist");
             var data = Game("GOG", first, second);
-            var overlay = Overlay(new[] { hunters }, Choices(categories: hunters.Mode));
+            var overlay = Overlay(new[] { hunters }, Choices(categories: hunters.Key));
 
             using (var run = overlay.BeginRun())
             {
@@ -574,11 +573,11 @@ namespace PlayniteAchievements.Tests.Services
         [TestMethod]
         public async Task NameFoundLink_ThatMatches_IsKept()
         {
-            var hunters = new FakeSource("SteamHunters", MetadataField.Categories) { Mode = MetadataCategoryMode.Override, FoundByName = true };
+            var hunters = new FakeSource("SteamHunters", MetadataField.Categories) { FoundByName = true };
             hunters.Rows.Add(Row("A", "Ghost", category: "Story"));
             hunters.Rows.Add(Row("B", "Opportunist", category: "Side"));
             var data = Game("GOG", Row("g1", "Ghost"), Row("g2", "Opportunist"));
-            var overlay = Overlay(new[] { hunters }, Choices(categories: hunters.Mode));
+            var overlay = Overlay(new[] { hunters }, Choices(categories: hunters.Key));
 
             using (var run = overlay.BeginRun())
             {
@@ -601,14 +600,80 @@ namespace PlayniteAchievements.Tests.Services
         }
 
         [TestMethod]
+        public async Task FailedFetch_KeepsTheStoredValues_NotTheProvidersOwn()
+        {
+            var hunters = new FakeSource("SteamHunters", MetadataField.Categories | MetadataField.Tags) { FailFetch = true };
+            var data = Game("Epic", Row("e1", "One", category: "Own", type: "Hardcore"), Row("e2", "Two"));
+            var stored = Game("Epic", Row("e1", "One", category: "Story", type: "DLC|Missable"), Row("e2", "Two", category: "Side"));
+            var overlay = Overlay(new[] { hunters }, Choices(categories: hunters.Key, tags: hunters.Key), loadStored: _ => stored);
+            overlay.Links.SetUser(data.PlayniteGameId.Value, hunters.Key, "link-SteamHunters");
+
+            using (var run = overlay.BeginRun())
+            {
+                await run.ApplyAsync(data.Game, data, CancellationToken.None);
+            }
+
+            Assert.AreEqual("Story", data.Achievements[0].Category);
+            Assert.AreEqual("DLC", data.Achievements[0].CategoryKind);
+            CollectionAssert.AreEquivalent(
+                new[] { "Missable", "Hardcore" },
+                PlayniteAchievements.Services.Achievements.AchievementTagHelper.Parse(data.Achievements[0].Tags),
+                "the stored tags, with this refresh's unlock mode");
+            Assert.AreEqual("Side", data.Achievements[1].Category);
+        }
+
+        [TestMethod]
+        public async Task Rarity_TakesTheSourcesShare_OnPlatformsThatUseIt()
+        {
+            var exophase = new FakeSource("Exophase", MetadataField.Rarity);
+            var rare = Row("x1", "One");
+            rare.GlobalPercentUnlocked = 3.5;
+            exophase.Rows.Add(rare);
+            exophase.Rows.Add(Row("x2", "Two"));
+            var settings = Choices();
+            settings.MetadataDefaults.Rarity = "Exophase";
+            var xbox = Game("Xbox", Row("a1", "One"), Row("a2", "Two"));
+            xbox.Achievements[1].Rarity = RarityTier.Rare;
+            var epic = Game("Epic", Row("e1", "One"));
+
+            using (var run = Overlay(new[] { exophase }, settings).BeginRun())
+            {
+                await run.ApplyAsync(xbox.Game, xbox, CancellationToken.None);
+                await run.ApplyAsync(epic.Game, epic, CancellationToken.None);
+            }
+
+            Assert.AreEqual(3.5, xbox.Achievements[0].GlobalPercentUnlocked);
+            Assert.AreEqual(PercentRarityHelper.GetRarityTier(3.5), xbox.Achievements[0].Rarity);
+            Assert.AreEqual(RarityTier.Rare, xbox.Achievements[1].Rarity, "no share keeps the platform's tier");
+            Assert.IsNull(epic.Achievements[0].GlobalPercentUnlocked, "Epic does not take Exophase rarity");
+        }
+
+        [TestMethod]
+        public async Task NoMatch_IsNotAFailure_AndKeepsNothing()
+        {
+            var hunters = new FakeSource("SteamHunters", MetadataField.Categories) { FoundByName = true };
+            hunters.Rows.Add(Row("A", "Unrelated", category: "Story"));
+            var data = Game("Epic", Row("e1", "One"));
+            var stored = Game("Epic", Row("e1", "One", category: "Old"));
+            var overlay = Overlay(new[] { hunters }, Choices(categories: hunters.Key), loadStored: _ => stored);
+
+            using (var run = overlay.BeginRun())
+            {
+                await run.ApplyAsync(data.Game, data, CancellationToken.None);
+            }
+
+            Assert.IsNull(data.Achievements[0].Category);
+        }
+
+        [TestMethod]
         public async Task PlatformChoice_OverridesTheDefaults()
         {
             var hunters = new FakeSource("SteamHunters", MetadataField.Categories);
             hunters.Rows.Add(Row("A", "One", category: "Story"));
-            var settings = new PersistedSettings();
+            var settings = Choices();
             settings.MetadataPlatformChoices = new Dictionary<string, MetadataChoices>
             {
-                ["Xbox"] = new MetadataChoices { Categories = "SteamHunters", CategoryMode = MetadataCategoryMode.Override }
+                ["Xbox"] = new MetadataChoices { Categories = "SteamHunters" }
             };
             var xbox = Game("Xbox", Row("x1", "One"));
             var epic = Game("Epic", Row("e1", "One"));
@@ -625,7 +690,8 @@ namespace PlayniteAchievements.Tests.Services
 
         private static PersistedSettings Choices(
             string icons = null,
-            MetadataCategoryMode? categories = null,
+            string categories = null,
+            string tags = null,
             string capstoneArt = null,
             string trophyTypes = null,
             string points = null)
@@ -634,8 +700,8 @@ namespace PlayniteAchievements.Tests.Services
             settings.MetadataDefaults = new MetadataChoices
             {
                 Icons = icons ?? string.Empty,
-                Categories = categories.HasValue ? "SteamHunters" : string.Empty,
-                CategoryMode = categories ?? MetadataCategoryMode.Merge,
+                Categories = categories ?? string.Empty,
+                Tags = tags ?? string.Empty,
                 Rarity = string.Empty,
                 CapstoneArt = capstoneArt ?? string.Empty,
                 TrophyTypes = trophyTypes ?? string.Empty,
@@ -647,14 +713,16 @@ namespace PlayniteAchievements.Tests.Services
         private MetadataOverlay Overlay(
             IReadOnlyList<IMetadataProvider> providers,
             PersistedSettings settings,
-            CategoryArtDownload downloadCategoryArt = null)
+            CategoryArtDownload downloadCategoryArt = null,
+            Func<Guid, GameAchievementData> loadStored = null)
         {
             return new MetadataOverlay(
                 () => providers,
                 () => settings,
                 new MetadataLinkStore(_directory, new GameCustomDataStore(_directory), null),
                 null,
-                downloadCategoryArt);
+                downloadCategoryArt,
+                loadStored);
         }
 
         private static GameAchievementData Game(string providerKey, params AchievementDetail[] rows)
@@ -705,12 +773,12 @@ namespace PlayniteAchievements.Tests.Services
 
             public MetadataField SupportedFields { get; }
 
-            /// <summary>The category mode the test's settings choose for this source.</summary>
-            public MetadataCategoryMode Mode { get; set; }
-
             public bool IdsMayBeShared { get; set; }
 
             public bool FoundByName { get; set; }
+
+            /// <summary>The fetch throws, as a source does when its site cannot be reached.</summary>
+            public bool FailFetch { get; set; }
 
             public string NativeFor { get; set; }
 
@@ -744,6 +812,11 @@ namespace PlayniteAchievements.Tests.Services
             public Task<AchievementSourceSet> FetchAsync(MetadataLinkRequest request, string linkId, CancellationToken ct)
             {
                 FetchCount++;
+                if (FailFetch)
+                {
+                    throw new InvalidOperationException("unreachable");
+                }
+
                 var set = new AchievementSourceSet(Key, linkId, Rows) { ApiNamesMayBeShared = IdsMayBeShared };
                 foreach (var art in CategoryArt)
                 {

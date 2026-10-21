@@ -1,7 +1,6 @@
 using System;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
-using PlayniteAchievements.Providers.Metadata;
 
 namespace PlayniteAchievements.Models.Settings
 {
@@ -10,7 +9,10 @@ namespace PlayniteAchievements.Models.Settings
     /// gated by <see cref="PersistedSettings.MetadataChoicesSeeded"/>. Each provider's
     /// UseExophaseForRarity becomes its Rarity choice, and the Steam SteamHuntersCategoryMode (or its
     /// older UseSteamHuntersForCategories checkbox) becomes Steam's Categories choice. Choices the
-    /// config already holds are kept. Runs before deserialization so the writes persist.
+    /// config already holds are kept. A second step, gated by
+    /// <see cref="PersistedSettings.MetadataTagChoicesSeeded"/>, copies each Categories choice into
+    /// Tags, since a category source supplied the tags too until tags got a choice of their own.
+    /// Runs before deserialization so the writes persist.
     /// </summary>
     public static class MetadataSettingsMigration
     {
@@ -24,9 +26,14 @@ namespace PlayniteAchievements.Models.Settings
             try
             {
                 var root = JObject.Parse(json);
-                return root["Persisted"] is JObject persisted && Seed(persisted)
-                    ? root.ToString(Formatting.None)
-                    : json;
+                if (!(root["Persisted"] is JObject persisted))
+                {
+                    return json;
+                }
+
+                var seeded = Seed(persisted);
+                var tagsSeeded = SeedTags(persisted);
+                return seeded || tagsSeeded ? root.ToString(Formatting.None) : json;
             }
             catch (Exception)
             {
@@ -62,14 +69,37 @@ namespace PlayniteAchievements.Models.Settings
                     useExophase ? MetadataChoices.Exophase : string.Empty);
             }
 
-            var mode = ReadSteamHuntersMode(FindProperty(providers, "Steam"));
-            if (mode != MetadataCategoryMode.Off)
+            if (UsedSteamHunters(FindProperty(providers, "Steam")))
             {
-                var steam = Platform(platforms, "Steam");
-                if (steam[nameof(MetadataChoices.Categories)] == null)
+                SetIfAbsent(Platform(platforms, "Steam"), nameof(MetadataChoices.Categories), MetadataChoices.SteamHunters);
+            }
+
+            persisted[flagName] = true;
+            return true;
+        }
+
+        private static bool SeedTags(JObject persisted)
+        {
+            const string flagName = nameof(PersistedSettings.MetadataTagChoicesSeeded);
+            var flag = persisted[flagName];
+            if (flag != null && flag.Type == JTokenType.Boolean && flag.Value<bool>())
+            {
+                return false;
+            }
+
+            CopyCategoriesToTags(persisted[nameof(PersistedSettings.MetadataDefaults)] as JObject);
+            if (persisted[nameof(PersistedSettings.MetadataPlatformChoices)] is JObject platforms)
+            {
+                foreach (var property in platforms.Properties())
                 {
-                    steam[nameof(MetadataChoices.Categories)] = MetadataChoices.SteamHunters;
-                    steam[nameof(MetadataChoices.CategoryMode)] = mode.ToString();
+                    CopyCategoriesToTags(property.Value as JObject);
+                }
+
+                // EA games took Exophase's icons along with its rarity before icons had a choice there.
+                var ea = FindProperty(platforms, "EA");
+                if (ea != null && string.Equals((string)ea[nameof(MetadataChoices.Rarity)], MetadataChoices.Exophase, StringComparison.OrdinalIgnoreCase))
+                {
+                    SetIfAbsent(ea, nameof(MetadataChoices.Icons), MetadataChoices.Exophase);
                 }
             }
 
@@ -77,31 +107,35 @@ namespace PlayniteAchievements.Models.Settings
             return true;
         }
 
+        private static void CopyCategoriesToTags(JObject choices)
+        {
+            var categories = choices?[nameof(MetadataChoices.Categories)];
+            if (categories?.Type == JTokenType.String)
+            {
+                SetIfAbsent(choices, nameof(MetadataChoices.Tags), categories.Value<string>());
+            }
+        }
+
         /// <summary>
-        /// The saved mode; the older checkbox maps checked to Merge and unchecked to Off; Merge, the
-        /// setting's default, when neither is saved.
+        /// Whether the saved SteamHuntersCategoryMode (Off = 0, Merge = 1, Override = 2) or the older
+        /// UseSteamHuntersForCategories checkbox turned SteamHunters on; on, the setting's default,
+        /// when neither is saved.
         /// </summary>
-        private static MetadataCategoryMode ReadSteamHuntersMode(JObject steam)
+        private static bool UsedSteamHunters(JObject steam)
         {
             var mode = steam?["SteamHuntersCategoryMode"];
-            if (mode?.Type == JTokenType.String &&
-                Enum.TryParse(mode.Value<string>(), ignoreCase: true, out MetadataCategoryMode parsed))
+            if (mode?.Type == JTokenType.String)
             {
-                return parsed;
+                return !string.Equals(mode.Value<string>(), "Off", StringComparison.OrdinalIgnoreCase);
             }
 
-            if (mode?.Type == JTokenType.Integer && Enum.IsDefined(typeof(MetadataCategoryMode), mode.Value<int>()))
+            if (mode?.Type == JTokenType.Integer)
             {
-                return (MetadataCategoryMode)mode.Value<int>();
+                return mode.Value<int>() != 0;
             }
 
             var legacy = steam?["UseSteamHuntersForCategories"];
-            if (legacy?.Type == JTokenType.Boolean)
-            {
-                return legacy.Value<bool>() ? MetadataCategoryMode.Merge : MetadataCategoryMode.Off;
-            }
-
-            return MetadataCategoryMode.Merge;
+            return legacy?.Type != JTokenType.Boolean || legacy.Value<bool>();
         }
 
         private static JObject Platform(JObject platforms, string key)

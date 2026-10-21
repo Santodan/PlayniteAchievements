@@ -96,43 +96,34 @@ namespace PlayniteAchievements.Providers.Xbox
                     return new RebuildPayload { Summary = new RebuildSummary(), AuthRequired = true };
                 }
 
-                var rarityEnricher = await CreateRarityEnricherAsync(cancel).ConfigureAwait(false);
-
                 var rateLimiter = new RateLimiter(
                     _settings.Persisted.ScanDelayMs,
                     _settings.Persisted.MaxRetryAttempts);
 
-                try
-                {
-                    return await ProviderRefreshExecutor.RunProviderGamesAsync(
-                        gamesToRefresh,
-                        onGameStarting,
-                        async (game, token) =>
-                        {
-                            var data = await rateLimiter.ExecuteWithRetryAsync(
-                                () => FetchGameDataAsync(game, authData, xuid, rarityEnricher, token),
-                                IsTransientError,
-                                token).ConfigureAwait(false);
+                return await ProviderRefreshExecutor.RunProviderGamesAsync(
+                    gamesToRefresh,
+                    onGameStarting,
+                    async (game, token) =>
+                    {
+                        var data = await rateLimiter.ExecuteWithRetryAsync(
+                            () => FetchGameDataAsync(game, authData, xuid, token),
+                            IsTransientError,
+                            token).ConfigureAwait(false);
 
-                            return new ProviderRefreshExecutor.ProviderGameResult
-                            {
-                                Data = data
-                            };
-                        },
-                        onGameCompleted,
-                        isAuthRequiredException: ex => ex is XboxAuthRequiredException,
-                        onGameError: (game, ex, consecutiveErrors) =>
+                        return new ProviderRefreshExecutor.ProviderGameResult
                         {
-                            _logger?.Warn($"[XboxAch] Skipping game after retries: {game?.Name}. Consecutive errors={consecutiveErrors}. {ex.GetType().Name}: {ex.Message}");
-                        },
-                        delayBetweenGamesAsync: null,
-                        delayAfterErrorAsync: (consecutiveErrors, token) => rateLimiter.DelayAfterErrorAsync(consecutiveErrors, token),
-                        cancel).ConfigureAwait(false);
-                }
-                finally
-                {
-                    rarityEnricher?.Dispose();
-                }
+                            Data = data
+                        };
+                    },
+                    onGameCompleted,
+                    isAuthRequiredException: ex => ex is XboxAuthRequiredException,
+                    onGameError: (game, ex, consecutiveErrors) =>
+                    {
+                        _logger?.Warn($"[XboxAch] Skipping game after retries: {game?.Name}. Consecutive errors={consecutiveErrors}. {ex.GetType().Name}: {ex.Message}");
+                    },
+                    delayBetweenGamesAsync: null,
+                    delayAfterErrorAsync: (consecutiveErrors, token) => rateLimiter.DelayAfterErrorAsync(consecutiveErrors, token),
+                    cancel).ConfigureAwait(false);
             }
             catch (XboxAuthRequiredException)
             {
@@ -157,7 +148,6 @@ namespace PlayniteAchievements.Providers.Xbox
             Game game,
             AuthorizationData authData,
             string xuid,
-            ExophaseMetadataEnricher rarityEnricher,
             CancellationToken cancel)
         {
             cancel.ThrowIfCancellationRequested();
@@ -234,46 +224,14 @@ namespace PlayniteAchievements.Providers.Xbox
                 Achievements = achievements ?? new List<AchievementDetail>()
             };
 
-            await EnrichRarityAsync(game, data, xboxTitleName, rarityEnricher, achievementSource, cancel).ConfigureAwait(false);
+            // Xbox's own name for the title (the 360 endpoints carry none) and which Exophase
+            // platform its achievements are on, for the metadata sources that find its page.
+            data.MetadataHints = new MetadataHints
+            {
+                SearchName = xboxTitleName,
+                PlatformSlug = ResolveExophasePlatformSlug(game, achievementSource)
+            };
             return data;
-        }
-
-        private async Task<ExophaseMetadataEnricher> CreateRarityEnricherAsync(CancellationToken cancel)
-        {
-            if (_settings?.Persisted?.UsesExophaseRarity("Xbox") != true)
-            {
-                return null;
-            }
-
-            var enricher = new ExophaseMetadataEnricher(_playniteApi, _logger, _settings, _pluginUserDataPath);
-            await enricher.InitializeAsync(cancel).ConfigureAwait(false);
-            return enricher;
-        }
-
-        /// <param name="xboxTitleName">
-        /// The title's name as Xbox lists it, searched before the Playnite name; null when the
-        /// response carried none (the Xbox 360 endpoints do not).
-        /// </param>
-        private static async Task EnrichRarityAsync(
-            Game game,
-            GameAchievementData data,
-            string xboxTitleName,
-            ExophaseMetadataEnricher rarityEnricher,
-            XboxAchievementSource achievementSource,
-            CancellationToken cancel)
-        {
-            if (rarityEnricher == null || data?.Achievements == null || data.Achievements.Count == 0)
-            {
-                return;
-            }
-
-            await rarityEnricher.EnrichAsync(
-                game,
-                data.Achievements,
-                ResolveExophasePlatformSlug(game, achievementSource),
-                "Xbox",
-                cancel,
-                searchName: xboxTitleName).ConfigureAwait(false);
         }
 
         private async Task<string> ResolveTitleIdAsync(Game game, AuthorizationData authData, CancellationToken cancel)

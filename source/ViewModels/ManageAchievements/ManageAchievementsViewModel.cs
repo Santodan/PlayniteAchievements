@@ -110,8 +110,6 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         private bool _hasProviderOverride;
         private string _providerOverrideKey = ProviderOverrideNoneKey;
         private string _providerOverrideValue;
-        private string _exophaseEnrichmentSlugValue;
-        private bool _showsExophaseRarityLink;
         private bool _canExportCustomJson;
         private const string ManualProviderKey = "Manual";
 
@@ -865,21 +863,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                     currentCustomData?.UseSeparateLockedIconsOverride == true);
                 OnPropertyChanged(nameof(SeparateLockedIconsStatusText));
                 ReloadProviderOverrideState(currentCustomData);
-                ReloadExophaseEnrichmentSlugState(currentCustomData, game, gameData?.ProviderGameKey);
                 MetadataLinks.Load(HasGame ? _gameId : Guid.Empty, _cachedProviderKey);
-                if (_showsExophaseRarityLink)
-                {
-                    // The Exophase page rarity comes from, kept in its own field rather than the
-                    // metadata link store, shown as one more link row.
-                    MetadataLinks.AddRow(new MetadataLinkRow(
-                        L("LOCPlayAch_Provider_Exophase"),
-                        _exophaseEnrichmentSlugValue,
-                        "exophase-game-id",
-                        L("LOCPlayAch_Column_Rarity"),
-                        ApplyExophaseEnrichmentSlug,
-                        ClearExophaseEnrichmentSlug));
-                }
-
                 HasManualTrackingLink = hasManualLink;
                 ManualTrackingSummary = ManualAchievementsProvider.GetManageAchievementsLinkSummary(manualLink);
                 HasAchievementPageLink = HasGame && _achievementPageLinkResolver.CanResolve(
@@ -1123,71 +1107,6 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             {
                 Reload();
             }
-        }
-
-        private void ApplyExophaseEnrichmentSlug(string input)
-        {
-            if (string.IsNullOrWhiteSpace(input))
-            {
-                return;
-            }
-
-            if (!ExophaseApiClient.TryNormalizeSlugInput(input, out var slug))
-            {
-                _playniteApi?.Dialogs?.ShowMessage(
-                    L("LOCPlayAch_ManageAchievements_Overrides_ExophaseEnrichmentInvalid"),
-                    L("LOCPlayAch_Title_PluginName"),
-                    MessageBoxButton.OK,
-                    MessageBoxImage.Warning);
-                return;
-            }
-
-            if (TrySetExophaseEnrichmentSlug(slug))
-            {
-                Reload();
-            }
-        }
-
-        private void ClearExophaseEnrichmentSlug()
-        {
-            if (TrySetExophaseEnrichmentSlug(null))
-            {
-                Reload();
-            }
-        }
-
-        private bool TrySetExophaseEnrichmentSlug(string slug)
-        {
-            var game = _playniteApi?.Database?.Games?.Get(_gameId);
-            if (game == null)
-            {
-                return false;
-            }
-
-            if (_achievementOverridesService != null)
-            {
-                _achievementOverridesService.SetExophaseEnrichmentSlugOverride(_gameId, slug);
-            }
-            else
-            {
-                var store = _plugin?.GameCustomDataStore;
-                if (store == null)
-                {
-                    return false;
-                }
-
-                store.Update(_gameId, customData =>
-                {
-                    customData.ExophaseEnrichmentSlugOverride = string.IsNullOrWhiteSpace(slug) ? null : slug.Trim();
-                });
-            }
-
-            _persistSettingsForUi?.Invoke();
-            _logger?.Info(string.IsNullOrWhiteSpace(slug)
-                ? $"Cleared Exophase enrichment slug override for '{game.Name}'"
-                : $"Set Exophase enrichment slug override for '{game.Name}' to '{slug}'");
-            TriggerRefresh();
-            return true;
         }
 
         private void ExportCustom()
@@ -2037,19 +1956,6 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 _isLoadingProviderOverride = false;
                 OnProviderOverrideSelectionChanged();
             }
-        }
-
-        private void ReloadExophaseEnrichmentSlugState(
-            GameCustomDataFile currentCustomData,
-            Playnite.SDK.Models.Game game,
-            string providerGameKey)
-        {
-            _exophaseEnrichmentSlugValue = (currentCustomData?.ExophaseEnrichmentSlugOverride ?? string.Empty).Trim();
-
-            // Raw ProviderKey (not EffectiveProviderKey): Exophase-serviced games report their
-            // proxied platform as the effective key but never run the enricher.
-            _showsExophaseRarityLink =
-                HasGame && _settings?.Persisted?.UsesExophaseRarity(_cachedProviderKey) == true;
         }
 
         private void OnProviderOverrideSelectionChanged()

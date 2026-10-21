@@ -20,19 +20,8 @@ namespace PlayniteAchievements.Providers.Metadata
         CategoryArt = 8,
         CapstoneArt = 16,
         TrophyTypes = 32,
-        Points = 64
-    }
-
-    /// <summary>How a metadata source's categories combine with the servicing provider's.</summary>
-    public enum MetadataCategoryMode
-    {
-        Off = 0,
-
-        /// <summary>Categories the provider named are kept; the source categorizes the rest.</summary>
-        Merge = 1,
-
-        /// <summary>The source's categories replace the provider's.</summary>
-        Override = 2
+        Points = 64,
+        Tags = 128
     }
 
     /// <summary>
@@ -83,6 +72,17 @@ namespace PlayniteAchievements.Providers.Metadata
         Task<AchievementSourceSet> FetchAsync(MetadataLinkRequest request, string linkId, CancellationToken ct);
     }
 
+    /// <summary>
+    /// Several metadata sources that share one implementation, such as the Exophase pages of
+    /// different platforms. Discovered by reflection like a provider; each of its providers is
+    /// registered on its own. A provider type without a public constructor belongs to a family
+    /// and is not created by itself.
+    /// </summary>
+    internal interface IMetadataProviderFamily
+    {
+        IReadOnlyList<IMetadataProvider> Providers { get; }
+    }
+
     /// <summary>What a metadata provider knows about the game it is asked to link or fetch for.</summary>
     internal sealed class MetadataLinkRequest
     {
@@ -105,6 +105,20 @@ namespace PlayniteAchievements.Providers.Metadata
         /// try these after the Playnite name.
         /// </summary>
         public IReadOnlyList<string> AlternateNames { get; internal set; } = Array.Empty<string>();
+
+        /// <summary>
+        /// The category label for a source's base-game rows: the servicing provider's game name, as
+        /// that provider and SteamHunters label the base game; the Playnite name when it has none.
+        /// </summary>
+        public string BaseCategoryLabel
+        {
+            get
+            {
+                var name = PlayniteAchievements.Services.Achievements.CategoryPathHelper.SanitizeSegment(
+                    string.IsNullOrWhiteSpace(Data?.GameName) ? Game?.Name : Data.GameName);
+                return string.IsNullOrWhiteSpace(name) ? null : name.Trim();
+            }
+        }
 
         /// <summary>The Playnite name, then each alternate name.</summary>
         public IEnumerable<string> SearchNames =>

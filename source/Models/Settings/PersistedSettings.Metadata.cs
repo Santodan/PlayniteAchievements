@@ -15,6 +15,7 @@ namespace PlayniteAchievements.Models.Settings
         public const string Exophase = "Exophase";
         public const string PlayStation = "PlayStation";
         public const string Xbox = "Xbox";
+        public const string TrueGaming = "TrueGaming";
 
         /// <summary>Platforms whose scanners can take rarity from Exophase.</summary>
         public static readonly IReadOnlyCollection<string> ExophaseRarityProviders =
@@ -50,10 +51,11 @@ namespace PlayniteAchievements.Models.Settings
 
         public string Icons { get; set; }
 
+        /// <summary>The source whose categories replace the platform's own; empty keeps the platform's.</summary>
         public string Categories { get; set; }
 
-        /// <summary>How <see cref="Categories"/> combines with the platform's own; set alongside it.</summary>
-        public MetadataCategoryMode? CategoryMode { get; set; }
+        /// <summary>The source whose achievement tags replace the platform's own; empty keeps the platform's.</summary>
+        public string Tags { get; set; }
 
         public string Rarity { get; set; }
 
@@ -65,21 +67,22 @@ namespace PlayniteAchievements.Models.Settings
         public string Points { get; set; }
 
         public bool IsEmpty() =>
-            Icons == null && Categories == null && Rarity == null && CapstoneArt == null &&
+            Icons == null && Categories == null && Tags == null && Rarity == null && CapstoneArt == null &&
             TrophyTypes == null && Points == null;
 
         /// <summary>
-        /// Every field set: each platform's own icons and categories, Exophase rarity (which only
-        /// the platforms in <see cref="ExophaseRarityProviders"/> take) and the PlayStation
-        /// platinum for auto capstones where one matches.
+        /// Every field set: each platform's own icons, SteamHunters categories, TrueGaming tags,
+        /// Exophase rarity (which only the platforms in <see cref="ExophaseRarityProviders"/> take),
+        /// PlayStation trophy types and the platinum for auto capstones where one matches, and
+        /// Xbox points.
         /// </summary>
         public static MetadataChoices CreateDefaults()
         {
             return new MetadataChoices
             {
                 Icons = string.Empty,
-                Categories = string.Empty,
-                CategoryMode = MetadataCategoryMode.Merge,
+                Categories = SteamHunters,
+                Tags = TrueGaming,
                 Rarity = Exophase,
                 CapstoneArt = PlayStation,
                 TrophyTypes = PlayStation,
@@ -102,7 +105,7 @@ namespace PlayniteAchievements.Models.Settings
             var complete = stored.Clone();
             complete.Icons = complete.Icons ?? defaults.Icons;
             complete.Categories = complete.Categories ?? defaults.Categories;
-            complete.CategoryMode = complete.CategoryMode ?? defaults.CategoryMode;
+            complete.Tags = complete.Tags ?? defaults.Tags;
             complete.Rarity = complete.Rarity ?? defaults.Rarity;
             complete.CapstoneArt = complete.CapstoneArt ?? defaults.CapstoneArt;
             complete.TrophyTypes = complete.TrophyTypes ?? defaults.TrophyTypes;
@@ -115,7 +118,7 @@ namespace PlayniteAchievements.Models.Settings
             return other != null &&
                    Icons == other.Icons &&
                    Categories == other.Categories &&
-                   CategoryMode == other.CategoryMode &&
+                   Tags == other.Tags &&
                    Rarity == other.Rarity &&
                    CapstoneArt == other.CapstoneArt &&
                    TrophyTypes == other.TrophyTypes &&
@@ -128,7 +131,7 @@ namespace PlayniteAchievements.Models.Settings
             {
                 Icons = Icons,
                 Categories = Categories,
-                CategoryMode = CategoryMode,
+                Tags = Tags,
                 Rarity = Rarity,
                 CapstoneArt = CapstoneArt,
                 TrophyTypes = TrophyTypes,
@@ -144,6 +147,7 @@ namespace PlayniteAchievements.Models.Settings
         private Dictionary<string, MetadataChoices> _metadataPlatformChoices =
             new Dictionary<string, MetadataChoices>(StringComparer.OrdinalIgnoreCase);
         private bool _metadataChoicesSeeded = true;
+        private bool _metadataTagChoicesSeeded = true;
 
         public MetadataChoices MetadataDefaults
         {
@@ -170,6 +174,17 @@ namespace PlayniteAchievements.Models.Settings
         }
 
         /// <summary>
+        /// One-time copy of each stored Categories choice into Tags, which categories carried until
+        /// tags got their own choice. Defaults true so configs written by this build are never
+        /// re-seeded; the migration keys off the flag's absence.
+        /// </summary>
+        public bool MetadataTagChoicesSeeded
+        {
+            get => _metadataTagChoicesSeeded;
+            set => SetValue(ref _metadataTagChoicesSeeded, value);
+        }
+
+        /// <summary>
         /// The effective choices for a game: each field from the game's own choices where set,
         /// else its platform's override, else the defaults.
         /// </summary>
@@ -182,14 +197,14 @@ namespace PlayniteAchievements.Models.Settings
                 MetadataPlatformChoices?.TryGetValue(providerKey, out platform);
             }
 
-            // Categories and their mode come from the same level.
-            var categories = game?.Categories != null ? game : platform?.Categories != null ? platform : defaults;
             return new MetadataChoices
             {
                 Icons = game?.Icons ?? platform?.Icons ?? defaults.Icons ?? string.Empty,
-                Categories = categories.Categories ?? string.Empty,
-                CategoryMode = categories.CategoryMode ?? MetadataCategoryMode.Merge,
-                Rarity = platform?.Rarity ?? defaults.Rarity ?? string.Empty,
+                Categories = game?.Categories ?? platform?.Categories ?? defaults.Categories ?? string.Empty,
+                Tags = game?.Tags ?? platform?.Tags ?? defaults.Tags ?? string.Empty,
+                Rarity = !string.IsNullOrWhiteSpace(providerKey) && MetadataChoices.ExophaseRarityProviders.Contains(providerKey.Trim())
+                    ? platform?.Rarity ?? defaults.Rarity ?? string.Empty
+                    : string.Empty,
                 CapstoneArt = game?.CapstoneArt ?? platform?.CapstoneArt ?? defaults.CapstoneArt ?? string.Empty,
                 TrophyTypes = MetadataChoices.TakesTrophyTypes(providerKey)
                     ? game?.TrophyTypes ?? platform?.TrophyTypes ?? defaults.TrophyTypes ?? string.Empty
@@ -200,23 +215,21 @@ namespace PlayniteAchievements.Models.Settings
             };
         }
 
-        /// <summary>True when the platform can take rarity from Exophase and its choice turns that on.</summary>
-        public bool UsesExophaseRarity(string providerKey)
-        {
-            return !string.IsNullOrWhiteSpace(providerKey) &&
-                   MetadataChoices.ExophaseRarityProviders.Contains(providerKey.Trim()) &&
-                   string.Equals(ResolveMetadataChoices(providerKey.Trim()).Rarity, MetadataChoices.Exophase, StringComparison.OrdinalIgnoreCase);
-        }
-
-        /// <summary>Fresh installs keep SteamHunters categories on Steam games, as before the Metadata tab.</summary>
+        /// <summary>
+        /// Fresh installs keep SteamHunters categories on Steam games, as before the Metadata tab,
+        /// and give EA games Exophase's icons, which EA's achievements come without.
+        /// </summary>
         internal static Dictionary<string, MetadataChoices> CreateDefaultMetadataPlatformChoices()
         {
             return new Dictionary<string, MetadataChoices>(StringComparer.OrdinalIgnoreCase)
             {
                 ["Steam"] = new MetadataChoices
                 {
-                    Categories = MetadataChoices.SteamHunters,
-                    CategoryMode = MetadataCategoryMode.Merge
+                    Categories = MetadataChoices.SteamHunters
+                },
+                ["EA"] = new MetadataChoices
+                {
+                    Icons = MetadataChoices.Exophase
                 }
             };
         }

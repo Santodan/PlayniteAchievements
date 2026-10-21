@@ -445,12 +445,11 @@ namespace PlayniteAchievements.Providers.Steam
         }
 
         /// <summary>
-        /// Categories come from Steam's achievement sets, then SteamHunters per the Steam
-        /// setting: Merge leaves achievements in a named Steam set alone, Override lets
-        /// SteamHunters replace everything, Off skips it. Archived achievements end up
-        /// Unobtainable either way. When SteamHunters gives no answer, or
-        /// <paramref name="preferCachedDefinitions"/> skips it, the achievements it would have
-        /// categorized keep their stored categories.
+        /// Categories come from Steam's achievement sets. SteamHunters replaces the categories and
+        /// kinds when it is Steam's category source, and the tags when it is Steam's tag source.
+        /// Archived achievements end up Unobtainable either way. When SteamHunters gives no answer,
+        /// or <paramref name="preferCachedDefinitions"/> skips it, the chosen fields keep their
+        /// stored values.
         /// </summary>
         internal async Task ApplyCategoriesAsync(
             int appId,
@@ -461,7 +460,7 @@ namespace PlayniteAchievements.Providers.Steam
             CancellationToken cancel,
             bool preferCachedDefinitions = false)
         {
-            var namedSetApiNames = SteamAchievementSetMapper.ApplySets(achievements, schema, gameName);
+            SteamAchievementSetMapper.ApplySets(achievements, schema, gameName);
 
             if (playniteGameId.HasValue && schema?.HasAchievementSets == true && _categoryArtDownloader != null)
             {
@@ -476,20 +475,40 @@ namespace PlayniteAchievements.Providers.Steam
             var choices = _settings?.Persisted?.ResolveMetadataChoices(
                 "Steam",
                 playniteGameId.HasValue ? PlayniteAchievementsPlugin.Instance?.MetadataLinks?.GetChoices(playniteGameId.Value) : null);
-            if (_steamHuntersCategoryEnricher == null ||
-                !string.Equals(choices?.Categories, MetadataChoices.SteamHunters, StringComparison.OrdinalIgnoreCase))
+            var categories = string.Equals(choices?.Categories, MetadataChoices.SteamHunters, StringComparison.OrdinalIgnoreCase);
+            var tags = string.Equals(choices?.Tags, MetadataChoices.SteamHunters, StringComparison.OrdinalIgnoreCase);
+            if (_steamHuntersCategoryEnricher == null || (!categories && !tags))
             {
                 return;
             }
 
-            var preserveApiNames = choices.CategoryMode == MetadataCategoryMode.Merge ? namedSetApiNames : null;
+            // SteamHunters and the stored rows write all three fields; the unchosen ones go back to Steam's.
+            var own = achievements
+                .Where(achievement => achievement != null)
+                .Select(achievement => (achievement, achievement.Category, achievement.CategoryKind, achievement.Tags))
+                .ToList();
+
             var applied = !preferCachedDefinitions &&
                 await _steamHuntersCategoryEnricher
-                    .EnrichAsync(appId, gameName, achievements, playniteGameId, cancel, preserveApiNames)
+                    .EnrichAsync(appId, gameName, achievements, playniteGameId, cancel)
                     .ConfigureAwait(false);
             if (!applied)
             {
-                CarryForwardStoredCategories(playniteGameId, achievements, preserveApiNames);
+                CarryForwardStoredCategories(playniteGameId, achievements);
+            }
+
+            foreach (var (achievement, category, kind, ownTags) in own)
+            {
+                if (!categories)
+                {
+                    achievement.Category = category;
+                    achievement.CategoryKind = kind;
+                }
+
+                if (!tags)
+                {
+                    achievement.Tags = ownTags;
+                }
             }
 
             // SteamHunters grouping resets types, so archived flags are applied again.
@@ -500,8 +519,7 @@ namespace PlayniteAchievements.Providers.Steam
         // a refresh without SteamHunters data would otherwise erase the categories it gave.
         private void CarryForwardStoredCategories(
             Guid? playniteGameId,
-            IList<AchievementDetail> achievements,
-            ISet<string> preserveApiNames)
+            IList<AchievementDetail> achievements)
         {
             if (!playniteGameId.HasValue)
             {
@@ -515,7 +533,7 @@ namespace PlayniteAchievements.Providers.Steam
                 return;
             }
 
-            SteamAchievementSetMapper.CarryForwardCategories(achievements, stored.Achievements, preserveApiNames);
+            SteamAchievementSetMapper.CarryForwardCategories(achievements, stored.Achievements);
         }
 
         private GameAchievementData TryBuildGameDataFromLocal(Game game, string steamUserId)

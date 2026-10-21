@@ -40,7 +40,7 @@
             </DataTemplate>
         </ResourceDictionary>
     </UserControl.Resources>
-    <!-- Scrolled by the Metadata tab, which stacks this below the sources grid. -->
+    <!-- Scrolled by the Metadata tab, which shows it as its own page. -->
         <StackPanel>
 
             <!-- ================== AUTO CAPSTONE ================== -->

@@ -321,7 +321,7 @@
                             Margin="0,10,0,0"
                             Padding="0,6,0,0"
                             DataContext="{Binding MetadataLinks}"
-                            Visibility="{Binding HasRows, Converter={StaticResource BoolToVis}}">
+                            Visibility="{Binding HasChoices, Converter={StaticResource BoolToVis}}">
                         <StackPanel>
                             <TextBlock Style="{StaticResource SettingLabelStyle}"
                                        Text="{DynamicResource LOCPlayAch_ManageAchievements_Overview_MetadataLinks}"
@@ -329,6 +329,7 @@
                             <!-- The game's own source per field; "Default" follows its platform. -->
                             <metadata:MetadataChoicesGrid DataContext="{Binding ChoiceRows}"
                                                           ShowsRarity="False"
+                                                          ShowsPlatform="False"
                                                           Margin="0,4,0,8" />
                             <ItemsControl ItemsSource="{Binding Rows}" Focusable="False" Grid.IsSharedSizeScope="True">
                                 <ItemsControl.ItemTemplate>

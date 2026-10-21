@@ -46,7 +46,8 @@
         </ResourceDictionary>
     </UserControl.Resources>
     <!-- As wide as its columns, not the window. -->
-    <DataGrid Style="{StaticResource PlayAch.DataGrid.BaseStyle}"
+    <DataGrid x:Name="ChoicesGrid"
+              Style="{StaticResource PlayAch.DataGrid.BaseStyle}"
               HorizontalAlignment="Left"
               ItemsSource="{Binding}"
               AutoGenerateColumns="False"
@@ -68,7 +69,8 @@
               ScrollViewer.VerticalScrollBarVisibility="Auto"
               ScrollViewer.HorizontalScrollBarVisibility="Auto">
         <DataGrid.Columns>
-            <DataGridTemplateColumn Header="{DynamicResource LOCPlatformTitle}"
+            <DataGridTemplateColumn x:Name="PlatformColumn"
+                                    Header="{DynamicResource LOCPlatformTitle}"
                                     Width="Auto"
                                     MinWidth="140">
                 <DataGridTemplateColumn.CellTemplate>
@@ -116,10 +118,20 @@
                 <DataGridTemplateColumn.CellTemplate>
                     <DataTemplate>
                         <ComboBox Style="{StaticResource MetadataChoiceComboStyle}"
-                                  MinWidth="170"
                                   ItemsSource="{Binding CategoryOptions}"
                                   Tag="{Binding InheritedCategories}"
                                   SelectedValue="{Binding Categories, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
+                    </DataTemplate>
+                </DataGridTemplateColumn.CellTemplate>
+            </DataGridTemplateColumn>
+
+            <DataGridTemplateColumn Header="{DynamicResource LOCTagsLabel}" Width="Auto" IsReadOnly="True">
+                <DataGridTemplateColumn.CellTemplate>
+                    <DataTemplate>
+                        <ComboBox Style="{StaticResource MetadataChoiceComboStyle}"
+                                  ItemsSource="{Binding TagOptions}"
+                                  Tag="{Binding InheritedTags}"
+                                  SelectedValue="{Binding Tags, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
                     </DataTemplate>
                 </DataGridTemplateColumn.CellTemplate>
             </DataGridTemplateColumn>

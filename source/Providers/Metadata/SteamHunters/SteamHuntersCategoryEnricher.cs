@@ -58,10 +58,6 @@ namespace PlayniteAchievements.Providers.Metadata
             Interlocked.Exchange(ref _consecutiveFailures, 0);
         }
 
-        /// <param name="preserveApiNames">
-        /// Achievements whose category another source already assigned and that grouping must
-        /// leave alone. Obtainability still applies to them.
-        /// </param>
         /// <returns>
         /// True when SteamHunters groups were applied; false when none were available (a failed
         /// fetch, an unreadable body or the session backoff), leaving the achievements untouched.
@@ -71,8 +67,7 @@ namespace PlayniteAchievements.Providers.Metadata
             string gameName,
             IList<AchievementDetail> achievements,
             Guid? playniteGameId,
-            CancellationToken cancel,
-            ISet<string> preserveApiNames = null)
+            CancellationToken cancel)
         {
             if (appId <= 0 || achievements == null || achievements.Count == 0)
             {
@@ -99,7 +94,7 @@ namespace PlayniteAchievements.Providers.Metadata
                 return false;
             }
 
-            ApplyGroups(achievements, response.Groups, response.GroupBy, gameName, preserveApiNames);
+            ApplyGroups(achievements, response.Groups, response.GroupBy, gameName);
 
             // After ApplyGroups, which resets every achievement's kind and tags, so the Unobtainable tag
             // is re-derived on each refresh rather than accumulating.
@@ -186,14 +181,8 @@ namespace PlayniteAchievements.Providers.Metadata
             IList<AchievementDetail> achievements,
             IList<SteamHuntersAchievementGroup> groups,
             string groupBy = null,
-            string gameName = null,
-            ISet<string> preserveApiNames = null)
+            string gameName = null)
         {
-            bool IsPreserved(AchievementDetail achievement) =>
-                preserveApiNames != null &&
-                !string.IsNullOrWhiteSpace(achievement?.ApiName) &&
-                preserveApiNames.Contains(achievement.ApiName.Trim());
-
             if (achievements == null || achievements.Count == 0)
             {
                 return 0;
@@ -214,7 +203,7 @@ namespace PlayniteAchievements.Providers.Metadata
             var updated = 0;
             foreach (var achievement in achievements)
             {
-                if (achievement == null || IsPreserved(achievement))
+                if (achievement == null)
                 {
                     continue;
                 }
@@ -253,11 +242,6 @@ namespace PlayniteAchievements.Providers.Metadata
 
                     foreach (var achievement in matches)
                     {
-                        if (IsPreserved(achievement))
-                        {
-                            continue;
-                        }
-
                         if (SetCategory(achievement, kind, tags, label))
                         {
                             updated++;

@@ -59,8 +59,9 @@ namespace PlayniteAchievements.Services.GameCustomData
             normalized.ForceUseExophase = normalized.ForceUseExophase == true ? true : (bool?)null;
             NormalizeCapstones(normalized);
             normalized.ExophaseSlugOverride = NormalizeString(normalized.ExophaseSlugOverride);
-            normalized.ExophaseEnrichmentSlugOverride = NormalizeString(normalized.ExophaseEnrichmentSlugOverride);
-            normalized.MetadataLinks = NormalizeMetadataLinks(normalized.MetadataLinks);
+            // The Exophase rarity page was once its own field; it is now the game's Exophase link.
+            normalized.MetadataLinks = NormalizeMetadataLinks(MoveEnrichmentSlugToLink(normalized.MetadataLinks, NormalizeString(normalized.ExophaseEnrichmentSlugOverride)));
+            normalized.ExophaseEnrichmentSlugOverride = null;
             normalized.MetadataChoices = normalized.MetadataChoices?.IsEmpty() == false ? normalized.MetadataChoices : null;
             normalized.XeniaTitleIdOverride = XeniaTitleIdHelper.Normalize(normalized.XeniaTitleIdOverride);
             normalized.ShadPS4MatchIdOverride = ShadPS4MatchIdHelper.Normalize(normalized.ShadPS4MatchIdOverride);
@@ -127,8 +128,9 @@ namespace PlayniteAchievements.Services.GameCustomData
             normalized.ForceUseExophase = normalized.ForceUseExophase == true ? true : (bool?)null;
             NormalizeCapstones(normalized);
             normalized.ExophaseSlugOverride = NormalizeString(normalized.ExophaseSlugOverride);
-            normalized.ExophaseEnrichmentSlugOverride = NormalizeString(normalized.ExophaseEnrichmentSlugOverride);
-            normalized.MetadataLinks = NormalizeMetadataLinks(normalized.MetadataLinks);
+            // The Exophase rarity page was once its own field; it is now the game's Exophase link.
+            normalized.MetadataLinks = NormalizeMetadataLinks(MoveEnrichmentSlugToLink(normalized.MetadataLinks, NormalizeString(normalized.ExophaseEnrichmentSlugOverride)));
+            normalized.ExophaseEnrichmentSlugOverride = null;
             normalized.MetadataChoices = normalized.MetadataChoices?.IsEmpty() == false ? normalized.MetadataChoices : null;
             normalized.XeniaTitleIdOverride = XeniaTitleIdHelper.Normalize(normalized.XeniaTitleIdOverride);
             normalized.ShadPS4MatchIdOverride = ShadPS4MatchIdHelper.Normalize(normalized.ShadPS4MatchIdOverride);
@@ -1306,6 +1308,28 @@ namespace PlayniteAchievements.Services.GameCustomData
         }
 
         /// <summary>
+        /// <paramref name="links"/> with <paramref name="slug"/>, a slug the user set for the Exophase rarity page
+        /// before that page was a metadata link, as the game's Exophase link, unless it already has one.
+        /// </summary>
+        private static Dictionary<string, MetadataLinkData> MoveEnrichmentSlugToLink(Dictionary<string, MetadataLinkData> links, string slug)
+        {
+            if (string.IsNullOrWhiteSpace(slug))
+            {
+                return links;
+            }
+
+            var moved = links == null
+                ? new Dictionary<string, MetadataLinkData>(StringComparer.OrdinalIgnoreCase)
+                : new Dictionary<string, MetadataLinkData>(links, StringComparer.OrdinalIgnoreCase);
+            if (!moved.ContainsKey(MetadataChoices.Exophase))
+            {
+                moved[MetadataChoices.Exophase] = new MetadataLinkData { Id = slug.Trim(), IsUserSet = true };
+            }
+
+            return moved;
+        }
+
+        /// <summary>
         /// Trimmed keys and values; an automatic link without an id carries nothing and is dropped,
         /// while a user's empty link is kept as their "no match".
         /// </summary>
@@ -1697,12 +1721,13 @@ namespace PlayniteAchievements.Services.GameCustomData
             return normalized.Count > 0 ? normalized : null;
         }
 
-        /// <summary>A game's own tags: user tags only, since built-in tags live in the global list.</summary>
+        /// <summary>
+        /// A game's own tags. Any key may be one, built-in keys included: a tag deleted from the
+        /// global list lives on as a game's own, and the game's definition is the one shown there.
+        /// </summary>
         private static List<AchievementTagDefinition> NormalizeGameTags(IEnumerable<AchievementTagDefinition> values)
         {
-            var normalized = AchievementTagHelper.NormalizeDefinitions(values, ensureSystemTags: false)?
-                .Where(definition => !AchievementTagHelper.IsBuiltInTag(definition.Key))
-                .ToList();
+            var normalized = AchievementTagHelper.NormalizeDefinitions(values, ensureSystemTags: false);
             return normalized != null && normalized.Count > 0 ? normalized : null;
         }
 

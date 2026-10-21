@@ -16,6 +16,9 @@ namespace PlayniteAchievements.Models.Settings
         public const string BehaviorPage = "Behavior";
         public const string AppearancePage = "Appearance";
 
+        /// <summary>The Metadata tab's global tag list.</summary>
+        public const string TagsPage = "Tags";
+
         public SettingsNavigationRequest(string tabKey, string pageKey = null)
         {
             TabKey = tabKey;

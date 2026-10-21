@@ -27,11 +27,17 @@ namespace PlayniteAchievements.ViewModels.Tags
         /// <param name="commit">Stores the edited list.</param>
         /// <param name="pickColor">Opens the color picker on a #RRGGBB value; null when cancelled.</param>
         /// <param name="makeGlobal">Moves one of a game's tags into the global list; null hides the action.</param>
+        /// <param name="fetchedDefinitions">
+        /// A game's tags that only its achievements' data defines (a source's keys no list holds).
+        /// Listed after the stored ones and never deleted; renaming, recoloring or giving one an icon
+        /// stores it as the game's own.
+        /// </param>
         public AchievementTagListViewModel(
             IEnumerable<AchievementTagDefinition> definitions,
             Action<IReadOnlyList<AchievementTagDefinition>> commit,
             Func<string, string> pickColor,
-            Action<AchievementTagDefinition> makeGlobal = null)
+            Action<AchievementTagDefinition> makeGlobal = null,
+            IEnumerable<AchievementTagDefinition> fetchedDefinitions = null)
         {
             _commit = commit ?? throw new ArgumentNullException(nameof(commit));
             _pickColor = pickColor;
@@ -39,7 +45,10 @@ namespace PlayniteAchievements.ViewModels.Tags
             Rows = new ObservableCollection<AchievementTagEditorRow>(
                 (definitions ?? Enumerable.Empty<AchievementTagDefinition>())
                     .Where(definition => definition != null)
-                    .Select(definition => new AchievementTagEditorRow(this, definition)));
+                    .Select(definition => new AchievementTagEditorRow(this, definition))
+                    .Concat((fetchedDefinitions ?? Enumerable.Empty<AchievementTagDefinition>())
+                        .Where(definition => definition != null)
+                        .Select(definition => new AchievementTagEditorRow(this, definition) { IsFetched = true })));
             AddCommand = new RelayCommand(_ => Add());
         }
 
@@ -49,13 +58,13 @@ namespace PlayniteAchievements.ViewModels.Tags
 
         public bool CanMakeGlobal => _makeGlobal != null;
 
-        internal void Commit() => _commit(Rows.Select(row => row.ToDefinition()).ToList());
+        internal void Commit() => _commit(Rows.Where(row => !row.IsFetched).Select(row => row.ToDefinition()).ToList());
 
         internal string PickColor(string current) => _pickColor?.Invoke(current);
 
         internal void Delete(AchievementTagEditorRow row)
         {
-            if (row != null && !row.IsSystem && Rows.Remove(row))
+            if (row != null && row.CanDelete && Rows.Remove(row))
             {
                 Commit();
             }
@@ -144,6 +153,7 @@ namespace PlayniteAchievements.ViewModels.Tags
         private string _name;
         private string _color;
         private string _icon;
+        private bool _isFetched;
 
         internal AchievementTagEditorRow(AchievementTagListViewModel owner, AchievementTagDefinition definition)
         {
@@ -155,16 +165,44 @@ namespace PlayniteAchievements.ViewModels.Tags
             PickColorCommand = new RelayCommand(_ => PickColor());
             ClearColorCommand = new RelayCommand(_ => Color = null);
             PickIconCommand = new RelayCommand(_ => PickIcon());
-            DeleteCommand = new RelayCommand(_ => _owner.Delete(this), _ => !IsSystem);
+            DeleteCommand = new RelayCommand(_ => _owner.Delete(this), _ => CanDelete);
             MakeGlobalCommand = new RelayCommand(_ => _owner.MakeGlobal(this));
         }
 
         public string Key { get; }
 
-        /// <summary>The localized default name of a built-in tag, shown while its name is blank.</summary>
-        public string DefaultName => AchievementTagHelper.GetBuiltInName(Key);
+        /// <summary>
+        /// The name shown while the tag's own is blank: a built-in tag's localized name, or a
+        /// source's key spelled out. User tags have none.
+        /// </summary>
+        public string DefaultName => Key.StartsWith(AchievementTagHelper.UserKeyPrefix, StringComparison.OrdinalIgnoreCase)
+            ? null
+            : AchievementTagHelper.GetDefaultName(Key);
 
         public bool IsSystem => AchievementTagHelper.IsSystemTag(Key);
+
+        /// <summary>
+        /// A tag only the game's achievement data defines. Not stored until edited, and never
+        /// deleted: the data keeps putting it on achievements.
+        /// </summary>
+        public bool IsFetched
+        {
+            get => _isFetched;
+            internal set
+            {
+                if (_isFetched != value)
+                {
+                    _isFetched = value;
+                    OnPropertyChanged();
+                    OnPropertyChanged(nameof(CanDelete));
+                }
+            }
+        }
+
+        public bool CanDelete => !IsSystem && !IsFetched;
+
+        // An edit makes a fetched tag the game's own, so the commit that follows stores it.
+        private void Materialize() => IsFetched = false;
 
         public bool CanMakeGlobal => _owner.CanMakeGlobal;
 
@@ -185,6 +223,7 @@ namespace PlayniteAchievements.ViewModels.Tags
 
                 _name = stored;
                 OnPropertyChanged();
+                Materialize();
                 _owner.Commit();
             }
         }
@@ -205,6 +244,7 @@ namespace PlayniteAchievements.ViewModels.Tags
                 OnPropertyChanged(nameof(ColorText));
                 OnPropertyChanged(nameof(Brush));
                 OnPropertyChanged(nameof(HasColor));
+                Materialize();
                 _owner.Commit();
             }
         }
@@ -258,6 +298,7 @@ namespace PlayniteAchievements.ViewModels.Tags
                 OnPropertyChanged();
                 OnPropertyChanged(nameof(Glyph));
                 OnPropertyChanged(nameof(HasGlyph));
+                Materialize();
                 _owner.Commit();
             }
         }

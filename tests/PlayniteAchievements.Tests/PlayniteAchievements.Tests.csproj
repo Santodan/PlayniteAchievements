@@ -223,6 +223,7 @@
     <Compile Include="..\..\source\Services\Achievements\AchievementClassificationFilter.cs" Link="Source\Services\Achievements\AchievementClassificationFilter.cs" />
     <Compile Include="..\..\source\Services\Achievements\LegacyCategoryTypes.cs" Link="Source\Services\Achievements\LegacyCategoryTypes.cs" />
     <Compile Include="..\..\source\Models\Achievements\AchievementTagDefinition.cs" Link="Source\Models\Achievements\AchievementTagDefinition.cs" />
+    <Compile Include="..\..\source\Models\Achievements\MetadataHints.cs" Link="Source\Models\Achievements\MetadataHints.cs" />
     <Compile Include="..\..\source\Services\Achievements\OpenEditorRegistry.cs" Link="Source\Services\Achievements\OpenEditorRegistry.cs" />
     <Compile Include="..\..\source\Services\Achievements\CategoryPathHelper.cs" Link="Source\Services\Achievements\CategoryPathHelper.cs" />
     <Compile Include="..\..\source\Services\Achievements\CategoryMemberIndex.cs" Link="Source\Services\Achievements\CategoryMemberIndex.cs" />
@@ -415,6 +416,9 @@
     <Compile Include="..\..\source\Providers\Steam\SteamWebApiTokenResolver.cs" Link="Source\Providers\Steam\SteamWebApiTokenResolver.cs" />
     <Compile Include="..\..\source\Providers\Exophase\ExophaseApiClient.cs" Link="Source\Providers\Exophase\ExophaseApiClient.cs" />
     <Compile Include="..\..\source\Providers\Exophase\ExophaseGamePageParser.cs" Link="Source\Providers\Exophase\ExophaseGamePageParser.cs" />
+    <Compile Include="..\..\source\Providers\Metadata\TrueGaming\TrueGamingPageParser.cs" Link="Source\Providers\Metadata\TrueGaming\TrueGamingPageParser.cs" />
+    <Compile Include="..\..\source\Providers\Metadata\TrueGaming\TrueGamingLinks.cs" Link="Source\Providers\Metadata\TrueGaming\TrueGamingLinks.cs" />
+    <Compile Include="..\..\source\Providers\Metadata\TrueGaming\TrueGamingFlags.cs" Link="Source\Providers\Metadata\TrueGaming\TrueGamingFlags.cs" />
     <Compile Include="..\..\source\Providers\Exophase\ExophaseSteamAppIdParser.cs" Link="Source\Providers\Exophase\ExophaseSteamAppIdParser.cs" />
     <Compile Include="..\..\source\Providers\ISessionManager.cs" Link="Source\Providers\ISessionManager.cs" />
     <Compile Include="..\..\source\Providers\PSN\PsnAuthModels.cs" Link="Source\Providers\PSN\PsnAuthModels.cs" />
@@ -826,6 +830,9 @@
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
     <None Include="Fixtures\Steam\Achievements\*.*">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Include="Fixtures\TrueGaming\*.html">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
     <None Include="Fixtures\Webm\*.webm">

@@ -522,15 +522,18 @@ namespace PlayniteAchievements.Providers
         internal IReadOnlyList<Metadata.IMetadataProvider> CreateMetadataProviders(PlayniteAchievementsSettings settings, IPlayniteAPI playniteApi, string pluginUserDataPath)
         {
             _metadataProviders.Clear();
-            foreach (var providerType in DiscoverTypes(typeof(Metadata.IMetadataProvider)))
+            var types = DiscoverTypes(typeof(Metadata.IMetadataProvider))
+                .Where(type => type.GetConstructors().Length > 0)
+                .Concat(DiscoverTypes(typeof(Metadata.IMetadataProviderFamily)));
+            foreach (var providerType in types)
             {
                 try
                 {
-                    if (CreateInstance(providerType, settings, playniteApi, pluginUserDataPath) is Metadata.IMetadataProvider provider &&
-                        !string.IsNullOrWhiteSpace(provider.Key))
-                    {
-                        _metadataProviders.Add(provider);
-                    }
+                    var instance = CreateInstance(providerType, settings, playniteApi, pluginUserDataPath);
+                    var created = instance is Metadata.IMetadataProviderFamily family
+                        ? family.Providers ?? Array.Empty<Metadata.IMetadataProvider>()
+                        : new[] { instance as Metadata.IMetadataProvider };
+                    _metadataProviders.AddRange(created.Where(provider => !string.IsNullOrWhiteSpace(provider?.Key)));
                 }
                 catch (Exception ex)
                 {

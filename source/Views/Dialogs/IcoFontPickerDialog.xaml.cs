@@ -17,7 +17,8 @@ namespace PlayniteAchievements.Views.Dialogs
     /// </summary>
     public partial class IcoFontPickerDialog : UserControl
     {
-        private const int GlyphsPerRow = 12;
+        // A glyph cell's width (GlyphCellStyle), which sets how many fit in a row.
+        private const double CellWidth = 36;
 
         // Searching every glyph per keystroke is what made typing lag; the search runs once the
         // typing pauses.
@@ -26,6 +27,8 @@ namespace PlayniteAchievements.Views.Dialogs
         private readonly DispatcherTimer _searchTimer;
         private readonly Dictionary<string, IcoFontPickerCell> _cellsByCode;
         private IcoFontPickerCell _selected;
+        private List<IcoFontPickerCell> _shown = new List<IcoFontPickerCell>();
+        private int _glyphsPerRow = 12;
 
         public IcoFontPickerDialog()
         {
@@ -40,6 +43,7 @@ namespace PlayniteAchievements.Views.Dialogs
                 ShowGlyphs(IcoFontCatalog.Search(SearchBox.Text));
             };
             ShowGlyphs(IcoFontCatalog.All);
+            GlyphRows.SizeChanged += GlyphRows_SizeChanged;
             Loaded += (_, __) => Dispatcher.BeginInvoke(
                 new Action(() => Keyboard.Focus(SearchBox)),
                 DispatcherPriority.Input);
@@ -100,17 +104,48 @@ namespace PlayniteAchievements.Views.Dialogs
 
         private void ShowGlyphs(IReadOnlyList<IcoFontGlyph> glyphs)
         {
-            var cells = glyphs
+            _shown = glyphs
                 .Select(glyph => _cellsByCode.TryGetValue(glyph.Code, out var cell) ? cell : null)
                 .Where(cell => cell != null)
                 .ToList();
+            GlyphRows.ItemsSource = BuildRows();
+        }
+
+        /// <summary>The shown glyphs in rows as wide as the list; the list builds only the rows on screen.</summary>
+        private List<IReadOnlyList<IcoFontPickerCell>> BuildRows()
+        {
             var rows = new List<IReadOnlyList<IcoFontPickerCell>>();
-            for (var i = 0; i < cells.Count; i += GlyphsPerRow)
+            for (var i = 0; i < _shown.Count; i += _glyphsPerRow)
             {
-                rows.Add(cells.GetRange(i, Math.Min(GlyphsPerRow, cells.Count - i)));
+                rows.Add(_shown.GetRange(i, Math.Min(_glyphsPerRow, _shown.Count - i)));
             }
 
-            GlyphRows.ItemsSource = rows;
+            return rows;
+        }
+
+        /// <summary>
+        /// Re-rows the glyphs when the window's width fits a different number per row, keeping the
+        /// first glyph on screen in view.
+        /// </summary>
+        private void GlyphRows_SizeChanged(object sender, SizeChangedEventArgs e)
+        {
+            if (!e.WidthChanged)
+            {
+                return;
+            }
+
+            var available = GlyphRows.ActualWidth - SystemParameters.VerticalScrollBarWidth;
+            var perRow = Math.Max(1, (int)Math.Floor(available / CellWidth));
+            if (perRow == _glyphsPerRow)
+            {
+                return;
+            }
+
+            var scroller = GlyphRows.Template?.FindName("GlyphScroller", GlyphRows) as ScrollViewer;
+            var firstGlyph = (int)((scroller?.VerticalOffset ?? 0) * _glyphsPerRow);
+            _glyphsPerRow = perRow;
+            GlyphRows.ItemsSource = BuildRows();
+            scroller?.ScrollToVerticalOffset(firstGlyph / perRow);
         }
 
         private void Select(string code)
