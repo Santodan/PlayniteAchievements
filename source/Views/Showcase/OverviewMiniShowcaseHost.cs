@@ -143,8 +143,9 @@ namespace PlayniteAchievements.Views.Showcase
                         case ShowcasePieMode.Trophy:
                             return (OverviewLinkedFilter.Trophy, OverviewLinkedSelection.WhenTrophyData, false);
                         case ShowcasePieMode.Tag:
-                            // A selected game narrows it to that game, whose own tags it then shows.
-                            return (OverviewLinkedFilter.None, OverviewLinkedSelection.Always, false);
+                            // A selected game narrows it to that game, whose own tags it then shows;
+                            // its own slices set the tag filter, so that one is left out.
+                            return (OverviewLinkedFilter.Tag, OverviewLinkedSelection.Always, false);
                         default:
                             return (OverviewLinkedFilter.Completeness, OverviewLinkedSelection.Ignore, true);
                     }
