@@ -695,6 +695,56 @@ namespace PlayniteAchievements.Tests.Services
         }
 
         [TestMethod]
+        public void PointsAndRanks_AreServedByTheSourceWhosePageLoadsAnyway()
+        {
+            var providers = new IMetadataProvider[]
+            {
+                new FakeSource("Xbox", MetadataField.Points | MetadataField.Icons),
+                new FakeSource("PlayStation", MetadataField.TrophyTypes | MetadataField.CapstoneArt),
+                new FakeSource("TrueGaming", MetadataField.Tags | MetadataField.Points | MetadataField.TrophyTypes)
+            };
+
+            var routed = MetadataSourceRouting.Route(
+                new MetadataChoices { Tags = "TrueGaming", Points = "Xbox", TrophyTypes = "PlayStation", CapstoneArt = "PlayStation" },
+                providers,
+                "Steam");
+            Assert.AreEqual("TrueGaming", routed.Points, "no other field loads the Xbox page");
+            Assert.AreEqual("PlayStation", routed.TrophyTypes, "the PlayStation page loads for capstone art");
+
+            var withIcons = MetadataSourceRouting.Route(new MetadataChoices { Icons = "Xbox", Points = "Xbox" }, providers, "Steam");
+            Assert.AreEqual("Xbox", withIcons.Points, "the Xbox page loads for icons");
+
+            Assert.IsFalse(MetadataSourceRouting.IsChoice(providers[2], MetadataField.Points));
+            Assert.IsTrue(MetadataSourceRouting.IsChoice(providers[2], MetadataField.Tags));
+        }
+
+        [TestMethod]
+        public async Task RoutedPoints_ComeFromTrueGaming_WithoutLoadingTheXboxPage()
+        {
+            var xbox = new FakeSource("Xbox", MetadataField.Points);
+            var xboxRow = Row("x1", "One");
+            xboxRow.Points = 10;
+            xbox.Rows.Add(xboxRow);
+            var trueGaming = new FakeSource("TrueGaming", MetadataField.Tags | MetadataField.Points | MetadataField.TrophyTypes);
+            var trueRow = Row("t1", "One");
+            trueRow.Points = 20;
+            trueGaming.Rows.Add(trueRow);
+            var data = Game("Steam", Row("s1", "One"));
+            var overlay = Overlay(new IMetadataProvider[] { xbox, trueGaming }, Choices(tags: trueGaming.Key, points: xbox.Key));
+            overlay.Links.SetUser(data.PlayniteGameId.Value, trueGaming.Key, "link-TrueGaming");
+            overlay.Links.SetUser(data.PlayniteGameId.Value, xbox.Key, "link-Xbox");
+
+            using (var run = overlay.BeginRun())
+            {
+                await run.ApplyAsync(data.Game, data, CancellationToken.None);
+            }
+
+            Assert.AreEqual(20, data.Achievements[0].Points);
+            Assert.AreEqual(0, xbox.FetchCount, "the Xbox page is not loaded");
+            Assert.AreEqual(MetadataField.Tags | MetadataField.Points, trueGaming.LastWanted);
+        }
+
+        [TestMethod]
         public async Task Rarity_TakesTheSourcesShare_OnPlatformsThatUseIt()
         {
             var exophase = new FakeSource("Exophase", MetadataField.Rarity);
