@@ -120,13 +120,25 @@
                     <DataGridTemplateColumn Width="Auto" IsReadOnly="True">
                         <DataGridTemplateColumn.CellTemplate>
                             <DataTemplate>
-                                <TextBox Text="{Binding Name, UpdateSourceTrigger=LostFocus}"
-                                         Width="220"
-                                         VerticalAlignment="Center"
-                                         VerticalContentAlignment="Center"
-                                         Padding="6,3"
-                                         Margin="4,2"
-                                         KeyDown="CommitOnEnter_KeyDown"/>
+                                <!-- A system tag carries behavior under any name, so its built-in name
+                                     shows as the hint while the box is empty and as the tooltip once
+                                     it is renamed. -->
+                                <Grid Width="220" Margin="4,2" VerticalAlignment="Center">
+                                    <TextBox x:Name="NameInput"
+                                             Text="{Binding Name, UpdateSourceTrigger=LostFocus}"
+                                             ToolTip="{Binding RenamedSystemName}"
+                                             VerticalContentAlignment="Center"
+                                             Padding="6,3"
+                                             KeyDown="CommitOnEnter_KeyDown"/>
+                                    <TextBlock Text="{Binding SystemName}"
+                                               Tag="{Binding Text, ElementName=NameInput}"
+                                               Style="{StaticResource SearchPlaceholderTextStyle}"
+                                               Foreground="{DynamicResource PlayAch.Brush.Text}"
+                                               Opacity="{StaticResource PlayAch.Opacity.Placeholder}"
+                                               IsHitTestVisible="False"
+                                               VerticalAlignment="Center"
+                                               Margin="9,0,0,0"/>
+                                </Grid>
                             </DataTemplate>
                         </DataGridTemplateColumn.CellTemplate>
                     </DataGridTemplateColumn>
