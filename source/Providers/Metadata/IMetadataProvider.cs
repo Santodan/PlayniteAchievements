@@ -23,18 +23,6 @@ namespace PlayniteAchievements.Providers.Metadata
         Points = 64
     }
 
-    /// <summary>How a metadata source's categories combine with the servicing provider's.</summary>
-    public enum MetadataCategoryMode
-    {
-        Off = 0,
-
-        /// <summary>Categories the provider named are kept; the source categorizes the rest.</summary>
-        Merge = 1,
-
-        /// <summary>The source's categories replace the provider's.</summary>
-        Override = 2
-    }
-
     /// <summary>
     /// A secondary source of achievement metadata. It never services a game; the overlay stage asks
     /// it for its rows for a game the servicing provider just refreshed, matches them to that game's
