@@ -24,6 +24,9 @@ namespace PlayniteAchievements.Providers.Metadata.TrueGaming
     {
         public const string MetadataKey = "TrueGaming";
 
+        // Pages load in under 2 s; one that takes longer is treated as not loaded.
+        private const int PageTimeoutMs = 8000;
+
         private readonly OffscreenViewLeaseSource _views;
         private readonly ILogger _logger;
         private readonly Dictionary<string, TrueGamingPage> _pages =
@@ -222,14 +225,18 @@ namespace PlayniteAchievements.Providers.Metadata.TrueGaming
             }
         }
 
-        /// <summary>The first slug built from the game's names whose page is the same game.</summary>
+        /// <summary>
+        /// The first slug built from the game's names whose page is the same game. Edition
+        /// suffixes ("-PS5", "-Xbox-One") are tried only on the platform's own site.
+        /// </summary>
         private async Task<TrueGamingFoundPage> FindPageAsync(
             TrueGamingSite site,
             MetadataLinkRequest request,
             IReadOnlyCollection<string> targets,
             CancellationToken ct)
         {
-            foreach (var slug in TrueGamingLinks.CandidateSlugs(request.SearchNames, site.Suffixes))
+            var suffixes = site == TrueGamingSite.For(request.ServicingProviderKey) ? site.Suffixes : Array.Empty<string>();
+            foreach (var slug in TrueGamingLinks.CandidateSlugs(request.SearchNames, suffixes))
             {
                 var page = await GetPageAsync(site, slug, ct).ConfigureAwait(false);
                 if (page.Achievements.Count > 0 && TrueGamingPageSet.IsSameGame(page, targets))
@@ -258,7 +265,7 @@ namespace PlayniteAchievements.Providers.Metadata.TrueGaming
             {
                 var html = await _views.WithNavigableViewAsync(async view =>
                 {
-                    await view.NavigateAndWaitAsync(url).ConfigureAwait(false);
+                    await view.NavigateAndWaitAsync(url, PageTimeoutMs).ConfigureAwait(false);
                     return await view.GetPageSourceAsync().ConfigureAwait(false);
                 }, ct).ConfigureAwait(false);
                 page = TrueGamingPageParser.Parse(html);
