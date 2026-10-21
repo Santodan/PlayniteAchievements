@@ -258,7 +258,6 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                     projectionSource?.UseSeparateLockedIconsWhenAvailable);
                 var categoryMemo = new AchievementDisplayItem.CategoryPresentationMemo();
                 var resolvedCustomData = GameCustomDataLookup.ResolveGameCustomData(_gameId, _settings?.Persisted);
-                var overrideRecords = resolvedCustomData?.ResolveAchievementOverrides();
 
                 _allRows = orderedAchievements.Select(a =>
                 {
@@ -275,12 +274,6 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                     var hasTagOverride = !string.IsNullOrWhiteSpace(apiName) &&
                                          tagOverrides.TryGetValue(apiName, out overrideTags) &&
                                          overrideTags != null;
-                    AchievementOverride overrideRecord = null;
-                    if (!string.IsNullOrWhiteSpace(apiName))
-                    {
-                        overrideRecords?.TryGetValue(apiName, out overrideRecord);
-                    }
-
                     var effectiveCategory = AchievementCategoryHelper.NormalizeCategoryOrDefault(
                         hasCategoryOverride ? overrideCategory : providerCategory);
                     var effectiveTags = AchievementTagHelper.ApplyOverride(
@@ -334,10 +327,8 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                         Category = effectiveCategory,
                         Tags = effectiveTags,
                         ProviderCategoryKind = CategoryKindHelper.Normalize(a.CategoryKind),
-                        LegacyCategoryKind = overrideRecord?.LegacyCategoryKind,
                         CategoryKind = CategoryKindHelper.ResolveEffective(
                             resolvedCustomData?.GetStoredCategoryKind(effectiveCategory),
-                            overrideRecord?.LegacyCategoryKind,
                             a.CategoryKind)
                     };
                 })
