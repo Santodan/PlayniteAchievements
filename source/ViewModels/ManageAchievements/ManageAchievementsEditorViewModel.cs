@@ -3337,7 +3337,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         private string PromptForAutoCapstoneCategory(IReadOnlyList<string> categories)
         {
             var wholeGame = new GenericItemOption(
-                L("LOCPlayAch_ManageAchievements_Category_Type_Base", "Base"),
+                L("LOCPlayAch_CategoryKind_Base", "Base"),
                 string.Empty);
             var options = new List<GenericItemOption> { wholeGame };
             options.AddRange(categories
