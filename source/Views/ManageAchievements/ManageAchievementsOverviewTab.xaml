@@ -376,7 +376,7 @@
                                                         Padding="{StaticResource PlayAch.Thickness.ButtonPadding}"
                                                         VerticalAlignment="Center"
                                                         Margin="{StaticResource PlayAch.Thickness.Left.Sm}" />
-                                                <!-- The match count, and the pairings window when some achievements are unmatched. -->
+                                                <!-- The match count, and the pairings window for the source's match list. -->
                                                 <TextBlock Style="{StaticResource SettingStatusStyle}"
                                                            Text="{Binding StatusText}"
                                                            Visibility="{Binding HasStatus, Converter={StaticResource BoolToVis}}"
@@ -393,6 +393,11 @@
                                     </DataTemplate>
                                 </ItemsControl.ItemTemplate>
                             </ItemsControl>
+                            <!-- Where the official sources' data comes from, as under the Sources grid in Settings. -->
+                            <TextBlock Style="{StaticResource SettingStatusStyle}"
+                                       Text="{DynamicResource LOCPlayAch_Settings_Metadata_OfficialSources}"
+                                       TextWrapping="Wrap"
+                                       Margin="0,8,0,0" />
                         </StackPanel>
                     </Border>
                 </StackPanel>
