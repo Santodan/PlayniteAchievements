@@ -28,7 +28,6 @@ namespace PlayniteAchievements.Services.Overview
         {
             var typeOptions = AchievementClassificationFilter.GetPresentKeys(
                 source,
-                item => item.CategoryKind,
                 item => item.Tags,
                 source?.FirstOrDefault(item => item != null)?.PlayniteGameId);
 
