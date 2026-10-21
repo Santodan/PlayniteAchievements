@@ -345,12 +345,14 @@
                                             </Grid.RowDefinitions>
                                             <TextBlock Grid.Column="0"
                                                        Style="{StaticResource SettingLabelStyle}"
-                                                       Text="{Binding SourceName}" />
-                                            <!-- What the source adds to this game, under the box. -->
+                                                       Text="{Binding SourceName}"
+                                                       ToolTip="{Binding LinkDetails}" />
+                                            <!-- What the source adds to this game, under the box; the tooltip names the pages it read. -->
                                             <TextBlock Grid.Row="1"
                                                        Grid.Column="1"
                                                        Style="{StaticResource SettingStatusStyle}"
                                                        Text="{Binding Supplies}"
+                                                       ToolTip="{Binding LinkDetails}"
                                                        Visibility="{Binding HasSupplies, Converter={StaticResource BoolToVis}}"
                                                        Margin="0,2,0,0" />
                                             <WrapPanel Grid.Column="1">
