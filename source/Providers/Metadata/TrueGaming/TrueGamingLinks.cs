@@ -103,14 +103,14 @@ namespace PlayniteAchievements.Providers.Metadata.TrueGaming
     internal sealed class TrueGamingSite
     {
         public static readonly TrueGamingSite TrueAchievements = new TrueGamingSite(
-            "trueachievements", "ta", "www.trueachievements.com", "achievements", new[] { "-Xbox-One", "-Xbox-360" });
+            "trueachievements", "TrueAchievements", "ta", "www.trueachievements.com", "achievements", new[] { "-Xbox-One", "-Xbox-360" });
 
         // PlayStation versions are separate lists; the newest console's is tried first.
         public static readonly TrueGamingSite TrueTrophies = new TrueGamingSite(
-            "truetrophies", "tt", "www.truetrophies.com", "trophies", new[] { "-PS5", "-PS4", "-PS3", "-PS-Vita" });
+            "truetrophies", "TrueTrophies", "tt", "www.truetrophies.com", "trophies", new[] { "-PS5", "-PS4", "-PS3", "-PS-Vita" });
 
         public static readonly TrueGamingSite TrueSteamAchievements = new TrueGamingSite(
-            "truesteamachievements", "tsa", "truesteamachievements.com", "achievements", Array.Empty<string>());
+            "truesteamachievements", "TrueSteamAchievements", "tsa", "truesteamachievements.com", "achievements", Array.Empty<string>());
 
         private static readonly HashSet<string> XboxProviders =
             new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "Xbox", "Xenia" };
@@ -118,9 +118,10 @@ namespace PlayniteAchievements.Providers.Metadata.TrueGaming
         private static readonly HashSet<string> PlayStationProviders =
             new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "PSN", "RPCS3", "ShadPS4", "Vita3K" };
 
-        private TrueGamingSite(string name, string prefix, string host, string listPath, IReadOnlyList<string> suffixes)
+        private TrueGamingSite(string name, string title, string prefix, string host, string listPath, IReadOnlyList<string> suffixes)
         {
             Name = name;
+            Title = title;
             Prefix = prefix;
             Host = host;
             ListPath = listPath;
@@ -128,6 +129,9 @@ namespace PlayniteAchievements.Providers.Metadata.TrueGaming
         }
 
         public string Name { get; }
+
+        /// <summary>The site's own name, as shown ("TrueTrophies").</summary>
+        public string Title { get; }
 
         /// <summary>The short site tag ("ta", "tt", "tsa"), used in diagnosis file names.</summary>
         public string Prefix { get; }
