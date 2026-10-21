@@ -199,6 +199,11 @@ namespace PlayniteAchievements.Views.Helpers
             public FrameworkElement Host;
             public Button CreateButton;
             public bool IsActive;
+            public string Query = string.Empty;
+
+            // The picked option's row while a search it does not match is on: kept in the list so
+            // the selection survives, but not shown.
+            public ComboBoxItem HiddenSelectedRow;
         }
 
         private static readonly DependencyProperty ComboStateProperty =
@@ -242,6 +247,8 @@ namespace PlayniteAchievements.Views.Helpers
                 state.CreateButton.Click += (_, __) => RunComboCreate(state);
             }
 
+            // Rows are realized as they scroll into view, the picked one among them.
+            combo.ItemContainerGenerator.StatusChanged += (_, __) => UpdateSelectedRow(state);
             combo.DropDownOpened += (_, __) => OnComboOpened(state);
             combo.DropDownClosed += (_, __) => OnComboClosed(state);
             if (combo.IsDropDownOpen)
@@ -284,7 +291,7 @@ namespace PlayniteAchievements.Views.Helpers
                 state.Box.Text = string.Empty;
             }
 
-            ClearComboFilter(state.Combo);
+            ClearComboFilter(state);
             UpdateComboCreate(state, matches: true);
         }
 
@@ -294,13 +301,14 @@ namespace PlayniteAchievements.Views.Helpers
             var query = state.Box.Text?.Trim() ?? string.Empty;
             if (query.Length == 0)
             {
-                ClearComboFilter(combo);
+                ClearComboFilter(state);
                 UpdateComboCreate(state, matches: true);
                 return;
             }
 
-            // The picked option always stays: a Selector whose SelectedItem leaves its items writes
-            // null back through a two-way binding, which would erase the stored value.
+            // The picked option stays in the list, hidden when it does not match: a Selector whose
+            // SelectedItem leaves its items writes null back through a two-way binding, which would
+            // erase the stored value.
             var selected = combo.SelectedItem;
             try
             {
@@ -313,12 +321,17 @@ namespace PlayniteAchievements.Views.Helpers
                 return;
             }
 
+            state.Query = query;
+            UpdateSelectedRow(state);
             var matches = combo.Items.Cast<object>().Any(item => Matches(GetComboBoxItemText(combo, item), query));
             UpdateComboCreate(state, matches);
         }
 
-        private static void ClearComboFilter(ComboBox combo)
+        private static void ClearComboFilter(ComboSearchState state)
         {
+            var combo = state.Combo;
+            state.Query = string.Empty;
+            UpdateSelectedRow(state);
             try
             {
                 if (combo.Items.Filter != null)
@@ -328,6 +341,27 @@ namespace PlayniteAchievements.Views.Helpers
             }
             catch (InvalidOperationException)
             {
+            }
+        }
+
+        private static void UpdateSelectedRow(ComboSearchState state)
+        {
+            var combo = state.Combo;
+            var selected = combo.SelectedItem;
+            var row = selected == null ? null : combo.ItemContainerGenerator.ContainerFromItem(selected) as ComboBoxItem;
+            var hide = row != null && state.Query.Length > 0 &&
+                       !Matches(GetComboBoxItemText(combo, selected), state.Query);
+
+            if (state.HiddenSelectedRow != null && (!hide || !ReferenceEquals(state.HiddenSelectedRow, row)))
+            {
+                state.HiddenSelectedRow.ClearValue(UIElement.VisibilityProperty);
+                state.HiddenSelectedRow = null;
+            }
+
+            if (hide && state.HiddenSelectedRow == null)
+            {
+                row.Visibility = Visibility.Collapsed;
+                state.HiddenSelectedRow = row;
             }
         }
 
@@ -370,8 +404,8 @@ namespace PlayniteAchievements.Views.Helpers
                 case Key.Enter:
                 {
                     var query = state.Box.Text?.Trim() ?? string.Empty;
-                    // The first match, not the first row: the picked option stays listed whether it
-                    // matches or not.
+                    // The first match, not the first row: the picked option stays in the list,
+                    // hidden, whether it matches or not.
                     var firstMatch = query.Length == 0
                         ? null
                         : combo.Items.Cast<object>()
@@ -392,12 +426,13 @@ namespace PlayniteAchievements.Views.Helpers
 
                 case Key.Down:
                 {
-                    // Into the list, at the first option the search left.
-                    var first = combo.Items.Cast<object>().FirstOrDefault();
-                    if (first != null &&
-                        combo.ItemContainerGenerator.ContainerFromItem(first) is ComboBoxItem container)
+                    // Into the list, at the first option the search shows.
+                    var first = combo.Items.Cast<object>()
+                        .Select(item => combo.ItemContainerGenerator.ContainerFromItem(item) as ComboBoxItem)
+                        .FirstOrDefault(container => container != null && container.Visibility == Visibility.Visible);
+                    if (first != null)
                     {
-                        container.Focus();
+                        first.Focus();
                         e.Handled = true;
                     }
 
