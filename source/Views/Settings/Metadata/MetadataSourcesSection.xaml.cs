@@ -58,12 +58,11 @@ namespace PlayniteAchievements.Views.Settings.Metadata
 
     /// <summary>
     /// One grid row. Cells hold option keys: <see cref="DefaultKey"/> follows the defaults row, an
-    /// empty key is the platform's own data, and categories carry their mode as "Source|Mode".
+    /// empty key is the platform's own data, and any other key names a source.
     /// </summary>
     public sealed class MetadataChoiceRow : ObservableObject
     {
         public const string DefaultKey = "~";
-        private const char ModeSeparator = '|';
 
         private readonly PlayniteAchievementsSettings _settings;
         private readonly Action<MetadataChoices> _saveGame;
@@ -141,7 +140,7 @@ namespace PlayniteAchievements.Views.Settings.Metadata
             });
 
             _icons = ToKey(stored?.Icons);
-            _categories = ToCategoryKey(stored);
+            _categories = ToKey(stored?.Categories);
             _rarity = SupportsRarity ? ToKey(stored?.Rarity) : DefaultKey;
             _capstoneArt = ToKey(stored?.CapstoneArt);
             _trophyTypes = SupportsTrophyTypes ? ToKey(stored?.TrophyTypes) : DefaultKey;
@@ -186,7 +185,7 @@ namespace PlayniteAchievements.Views.Settings.Metadata
         // What each field's "Default" stands for, shown muted in the closed dropdown.
         public string InheritedIcons => InheritedLabel(IconOptions, choices => choices.Icons);
 
-        public string InheritedCategories => InheritedLabel(CategoryOptions, ToCategoryKey);
+        public string InheritedCategories => InheritedLabel(CategoryOptions, choices => choices.Categories);
 
         public string InheritedRarity => InheritedLabel(RarityOptions, choices => choices.Rarity);
 
@@ -268,9 +267,9 @@ namespace PlayniteAchievements.Views.Settings.Metadata
                 Rarity = SupportsRarity ? FromKey(_rarity) : null,
                 CapstoneArt = FromKey(_capstoneArt),
                 TrophyTypes = SupportsTrophyTypes ? FromKey(_trophyTypes) : null,
-                Points = SupportsPoints ? FromKey(_points) : null
+                Points = SupportsPoints ? FromKey(_points) : null,
+                Categories = FromKey(_categories)
             };
-            ApplyCategoryKey(choices, _categories);
 
             if (_saveGame != null)
             {
@@ -311,20 +310,19 @@ namespace PlayniteAchievements.Views.Settings.Metadata
             return WithDefault(options);
         }
 
+        /// <summary>
+        /// Own, or a source whose categories replace the platform's. Unlike the other fields a
+        /// native source stays offered: the platform's own scan applies it (SteamHunters on Steam).
+        /// </summary>
         private IReadOnlyList<ChoiceOption> BuildCategoryOptions(IReadOnlyList<IMetadataProvider> providers)
         {
-            // Own, Own + SteamHunters (merge: the platform's categories kept, the source fills the
-            // rest), SteamHunters (the source's replace the platform's).
-            var own = ResourceProvider.GetString("LOCPlayAch_Settings_Metadata_Source_Own");
-            var combined = ResourceProvider.GetString("LOCPlayAch_Settings_Metadata_SourceMode");
-            var options = new List<ChoiceOption> { new ChoiceOption(string.Empty, own) };
-            foreach (var provider in providers.Where(provider => (provider.SupportedFields & MetadataField.Categories) != 0))
+            var options = new List<ChoiceOption>
             {
-                var name = ResourceProvider.GetString(provider.DisplayNameKey);
-                options.Add(new ChoiceOption(provider.Key + ModeSeparator + MetadataCategoryMode.Merge, string.Format(combined, own, name)));
-                options.Add(new ChoiceOption(provider.Key + ModeSeparator + MetadataCategoryMode.Override, name));
-            }
-
+                new ChoiceOption(string.Empty, ResourceProvider.GetString("LOCPlayAch_Settings_Metadata_Source_Own"))
+            };
+            options.AddRange(providers
+                .Where(provider => (provider.SupportedFields & MetadataField.Categories) != 0)
+                .Select(provider => new ChoiceOption(provider.Key, ResourceProvider.GetString(provider.DisplayNameKey))));
             return WithDefault(options);
         }
 
@@ -345,32 +343,6 @@ namespace PlayniteAchievements.Views.Settings.Metadata
         private static string ToKey(string value) => value ?? DefaultKey;
 
         private static string FromKey(string key) => key == null || key == DefaultKey ? null : key;
-
-        private static string ToCategoryKey(MetadataChoices stored)
-        {
-            if (stored?.Categories == null)
-            {
-                return DefaultKey;
-            }
-
-            return stored.Categories.Length == 0
-                ? string.Empty
-                : stored.Categories + ModeSeparator + (stored.CategoryMode ?? MetadataCategoryMode.Merge);
-        }
-
-        private static void ApplyCategoryKey(MetadataChoices choices, string key)
-        {
-            if (key == null || key == DefaultKey)
-            {
-                return;
-            }
-
-            var parts = key.Split(ModeSeparator);
-            choices.Categories = parts[0];
-            choices.CategoryMode = parts.Length > 1 && Enum.TryParse(parts[1], out MetadataCategoryMode mode)
-                ? mode
-                : MetadataCategoryMode.Merge;
-        }
     }
 
     public sealed class ChoiceOption
