@@ -46,7 +46,7 @@ namespace PlayniteAchievements.Views.Dialogs
             DataContext = this;
             PickerBox.Committed += (_, __) => Accept();
             PickerBox.Cancelled += (_, __) => Cancel();
-            PickerBox.CreateRequested += (_, __) => CreateCategory();
+            PickerBox.CreateRequested += (_, name) => CreateCategory(name);
             Loaded += (_, __) => PickerBox.FocusInput();
         }
 
@@ -68,13 +68,13 @@ namespace PlayniteAchievements.Views.Dialogs
         }
 
         /// <summary>
-        /// Names a category and offers it as the picked one. Nothing is written here: the dialog
-        /// only reports a label, and the caller applying it to an achievement is what makes the
-        /// category exist.
+        /// Offers the category the user searched for as the picked one. Nothing is written here:
+        /// the dialog only reports a label, and the caller applying it to an achievement is what
+        /// makes the category exist.
         /// </summary>
-        private void CreateCategory()
+        private void CreateCategory(string name)
         {
-            if (!CategoryCreationPrompt.TryPrompt(out var leafName))
+            if (!CategoryCreationPrompt.TryValidate(name, out var leafName))
             {
                 return;
             }
