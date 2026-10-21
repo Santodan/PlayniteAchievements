@@ -26,9 +26,9 @@
         </ResourceDictionary>
     </UserControl.Resources>
 
-    <!-- One card: the game's own tags, editable, beside the global list (edited in Settings >
-         Metadata) drawn as the same grid rows, greyed and inert so it reads as available here but
-         owned elsewhere. -->
+    <!-- One card: the global list (edited in Settings > Metadata) on the left, drawn as the editor's
+         grid rows but greyed and inert so it reads as available here but owned elsewhere, and the
+         game's own tags, editable, on the right. -->
     <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto">
         <Border Style="{StaticResource CardBorderStyle}" HorizontalAlignment="Left">
             <Grid>
@@ -37,15 +37,49 @@
                     <ColumnDefinition Width="Auto"/>
                     <ColumnDefinition Width="Auto"/>
                 </Grid.ColumnDefinitions>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                </Grid.RowDefinitions>
 
-                <controls:AchievementTagListEditor Grid.Column="0" x:Name="Editor" VerticalAlignment="Top"/>
+                <TextBlock Grid.Row="0"
+                           Grid.Column="0"
+                           Text="{DynamicResource LOCPlayAch_ManageAchievements_Tags_GlobalHeader}"
+                           Style="{StaticResource SectionHeaderStyle}"
+                           Margin="{StaticResource PlayAch.Thickness.Bottom.Sm}"/>
+                <TextBlock Grid.Row="0"
+                           Grid.Column="2"
+                           Text="{DynamicResource LOCPlayAch_ManageAchievements_Tags_GameHeader}"
+                           Style="{StaticResource SectionHeaderStyle}"
+                           Margin="{StaticResource PlayAch.Thickness.Bottom.Sm}"/>
 
-                <Border Grid.Column="1"
+                <StackPanel Grid.Row="1" Grid.Column="2" VerticalAlignment="Top">
+                    <!-- Stands in for the empty grid; the editor's Add button stays below it. -->
+                    <TextBlock Text="{DynamicResource LOCPlayAch_ManageAchievements_Tags_Empty}"
+                               Margin="4,8,4,4">
+                        <TextBlock.Style>
+                            <Style TargetType="TextBlock" BasedOn="{StaticResource PlayAch.MutedTextStyle}">
+                                <Setter Property="Visibility" Value="Collapsed"/>
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding DataContext.Rows.Count, ElementName=Editor}" Value="0">
+                                        <Setter Property="Visibility" Value="Visible"/>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </TextBlock.Style>
+                    </TextBlock>
+                    <controls:AchievementTagListEditor x:Name="Editor"/>
+                </StackPanel>
+
+                <Border Grid.Row="0"
+                        Grid.RowSpan="2"
+                        Grid.Column="1"
                         Width="1"
                         Margin="16,0"
                         Background="{DynamicResource PlayAch.Brush.Border}"/>
 
-                <DataGrid Grid.Column="2"
+                <DataGrid Grid.Row="1"
+                          Grid.Column="0"
                           x:Name="GlobalTags"
                           VerticalAlignment="Top"
                           Style="{StaticResource PlayAch.DataGrid.BaseStyle}"
