@@ -197,7 +197,12 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                         record == null || record.IsNoMatch ? null : store.Snapshots?.Get(gameId, provider.Key, record.Id),
                         record?.Id == null ? null : (provider as IMetadataLinkDetails)?.ShownLink(record.Id))
                     {
-                        LinkDetails = record == null || record.IsNoMatch ? null : (provider as IMetadataLinkDetails)?.DescribeLink(gameId, record.Id)
+                        LinkDetails = record == null || record.IsNoMatch ? null : (provider as IMetadataLinkDetails)?.DescribeLink(gameId, record.Id),
+                        PageLinks = record == null || record.IsNoMatch
+                            ? Array.Empty<MetadataPageLinkItem>()
+                            : ((provider as IMetadataPageLinks)?.PageUrls(gameId, record.Id, servicingProviderKey) ?? Array.Empty<string>())
+                                .Select(url => new MetadataPageLinkItem(url))
+                                .ToList()
                     });
                 }
             }
@@ -280,6 +285,32 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             if (store.SetPairings(row.GameId, row.SourceKey, viewModel.GetChanges()))
             {
                 _onChanged?.Invoke();
+            }
+        }
+    }
+
+    /// <summary>One page a metadata link uses, opened in the browser.</summary>
+    public sealed class MetadataPageLinkItem
+    {
+        internal MetadataPageLinkItem(string url)
+        {
+            Url = url;
+            OpenCommand = new RelayCommand(_ => Open());
+        }
+
+        public string Url { get; }
+
+        public ICommand OpenCommand { get; }
+
+        private void Open()
+        {
+            try
+            {
+                System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo { FileName = Url, UseShellExecute = true });
+            }
+            catch (Exception ex)
+            {
+                LogManager.GetLogger().Debug($"[Metadata] Opening {Url} failed: {ex.Message}");
             }
         }
     }
@@ -380,6 +411,9 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
 
         /// <summary>Where the link led for this game, page by page; null for a source with one page.</summary>
         public string LinkDetails { get; internal set; }
+
+        /// <summary>A button per page the link uses, which opens it in the browser.</summary>
+        public IReadOnlyList<MetadataPageLinkItem> PageLinks { get; internal set; } = Array.Empty<MetadataPageLinkItem>();
 
         public string StatusText { get; }
 
