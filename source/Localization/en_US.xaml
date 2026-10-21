@@ -13,6 +13,7 @@
     <sys:String x:Key="LOCPlayAch_Achievements">Achievements</sys:String>
     <sys:String x:Key="LOCPlayAch_Common_Action_ExcludeFromSummaries">Exclude from Summaries</sys:String>
     <sys:String x:Key="LOCPlayAch_Common_Action_IncludeInSummaries">Include in Summaries</sys:String>
+    <sys:String x:Key="LOCPlayAch_Common_AddNamed">Add "{0}"</sys:String>
     <sys:String x:Key="LOCPlayAch_Common_Check">Check</sys:String>
     <sys:String x:Key="LOCPlayAch_Common_Continue">Continue</sys:String>
     <sys:String x:Key="LOCPlayAch_Common_Transparent">Transparent</sys:String>
@@ -249,8 +250,6 @@
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Category_ManageHint">Rename categories, choose category images, and drag categories to reorder them. Drop a category onto the middle of another to make it a subcategory, and right-click a row for more actions.</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Category_MergeDialog_Target">Merge into</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Category_MergeTooltip">Merge this category into another, moving its achievements.</sys:String>
-    <sys:String x:Key="LOCPlayAch_ManageAchievements_Category_NewCategoryEllipsis">New Category…</sys:String>
-    <sys:String x:Key="LOCPlayAch_ManageAchievements_Category_NewCategoryHint">Enter a name for the new category.</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Category_NewCategoryName">New Category</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Category_SummaryArtTooltip">Use this category's art as this game's image in game grids. Click again to clear.</sys:String>
     <sys:String x:Key="LOCPlayAch_CategoryKind_Base">Base</sys:String>

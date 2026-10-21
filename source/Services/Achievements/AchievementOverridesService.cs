@@ -501,6 +501,40 @@ namespace PlayniteAchievements.Services.Achievements
         }
 
         /// <summary>
+        /// Adds a tag named <paramref name="name"/> to the game's own list and returns its key; the
+        /// key of the available tag already named that, when there is one.
+        /// </summary>
+        public string CreateGameTag(Guid gameId, string name)
+        {
+            var trimmed = name?.Trim();
+            if (gameId == Guid.Empty || string.IsNullOrWhiteSpace(trimmed))
+            {
+                return null;
+            }
+
+            var existing = AchievementTagRegistry.GetAvailable(gameId)
+                .FirstOrDefault(definition => string.Equals(
+                    AchievementTagRegistry.GetName(definition), trimmed, StringComparison.OrdinalIgnoreCase));
+            if (existing != null)
+            {
+                return existing.Key;
+            }
+
+            var key = AchievementTagHelper.NewUserKey();
+            _gameCustomDataStore.Update(
+                gameId,
+                customData =>
+                {
+                    var tags = customData.AchievementTags?.Select(definition => definition.Clone()).ToList()
+                        ?? new List<AchievementTagDefinition>();
+                    tags.Add(new AchievementTagDefinition { Key = key, Name = trimmed });
+                    customData.AchievementTags = tags;
+                },
+                affectsSummaryData: false);
+            return key;
+        }
+
+        /// <summary>
         /// Replaces every achievement's tag override: an ApiName absent from
         /// <paramref name="tagOverrides"/> takes the provider's tags, "" removes every tag.
         /// </summary>

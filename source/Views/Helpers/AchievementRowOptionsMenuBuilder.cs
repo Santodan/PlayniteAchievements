@@ -340,6 +340,17 @@ namespace PlayniteAchievements.Views.Helpers
                 typesMenu.Items.Add(typeItem);
             }
 
+            SelectorSearch.SetCreateAction(typesMenu, name =>
+            {
+                var key = CurrentOverridesService?.CreateGameTag(context.GameId, name);
+                if (string.IsNullOrWhiteSpace(key))
+                {
+                    return;
+                }
+
+                AddTag(context, key);
+                onChanged?.Invoke();
+            });
             menu.Items.Add(typesMenu);
             menu.Items.Add(CreateMenuItem(
                 L(resourceOwner, "LOCPlayAch_Common_SetLabelEllipsis"),

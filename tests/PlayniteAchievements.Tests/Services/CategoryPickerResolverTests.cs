@@ -154,28 +154,6 @@ namespace PlayniteAchievements.Services.Tests
         }
 
         [TestMethod]
-        public void CreateNewRow_CarriesItsTextAndNoLabel()
-        {
-            var row = CategoryPickerOption.CreateNewRow("New Category...");
-
-            Assert.IsTrue(row.IsCreateNew);
-            Assert.AreEqual("New Category...", row.LeafDisplay);
-            Assert.IsNull(row.Label);
-        }
-
-        [TestMethod]
-        public void Resolve_IgnoresTheCreateRow()
-        {
-            var createRow = CategoryPickerOption.CreateNewRow("Story");
-            var options = CategoryPickerResolver.BuildOptions(new[] { "Multiplayer" });
-            options.Insert(0, createRow);
-
-            // Neither picking it nor matching its text may resolve to it: the row asks for a
-            // category to be created, and naming one is the host's answer, not a label.
-            Assert.AreEqual("Story", CategoryPickerResolver.Resolve("Story", createRow, options));
-        }
-
-        [TestMethod]
         public void BuildGameCategoryLabels_ListsAnEmptyCategoryFromTheStoredOrder()
         {
             // No achievement carries "Empty": it exists only because the user created it, and

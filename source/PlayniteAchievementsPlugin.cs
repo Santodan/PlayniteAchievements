@@ -871,6 +871,8 @@ namespace PlayniteAchievements
             _logger = PluginLogger.GetLogger(nameof(PlayniteAchievementsPlugin));
             _themeControlRegistry = new ThemeControlRegistry();
             _resourceService = new AchievementResourceService(_logger);
+            // Search over every long list the plugin shows; class handlers, so once per process.
+            Views.Helpers.SelectorSearch.Register();
 
             using (PerfScope.StartStartup(_logger, "PluginCtor.Total", thresholdMs: 50))
             {

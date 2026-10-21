@@ -3,6 +3,7 @@
                     xmlns:converters="clr-namespace:PlayniteAchievements.Views.Converters"
                     xmlns:items="clr-namespace:PlayniteAchievements.ViewModels.Items"
                     xmlns:controls="clr-namespace:PlayniteAchievements.Views.Controls"
+                    xmlns:helpers="clr-namespace:PlayniteAchievements.Views.Helpers"
                     xmlns:lvc="clr-namespace:LiveCharts.Wpf;assembly=LiveCharts.Wpf"
                     xmlns:sys="clr-namespace:System;assembly=mscorlib">
 
@@ -858,19 +859,6 @@
          combo box draws the tree the same way and there is one place to change it. Expects a
          CategoryPickerOption. -->
     <DataTemplate x:Key="PlayAch.CategoryTreeComboBoxItemTemplate">
-        <!-- The create row sits above the categories and is ruled off from them: it names nothing in
-             the tree, so it carries no connectors either. -->
-        <Border>
-            <Border.Style>
-                <Style TargetType="Border">
-                    <Setter Property="BorderBrush" Value="{DynamicResource NormalBorderBrush}"/>
-                    <Style.Triggers>
-                        <DataTrigger Binding="{Binding IsCreateNew}" Value="True">
-                            <Setter Property="BorderThickness" Value="0,0,0,1"/>
-                        </DataTrigger>
-                    </Style.Triggers>
-                </Style>
-            </Border.Style>
         <DockPanel LastChildFill="True">
             <controls:CategoryTreeGuide DockPanel.Dock="Left"
                                         VerticalAlignment="Stretch"
@@ -887,9 +875,6 @@
                                          Value="{x:Null}">
                                 <Setter Property="Visibility" Value="Collapsed"/>
                             </DataTrigger>
-                            <DataTrigger Binding="{Binding IsCreateNew}" Value="True">
-                                <Setter Property="Visibility" Value="Collapsed"/>
-                            </DataTrigger>
                         </Style.Triggers>
                     </Style>
                 </controls:CategoryTreeGuide.Style>
@@ -902,7 +887,6 @@
                        TextWrapping="NoWrap"
                        Margin="5"/>
         </DockPanel>
-        </Border>
     </DataTemplate>
 
     <Style x:Key="PlayAch.ComboBox.BaseStyle" TargetType="ComboBox">
@@ -976,12 +960,68 @@
                                     <Border Background="{DynamicResource PlayAch.Brush.PopupSurface}"
                                             BorderBrush="{DynamicResource PlayAch.Brush.PopupBorder}"
                                             BorderThickness="{StaticResource PlayAch.Thickness.Border}">
-                                        <ScrollViewer CanContentScroll="True"
-                                                      HorizontalScrollBarVisibility="Auto"
-                                                      VerticalScrollBarVisibility="Auto">
-                                            <ItemsPresenter KeyboardNavigation.DirectionalNavigation="Contained"
-                                                            SnapsToDevicePixels="{TemplateBinding SnapsToDevicePixels}"/>
-                                        </ScrollViewer>
+                                        <!-- Search over the options, shown by SelectorSearch for lists
+                                             longer than five, and the create result it offers when the
+                                             search matches nothing. -->
+                                        <DockPanel>
+                                            <Grid x:Name="PART_SearchHost"
+                                                  DockPanel.Dock="Top"
+                                                  Margin="4"
+                                                  Visibility="Collapsed">
+                                                <TextBox x:Name="PART_SearchBox"
+                                                         helpers:SelectorSearch.IsComboBoxSearchBox="True"
+                                                         VerticalContentAlignment="Center"/>
+                                                <TextBlock Text="{DynamicResource LOCSearchLabel}"
+                                                           Margin="10,0,0,0"
+                                                           VerticalAlignment="Center"
+                                                           IsHitTestVisible="False"
+                                                           Foreground="{DynamicResource PlayAch.Brush.Text}"
+                                                           Opacity="{StaticResource PlayAch.Opacity.Placeholder}">
+                                                    <TextBlock.Style>
+                                                        <Style TargetType="TextBlock">
+                                                            <Setter Property="Visibility" Value="Collapsed"/>
+                                                            <Style.Triggers>
+                                                                <DataTrigger Binding="{Binding Text, ElementName=PART_SearchBox}" Value="">
+                                                                    <Setter Property="Visibility" Value="Visible"/>
+                                                                </DataTrigger>
+                                                            </Style.Triggers>
+                                                        </Style>
+                                                    </TextBlock.Style>
+                                                </TextBlock>
+                                            </Grid>
+                                            <!-- A row like the options below it, as the create
+                                                 result is in a menu. -->
+                                            <Button x:Name="PART_SearchCreate"
+                                                    DockPanel.Dock="Top"
+                                                    Focusable="False"
+                                                    Visibility="Collapsed">
+                                                <Button.Template>
+                                                    <ControlTemplate TargetType="Button">
+                                                        <Grid SnapsToDevicePixels="True" Background="Transparent">
+                                                            <Rectangle x:Name="HoverRectangle"
+                                                                       Fill="{DynamicResource PlayAch.Brush.Grid.RowHoverBackground}"
+                                                                       IsHitTestVisible="False"
+                                                                       Visibility="Collapsed"/>
+                                                            <ContentPresenter Margin="10,5"
+                                                                              HorizontalAlignment="Left"
+                                                                              VerticalAlignment="Center"
+                                                                              TextElement.Foreground="{DynamicResource PlayAch.Brush.Text}"/>
+                                                        </Grid>
+                                                        <ControlTemplate.Triggers>
+                                                            <Trigger Property="IsMouseOver" Value="True">
+                                                                <Setter TargetName="HoverRectangle" Property="Visibility" Value="Visible"/>
+                                                            </Trigger>
+                                                        </ControlTemplate.Triggers>
+                                                    </ControlTemplate>
+                                                </Button.Template>
+                                            </Button>
+                                            <ScrollViewer CanContentScroll="True"
+                                                          HorizontalScrollBarVisibility="Auto"
+                                                          VerticalScrollBarVisibility="Auto">
+                                                <ItemsPresenter KeyboardNavigation.DirectionalNavigation="Contained"
+                                                                SnapsToDevicePixels="{TemplateBinding SnapsToDevicePixels}"/>
+                                            </ScrollViewer>
+                                        </DockPanel>
                                     </Border>
                                 </Grid>
                             </Popup>

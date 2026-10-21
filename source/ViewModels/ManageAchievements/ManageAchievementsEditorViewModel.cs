@@ -2333,6 +2333,9 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                     AchievementTagRegistry.GetAssignableKeys(_gameId),
                     key => ManageAchievementsCategoryViewModel.GetTagDisplayName(key, _gameId),
                     option => option.PropertyChanged += TypeSelectionOption_PropertyChanged);
+                // A tag created from a search is already on the selection; its new option has to
+                // show that.
+                SyncTypeOptionsToEditTarget();
                 foreach (var row in AchievementRows.ToList())
                 {
                     row?.RefreshTags();
@@ -2832,6 +2835,19 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 AchievementTagHelper.OverrideOrNull(normalized, row.ProviderTagsValue));
             PersistCategoryAssignmentsFromRows();
             SyncBulkRowFromSelection();
+        }
+
+        /// <summary>
+        /// Creates a tag of this game's named <paramref name="name"/> (or finds the one already named
+        /// that) and adds it to every selected achievement.
+        /// </summary>
+        public void CreateAndAssignTag(string name)
+        {
+            var key = _achievementOverridesService.CreateGameTag(_gameId, name);
+            if (!string.IsNullOrWhiteSpace(key))
+            {
+                SetTagForSelection(key, isSelected: true);
+            }
         }
 
         /// <summary>

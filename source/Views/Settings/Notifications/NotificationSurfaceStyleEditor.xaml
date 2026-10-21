@@ -428,7 +428,7 @@
                                 Orientation="Horizontal">
                         <ComboBox ItemsSource="{Binding RarityFontFamilyOptions}"
                                   SelectedItem="{Binding SelectedRarityFontFamilyOption, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                  helpers:FontPickerBehavior.EnableSearch="True"
+                                  helpers:FontPickerBehavior.PreviewSelectedFont="True"
                                   MinWidth="190"
                                   MaxDropDownHeight="360"
                                   VerticalAlignment="Center"
@@ -695,7 +695,7 @@
                                Style="{StaticResource EditorRowLabelStyle}"/>
                     <ComboBox ItemsSource="{Binding FontFamilyOptions}"
                               SelectedItem="{Binding SelectedFontFamilyOption, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                              helpers:FontPickerBehavior.EnableSearch="True"
+                              helpers:FontPickerBehavior.PreviewSelectedFont="True"
                               MinWidth="260"
                               MaxDropDownHeight="360"
                               VirtualizingPanel.IsVirtualizing="True">
@@ -785,7 +785,7 @@
                                     <DataTemplate>
                                         <ComboBox ItemsSource="{Binding FontFamilyOptions}"
                                                   SelectedItem="{Binding SelectedFontFamilyOption, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                                  helpers:FontPickerBehavior.EnableSearch="True"
+                                                  helpers:FontPickerBehavior.PreviewSelectedFont="True"
                                                   MaxDropDownHeight="360"
                                                   VerticalAlignment="Center"
                                                   Margin="4,2"
