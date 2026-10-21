@@ -515,6 +515,7 @@
     <Compile Include="..\..\source\Services\Metadata\MetadataLinkStore.cs" Link="Source\Services\Metadata\MetadataLinkStore.cs" />
     <Compile Include="..\..\source\Services\Metadata\MetadataSourceSnapshotStore.cs" Link="Source\Services\Metadata\MetadataSourceSnapshotStore.cs" />
     <Compile Include="..\..\source\Services\Metadata\MetadataOverlay.cs" Link="Source\Services\Metadata\MetadataOverlay.cs" />
+    <Compile Include="..\..\source\Services\Metadata\MetadataSourceRouting.cs" Link="Source\Services\Metadata\MetadataSourceRouting.cs" />
     <Compile Include="..\..\source\Models\Settings\PersistedSettings.GridCompatibility.Notifications.cs" Link="Source\Models\Settings\PersistedSettings.GridCompatibility.Notifications.cs" />
     <Compile Include="..\..\source\Models\Settings\ProgressBadgeSource.cs" Link="Source\Models\Settings\ProgressBadgeSource.cs" />
     <Compile Include="..\..\source\Models\Settings\ProviderNotificationOverride.cs" Link="Source\Models\Settings\ProviderNotificationOverride.cs" />
