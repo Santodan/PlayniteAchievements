@@ -388,6 +388,20 @@ namespace PlayniteAchievements.ViewModels
             {
                 Width = 130
             });
+            // Achievement tags; a tag pie slice in the mini-showcase toggles them too. The grid
+            // lists every game here, so it offers the global tags; a selected game's grid has its
+            // own Tags filter with that game's tags.
+            RecentAchievementsControlBar.Items.Add(new GridMultiSelectFilter(
+                this,
+                nameof(SelectedTagFilterText),
+                () => SelectedTagFilterText,
+                () => TagFilterOptions,
+                IsTagFilterSelected,
+                SetTagFilterSelected,
+                key => Services.Achievements.AchievementTagRegistry.GetName(key))
+            {
+                Width = 130
+            });
 
             // The selected-game control bar is built and owned by _selectedGameControlBar.
         }
