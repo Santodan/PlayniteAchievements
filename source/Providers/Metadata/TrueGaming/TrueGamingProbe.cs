@@ -44,7 +44,12 @@ namespace PlayniteAchievements.Providers.Metadata.TrueGaming
         private static readonly string[] CompareGames =
         {
             "ELDEN RING NIGHTREIGN", "ELDEN RING", "Cyberpunk 2077", "Hades", "Fallout 4",
-            "Hollow Knight", "Baldur's Gate 3", "Clair Obscur: Expedition 33", "PEAK"
+            "Hollow Knight", "Baldur's Gate 3", "Clair Obscur: Expedition 33", "PEAK",
+            "Hogwarts Legacy", "Red Dead Redemption 2", "The Witcher 3: Wild Hunt", "Sekiro: Shadows Die Twice",
+            "Dark Souls III", "Stardew Valley", "Celeste", "DOOM Eternal", "Resident Evil Village",
+            "Monster Hunter: World", "Alan Wake 2", "Lies of P", "Dead Cells", "It Takes Two",
+            "Hi-Fi RUSH", "Death Stranding", "Persona 5 Royal", "Sea of Thieves", "Starfield",
+            "Assassin's Creed Valhalla", "Star Wars Jedi: Survivor", "Dave the Diver", "Hollow Knight: Silksong"
         };
 
         private static readonly Regex AchievementItem = new Regex(@"<li[^>]*\bid=""\d+_\d+_\d+""", RegexOptions.CultureInvariant);
@@ -59,6 +64,8 @@ namespace PlayniteAchievements.Providers.Metadata.TrueGaming
         {
             Directory.CreateDirectory(outputDirectory);
             var views = new OffscreenViewLeaseSource(api, logger);
+            var flagTally = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+            var comparedRows = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
             using (views.BeginLease())
             {
                 for (var i = 0; i < Urls.Length; i++)
@@ -85,7 +92,7 @@ namespace PlayniteAchievements.Providers.Metadata.TrueGaming
                     ct.ThrowIfCancellationRequested();
                     try
                     {
-                        await CompareAsync(views, logger, game, outputDirectory, ct).ConfigureAwait(false);
+                        await CompareAsync(views, logger, game, outputDirectory, flagTally, comparedRows, ct).ConfigureAwait(false);
                     }
                     catch (OperationCanceledException) when (ct.IsCancellationRequested)
                     {
@@ -98,7 +105,29 @@ namespace PlayniteAchievements.Providers.Metadata.TrueGaming
                 }
             }
 
+            WriteFlagTally(logger, outputDirectory, flagTally, comparedRows);
             logger?.Info($"[TrueGamingProbe] done; pages saved to {outputDirectory}");
+        }
+
+        /// <summary>
+        /// compare-flags.txt: for each flag, how many name-matched rows had it on one site's page
+        /// and not the other's, per pair of sites, out of the rows compared for that pair.
+        /// </summary>
+        private static void WriteFlagTally(ILogger logger, string outputDirectory, Dictionary<string, int> flagTally, Dictionary<string, int> comparedRows)
+        {
+            var report = new StringBuilder();
+            report.AppendLine("rows compared (both pages flagged): " + string.Join(", ", comparedRows.OrderBy(pair => pair.Key).Select(pair => $"{pair.Key}={pair.Value}")));
+            foreach (var flag in flagTally.Keys.Select(key => key.Split('|')[0]).Distinct(StringComparer.OrdinalIgnoreCase)
+                         .OrderByDescending(flag => flagTally.Where(pair => pair.Key.StartsWith(flag + "|", StringComparison.OrdinalIgnoreCase)).Sum(pair => pair.Value)))
+            {
+                var byPair = flagTally.Where(pair => pair.Key.StartsWith(flag + "|", StringComparison.OrdinalIgnoreCase))
+                    .OrderBy(pair => pair.Key)
+                    .Select(pair => $"{pair.Key.Split('|')[1]}:{pair.Value}");
+                report.AppendLine($"  {flag}: {string.Join(" ", byPair)}");
+            }
+
+            File.WriteAllText(Path.Combine(outputDirectory, "compare-flags.txt"), report.ToString(), Encoding.UTF8);
+            logger?.Info($"[TrueGamingProbe] flag tally {report.ToString().Replace("\r", "").Replace("\n", " || ")}");
         }
 
         private static async Task ProbeAsync(OffscreenViewLeaseSource views, ILogger logger, string url, string file, CancellationToken ct)
@@ -151,7 +180,14 @@ namespace PlayniteAchievements.Providers.Metadata.TrueGaming
         /// page and its counts, then per pair of sites the rows matched by name whose flags or DLC
         /// pack differ.
         /// </summary>
-        private static async Task CompareAsync(OffscreenViewLeaseSource views, ILogger logger, string game, string outputDirectory, CancellationToken ct)
+        private static async Task CompareAsync(
+            OffscreenViewLeaseSource views,
+            ILogger logger,
+            string game,
+            string outputDirectory,
+            Dictionary<string, int> flagTally,
+            Dictionary<string, int> comparedRows,
+            CancellationToken ct)
         {
             var found = new List<(TrueGamingSite Site, string Slug, string Address, TrueGamingPage Page)>();
             foreach (var site in TrueGamingSite.LookupOrder)
@@ -198,7 +234,7 @@ namespace PlayniteAchievements.Providers.Metadata.TrueGaming
             {
                 for (var j = i + 1; j < found.Count; j++)
                 {
-                    CompareRows(report, found[i].Site.Prefix, found[i].Page, found[j].Site.Prefix, found[j].Page);
+                    CompareRows(report, found[i].Site.Prefix, found[i].Page, found[j].Site.Prefix, found[j].Page, flagTally, comparedRows);
                 }
             }
 
@@ -207,8 +243,18 @@ namespace PlayniteAchievements.Providers.Metadata.TrueGaming
             logger?.Info($"[TrueGamingProbe] compare {report.ToString().Replace("\r", "").Replace("\n", " || ")}");
         }
 
-        private static void CompareRows(StringBuilder report, string leftName, TrueGamingPage left, string rightName, TrueGamingPage right)
+        private static void CompareRows(
+            StringBuilder report,
+            string leftName,
+            TrueGamingPage left,
+            string rightName,
+            TrueGamingPage right,
+            Dictionary<string, int> flagTally,
+            Dictionary<string, int> comparedRows)
         {
+            // A page with no flags on any row has nothing to disagree with; it is left out of the tally.
+            var tally = left.Achievements.Any(row => row.Flags.Count > 0) && right.Achievements.Any(row => row.Flags.Count > 0);
+            var pair = $"{leftName}-{rightName}";
             var rightRows = right.Achievements
                 .GroupBy(row => NameKey(row.Name))
                 .ToDictionary(group => group.Key, group => group.First());
@@ -227,6 +273,17 @@ namespace PlayniteAchievements.Providers.Metadata.TrueGaming
                 var flagsSame = string.Equals(leftFlags, rightFlags, StringComparison.OrdinalIgnoreCase);
                 var dlcSame = string.Equals(row.Dlc ?? "", other.Dlc ?? "", StringComparison.OrdinalIgnoreCase);
                 sameFlags += flagsSame ? 1 : 0;
+                if (tally)
+                {
+                    comparedRows[pair] = (comparedRows.TryGetValue(pair, out var rows) ? rows : 0) + 1;
+                    foreach (var flag in row.Flags.Concat(other.Flags).Distinct(StringComparer.OrdinalIgnoreCase)
+                                 .Where(flag => row.Flags.Contains(flag, StringComparer.OrdinalIgnoreCase) != other.Flags.Contains(flag, StringComparer.OrdinalIgnoreCase)))
+                    {
+                        var key = flag + "|" + pair;
+                        flagTally[key] = (flagTally.TryGetValue(key, out var count) ? count : 0) + 1;
+                    }
+                }
+
                 sameDlc += dlcSame ? 1 : 0;
                 if (!flagsSame)
                 {
