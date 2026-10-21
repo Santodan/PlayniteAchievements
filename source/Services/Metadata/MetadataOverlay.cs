@@ -132,6 +132,7 @@ namespace PlayniteAchievements.Services.Metadata
             foreach (var key in plan.AllKeys)
             {
                 ct.ThrowIfCancellationRequested();
+                request.WantedFields = plan.FieldsFor(key);
                 var (matched, fetchFailed) = await LoadMatchedSetAsync(key, gameId, request, data.Achievements, ct).ConfigureAwait(false);
                 if (matched != null)
                 {
@@ -464,7 +465,12 @@ namespace PlayniteAchievements.Services.Metadata
                         return (null, false);
                     }
 
-                    _links?.SetAuto(gameId, provider.Key, linkId, unconfirmed.Label);
+                    _links?.SetAuto(gameId, provider.Key, ExtendedOr(set, linkId), unconfirmed.Label);
+                }
+                else if (!request.LinkIsUserSet && !string.IsNullOrWhiteSpace(set.ExtendedLinkId) &&
+                         !string.Equals(set.ExtendedLinkId.Trim(), linkId, StringComparison.OrdinalIgnoreCase))
+                {
+                    _links?.ExtendAuto(gameId, provider.Key, set.ExtendedLinkId);
                 }
 
                 return (new MatchedSet(set, matches), false);
@@ -479,6 +485,9 @@ namespace PlayniteAchievements.Services.Metadata
                 return (null, true);
             }
         }
+
+        private static string ExtendedOr(AchievementSourceSet set, string linkId) =>
+            string.IsNullOrWhiteSpace(set.ExtendedLinkId) ? linkId : set.ExtendedLinkId.Trim();
 
         /// <summary>The game's last saved achievements by ApiName; empty when there are none.</summary>
         private Dictionary<string, AchievementDetail> StoredByApiName(Guid gameId)
@@ -609,8 +618,10 @@ namespace PlayniteAchievements.Services.Metadata
             MetadataLinkRequest request,
             CancellationToken ct)
         {
+            request.LinkIsUserSet = false;
             if (_links != null && _links.TryGet(gameId, provider.Key, out var stored))
             {
+                request.LinkIsUserSet = stored.Origin == MetadataLinkOrigin.User;
                 return (stored.IsNoMatch ? null : stored.Id, null);
             }
 
@@ -905,6 +916,19 @@ namespace PlayniteAchievements.Services.Metadata
             public List<string> AllKeys { get; }
 
             public bool IsEmpty => AllKeys.Count == 0;
+
+            /// <summary>The fields this plan takes from <paramref name="key"/>; category art comes with categories.</summary>
+            public MetadataField FieldsFor(string key)
+            {
+                bool Has(List<string> keys) => keys.Contains(key, StringComparer.OrdinalIgnoreCase);
+                return (Has(IconKeys) ? MetadataField.Icons : MetadataField.None) |
+                       (Has(CategoryKeys) ? MetadataField.Categories | MetadataField.CategoryArt : MetadataField.None) |
+                       (Has(TagKeys) ? MetadataField.Tags : MetadataField.None) |
+                       (Has(RarityKeys) ? MetadataField.Rarity : MetadataField.None) |
+                       (Has(CapstoneArtKeys) ? MetadataField.CapstoneArt : MetadataField.None) |
+                       (Has(TrophyTypeKeys) ? MetadataField.TrophyTypes : MetadataField.None) |
+                       (Has(PointsKeys) ? MetadataField.Points : MetadataField.None);
+            }
         }
     }
 }
