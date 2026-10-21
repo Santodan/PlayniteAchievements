@@ -1,3 +1,4 @@
+using System.Linq;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using PlayniteAchievements.Services.Achievements;
 
@@ -77,6 +78,18 @@ namespace PlayniteAchievements.Tests.Services
             Assert.IsNull(CategoryKindHelper.ResolveEffective(CategoryKindHelper.None, "Base"), "None on the category says it has none");
             Assert.AreEqual("Base", CategoryKindHelper.ResolveEffective(null, "base"));
             Assert.IsNull(CategoryKindHelper.ResolveEffective(null, null));
+        }
+
+        [TestMethod]
+        public void ToSortKey_OrdersCanonicallyWithNoKindLast()
+        {
+            var sorted = new[] { null, "Subset", "Custom", "DLC|Update", "DLC", "Base" }
+                .OrderBy(CategoryKindHelper.ToSortKey, System.StringComparer.CurrentCulture)
+                .ToArray();
+
+            CollectionAssert.AreEqual(
+                new[] { "Base", "DLC", "DLC|Update", "Subset", "Custom", null },
+                sorted);
         }
     }
 }
