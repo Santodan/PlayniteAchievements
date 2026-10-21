@@ -20,5 +20,19 @@ namespace PlayniteAchievements.Views.Settings.Metadata
             get => RarityColumn.Visibility == Visibility.Visible;
             set => RarityColumn.Visibility = value ? Visibility.Visible : Visibility.Collapsed;
         }
+
+        /// <summary>
+        /// Whether the grid takes all the height it is given and scrolls inside it, for a page where
+        /// it is the only content; otherwise it stops at a fixed height among other sections.
+        /// </summary>
+        public bool FillsHeight
+        {
+            get => double.IsPositiveInfinity(ChoicesGrid.MaxHeight);
+            set
+            {
+                ChoicesGrid.MaxHeight = value ? double.PositiveInfinity : 520;
+                ChoicesGrid.VerticalAlignment = value ? VerticalAlignment.Stretch : VerticalAlignment.Top;
+            }
+        }
     }
 }
