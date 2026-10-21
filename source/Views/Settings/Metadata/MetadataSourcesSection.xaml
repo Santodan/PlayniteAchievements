@@ -17,21 +17,23 @@
         </ResourceDictionary>
     </UserControl.Resources>
     <Grid Background="{DynamicResource PlayAch.Brush.Panel}">
-        <!-- Scrolled by the Metadata tab, which shows it as its own page. -->
+        <!-- The Metadata tab's Sources page: the grid fills the page and scrolls itself. -->
                 <Border Style="{StaticResource SectionBorderStyle}">
-                    <StackPanel>
-                        <TextBlock Text="{DynamicResource LOCPlayAch_Settings_Metadata_Sources}"
+                    <DockPanel LastChildFill="True">
+                        <TextBlock DockPanel.Dock="Top"
+                                   Text="{DynamicResource LOCPlayAch_Settings_Metadata_Sources}"
                                    Style="{StaticResource SectionHeaderStyle}"
                                    Margin="{StaticResource PlayAch.Thickness.Bottom.Md}"/>
-                        <Border Style="{StaticResource SectionAccentRuleStyle}"/>
+                        <Border DockPanel.Dock="Top" Style="{StaticResource SectionAccentRuleStyle}"/>
 
-                        <TextBlock Text="{DynamicResource LOCPlayAch_Settings_Metadata_SourcesHint}"
+                        <TextBlock DockPanel.Dock="Top"
+                                   Text="{DynamicResource LOCPlayAch_Settings_Metadata_SourcesHint}"
                                    Style="{StaticResource MutedTextStyle}"
                                    TextWrapping="Wrap"
                                    Margin="0,0,0,10"/>
 
-                        <local:MetadataChoicesGrid DataContext="{Binding Rows}"/>
-                    </StackPanel>
+                        <local:MetadataChoicesGrid DataContext="{Binding Rows}" FillsHeight="True"/>
+                    </DockPanel>
                 </Border>
     </Grid>
 </UserControl>
