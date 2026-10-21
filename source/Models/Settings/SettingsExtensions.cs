@@ -76,7 +76,6 @@ namespace PlayniteAchievements.Models.Settings
             target.MetadataDefaults = (source.MetadataDefaults ?? MetadataChoices.CreateDefaults()).Clone();
             target.MetadataPlatformChoices = PersistedSettings.ClonePlatformChoices(source.MetadataPlatformChoices);
             target.MetadataChoicesSeeded = source.MetadataChoicesSeeded;
-            target.MetadataTagChoicesSeeded = source.MetadataTagChoicesSeeded;
             target.InGamePollIntervalSeconds = source.InGamePollIntervalSeconds;
             target.InGamePollRefreshFriends = source.InGamePollRefreshFriends;
             target.InGameFriendRefreshMultiplier = source.InGameFriendRefreshMultiplier;
