@@ -1,3 +1,4 @@
+using PlayniteAchievements.Services.Achievements;
 using PlayniteAchievements.Services.Summaries;
 
 namespace PlayniteAchievements.ViewModels.Items
@@ -114,6 +115,12 @@ namespace PlayniteAchievements.ViewModels.Items
         /// (IsBaseCategory, etc.).
         /// </summary>
         public string CategoryKind { get; set; }
+
+        /// <summary>Localized kind names for the Type column; empty for no kind.</summary>
+        public string CategoryKindDisplay => CategoryKindHelper.ToDisplayText(CategoryKind);
+
+        /// <summary>Sorts the Type column in canonical kind order, no kind last.</summary>
+        public string CategoryKindSortKey => CategoryKindHelper.ToSortKey(CategoryKind);
 
         /// <summary>Theme compatibility: the category's kind under its former name.</summary>
         public string CategoryType => CategoryKind;
