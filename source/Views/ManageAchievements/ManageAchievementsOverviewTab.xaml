@@ -388,6 +388,26 @@
                                                         Padding="{StaticResource PlayAch.Thickness.ButtonPadding}"
                                                         VerticalAlignment="Center"
                                                         Margin="{StaticResource PlayAch.Thickness.Left.Sm}" />
+                                                <!-- One button per page the link uses (TrueGaming: one per site); the tooltip is its address. -->
+                                                <ItemsControl ItemsSource="{Binding PageLinks}"
+                                                              Focusable="False"
+                                                              VerticalAlignment="Center"
+                                                              Margin="{StaticResource PlayAch.Thickness.Left.Sm}">
+                                                    <ItemsControl.ItemsPanel>
+                                                        <ItemsPanelTemplate>
+                                                            <StackPanel Orientation="Horizontal" />
+                                                        </ItemsPanelTemplate>
+                                                    </ItemsControl.ItemsPanel>
+                                                    <ItemsControl.ItemTemplate>
+                                                        <DataTemplate>
+                                                            <Button Content="&#xEF1F;"
+                                                                    Style="{StaticResource OverviewIconButtonStyle}"
+                                                                    ToolTip="{Binding Url}"
+                                                                    AutomationProperties.Name="{Binding Url}"
+                                                                    Command="{Binding OpenCommand}" />
+                                                        </DataTemplate>
+                                                    </ItemsControl.ItemTemplate>
+                                                </ItemsControl>
                                             </WrapPanel>
                                         </Grid>
                                     </DataTemplate>
