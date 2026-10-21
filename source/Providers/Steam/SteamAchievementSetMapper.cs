@@ -231,13 +231,12 @@ namespace PlayniteAchievements.Providers.Steam
         /// <summary>
         /// Copies Category, CategoryKind and Tags from <paramref name="stored"/> onto achievements
         /// another category source was expected to set but could not, so a refresh without that
-        /// source keeps what was stored instead of writing blanks over it. Achievements in
-        /// <paramref name="preserveApiNames"/> and those without a stored row keep their values.
+        /// source keeps what was stored instead of writing blanks over it. Achievements without a
+        /// stored row keep their values.
         /// </summary>
         public static void CarryForwardCategories(
             IList<AchievementDetail> achievements,
-            IEnumerable<AchievementDetail> stored,
-            ISet<string> preserveApiNames)
+            IEnumerable<AchievementDetail> stored)
         {
             if (achievements == null || achievements.Count == 0 || stored == null)
             {
@@ -258,7 +257,6 @@ namespace PlayniteAchievements.Providers.Steam
             {
                 var apiName = achievement?.ApiName?.Trim();
                 if (string.IsNullOrWhiteSpace(apiName) ||
-                    preserveApiNames?.Contains(apiName) == true ||
                     !storedByApiName.TryGetValue(apiName, out var row))
                 {
                     continue;
