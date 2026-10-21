@@ -347,6 +347,24 @@
                 </DataGridTemplateColumn.CellTemplate>
             </DataGridTemplateColumn>
 
+            <!-- Category surfaces only: game rows have no kind. -->
+            <DataGridTemplateColumn Width="*" MinWidth="22" CanUserResize="True" Header="{DynamicResource LOCTypeLabel}" SortMemberPath="CategoryKindSortKey" helpers:ColumnVisibilityHelper.ColumnKey="CategoryKind">
+                <DataGridTemplateColumn.CellTemplate>
+                    <DataTemplate>
+                        <ContentControl Style="{StaticResource OverviewCellFrameStyle}">
+                            <TextBlock Text="{Binding CategoryKindDisplay}"
+                                       VerticalAlignment="{Binding RelativeSource={RelativeSource AncestorType={x:Type DataGridCell}}, Path=Column.(helpers:DataGridAlignmentBehavior.CellVerticalAlignment)}"
+                                       HorizontalAlignment="{Binding RelativeSource={RelativeSource AncestorType={x:Type DataGridCell}}, Path=Column.(helpers:DataGridAlignmentBehavior.CellHorizontalAlignment)}"
+                                       Style="{DynamicResource PlayAch.TextBlock.BaseStyle}"
+                                       Foreground="{DynamicResource PlayAch.Brush.Text}"
+                                       Opacity="{StaticResource PlayAch.Opacity.Subtle}"
+                                       TextWrapping="Wrap"
+                                       TextAlignment="{Binding RelativeSource={RelativeSource AncestorType={x:Type DataGridCell}}, Path=Column.(helpers:DataGridAlignmentBehavior.CellTextAlignment)}"/>
+                        </ContentControl>
+                    </DataTemplate>
+                </DataGridTemplateColumn.CellTemplate>
+            </DataGridTemplateColumn>
+
             <DataGridTemplateColumn Width="44" MinWidth="28" MaxWidth="96"
                                     Header="{DynamicResource LOCPlatformTitle}"
                                     CanUserResize="True"
