@@ -153,14 +153,13 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             }
 
             var apiNames = ResolveMemberApiNames(row.CategoryLabel);
-            _achievementOverridesService.SetCategoryKind(_gameId, row.CategoryLabel, kind, apiNames);
+            _achievementOverridesService.SetCategoryKind(_gameId, row.CategoryLabel, kind);
 
             var stored = CategoryKindHelper.NormalizeStored(kind);
             var members = new HashSet<string>(apiNames, StringComparer.OrdinalIgnoreCase);
             foreach (var item in _allRows.Where(item => item != null && members.Contains(item.ApiName ?? string.Empty)))
             {
-                item.LegacyCategoryKind = null;
-                item.CategoryKind = CategoryKindHelper.ResolveEffective(stored, null, item.ProviderCategoryKind);
+                item.CategoryKind = CategoryKindHelper.ResolveEffective(stored, item.ProviderCategoryKind);
             }
 
             RaiseCategoryMetadataPersisted();
