@@ -442,8 +442,8 @@ namespace PlayniteAchievements.Tests.Views
             StringAssert.Contains(options, "AddPinCollectionChoice");
             // A widget's collection is its own setting, offered by every widget listing games or
             // achievements; only achievement widgets offer achievement collections.
-            StringAssert.Contains(options, "AddCollectionChoice(achievementMosaicPanel, includeAchievementCollections: true)");
-            StringAssert.Contains(options, "AddCollectionChoice(gameMosaicPanel, includeAchievementCollections: false)");
+            StringAssert.Contains(options, "AddCollectionChoice(achievementMosaicBarPanel, includeAchievementCollections: true)");
+            StringAssert.Contains(options, "AddCollectionChoice(gameMosaicBarPanel, includeAchievementCollections: false)");
             StringAssert.Contains(options, "ShowcaseCollectionType.Achievements");
 
             // Unlock Next ranks during selection, so its criterion replaces the generic sort rows
