@@ -106,6 +106,9 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
 
         public bool HasRows => Rows.Count > 0;
 
+        /// <summary>True for a game with a choices row, which shows even before any source is in use.</summary>
+        public bool HasChoices => ChoiceRows.Count > 0;
+
         /// <summary>
         /// The game's own source choices, one row of the Metadata tab's grid: "Default" follows the
         /// game's platform, "Own" turns a source off for this game.
@@ -141,18 +144,26 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                     });
                 }
 
+                // A source's link shows while the game uses the source, or while it holds a link the
+                // user set, so a hand-entered link never disappears with a choice.
                 var choices = _settings?.Invoke()?.ResolveMetadataChoices(servicingProviderKey, gameChoices);
                 foreach (var provider in (_providers?.Invoke() ?? Array.Empty<IMetadataProvider>())
                     .Where(provider => !provider.IsNativeFor(servicingProviderKey)))
                 {
                     store.TryGet(gameId, provider.Key, out var record);
+                    var supplies = DescribeSupplies(choices, provider);
+                    if (string.IsNullOrEmpty(supplies) && record?.Origin != MetadataLinkOrigin.User)
+                    {
+                        continue;
+                    }
+
                     Rows.Add(new MetadataLinkRow(
                         this,
                         gameId,
                         provider.Key,
                         ResourceProvider.GetString(provider.DisplayNameKey),
                         provider.LinkPlaceholder,
-                        DescribeSupplies(choices, provider),
+                        supplies,
                         record,
                         store.GetCoverage(gameId, provider.Key),
                         record == null || record.IsNoMatch ? null : store.Snapshots?.Get(gameId, provider.Key, record.Id)));
@@ -168,6 +179,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             _choicesProviderKey = servicingProviderKey;
             ChoiceRows = rows;
             OnPropertyChanged(nameof(ChoiceRows));
+            OnPropertyChanged(nameof(HasChoices));
         }
 
         /// <summary>
@@ -182,16 +194,8 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 return;
             }
 
-            var choices = _settings?.Invoke()?.ResolveMetadataChoices(servicingProviderKey, store.GetChoices(gameId));
-            var providers = (_providers?.Invoke() ?? Array.Empty<IMetadataProvider>())
-                .ToDictionary(provider => provider.Key, StringComparer.OrdinalIgnoreCase);
-            foreach (var row in Rows)
-            {
-                if (row.SourceKey != null && providers.TryGetValue(row.SourceKey, out var provider))
-                {
-                    row.Supplies = DescribeSupplies(choices, provider);
-                }
-            }
+            // The sources in use changed, so the link rows do; the choices row is kept.
+            Load(gameId, servicingProviderKey);
         }
 
         /// <summary>Adds a row for a link stored elsewhere, after the metadata sources.</summary>
