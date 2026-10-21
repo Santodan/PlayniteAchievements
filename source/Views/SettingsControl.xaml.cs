@@ -487,6 +487,9 @@ namespace PlayniteAchievements.Views
                 case "Workshop":
                     tab = WorkshopTab;
                     break;
+                case "Metadata":
+                    tab = MetadataTab;
+                    break;
                 case "ThemeMigration":
                     // Theme migration is listed on both Display and Themes. Display is the
                     // canonical target because it comes first in the tab strip.
