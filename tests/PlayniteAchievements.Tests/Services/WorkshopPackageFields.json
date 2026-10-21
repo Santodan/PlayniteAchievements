@@ -247,10 +247,10 @@
     "MetadataChoices": {
       "CapstoneArt": "value",
       "Categories": "value",
-      "CategoryMode": "value",
       "Icons": "value",
       "Points": "value",
       "Rarity": "value",
+      "Tags": "value",
       "TrophyTypes": "value"
     },
     "MetadataLinkData": {
