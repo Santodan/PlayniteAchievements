@@ -600,6 +600,46 @@ namespace PlayniteAchievements.Tests.Services
         }
 
         [TestMethod]
+        public async Task FailedFetch_KeepsTheStoredValues_NotTheProvidersOwn()
+        {
+            var hunters = new FakeSource("SteamHunters", MetadataField.Categories | MetadataField.Tags) { FailFetch = true };
+            var data = Game("Epic", Row("e1", "One", category: "Own", type: "Hardcore"), Row("e2", "Two"));
+            var stored = Game("Epic", Row("e1", "One", category: "Story", type: "DLC|Missable"), Row("e2", "Two", category: "Side"));
+            var overlay = Overlay(new[] { hunters }, Choices(categories: hunters.Key, tags: hunters.Key), loadStored: _ => stored);
+            overlay.Links.SetUser(data.PlayniteGameId.Value, hunters.Key, "link-SteamHunters");
+
+            using (var run = overlay.BeginRun())
+            {
+                await run.ApplyAsync(data.Game, data, CancellationToken.None);
+            }
+
+            Assert.AreEqual("Story", data.Achievements[0].Category);
+            Assert.AreEqual("DLC", data.Achievements[0].CategoryKind);
+            CollectionAssert.AreEquivalent(
+                new[] { "Missable", "Hardcore" },
+                PlayniteAchievements.Services.Achievements.AchievementTagHelper.Parse(data.Achievements[0].Tags),
+                "the stored tags, with this refresh's unlock mode");
+            Assert.AreEqual("Side", data.Achievements[1].Category);
+        }
+
+        [TestMethod]
+        public async Task NoMatch_IsNotAFailure_AndKeepsNothing()
+        {
+            var hunters = new FakeSource("SteamHunters", MetadataField.Categories) { FoundByName = true };
+            hunters.Rows.Add(Row("A", "Unrelated", category: "Story"));
+            var data = Game("Epic", Row("e1", "One"));
+            var stored = Game("Epic", Row("e1", "One", category: "Old"));
+            var overlay = Overlay(new[] { hunters }, Choices(categories: hunters.Key), loadStored: _ => stored);
+
+            using (var run = overlay.BeginRun())
+            {
+                await run.ApplyAsync(data.Game, data, CancellationToken.None);
+            }
+
+            Assert.IsNull(data.Achievements[0].Category);
+        }
+
+        [TestMethod]
         public async Task PlatformChoice_OverridesTheDefaults()
         {
             var hunters = new FakeSource("SteamHunters", MetadataField.Categories);
@@ -647,14 +687,16 @@ namespace PlayniteAchievements.Tests.Services
         private MetadataOverlay Overlay(
             IReadOnlyList<IMetadataProvider> providers,
             PersistedSettings settings,
-            CategoryArtDownload downloadCategoryArt = null)
+            CategoryArtDownload downloadCategoryArt = null,
+            Func<Guid, GameAchievementData> loadStored = null)
         {
             return new MetadataOverlay(
                 () => providers,
                 () => settings,
                 new MetadataLinkStore(_directory, new GameCustomDataStore(_directory), null),
                 null,
-                downloadCategoryArt);
+                downloadCategoryArt,
+                loadStored);
         }
 
         private static GameAchievementData Game(string providerKey, params AchievementDetail[] rows)
@@ -709,6 +751,9 @@ namespace PlayniteAchievements.Tests.Services
 
             public bool FoundByName { get; set; }
 
+            /// <summary>The fetch throws, as a source does when its site cannot be reached.</summary>
+            public bool FailFetch { get; set; }
+
             public string NativeFor { get; set; }
 
             public List<AchievementDetail> Rows { get; } = new List<AchievementDetail>();
@@ -741,6 +786,11 @@ namespace PlayniteAchievements.Tests.Services
             public Task<AchievementSourceSet> FetchAsync(MetadataLinkRequest request, string linkId, CancellationToken ct)
             {
                 FetchCount++;
+                if (FailFetch)
+                {
+                    throw new InvalidOperationException("unreachable");
+                }
+
                 var set = new AchievementSourceSet(Key, linkId, Rows) { ApiNamesMayBeShared = IdsMayBeShared };
                 foreach (var art in CategoryArt)
                 {
