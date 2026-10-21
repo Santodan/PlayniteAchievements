@@ -33,9 +33,6 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
 
         public string ProviderCategoryKind { get; set; }
 
-        /// <summary>The achievement's own leftover kind from before kinds moved onto categories.</summary>
-        public string LegacyCategoryKind { get; set; }
-
         public string Category
         {
             get => CategoryLabel;
