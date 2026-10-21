@@ -1,7 +1,6 @@
 using System;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
-using PlayniteAchievements.Providers.Metadata;
 
 namespace PlayniteAchievements.Models.Settings
 {
@@ -62,15 +61,9 @@ namespace PlayniteAchievements.Models.Settings
                     useExophase ? MetadataChoices.Exophase : string.Empty);
             }
 
-            var mode = ReadSteamHuntersMode(FindProperty(providers, "Steam"));
-            if (mode != MetadataCategoryMode.Off)
+            if (UsedSteamHunters(FindProperty(providers, "Steam")))
             {
-                var steam = Platform(platforms, "Steam");
-                if (steam[nameof(MetadataChoices.Categories)] == null)
-                {
-                    steam[nameof(MetadataChoices.Categories)] = MetadataChoices.SteamHunters;
-                    steam[nameof(MetadataChoices.CategoryMode)] = mode.ToString();
-                }
+                SetIfAbsent(Platform(platforms, "Steam"), nameof(MetadataChoices.Categories), MetadataChoices.SteamHunters);
             }
 
             persisted[flagName] = true;
@@ -78,30 +71,25 @@ namespace PlayniteAchievements.Models.Settings
         }
 
         /// <summary>
-        /// The saved mode; the older checkbox maps checked to Merge and unchecked to Off; Merge, the
-        /// setting's default, when neither is saved.
+        /// Whether the saved SteamHuntersCategoryMode (Off = 0, Merge = 1, Override = 2) or the older
+        /// UseSteamHuntersForCategories checkbox turned SteamHunters on; on, the setting's default,
+        /// when neither is saved.
         /// </summary>
-        private static MetadataCategoryMode ReadSteamHuntersMode(JObject steam)
+        private static bool UsedSteamHunters(JObject steam)
         {
             var mode = steam?["SteamHuntersCategoryMode"];
-            if (mode?.Type == JTokenType.String &&
-                Enum.TryParse(mode.Value<string>(), ignoreCase: true, out MetadataCategoryMode parsed))
+            if (mode?.Type == JTokenType.String)
             {
-                return parsed;
+                return !string.Equals(mode.Value<string>(), "Off", StringComparison.OrdinalIgnoreCase);
             }
 
-            if (mode?.Type == JTokenType.Integer && Enum.IsDefined(typeof(MetadataCategoryMode), mode.Value<int>()))
+            if (mode?.Type == JTokenType.Integer)
             {
-                return (MetadataCategoryMode)mode.Value<int>();
+                return mode.Value<int>() != 0;
             }
 
             var legacy = steam?["UseSteamHuntersForCategories"];
-            if (legacy?.Type == JTokenType.Boolean)
-            {
-                return legacy.Value<bool>() ? MetadataCategoryMode.Merge : MetadataCategoryMode.Off;
-            }
-
-            return MetadataCategoryMode.Merge;
+            return legacy?.Type != JTokenType.Boolean || legacy.Value<bool>();
         }
 
         private static JObject Platform(JObject platforms, string key)
