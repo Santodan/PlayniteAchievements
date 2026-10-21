@@ -859,19 +859,6 @@
          combo box draws the tree the same way and there is one place to change it. Expects a
          CategoryPickerOption. -->
     <DataTemplate x:Key="PlayAch.CategoryTreeComboBoxItemTemplate">
-        <!-- The create row sits above the categories and is ruled off from them: it names nothing in
-             the tree, so it carries no connectors either. -->
-        <Border>
-            <Border.Style>
-                <Style TargetType="Border">
-                    <Setter Property="BorderBrush" Value="{DynamicResource NormalBorderBrush}"/>
-                    <Style.Triggers>
-                        <DataTrigger Binding="{Binding IsCreateNew}" Value="True">
-                            <Setter Property="BorderThickness" Value="0,0,0,1"/>
-                        </DataTrigger>
-                    </Style.Triggers>
-                </Style>
-            </Border.Style>
         <DockPanel LastChildFill="True">
             <controls:CategoryTreeGuide DockPanel.Dock="Left"
                                         VerticalAlignment="Stretch"
@@ -888,9 +875,6 @@
                                          Value="{x:Null}">
                                 <Setter Property="Visibility" Value="Collapsed"/>
                             </DataTrigger>
-                            <DataTrigger Binding="{Binding IsCreateNew}" Value="True">
-                                <Setter Property="Visibility" Value="Collapsed"/>
-                            </DataTrigger>
                         </Style.Triggers>
                     </Style>
                 </controls:CategoryTreeGuide.Style>
@@ -903,7 +887,6 @@
                        TextWrapping="NoWrap"
                        Margin="5"/>
         </DockPanel>
-        </Border>
     </DataTemplate>
 
     <Style x:Key="PlayAch.ComboBox.BaseStyle" TargetType="ComboBox">
@@ -1006,11 +989,32 @@
                                                     </TextBlock.Style>
                                                 </TextBlock>
                                             </Grid>
+                                            <!-- A row like the options below it, as the create
+                                                 result is in a menu. -->
                                             <Button x:Name="PART_SearchCreate"
                                                     DockPanel.Dock="Top"
-                                                    Margin="4,0,4,4"
-                                                    HorizontalContentAlignment="Left"
-                                                    Visibility="Collapsed"/>
+                                                    Focusable="False"
+                                                    Visibility="Collapsed">
+                                                <Button.Template>
+                                                    <ControlTemplate TargetType="Button">
+                                                        <Grid SnapsToDevicePixels="True" Background="Transparent">
+                                                            <Rectangle x:Name="HoverRectangle"
+                                                                       Fill="{DynamicResource PlayAch.Brush.Grid.RowHoverBackground}"
+                                                                       IsHitTestVisible="False"
+                                                                       Visibility="Collapsed"/>
+                                                            <ContentPresenter Margin="10,5"
+                                                                              HorizontalAlignment="Left"
+                                                                              VerticalAlignment="Center"
+                                                                              TextElement.Foreground="{DynamicResource PlayAch.Brush.Text}"/>
+                                                        </Grid>
+                                                        <ControlTemplate.Triggers>
+                                                            <Trigger Property="IsMouseOver" Value="True">
+                                                                <Setter TargetName="HoverRectangle" Property="Visibility" Value="Visible"/>
+                                                            </Trigger>
+                                                        </ControlTemplate.Triggers>
+                                                    </ControlTemplate>
+                                                </Button.Template>
+                                            </Button>
                                             <ScrollViewer CanContentScroll="True"
                                                           HorizontalScrollBarVisibility="Auto"
                                                           VerticalScrollBarVisibility="Auto">
