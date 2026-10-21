@@ -27,14 +27,14 @@ namespace PlayniteAchievements.Providers.Metadata.TrueGaming
 
         private static readonly string[] Urls =
         {
-            "https://www.trueachievements.com/searchresults.aspx?search=Cyberpunk%202077",
+            "https://www.trueachievements.com/true-api/sitesearch/overviewcategory?q=Cyberpunk%202077&category=Games",
+            "https://www.trueachievements.com/true-api/sitesearch/overviewcategory?q=Fallout%204&category=Games",
             "https://www.trueachievements.com/game/Clair-Obscur-Expedition-33/achievements",
             "https://www.trueachievements.com/game/Fallout-4/achievements",
-            "https://www.trueachievements.com/mobilewebservice.aspx",
-            "https://www.truetrophies.com/searchresults.aspx?search=Cyberpunk%202077",
+            "https://www.truetrophies.com/true-api/sitesearch/overviewcategory?q=Cyberpunk%202077&category=Games",
+            "https://www.truetrophies.com/true-api/sitesearch/overviewcategory?q=Elden%20Ring&category=Games",
             "https://www.truetrophies.com/game/Elden-Ring/trophies",
-            "https://www.truetrophies.com/game/Cyberpunk-2077-PS5/trophies",
-            "https://truesteamachievements.com/searchresults.aspx?search=Hades",
+            "https://truesteamachievements.com/true-api/sitesearch/overviewcategory?q=Hades&category=Games",
             "https://truesteamachievements.com/game/Hades/achievements",
             "https://truesteamachievements.com/game/Cyberpunk-2077/achievements"
         };
@@ -91,6 +91,12 @@ namespace PlayniteAchievements.Providers.Metadata.TrueGaming
                     attempt++;
                 }
 
+                // A JSON endpoint renders as a text document; keep the text, not the wrapping markup.
+                if (url.IndexOf("/true-api/", StringComparison.OrdinalIgnoreCase) >= 0 && !IsChallenge(source))
+                {
+                    source = await view.GetPageTextAsync().ConfigureAwait(false);
+                }
+
                 return (source ?? string.Empty, view.GetCurrentAddress(), attempt);
             }, ct).ConfigureAwait(false);
 
@@ -109,9 +115,9 @@ namespace PlayniteAchievements.Providers.Metadata.TrueGaming
                 $"items={AchievementItem.Matches(html).Count}, flagged={masks.Count}, distinctMasks={masks.Distinct().Count()}, " +
                 $"dlcHeaders={DlcHeader.Matches(html).Count}, filters=[{string.Join(", ", filters)}]");
 
-            if (url.IndexOf("mobilewebservice", StringComparison.OrdinalIgnoreCase) >= 0)
+            if (url.IndexOf("/true-api/", StringComparison.OrdinalIgnoreCase) >= 0)
             {
-                logger?.Info($"[TrueGamingProbe] mobilewebservice excerpt: {excerpt.Replace("\r", " ").Replace("\n", " ")}");
+                logger?.Info($"[TrueGamingProbe] api excerpt: {excerpt.Replace("\r", " ").Replace("\n", " ")}");
             }
         }
 
