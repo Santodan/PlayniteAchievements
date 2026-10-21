@@ -89,7 +89,7 @@ namespace PlayniteAchievements.Views.Settings.Metadata
                     : FindOverride(settings.Persisted, providerKey),
                 providerKey == null
                     ? (Func<MetadataChoices>)null
-                    : () => settings.Persisted?.MetadataDefaults ?? MetadataChoices.CreateDefaults())
+                    : () => settings.Persisted?.ResolvePlatformDefaults(providerKey) ?? MetadataChoices.CreateDefaults())
         {
             _settings = settings;
         }
