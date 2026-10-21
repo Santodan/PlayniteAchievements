@@ -286,14 +286,14 @@ namespace PlayniteAchievements.Providers.Metadata.TrueGaming
         }
 
         /// <summary>Each site's page the link led to, as kept in the page store; sites without one are left out.</summary>
-        public IReadOnlyList<string> PageUrls(Guid gameId, string linkId, string servicingProviderKey)
+        public IReadOnlyList<MetadataPageLink> PageLinks(Guid gameId, string linkId, string servicingProviderKey)
         {
             var name = TrueGamingLinks.Normalize(linkId);
             return name == null
-                ? Array.Empty<string>()
+                ? Array.Empty<MetadataPageLink>()
                 : _store.GetPages(gameId, name)
                     .Where(page => page.PageSlug != null)
-                    .Select(page => page.Site.ListUrl(page.PageSlug))
+                    .Select(page => new MetadataPageLink(page.Site.Title, page.Site.ListUrl(page.PageSlug)))
                     .ToList();
         }
 
