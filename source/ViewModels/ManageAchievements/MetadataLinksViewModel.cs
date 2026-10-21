@@ -200,8 +200,8 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                         LinkDetails = record == null || record.IsNoMatch ? null : (provider as IMetadataLinkDetails)?.DescribeLink(gameId, record.Id),
                         PageLinks = record == null || record.IsNoMatch
                             ? Array.Empty<MetadataPageLinkItem>()
-                            : ((provider as IMetadataPageLinks)?.PageUrls(gameId, record.Id, servicingProviderKey) ?? Array.Empty<string>())
-                                .Select(url => new MetadataPageLinkItem(url))
+                            : ((provider as IMetadataPageLinks)?.PageLinks(gameId, record.Id, servicingProviderKey) ?? Array.Empty<MetadataPageLink>())
+                                .Select(page => new MetadataPageLinkItem(page.Label, page.Url))
                                 .ToList()
                     });
                 }
@@ -292,11 +292,14 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
     /// <summary>One page a metadata link uses, opened in the browser.</summary>
     public sealed class MetadataPageLinkItem
     {
-        internal MetadataPageLinkItem(string url)
+        internal MetadataPageLinkItem(string label, string url)
         {
+            Label = string.IsNullOrWhiteSpace(label) ? url : label;
             Url = url;
             OpenCommand = new RelayCommand(_ => Open());
         }
+
+        public string Label { get; }
 
         public string Url { get; }
 
@@ -412,8 +415,15 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         /// <summary>Where the link led for this game, page by page; null for a source with one page.</summary>
         public string LinkDetails { get; internal set; }
 
-        /// <summary>A button per page the link uses, which opens it in the browser.</summary>
+        /// <summary>The pages the link uses; the row's one button opens the page, or a menu of them when there are several.</summary>
         public IReadOnlyList<MetadataPageLinkItem> PageLinks { get; internal set; } = Array.Empty<MetadataPageLinkItem>();
+
+        public bool HasPageLinks => PageLinks.Count > 0;
+
+        /// <summary>The button's tooltip: the one page's address, or each page's name and address.</summary>
+        public string PageLinksToolTip => PageLinks.Count == 1
+            ? PageLinks[0].Url
+            : string.Join(Environment.NewLine, PageLinks.Select(page => page.Label + ": " + page.Url));
 
         public string StatusText { get; }
 
