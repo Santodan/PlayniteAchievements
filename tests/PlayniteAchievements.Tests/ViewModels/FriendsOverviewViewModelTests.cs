@@ -544,19 +544,19 @@ namespace PlayniteAchievements.Tests.ViewModels
                 Assert.AreEqual(0, categoryFilter.Options.Count());
 
                 // Pair selected while the row fetch is still gated: options come from the
-                // unlocked fallback rows (Alice's single Game One unlock).
+                // unlocked fallback rows (Alice's single Game One unlock, which has a kind but no tags).
                 viewModel.SelectedFriend = data.Friends[0];
                 viewModel.SelectedGame = data.Games[0];
-                CollectionAssert.AreEqual(new[] { "DLC" }, typeFilter.Options.ToArray());
+                Assert.AreEqual(0, typeFilter.Options.Count());
                 CollectionAssert.AreEqual(new[] { "Side" }, categoryFilter.Options.ToArray());
 
                 gate.Set();
                 SettlePairFetch(viewModel);
 
                 // The loaded pair rows carry the game's full definition set: the locked row's
-                // multi-token type contributes both tokens in canonical order, and its
-                // locked-only category joins the list.
-                CollectionAssert.AreEqual(new[] { "Base", "DLC", "Missable" }, typeFilter.Options.ToArray());
+                // tag joins the tag list (kinds are not offered), and its locked-only category
+                // joins the category list.
+                CollectionAssert.AreEqual(new[] { "Missable" }, typeFilter.Options.ToArray());
                 CollectionAssert.AreEqual(new[] { "Side", "Locked Only" }, categoryFilter.Options.ToArray());
 
                 // A single-token selection matches the multi-token locked row.
