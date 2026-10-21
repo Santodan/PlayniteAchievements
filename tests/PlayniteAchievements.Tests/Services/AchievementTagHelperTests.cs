@@ -98,6 +98,38 @@ namespace PlayniteAchievements.Tests.Services
         }
 
         [TestMethod]
+        public void Registry_ShowsSourceKeysNoListDefines_AsTheGamesOwn()
+        {
+            var gameId = Guid.NewGuid();
+            AchievementTagRegistry.SetGlobal(new[] { new AchievementTagDefinition { Key = "Missable" } });
+            AchievementTagRegistry.SetGameResolver(id => id == gameId
+                ? new[] { new AchievementTagDefinition { Key = "Cooperative", Name = "Co-op" } }
+                : Array.Empty<AchievementTagDefinition>());
+
+            // Collectable was deleted from the global list; its key stays on the achievement, and
+            // shows after the global and game tags with the other keys only the data defines.
+            Assert.AreEqual("Missable, Co-op, Collectable, Buggy+", AchievementTagHelper.ToDisplayText("BuggyPlus|Cooperative|Collectable|Missable|u-deleted", gameId));
+            Assert.IsTrue(AchievementTagRegistry.IsImplicit("BuggyPlus", gameId));
+            Assert.IsFalse(AchievementTagRegistry.IsImplicit("Cooperative", gameId), "the game defines it");
+            Assert.IsFalse(AchievementTagRegistry.IsImplicit("u-deleted", gameId), "a deleted user tag stays deleted");
+            Assert.IsFalse(AchievementTagRegistry.IsImplicit("Hardcore", gameId));
+            CollectionAssert.AreEqual(
+                new[] { "Missable", "Cooperative", "BuggyPlus" },
+                AchievementTagRegistry.GetAssignableKeys(gameId, new[] { "BuggyPlus", "Hardcore", "u-deleted" }).ToList());
+            Assert.IsFalse(AchievementClassificationFilter.IsFilterKey("Unlocked"), "an unknown key is not a filter key");
+        }
+
+        [TestMethod]
+        public void DefaultName_SpellsOutSourceKeys()
+        {
+            Assert.AreEqual("Buggy+", AchievementTagHelper.GetDefaultName("BuggyPlus"));
+            Assert.AreEqual("Cumulative-", AchievementTagHelper.GetDefaultName("CumulativeMinus"));
+            Assert.AreEqual("Partly Discontinued", AchievementTagHelper.GetDefaultName("PartlyDiscontinued"));
+            Assert.AreEqual("Online Offline", AchievementTagHelper.GetDefaultName("OnlineOffline"));
+            Assert.AreEqual("u-1a2b3c4d", AchievementTagHelper.GetDefaultName("u-1a2b3c4d"));
+        }
+
+        [TestMethod]
         public void ClassificationFilter_MatchesKindsAndTags()
         {
             Assert.IsTrue(AchievementClassificationFilter.Matches("DLC|Update", null, "Update"));
