@@ -857,12 +857,13 @@ namespace PlayniteAchievements.Providers.RetroAchievements
                     return new List<Models.RaGameListWithTitle>();
                 }
 
-                // Try to deserialize as array first (API returns array when h=1 is used)
+                // Try to deserialize as array first (API returns array when h=1 is used); an
+                // empty array is a console with no games, not a parse failure.
                 List<Models.RaGameListWithTitle> games = null;
                 try
                 {
                     var arrayItems = Newtonsoft.Json.JsonConvert.DeserializeObject<Models.RaGameListWithTitle[]>(json);
-                    if (arrayItems != null && arrayItems.Length > 0)
+                    if (arrayItems != null)
                     {
                         games = new List<Models.RaGameListWithTitle>(arrayItems);
                     }
@@ -899,9 +900,9 @@ namespace PlayniteAchievements.Providers.RetroAchievements
                     return new List<Models.RaGameListWithTitle>();
                 }
 
+                _gameListCache[consoleId] = games;
                 if (games.Count > 0)
                 {
-                    _gameListCache[consoleId] = games;
                     _logger?.Info($"[RA] Cached {games.Count} games for consoleId={consoleId}");
                 }
 
