@@ -66,8 +66,8 @@
                      TextChanged="SearchBox_TextChanged"
                      Margin="{StaticResource PlayAch.Thickness.Bottom.Md}"/>
 
-            <!-- Rows of a fixed number of glyphs in a virtualizing list, so only the rows on
-                 screen are built: a wrap panel over every glyph cannot virtualize. -->
+            <!-- Rows of as many glyphs as the width fits, in a virtualizing list, so only the
+                 rows on screen are built: a wrap panel over every glyph cannot virtualize. -->
             <ItemsControl x:Name="GlyphRows"
                           Grid.Row="1"
                           VirtualizingPanel.IsVirtualizing="True"
