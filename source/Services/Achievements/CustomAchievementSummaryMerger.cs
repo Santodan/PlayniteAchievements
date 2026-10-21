@@ -59,14 +59,7 @@ namespace PlayniteAchievements.Services.Achievements
                     continue;
                 }
 
-                var hiddenFromSummary = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-                hiddenFromSummary.UnionWith(customData.FilteredAchievementApiNames ?? Enumerable.Empty<string>());
-                hiddenFromSummary.UnionWith(customData.SummaryFilteredAchievementApiNames ?? Enumerable.Empty<string>());
-
-                var visible = CustomAchievementProjectionService
-                    .ProjectAchievements(gameId, customData.CustomAchievements, managedCustomIconService)
-                    .Where(achievement => achievement != null && !hiddenFromSummary.Contains(achievement.ApiName ?? string.Empty))
-                    .ToList();
+                var visible = ProjectVisible(gameId, customData, managedCustomIconService);
                 if (visible.Count == 0)
                 {
                     continue;
@@ -99,6 +92,9 @@ namespace PlayniteAchievements.Services.Achievements
                     CustomAchievementProjectionService.ResolveRaritySource(customData.CustomAchievements));
 
                 var platinumApiNames = new List<string>();
+                var tagTotals = AchievementTagTallyBuilder.From(game.TagTotals);
+                AddTags(tagTotals, visible, customData);
+                game.TagTotals = tagTotals.Build();
                 foreach (var achievement in visible)
                 {
                     Accumulate(game, achievement, platinumApiNames);
@@ -161,6 +157,71 @@ namespace PlayniteAchievements.Services.Achievements
             {
                 summaryData.HasMoreRecentUnlocks = true;
                 summaryData.RecentUnlocks = summaryData.RecentUnlocks.Take(recentAchievementDetailLimit).ToList();
+            }
+        }
+
+        /// <summary>
+        /// Counts the tags of the game's custom achievements that summaries show into
+        /// <paramref name="builder"/>, with the user's tag edits applied: their share of the game's
+        /// tag totals, which the summary query never sees.
+        /// </summary>
+        public static void AddCustomAchievementTags(
+            AchievementTagTallyBuilder builder,
+            Guid gameId,
+            GameCustomDataFile customData,
+            ManagedCustomIconService managedCustomIconService)
+        {
+            if (builder == null ||
+                customData == null ||
+                !CustomAchievementProjectionService.HasCustomAchievements(customData))
+            {
+                return;
+            }
+
+            AddTags(builder, ProjectVisible(gameId, customData, managedCustomIconService), customData);
+        }
+
+        // The custom achievements summaries count: every one the user has not filtered out.
+        private static List<AchievementDetail> ProjectVisible(
+            Guid gameId,
+            GameCustomDataFile customData,
+            ManagedCustomIconService managedCustomIconService)
+        {
+            var hiddenFromSummary = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            hiddenFromSummary.UnionWith(customData.FilteredAchievementApiNames ?? Enumerable.Empty<string>());
+            hiddenFromSummary.UnionWith(customData.SummaryFilteredAchievementApiNames ?? Enumerable.Empty<string>());
+
+            return CustomAchievementProjectionService
+                .ProjectAchievements(gameId, customData.CustomAchievements, managedCustomIconService)
+                .Where(achievement => achievement != null && !hiddenFromSummary.Contains(achievement.ApiName ?? string.Empty))
+                .ToList();
+        }
+
+        // The override applier leaves tags alone, so the user's tag edits are applied here.
+        private static void AddTags(
+            AchievementTagTallyBuilder builder,
+            IEnumerable<AchievementDetail> achievements,
+            GameCustomDataFile customData)
+        {
+            var overrides = new Dictionary<string, AchievementOverride>(StringComparer.OrdinalIgnoreCase);
+            foreach (var pair in customData?.AchievementOverrides ?? new Dictionary<string, AchievementOverride>())
+            {
+                if (!string.IsNullOrWhiteSpace(pair.Key) && AchievementTagTallyBuilder.HasTagEdit(pair.Value))
+                {
+                    overrides[pair.Key.Trim()] = pair.Value;
+                }
+            }
+
+            foreach (var achievement in achievements)
+            {
+                AchievementOverride entry = null;
+                var apiName = achievement?.ApiName?.Trim();
+                if (!string.IsNullOrEmpty(apiName))
+                {
+                    overrides.TryGetValue(apiName, out entry);
+                }
+
+                builder.Add(AchievementTagTallyBuilder.EffectiveTags(achievement?.Tags, entry), achievement?.Unlocked == true);
             }
         }
 
