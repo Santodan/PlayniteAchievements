@@ -424,6 +424,29 @@ namespace PlayniteAchievements.Services.Metadata
         }
 
         /// <summary>The borrowed icons that fell back to the game's own at the last refresh.</summary>
+        /// <summary>A copy of what the last overlay applied to the game, or null.</summary>
+        public MetadataAppliedState GetApplied(Guid gameId)
+        {
+            lock (_sync)
+            {
+                if (!_applied.TryGetValue(gameId, out var state) || state == null)
+                {
+                    return null;
+                }
+
+                return new MetadataAppliedState
+                {
+                    IconSourceKey = state.IconSourceKey,
+                    CapstoneArtUrl = state.CapstoneArtUrl,
+                    CapstoneTitle = state.CapstoneTitle,
+                    CapstoneDescription = state.CapstoneDescription,
+                    Coverage = state.Coverage == null ? null : new Dictionary<string, MetadataCoverage>(state.Coverage, StringComparer.OrdinalIgnoreCase),
+                    IconApiNames = state.IconApiNames == null ? null : new List<string>(state.IconApiNames),
+                    IconFallbackApiNames = state.IconFallbackApiNames == null ? null : new List<string>(state.IconFallbackApiNames)
+                };
+            }
+        }
+
         public IReadOnlyCollection<string> GetIconFallbacks(Guid gameId)
         {
             lock (_sync)
