@@ -102,6 +102,12 @@ namespace PlayniteAchievements.Views.Controls
             "Captures"
         };
 
+        // Columns only meaningful on category-summaries grids; dropped entirely from game grids.
+        private static readonly string[] CategoryOnlyColumnKeys =
+        {
+            "CategoryKind"
+        };
+
         private static readonly string[] MirroredAppearanceResourceKeys =
         {
             "PlayAch.Brush.CompletedGame",
@@ -203,6 +209,7 @@ namespace PlayniteAchievements.Views.Controls
         private static IReadOnlyDictionary<string, bool> CreateGameSummaryVisibility(
             bool cover = true,
             bool game = true,
+            bool categoryKind = false,
             bool platform = false,
             bool owned = false,
             bool lastPlayed = false,
@@ -219,6 +226,7 @@ namespace PlayniteAchievements.Views.Controls
             {
                 ["Cover"] = cover,
                 ["GameSummaryName"] = game,
+                ["CategoryKind"] = categoryKind,
                 ["GameSummaryPlatform"] = platform,
                 ["GameSummaryOwned"] = owned,
                 ["GameSummaryLastPlayed"] = lastPlayed,
@@ -1657,13 +1665,10 @@ namespace PlayniteAchievements.Views.Controls
                 }
             }
 
-            if (IsCategorySurface(surface))
+            foreach (var key in IsCategorySurface(surface) ? CategoryExcludedColumnKeys : CategoryOnlyColumnKeys)
             {
-                foreach (var key in CategoryExcludedColumnKeys)
-                {
-                    _columnPersistence.ForcedCollapsedKeys.Add(key);
-                    _columnPersistence.ExcludedVisibilityKeys.Add(key);
-                }
+                _columnPersistence.ForcedCollapsedKeys.Add(key);
+                _columnPersistence.ExcludedVisibilityKeys.Add(key);
             }
 
             if (AllowedColumnKeys != null)
