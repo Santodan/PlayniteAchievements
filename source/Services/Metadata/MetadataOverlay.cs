@@ -53,7 +53,12 @@ namespace PlayniteAchievements.Services.Metadata
         public MetadataLinkStore Links => _links;
 
         /// <summary>Starts one refresh run's overlay; dispose it when the run ends to close provider sessions.</summary>
-        public MetadataOverlayRun BeginRun()
+        /// <param name="fetchSources">
+        /// True for refreshes that load every source again (Full, a chosen game or games, or a forced
+        /// definition refresh). Otherwise a source already applied to a game for the same fields
+        /// keeps its stored values, unless the game has achievements its stored data lacks.
+        /// </param>
+        public MetadataOverlayRun BeginRun(bool fetchSources = true)
         {
             return new MetadataOverlayRun(
                 _providers?.Invoke() ?? Array.Empty<IMetadataProvider>(),
@@ -61,7 +66,8 @@ namespace PlayniteAchievements.Services.Metadata
                 _links,
                 _logger,
                 _downloadCategoryArt,
-                _loadStored);
+                _loadStored,
+                fetchSources);
         }
     }
 
@@ -92,9 +98,11 @@ namespace PlayniteAchievements.Services.Metadata
             MetadataLinkStore links,
             ILogger logger,
             CategoryArtDownload downloadCategoryArt = null,
-            Func<Guid, GameAchievementData> loadStored = null)
+            Func<Guid, GameAchievementData> loadStored = null,
+            bool fetchSources = true)
         {
             _loadStored = loadStored;
+            _fetchSources = fetchSources;
             _providersByKey = (providers ?? Array.Empty<IMetadataProvider>())
                 .Where(provider => provider != null && !string.IsNullOrWhiteSpace(provider.Key))
                 .GroupBy(provider => provider.Key, StringComparer.OrdinalIgnoreCase)
@@ -107,6 +115,7 @@ namespace PlayniteAchievements.Services.Metadata
 
         private readonly CategoryArtDownload _downloadCategoryArt;
         private readonly Func<Guid, GameAchievementData> _loadStored;
+        private readonly bool _fetchSources;
 
         /// <summary>
         /// Applies the enabled metadata fields to the payload. Returns true when the game's icon
@@ -129,9 +138,17 @@ namespace PlayniteAchievements.Services.Metadata
 
             var sets = new Dictionary<string, MatchedSet>(StringComparer.OrdinalIgnoreCase);
             var failed = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var reused = ReusableKeys(gameId, data, plan, out var storedRows);
             foreach (var key in plan.AllKeys)
             {
                 ct.ThrowIfCancellationRequested();
+                // A source this refresh does not load keeps its stored values, as one that failed does.
+                if (reused.Contains(key))
+                {
+                    failed.Add(key);
+                    continue;
+                }
+
                 request.WantedFields = plan.FieldsFor(key);
                 var (matched, fetchFailed) = await LoadMatchedSetAsync(key, gameId, request, data.Achievements, ct).ConfigureAwait(false);
                 if (matched != null)
@@ -150,7 +167,7 @@ namespace PlayniteAchievements.Services.Metadata
                 failed.Contains(key) || (sets.TryGetValue(key, out var answered) && (answered.Set.UnavailableFields & field) != 0));
             var anyFailed = failed.Count > 0 || sets.Values.Any(answered => answered.Set.UnavailableFields != MetadataField.None);
             var previous = anyFailed ? _links?.GetApplied(gameId) : null;
-            var stored = anyFailed ? StoredByApiName(gameId) : null;
+            var stored = anyFailed ? storedRows ?? StoredByApiName(gameId) : null;
 
             var ownIcons = new Dictionary<string, OwnIconPaths>(StringComparer.OrdinalIgnoreCase);
             var iconSource = ApplyIcons(plan.IconKeys, sets, ownIcons);
@@ -242,7 +259,12 @@ namespace PlayniteAchievements.Services.Metadata
                 var perAchievement = plan.PerAchievementKeys.Contains(pair.Key, StringComparer.OrdinalIgnoreCase);
                 if (perAchievement)
                 {
-                    coverage[pair.Key] = new MetadataCoverage { Matched = pair.Value.Matches.Count, Total = data.Achievements.Count };
+                    coverage[pair.Key] = new MetadataCoverage
+                    {
+                        Matched = pair.Value.Matches.Count,
+                        Total = data.Achievements.Count,
+                        Fields = plan.FieldsFor(pair.Key)
+                    };
                     _links?.Snapshots?.Record(
                         gameId,
                         pair.Key,
@@ -253,7 +275,7 @@ namespace PlayniteAchievements.Services.Metadata
                 else
                 {
                     var hasPlatinum = ResolveCapstone(new[] { pair.Key }, sets) != null;
-                    coverage[pair.Key] = new MetadataCoverage { Matched = hasPlatinum ? 1 : 0, Total = 1 };
+                    coverage[pair.Key] = new MetadataCoverage { Matched = hasPlatinum ? 1 : 0, Total = 1, Fields = plan.FieldsFor(pair.Key) };
                     _links?.Snapshots?.Forget(gameId, pair.Key);
                 }
             }
@@ -484,6 +506,45 @@ namespace PlayniteAchievements.Services.Metadata
                 _logger?.Warn(ex, $"[Metadata] {key} failed for '{request.Game?.Name}'; previous values kept.");
                 return (null, true);
             }
+        }
+
+        /// <summary>
+        /// The plan's sources this run need not load for the game: on a run that does not fetch
+        /// sources, each one last applied for the same fields, while the game has no achievement
+        /// its stored data lacks. None when the run fetches sources or nothing was stored.
+        /// </summary>
+        private HashSet<string> ReusableKeys(
+            Guid gameId,
+            GameAchievementData data,
+            OverlayPlan plan,
+            out Dictionary<string, AchievementDetail> stored)
+        {
+            stored = null;
+            var reused = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var applied = _fetchSources ? null : _links?.GetApplied(gameId)?.Coverage;
+            if (applied == null || applied.Count == 0)
+            {
+                return reused;
+            }
+
+            var rows = StoredByApiName(gameId);
+            stored = rows;
+            if (rows.Count == 0 ||
+                data.Achievements.Any(row => !string.IsNullOrWhiteSpace(row?.ApiName) && !rows.ContainsKey(row.ApiName.Trim())))
+            {
+                return reused;
+            }
+
+            foreach (var key in plan.AllKeys)
+            {
+                var record = applied.FirstOrDefault(pair => string.Equals(pair.Key, key, StringComparison.OrdinalIgnoreCase)).Value;
+                if (record != null && record.Fields != MetadataField.None && record.Fields == plan.FieldsFor(key))
+                {
+                    reused.Add(key);
+                }
+            }
+
+            return reused;
         }
 
         private static string ExtendedOr(AchievementSourceSet set, string linkId) =>
