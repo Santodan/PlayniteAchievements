@@ -94,13 +94,6 @@ namespace PlayniteAchievements.Models.Settings
                 {
                     CopyCategoriesToTags(property.Value as JObject);
                 }
-
-                // EA games took Exophase's icons along with its rarity before icons had a choice there.
-                var ea = FindProperty(platforms, "EA");
-                if (ea != null && string.Equals((string)ea[nameof(MetadataChoices.Rarity)], MetadataChoices.Exophase, StringComparison.OrdinalIgnoreCase))
-                {
-                    SetIfAbsent(ea, nameof(MetadataChoices.Icons), MetadataChoices.Exophase);
-                }
             }
 
             persisted[flagName] = true;
