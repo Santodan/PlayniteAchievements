@@ -95,6 +95,20 @@ namespace PlayniteAchievements.Providers.Metadata
         /// </summary>
         public IReadOnlyList<string> AlternateNames { get; internal set; } = Array.Empty<string>();
 
+        /// <summary>
+        /// The category label for a source's base-game rows: the servicing provider's game name, as
+        /// that provider and SteamHunters label the base game; the Playnite name when it has none.
+        /// </summary>
+        public string BaseCategoryLabel
+        {
+            get
+            {
+                var name = PlayniteAchievements.Services.Achievements.CategoryPathHelper.SanitizeSegment(
+                    string.IsNullOrWhiteSpace(Data?.GameName) ? Game?.Name : Data.GameName);
+                return string.IsNullOrWhiteSpace(name) ? null : name.Trim();
+            }
+        }
+
         /// <summary>The Playnite name, then each alternate name.</summary>
         public IEnumerable<string> SearchNames =>
             new[] { Game?.Name, Data?.GameName }.Concat(AlternateNames ?? Array.Empty<string>())
