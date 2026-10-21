@@ -80,6 +80,9 @@ namespace PlayniteAchievements.Providers.Metadata
     {
         /// <summary>One line per page the link led to, or null when nothing is known yet.</summary>
         string DescribeLink(Guid gameId, string linkId);
+
+        /// <summary>The link as the user sees and enters it, whatever form it is stored in.</summary>
+        string ShownLink(string linkId);
     }
 
     /// <summary>
