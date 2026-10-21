@@ -2021,8 +2021,9 @@ namespace PlayniteAchievements.Views.ManageAchievements
         }
 
         /// <summary>
-        /// The category choices for a selection, with clearing below them; a category is created
-        /// from the menu's search. Shared by the row menu and the Category column's cell menu.
+        /// The category choices for a selection: clicking the ticked one clears it, and a category
+        /// is created from the menu's search. Shared by the row menu and the Category column's cell
+        /// menu.
         /// </summary>
         private void AppendCategoryItems(ItemCollection items, IReadOnlyList<AchievementEditorRow> selection)
         {
@@ -2048,18 +2049,12 @@ namespace PlayniteAchievements.Views.ManageAchievements
                     IsChecked = selection.All(row =>
                         string.Equals(row.EffectiveCategoryLabel, label, StringComparison.OrdinalIgnoreCase))
                 };
-                categoryItem.Click += (_, __) => viewModel.SetCategoryForSelection(label);
+                // The click has already flipped the tick: unticking the category every selected
+                // row is in takes them out of it.
+                categoryItem.Click += (_, __) =>
+                    viewModel.SetCategoryForSelection(categoryItem.IsChecked ? label : null);
                 items.Add(categoryItem);
             }
-
-            if (!(items[items.Count - 1] is Separator))
-            {
-                items.Add(new Separator());
-            }
-
-            items.Add(CreateMenuItem(
-                ResourceProvider.GetString("LOCClearLabel"),
-                () => viewModel.SetCategoryForSelection(null)));
         }
 
         /// <summary>
