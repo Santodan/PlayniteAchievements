@@ -4,7 +4,9 @@ using PlayniteAchievements.Models.Achievements;
 using PlayniteAchievements.Services.Achievements;
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
+using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -24,14 +26,18 @@ namespace PlayniteAchievements.Providers.Metadata.TrueGaming
 
         private readonly OffscreenViewLeaseSource _views;
         private readonly ILogger _logger;
+        private readonly string _diagnosticsDirectory;
         private readonly Dictionary<string, TrueGamingPage> _pages =
             new Dictionary<string, TrueGamingPage>(StringComparer.OrdinalIgnoreCase);
         private IDisposable _lease;
 
-        public TrueGamingMetadataProvider(IPlayniteAPI api, ILogger logger)
+        public TrueGamingMetadataProvider(IPlayniteAPI api, ILogger logger, string pluginUserDataPath)
         {
             _views = api == null ? null : new OffscreenViewLeaseSource(api, logger);
             _logger = logger;
+            _diagnosticsDirectory = string.IsNullOrWhiteSpace(pluginUserDataPath)
+                ? null
+                : Path.Combine(pluginUserDataPath, "diagnostics", "truegaming");
         }
 
         public string Key => MetadataKey;
@@ -100,12 +106,13 @@ namespace PlayniteAchievements.Providers.Metadata.TrueGaming
                 return null;
             }
 
+            var set = new AchievementSourceSet(Key, linkId, page.Achievements.Select(row => ToRow(row, request?.BaseCategoryLabel)).ToList());
             if (!page.FlagsDecoded)
             {
-                _logger?.Warn($"[TrueGamingMetadata] {site.Host}/game/{slug}: flags could not be read; rows carry no tags.");
+                // Tags this page cannot give are kept as stored, not cleared.
+                set.UnavailableFields = MetadataField.Tags;
+                _logger?.Warn($"[TrueGamingMetadata] {site.Host}/game/{slug}: flags could not be read; stored tags kept.");
             }
-
-            var set = new AchievementSourceSet(Key, linkId, page.Achievements.Select(row => ToRow(row, request?.BaseCategoryLabel)).ToList());
             foreach (var art in page.DlcArt)
             {
                 var label = CategoryPathHelper.SanitizeSegment(art.Key);
@@ -154,6 +161,10 @@ namespace PlayniteAchievements.Providers.Metadata.TrueGaming
                     return await view.GetPageSourceAsync().ConfigureAwait(false);
                 }, ct).ConfigureAwait(false);
                 page = TrueGamingPageParser.Parse(html);
+                if (page.Achievements.Count > 0 && !page.FlagsDecoded)
+                {
+                    SaveForDiagnosis(site, slug, html);
+                }
             }
             catch (OperationCanceledException) when (ct.IsCancellationRequested)
             {
@@ -171,6 +182,28 @@ namespace PlayniteAchievements.Providers.Metadata.TrueGaming
             }
 
             return page;
+        }
+
+        /// <summary>Keeps a page whose flags did not decode, so its markup can be inspected.</summary>
+        private void SaveForDiagnosis(TrueGamingSite site, string slug, string html)
+        {
+            if (_diagnosticsDirectory == null)
+            {
+                return;
+            }
+
+            try
+            {
+                Directory.CreateDirectory(_diagnosticsDirectory);
+                var name = string.Concat($"{site.Host}-{slug}".Select(c => Array.IndexOf(Path.GetInvalidFileNameChars(), c) >= 0 ? '_' : c));
+                var file = Path.Combine(_diagnosticsDirectory, name + ".html");
+                File.WriteAllText(file, html ?? string.Empty, Encoding.UTF8);
+                _logger?.Info($"[TrueGamingMetadata] {site.Host}/game/{slug}: page saved to {file}.");
+            }
+            catch (Exception ex)
+            {
+                _logger?.Debug(ex, $"[TrueGamingMetadata] Saving {site.Host}/game/{slug} failed.");
+            }
         }
     }
 }
