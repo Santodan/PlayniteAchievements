@@ -41,11 +41,21 @@
                 <RowDefinition Height="Auto"/>
             </Grid.RowDefinitions>
 
-            <TextBlock Grid.Row="0"
+            <!-- The global list is edited in Settings > Metadata; the gear goes there. -->
+            <DockPanel Grid.Row="0"
                        Grid.Column="0"
-                       Text="{DynamicResource LOCPlayAch_ManageAchievements_Tags_GlobalHeader}"
-                       Style="{StaticResource SectionHeaderStyle}"
-                       Margin="{StaticResource PlayAch.Thickness.Bottom.Sm}"/>
+                       LastChildFill="False"
+                       Margin="{StaticResource PlayAch.Thickness.Bottom.Sm}">
+                <TextBlock Text="{DynamicResource LOCPlayAch_ManageAchievements_Tags_GlobalHeader}"
+                           Style="{StaticResource SectionHeaderStyle}"
+                           VerticalAlignment="Center"/>
+                <Button DockPanel.Dock="Right"
+                        Content="&#xEFE2;"
+                        ToolTip="{DynamicResource LOCPlayAch_Landing_OpenSettings}"
+                        AutomationProperties.Name="{DynamicResource LOCPlayAch_Landing_OpenSettings}"
+                        Style="{StaticResource PlayAch.Button.ToolbarIconStyle}"
+                        Click="OpenGlobalTagsSettings_Click"/>
+            </DockPanel>
             <TextBlock Grid.Row="0"
                        Grid.Column="2"
                        Text="{DynamicResource LOCPlayAch_ManageAchievements_Tags_GameHeader}"
