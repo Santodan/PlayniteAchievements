@@ -1,16 +1,23 @@
 using System;
+using System.Collections.ObjectModel;
+using System.Linq;
+using System.Windows;
 using System.Windows.Controls;
+using Playnite.SDK;
 using PlayniteAchievements.Models;
 using PlayniteAchievements.Providers;
+using PlayniteAchievements.Views.Settings.Navigation;
 
 namespace PlayniteAchievements.Views.Settings.Metadata
 {
     /// <summary>
-    /// Metadata settings tab: one page with the per-platform sources grid and, below it, the auto
-    /// capstone settings that use the borrowed platinum art.
+    /// Metadata settings tab: a master-detail navigation over the per-platform sources grid, the
+    /// global tag list and the auto capstone settings. Sections are created when first selected.
     /// </summary>
     public partial class MetadataSettingsTab : UserControl
     {
+        private ObservableCollection<SettingsNavigationItem> _navigationItems;
+
         public MetadataSettingsTab()
         {
             InitializeComponent();
@@ -26,9 +33,52 @@ namespace PlayniteAchievements.Views.Settings.Metadata
             if (plugin == null) throw new ArgumentNullException(nameof(plugin));
             if (registry == null) throw new ArgumentNullException(nameof(registry));
 
-            Sections.Children.Add(new MetadataSourcesSection(settings, registry));
-            Sections.Children.Add(new AutoCapstoneSettingsSection(settings, plugin));
-            Sections.Children.Add(new AchievementTagsSettingsSection(settings, plugin));
+            var items = _navigationItems = new ObservableCollection<SettingsNavigationItem>
+            {
+                new SettingsNavigationItem(
+                    "Sources",
+                    ResourceProvider.GetString("LOCPlayAch_Settings_Metadata_Sources"),
+                    iconGlyph: "",
+                    viewFactory: () => Scrolled(new MetadataSourcesSection(settings, registry))),
+                new SettingsNavigationItem(
+                    "Tags",
+                    ResourceProvider.GetString("LOCTagsLabel"),
+                    iconGlyph: "",
+                    viewFactory: () => Scrolled(new AchievementTagsSettingsSection(settings, plugin))),
+                new SettingsNavigationItem(
+                    "AutoCapstone",
+                    ResourceProvider.GetString("LOCPlayAch_ManageAchievements_Custom_AutoCapstone"),
+                    iconGlyph: "",
+                    viewFactory: () => Scrolled(new AutoCapstoneSettingsSection(settings, plugin)))
+            };
+
+            MasterDetail.ItemsSource = items;
+            MasterDetail.SelectedItem = items[0];
+        }
+
+        public void NavigateToPage(string key)
+        {
+            var item = _navigationItems?.FirstOrDefault(x =>
+                string.Equals(x.Key, key, StringComparison.OrdinalIgnoreCase));
+            if (item != null)
+            {
+                MasterDetail.SelectedItem = item;
+            }
+        }
+
+        /// <summary>A section in its own scrolling page, with the margin the other tabs' sections have.</summary>
+        private static UserControl Scrolled(FrameworkElement section)
+        {
+            section.Margin = new Thickness(20);
+            return new UserControl
+            {
+                Content = new ScrollViewer
+                {
+                    VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+                    HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
+                    Content = section
+                }
+            };
         }
     }
 }
