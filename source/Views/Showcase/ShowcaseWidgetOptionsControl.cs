@@ -152,7 +152,6 @@ namespace PlayniteAchievements.Views.Showcase
                     AddScoreCardOptions(panel);
                     break;
                 case ShowcaseWidgetKind.Pie:
-                    AddCollectionChoice(panel, includeAchievementCollections: false);
                     AddChoice(
                         panel,
                         Localize("LOCPlayAch_Showcase_Mode"),
@@ -213,6 +212,7 @@ namespace PlayniteAchievements.Views.Showcase
                         ShowcaseWidgetOptions.GetPieSmallSliceMode(_settings),
                         value => ShowcaseWidgetOptions.SetPieSmallSliceMode(_settings, value),
                         SmallSliceModeName);
+                    AddCollectionChoice(panel, includeAchievementCollections: false);
                     AddControlBarRows<PieControlBarAdapter>(panel);
                     break;
                 case ShowcaseWidgetKind.Timeline:
@@ -280,7 +280,6 @@ namespace PlayniteAchievements.Views.Showcase
 
                     var unlockNextRows = new List<FrameworkElement>();
                     var achievementSortRows = new List<FrameworkElement>();
-                    AddCollectionChoice(achievementMosaicPanel, includeAchievementCollections: true);
                     AddChoice(
                         achievementMosaicPanel,
                         Localize("LOCSourceLabel"),
@@ -333,7 +332,6 @@ namespace PlayniteAchievements.Views.Showcase
                         ShowcaseWidgetOptions.GetMosaicSource(_settings));
 
                     FrameworkElement finishNextOptions = null;
-                    AddCollectionChoice(gameMosaicPanel, includeAchievementCollections: false);
                     AddChoice(
                         gameMosaicPanel,
                         Localize("LOCSourceLabel"),
@@ -426,7 +424,9 @@ namespace PlayniteAchievements.Views.Showcase
                         value => ShowcaseWidgetOptions.SetMosaicSpacing(_settings, value));
                     panel.Children.Add(achievementMosaicBarPanel);
                     panel.Children.Add(gameMosaicBarPanel);
+                    AddCollectionChoice(achievementMosaicBarPanel, includeAchievementCollections: true);
                     AddControlBarRows<CrossGameAchievementControlBarAdapter>(achievementMosaicBarPanel);
+                    AddCollectionChoice(gameMosaicBarPanel, includeAchievementCollections: false);
                     AddControlBarRows<GameSummaryGridControlBarAdapter>(gameMosaicBarPanel);
                     break;
                 case ShowcaseWidgetKind.ScreenshotSlideshow:
@@ -580,7 +580,6 @@ namespace PlayniteAchievements.Views.Showcase
                     // the Library source, so their rows hide for the favorites and Finish Next sources.
                     FrameworkElement gameGridFinishNextOptions = null;
                     var gameGridLibraryPanel = new StackPanel();
-                    AddCollectionChoice(panel, includeAchievementCollections: false);
                     AddChoice(
                         panel,
                         Localize("LOCSourceLabel"),
@@ -634,13 +633,13 @@ namespace PlayniteAchievements.Views.Showcase
                         Localize("LOCPlayAch_Showcase_HideCompleted"),
                         ShowcaseWidgetOptions.GetHideCompleted(_settings),
                         value => ShowcaseWidgetOptions.SetHideCompleted(_settings, value));
+                    AddCollectionChoice(panel, includeAchievementCollections: false);
                     AddControlBarRows<GameSummaryGridControlBarAdapter>(panel);
                     break;
                 case ShowcaseWidgetKind.RecentAchievements:
                     // The collapsed Achievements Grid: every achievement, or the Unlock Next
                     // candidates; a collection limits either.
                     var achievementGridUnlockNextRows = new List<FrameworkElement>();
-                    AddCollectionChoice(panel, includeAchievementCollections: true);
                     AddChoice(
                         panel,
                         Localize("LOCSourceLabel"),
@@ -660,6 +659,7 @@ namespace PlayniteAchievements.Views.Showcase
                     ApplyAchievementGridSourceRows(
                         achievementGridUnlockNextRows,
                         ShowcaseWidgetOptions.GetAchievementGridSource(_settings));
+                    AddCollectionChoice(panel, includeAchievementCollections: true);
                     AddControlBarRows<CrossGameAchievementControlBarAdapter>(panel);
                     break;
                 case ShowcaseWidgetKind.ActivityCalendar:
