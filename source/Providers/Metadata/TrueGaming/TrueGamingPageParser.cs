@@ -40,6 +40,12 @@ namespace PlayniteAchievements.Providers.Metadata.TrueGaming
 
         /// <summary>False when the row flags could not be paired with the page's flag list; rows then carry none.</summary>
         public bool FlagsDecoded { get; set; }
+
+        /// <summary>
+        /// True when the site answered with a page, with or without achievements; false for a
+        /// load that failed or a challenge page, which say nothing about whether the page exists.
+        /// </summary>
+        public bool Loaded { get; set; }
     }
 
     /// <summary>
