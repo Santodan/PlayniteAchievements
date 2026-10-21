@@ -129,11 +129,17 @@ namespace PlayniteAchievements.Services.Metadata
 
             var sets = new Dictionary<string, MatchedSet>(StringComparer.OrdinalIgnoreCase);
             var failed = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-            foreach (var key in plan.AllKeys)
+            // The sources load at the same time, each with its own request; they share no state but
+            // the link store, which serializes its writes. Their answers are then applied in order.
+            ct.ThrowIfCancellationRequested();
+            var loads = await Task.WhenAll(plan.AllKeys.Select(async key =>
             {
-                ct.ThrowIfCancellationRequested();
-                request.WantedFields = plan.FieldsFor(key);
-                var (matched, fetchFailed) = await LoadMatchedSetAsync(key, gameId, request, data.Achievements, ct).ConfigureAwait(false);
+                var (matchedSet, didFail) = await LoadMatchedSetAsync(key, gameId, request.ForSource(plan.FieldsFor(key)), data.Achievements, ct)
+                    .ConfigureAwait(false);
+                return (Key: key, Matched: matchedSet, FetchFailed: didFail);
+            })).ConfigureAwait(false);
+            foreach (var (key, matched, fetchFailed) in loads)
+            {
                 if (matched != null)
                 {
                     sets[key] = matched;
