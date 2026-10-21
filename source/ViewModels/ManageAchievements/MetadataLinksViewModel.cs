@@ -185,7 +185,10 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                         supplies,
                         record,
                         store.GetCoverage(gameId, provider.Key),
-                        record == null || record.IsNoMatch ? null : store.Snapshots?.Get(gameId, provider.Key, record.Id)));
+                        record == null || record.IsNoMatch ? null : store.Snapshots?.Get(gameId, provider.Key, record.Id))
+                    {
+                        LinkDetails = record == null || record.IsNoMatch ? null : (provider as IMetadataLinkDetails)?.DescribeLink(gameId, record.Id)
+                    });
                 }
             }
 
@@ -362,6 +365,9 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         }
 
         public bool HasSupplies => !string.IsNullOrEmpty(Supplies);
+
+        /// <summary>Where the link led for this game, page by page; null for a source with one page.</summary>
+        public string LinkDetails { get; internal set; }
 
         public string StatusText { get; }
 
