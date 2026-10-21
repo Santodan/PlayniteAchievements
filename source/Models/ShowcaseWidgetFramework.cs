@@ -350,6 +350,7 @@ namespace PlayniteAchievements.Models
         public const string Search = "Search";
         public const string Platform = "Platform";
         public const string Game = "Game";
+        public const string Tag = "Tag";
         public const string UnlockDate = "UnlockDate";
         public const string Rarity = "Rarity";
         public const string Trophy = "Trophy";
