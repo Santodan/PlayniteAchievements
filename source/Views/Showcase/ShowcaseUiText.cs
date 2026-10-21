@@ -132,8 +132,6 @@ namespace PlayniteAchievements.Views.Showcase
         {
             switch (value)
             {
-                case ShowcaseGameGridSource.Pinned:
-                    return AchievementGridSourceName(ShowcaseAchievementGridSource.Pinned);
                 case ShowcaseGameGridSource.PlayniteFavorites:
                     return GameMosaicSourceName(ShowcaseGameMosaicSource.PlayniteFavorites);
                 case ShowcaseGameGridSource.FinishNext:
