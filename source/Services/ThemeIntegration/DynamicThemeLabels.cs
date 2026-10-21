@@ -72,7 +72,7 @@ namespace PlayniteAchievements.Services.ThemeIntegration
                 (DynamicThemeViewKeys.CollectionScore, "LOCPlayAch_Score_Collection", "Collection Score"),
                 (DynamicThemeViewKeys.PrestigeScore, "LOCPlayAch_Score_Prestige", "Prestige Score"),
                 (DynamicThemeViewKeys.TrophyType, "LOCPlayAch_Column_Trophy", "Trophy Type"),
-                (DynamicThemeViewKeys.CategoryType, "LOCTypeLabel", "Category Type"),
+                (DynamicThemeViewKeys.CategoryType, "LOCTagsLabel", "Tags"),
                 (DynamicThemeViewKeys.CategoryLabel, "LOCCategoryLabel", "Category"),
                 (DynamicThemeViewKeys.Notes, "LOCPlayAch_NotesDialog_ViewTitle", "Notes"),
                 (DynamicThemeViewKeys.UnlockTime, "LOCPlayAch_Common_UnlockTime", DynamicThemeViewKeys.UnlockTime),
