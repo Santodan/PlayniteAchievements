@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using PlayniteAchievements.ViewModels.Items;
 
 namespace PlayniteAchievements.ViewModels
@@ -14,7 +15,15 @@ namespace PlayniteAchievements.ViewModels
     {
         private readonly List<WeakReference<Action>> _filterListeners = new List<WeakReference<Action>>();
 
+        protected SharedControlBarAdapter()
+        {
+            GameFilter = new ControlBarGameFilter(RaiseFilterChanged);
+        }
+
         public abstract GridControlBarViewModel ControlBar { get; }
+
+        /// <summary>The bar's Game filter, which the derived bar places after its platform filter.</summary>
+        public ControlBarGameFilter GameFilter { get; }
 
         /// <summary>
         /// The bar's search box and items in bar order: what a widget shows or hides one by one,
@@ -128,6 +137,150 @@ namespace PlayniteAchievements.ViewModels
     }
 
     /// <summary>
+    /// A showcase control bar's Game filter. It lists the games last given to
+    /// <see cref="UpdateGames"/> by name, limited to <see cref="SetScope"/>'s games when the widget
+    /// has a collection. Selections are game IDs, so a rename keeps them, and a selected game
+    /// stays selected while it is not listed.
+    /// </summary>
+    public sealed class ControlBarGameFilter : PlayniteAchievements.Common.ObservableObject
+    {
+        private readonly Action _changed;
+        private readonly HashSet<Guid> _selected = new HashSet<Guid>();
+        private List<GameSummaryItem> _games;
+        private HashSet<Guid> _scope;
+        private Dictionary<Guid, string> _names = new Dictionary<Guid, string>();
+        private List<string> _options = new List<string>();
+
+        public ControlBarGameFilter(Action changed)
+        {
+            _changed = changed;
+            Item = new GridMultiSelectFilter(
+                this,
+                nameof(DisplayText),
+                () => DisplayText,
+                () => _options,
+                IsSelected,
+                SetSelected,
+                GetName)
+            {
+                Id = PlayniteAchievements.Models.ShowcaseControlBarItems.Game,
+                LabelKey = "LOCPlayAch_Column_Game",
+                Width = 170
+            };
+        }
+
+        public GridMultiSelectFilter Item { get; }
+
+        public bool HasSelection => _selected.Count > 0;
+
+        public string DisplayText
+        {
+            get
+            {
+                var names = _options
+                    .Where(IsSelected)
+                    .Select(GetName)
+                    .ToList();
+                return names.Count == 0
+                    ? Playnite.SDK.ResourceProvider.GetString("LOCPlayAch_Column_Game")
+                    : string.Join(", ", names);
+            }
+        }
+
+        /// <summary>True for every game while nothing is selected.</summary>
+        public bool Matches(Guid? gameId) =>
+            _selected.Count == 0 || (gameId.HasValue && _selected.Contains(gameId.Value));
+
+        /// <summary>The games to list; the same games by ID and name leave the list alone.</summary>
+        public void UpdateGames(IEnumerable<GameSummaryItem> games)
+        {
+            var list = (games ?? Enumerable.Empty<GameSummaryItem>())
+                .Where(game => game?.PlayniteGameId != null)
+                .ToList();
+            if (_games != null &&
+                _games.Count == list.Count &&
+                !_games.Where((game, index) =>
+                    game.PlayniteGameId != list[index].PlayniteGameId ||
+                    !string.Equals(game.GameName, list[index].GameName, StringComparison.Ordinal)).Any())
+            {
+                return;
+            }
+
+            _games = list;
+            Rebuild();
+        }
+
+        /// <summary>Limits the listed games to <paramref name="gameIds"/>; null lists them all.</summary>
+        public void SetScope(IEnumerable<Guid> gameIds)
+        {
+            var scope = gameIds != null ? new HashSet<Guid>(gameIds) : null;
+            if (scope == null ? _scope == null : _scope != null && _scope.SetEquals(scope))
+            {
+                return;
+            }
+
+            _scope = scope;
+            Rebuild();
+        }
+
+        public List<string> Capture() =>
+            _selected.Count == 0 ? null : _selected.Select(id => id.ToString("D")).ToList();
+
+        public void Restore(IEnumerable<string> gameIds)
+        {
+            _selected.Clear();
+            foreach (var raw in gameIds ?? Enumerable.Empty<string>())
+            {
+                if (Guid.TryParse(raw, out var id))
+                {
+                    _selected.Add(id);
+                }
+            }
+
+            OnPropertyChanged(nameof(DisplayText));
+        }
+
+        private bool IsSelected(string option) =>
+            Guid.TryParse(option, out var id) && _selected.Contains(id);
+
+        private void SetSelected(string option, bool isSelected)
+        {
+            if (!Guid.TryParse(option, out var id) ||
+                !(isSelected ? _selected.Add(id) : _selected.Remove(id)))
+            {
+                return;
+            }
+
+            OnPropertyChanged(nameof(DisplayText));
+            _changed?.Invoke();
+        }
+
+        private string GetName(string option) =>
+            Guid.TryParse(option, out var id) && _names.TryGetValue(id, out var name) ? name : option;
+
+        private void Rebuild()
+        {
+            var names = new Dictionary<Guid, string>();
+            foreach (var game in _games ?? new List<GameSummaryItem>())
+            {
+                if (game.PlayniteGameId is Guid id &&
+                    (_scope == null || _scope.Contains(id)) &&
+                    !names.ContainsKey(id))
+                {
+                    names[id] = game.GameName ?? string.Empty;
+                }
+            }
+
+            _names = names;
+            _options = names
+                .OrderBy(pair => pair.Value, StringComparer.CurrentCultureIgnoreCase)
+                .Select(pair => pair.Key.ToString("D"))
+                .ToList();
+            OnPropertyChanged(nameof(DisplayText));
+        }
+    }
+
+    /// <summary>
     /// A control bar's saved state. Platforms map a provider key to its selected platform names.
     /// Progress and Activity hold option positions rather than labels, so the saved choice
     /// survives a change of Playnite language.
@@ -137,6 +290,9 @@ namespace PlayniteAchievements.ViewModels
         public string SearchText { get; set; }
 
         public Dictionary<string, List<string>> Platforms { get; set; }
+
+        /// <summary>Selected games, as Playnite game IDs.</summary>
+        public List<string> Games { get; set; }
 
         public List<int> Progress { get; set; }
 

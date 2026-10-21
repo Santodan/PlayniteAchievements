@@ -171,6 +171,7 @@ namespace PlayniteAchievements.ViewModels
         /// </summary>
         public void UpdateGames(IReadOnlyList<GameSummaryItem> games)
         {
+            GameFilter.UpdateGames(games);
             games = games ?? Array.Empty<GameSummaryItem>();
             if (ProviderFilterGroupBuilder.HasSameGames(_libraryGames, games))
             {
@@ -215,6 +216,7 @@ namespace PlayniteAchievements.ViewModels
             {
                 SearchText = SearchText,
                 Platforms = CapturePlatformSelections(ProviderFilterGroups),
+                Games = GameFilter.Capture(),
                 UnlockedFrom = _unlockedFrom,
                 UnlockedTo = _unlockedTo,
                 Rarities = _rarities.Count > 0 ? _rarities.Select(tier => (int)tier).ToList() : null,
@@ -232,6 +234,7 @@ namespace PlayniteAchievements.ViewModels
             _searchText = state.SearchText ?? string.Empty;
             OnPropertyChanged(nameof(SearchText));
             PendingPlatformSelections = state.Platforms;
+            GameFilter.Restore(state.Games);
             _unlockedFrom = state.UnlockedFrom?.Date;
             _unlockedTo = state.UnlockedTo?.Date;
             OnPropertyChanged(nameof(UnlockedRangeKey));
@@ -283,6 +286,11 @@ namespace PlayniteAchievements.ViewModels
                     item.Unlocked &&
                     item.UnlockTimeUtc.HasValue &&
                     span.Contains(UnlockDayCounts.DayOf(item.UnlockTimeUtc.Value)));
+            }
+
+            if (GameFilter.HasSelection)
+            {
+                filtered = filtered.Where(item => GameFilter.Matches(item.PlayniteGameId));
             }
 
             if (_rarities.Count > 0)
@@ -362,6 +370,7 @@ namespace PlayniteAchievements.ViewModels
                 LabelKey = "LOCPlatformTitle",
                 Width = 170
             });
+            controlBar.Items.Add(GameFilter.Item);
             controlBar.Items.Add(new GridDateRangeFilter(
                 this,
                 nameof(UnlockedRangeKey),

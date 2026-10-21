@@ -952,9 +952,9 @@ namespace PlayniteAchievements.Services.Showcase
                         3,
                         3,
                         ShowcaseWidgetKind.RecentAchievements,
-                        widget => ShowcaseWidgetOptions.SetAchievementGridSource(
+                        widget => ShowcaseWidgetOptions.SetCollectionType(
                             widget,
-                            ShowcaseAchievementGridSource.Pinned));
+                            ShowcaseCollectionType.Achievements));
                     AddBlock(settings, page, 2, 3, 2, 2, ShowcaseWidgetKind.Statistics);
                     AddBlock(
                         settings,
@@ -964,9 +964,9 @@ namespace PlayniteAchievements.Services.Showcase
                         1,
                         2,
                         ShowcaseWidgetKind.GameSummaries,
-                        widget => ShowcaseWidgetOptions.SetGameGridSource(
+                        widget => ShowcaseWidgetOptions.SetCollectionType(
                             widget,
-                            ShowcaseGameGridSource.Pinned));
+                            ShowcaseCollectionType.Games));
                     break;
                 case ShowcasePageTemplate.Analytics:
                     AddScoreBlock(settings, page, 0, 0, 2, 5, ScoreCardSlots.Collection, ScoreCardSlots.Prestige);

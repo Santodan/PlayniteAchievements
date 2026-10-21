@@ -110,6 +110,10 @@ namespace PlayniteAchievements.ViewModels
             }
 
             filtered = OverviewGameSummaryFilters.ApplyProviderPlatformFilter(filtered, ProviderFilterGroups);
+            if (GameFilter.HasSelection)
+            {
+                filtered = filtered.Where(item => GameFilter.Matches(item.PlayniteGameId));
+            }
 
             filtered = OverviewGameSummaryFilters.ApplyActivityAndProgressFilters(
                 filtered,
@@ -128,6 +132,7 @@ namespace PlayniteAchievements.ViewModels
         {
             // A filter pass re-feeds the same games; rebuilding then would swap the groups out
             // from under an open dropdown, so a toggle there would land on a discarded group.
+            GameFilter.UpdateGames(source);
             var games = (source ?? Enumerable.Empty<GameSummaryItem>()).ToList();
             if (ProviderFilterGroupBuilder.HasSameGames(_optionGames, games))
             {
@@ -163,6 +168,7 @@ namespace PlayniteAchievements.ViewModels
             {
                 SearchText = SearchText,
                 Platforms = CapturePlatformSelections(ProviderFilterGroups),
+                Games = GameFilter.Capture(),
                 Progress = SelectedPositions(ProgressFilterOptions, _selectedProgressFilters),
                 Activity = SelectedPositions(ActivityFilterOptions, _selectedActivityFilters)
             };
@@ -177,6 +183,7 @@ namespace PlayniteAchievements.ViewModels
 
             _searchText = _chartFilters ? string.Empty : state.SearchText ?? string.Empty;
             PendingPlatformSelections = state.Platforms;
+            GameFilter.Restore(state.Games);
             RestorePositions(ProgressFilterOptions, _selectedProgressFilters, state.Progress);
             RestorePositions(
                 ActivityFilterOptions,
@@ -292,6 +299,7 @@ namespace PlayniteAchievements.ViewModels
                 LabelKey = "LOCPlatformTitle",
                 Width = 170
             });
+            controlBar.Items.Add(GameFilter.Item);
             controlBar.Items.Add(new GridMultiSelectFilter(
                 this,
                 nameof(SelectedProgressFilterText),

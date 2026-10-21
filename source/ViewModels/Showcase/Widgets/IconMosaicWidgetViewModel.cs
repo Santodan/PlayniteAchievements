@@ -87,6 +87,7 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
                 .Where(item => item != null)
                 .ToList();
             adapter.UpdateGames(Projection?.Snapshot?.GameSummaries);
+            adapter.GameFilter.SetScope(Projection?.Collection?.GameIds);
 
             var capped = adapter.Apply(list).Take(ShowcaseWidgetOptions.GetMosaicCount(Projection?.Instance)).ToList();
 

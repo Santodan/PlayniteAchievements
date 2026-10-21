@@ -5,6 +5,7 @@ using Microsoft.VisualStudio.TestTools.UnitTesting;
 using PlayniteAchievements.Models;
 using PlayniteAchievements.Models.Settings;
 using PlayniteAchievements.ViewModels;
+using PlayniteAchievements.ViewModels.Items;
 using PlayniteAchievements.ViewModels.Showcase.Widgets;
 
 namespace PlayniteAchievements.Tests.ViewModels
@@ -116,6 +117,7 @@ namespace PlayniteAchievements.Tests.ViewModels
                 {
                     ShowcaseControlBarItems.Search,
                     ShowcaseControlBarItems.Platform,
+                    ShowcaseControlBarItems.Game,
                     ShowcaseControlBarItems.UnlockDate,
                     ShowcaseControlBarItems.Rarity,
                     ShowcaseControlBarItems.Trophy
@@ -126,6 +128,7 @@ namespace PlayniteAchievements.Tests.ViewModels
                 {
                     ShowcaseControlBarItems.Search,
                     ShowcaseControlBarItems.Platform,
+                    ShowcaseControlBarItems.Game,
                     ShowcaseControlBarItems.Progress,
                     ShowcaseControlBarItems.Activity
                 },
@@ -149,7 +152,7 @@ namespace PlayniteAchievements.Tests.ViewModels
 
             Assert.IsNull(slot.ShownBar.Search);
             Assert.AreEqual(1, slot.ShownBar.Items.Count);
-            Assert.AreSame(slot.Adapter.ControlBar.Items[2], slot.ShownBar.Items[0]);
+            Assert.AreSame(slot.Adapter.ControlBar.Items[3], slot.ShownBar.Items[0]);
         }
 
         [TestMethod]
@@ -178,7 +181,49 @@ namespace PlayniteAchievements.Tests.ViewModels
             slot.UpdateShownBar(instance, legacyVisible: true);
 
             Assert.IsNotNull(slot.ShownBar.Search);
-            Assert.AreEqual(3, slot.ShownBar.Items.Count);
+            Assert.AreEqual(4, slot.ShownBar.Items.Count);
+        }
+
+        [TestMethod]
+        public void GameFilter_ListsGamesByNameWithinTheScopeAndFiltersByGame()
+        {
+            var zelda = new GameSummaryItem { PlayniteGameId = Guid.NewGuid(), GameName = "Zelda" };
+            var halo = new GameSummaryItem { PlayniteGameId = Guid.NewGuid(), GameName = "Halo" };
+            var portal = new GameSummaryItem { PlayniteGameId = Guid.NewGuid(), GameName = "Portal" };
+            var adapter = new GameSummaryGridControlBarAdapter();
+            adapter.UpdateOptions(new[] { zelda, halo, portal });
+
+            var item = adapter.GameFilter.Item;
+            CollectionAssert.AreEqual(
+                new[] { "Halo", "Portal", "Zelda" },
+                item.Options.Select(item.GetDisplayLabel).ToArray());
+
+            adapter.GameFilter.SetScope(new[] { zelda.PlayniteGameId.Value, portal.PlayniteGameId.Value });
+            CollectionAssert.AreEqual(
+                new[] { "Portal", "Zelda" },
+                item.Options.Select(item.GetDisplayLabel).ToArray());
+
+            item.SetSelected(zelda.PlayniteGameId.Value.ToString("D"), true);
+            Assert.AreEqual("Zelda", item.DisplayText);
+            CollectionAssert.AreEqual(new[] { zelda }, adapter.Apply(new[] { zelda, halo, portal }).ToArray());
+        }
+
+        [TestMethod]
+        public void GameFilter_SelectionRoundTripsThroughSavedState()
+        {
+            var gameId = Guid.NewGuid();
+            var game = new GameSummaryItem { PlayniteGameId = gameId, GameName = "Celeste" };
+            var row = new AchievementDisplayItem { PlayniteGameId = gameId, ApiName = "a", Unlocked = true };
+            var other = new AchievementDisplayItem { PlayniteGameId = Guid.NewGuid(), ApiName = "b", Unlocked = true };
+            var source = new CrossGameAchievementControlBarAdapter();
+            source.UpdateGames(new[] { game });
+            source.GameFilter.Item.SetSelected(gameId.ToString("D"), true);
+
+            var restored = new CrossGameAchievementControlBarAdapter();
+            restored.RestoreState(source.CaptureState());
+
+            CollectionAssert.AreEqual(new[] { gameId.ToString("D") }, source.CaptureState().Games);
+            CollectionAssert.AreEqual(new[] { row }, restored.Apply(new[] { row, other }).ToArray());
         }
     }
 }
