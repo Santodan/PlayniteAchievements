@@ -56,6 +56,9 @@ namespace PlayniteAchievements.Tests.Providers
             Assert.IsFalse(store.TryGet(gameId, "Peak", TrueGamingSite.TrueTrophies, out _), "the old name's pages are gone");
             Assert.IsFalse(store.TryGet(gameId, "PEAK-2025", TrueGamingSite.TrueTrophies, out _), "not looked at under the new name");
             Assert.IsTrue(store.TryGet(gameId, "PEAK-2025", TrueGamingSite.TrueAchievements, out _));
+
+            store.Clear(gameId);
+            Assert.IsFalse(store.TryGet(gameId, "PEAK-2025", TrueGamingSite.TrueAchievements, out _), "a cleared game is looked at again");
         }
     }
 }
