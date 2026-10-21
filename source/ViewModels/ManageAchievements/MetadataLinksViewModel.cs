@@ -176,6 +176,14 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                         continue;
                     }
 
+                    // A source the game's refresh has not reached yet has nothing to show: no
+                    // link, no stored no-match and no match count. It appears after a refresh.
+                    var coverage = store.GetCoverage(gameId, provider.Key);
+                    if (record == null && coverage == null)
+                    {
+                        continue;
+                    }
+
                     Rows.Add(new MetadataLinkRow(
                         this,
                         gameId,
@@ -184,7 +192,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                         provider.LinkPlaceholder,
                         supplies,
                         record,
-                        store.GetCoverage(gameId, provider.Key),
+                        coverage,
                         record == null || record.IsNoMatch ? null : store.Snapshots?.Get(gameId, provider.Key, record.Id),
                         record?.Id == null ? null : (provider as IMetadataLinkDetails)?.ShownLink(record.Id))
                     {
