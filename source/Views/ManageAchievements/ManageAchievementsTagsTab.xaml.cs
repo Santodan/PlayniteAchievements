@@ -81,11 +81,13 @@ namespace PlayniteAchievements.Views.ManageAchievements
                 .ToList();
         }
 
-        /// <summary>Opens Settings on the Metadata tab, where the global list is edited.</summary>
+        /// <summary>Opens Settings on the Metadata tab's Tags page, where the global list is edited.</summary>
         private void OpenGlobalTagsSettings_Click(object sender, RoutedEventArgs e)
         {
             PlayniteAchievementsPlugin.Instance?.OpenSettingsAt(
-                new Models.Settings.SettingsNavigationRequest(Models.Settings.SettingsNavigationRequest.MetadataTab));
+                new Models.Settings.SettingsNavigationRequest(
+                    Models.Settings.SettingsNavigationRequest.MetadataTab,
+                    Models.Settings.SettingsNavigationRequest.TagsPage));
         }
 
         private void ShowGlobalTags()
