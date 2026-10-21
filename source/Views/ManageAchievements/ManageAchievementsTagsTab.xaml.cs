@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
+using Playnite.SDK;
 using PlayniteAchievements.Models;
 using PlayniteAchievements.Models.Achievements;
 using PlayniteAchievements.Services.Achievements;
@@ -32,7 +33,11 @@ namespace PlayniteAchievements.Views.ManageAchievements
         {
             if (store == null) throw new ArgumentNullException(nameof(store));
 
-            var current = store.TryLoad(gameId, out var data) ? data?.AchievementTags : null;
+            // A game's copy of a key the global list holds is shadowed by the global one, so it is
+            // not listed, and the next edit drops it.
+            var current = (store.TryLoad(gameId, out var data) ? data?.AchievementTags : null)?
+                .Where(definition => !IsGlobal(definition.Key))
+                .ToList();
             var fetched = FetchedTags(gameId, data);
             Editor.DataContext = new AchievementTagListViewModel(
                 current,
@@ -42,7 +47,7 @@ namespace PlayniteAchievements.Views.ManageAchievements
                     affectsSummaryData: false,
                     affectsOverrideMirror: false),
                 value => PlayniteAchievementsPlugin.Instance?.PickColor(Window.GetWindow(this), value),
-                definition => MakeGlobal(definition, settings, saveSettings),
+                definition => MakeGlobal(definition, gameId, store, settings, saveSettings),
                 fetched);
 
             ShowGlobalTags();
@@ -106,8 +111,13 @@ namespace PlayniteAchievements.Views.ManageAchievements
             }
         }
 
+        private static bool IsGlobal(string key) =>
+            AchievementTagRegistry.Global.Any(definition => string.Equals(definition.Key, key, StringComparison.OrdinalIgnoreCase));
+
         private static void MakeGlobal(
             AchievementTagDefinition definition,
+            Guid gameId,
+            GameCustomDataStore store,
             PlayniteAchievementsSettings settings,
             Action<PlayniteAchievementsSettings> saveSettings)
         {
@@ -126,6 +136,72 @@ namespace PlayniteAchievements.Views.ManageAchievements
             persisted.AchievementTags = global;
             saveSettings?.Invoke(settings);
             AchievementTagRegistry.SetGlobal(persisted.ResolveAchievementTags());
+            OfferToCombineByName(definition, gameId, store);
+        }
+
+        /// <summary>
+        /// When other games have their own tag with the promoted tag's name, asks whether to fold
+        /// them into it: their copies go, and their achievements' tag edits take the global key.
+        /// </summary>
+        private static void OfferToCombineByName(AchievementTagDefinition promoted, Guid gameId, GameCustomDataStore store)
+        {
+            var name = AchievementTagRegistry.GetName(promoted)?.Trim();
+            if (store == null || string.IsNullOrEmpty(name))
+            {
+                return;
+            }
+
+            bool SameName(AchievementTagDefinition definition) =>
+                definition != null &&
+                !string.Equals(definition.Key, promoted.Key, StringComparison.OrdinalIgnoreCase) &&
+                string.Equals(AchievementTagRegistry.GetName(definition)?.Trim(), name, StringComparison.OrdinalIgnoreCase);
+
+            var games = store.QueryAll(files => files
+                .Where(file => file != null && file.PlayniteGameId != gameId && file.AchievementTags?.Any(SameName) == true)
+                .Select(file => file.PlayniteGameId)
+                .ToList());
+            if (games.Count == 0)
+            {
+                return;
+            }
+
+            var answer = PlayniteAchievementsPlugin.Instance?.PlayniteApi?.Dialogs?.ShowMessage(
+                string.Format(ResourceProvider.GetString("LOCPlayAch_ManageAchievements_Tags_CombineByName"), games.Count, name),
+                ResourceProvider.GetString("LOCPlayAch_ManageAchievements_Tags_MakeGlobal"),
+                MessageBoxButton.YesNo,
+                MessageBoxImage.Question);
+            if (answer != MessageBoxResult.Yes)
+            {
+                return;
+            }
+
+            foreach (var other in games)
+            {
+                store.Update(
+                    other,
+                    customData =>
+                    {
+                        var merged = customData.AchievementTags?.Where(SameName).Select(definition => definition.Key).ToList() ??
+                                     new List<string>();
+                        customData.AchievementTags = customData.AchievementTags?.Where(definition => !SameName(definition)).ToList();
+                        if (customData.AchievementTags?.Count == 0)
+                        {
+                            customData.AchievementTags = null;
+                        }
+
+                        foreach (var entry in customData.AchievementOverrides?.Values ?? Enumerable.Empty<Models.Settings.AchievementOverride>())
+                        {
+                            if (entry?.Tags == null || !merged.Any(key => AchievementTagHelper.Contains(entry.Tags, key)))
+                            {
+                                continue;
+                            }
+
+                            var tags = merged.Aggregate(entry.Tags, (value, key) => AchievementTagHelper.WithTag(value, key, include: false));
+                            entry.Tags = AchievementTagHelper.WithTag(tags, promoted.Key, include: true) ?? string.Empty;
+                        }
+                    },
+                    affectsSummaryData: false);
+            }
         }
     }
 }
