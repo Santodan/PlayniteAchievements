@@ -1386,7 +1386,6 @@ namespace PlayniteAchievements.Services.Achievements
                 achievement.AchievementNote = userOverride?.Note;
                 achievement.CategoryKind = CategoryKindHelper.ResolveEffective(
                     resolved.GetStoredCategoryKind(achievement.Category),
-                    userOverride?.LegacyCategoryKind,
                     achievement.CategoryKind);
 
                 var unlockedOverride = AchievementIconOverrideHelper.GetOverrideValue(customization.UnlockedIconOverrides, apiName);
