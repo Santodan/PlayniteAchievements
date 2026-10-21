@@ -425,7 +425,8 @@ namespace PlayniteAchievements.Models.Settings
                         ShowcaseTimelineOptions.SetGranularity(timeline, granularity);
                         ShowcaseTimelineOptions.SetSplitByPlatform(timeline, splitByPlatform);
                         // The strip's timeline always showed its window picker and split toggle.
-                        ShowcaseWidgetOptions.SetShowControls(timeline, true);
+                        ShowcaseWidgetOptions.SetControlBarItemVisible(timeline, ShowcaseControlBarItems.TimeWindow, true);
+                        ShowcaseWidgetOptions.SetControlBarItemVisible(timeline, ShowcaseControlBarItems.SplitByPlatform, true);
                     });
                 persisted[layoutName] = JObject.FromObject(layout);
                 if (persisted[visibleName] == null)
