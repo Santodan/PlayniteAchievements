@@ -458,6 +458,14 @@ namespace PlayniteAchievements.ViewModels.Items
             TrophySilverTotal > 0 ||
             TrophyBronzeTotal > 0;
 
+        /// <summary>
+        /// Achievements per tag, unlocked and total, with the user's tag edits applied; null when
+        /// none are tagged. A tag edit replaces the array, never its contents.
+        /// </summary>
+        [DontSerialize]
+        [IgnoreDataMember]
+        public AchievementTagTally[] TagTotals { get; set; }
+
         private DateTime? _lastPlayed;
         public DateTime? LastPlayed 
         { 
