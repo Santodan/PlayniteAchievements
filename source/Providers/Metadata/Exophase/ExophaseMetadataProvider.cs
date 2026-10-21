@@ -32,10 +32,10 @@ namespace PlayniteAchievements.Providers.Metadata.Exophase
     /// <summary>
     /// A metadata source read from Exophase's public award pages, in the plugin's language where
     /// Exophase translates them. A borrowing branch links a game to the borrowed platform's page,
-    /// a slug built from the game's names with that platform's suffixes, replaced by its newest
-    /// version when the page links one. The own-platform branch links it to its own platform's
-    /// page, found by Exophase search with the scan's hints (the platform's title for the game,
-    /// a collection's trophy set titles, a region), then by a slug built from its name.
+    /// replaced by its newest version when the page links one; the own-platform branch to its own
+    /// platform's page. Both find it the same way: slugs built from the game's names, then
+    /// Exophase search, with the scan's hints (the platform's title for the game, a collection's
+    /// trophy set titles, a region).
     /// </summary>
     internal sealed class ExophaseMetadataProvider : IMetadataProvider
     {
@@ -87,69 +87,34 @@ namespace PlayniteAchievements.Providers.Metadata.Exophase
                 return Task.FromResult<MetadataSourceLink>(null);
             }
 
-            return _branch.OwnPlatform ? ResolveOwnPageAsync(request, ct) : ResolveBorrowedPageAsync(request, ct);
+            return ResolvePagesAsync(request, ct);
         }
 
         /// <summary>
-        /// The first borrowed page that exists among the slugs built from the game's names. When
-        /// that page links the preferred platform's version of the same game, that page is taken.
+        /// The game's page, found the same way on every branch: the slugs built from its names
+        /// (the platform's own title for it first, when the scan gave one) with the platform's
+        /// suffixes, then Exophase search for those names, preferring the scan's region. A
+        /// collection gets one page per trophy set, found by that set's title alone. A borrowed
+        /// page that links the preferred platform's version of the same game gives way to it.
         /// </summary>
-        private async Task<MetadataSourceLink> ResolveBorrowedPageAsync(MetadataLinkRequest request, CancellationToken ct)
+        private async Task<MetadataSourceLink> ResolvePagesAsync(MetadataLinkRequest request, CancellationToken ct)
         {
-            foreach (var slug in CandidateSlugs(request.SearchNames, _branch.PageSuffixes))
-            {
-                var page = await _pages.GetPageAsync(slug, _branch.PlatformHint, ct).ConfigureAwait(false);
-                if (page?.Achievements == null || page.Achievements.Count == 0)
-                {
-                    continue;
-                }
-
-                var chosen = slug;
-                var preferred = _branch.PreferredPlatform == null
-                    ? null
-                    : ExophaseGamePageParser.ParseRelatedPages(page.Html)
-                        .FirstOrDefault(related => string.Equals(related.Platform, _branch.PreferredPlatform, StringComparison.OrdinalIgnoreCase))
-                        ?.Slug;
-                if (!string.IsNullOrWhiteSpace(preferred) && !string.Equals(preferred, slug, StringComparison.OrdinalIgnoreCase))
-                {
-                    var preferredPage = await _pages.GetPageAsync(preferred, _branch.PlatformHint, ct).ConfigureAwait(false);
-                    if (preferredPage?.Achievements?.Count > 0)
-                    {
-                        chosen = preferred;
-                    }
-                }
-
-                _logger?.Debug($"[{Key}Metadata] '{request.Game?.Name}' -> {chosen}.");
-                return new MetadataSourceLink(chosen, request.Game?.Name, foundByName: true);
-            }
-
-            _logger?.Debug($"[{Key}Metadata] '{request.Game?.Name}': no {Key} page.");
-            return null;
-        }
-
-        /// <summary>
-        /// The game's own platform's page: a collection gets one page per trophy set, found by that
-        /// set's title; any other game the search match for the platform's title, then the Playnite
-        /// names, then a slug built from the first name (not for PlayStation, whose slugs carry no
-        /// platform suffix to build).
-        /// </summary>
-        private async Task<MetadataSourceLink> ResolveOwnPageAsync(MetadataLinkRequest request, CancellationToken ct)
-        {
-            var platformSlug = OwnPlatformSlug(request);
-            if (platformSlug == null)
+            var pagePlatform = _branch.OwnPlatform ? OwnPlatformSlug(request) : _branch.PlatformHint;
+            if (pagePlatform == null)
             {
                 return null;
             }
 
             var hints = request.Data?.MetadataHints;
-            var platforms = PlatformCandidates(platformSlug);
-            if (hints?.SetTitles?.Count > 0)
+            var suffixes = _branch.OwnPlatform ? OwnPageSuffixes(pagePlatform) : _branch.PageSuffixes;
+            var searchPlatforms = _branch.OwnPlatform ? PlatformCandidates(pagePlatform) : _branch.SearchPlatforms;
+            if (_branch.OwnPlatform && hints?.SetTitles?.Count > 0)
             {
                 var slugs = new List<string>();
                 foreach (var title in hints.SetTitles.Where(title => !string.IsNullOrWhiteSpace(title)))
                 {
-                    var slug = await _pages.SearchSlugAsync(title, platforms, hints.RegionHint, ct).ConfigureAwait(false);
-                    if (!string.IsNullOrWhiteSpace(slug))
+                    var slug = await FindPageAsync(new[] { title }, suffixes, searchPlatforms, pagePlatform, hints.RegionHint, ct).ConfigureAwait(false);
+                    if (slug != null)
                     {
                         slugs.Add(slug);
                     }
@@ -165,39 +130,87 @@ namespace PlayniteAchievements.Providers.Metadata.Exophase
                 .GroupBy(name => ExophaseGameNameMatcher.NormalizeGameName(name) ?? name, StringComparer.OrdinalIgnoreCase)
                 .Select(group => group.First())
                 .ToList();
+            var found = await FindPageAsync(names, suffixes, searchPlatforms, pagePlatform, hints?.RegionHint, ct).ConfigureAwait(false);
+            if (found == null)
+            {
+                _logger?.Debug($"[{Key}Metadata] '{request.Game?.Name}': no {pagePlatform} page.");
+                return null;
+            }
+
+            if (!_branch.OwnPlatform)
+            {
+                found = await PreferredVersionAsync(found, ct).ConfigureAwait(false);
+            }
+
+            _logger?.Debug($"[{Key}Metadata] '{request.Game?.Name}' -> {found}.");
+            return new MetadataSourceLink(found, request.Game?.Name, foundByName: true);
+        }
+
+        /// <summary>The first built slug whose page lists awards, else the first search match; null when neither finds one.</summary>
+        private async Task<string> FindPageAsync(
+            IReadOnlyList<string> names,
+            IReadOnlyList<string> suffixes,
+            IReadOnlyList<string> searchPlatforms,
+            string pagePlatform,
+            string regionHint,
+            CancellationToken ct)
+        {
+            foreach (var slug in CandidateSlugs(names, suffixes))
+            {
+                var page = await _pages.GetPageAsync(slug, pagePlatform, ct).ConfigureAwait(false);
+                if (page?.Achievements?.Count > 0)
+                {
+                    return slug;
+                }
+            }
+
             foreach (var name in names)
             {
-                var slug = await _pages.SearchSlugAsync(name, platforms, hints?.RegionHint, ct).ConfigureAwait(false);
+                var slug = await _pages.SearchSlugAsync(name, searchPlatforms, regionHint, ct).ConfigureAwait(false);
                 if (!string.IsNullOrWhiteSpace(slug))
                 {
-                    _logger?.Debug($"[ExophaseMetadata] '{request.Game?.Name}' -> {slug} (search '{name}').");
-                    return new MetadataSourceLink(slug, request.Game?.Name, foundByName: true);
+                    return slug;
                 }
             }
 
-            if (names.Count > 0)
-            {
-                foreach (var platform in platforms.Where(platform => !PlayStationPlatforms.Contains(platform)))
-                {
-                    var built = ExophaseGameNameMatcher.NormalizeGameNameForSlug(names[0]);
-                    if (string.IsNullOrWhiteSpace(built))
-                    {
-                        break;
-                    }
-
-                    var slug = built + "-" + platform;
-                    var page = await _pages.GetPageAsync(slug, platformSlug, ct).ConfigureAwait(false);
-                    if (page?.Achievements?.Count > 0)
-                    {
-                        return new MetadataSourceLink(slug, request.Game?.Name, foundByName: true);
-                    }
-                }
-            }
-
-            _logger?.Debug($"[ExophaseMetadata] '{request.Game?.Name}': no {platformSlug} page.");
             return null;
         }
 
+        /// <summary>The preferred platform's version of a borrowed page (the PS5 page of a PS4 game), when the page links one that lists awards.</summary>
+        private async Task<string> PreferredVersionAsync(string slug, CancellationToken ct)
+        {
+            if (_branch.PreferredPlatform == null)
+            {
+                return slug;
+            }
+
+            var page = await _pages.GetPageAsync(slug, _branch.PlatformHint, ct).ConfigureAwait(false);
+            var preferred = ExophaseGamePageParser.ParseRelatedPages(page?.Html)
+                .FirstOrDefault(related => string.Equals(related.Platform, _branch.PreferredPlatform, StringComparison.OrdinalIgnoreCase))
+                ?.Slug;
+            if (string.IsNullOrWhiteSpace(preferred) || string.Equals(preferred, slug, StringComparison.OrdinalIgnoreCase))
+            {
+                return slug;
+            }
+
+            var preferredPage = await _pages.GetPageAsync(preferred, _branch.PlatformHint, ct).ConfigureAwait(false);
+            return preferredPage?.Achievements?.Count > 0 ? preferred : slug;
+        }
+
+        /// <summary>
+        /// The own platform's slug suffixes: the platform itself ("-xbox-360", "-origin"), both
+        /// Xbox spellings for current Xbox games, and none for PlayStation, whose slugs carry no
+        /// platform suffix.
+        /// </summary>
+        private static IReadOnlyList<string> OwnPageSuffixes(string platformSlug)
+        {
+            if (PlayStationPlatforms.Contains(platformSlug))
+            {
+                return new[] { string.Empty };
+            }
+
+            return PlatformCandidates(platformSlug).Select(platform => "-" + platform).ToList();
+        }
         public async Task<AchievementSourceSet> FetchAsync(MetadataLinkRequest request, string linkId, CancellationToken ct)
         {
             if (_pages?.IsAvailable != true)
