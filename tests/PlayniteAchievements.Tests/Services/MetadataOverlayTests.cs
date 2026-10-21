@@ -198,6 +198,44 @@ namespace PlayniteAchievements.Tests.Services
         }
 
         [TestMethod]
+        public void PlatformsNoSourceHas_TakeNothing_WhateverIsStored()
+        {
+            var stored = new MetadataChoices
+            {
+                Icons = MetadataChoices.Exophase,
+                Categories = MetadataChoices.SteamHunters,
+                Tags = MetadataChoices.TrueGaming,
+                Rarity = MetadataChoices.Exophase,
+                CapstoneArt = MetadataChoices.PlayStation,
+                TrophyTypes = MetadataChoices.PlayStation,
+                Points = MetadataChoices.Xbox
+            };
+            var settings = new PersistedSettings
+            {
+                MetadataPlatformChoices = new Dictionary<string, MetadataChoices> { ["Riot"] = stored.Clone() }
+            };
+
+            var riot = settings.ResolveMetadataChoices("Riot", stored);
+            var steam = settings.ResolveMetadataChoices("Steam");
+
+            Assert.IsTrue(riot.SameAs(new MetadataChoices
+            {
+                Icons = string.Empty,
+                Categories = string.Empty,
+                Tags = string.Empty,
+                Rarity = string.Empty,
+                CapstoneArt = string.Empty,
+                TrophyTypes = string.Empty,
+                Points = string.Empty
+            }));
+            Assert.AreEqual(MetadataChoices.TrueGaming, steam.Tags);
+            Assert.AreEqual(MetadataChoices.PlayStation, steam.CapstoneArt);
+            Assert.IsTrue(MetadataChoices.TakesSources(null));
+            Assert.IsTrue(MetadataChoices.TakesSources("Meta"));
+            Assert.IsFalse(MetadataChoices.TakesSources("hoyoverse"));
+        }
+
+        [TestMethod]
         public void MetadataDefaults_FillFieldsAnOlderConfigurationLacks()
         {
             var settings = new PersistedSettings
