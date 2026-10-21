@@ -1,6 +1,9 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
+using PlayniteAchievements.Models;
+using PlayniteAchievements.Models.Settings;
 using PlayniteAchievements.ViewModels;
 using PlayniteAchievements.ViewModels.Showcase.Widgets;
 
@@ -100,6 +103,82 @@ namespace PlayniteAchievements.Tests.ViewModels
             Assert.AreEqual(1, secondCalls);
             GC.KeepAlive(first);
             GC.KeepAlive(second);
+        }
+
+        [TestMethod]
+        public void Entries_AreTheSearchThenTheItemsInBarOrderWithUniqueIds()
+        {
+            var achievements = new CrossGameAchievementControlBarAdapter();
+            var games = new GameSummaryGridControlBarAdapter();
+
+            CollectionAssert.AreEqual(
+                new[]
+                {
+                    ShowcaseControlBarItems.Search,
+                    ShowcaseControlBarItems.Platform,
+                    ShowcaseControlBarItems.UnlockDate,
+                    ShowcaseControlBarItems.Rarity,
+                    ShowcaseControlBarItems.Trophy
+                },
+                achievements.Entries.Select(entry => entry.Id).ToArray());
+            CollectionAssert.AreEqual(
+                new[]
+                {
+                    ShowcaseControlBarItems.Search,
+                    ShowcaseControlBarItems.Platform,
+                    ShowcaseControlBarItems.Progress,
+                    ShowcaseControlBarItems.Activity
+                },
+                games.Entries.Select(entry => entry.Id).ToArray());
+            Assert.AreSame(achievements.ControlBar.Search, achievements.Entries[0]);
+            Assert.AreSame(achievements.ControlBar.Items[0], achievements.Entries[1]);
+        }
+
+        [TestMethod]
+        public void UpdateShownBar_ShowsTheChosenItemsAsTheAdaptersOwnObjects()
+        {
+            var instance = new ShowcaseWidgetInstanceSettings { Kind = ShowcaseWidgetKind.RecentAchievements };
+            var slot = new ShowcaseControlBarSlot<CrossGameAchievementControlBarAdapter>(() => { });
+            slot.Bind(instance.InstanceId);
+
+            Assert.IsTrue(slot.UpdateShownBar(instance));
+            Assert.IsNull(slot.ShownBar);
+
+            ShowcaseWidgetOptions.SetControlBarItemVisible(instance, ShowcaseControlBarItems.Rarity, true);
+            Assert.IsTrue(slot.UpdateShownBar(instance));
+
+            Assert.IsNull(slot.ShownBar.Search);
+            Assert.AreEqual(1, slot.ShownBar.Items.Count);
+            Assert.AreSame(slot.Adapter.ControlBar.Items[2], slot.ShownBar.Items[0]);
+        }
+
+        [TestMethod]
+        public void UpdateShownBar_KeepsTheBarWhileTheShownItemsAreUnchanged()
+        {
+            var instance = new ShowcaseWidgetInstanceSettings { Kind = ShowcaseWidgetKind.GameSummaries };
+            ShowcaseWidgetOptions.SetControlBarItemVisible(instance, ShowcaseControlBarItems.Search, true);
+            var slot = new ShowcaseControlBarSlot<GameSummaryGridControlBarAdapter>(() => { });
+            slot.Bind(instance.InstanceId);
+            slot.UpdateShownBar(instance);
+            var bar = slot.ShownBar;
+
+            Assert.IsFalse(slot.UpdateShownBar(instance));
+            Assert.AreSame(bar, slot.ShownBar);
+            Assert.AreSame(slot.Adapter.ControlBar.Search, bar.Search);
+            Assert.AreEqual(0, bar.Items.Count);
+        }
+
+        [TestMethod]
+        public void UpdateShownBar_FollowsTheFormerWholeBarOptionUntilItemsAreChosen()
+        {
+            var instance = new ShowcaseWidgetInstanceSettings { Kind = ShowcaseWidgetKind.GameSummaries };
+            var slot = new ShowcaseControlBarSlot<GameSummaryGridControlBarAdapter>(() => { });
+            slot.Bind(instance.InstanceId);
+
+            slot.UpdateShownBar(instance, legacyVisible: true);
+
+            Assert.IsNotNull(slot.ShownBar.Search);
+            Assert.AreEqual(3, slot.ShownBar.Items.Count);
         }
     }
 }
