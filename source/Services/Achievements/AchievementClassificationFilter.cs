@@ -56,13 +56,13 @@ namespace PlayniteAchievements.Services.Achievements
                    AchievementTagHelper.IsBuiltInTag(canonical) ||
                    AchievementTagHelper.IsDerivedTag(canonical) ||
                    canonical.StartsWith(AchievementTagHelper.UserKeyPrefix, StringComparison.OrdinalIgnoreCase) ||
-                   AchievementTagRegistry.Resolve(canonical) != null;
+                   AchievementTagRegistry.IsDefined(canonical);
         }
 
         /// <summary>
         /// The tag keys that occur on <paramref name="items"/>, in list order, then the derived unlock
         /// modes: the options of the in-app Tags filters. Kinds are filtered by category instead, and
-        /// tags without a definition are left out.
+        /// deleted user tags are left out; a source's key no list defines is offered as the game's own.
         /// </summary>
         public static List<string> GetPresentKeys<T>(
             IEnumerable<T> items,
@@ -80,7 +80,7 @@ namespace PlayniteAchievements.Services.Achievements
                 present.UnionWith(AchievementTagHelper.GetComponents(tagsSelector(item)));
             }
 
-            return AchievementTagRegistry.GetAssignableKeys(gameId)
+            return AchievementTagRegistry.GetAssignableKeys(gameId, present)
                 .Concat(new[] { AchievementTagHelper.Softcore, AchievementTagHelper.Hardcore })
                 .Where(present.Contains)
                 .ToList();
