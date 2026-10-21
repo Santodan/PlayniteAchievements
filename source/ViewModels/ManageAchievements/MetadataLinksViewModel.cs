@@ -185,7 +185,8 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                         supplies,
                         record,
                         store.GetCoverage(gameId, provider.Key),
-                        record == null || record.IsNoMatch ? null : store.Snapshots?.Get(gameId, provider.Key, record.Id))
+                        record == null || record.IsNoMatch ? null : store.Snapshots?.Get(gameId, provider.Key, record.Id),
+                        record?.Id == null ? null : (provider as IMetadataLinkDetails)?.ShownLink(record.Id))
                     {
                         LinkDetails = record == null || record.IsNoMatch ? null : (provider as IMetadataLinkDetails)?.DescribeLink(gameId, record.Id)
                     });
@@ -317,7 +318,8 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             string supplies,
             MetadataLinkRecord record,
             MetadataCoverage coverage,
-            MetadataSourceSnapshot snapshot)
+            MetadataSourceSnapshot snapshot,
+            string shownLinkId = null)
         {
             GameId = gameId;
             SourceKey = sourceKey;
@@ -325,15 +327,16 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             Placeholder = placeholder;
             Supplies = supplies ?? string.Empty;
             Snapshot = snapshot;
-            _input = record?.Id ?? string.Empty;
+            // The box shows the link as the source names it, so a stored form the user never typed
+            // does not show, and Apply stays off until the shown id changes.
+            _input = shownLinkId ?? record?.Id ?? string.Empty;
             StatusText = BuildStatus(record, coverage);
             HasLink = record != null && !record.IsNoMatch;
             // A stored "no match" (the retired Enabled switch's off) is the user's too, so Reset
             // hands it back to matching.
             IsUserSet = record?.Origin == MetadataLinkOrigin.User;
-            _linkedId = record?.Id ?? string.Empty;
-            ShowFixMatches = HasMatches &&
-                             ((coverage != null && coverage.Matched < coverage.Total) || record?.Pairings?.Count > 0);
+            _linkedId = _input;
+            ShowFixMatches = HasMatches;
             // Apply pins a new id; turning a source off is the game's "Own" choice for its fields.
             ApplyCommand = new RelayCommand(
                 _ => owner.Apply(this),
@@ -389,7 +392,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
 
         public bool HasMatches => Snapshot?.Rows.Count > 0;
 
-        /// <summary>Offered when some achievements are unmatched, or the user already set pairings to revisit.</summary>
+        /// <summary>Offered whenever the source has a match list from the last refresh, to change any pairing.</summary>
         public bool ShowFixMatches { get; }
 
         public string Input
