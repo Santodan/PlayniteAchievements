@@ -36,6 +36,7 @@ namespace PlayniteAchievements.Views
         private GeneralSettingsTab _generalSettingsTab;
         private Settings.Notifications.NotificationsSettingsTab _notificationsSettingsTab;
         private Settings.Workshop.WorkshopSettingsTab _workshopSettingsTab;
+        private Settings.Metadata.MetadataSettingsTab _metadataSettingsTab;
 
         /// <summary>
         /// The place the next SettingsControl should open on. Set by the plugin before it asks
@@ -120,7 +121,7 @@ namespace PlayniteAchievements.Views
 
             if (MetadataSettingsContent != null)
             {
-                MetadataSettingsContent.Content = new Settings.Metadata.MetadataSettingsTab(
+                MetadataSettingsContent.Content = _metadataSettingsTab = new Settings.Metadata.MetadataSettingsTab(
                     _settingsViewModel.Settings,
                     _plugin,
                     _providerRegistry);
@@ -246,6 +247,13 @@ namespace PlayniteAchievements.Views
                     if (!string.IsNullOrEmpty(request.PageKey))
                     {
                         _workshopSettingsTab?.NavigateToPage(request.PageKey);
+                    }
+
+                    break;
+                case SettingsNavigationRequest.MetadataTab:
+                    if (!string.IsNullOrEmpty(request.PageKey))
+                    {
+                        _metadataSettingsTab?.NavigateToPage(request.PageKey);
                     }
 
                     break;
