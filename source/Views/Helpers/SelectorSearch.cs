@@ -58,6 +58,23 @@ namespace PlayniteAchievements.Views.Helpers
         public static Action<string> GetCreateAction(DependencyObject element) =>
             (Action<string>)element.GetValue(CreateActionProperty);
 
+        public static readonly DependencyProperty IsDisabledProperty =
+            DependencyProperty.RegisterAttached(
+                "IsDisabled",
+                typeof(bool),
+                typeof(SelectorSearch),
+                new PropertyMetadata(false));
+
+        /// <summary>
+        /// Keeps the search off a ComboBox or a menu (and its submenus) whatever its length: lists
+        /// of switches rather than choices, read whole.
+        /// </summary>
+        public static void SetIsDisabled(DependencyObject element, bool value) =>
+            element.SetValue(IsDisabledProperty, value);
+
+        public static bool GetIsDisabled(DependencyObject element) =>
+            (bool)element.GetValue(IsDisabledProperty);
+
         public static readonly DependencyProperty IsComboBoxSearchBoxProperty =
             DependencyProperty.RegisterAttached(
                 "IsComboBoxSearchBox",
@@ -231,6 +248,11 @@ namespace PlayniteAchievements.Views.Helpers
                 return;
             }
 
+            if (combo.Template?.FindName("PART_SearchPlaceholder", combo) is FrameworkElement placeholder)
+            {
+                AlignPlaceholderToCaret(box, placeholder);
+            }
+
             var state = new ComboSearchState
             {
                 Combo = combo,
@@ -257,10 +279,50 @@ namespace PlayniteAchievements.Views.Helpers
             }
         }
 
+        /// <summary>
+        /// Puts <paramref name="placeholder"/> (laid over <paramref name="box"/> in the same cell)
+        /// where the box's caret starts, in the box's font, so typing replaces it in place. The
+        /// offset depends on the box's template and padding, which differ between the plugin's
+        /// style and a theme's, so it is measured rather than assumed.
+        /// </summary>
+        private static void AlignPlaceholderToCaret(TextBox box, FrameworkElement placeholder)
+        {
+            if (placeholder is TextBlock text)
+            {
+                text.SetBinding(TextBlock.FontSizeProperty, new Binding(nameof(TextBox.FontSize)) { Source = box });
+                text.SetBinding(TextBlock.FontFamilyProperty, new Binding(nameof(TextBox.FontFamily)) { Source = box });
+            }
+
+            void Align()
+            {
+                if (!box.IsLoaded)
+                {
+                    return;
+                }
+
+                var caret = box.GetRectFromCharacterIndex(0);
+                if (caret.IsEmpty || double.IsNaN(caret.X) || double.IsInfinity(caret.X))
+                {
+                    return;
+                }
+
+                placeholder.HorizontalAlignment = HorizontalAlignment.Left;
+                placeholder.VerticalAlignment = VerticalAlignment.Top;
+                placeholder.Margin = new Thickness(box.Margin.Left + caret.X, box.Margin.Top + caret.Y, 0, 0);
+            }
+
+            box.Loaded += (_, __) => box.Dispatcher.BeginInvoke(new Action(Align), DispatcherPriority.Loaded);
+            box.SizeChanged += (_, __) => Align();
+            if (box.IsLoaded)
+            {
+                box.Dispatcher.BeginInvoke(new Action(Align), DispatcherPriority.Loaded);
+            }
+        }
+
         private static void OnComboOpened(ComboSearchState state)
         {
             var combo = state.Combo;
-            state.IsActive = CountOptions(combo.Items) > MaxUnsearchedOptions;
+            state.IsActive = !GetIsDisabled(combo) && CountOptions(combo.Items) > MaxUnsearchedOptions;
             state.Host.Visibility = state.IsActive ? Visibility.Visible : Visibility.Collapsed;
             UpdateComboCreate(state, matches: true);
             if (!state.IsActive)
@@ -456,7 +518,8 @@ namespace PlayniteAchievements.Views.Helpers
 
         private static void OnContextMenuOpened(object sender, RoutedEventArgs e)
         {
-            if (sender is ContextMenu menu && ReferenceEquals(e.OriginalSource, menu) && IsPluginMenu(menu))
+            if (sender is ContextMenu menu && ReferenceEquals(e.OriginalSource, menu) &&
+                !GetIsDisabled(menu) && IsPluginMenu(menu))
             {
                 AttachMenuLevel(menu);
             }
@@ -475,7 +538,8 @@ namespace PlayniteAchievements.Views.Helpers
         private static void OnSubmenuOpened(object sender, RoutedEventArgs e)
         {
             if (sender is MenuItem item && ReferenceEquals(e.OriginalSource, item) &&
-                FindRootContextMenu(item) is ContextMenu root && IsPluginMenu(root))
+                FindRootContextMenu(item) is ContextMenu root && !GetIsDisabled(root) && !GetIsDisabled(item) &&
+                IsPluginMenu(root))
             {
                 AttachMenuLevel(item);
             }
@@ -554,7 +618,6 @@ namespace PlayniteAchievements.Views.Helpers
             state.Box = new TextBox
             {
                 MinWidth = 160,
-                Margin = new Thickness(4, 2, 4, 4),
                 VerticalContentAlignment = VerticalAlignment.Center
             };
             var placeholder = new TextBlock
@@ -573,6 +636,9 @@ namespace PlayniteAchievements.Views.Helpers
                     Source = state.Box,
                     Converter = EmptyToVisibleConverter.Instance
                 });
+
+            placeholder.VerticalAlignment = VerticalAlignment.Top;
+            AlignPlaceholderToCaret(state.Box, placeholder);
 
             var host = new Grid();
             host.Children.Add(state.Box);
@@ -621,8 +687,11 @@ namespace PlayniteAchievements.Views.Helpers
 
         private static ControlTemplate CreateBareTemplate()
         {
+            // The header itself, not through ContentSource: that also takes HeaderTemplate, and a menu
+            // style whose template renders a header as text printed the box's type name.
             var presenter = new FrameworkElementFactory(typeof(ContentPresenter));
-            presenter.SetValue(ContentPresenter.ContentSourceProperty, "Header");
+            presenter.SetValue(ContentPresenter.ContentProperty, new TemplateBindingExtension(HeaderedItemsControl.HeaderProperty));
+            presenter.SetValue(ContentPresenter.MarginProperty, new Thickness(6, 4, 6, 4));
             return new ControlTemplate(typeof(MenuItem)) { VisualTree = presenter };
         }
 
