@@ -71,9 +71,9 @@ namespace PlayniteAchievements.Services.Tests
                 AchievementCategoryTypeOverrides = new Dictionary<string, string> { ["ach_one"] = "DLC" }
             });
 
-            // A legacy type override replaced every provider type: DLC becomes the kind, and no
-            // other value means no tags.
-            Assert.AreEqual("DLC", result.AchievementOverrides["ach_one"].LegacyCategoryKind);
+            // A legacy type override replaced every provider type: no value besides the kind means
+            // no tags. The kind itself is dropped, since kinds live on categories.
+            Assert.IsNull(result.AchievementOverrides["ach_one"].LegacyCategoryType);
             Assert.IsTrue(result.AchievementOverrides["ach_one"].ClearTags);
         }
 
@@ -111,7 +111,8 @@ namespace PlayniteAchievements.Services.Tests
             Assert.AreEqual("note", entry.Note);
             Assert.AreEqual("unlocked.png", entry.UnlockedIconPath);
             Assert.AreEqual("locked.png", entry.LockedIconPath);
-            Assert.AreEqual("DLC", entry.LegacyCategoryKind);
+            Assert.IsNull(entry.LegacyCategoryType);
+            Assert.IsTrue(entry.ClearTags);
         }
 
         [TestMethod]
@@ -357,7 +358,7 @@ namespace PlayniteAchievements.Services.Tests
             {
                 var second = twice.AchievementOverrides[pair.Key];
                 Assert.AreEqual(pair.Value.Category, second.Category);
-                Assert.AreEqual(pair.Value.LegacyCategoryKind, second.LegacyCategoryKind);
+                Assert.AreEqual(pair.Value.LegacyCategoryType, second.LegacyCategoryType);
                 Assert.AreEqual(pair.Value.Tags, second.Tags);
                 Assert.AreEqual(pair.Value.ClearTags, second.ClearTags);
                 Assert.AreEqual(pair.Value.Note, second.Note);
