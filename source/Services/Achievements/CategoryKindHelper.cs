@@ -218,6 +218,26 @@ namespace PlayniteAchievements.Services.Achievements
                 : value;
         }
 
+        /// <summary>
+        /// A key that sorts kinds in canonical order (Base, DLC, Update, Subset, then unknown kinds
+        /// by name), a combination after its first kind alone, and no kind last. Letters and digits
+        /// only, so ordinal and culture comparisons agree.
+        /// </summary>
+        public static string ToSortKey(string value)
+        {
+            var components = GetComponents(value);
+            if (components.Count == 0)
+            {
+                return "z";
+            }
+
+            return string.Concat(components.Select(kind =>
+            {
+                var index = Array.IndexOf(KnownKinds, kind);
+                return index >= 0 ? index.ToString() : "9" + kind.ToLowerInvariant();
+            }));
+        }
+
         private static List<string> Order(HashSet<string> values)
         {
             var known = KnownKinds.Where(values.Contains);
