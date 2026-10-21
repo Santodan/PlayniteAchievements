@@ -52,6 +52,7 @@ namespace PlayniteAchievements.Services.Summaries
             stats.PlatformScorePointsTotal = AchievementGameStats.AddClamped(
                 stats.PlatformScorePointsTotal,
                 achievement.Points ?? 0);
+            stats.Tags.Add(achievement.Tags, achievement.Unlocked);
 
             if (!achievement.Unlocked)
             {
@@ -91,6 +92,7 @@ namespace PlayniteAchievements.Services.Summaries
             stats.PlatformScorePointsTotal = AchievementGameStats.AddClamped(
                 stats.PlatformScorePointsTotal,
                 achievement.Points);
+            stats.Tags.Add(achievement.Tags, treatItemAsUnlocked || achievement.Unlocked);
 
             if (!treatItemAsUnlocked && !achievement.Unlocked)
             {
