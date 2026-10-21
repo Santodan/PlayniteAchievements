@@ -21,7 +21,7 @@ namespace PlayniteAchievements.Providers.Metadata.TrueGaming
     /// <see cref="TrueGamingPageSet"/>. The sites are English only, so rows pair with the game's
     /// achievements by English title.
     /// </summary>
-    internal sealed class TrueGamingMetadataProvider : IMetadataProvider
+    internal sealed class TrueGamingMetadataProvider : IMetadataProvider, IMetadataLinkDetails
     {
         public const string MetadataKey = "TrueGaming";
 
@@ -272,6 +272,17 @@ namespace PlayniteAchievements.Providers.Metadata.TrueGaming
             }
 
             return (null, settled);
+        }
+
+        /// <summary>The page each site gave the link ("TrueTrophies: Elden-Ring-PS5"), "None" where it has none.</summary>
+        public string DescribeLink(Guid gameId, string linkId)
+        {
+            var name = TrueGamingLinks.Normalize(linkId);
+            var pages = name == null ? Array.Empty<(TrueGamingSite Site, string PageSlug)>() : _store.GetPages(gameId, name);
+            return pages.Count == 0
+                ? null
+                : string.Join(Environment.NewLine, pages.Select(page =>
+                    $"{page.Site.Title}: {page.PageSlug ?? ResourceProvider.GetString("LOCNone")}"));
         }
 
         private void Record(MetadataLinkRequest request, string name, IEnumerable<(TrueGamingSite Site, string PageSlug)> outcomes)
