@@ -343,6 +343,26 @@ namespace PlayniteAchievements.Models
     }
 
     /// <summary>
+    /// Control bar item IDs, which name an item's visibility option. Stable: persisted per widget.
+    /// </summary>
+    public static class ShowcaseControlBarItems
+    {
+        public const string Search = "Search";
+        public const string Platform = "Platform";
+        public const string UnlockDate = "UnlockDate";
+        public const string Rarity = "Rarity";
+        public const string Trophy = "Trophy";
+        public const string Progress = "Progress";
+        public const string Activity = "Activity";
+
+        /// <summary>The Timeline and Activity Calendar time window picker.</summary>
+        public const string TimeWindow = "TimeWindow";
+
+        /// <summary>The Timeline's split-by-platform toggle.</summary>
+        public const string SplitByPlatform = "SplitByPlatform";
+    }
+
+    /// <summary>
     /// Owns persisted option names, defaults, and defensive range validation.
     /// Renderers and editors should not interpret the option dictionary directly.
     /// </summary>
@@ -361,7 +381,9 @@ namespace PlayniteAchievements.Models
         private const string HideCompleted = "HideCompleted";
         private const string ShowRarityGlow = "ShowRarityGlow";
         private const string ShowRarityBar = "ShowRarityBar";
+        // The whole-bar option per-item visibility replaced; read only as the per-item fallback.
         private const string ShowControlBar = "ShowControlBar";
+        private const string ControlBarItemPrefix = "ShowControlBarItem.";
         private const string UseCoverImages = "UseCoverImages";
         private const string ShowCompletionGlow = "ShowCompletionGlow";
         private const string ShowCompletionFrame = "ShowCompletionFrame";
@@ -732,25 +754,82 @@ namespace PlayniteAchievements.Models
             OverviewPieSmallSliceMode value) => settings?.SetOption(SmallSliceMode, value);
 
         /// <summary>
-        /// Whether the pie shows a game control bar above the chart. Its filters narrow the games
-        /// the pie's totals are computed from, and stay in effect while the bar is hidden.
+        /// Prefix of the widget options holding control bar filter state (search text and filter
+        /// selections). Those options belong to the user, not the layout: an export strips them,
+        /// and the widget settings dialog leaves them as the bar last saved them.
         /// </summary>
-        public static bool GetPieShowControlBar(ShowcaseWidgetInstanceSettings settings) =>
-            settings?.GetOption(ShowControlBar, false) ?? false;
-
-        public static void SetPieShowControlBar(ShowcaseWidgetInstanceSettings settings, bool value) =>
-            settings?.SetOption(ShowControlBar, value);
+        public const string ControlBarStatePrefix = "ControlBar.";
 
         /// <summary>
-        /// Whether a Timeline or Activity Calendar widget shows its own controls (the time window,
-        /// and for the timeline its bar width and platform split) above the chart. Shares the
-        /// pie's option, so one widget has one Show Control Bar setting whatever its kind.
+        /// Whether the widget's control bar shows the item <paramref name="itemId"/> (one of
+        /// <see cref="ShowcaseControlBarItems"/>). A hidden item's filter stays in effect, and its
+        /// editor stays in the widget settings. Without a per-item choice, the widget's former
+        /// whole-bar option decides: <paramref name="legacyVisible"/> when the caller has one (a
+        /// grid widget's surface option), else the widget's own Show Control Bar option.
         /// </summary>
-        public static bool GetShowControls(ShowcaseWidgetInstanceSettings settings) =>
-            settings?.GetOption(ShowControlBar, false) ?? false;
+        public static bool GetControlBarItemVisible(
+            ShowcaseWidgetInstanceSettings settings,
+            string itemId,
+            bool? legacyVisible = null)
+        {
+            if (settings == null || string.IsNullOrWhiteSpace(itemId))
+            {
+                return false;
+            }
 
-        public static void SetShowControls(ShowcaseWidgetInstanceSettings settings, bool value) =>
-            settings?.SetOption(ShowControlBar, value);
+            if (settings.Options != null &&
+                settings.Options.TryGetValue(ControlBarItemPrefix + itemId, out var raw) &&
+                bool.TryParse(raw, out var visible))
+            {
+                return visible;
+            }
+
+            return legacyVisible ?? settings.GetOption(ShowControlBar, false);
+        }
+
+        public static void SetControlBarItemVisible(
+            ShowcaseWidgetInstanceSettings settings,
+            string itemId,
+            bool value)
+        {
+            if (!string.IsNullOrWhiteSpace(itemId))
+            {
+                settings?.SetOption(ControlBarItemPrefix + itemId, value);
+            }
+        }
+
+        /// <summary>
+        /// The settings dialog's edited options applied over <paramref name="target"/>'s: every
+        /// option comes from <paramref name="edited"/> except the control bar filter state, which
+        /// the bar saves to the live widget while the dialog is open and the edited copy only
+        /// holds as it was when the dialog opened.
+        /// </summary>
+        public static Dictionary<string, string> MergeEditedOptions(
+            ShowcaseWidgetInstanceSettings target,
+            ShowcaseWidgetInstanceSettings edited)
+        {
+            var merged = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var pair in edited?.Options ?? new Dictionary<string, string>())
+            {
+                if (!IsControlBarState(pair.Key))
+                {
+                    merged[pair.Key] = pair.Value;
+                }
+            }
+
+            foreach (var pair in target?.Options ?? new Dictionary<string, string>())
+            {
+                if (IsControlBarState(pair.Key))
+                {
+                    merged[pair.Key] = pair.Value;
+                }
+            }
+
+            return merged;
+        }
+
+        public static bool IsControlBarState(string key) =>
+            key != null && key.StartsWith(ControlBarStatePrefix, StringComparison.OrdinalIgnoreCase);
 
         /// <summary>
         /// Which counts the profile medal row shows. Trophy is only meaningful for a library
@@ -868,16 +947,6 @@ namespace PlayniteAchievements.Models
 
         public static void SetMosaicCount(ShowcaseWidgetInstanceSettings settings, int value) =>
             settings?.SetOption(Count, Clamp(value, 1, 200));
-
-        /// <summary>
-        /// Whether the mosaic shows a control bar above its tiles. Shared by the achievement and
-        /// game contents; the filter runs over the whole source before the Count cap.
-        /// </summary>
-        public static bool GetMosaicShowControlBar(ShowcaseWidgetInstanceSettings settings) =>
-            settings?.GetOption(ShowControlBar, false) ?? false;
-
-        public static void SetMosaicShowControlBar(ShowcaseWidgetInstanceSettings settings, bool value) =>
-            settings?.SetOption(ShowControlBar, value);
 
         /// <summary>Whether achievement mosaic tiles show the rarity bar along their bottom edge.</summary>
         public static bool GetMosaicShowRarityBar(ShowcaseWidgetInstanceSettings settings) =>

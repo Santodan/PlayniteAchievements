@@ -58,25 +58,25 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
     /// </summary>
     public abstract class ShowcaseMosaicWidgetViewModelBase : ShowcaseWidgetViewModelBase
     {
-        private bool _showControlBar;
         private GridControlBarViewModel _controlBar;
 
-        /// <summary>Search/filter bar shown when the widget's Show Control Bar option is on.</summary>
+        /// <summary>The search and filter items the widget's settings show; null when they show none.</summary>
         public GridControlBarViewModel ControlBar
         {
             get => _controlBar;
-            protected set => SetValue(ref _controlBar, value);
+            protected set
+            {
+                if (SetValueAndReturn(ref _controlBar, value))
+                {
+                    OnPropertyChanged(nameof(ShowControlBar));
+                }
+            }
         }
 
-        public bool ShowControlBar
-        {
-            get => _showControlBar;
-            private set => SetValue(ref _showControlBar, value);
-        }
+        public bool ShowControlBar => ControlBar != null;
 
         protected sealed override void Refresh()
         {
-            ShowControlBar = ShowcaseWidgetOptions.GetMosaicShowControlBar(Projection?.Instance);
             RefreshLayout();
             RefreshTiles();
         }
@@ -111,12 +111,26 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
 
         public BulkObservableCollection<TItem> Items { get; } = new BulkObservableCollection<TItem>();
 
-        /// <summary>Search/filter bar shown when the surface's ShowControlBar option is on.</summary>
+        /// <summary>The search and filter items the widget's settings show; null when they show none.</summary>
         public GridControlBarViewModel ControlBar
         {
             get => _controlBar;
-            protected set => SetValue(ref _controlBar, value);
+            protected set
+            {
+                if (SetValueAndReturn(ref _controlBar, value))
+                {
+                    OnPropertyChanged(nameof(ShowControlBar));
+                }
+            }
         }
+
+        public bool ShowControlBar => ControlBar != null;
+
+        /// <summary>
+        /// The surface's former whole-bar option, which decides an item's visibility until the
+        /// widget's settings choose per item.
+        /// </summary>
+        protected bool LegacyShowControlBar => (GridOptions as GridCommonOptions)?.ShowControlBar == true;
 
         /// <summary>
         /// Persisted column-layout surface. Widgets that allow multiple instances get one
@@ -275,10 +289,9 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
         protected override IEnumerable<AchievementDisplayItem> FilterItems(
             IEnumerable<AchievementDisplayItem> items)
         {
-            if (_controlBarSlot.Bind(Projection?.Instance?.InstanceId))
-            {
-                ControlBar = _controlBarSlot.Adapter.ControlBar;
-            }
+            _controlBarSlot.Bind(Projection?.Instance?.InstanceId);
+            _controlBarSlot.UpdateShownBar(Projection?.Instance, LegacyShowControlBar);
+            ControlBar = _controlBarSlot.ShownBar;
 
             var adapter = _controlBarSlot.Adapter;
             var list = (items ?? Enumerable.Empty<AchievementDisplayItem>())
@@ -359,10 +372,9 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
 
         protected override IEnumerable<GameSummaryItem> FilterItems(IEnumerable<GameSummaryItem> items)
         {
-            if (_controlBarSlot.Bind(Projection?.Instance?.InstanceId))
-            {
-                ControlBar = _controlBarSlot.Adapter.ControlBar;
-            }
+            _controlBarSlot.Bind(Projection?.Instance?.InstanceId);
+            _controlBarSlot.UpdateShownBar(Projection?.Instance, LegacyShowControlBar);
+            ControlBar = _controlBarSlot.ShownBar;
 
             var adapter = _controlBarSlot.Adapter;
             var list = (items ?? Enumerable.Empty<GameSummaryItem>())

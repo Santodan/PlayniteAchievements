@@ -25,7 +25,6 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
         private readonly ShowcaseControlBarSlot<PieControlBarAdapter> _controlBarSlot;
         private PieChartViewModel _chart = new PieChartViewModel();
         private GridControlBarViewModel _controlBar;
-        private bool _showControlBar;
 
         public PieWidgetViewModel()
         {
@@ -34,18 +33,20 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
 
         public PieChartViewModel Chart { get => _chart; private set => SetValue(ref _chart, value); }
 
-        /// <summary>Game filter bar shown when the widget's Show Control Bar option is on.</summary>
+        /// <summary>The game filter items the widget's settings show; null when they show none.</summary>
         public GridControlBarViewModel ControlBar
         {
             get => _controlBar;
-            private set => SetValue(ref _controlBar, value);
+            private set
+            {
+                if (SetValueAndReturn(ref _controlBar, value))
+                {
+                    OnPropertyChanged(nameof(ShowControlBar));
+                }
+            }
         }
 
-        public bool ShowControlBar
-        {
-            get => _showControlBar;
-            private set => SetValue(ref _showControlBar, value);
-        }
+        public bool ShowControlBar => ControlBar != null;
 
         public ShowcasePieMode Mode { get; private set; }
 
@@ -65,7 +66,6 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
             // A linked pie's snapshot already follows the overview's filters; its own control bar
             // narrows that further.
             var linked = Projection?.IsLinked == true;
-            ShowControlBar = ShowcaseWidgetOptions.GetPieShowControlBar(Projection?.Instance);
             var snapshot = ApplyControlBarFilter(Projection?.Snapshot ?? new OverviewDataSnapshot(), linked);
             var mode = ShowcaseWidgetOptions.GetPieMode(Projection?.Instance);
             Mode = mode;
@@ -203,10 +203,9 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
         /// </summary>
         private OverviewDataSnapshot ApplyControlBarFilter(OverviewDataSnapshot snapshot, bool linked)
         {
-            if (_controlBarSlot.Bind(Projection?.Instance?.InstanceId))
-            {
-                ControlBar = _controlBarSlot.Adapter.ControlBar;
-            }
+            _controlBarSlot.Bind(Projection?.Instance?.InstanceId);
+            _controlBarSlot.UpdateShownBar(Projection?.Instance);
+            ControlBar = _controlBarSlot.ShownBar;
 
             var adapter = _controlBarSlot.Adapter;
             var games = (snapshot.GameSummaries ?? new List<GameSummaryItem>())

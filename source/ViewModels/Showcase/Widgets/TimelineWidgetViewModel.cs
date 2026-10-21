@@ -19,6 +19,8 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
     {
         private readonly TimelineViewModel _timeline = new TimelineViewModel();
         private bool _showControls;
+        private bool _showTimeWindowControl;
+        private bool _showSplitControl;
         private bool _splitByPlatform;
 
         // Set while Refresh pushes the settings into the chart, so those writes are not saved
@@ -32,10 +34,23 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
 
         public TimelineViewModel Timeline => _timeline;
 
+        /// <summary>Whether the widget's settings show either control above the chart.</summary>
         public bool ShowControls
         {
             get => _showControls;
             private set => SetValue(ref _showControls, value);
+        }
+
+        public bool ShowTimeWindowControl
+        {
+            get => _showTimeWindowControl;
+            private set => SetValue(ref _showTimeWindowControl, value);
+        }
+
+        public bool ShowSplitControl
+        {
+            get => _showSplitControl;
+            private set => SetValue(ref _showSplitControl, value);
         }
 
         /// <summary>The split toggle in the controls: one stacked segment per platform.</summary>
@@ -64,7 +79,13 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
             _applying = true;
             try
             {
-                ShowControls = ShowcaseWidgetOptions.GetShowControls(instance);
+                ShowTimeWindowControl = ShowcaseWidgetOptions.GetControlBarItemVisible(
+                    instance,
+                    ShowcaseControlBarItems.TimeWindow);
+                ShowSplitControl = ShowcaseWidgetOptions.GetControlBarItemVisible(
+                    instance,
+                    ShowcaseControlBarItems.SplitByPlatform);
+                ShowControls = ShowTimeWindowControl || ShowSplitControl;
                 SplitByPlatform = ShowcaseTimelineOptions.GetSplitByPlatform(instance);
                 _timeline.Window = ShowcaseTimelineOptions.GetWindow(instance);
                 _timeline.Granularity = ShowcaseTimelineOptions.GetGranularity(instance);

@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Linq;
 using Playnite.SDK;
+using PlayniteAchievements.Models;
 using PlayniteAchievements.Models.Achievements;
 using PlayniteAchievements.Services.Overview;
 using PlayniteAchievements.Services.Search;
@@ -345,6 +346,10 @@ namespace PlayniteAchievements.ViewModels
                     value => SearchText = value,
                     ResourceProvider.GetString("LOCPlayAch_Filter_Achievements"),
                     () => SearchText = string.Empty)
+                {
+                    Id = ShowcaseControlBarItems.Search,
+                    LabelKey = "LOCPlayAch_Filter_Achievements"
+                }
             };
             controlBar.Items.Add(new GridProviderPlatformFilter(
                 this,
@@ -353,6 +358,8 @@ namespace PlayniteAchievements.ViewModels
                 () => ProviderFilterGroups,
                 CollapseUnselectedProviderFilters)
             {
+                Id = ShowcaseControlBarItems.Platform,
+                LabelKey = "LOCPlatformTitle",
                 Width = 170
             });
             controlBar.Items.Add(new GridDateRangeFilter(
@@ -363,6 +370,8 @@ namespace PlayniteAchievements.ViewModels
                 SetUnlockedRange,
                 ResourceProvider.GetString("LOCPlayAch_Filter_AllTime"))
             {
+                Id = ShowcaseControlBarItems.UnlockDate,
+                LabelKey = "LOCPlayAch_Common_Unlocked",
                 AutoHideWhenUnavailable = false,
                 Width = 190
             });
@@ -374,6 +383,8 @@ namespace PlayniteAchievements.ViewModels
                 IsRaritySelected,
                 SetRaritySelected)
             {
+                Id = ShowcaseControlBarItems.Rarity,
+                LabelKey = "LOCPlayAch_Column_Rarity",
                 Width = 130
             });
             controlBar.Items.Add(new GridMultiSelectFilter(
@@ -384,6 +395,8 @@ namespace PlayniteAchievements.ViewModels
                 IsTrophySelected,
                 SetTrophySelected)
             {
+                Id = ShowcaseControlBarItems.Trophy,
+                LabelKey = "LOCPlayAch_Column_Trophy",
                 Width = 130
             });
             return controlBar;

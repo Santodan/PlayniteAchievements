@@ -96,6 +96,7 @@ namespace PlayniteAchievements.Tests.Models
         public void Export_StripsPinsControlBarStateAndProfileIdentity()
         {
             var (settings, grids, page, recent, _) = BuildSource();
+            ShowcaseWidgetOptions.SetControlBarItemVisible(recent, ShowcaseControlBarItems.Rarity, true);
             var background = Path.Combine(_tempDirectory, "banner.png");
             File.WriteAllBytes(background, new byte[] { 1, 2, 3, 4 });
             var profile = AddProfile(settings, page, new ShowcaseProfileSettings
@@ -123,6 +124,9 @@ namespace PlayniteAchievements.Tests.Models
             var exportedRecent = portable.Widgets.Single(w => w.Kind == ShowcaseWidgetKind.RecentAchievements);
             Assert.IsNull(ShowcaseWidgetOptions.GetPinCollectionId(exportedRecent));
             Assert.IsFalse(exportedRecent.Options.Keys.Any(key => key.StartsWith("ControlBar.")));
+            Assert.IsTrue(
+                ShowcaseWidgetOptions.GetControlBarItemVisible(exportedRecent, ShowcaseControlBarItems.Rarity),
+                "which items the bar shows is part of the page");
             Assert.AreEqual("custom-pins", ShowcaseWidgetOptions.GetPinCollectionId(recent), "source untouched");
 
             var exportedProfile = portable.Widgets.Single(w => w.Kind == ShowcaseWidgetKind.Profile).Profile;

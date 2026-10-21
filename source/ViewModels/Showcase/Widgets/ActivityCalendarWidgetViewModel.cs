@@ -204,7 +204,9 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
 
         protected override void Refresh()
         {
-            ShowControls = ShowcaseWidgetOptions.GetShowControls(Projection?.Instance);
+            ShowControls = ShowcaseWidgetOptions.GetControlBarItemVisible(
+                Projection?.Instance,
+                ShowcaseControlBarItems.TimeWindow);
             SetValue(ref _window, ShowcaseTimelineOptions.GetWindow(Projection?.Instance), nameof(Window));
             BuildWeeks(Projection?.ActivityCalendar ?? new ShowcaseActivityCalendar());
         }

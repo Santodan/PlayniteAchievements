@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Linq;
 using Playnite.SDK;
+using PlayniteAchievements.Models;
 using PlayniteAchievements.Models.Settings;
 using PlayniteAchievements.Services;
 using PlayniteAchievements.Services.Overview;
@@ -275,6 +276,10 @@ namespace PlayniteAchievements.ViewModels
                         value => SearchText = value,
                         L("LOCPlayAch_Filter_Games"),
                         () => SearchText = string.Empty)
+                    {
+                        Id = ShowcaseControlBarItems.Search,
+                        LabelKey = "LOCPlayAch_Filter_Games"
+                    }
             };
             controlBar.Items.Add(new GridProviderPlatformFilter(
                 this,
@@ -283,6 +288,8 @@ namespace PlayniteAchievements.ViewModels
                 () => ProviderFilterGroups,
                 CollapseUnselectedProviderFilters)
             {
+                Id = ShowcaseControlBarItems.Platform,
+                LabelKey = "LOCPlatformTitle",
                 Width = 170
             });
             controlBar.Items.Add(new GridMultiSelectFilter(
@@ -293,6 +300,8 @@ namespace PlayniteAchievements.ViewModels
                 IsProgressFilterSelected,
                 SetProgressFilterSelected)
             {
+                Id = ShowcaseControlBarItems.Progress,
+                LabelKey = "LOCPlayAch_Progress",
                 Width = 170
             });
             if (_chartFilters)
@@ -308,6 +317,8 @@ namespace PlayniteAchievements.ViewModels
                 IsActivityFilterSelected,
                 SetActivityFilterSelected)
             {
+                Id = ShowcaseControlBarItems.Activity,
+                LabelKey = "LOCPlayAch_Filter_ActivitySelectorPlaceholder",
                 Width = 170
             });
             return controlBar;

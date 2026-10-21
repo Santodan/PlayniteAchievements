@@ -16,6 +16,38 @@ namespace PlayniteAchievements.ViewModels
 
         public abstract GridControlBarViewModel ControlBar { get; }
 
+        /// <summary>
+        /// The bar's search box and items in bar order: what a widget shows or hides one by one,
+        /// and what its settings list with their editors.
+        /// </summary>
+        public IReadOnlyList<IGridControlBarEntry> Entries
+        {
+            get
+            {
+                var entries = new List<IGridControlBarEntry>();
+                var bar = ControlBar;
+                if (bar == null)
+                {
+                    return entries;
+                }
+
+                if (!string.IsNullOrWhiteSpace(bar.Search?.Id))
+                {
+                    entries.Add(bar.Search);
+                }
+
+                foreach (var item in bar.Items)
+                {
+                    if (!string.IsNullOrWhiteSpace(item?.Id))
+                    {
+                        entries.Add(item);
+                    }
+                }
+
+                return entries;
+            }
+        }
+
         /// <summary>Names this adapter's saved state among a widget's options; one per adapter type.</summary>
         public abstract string StateKey { get; }
 

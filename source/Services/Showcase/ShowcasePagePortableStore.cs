@@ -76,10 +76,6 @@ namespace PlayniteAchievements.Services.Showcase
         // Version 2 bundles profile background images and refers to them by archive entry.
         public const int CurrentVersion = 2;
 
-        // Per-user search and filter state written by ShowcaseControlBarStateStore
-        // ("ControlBar.Games", "ControlBar.Achievements").
-        private const string ControlBarOptionPrefix = "ControlBar.";
-
         // Ordered longest-first so ".pashowcase.zip" is matched whole.
         private static readonly string[] RecognizedFileSuffixes =
         {
@@ -392,8 +388,7 @@ namespace PlayniteAchievements.Services.Showcase
         {
             ShowcaseWidgetOptions.SetPinCollectionId(widget, null);
             foreach (var key in widget.Options.Keys
-                .Where(key => key != null &&
-                              key.StartsWith(ControlBarOptionPrefix, StringComparison.OrdinalIgnoreCase))
+                .Where(ShowcaseWidgetOptions.IsControlBarState)
                 .ToList())
             {
                 widget.Options.Remove(key);
@@ -540,7 +535,7 @@ namespace PlayniteAchievements.Services.Showcase
         internal static bool IsUserOption(string key)
         {
             return !string.IsNullOrWhiteSpace(key)
-                   && (key.StartsWith(ControlBarOptionPrefix, StringComparison.OrdinalIgnoreCase)
+                   && (ShowcaseWidgetOptions.IsControlBarState(key)
                        || string.Equals(key, ShowcaseWidgetOptions.PinCollectionId, StringComparison.OrdinalIgnoreCase));
         }
 

@@ -135,8 +135,10 @@ namespace PlayniteAchievements.Views.Settings.Controls
 
                 // Showcase and start page widget grids, matched on their base key because the live
                 // surfaces carry a per-instance suffix. The sort combo's default keeps the
-                // projection order (unlock recency), so sorting stays offered.
-                [ShowcaseGridSurfaces.RecentAchievements] = AllRows,
+                // projection order (unlock recency), so sorting stays offered. The widget's
+                // settings show or hide each control bar item, so there is no whole-bar row.
+                [ShowcaseGridSurfaces.RecentAchievements] = new GridDisplayRowCapabilities(
+                    showControlBarRow: false),
                 // Sort stays off (the control sorts externally) and cover images do not apply,
                 // but the appearance rows now reach this grid's own record rather than the
                 // legacy Achievement[Default] one, so they are offered here.
@@ -169,8 +171,10 @@ namespace PlayniteAchievements.Views.Settings.Controls
 
                 // Showcase and start page widget game grids, matched on their base key. This is the
                 // one surface whose source order is user-controlled (a pinned-games grid), so it
-                // offers the order-preserving PinOrder sort choice.
+                // offers the order-preserving PinOrder sort choice. Control bar items are shown
+                // per item from the widget's settings.
                 [ShowcaseGridSurfaces.GameSummaries] = new GridDisplayRowCapabilities(
+                    showControlBarRow: false,
                     showGameSortPinOrderChoice: true)
             };
 
