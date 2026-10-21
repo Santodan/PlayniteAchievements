@@ -110,6 +110,10 @@ namespace PlayniteAchievements.Models.Achievements
         [IgnoreDataMember]
         public Game Game { get; set; }
 
+        /// <summary>The scan's hints for metadata sources; set during a refresh and not persisted.</summary>
+        [IgnoreDataMember]
+        public MetadataHints MetadataHints { get; set; }
+
         /// <summary>
         /// Sorting name from Playnite's game database, derived from Game reference.
         /// Falls back to GameName if Game or SortingName is not available.
