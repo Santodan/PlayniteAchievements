@@ -65,7 +65,10 @@ namespace PlayniteAchievements.Models.Settings
         CompletedGames = 0,
         Provider = 1,
         Rarity = 2,
-        Trophy = 3
+        Trophy = 3,
+
+        /// <summary>Unlocked achievements per achievement tag; an achievement counts under each of its tags.</summary>
+        Tag = 4
     }
 
     /// <summary>
