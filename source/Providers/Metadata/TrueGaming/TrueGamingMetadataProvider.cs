@@ -285,6 +285,9 @@ namespace PlayniteAchievements.Providers.Metadata.TrueGaming
                     $"{page.Site.Title}: {page.PageSlug ?? ResourceProvider.GetString("LOCNone")}"));
         }
 
+        /// <summary>The link's one page name, also for a list or address stored before links were one name.</summary>
+        public string ShownLink(string linkId) => TrueGamingLinks.Normalize(linkId) ?? linkId;
+
         private void Record(MetadataLinkRequest request, string name, IEnumerable<(TrueGamingSite Site, string PageSlug)> outcomes)
         {
             var gameId = GameId(request);
