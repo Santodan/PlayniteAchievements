@@ -142,6 +142,9 @@ namespace PlayniteAchievements.Views.Showcase
                             return (OverviewLinkedFilter.Rarity, OverviewLinkedSelection.WhenRarityData, false);
                         case ShowcasePieMode.Trophy:
                             return (OverviewLinkedFilter.Trophy, OverviewLinkedSelection.WhenTrophyData, false);
+                        case ShowcasePieMode.Tag:
+                            // A selected game narrows it to that game, whose own tags it then shows.
+                            return (OverviewLinkedFilter.None, OverviewLinkedSelection.Always, false);
                         default:
                             return (OverviewLinkedFilter.Completeness, OverviewLinkedSelection.Ignore, true);
                     }
