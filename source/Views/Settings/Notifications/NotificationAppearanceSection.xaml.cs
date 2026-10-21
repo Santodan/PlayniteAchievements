@@ -1534,7 +1534,7 @@ namespace PlayniteAchievements.Views.Settings.Notifications
         /// </summary>
         private void ShareStyleToWorkshop(bool isFrame)
         {
-            var style = _currentStyle;
+            var style = _currentScopeStyle ?? _currentStyle;
             var store = _plugin?.NotificationStylePortableStore;
             if (style == null || store == null)
             {
@@ -1570,7 +1570,7 @@ namespace PlayniteAchievements.Views.Settings.Notifications
 
         private void ExportStyleFile_Click(object sender, RoutedEventArgs e)
         {
-            var style = _currentStyle;
+            var style = _currentScopeStyle ?? _currentStyle;
             var store = _plugin?.NotificationStylePortableStore;
             if (style == null || store == null)
             {
@@ -2128,10 +2128,10 @@ namespace PlayniteAchievements.Views.Settings.Notifications
             return target;
         }
 
-        /// <summary>Writes the active surface as the editors show it, with the scope's custom template, as a package.</summary>
+        /// <summary>Writes the scope's surface, with every separately styled kind and the scope's custom template, as a package.</summary>
         private void ExportCurrentSurface(bool isFrame, string path)
         {
-            var style = _currentStyle ?? throw new InvalidOperationException("No notification style is selected.");
+            var style = _currentScopeStyle ?? _currentStyle ?? throw new InvalidOperationException("No notification style is selected.");
             FlushEditors();
             var templateXaml = _toastTemplateResolver?.ReadCustomTemplateXaml(isFrame, ScopeProviderKey, ScopeGameId);
             _plugin.NotificationStylePortableStore.ExportSurfacePackage(isFrame, style, path, templateXaml);
