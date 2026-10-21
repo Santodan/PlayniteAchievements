@@ -27,8 +27,6 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
 {
     public sealed class ManageAchievementsCategoryItem : AchievementDisplayItem
     {
-        private bool _isSelected;
-
         public string ProviderCategory { get; set; }
 
         public string ProviderTags { get; set; }
@@ -46,12 +44,6 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 CategoryLabel = value;
                 OnPropertyChanged(nameof(CategoryDisplay));
             }
-        }
-
-        public bool IsSelected
-        {
-            get => _isSelected;
-            set => SetValue(ref _isSelected, value);
         }
 
         public string CategoryDisplay => AchievementCategoryHelper.ToCategoryLeafDisplayText(Category);
