@@ -108,6 +108,10 @@ namespace PlayniteAchievements.Providers.Metadata
         /// <summary>True when the link being fetched is one the user set, so the provider reads only what it names.</summary>
         public bool LinkIsUserSet { get; internal set; }
 
+        /// <summary>A copy for one source, which the overlay asks alongside the others.</summary>
+        internal MetadataLinkRequest ForSource(MetadataField wantedFields) =>
+            new MetadataLinkRequest(Game, Data) { AlternateNames = AlternateNames, WantedFields = wantedFields };
+
         /// <summary>
         /// Other names the game is known by: the servicing provider's own, and the labels of its
         /// links to other sources (such as Steam's name from a SteamHunters link). Name searches
