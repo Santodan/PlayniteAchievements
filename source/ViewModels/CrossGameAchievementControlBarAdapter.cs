@@ -5,6 +5,7 @@ using System.Linq;
 using Playnite.SDK;
 using PlayniteAchievements.Models;
 using PlayniteAchievements.Models.Achievements;
+using PlayniteAchievements.Services.Achievements;
 using PlayniteAchievements.Services.Overview;
 using PlayniteAchievements.Services.Search;
 using PlayniteAchievements.ViewModels.Items;
@@ -107,6 +108,70 @@ namespace PlayniteAchievements.ViewModels
                     RaiseFilterChanged();
                 }
             }
+        }
+
+        private readonly HashSet<string> _tags = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        // The rows of the last filter pass, which the tag options read the picked games' own tags from.
+        private IReadOnlyList<AchievementDisplayItem> _tagOptionRows = Array.Empty<AchievementDisplayItem>();
+
+        /// <summary>
+        /// The tags offered: the global tags with no game picked, a picked game's tags (global, its
+        /// own, and the implicit ones its rows carry), or the tags every picked game has.
+        /// </summary>
+        public IReadOnlyList<string> TagOptions
+        {
+            get
+            {
+                var picked = GameFilter.SelectedGameIds;
+                if (picked.Count == 0)
+                {
+                    return AchievementTagRegistry.GetAssignableKeys(null);
+                }
+
+                List<string> shared = null;
+                foreach (var gameId in picked)
+                {
+                    var present = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                    foreach (var row in _tagOptionRows.Where(row => row?.PlayniteGameId == gameId))
+                    {
+                        present.UnionWith(AchievementTagHelper.GetComponents(row.Tags));
+                    }
+
+                    var keys = AchievementTagRegistry.GetAssignableKeys(gameId, present);
+                    shared = shared == null
+                        ? keys.ToList()
+                        : shared.Where(key => keys.Contains(key, StringComparer.OrdinalIgnoreCase)).ToList();
+                }
+
+                return shared;
+            }
+        }
+
+        public string SelectedTagText
+        {
+            get
+            {
+                var names = _tags.Select(GetTagName).OrderBy(name => name, StringComparer.CurrentCultureIgnoreCase).ToList();
+                return names.Count == 0 ? ResourceProvider.GetString("LOCTagsLabel") : string.Join(", ", names);
+            }
+        }
+
+        // A per-game tag resolves its name only on its game, so a picked game names them.
+        private string GetTagName(string key) =>
+            AchievementTagRegistry.GetName(key, GameFilter.SelectedGameIds.Cast<Guid?>().FirstOrDefault());
+
+        private bool IsTagSelected(string key) => key != null && _tags.Contains(key);
+
+        private void SetTagSelected(string key, bool selected)
+        {
+            if (string.IsNullOrWhiteSpace(key) || !(selected ? _tags.Add(key.Trim()) : _tags.Remove(key.Trim())))
+            {
+                return;
+            }
+
+            OnPropertyChanged(nameof(SelectedTagText));
+            RaiseFilterChanged();
         }
 
         /// <summary>Raised for the range item; its from and to change together.</summary>
@@ -217,6 +282,7 @@ namespace PlayniteAchievements.ViewModels
                 SearchText = SearchText,
                 Platforms = CapturePlatformSelections(ProviderFilterGroups),
                 Games = GameFilter.Capture(),
+                Tags = _tags.Count > 0 ? _tags.ToList() : null,
                 UnlockedFrom = _unlockedFrom,
                 UnlockedTo = _unlockedTo,
                 Rarities = _rarities.Count > 0 ? _rarities.Select(tier => (int)tier).ToList() : null,
@@ -235,6 +301,16 @@ namespace PlayniteAchievements.ViewModels
             OnPropertyChanged(nameof(SearchText));
             PendingPlatformSelections = state.Platforms;
             GameFilter.Restore(state.Games);
+            _tags.Clear();
+            foreach (var tag in state.Tags ?? new List<string>())
+            {
+                if (!string.IsNullOrWhiteSpace(tag))
+                {
+                    _tags.Add(tag.Trim());
+                }
+            }
+
+            OnPropertyChanged(nameof(SelectedTagText));
             _unlockedFrom = state.UnlockedFrom?.Date;
             _unlockedTo = state.UnlockedTo?.Date;
             OnPropertyChanged(nameof(UnlockedRangeKey));
@@ -291,6 +367,12 @@ namespace PlayniteAchievements.ViewModels
             if (GameFilter.HasSelection)
             {
                 filtered = filtered.Where(item => GameFilter.Matches(item.PlayniteGameId));
+            }
+
+            _tagOptionRows = items;
+            if (_tags.Count > 0)
+            {
+                filtered = filtered.Where(item => _tags.Any(tag => AchievementTagHelper.Contains(item.Tags, tag)));
             }
 
             if (_rarities.Count > 0)
@@ -371,6 +453,21 @@ namespace PlayniteAchievements.ViewModels
                 Width = 170
             });
             controlBar.Items.Add(GameFilter.Item);
+            controlBar.Items.Add(new GridMultiSelectFilter(
+                this,
+                nameof(SelectedTagText),
+                () => SelectedTagText,
+                () => TagOptions,
+                IsTagSelected,
+                SetTagSelected,
+                GetTagName)
+            {
+                Id = ShowcaseControlBarItems.Tag,
+                LabelKey = "LOCTagsLabel",
+                // The options follow the picked games, so the item stays shown while they change.
+                AutoHideWhenUnavailable = false,
+                Width = 150
+            });
             controlBar.Items.Add(new GridDateRangeFilter(
                 this,
                 nameof(UnlockedRangeKey),

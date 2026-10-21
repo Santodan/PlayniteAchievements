@@ -4,6 +4,7 @@ using System.Linq;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using PlayniteAchievements.Models;
 using PlayniteAchievements.Models.Settings;
+using PlayniteAchievements.Services.Achievements;
 using PlayniteAchievements.ViewModels;
 using PlayniteAchievements.ViewModels.Items;
 using PlayniteAchievements.ViewModels.Showcase.Widgets;
@@ -118,6 +119,7 @@ namespace PlayniteAchievements.Tests.ViewModels
                     ShowcaseControlBarItems.Search,
                     ShowcaseControlBarItems.Platform,
                     ShowcaseControlBarItems.Game,
+                    ShowcaseControlBarItems.Tag,
                     ShowcaseControlBarItems.UnlockDate,
                     ShowcaseControlBarItems.Rarity,
                     ShowcaseControlBarItems.Trophy
@@ -152,7 +154,7 @@ namespace PlayniteAchievements.Tests.ViewModels
 
             Assert.IsNull(slot.ShownBar.Search);
             Assert.AreEqual(1, slot.ShownBar.Items.Count);
-            Assert.AreSame(slot.Adapter.ControlBar.Items[3], slot.ShownBar.Items[0]);
+            Assert.AreSame(slot.Adapter.ControlBar.Items[4], slot.ShownBar.Items[0]);
         }
 
         [TestMethod]
@@ -224,6 +226,65 @@ namespace PlayniteAchievements.Tests.ViewModels
 
             CollectionAssert.AreEqual(new[] { gameId.ToString("D") }, source.CaptureState().Games);
             CollectionAssert.AreEqual(new[] { row }, restored.Apply(new[] { row, other }).ToArray());
+        }
+
+        [TestMethod]
+        public void TagFilter_OffersGlobalTagsThenThePickedGamesSharedTags()
+        {
+            var first = new GameSummaryItem { PlayniteGameId = Guid.NewGuid(), GameName = "First" };
+            var second = new GameSummaryItem { PlayniteGameId = Guid.NewGuid(), GameName = "Second" };
+            var firstRow = new AchievementDisplayItem
+            {
+                PlayniteGameId = first.PlayniteGameId,
+                ApiName = "a",
+                Unlocked = true,
+                Tags = "first-only|shared-source"
+            };
+            var secondRow = new AchievementDisplayItem
+            {
+                PlayniteGameId = second.PlayniteGameId,
+                ApiName = "b",
+                Unlocked = true,
+                Tags = "shared-source"
+            };
+            var adapter = new CrossGameAchievementControlBarAdapter();
+            adapter.UpdateGames(new[] { first, second });
+            adapter.Apply(new[] { firstRow, secondRow });
+
+            CollectionAssert.AreEqual(
+                AchievementTagRegistry.GetAssignableKeys(null).ToArray(),
+                adapter.TagOptions.ToArray());
+
+            adapter.GameFilter.Item.SetSelected(first.PlayniteGameId.Value.ToString("D"), true);
+            CollectionAssert.Contains(adapter.TagOptions.ToArray(), "first-only");
+            CollectionAssert.Contains(adapter.TagOptions.ToArray(), "shared-source");
+
+            adapter.GameFilter.Item.SetSelected(second.PlayniteGameId.Value.ToString("D"), true);
+            CollectionAssert.DoesNotContain(adapter.TagOptions.ToArray(), "first-only");
+            CollectionAssert.Contains(adapter.TagOptions.ToArray(), "shared-source");
+        }
+
+        [TestMethod]
+        public void TagFilter_KeepsRowsCarryingAPickedTagAndRoundTrips()
+        {
+            var gameId = Guid.NewGuid();
+            var tagged = new AchievementDisplayItem
+            {
+                PlayniteGameId = gameId,
+                ApiName = "a",
+                Unlocked = true,
+                Tags = AchievementTagHelper.Missable
+            };
+            var untagged = new AchievementDisplayItem { PlayniteGameId = gameId, ApiName = "b", Unlocked = true };
+            var adapter = new CrossGameAchievementControlBarAdapter();
+            var tagItem = adapter.ControlBar.Items.Single(item => item.Id == ShowcaseControlBarItems.Tag);
+
+            ((GridMultiSelectFilter)tagItem).SetSelected(AchievementTagHelper.Missable, true);
+            var restored = new CrossGameAchievementControlBarAdapter();
+            restored.RestoreState(adapter.CaptureState());
+
+            CollectionAssert.AreEqual(new[] { tagged }, adapter.Apply(new[] { tagged, untagged }).ToArray());
+            CollectionAssert.AreEqual(new[] { tagged }, restored.Apply(new[] { tagged, untagged }).ToArray());
         }
     }
 }
