@@ -53,6 +53,9 @@ namespace PlayniteAchievements.Models.Settings
         /// <summary>The source whose categories replace the platform's own; empty keeps the platform's.</summary>
         public string Categories { get; set; }
 
+        /// <summary>The source whose achievement tags replace the platform's own; empty keeps the platform's.</summary>
+        public string Tags { get; set; }
+
         public string Rarity { get; set; }
 
         public string CapstoneArt { get; set; }
@@ -63,7 +66,7 @@ namespace PlayniteAchievements.Models.Settings
         public string Points { get; set; }
 
         public bool IsEmpty() =>
-            Icons == null && Categories == null && Rarity == null && CapstoneArt == null &&
+            Icons == null && Categories == null && Tags == null && Rarity == null && CapstoneArt == null &&
             TrophyTypes == null && Points == null;
 
         /// <summary>
@@ -77,6 +80,7 @@ namespace PlayniteAchievements.Models.Settings
             {
                 Icons = string.Empty,
                 Categories = string.Empty,
+                Tags = string.Empty,
                 Rarity = Exophase,
                 CapstoneArt = PlayStation,
                 TrophyTypes = PlayStation,
@@ -99,6 +103,7 @@ namespace PlayniteAchievements.Models.Settings
             var complete = stored.Clone();
             complete.Icons = complete.Icons ?? defaults.Icons;
             complete.Categories = complete.Categories ?? defaults.Categories;
+            complete.Tags = complete.Tags ?? defaults.Tags;
             complete.Rarity = complete.Rarity ?? defaults.Rarity;
             complete.CapstoneArt = complete.CapstoneArt ?? defaults.CapstoneArt;
             complete.TrophyTypes = complete.TrophyTypes ?? defaults.TrophyTypes;
@@ -111,6 +116,7 @@ namespace PlayniteAchievements.Models.Settings
             return other != null &&
                    Icons == other.Icons &&
                    Categories == other.Categories &&
+                   Tags == other.Tags &&
                    Rarity == other.Rarity &&
                    CapstoneArt == other.CapstoneArt &&
                    TrophyTypes == other.TrophyTypes &&
@@ -123,6 +129,7 @@ namespace PlayniteAchievements.Models.Settings
             {
                 Icons = Icons,
                 Categories = Categories,
+                Tags = Tags,
                 Rarity = Rarity,
                 CapstoneArt = CapstoneArt,
                 TrophyTypes = TrophyTypes,
@@ -138,6 +145,7 @@ namespace PlayniteAchievements.Models.Settings
         private Dictionary<string, MetadataChoices> _metadataPlatformChoices =
             new Dictionary<string, MetadataChoices>(StringComparer.OrdinalIgnoreCase);
         private bool _metadataChoicesSeeded = true;
+        private bool _metadataTagChoicesSeeded = true;
 
         public MetadataChoices MetadataDefaults
         {
@@ -164,6 +172,17 @@ namespace PlayniteAchievements.Models.Settings
         }
 
         /// <summary>
+        /// One-time copy of each stored Categories choice into Tags, which categories carried until
+        /// tags got their own choice. Defaults true so configs written by this build are never
+        /// re-seeded; the migration keys off the flag's absence.
+        /// </summary>
+        public bool MetadataTagChoicesSeeded
+        {
+            get => _metadataTagChoicesSeeded;
+            set => SetValue(ref _metadataTagChoicesSeeded, value);
+        }
+
+        /// <summary>
         /// The effective choices for a game: each field from the game's own choices where set,
         /// else its platform's override, else the defaults.
         /// </summary>
@@ -180,6 +199,7 @@ namespace PlayniteAchievements.Models.Settings
             {
                 Icons = game?.Icons ?? platform?.Icons ?? defaults.Icons ?? string.Empty,
                 Categories = game?.Categories ?? platform?.Categories ?? defaults.Categories ?? string.Empty,
+                Tags = game?.Tags ?? platform?.Tags ?? defaults.Tags ?? string.Empty,
                 Rarity = platform?.Rarity ?? defaults.Rarity ?? string.Empty,
                 CapstoneArt = game?.CapstoneArt ?? platform?.CapstoneArt ?? defaults.CapstoneArt ?? string.Empty,
                 TrophyTypes = MetadataChoices.TakesTrophyTypes(providerKey)
@@ -199,14 +219,15 @@ namespace PlayniteAchievements.Models.Settings
                    string.Equals(ResolveMetadataChoices(providerKey.Trim()).Rarity, MetadataChoices.Exophase, StringComparison.OrdinalIgnoreCase);
         }
 
-        /// <summary>Fresh installs keep SteamHunters categories on Steam games, as before the Metadata tab.</summary>
+        /// <summary>Fresh installs keep SteamHunters categories and tags on Steam games, as before the Metadata tab.</summary>
         internal static Dictionary<string, MetadataChoices> CreateDefaultMetadataPlatformChoices()
         {
             return new Dictionary<string, MetadataChoices>(StringComparer.OrdinalIgnoreCase)
             {
                 ["Steam"] = new MetadataChoices
                 {
-                    Categories = MetadataChoices.SteamHunters
+                    Categories = MetadataChoices.SteamHunters,
+                    Tags = MetadataChoices.SteamHunters
                 }
             };
         }
