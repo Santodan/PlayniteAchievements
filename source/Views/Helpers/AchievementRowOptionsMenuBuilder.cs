@@ -79,7 +79,8 @@ namespace PlayniteAchievements.Views.Helpers
                 menu.Items.Add(CreateSetCapstoneItem(context, resourceOwner, onChanged, onCapstoneChanged));
             }
 
-            menu.Items.Add(CreateCategoriesMenu(context, resourceOwner, onChanged));
+            menu.Items.Add(CreateCategoryMenu(context, resourceOwner, onChanged));
+            menu.Items.Add(CreateTagsMenu(context, resourceOwner, onChanged));
             menu.Items.Add(CreateFiltersMenu(context, resourceOwner, onChanged));
             menu.Items.Add(CreateNotesMenu(context, resourceOwner, onChanged));
 
@@ -298,16 +299,65 @@ namespace PlayniteAchievements.Views.Helpers
             return parent;
         }
 
-        private static MenuItem CreateCategoriesMenu(
+        /// <summary>
+        /// The game's categories, the achievement's ticked: picking one files it there, unticking it
+        /// takes it out, and the search creates one. The same list the editor's Category menu has.
+        /// </summary>
+        private static MenuItem CreateCategoryMenu(
             AchievementRowContext context,
             FrameworkElement resourceOwner,
             Action onChanged)
         {
             var menu = new MenuItem
             {
-                Header = L(resourceOwner, "LOCPlayAch_ManageAchievements_Tab_Category")
+                Header = L(resourceOwner, "LOCCategoryLabel")
             };
 
+            foreach (var option in CategoryPickerResolver.BuildOptions(ResolveGameCategoryLabels(context.GameId)))
+            {
+                var label = option.Label;
+                if (string.IsNullOrWhiteSpace(label))
+                {
+                    continue;
+                }
+
+                var categoryItem = new MenuItem
+                {
+                    Header = option.LeafDisplay,
+                    ToolTip = option.PathDisplay,
+                    Tag = label,
+                    IsCheckable = true,
+                    IsChecked = CategoryPathHelper.IsSame(context.CategoryLabel, label)
+                };
+                // The click has already flipped the tick.
+                categoryItem.Click += (_, __) =>
+                {
+                    if (SetCategory(context, categoryItem.IsChecked ? label : null))
+                    {
+                        onChanged?.Invoke();
+                    }
+                };
+                menu.Items.Add(categoryItem);
+            }
+
+            CategoryMenuSearch.Attach(menu, name =>
+            {
+                if (CategoryCreationPrompt.TryValidate(name, out var leafName) &&
+                    SetCategory(context, CategoryPathHelper.SanitizeSegment(leafName)))
+                {
+                    onChanged?.Invoke();
+                }
+            });
+
+            return menu;
+        }
+
+        /// <summary>The tags available to the game, the achievement's ticked; the search creates one.</summary>
+        private static MenuItem CreateTagsMenu(
+            AchievementRowContext context,
+            FrameworkElement resourceOwner,
+            Action onChanged)
+        {
             var typesMenu = new MenuItem
             {
                 Header = L(resourceOwner, "LOCTagsLabel")
@@ -351,27 +401,7 @@ namespace PlayniteAchievements.Views.Helpers
                 AddTag(context, key);
                 onChanged?.Invoke();
             });
-            menu.Items.Add(typesMenu);
-            menu.Items.Add(CreateMenuItem(
-                L(resourceOwner, "LOCPlayAch_Common_SetLabelEllipsis"),
-                () =>
-                {
-                    if (SetCategoryLabel(context, resourceOwner))
-                    {
-                        onChanged?.Invoke();
-                    }
-                }));
-            menu.Items.Add(CreateMenuItem(
-                L(resourceOwner, "LOCClearLabel"),
-                () =>
-                {
-                    if (ClearCategories(context))
-                    {
-                        onChanged?.Invoke();
-                    }
-                }));
-
-            return menu;
+            return typesMenu;
         }
 
         private static MenuItem CreateFiltersMenu(
@@ -529,80 +559,39 @@ namespace PlayniteAchievements.Views.Helpers
                 resolved?.GameSummaryCategory?.Label);
         }
 
-        private static bool SetCategoryLabel(
-            AchievementRowContext context,
-            FrameworkElement resourceOwner)
+        /// <summary>
+        /// Files the achievement under <paramref name="label"/>, or, for null, drops its category
+        /// override so the provider's category applies again.
+        /// </summary>
+        private static bool SetCategory(AchievementRowContext context, string label)
         {
-            var inputDialog = new CategoryPickerDialog(
-                L(resourceOwner, "LOCPlayAch_ManageAchievements_Category_Context_SetLabelHint"),
-                ResolveGameCategoryLabels(context.GameId),
-                context.CategoryLabel);
-            var window = PlayniteUiProvider.CreateExtensionWindow(
-                L(resourceOwner, "LOCPlayAch_ManageAchievements_Category_Context_SetLabelTitle"),
-                inputDialog,
-                new WindowOptions
-                {
-                    ShowMinimizeButton = false,
-                    ShowMaximizeButton = false,
-                    ShowCloseButton = true,
-                    CanBeResizable = false,
-                    Width = 500,
-                    Height = 200
-                });
-
-            WindowPlacementPersistenceService.Attach(window, "CategoryPicker");
-            inputDialog.RequestClose += (s, e) => window.Close();
-            window.ShowDialog();
-
-            if (inputDialog.DialogResult != true)
-            {
-                return false;
-            }
-
-            var normalizedCategory = AchievementCategoryHelper.NormalizeCategory(inputDialog.SelectedCategory);
-            if (string.IsNullOrWhiteSpace(normalizedCategory))
-            {
-                return false;
-            }
-
+            var normalizedCategory = AchievementCategoryHelper.NormalizeCategory(label);
             var map = GameCustomDataLookup.GetAchievementCategoryOverrides(
                 context.GameId,
                 CurrentSettings,
                 CurrentStore);
             var normalizedMap = CloneStringMap(map);
-            normalizedMap[context.ApiName] = normalizedCategory;
-            MaintainIfRescoped(
-                context.GameId,
-                CurrentOverridesService?.SetAchievementCategoryOverrides(context.GameId, normalizedMap) == true);
-            NotifySummaryRowsChanged(context.GameId);
-            context.ApplyCategoryLabel(normalizedCategory);
-            return true;
-        }
-
-        private static bool ClearCategories(AchievementRowContext context)
-        {
-            var changed = false;
-            var categoryMap = CloneStringMap(GameCustomDataLookup.GetAchievementCategoryOverrides(
-                context.GameId,
-                CurrentSettings,
-                CurrentStore));
-            var typeMap = CloneStringMap(GameCustomDataLookup.GetAchievementTagOverrides(
-                context.GameId,
-                CurrentSettings,
-                CurrentStore));
-
-            changed |= categoryMap.Remove(context.ApiName);
-            changed |= typeMap.Remove(context.ApiName);
-            if (!changed)
+            if (string.IsNullOrWhiteSpace(normalizedCategory))
             {
-                return false;
+                if (!normalizedMap.Remove(context.ApiName))
+                {
+                    return false;
+                }
+            }
+            else
+            {
+                normalizedMap[context.ApiName] = normalizedCategory;
             }
 
             MaintainIfRescoped(
                 context.GameId,
-                CurrentOverridesService?.SetAchievementCategoryOverrides(context.GameId, categoryMap, typeMap) == true);
-
+                CurrentOverridesService?.SetAchievementCategoryOverrides(context.GameId, normalizedMap) == true);
             NotifySummaryRowsChanged(context.GameId);
+            if (!string.IsNullOrWhiteSpace(normalizedCategory))
+            {
+                context.ApplyCategoryLabel(normalizedCategory);
+            }
+
             return true;
         }
 
