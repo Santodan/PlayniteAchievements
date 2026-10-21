@@ -60,6 +60,25 @@ namespace PlayniteAchievements.Tests.Providers
         }
 
         [TestMethod]
+        public void TrueAchievements_RowsCarryGamerscore_AndTrueTrophiesRanks()
+        {
+            var ta = Parse("ta-clair-obscur.html");
+            Assert.AreEqual(10, ta.Achievements.Single(row => row.Name == "Lumière").Points);
+            Assert.AreEqual(1000, ta.Achievements.Sum(row => row.Points ?? 0));
+            Assert.IsTrue(ta.Achievements.All(row => row.TrophyType == null));
+
+            var tt = Parse("tt-elden-ring.html");
+            Assert.AreEqual("platinum", tt.Achievements.Single(row => row.Name == "Elden Ring").TrophyType);
+            Assert.AreEqual("gold", tt.Achievements.Single(row => row.Name == "Elden Lord").TrophyType);
+            CollectionAssert.AreEquivalent(
+                new[] { "bronze", "gold", "platinum", "silver" },
+                tt.Achievements.Select(row => row.TrophyType).Distinct().ToList());
+            Assert.AreEqual(24, tt.Achievements.Count(row => row.TrophyType == "bronze"));
+
+            Assert.IsTrue(Parse("tsa-hades.html").Achievements.All(row => row.Points == null && row.TrophyType == null));
+        }
+
+        [TestMethod]
         public void Flags_PairBitsWithIdsInOrder_AndRejectDisagreeingCounts()
         {
             // Listed out of id order, as the sites list them.
