@@ -1697,12 +1697,13 @@ namespace PlayniteAchievements.Services.GameCustomData
             return normalized.Count > 0 ? normalized : null;
         }
 
-        /// <summary>A game's own tags: user tags only, since built-in tags live in the global list.</summary>
+        /// <summary>
+        /// A game's own tags. Any key may be one, built-in keys included: a tag deleted from the
+        /// global list lives on as a game's own, and the game's definition is the one shown there.
+        /// </summary>
         private static List<AchievementTagDefinition> NormalizeGameTags(IEnumerable<AchievementTagDefinition> values)
         {
-            var normalized = AchievementTagHelper.NormalizeDefinitions(values, ensureSystemTags: false)?
-                .Where(definition => !AchievementTagHelper.IsBuiltInTag(definition.Key))
-                .ToList();
+            var normalized = AchievementTagHelper.NormalizeDefinitions(values, ensureSystemTags: false);
             return normalized != null && normalized.Count > 0 ? normalized : null;
         }
 
