@@ -525,6 +525,10 @@ namespace PlayniteAchievements.Services.Achievements
                     excludedSummaryIds);
             }
 
+            // The query counts provider tags; the user's tag edits move their achievements before
+            // the merge adds the custom achievements, whose edits it applies itself.
+            ApplyTagEditsToTagTotals(summaryData.Games, customDataByGameId);
+
             // SQL summaries never see custom achievements, which live only in custom data.
             CustomAchievementSummaryMerger.Merge(
                 summaryData,
@@ -563,6 +567,123 @@ namespace PlayniteAchievements.Services.Achievements
             ApplyAchievementSummaryCustomization(achievementDetails, customizationByGameId, summaryData);
 
             return summaryData;
+        }
+
+        /// <summary>
+        /// Raised on the writer's thread after a tag edit recounted one game's tag totals, which
+        /// the cached summary now carries. Nothing else about the game changed.
+        /// </summary>
+        public event EventHandler<TagTotalsChangedEventArgs> TagTotalsChanged;
+
+        private void ApplyTagEditsToTagTotals(
+            IEnumerable<CachedGameSummaryData> games,
+            IReadOnlyDictionary<Guid, GameCustomDataFile> customDataByGameId)
+        {
+            var edits = new Dictionary<Guid, Dictionary<string, AchievementOverride>>();
+            foreach (var pair in customDataByGameId ?? new Dictionary<Guid, GameCustomDataFile>())
+            {
+                var gameEdits = TagEdits(pair.Value);
+                if (gameEdits.Count > 0)
+                {
+                    edits[pair.Key] = gameEdits;
+                }
+            }
+
+            if (edits.Count == 0)
+            {
+                return;
+            }
+
+            var states = _cacheReadOptimizations?.LoadAchievementTagStatesFast(
+                edits.ToDictionary(
+                    pair => pair.Key,
+                    pair => new HashSet<string>(pair.Value.Keys, StringComparer.OrdinalIgnoreCase)));
+            if (states == null)
+            {
+                return;
+            }
+
+            foreach (var game in games ?? Enumerable.Empty<CachedGameSummaryData>())
+            {
+                if (game?.PlayniteGameId is Guid gameId &&
+                    edits.TryGetValue(gameId, out var gameEdits) &&
+                    states.TryGetValue(gameId, out var gameStates))
+                {
+                    game.TagTotals = AchievementTagTallyBuilder.ApplyEdits(game.TagTotals, gameStates, gameEdits);
+                }
+            }
+        }
+
+        private static Dictionary<string, AchievementOverride> TagEdits(GameCustomDataFile customData)
+        {
+            var edits = new Dictionary<string, AchievementOverride>(StringComparer.OrdinalIgnoreCase);
+            foreach (var pair in customData?.AchievementOverrides ?? new Dictionary<string, AchievementOverride>())
+            {
+                if (!string.IsNullOrWhiteSpace(pair.Key) && AchievementTagTallyBuilder.HasTagEdit(pair.Value))
+                {
+                    edits[pair.Key.Trim()] = pair.Value;
+                }
+            }
+
+            return edits;
+        }
+
+        /// <summary>
+        /// Recounts one game's tag totals after a tag edit and puts them on the cached summary in
+        /// place: two small reads for the game, not a summary patch and the whole-library refresh
+        /// that follows one.
+        /// </summary>
+        private void RefreshTagTotals(Guid gameId)
+        {
+            if (gameId == Guid.Empty || _cacheReadOptimizations == null)
+            {
+                return;
+            }
+
+            AchievementTagTally[] totals;
+            using (Common.PerfScope.Start(_logger, "Overview.RefreshTagTotals", thresholdMs: 10))
+            {
+                GameCustomDataFile customData = null;
+                _gameCustomDataStore?.TryLoad(gameId, out customData);
+                totals = _cacheReadOptimizations.LoadTagTotalsForGameFast(gameId);
+                var edits = TagEdits(customData);
+                if (edits.Count > 0)
+                {
+                    var states = _cacheReadOptimizations.LoadAchievementTagStatesFast(
+                        new Dictionary<Guid, HashSet<string>>
+                        {
+                            [gameId] = new HashSet<string>(edits.Keys, StringComparer.OrdinalIgnoreCase)
+                        });
+                    if (states != null && states.TryGetValue(gameId, out var gameStates))
+                    {
+                        totals = AchievementTagTallyBuilder.ApplyEdits(totals, gameStates, edits);
+                    }
+                }
+
+                var builder = AchievementTagTallyBuilder.From(totals);
+                CustomAchievementSummaryMerger.AddCustomAchievementTags(
+                    builder,
+                    gameId,
+                    customData,
+                    PlayniteAchievementsPlugin.Instance?.ManagedCustomIconService);
+                totals = builder.Build();
+            }
+
+            lock (_overviewProjectionCacheSync)
+            {
+                foreach (var entry in _overviewSummaryCacheByLimit.Values)
+                {
+                    foreach (var game in entry?.Data?.Games ?? new List<CachedGameSummaryData>())
+                    {
+                        if (game?.PlayniteGameId == gameId)
+                        {
+                            game.TagTotals = totals;
+                        }
+                    }
+                }
+            }
+
+            TagTotalsChanged?.Invoke(this, new TagTotalsChangedEventArgs(gameId, totals));
         }
 
         private Dictionary<Guid, SummaryCustomizationData> BuildSummaryCustomizationByGameId(
@@ -1561,9 +1682,15 @@ namespace PlayniteAchievements.Services.Achievements
         private void OnCustomDataChangedForOverview(object sender, GameCustomDataChangedEventArgs e)
         {
             // A reorder-only change (goals) cannot move the filter mirror or any summary, and
-            // resyncing costs a store load plus a mirror write on every toggle.
+            // resyncing costs a store load plus a mirror write on every toggle. A tag edit moves
+            // only the game's tag totals, which are recounted on their own.
             if (e != null && !e.AffectsSummaryData)
             {
+                if (e.AffectsTagTotals)
+                {
+                    RefreshTagTotals(e.PlayniteGameId);
+                }
+
                 return;
             }
 
@@ -1972,5 +2099,20 @@ namespace PlayniteAchievements.Services.Achievements
                 _hydrator.HydrateAllForOverview(games);
             }
         }
+    }
+
+    /// <summary>One game's tag totals, recounted after a tag edit.</summary>
+    public sealed class TagTotalsChangedEventArgs : EventArgs
+    {
+        public TagTotalsChangedEventArgs(Guid playniteGameId, AchievementTagTally[] tagTotals)
+        {
+            PlayniteGameId = playniteGameId;
+            TagTotals = tagTotals;
+        }
+
+        public Guid PlayniteGameId { get; }
+
+        /// <summary>The game's new totals; null when none of its achievements are tagged.</summary>
+        public AchievementTagTally[] TagTotals { get; }
     }
 }
