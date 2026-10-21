@@ -28,6 +28,39 @@ namespace PlayniteAchievements.Models.Achievements
     }
 
     /// <summary>
+    /// Which tags a tag filter or the Tag pie offers for the games in view: the global tags with no
+    /// game picked; a picked game's tags (the global ones, its own, and the implicit ones its
+    /// achievements carry); with several picked, the tags every one of them has.
+    /// </summary>
+    internal static class AchievementTagScope
+    {
+        public static IReadOnlyList<string> OptionKeys(
+            IReadOnlyCollection<Guid> gameIds,
+            Func<Guid, IEnumerable<string>> presentKeys)
+        {
+            if (gameIds == null || gameIds.Count == 0)
+            {
+                return AchievementTagRegistry.GetAssignableKeys(null);
+            }
+
+            List<string> shared = null;
+            foreach (var gameId in gameIds)
+            {
+                var keys = AchievementTagRegistry.GetAssignableKeys(gameId, presentKeys?.Invoke(gameId));
+                shared = shared == null
+                    ? keys.ToList()
+                    : shared.Where(key => keys.Contains(key, StringComparer.OrdinalIgnoreCase)).ToList();
+            }
+
+            return shared;
+        }
+
+        /// <summary>The game a tag's name and look resolve on: the only one in view, or none.</summary>
+        public static Guid? NamingGame(IReadOnlyCollection<Guid> gameIds) =>
+            gameIds != null && gameIds.Count == 1 ? gameIds.First() : (Guid?)null;
+    }
+
+    /// <summary>
     /// Builds a game's <see cref="AchievementTagTally"/> list from tag values. An achievement
     /// counts once under each tag it carries; the derived unlock modes (Softcore, Hardcore) describe
     /// how it was earned, not what it is, and are not counted.
