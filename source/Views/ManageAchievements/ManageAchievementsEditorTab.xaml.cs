@@ -282,9 +282,9 @@ namespace PlayniteAchievements.Views.ManageAchievements
             ApplyCategoryFromPicker();
         }
 
-        private void CategoryPicker_CreateRequested(object sender, EventArgs e)
+        private void CategoryPicker_CreateRequested(object sender, string name)
         {
-            PromptAndCreateCategory();
+            CreateCategory(name);
         }
 
         /// <summary>
@@ -959,9 +959,9 @@ namespace PlayniteAchievements.Views.ManageAchievements
         /// Names and creates a category, filing the selection in it. Reached from the create row at
         /// the top of the picker and from the row menu, so both gestures share one set of rules.
         /// </summary>
-        private void PromptAndCreateCategory()
+        private void CreateCategory(string name)
         {
-            if (ViewModel == null || !CategoryCreationPrompt.TryPrompt(out var leafName))
+            if (ViewModel == null || !CategoryCreationPrompt.TryValidate(name, out var leafName))
             {
                 return;
             }
@@ -1100,6 +1100,7 @@ namespace PlayniteAchievements.Views.ManageAchievements
                 return;
             }
 
+            SelectorSearch.SetCreateAction(TypeSelectionContextMenu, name => ViewModel?.CreateAndAssignTag(name));
             SelectorContextMenuHelper.OpenCategoryTypeMenu(
                 TypeSelectionButton,
                 TypeSelectionContextMenu,
@@ -1512,6 +1513,7 @@ namespace PlayniteAchievements.Views.ManageAchievements
             };
 
             AppendCategoryItems(categoryMenu.Items, selection);
+            SelectorSearch.SetCreateAction(categoryMenu, CreateCategory);
             menu.Items.Add(categoryMenu);
 
             var typeMenu = new MenuItem
@@ -1520,6 +1522,7 @@ namespace PlayniteAchievements.Views.ManageAchievements
                 IsEnabled = selection.All(row => row.CanEditAssignments)
             };
             AppendTagItems(typeMenu.Items, selection);
+            SelectorSearch.SetCreateAction(typeMenu, name => ViewModel?.CreateAndAssignTag(name));
             menu.Items.Add(typeMenu);
 
             menu.Items.Add(CreateMenuItem(
@@ -2018,8 +2021,8 @@ namespace PlayniteAchievements.Views.ManageAchievements
         }
 
         /// <summary>
-        /// The category choices for a selection, with creating one above the list and clearing
-        /// below it. Shared by the row menu and the Category column's cell menu.
+        /// The category choices for a selection, with clearing below them; a category is created
+        /// from the menu's search. Shared by the row menu and the Category column's cell menu.
         /// </summary>
         private void AppendCategoryItems(ItemCollection items, IReadOnlyList<AchievementEditorRow> selection)
         {
@@ -2028,13 +2031,6 @@ namespace PlayniteAchievements.Views.ManageAchievements
             {
                 return;
             }
-
-            // Creating one sits above the categories that exist, the same place the picker offers
-            // it, so the gesture is in reach without going to the Categories tab.
-            items.Add(CreateMenuItem(
-                ResourceProvider.GetString("LOCPlayAch_ManageAchievements_Category_NewCategoryEllipsis"),
-                PromptAndCreateCategory));
-            items.Add(new Separator());
 
             foreach (var option in viewModel.AssignableCategoryPickerOptions.Where(option => option.IsSelectable))
             {
