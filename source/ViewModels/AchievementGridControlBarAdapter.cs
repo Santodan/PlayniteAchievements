@@ -395,7 +395,7 @@ namespace PlayniteAchievements.ViewModels
             {
                 Width = 120,
                 IsCategoryFilter = true,
-                ToolTip = L("LOCPlayAch_ManageAchievements_Category_Filter_Type")
+                ToolTip = L("LOCPlayAch_ManageAchievements_Category_Filter_Tags")
             });
             controlBar.Items.Add(new GridMultiSelectFilter(
                 this,
