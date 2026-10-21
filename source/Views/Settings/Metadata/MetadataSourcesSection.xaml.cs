@@ -69,6 +69,7 @@ namespace PlayniteAchievements.Views.Settings.Metadata
         private readonly Func<MetadataChoices> _inherited;
         private string _icons;
         private string _categories;
+        private string _tags;
         private string _rarity;
         private string _capstoneArt;
         private string _trophyTypes;
@@ -132,7 +133,8 @@ namespace PlayniteAchievements.Views.Settings.Metadata
             CapstoneArtOptions = BuildSourceOptions(providers, MetadataField.CapstoneArt, "LOCPlayAch_Settings_Metadata_Source_Own");
             TrophyTypeOptions = BuildSourceOptions(providers, MetadataField.TrophyTypes, "LOCPlayAch_Settings_Metadata_Source_Own");
             PointsOptions = BuildSourceOptions(providers, MetadataField.Points, "LOCPlayAch_Settings_Metadata_Source_Own");
-            CategoryOptions = BuildCategoryOptions(providers);
+            CategoryOptions = BuildScanOptions(providers, MetadataField.Categories);
+            TagOptions = BuildScanOptions(providers, MetadataField.Tags);
             RarityOptions = WithDefault(new[]
             {
                 new ChoiceOption(string.Empty, ResourceProvider.GetString("LOCPlayAch_Settings_Metadata_Source_Own")),
@@ -141,6 +143,7 @@ namespace PlayniteAchievements.Views.Settings.Metadata
 
             _icons = ToKey(stored?.Icons);
             _categories = ToKey(stored?.Categories);
+            _tags = ToKey(stored?.Tags);
             _rarity = SupportsRarity ? ToKey(stored?.Rarity) : DefaultKey;
             _capstoneArt = ToKey(stored?.CapstoneArt);
             _trophyTypes = SupportsTrophyTypes ? ToKey(stored?.TrophyTypes) : DefaultKey;
@@ -171,6 +174,8 @@ namespace PlayniteAchievements.Views.Settings.Metadata
 
         public IReadOnlyList<ChoiceOption> CategoryOptions { get; }
 
+        public IReadOnlyList<ChoiceOption> TagOptions { get; }
+
         public IReadOnlyList<ChoiceOption> RarityOptions { get; }
 
         public IReadOnlyList<ChoiceOption> CapstoneArtOptions { get; }
@@ -187,6 +192,8 @@ namespace PlayniteAchievements.Views.Settings.Metadata
 
         public string InheritedCategories => InheritedLabel(CategoryOptions, choices => choices.Categories);
 
+        public string InheritedTags => InheritedLabel(TagOptions, choices => choices.Tags);
+
         public string InheritedRarity => InheritedLabel(RarityOptions, choices => choices.Rarity);
 
         public string InheritedCapstoneArt => InheritedLabel(CapstoneArtOptions, choices => choices.CapstoneArt);
@@ -200,6 +207,7 @@ namespace PlayniteAchievements.Views.Settings.Metadata
         {
             OnPropertyChanged(nameof(InheritedIcons));
             OnPropertyChanged(nameof(InheritedCategories));
+            OnPropertyChanged(nameof(InheritedTags));
             OnPropertyChanged(nameof(InheritedRarity));
             OnPropertyChanged(nameof(InheritedCapstoneArt));
             OnPropertyChanged(nameof(InheritedTrophyTypes));
@@ -235,6 +243,12 @@ namespace PlayniteAchievements.Views.Settings.Metadata
             set { _categories = value; Save(); OnPropertyChanged(); }
         }
 
+        public string Tags
+        {
+            get => _tags;
+            set { _tags = value; Save(); OnPropertyChanged(); }
+        }
+
         public string Rarity
         {
             get => _rarity;
@@ -268,7 +282,8 @@ namespace PlayniteAchievements.Views.Settings.Metadata
                 CapstoneArt = FromKey(_capstoneArt),
                 TrophyTypes = SupportsTrophyTypes ? FromKey(_trophyTypes) : null,
                 Points = SupportsPoints ? FromKey(_points) : null,
-                Categories = FromKey(_categories)
+                Categories = FromKey(_categories),
+                Tags = FromKey(_tags)
             };
 
             if (_saveGame != null)
@@ -311,17 +326,18 @@ namespace PlayniteAchievements.Views.Settings.Metadata
         }
 
         /// <summary>
-        /// Own, or a source whose categories replace the platform's. Unlike the other fields a
-        /// native source stays offered: the platform's own scan applies it (SteamHunters on Steam).
+        /// Own, or a source whose values replace the platform's, for categories and tags. Unlike the
+        /// other fields a native source stays offered: the platform's own scan applies it
+        /// (SteamHunters on Steam).
         /// </summary>
-        private IReadOnlyList<ChoiceOption> BuildCategoryOptions(IReadOnlyList<IMetadataProvider> providers)
+        private IReadOnlyList<ChoiceOption> BuildScanOptions(IReadOnlyList<IMetadataProvider> providers, MetadataField field)
         {
             var options = new List<ChoiceOption>
             {
                 new ChoiceOption(string.Empty, ResourceProvider.GetString("LOCPlayAch_Settings_Metadata_Source_Own"))
             };
             options.AddRange(providers
-                .Where(provider => (provider.SupportedFields & MetadataField.Categories) != 0)
+                .Where(provider => (provider.SupportedFields & field) != 0)
                 .Select(provider => new ChoiceOption(provider.Key, ResourceProvider.GetString(provider.DisplayNameKey))));
             return WithDefault(options);
         }
