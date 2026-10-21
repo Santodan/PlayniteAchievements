@@ -102,14 +102,23 @@
 
             <!-- Read-only columns keep the grid out of row edit mode: a ComboBox never
                  commits that edit, so closing the view would cancel it and write the
-                 original values back over the choices. The ComboBoxes stay editable. -->
+                 original values back over the choices. The ComboBoxes stay editable.
+                 A platform no source has shows a dash in every column. -->
             <DataGridTemplateColumn Header="{DynamicResource LOCPlayAch_ManageAchievements_Tab_CustomIcons}" Width="Auto" IsReadOnly="True">
                 <DataGridTemplateColumn.CellTemplate>
                     <DataTemplate>
-                        <ComboBox Style="{StaticResource MetadataChoiceComboStyle}"
-                                  ItemsSource="{Binding IconOptions}"
-                                  Tag="{Binding InheritedIcons}"
-                                  SelectedValue="{Binding Icons, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
+                        <Grid>
+                            <ComboBox Style="{StaticResource MetadataChoiceComboStyle}"
+                                      ItemsSource="{Binding IconOptions}"
+                                      Tag="{Binding InheritedIcons}"
+                                      SelectedValue="{Binding Icons, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                      Visibility="{Binding SupportsSources, Converter={StaticResource BoolToVis}}"/>
+                            <TextBlock Text="—"
+                                       Style="{StaticResource MutedTextStyle}"
+                                       Margin="12,0"
+                                       VerticalAlignment="Center"
+                                       Visibility="{Binding SupportsSources, Converter={StaticResource InverseBoolToVis}}"/>
+                        </Grid>
                     </DataTemplate>
                 </DataGridTemplateColumn.CellTemplate>
             </DataGridTemplateColumn>
@@ -117,10 +126,18 @@
             <DataGridTemplateColumn Header="{DynamicResource LOCPlayAch_ManageAchievements_Tab_Category}" Width="Auto" IsReadOnly="True">
                 <DataGridTemplateColumn.CellTemplate>
                     <DataTemplate>
-                        <ComboBox Style="{StaticResource MetadataChoiceComboStyle}"
-                                  ItemsSource="{Binding CategoryOptions}"
-                                  Tag="{Binding InheritedCategories}"
-                                  SelectedValue="{Binding Categories, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
+                        <Grid>
+                            <ComboBox Style="{StaticResource MetadataChoiceComboStyle}"
+                                      ItemsSource="{Binding CategoryOptions}"
+                                      Tag="{Binding InheritedCategories}"
+                                      SelectedValue="{Binding Categories, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                      Visibility="{Binding SupportsSources, Converter={StaticResource BoolToVis}}"/>
+                            <TextBlock Text="—"
+                                       Style="{StaticResource MutedTextStyle}"
+                                       Margin="12,0"
+                                       VerticalAlignment="Center"
+                                       Visibility="{Binding SupportsSources, Converter={StaticResource InverseBoolToVis}}"/>
+                        </Grid>
                     </DataTemplate>
                 </DataGridTemplateColumn.CellTemplate>
             </DataGridTemplateColumn>
@@ -128,10 +145,18 @@
             <DataGridTemplateColumn Header="{DynamicResource LOCTagsLabel}" Width="Auto" IsReadOnly="True">
                 <DataGridTemplateColumn.CellTemplate>
                     <DataTemplate>
-                        <ComboBox Style="{StaticResource MetadataChoiceComboStyle}"
-                                  ItemsSource="{Binding TagOptions}"
-                                  Tag="{Binding InheritedTags}"
-                                  SelectedValue="{Binding Tags, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
+                        <Grid>
+                            <ComboBox Style="{StaticResource MetadataChoiceComboStyle}"
+                                      ItemsSource="{Binding TagOptions}"
+                                      Tag="{Binding InheritedTags}"
+                                      SelectedValue="{Binding Tags, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                      Visibility="{Binding SupportsSources, Converter={StaticResource BoolToVis}}"/>
+                            <TextBlock Text="—"
+                                       Style="{StaticResource MutedTextStyle}"
+                                       Margin="12,0"
+                                       VerticalAlignment="Center"
+                                       Visibility="{Binding SupportsSources, Converter={StaticResource InverseBoolToVis}}"/>
+                        </Grid>
                     </DataTemplate>
                 </DataGridTemplateColumn.CellTemplate>
             </DataGridTemplateColumn>
@@ -159,10 +184,18 @@
             <DataGridTemplateColumn Header="{DynamicResource LOCPlayAch_ManageAchievements_Custom_AutoCapstone}" Width="Auto" IsReadOnly="True">
                 <DataGridTemplateColumn.CellTemplate>
                     <DataTemplate>
-                        <ComboBox Style="{StaticResource MetadataChoiceComboStyle}"
-                                  ItemsSource="{Binding CapstoneArtOptions}"
-                                  Tag="{Binding InheritedCapstoneArt}"
-                                  SelectedValue="{Binding CapstoneArt, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
+                        <Grid>
+                            <ComboBox Style="{StaticResource MetadataChoiceComboStyle}"
+                                      ItemsSource="{Binding CapstoneArtOptions}"
+                                      Tag="{Binding InheritedCapstoneArt}"
+                                      SelectedValue="{Binding CapstoneArt, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                      Visibility="{Binding SupportsSources, Converter={StaticResource BoolToVis}}"/>
+                            <TextBlock Text="—"
+                                       Style="{StaticResource MutedTextStyle}"
+                                       Margin="12,0"
+                                       VerticalAlignment="Center"
+                                       Visibility="{Binding SupportsSources, Converter={StaticResource InverseBoolToVis}}"/>
+                        </Grid>
                     </DataTemplate>
                 </DataGridTemplateColumn.CellTemplate>
             </DataGridTemplateColumn>
