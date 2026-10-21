@@ -57,13 +57,30 @@ namespace PlayniteAchievements.ViewModels.Items
         public List<string> CategoryLabelFilters { get; set; } = new List<string>();
     }
 
-    public abstract class GridControlBarItem : PlayniteAchievements.Common.ObservableObject
+    /// <summary>
+    /// A control bar entry a widget can show or hide on its own: the search box or an item.
+    /// <see cref="Id"/> names its visibility option; <see cref="LabelKey"/> labels its row in
+    /// the widget settings.
+    /// </summary>
+    public interface IGridControlBarEntry
+    {
+        string Id { get; }
+
+        string LabelKey { get; }
+    }
+
+    public abstract class GridControlBarItem : PlayniteAchievements.Common.ObservableObject, IGridControlBarEntry
     {
         private bool _isVisible = true;
         private bool _autoHideWhenUnavailable = true;
         private double _width = double.NaN;
         private double _minWidth = 0d;
         private string _toolTip;
+
+        /// <summary>Null for an item no widget shows or hides on its own.</summary>
+        public string Id { get; set; }
+
+        public string LabelKey { get; set; }
 
         public bool IsVisible
         {
@@ -118,7 +135,7 @@ namespace PlayniteAchievements.ViewModels.Items
         protected virtual bool HasAvailableAction => true;
     }
 
-    public sealed class GridSearchControl : PlayniteAchievements.Common.ObservableObject
+    public sealed class GridSearchControl : PlayniteAchievements.Common.ObservableObject, IGridControlBarEntry
     {
         private readonly Func<string> _getText;
         private readonly Action<string> _setText;
@@ -166,6 +183,10 @@ namespace PlayniteAchievements.ViewModels.Items
         }
 
         public string Placeholder { get; }
+
+        public string Id { get; set; }
+
+        public string LabelKey { get; set; }
 
         public double MinWidth
         {
