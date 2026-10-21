@@ -194,6 +194,32 @@ namespace PlayniteAchievements.Services.Cache
             }
         }
 
+        HashSet<Guid> ICacheReadOptimizations.GetGameIdsWithTag(string tagKey)
+        {
+            var result = new HashSet<Guid>();
+            try
+            {
+                lock (_sync)
+                {
+                    EnsureReady_Locked("GetGameIdsWithTag");
+                }
+
+                foreach (var key in _store.GetCacheKeysWithTag(tagKey))
+                {
+                    if (Guid.TryParse(key, out var gameId) && gameId != Guid.Empty)
+                    {
+                        result.Add(gameId);
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger?.Debug(ex, "Failed reading the games with a tag.");
+            }
+
+            return result;
+        }
+
         HashSet<Guid> ICacheReadOptimizations.GetNoAchievementGameIds()
         {
             var result = new HashSet<Guid>();
