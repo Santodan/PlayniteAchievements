@@ -143,9 +143,13 @@ namespace PlayniteAchievements.Services.Metadata
                 }
             }
 
-            // A source that could not answer leaves the game as its last refresh saved it, never blank.
-            var previous = failed.Count > 0 ? _links?.GetApplied(gameId) : null;
-            var stored = failed.Count > 0 ? StoredByApiName(gameId) : null;
+            // A source that could not answer, wholly or for a field, leaves the game as its last
+            // refresh saved it there, never blank.
+            bool Failed(IEnumerable<string> keys, MetadataField field) => keys.Any(key =>
+                failed.Contains(key) || (sets.TryGetValue(key, out var answered) && (answered.Set.UnavailableFields & field) != 0));
+            var anyFailed = failed.Count > 0 || sets.Values.Any(answered => answered.Set.UnavailableFields != MetadataField.None);
+            var previous = anyFailed ? _links?.GetApplied(gameId) : null;
+            var stored = anyFailed ? StoredByApiName(gameId) : null;
 
             var ownIcons = new Dictionary<string, OwnIconPaths>(StringComparer.OrdinalIgnoreCase);
             var iconSource = ApplyIcons(plan.IconKeys, sets, ownIcons);
@@ -166,14 +170,14 @@ namespace PlayniteAchievements.Services.Metadata
             {
                 _ownIcons[gameId] = ownIcons;
             }
-            Replace(plan.CategoryKeys, sets, ApplyCategory);
-            Replace(plan.TagKeys, sets, ApplyTags);
-            if (plan.CategoryKeys.Any(failed.Contains))
+            Replace(plan.CategoryKeys, sets, ApplyCategory, MetadataField.Categories);
+            Replace(plan.TagKeys, sets, ApplyTags, MetadataField.Tags);
+            if (Failed(plan.CategoryKeys, MetadataField.Categories))
             {
                 KeepStored(data.Achievements, stored, _ => true, ApplyCategory);
             }
 
-            if (plan.TagKeys.Any(failed.Contains))
+            if (Failed(plan.TagKeys, MetadataField.Tags))
             {
                 KeepStored(data.Achievements, stored, _ => true, ApplyTags);
             }
@@ -196,8 +200,8 @@ namespace PlayniteAchievements.Services.Metadata
                 (target, source) => target.Points = source.Points);
             // A source's rarity is its players' share of unlocks; it replaces the platform's tier
             // wherever the source has a share for the achievement.
-            Replace(plan.RarityKeys, sets, ApplyRarity);
-            if (plan.RarityKeys.Any(failed.Contains))
+            Replace(plan.RarityKeys, sets, ApplyRarity, MetadataField.Rarity);
+            if (Failed(plan.RarityKeys, MetadataField.Rarity))
             {
                 KeepStored(data.Achievements, stored, _ => true, (target, old) =>
                 {
@@ -209,12 +213,12 @@ namespace PlayniteAchievements.Services.Metadata
                 });
             }
 
-            if (plan.TrophyTypeKeys.Any(failed.Contains))
+            if (Failed(plan.TrophyTypeKeys, MetadataField.TrophyTypes))
             {
                 KeepStored(data.Achievements, stored, _ => true, (target, old) => target.TrophyType = old.TrophyType ?? target.TrophyType);
             }
 
-            if (plan.PointsKeys.Any(failed.Contains))
+            if (Failed(plan.PointsKeys, MetadataField.Points))
             {
                 KeepStored(data.Achievements, stored, _ => true, (target, old) => target.Points = old.Points ?? target.Points);
             }
@@ -747,12 +751,13 @@ namespace PlayniteAchievements.Services.Metadata
         private static void Replace(
             IReadOnlyList<string> keys,
             IReadOnlyDictionary<string, MatchedSet> sets,
-            Action<AchievementDetail, AchievementDetail> copy)
+            Action<AchievementDetail, AchievementDetail> copy,
+            MetadataField field)
         {
             var done = new HashSet<AchievementDetail>();
             foreach (var key in keys)
             {
-                if (!sets.TryGetValue(key, out var set))
+                if (!sets.TryGetValue(key, out var set) || (set.Set.UnavailableFields & field) != 0)
                 {
                     continue;
                 }
