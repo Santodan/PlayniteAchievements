@@ -223,6 +223,7 @@
     <Compile Include="..\..\source\Services\Achievements\AchievementClassificationFilter.cs" Link="Source\Services\Achievements\AchievementClassificationFilter.cs" />
     <Compile Include="..\..\source\Services\Achievements\LegacyCategoryTypes.cs" Link="Source\Services\Achievements\LegacyCategoryTypes.cs" />
     <Compile Include="..\..\source\Models\Achievements\AchievementTagDefinition.cs" Link="Source\Models\Achievements\AchievementTagDefinition.cs" />
+    <Compile Include="..\..\source\Models\Achievements\AchievementTagTally.cs" Link="Source\Models\Achievements\AchievementTagTally.cs" />
     <Compile Include="..\..\source\Models\Achievements\MetadataHints.cs" Link="Source\Models\Achievements\MetadataHints.cs" />
     <Compile Include="..\..\source\Services\Achievements\OpenEditorRegistry.cs" Link="Source\Services\Achievements\OpenEditorRegistry.cs" />
     <Compile Include="..\..\source\Services\Achievements\CategoryPathHelper.cs" Link="Source\Services\Achievements\CategoryPathHelper.cs" />
