@@ -135,7 +135,8 @@ namespace PlayniteAchievements.Services.Metadata
             {
                 _ownIcons[gameId] = ownIcons;
             }
-            ApplyCategories(plan.CategoryKeys, sets);
+            Replace(plan.CategoryKeys, sets, ApplyCategory);
+            Replace(plan.TagKeys, sets, ApplyTags);
             var categoryArt = CollectCategoryArt(plan.CategoryKeys, sets);
             if (categoryArt.Count > 0 && _downloadCategoryArt != null)
             {
@@ -296,6 +297,7 @@ namespace PlayniteAchievements.Services.Metadata
             return new OverlayPlan(
                 Chosen(choices.Icons, MetadataField.Icons),
                 Chosen(choices.Categories, MetadataField.Categories),
+                Chosen(choices.Tags, MetadataField.Tags),
                 Chosen(choices.CapstoneArt, MetadataField.CapstoneArt),
                 Chosen(choices.TrophyTypes, MetadataField.TrophyTypes),
                 Chosen(choices.Points, MetadataField.Points));
@@ -560,33 +562,6 @@ namespace PlayniteAchievements.Services.Metadata
         }
 
         /// <summary>
-        /// Replaces each achievement's category, kind and tags with those of the first source that matched it.
-        /// </summary>
-        private static void ApplyCategories(
-            IReadOnlyList<string> keys,
-            IReadOnlyDictionary<string, MatchedSet> sets)
-        {
-            var done = new HashSet<AchievementDetail>();
-            foreach (var key in keys)
-            {
-                if (!sets.TryGetValue(key, out var set))
-                {
-                    continue;
-                }
-
-                foreach (var match in set.Matches)
-                {
-                    if (!done.Add(match.Target))
-                    {
-                        continue;
-                    }
-
-                    ApplyCategory(match.Target, match.Source);
-                }
-            }
-        }
-
-        /// <summary>
         /// The category art of each category source, for the categories it gave the game's
         /// achievements; the first source wins a label.
         /// </summary>
@@ -621,10 +596,43 @@ namespace PlayniteAchievements.Services.Metadata
             return art;
         }
 
+        /// <summary>
+        /// Replaces each matched achievement's value with that of the first source that matched it,
+        /// whatever the achievement had.
+        /// </summary>
+        private static void Replace(
+            IReadOnlyList<string> keys,
+            IReadOnlyDictionary<string, MatchedSet> sets,
+            Action<AchievementDetail, AchievementDetail> copy)
+        {
+            var done = new HashSet<AchievementDetail>();
+            foreach (var key in keys)
+            {
+                if (!sets.TryGetValue(key, out var set))
+                {
+                    continue;
+                }
+
+                foreach (var match in set.Matches)
+                {
+                    if (done.Add(match.Target))
+                    {
+                        copy(match.Target, match.Source);
+                    }
+                }
+            }
+        }
+
+        /// <summary>Replaces an achievement's category and kind with the source's.</summary>
         internal static void ApplyCategory(AchievementDetail target, AchievementDetail source)
         {
             target.Category = AchievementCategoryHelper.NormalizeCategory(source.Category);
             target.CategoryKind = CategoryKindHelper.Normalize(source.CategoryKind);
+        }
+
+        /// <summary>Replaces an achievement's tags with the source's.</summary>
+        internal static void ApplyTags(AchievementDetail target, AchievementDetail source)
+        {
             // The unlock mode says how this user earned it, which only the game's own provider knows.
             target.Tags = AchievementTagHelper.Combine(new[]
             {
@@ -694,16 +702,18 @@ namespace PlayniteAchievements.Services.Metadata
             public OverlayPlan(
                 List<string> iconKeys,
                 List<string> categoryKeys,
+                List<string> tagKeys,
                 List<string> capstoneArtKeys,
                 List<string> trophyTypeKeys,
                 List<string> pointsKeys)
             {
                 IconKeys = iconKeys;
                 CategoryKeys = categoryKeys;
+                TagKeys = tagKeys;
                 CapstoneArtKeys = capstoneArtKeys;
                 TrophyTypeKeys = trophyTypeKeys;
                 PointsKeys = pointsKeys;
-                PerAchievementKeys = iconKeys.Concat(categoryKeys).Concat(trophyTypeKeys).Concat(pointsKeys)
+                PerAchievementKeys = iconKeys.Concat(categoryKeys).Concat(tagKeys).Concat(trophyTypeKeys).Concat(pointsKeys)
                     .Distinct(StringComparer.OrdinalIgnoreCase)
                     .ToList();
                 AllKeys = PerAchievementKeys.Concat(capstoneArtKeys)
@@ -721,6 +731,8 @@ namespace PlayniteAchievements.Services.Metadata
             public List<string> IconKeys { get; }
 
             public List<string> CategoryKeys { get; }
+
+            public List<string> TagKeys { get; }
 
             public List<string> CapstoneArtKeys { get; }
 
