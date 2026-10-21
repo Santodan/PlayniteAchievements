@@ -173,6 +173,8 @@ namespace PlayniteAchievements.ViewModels
 
         public bool HasSelection => _selected.Count > 0;
 
+        public IReadOnlyCollection<Guid> SelectedGameIds => _selected;
+
         public string DisplayText
         {
             get
@@ -293,6 +295,9 @@ namespace PlayniteAchievements.ViewModels
 
         /// <summary>Selected games, as Playnite game IDs.</summary>
         public List<string> Games { get; set; }
+
+        /// <summary>Selected achievement tags, as tag keys, for achievement control bars.</summary>
+        public List<string> Tags { get; set; }
 
         public List<int> Progress { get; set; }
 
