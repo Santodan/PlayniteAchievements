@@ -252,14 +252,14 @@ namespace PlayniteAchievements.Providers.Metadata.Exophase
 
         /// <summary>The own platform's Exophase slug: the scan's hint ("xbox-360" for a 360 game), else the servicing platform's.</summary>
         /// <summary>Each linked set's award page, on the branch's platform.</summary>
-        public IReadOnlyList<string> PageUrls(Guid gameId, string linkId, string servicingProviderKey)
+        public IReadOnlyList<MetadataPageLink> PageLinks(Guid gameId, string linkId, string servicingProviderKey)
         {
             var platformSlug = _branch.OwnPlatform ? ExophaseMetadataBranch.OwnPlatformSlug(servicingProviderKey) : _branch.PlatformHint;
             return platformSlug == null
-                ? Array.Empty<string>()
+                ? Array.Empty<MetadataPageLink>()
                 : SplitSets(linkId)
-                    .Select(slug => ExophaseApiClient.BuildUrlFromSlug(slug, platformSlug))
-                    .Where(url => !string.IsNullOrWhiteSpace(url))
+                    .Select(slug => new MetadataPageLink(slug, ExophaseApiClient.BuildUrlFromSlug(slug, platformSlug)))
+                    .Where(page => !string.IsNullOrWhiteSpace(page.Url))
                     .ToList();
         }
 
