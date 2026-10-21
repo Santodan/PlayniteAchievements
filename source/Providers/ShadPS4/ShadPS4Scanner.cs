@@ -88,50 +88,29 @@ namespace PlayniteAchievements.Providers.ShadPS4
             if (hasNewData)
                 _logger?.Info($"[ShadPS4] Found {npCommIdCache.Count} titles in new AppData format.");
 
-            var rarityEnricher = await CreateRarityEnricherAsync(cancel).ConfigureAwait(false);
-
-            try
-            {
-                return await ProviderRefreshExecutor.RunProviderGamesAsync(
-                    gamesToRefresh,
-                    onGameStarting,
-                    async (game, token) =>
-                    {
-                        var data = await FetchGameDataAsync(game, titleCache, npCommIdCache, token).ConfigureAwait(false);
-                        await EnrichRarityAsync(game, data, rarityEnricher, token).ConfigureAwait(false);
-                        return new ProviderRefreshExecutor.ProviderGameResult { Data = data };
-                    },
-                    onGameCompleted,
-                    isAuthRequiredException: _ => false,
-                    onGameError: (game, ex, consecutiveErrors) =>
-                        _logger?.Error(ex, $"[ShadPS4] Error processing game '{game?.Name}'"),
-                    delayBetweenGamesAsync: null,
-                    delayAfterErrorAsync: null,
-                    cancel).ConfigureAwait(false);
-            }
-            finally
-            {
-                rarityEnricher?.Dispose();
-            }
+            return await ProviderRefreshExecutor.RunProviderGamesAsync(
+                gamesToRefresh,
+                onGameStarting,
+                async (game, token) =>
+                {
+                    var data = await FetchGameDataAsync(game, titleCache, npCommIdCache, token).ConfigureAwait(false);
+                    SetMetadataHints(game, data);
+                    return new ProviderRefreshExecutor.ProviderGameResult { Data = data };
+                },
+                onGameCompleted,
+                isAuthRequiredException: _ => false,
+                onGameError: (game, ex, consecutiveErrors) =>
+                    _logger?.Error(ex, $"[ShadPS4] Error processing game '{game?.Name}'"),
+                delayBetweenGamesAsync: null,
+                delayAfterErrorAsync: null,
+                cancel).ConfigureAwait(false);
         }
 
-        private async Task<ExophaseMetadataEnricher> CreateRarityEnricherAsync(CancellationToken cancel)
-        {
-            if (_settings?.Persisted?.UsesExophaseRarity("ShadPS4") != true)
-            {
-                return null;
-            }
-
-            var enricher = new ExophaseMetadataEnricher(_playniteApi, _logger, _settings, _pluginUserDataPath);
-            await enricher.InitializeAsync(cancel).ConfigureAwait(false);
-            return enricher;
-        }
-
-        private async Task EnrichRarityAsync(
-            Game game,
-            GameAchievementData data,
-            ExophaseMetadataEnricher rarityEnricher,
-            CancellationToken cancel)
+        /// <summary>
+        /// The trophy set's title, searched before the Playnite name, and the region of the
+        /// installed release, for the metadata sources that find the game's page.
+        /// </summary>
+        private void SetMetadataHints(Game game, GameAchievementData data)
         {
             string trophySetTitle = null;
             if (game != null)
@@ -139,21 +118,14 @@ namespace PlayniteAchievements.Providers.ShadPS4
                 _trophySetTitles.TryRemove(game.Id, out trophySetTitle);
             }
 
-            if (rarityEnricher == null || data?.Achievements == null || data.Achievements.Count == 0)
+            if (data != null)
             {
-                return;
+                data.MetadataHints = new MetadataHints
+                {
+                    SearchName = trophySetTitle,
+                    RegionHint = _provider?.ResolveRegionHintForGame(game)
+                };
             }
-
-            await rarityEnricher
-                .EnrichAsync(
-                    game,
-                    data.Achievements,
-                    "ps4",
-                    "PSN",
-                    cancel,
-                    regionHint: _provider?.ResolveRegionHintForGame(game),
-                    searchName: trophySetTitle)
-                .ConfigureAwait(false);
         }
 
         /// <summary>
