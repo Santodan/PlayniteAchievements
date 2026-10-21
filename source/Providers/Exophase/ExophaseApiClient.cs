@@ -32,6 +32,18 @@ namespace PlayniteAchievements.Providers.Exophase
         internal const string ExophaseStableApiNamePrefix = "exophase:";
         private const int AchievementDomReadyPollDelayMs = 250;
         private const int AchievementDomReadyPollAttempts = 8;
+
+        // A public page's list can still be rendering when navigation ends (long lists stopped near
+        // 50 rows): after a first wait, its row count is read until it holds for two reads.
+        private const int AwardRowsFirstWaitMs = 1000;
+        private const int AwardRowsPollDelayMs = 400;
+        private const int AwardRowsPollAttempts = 10;
+
+        // Rows of the award list, as ParseAchievementsHtml finds them; -1 when the page has no list.
+        private const string AwardRowCountScript =
+            "(function(){try{var lists=document.querySelectorAll('ul[class*=achievement],ul[class*=trophy],ul[class*=challenge]');" +
+            "if(!lists.length){return -1;}var n=0;for(var i=0;i<lists.length;i++){n+=lists[i].querySelectorAll(':scope > li').length;}" +
+            "return n;}catch(e){return -1;}})()";
         // Above this many images, the in-browser CDN warm is skipped; DiskImageService's
         // lazy-thumbnail retry path warms each thumbnail on download instead.
         private const int MaxImageWarmCount = 400;
@@ -565,6 +577,10 @@ namespace PlayniteAchievements.Providers.Exophase
                             AchievementDomReadyPollDelayMs,
                             ct).ConfigureAwait(false);
                     }
+                    else
+                    {
+                        await WaitForAwardRowsAsync(view, url, ct).ConfigureAwait(false);
+                    }
 
                     var html = await view.GetPageSourceAsync().ConfigureAwait(false);
                     if (waitForUnlocks && (!ContainsAchievementMarkup(html) || !HasUnlockDataPopulated(html)))
@@ -619,6 +635,54 @@ namespace PlayniteAchievements.Providers.Exophase
             {
                 _logger?.Error(ex, "[Exophase] Failed to fetch HTML via WebView");
                 return null;
+            }
+        }
+
+        /// <summary>
+        /// Waits for a public page's award list to finish rendering: none when the page has no
+        /// list (a guessed page that does not exist), otherwise a first wait and then until the row
+        /// count holds for two reads, within a cap.
+        /// </summary>
+        private async Task WaitForAwardRowsAsync(IWebView view, string url, CancellationToken ct)
+        {
+            if (await CountAwardRowsAsync(view).ConfigureAwait(false) < 0)
+            {
+                return;
+            }
+
+            await Task.Delay(AwardRowsFirstWaitMs, ct).ConfigureAwait(false);
+            var first = await CountAwardRowsAsync(view).ConfigureAwait(false);
+            var previous = first;
+            var steady = 0;
+            for (var attempt = 0; attempt < AwardRowsPollAttempts && steady < 2; attempt++)
+            {
+                await Task.Delay(AwardRowsPollDelayMs, ct).ConfigureAwait(false);
+                var count = await CountAwardRowsAsync(view).ConfigureAwait(false);
+                steady = count == previous ? steady + 1 : 0;
+                previous = count;
+            }
+
+            if (previous != first)
+            {
+                _logger?.Debug($"[Exophase] {url}: award rows grew from {first} to {previous} while rendering.");
+            }
+        }
+
+        private static async Task<int> CountAwardRowsAsync(IWebView view)
+        {
+            var eval = await view.EvaluateScriptAsync(AwardRowCountScript).ConfigureAwait(false);
+            if (eval?.Success != true || eval.Result == null)
+            {
+                return -1;
+            }
+
+            try
+            {
+                return Convert.ToInt32(eval.Result);
+            }
+            catch
+            {
+                return -1;
             }
         }
 
