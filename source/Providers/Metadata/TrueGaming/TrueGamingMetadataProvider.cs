@@ -3,8 +3,8 @@ using PlayniteAchievements.Common;
 using PlayniteAchievements.Models.Achievements;
 using PlayniteAchievements.Services.Achievements;
 using System;
-using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -16,9 +16,10 @@ namespace PlayniteAchievements.Providers.Metadata.TrueGaming
     /// the TrueGaming sites: TrueAchievements, TrueTrophies and TrueSteamAchievements, tried in that
     /// order for every platform. Pages are public and load through an offscreen browser view. A
     /// game links to one page name ("Fallout-4"), built from its name; each site is read under it
-    /// or its edition variants there ("Fallout-4-PS4"). Only the pages the
-    /// wanted fields need are loaded; see <see cref="TrueGamingPageSet"/>. The sites are English
-    /// only, so rows pair with the game's achievements by English title.
+    /// or its edition variants there ("Fallout-4-PS4"), and where it led is kept in
+    /// <see cref="TrueGamingPageStore"/>. Only the pages the wanted fields need are loaded; see
+    /// <see cref="TrueGamingPageSet"/>. The sites are English only, so rows pair with the game's
+    /// achievements by English title.
     /// </summary>
     internal sealed class TrueGamingMetadataProvider : IMetadataProvider
     {
@@ -29,20 +30,19 @@ namespace PlayniteAchievements.Providers.Metadata.TrueGaming
 
         private readonly OffscreenViewLeaseSource _views;
         private readonly ILogger _logger;
+        private readonly TrueGamingPageStore _store;
         private readonly Dictionary<string, TrueGamingPage> _pages =
             new Dictionary<string, TrueGamingPage>(StringComparer.OrdinalIgnoreCase);
 
-        // Sites with no page for a game, found while extending an automatic link; not looked up
-        // again this session. A reset link is resolved afresh, without them.
-        private readonly ConcurrentDictionary<string, bool> _misses =
-            new ConcurrentDictionary<string, bool>(StringComparer.OrdinalIgnoreCase);
-
         private IDisposable _lease;
 
-        public TrueGamingMetadataProvider(IPlayniteAPI api, ILogger logger)
+        public TrueGamingMetadataProvider(IPlayniteAPI api, ILogger logger, string pluginUserDataPath)
         {
             _views = api == null ? null : new OffscreenViewLeaseSource(api, logger);
             _logger = logger;
+            _store = new TrueGamingPageStore(
+                string.IsNullOrWhiteSpace(pluginUserDataPath) ? null : Path.Combine(pluginUserDataPath, "metadata", "truegaming-pages.json"),
+                logger);
         }
 
         public string Key => MetadataKey;
@@ -74,11 +74,13 @@ namespace PlayniteAchievements.Providers.Metadata.TrueGaming
             {
                 _pages.Clear();
             }
+
+            _store.Save();
         }
 
         /// <summary>
         /// The game's one page name, from the first page found by slugs built from its names.
-        /// Only the pages the wanted fields need are looked for.
+        /// Only the pages the wanted fields need are looked for; what each site gave is kept.
         /// </summary>
         public async Task<MetadataSourceLink> ResolveLinkAsync(MetadataLinkRequest request, CancellationToken ct)
         {
@@ -88,7 +90,7 @@ namespace PlayniteAchievements.Providers.Metadata.TrueGaming
             }
 
             var found = new List<TrueGamingFoundPage>();
-            await AddNeededPagesAsync(request, found, slug: null, ct).ConfigureAwait(false);
+            var outcomes = await AddNeededPagesAsync(request, found, new HashSet<TrueGamingSite>(), name: null, ct).ConfigureAwait(false);
             if (found.Count == 0)
             {
                 _logger?.Debug($"[TrueGamingMetadata] '{request.Game?.Name}': no TrueGaming page.");
@@ -96,24 +98,28 @@ namespace PlayniteAchievements.Providers.Metadata.TrueGaming
             }
 
             var linkId = TrueGamingLinks.BaseSlug(found[0].Slug);
-            _logger?.Debug($"[TrueGamingMetadata] '{request.Game?.Name}' -> {linkId} ({string.Join(", ", found.Select(page => page.Site.Host + "/game/" + page.Slug))}).");
+            Record(request, linkId, outcomes);
+            _logger?.Debug($"[TrueGamingMetadata] '{request.Game?.Name}' -> {linkId} ({Describe(found)}).");
             return new MetadataSourceLink(linkId, request.Game?.Name, foundByName: true);
         }
 
         /// <summary>
-        /// Each page the wanted fields need, under the link's one name or its edition variants on
-        /// that site, read together. A link in another form is stored back as its one name.
+        /// The pages the wanted fields need: those already known for the link's name, and the rest
+        /// looked for under it or its edition variants on each site. A link in another form is
+        /// stored back as its one name.
         /// </summary>
         public async Task<AchievementSourceSet> FetchAsync(MetadataLinkRequest request, string linkId, CancellationToken ct)
         {
-            var slug = TrueGamingLinks.Normalize(linkId);
-            if (_views == null || request == null || slug == null)
+            var name = TrueGamingLinks.Normalize(linkId);
+            if (_views == null || request == null || name == null)
             {
                 return null;
             }
 
             var found = new List<TrueGamingFoundPage>();
-            await AddNeededPagesAsync(request, found, slug, ct).ConfigureAwait(false);
+            var failed = new HashSet<TrueGamingSite>();
+            var outcomes = await AddNeededPagesAsync(request, found, failed, name, ct).ConfigureAwait(false);
+            Record(request, name, outcomes);
             if (found.Count == 0)
             {
                 return null;
@@ -121,12 +127,30 @@ namespace PlayniteAchievements.Providers.Metadata.TrueGaming
 
             found = found.OrderBy(page => TrueGamingSite.LookupOrder.ToList().IndexOf(page.Site)).ToList();
             var set = new AchievementSourceSet(Key, linkId, TrueGamingPageSet.Combine(found, request.BaseCategoryLabel));
-            if (!string.Equals(slug, linkId?.Trim(), StringComparison.Ordinal))
+            if (!string.Equals(name, linkId?.Trim(), StringComparison.Ordinal))
             {
-                set.ExtendedLinkId = slug;
+                set.ExtendedLinkId = name;
             }
 
-            // Tags stay as stored when no page flags any row.
+            // A needed page that did not load leaves the fields it shares with the others as
+            // stored, not partly replaced; tags stay as stored too when no page flags any row.
+            if (failed.Count > 0)
+            {
+                set.UnavailableFields |= MetadataField.Tags | MetadataField.Categories;
+                _logger?.Debug(
+                    $"[TrueGamingMetadata] '{request.Game?.Name}': {string.Join(", ", failed.Select(site => site.Host))} did not load; stored values kept.");
+            }
+
+            if (failed.Contains(TrueGamingSite.TrueAchievements))
+            {
+                set.UnavailableFields |= MetadataField.Points;
+            }
+
+            if (failed.Contains(TrueGamingSite.TrueTrophies))
+            {
+                set.UnavailableFields |= MetadataField.TrophyTypes;
+            }
+
             if (set.Achievements.All(row => row.Tags == null))
             {
                 set.UnavailableFields |= MetadataField.Tags;
@@ -146,22 +170,27 @@ namespace PlayniteAchievements.Providers.Metadata.TrueGaming
 
         /// <summary>
         /// Adds to <paramref name="found"/>, site by site in lookup order, each page the wanted
-        /// fields still need: under <paramref name="slug"/> when the game is linked, else by slugs
-        /// built from its names. A site without the linked page is not asked again this session.
+        /// fields still need: the page already known for <paramref name="name"/>, or one looked for
+        /// under it (or, unlinked, under slugs built from the game's names). A site known to have
+        /// no page is skipped. Returns what each look settled, to keep; a site that could not be
+        /// read settles nothing and goes into <paramref name="failed"/>.
         /// </summary>
-        private async Task AddNeededPagesAsync(
+        private async Task<List<(TrueGamingSite Site, string PageSlug)>> AddNeededPagesAsync(
             MetadataLinkRequest request,
             List<TrueGamingFoundPage> found,
-            string slug,
+            ISet<TrueGamingSite> failed,
+            string name,
             CancellationToken ct)
         {
+            var outcomes = new List<(TrueGamingSite Site, string PageSlug)>();
             var wanted = request.WantedFields == MetadataField.None
                 ? MetadataField.Tags | MetadataField.Categories
                 : request.WantedFields;
             var targets = (request.Data?.Achievements ?? new List<AchievementDetail>())
                 .Select(row => row?.DisplayName)
-                .Where(name => !string.IsNullOrWhiteSpace(name))
+                .Where(title => !string.IsNullOrWhiteSpace(title))
                 .ToList();
+            var gameId = GameId(request);
             foreach (var site in TrueGamingSite.LookupOrder)
             {
                 if (!TrueGamingPageSet.NeedsPage(site, wanted, found.Select(page => page.Page), targets))
@@ -169,55 +198,99 @@ namespace PlayniteAchievements.Providers.Metadata.TrueGaming
                     continue;
                 }
 
-                var missKey = $"{request.Game?.Id}|{site.Name}|{slug}";
-                if (slug != null && _misses.ContainsKey(missKey))
+                if (name != null && _store.TryGet(gameId, name, site, out var known))
                 {
+                    if (known == null)
+                    {
+                        continue;
+                    }
+
+                    var page = await GetPageAsync(site, known, ct).ConfigureAwait(false);
+                    if (page.Achievements.Count > 0)
+                    {
+                        found.Add(new TrueGamingFoundPage(site, known, page));
+                    }
+                    else
+                    {
+                        failed.Add(site);
+                    }
+
                     continue;
                 }
 
-                var page = await FindPageAsync(site, request, targets, slug, ct).ConfigureAwait(false);
-                if (page != null)
+                var (hit, settled) = await FindPageAsync(site, request, targets, name, ct).ConfigureAwait(false);
+                if (hit != null)
                 {
-                    found.Add(page);
+                    found.Add(hit);
+                    outcomes.Add((site, hit.Slug));
                 }
-                else if (slug != null)
+                else if (settled)
                 {
-                    _misses[missKey] = true;
+                    outcomes.Add((site, null));
+                }
+                else
+                {
+                    failed.Add(site);
                 }
             }
+
+            return outcomes;
         }
 
         /// <summary>
-        /// The site's page for the linked <paramref name="slug"/> (the name, then its edition
+        /// The site's page for the linked <paramref name="name"/> (the name, then its edition
         /// variants), or else the first slug built from the game's names whose page is the same
         /// game, with edition variants only on the platform's own site. A page a user linked is
-        /// taken as named; any other must share enough achievement names with the game.
+        /// taken as named; any other must share enough achievement names with the game. Settled
+        /// is false when a slug could not be read, so a missing page is not concluded from it.
         /// </summary>
-        private async Task<TrueGamingFoundPage> FindPageAsync(
+        private async Task<(TrueGamingFoundPage Page, bool Settled)> FindPageAsync(
             TrueGamingSite site,
             MetadataLinkRequest request,
             IReadOnlyCollection<string> targets,
-            string slug,
+            string name,
             CancellationToken ct)
         {
-            var slugs = slug != null
-                ? TrueGamingLinks.SlugsFor(site, slug)
+            var slugs = name != null
+                ? TrueGamingLinks.SlugsFor(site, name)
                 : TrueGamingLinks.CandidateSlugs(
                     request.SearchNames,
                     site == TrueGamingSite.For(request.ServicingProviderKey) ? site.Suffixes : Array.Empty<string>());
-            var checkGame = slug == null || !request.LinkIsUserSet;
+            var checkGame = name == null || !request.LinkIsUserSet;
+            var settled = true;
             foreach (var candidate in slugs)
             {
                 var page = await GetPageAsync(site, candidate, ct).ConfigureAwait(false);
                 if (page.Achievements.Count > 0 && (!checkGame || TrueGamingPageSet.IsSameGame(page, targets)))
                 {
-                    return new TrueGamingFoundPage(site, candidate, page);
+                    return (new TrueGamingFoundPage(site, candidate, page), true);
                 }
+
+                settled &= page.Loaded;
             }
 
-            return null;
+            return (null, settled);
         }
-        /// <summary>A list page, loaded once per run; an empty page when it failed or does not exist.</summary>
+
+        private void Record(MetadataLinkRequest request, string name, IEnumerable<(TrueGamingSite Site, string PageSlug)> outcomes)
+        {
+            var gameId = GameId(request);
+            foreach (var (site, pageSlug) in outcomes)
+            {
+                _store.Set(gameId, name, site, pageSlug);
+            }
+        }
+
+        private static Guid GameId(MetadataLinkRequest request) =>
+            request.Data?.PlayniteGameId ?? request.Game?.Id ?? Guid.Empty;
+
+        private static string Describe(IEnumerable<TrueGamingFoundPage> pages) =>
+            string.Join(", ", pages.Select(page => page.Site.Host + "/game/" + page.Slug));
+
+        /// <summary>
+        /// A list page, loaded once per run; an empty page when it failed or does not exist, told
+        /// apart by <see cref="TrueGamingPage.Loaded"/>.
+        /// </summary>
         private async Task<TrueGamingPage> GetPageAsync(TrueGamingSite site, string slug, CancellationToken ct)
         {
             var url = site.ListUrl(slug);
@@ -251,6 +324,7 @@ namespace PlayniteAchievements.Providers.Metadata.TrueGaming
                     return ((source, late), late);
                 }, ct).ConfigureAwait(false);
                 page = TrueGamingPageParser.Parse(html);
+                page.Loaded = !string.IsNullOrWhiteSpace(html) && !IsChallenge(html);
                 if (timedOut)
                 {
                     _logger?.Debug($"[TrueGamingMetadata] {url} still loading after {PageTimeoutMs} ms; read with {page.Achievements.Count} rows.");
@@ -273,5 +347,10 @@ namespace PlayniteAchievements.Providers.Metadata.TrueGaming
 
             return page;
         }
+
+        private static bool IsChallenge(string html) =>
+            html.IndexOf("Just a moment", StringComparison.OrdinalIgnoreCase) >= 0 ||
+            html.IndexOf("cf-chl", StringComparison.OrdinalIgnoreCase) >= 0 ||
+            html.IndexOf("Attention Required", StringComparison.OrdinalIgnoreCase) >= 0;
     }
 }
