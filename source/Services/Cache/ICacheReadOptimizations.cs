@@ -45,5 +45,8 @@ namespace PlayniteAchievements.Services.Cache
         /// </remarks>
         Dictionary<Guid, HashSet<string>> LoadUnlockedApiNamesFast(
             IReadOnlyDictionary<Guid, HashSet<string>> wanted);
+
+        /// <summary>Games whose cached achievements carry the tag <paramref name="tagKey"/>; empty on failure.</summary>
+        HashSet<Guid> GetGameIdsWithTag(string tagKey);
     }
 }
