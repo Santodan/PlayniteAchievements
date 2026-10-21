@@ -113,6 +113,7 @@ The entries below are fork-side changes, grouped by date. When a date includes a
 
 ## Next release - TBD
 
+- Fixed custom live achievement notifications bypassing platform unlock/progress filters, while preserving per-game notification overrides, screenshots, and recordings.
 - v4.1.1 merge
 - Fixed the missing key for the `Cancel` button for the `Logs` buttons
 - Fixed the theme migration for `Solaris` theme

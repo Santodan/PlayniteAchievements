@@ -1198,7 +1198,8 @@ namespace PlayniteAchievements
                         _achievementDataService.SyncAllAchievementFiltersFromCustomData();
                     }
 
-                    _notifications = new NotificationPublisher(api, settings, _logger);
+                    _notifications = new NotificationPublisher(api, settings, _logger,
+                        loadGameData: gameId => _gameCustomDataStore != null && _gameCustomDataStore.TryLoad(gameId, out var data) ? data : null);
                     _refreshCoordinator = new RefreshEntryPoint(
                         _refreshService,
                         _logger,
