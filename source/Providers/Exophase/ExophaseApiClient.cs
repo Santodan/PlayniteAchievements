@@ -493,7 +493,8 @@ namespace PlayniteAchievements.Providers.Exophase
 
                 if (result == null)
                 {
-                    _logger?.Warn($"[Exophase] ParseAchievementsHtml returned null for {achievementUrl}");
+                    // Guessed page names miss routinely; callers decide what a missing page means.
+                    _logger?.Debug($"[Exophase] ParseAchievementsHtml returned null for {achievementUrl}");
                 }
 
                 return new AchievementFetchResult { Achievements = result, Html = html };
