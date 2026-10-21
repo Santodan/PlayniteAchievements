@@ -69,7 +69,8 @@
               ScrollViewer.VerticalScrollBarVisibility="Auto"
               ScrollViewer.HorizontalScrollBarVisibility="Auto">
         <DataGrid.Columns>
-            <DataGridTemplateColumn Header="{DynamicResource LOCPlatformTitle}"
+            <DataGridTemplateColumn x:Name="PlatformColumn"
+                                    Header="{DynamicResource LOCPlatformTitle}"
                                     Width="Auto"
                                     MinWidth="140">
                 <DataGridTemplateColumn.CellTemplate>
