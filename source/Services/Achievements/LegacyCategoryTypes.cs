@@ -9,11 +9,10 @@ namespace PlayniteAchievements.Services.Achievements
     internal static class LegacyCategoryTypes
     {
         /// <summary>
-        /// Moves a legacy type override onto <paramref name="entry"/>: its kinds become the
-        /// achievement's legacy kind and its other values its tags. A legacy override replaced
-        /// every provider type, so an override without a kind says "no kind" and one without tags
-        /// says "no tags". Derived unlock modes stay the provider's and are dropped. Fields the
-        /// entry already sets are kept.
+        /// Moves a legacy type override's tags onto <paramref name="entry"/>. A legacy override
+        /// replaced every provider type, so one without tags says "no tags". Its kinds are dropped:
+        /// kinds live on categories. Derived unlock modes stay the provider's and are dropped too.
+        /// Tags the entry already sets are kept.
         /// </summary>
         public static void ApplyTo(AchievementOverride entry, string legacyValue)
         {
@@ -32,11 +31,6 @@ namespace PlayniteAchievements.Services.Achievements
             if (!meaningful)
             {
                 return;
-            }
-
-            if (string.IsNullOrWhiteSpace(entry.LegacyCategoryKind))
-            {
-                entry.LegacyCategoryKind = SplitKind(legacyValue) ?? CategoryKindHelper.None;
             }
 
             if (entry.Tags == null && !entry.ClearTags)
