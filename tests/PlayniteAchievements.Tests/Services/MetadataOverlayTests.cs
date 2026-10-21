@@ -427,10 +427,10 @@ namespace PlayniteAchievements.Tests.Services
         }
 
         [TestMethod]
-        public async Task Categories_OverrideReplacesProviderCategory()
+        public async Task Categories_ReplaceProviderCategory_AndKeepItsTags()
         {
-            var hunters = new FakeSource("SteamHunters", MetadataField.Categories);
-            hunters.Rows.Add(Row("A", "One", category: "Story"));
+            var hunters = new FakeSource("SteamHunters", MetadataField.Categories | MetadataField.Tags);
+            hunters.Rows.Add(Row("A", "One", category: "Story", type: "DLC|Multiplayer"));
             var named = Row("e1", "One", category: "Chapter 1", type: "Missable");
             var data = Game("Epic", named);
 
@@ -440,7 +440,28 @@ namespace PlayniteAchievements.Tests.Services
             }
 
             Assert.AreEqual("Story", named.Category);
-            Assert.IsFalse((named.Tags ?? string.Empty).Contains("Missable"));
+            Assert.AreEqual("DLC", named.CategoryKind);
+            Assert.AreEqual("Missable", named.Tags);
+        }
+
+        [TestMethod]
+        public async Task Tags_ReplaceProviderTags_AndKeepItsCategory()
+        {
+            var hunters = new FakeSource("SteamHunters", MetadataField.Categories | MetadataField.Tags);
+            hunters.Rows.Add(Row("A", "One", category: "Story", type: "Multiplayer"));
+            var named = Row("e1", "One", category: "Chapter 1", type: "Missable|Hardcore");
+            var data = Game("Epic", named);
+
+            using (var run = Overlay(new[] { hunters }, Choices(tags: hunters.Key)).BeginRun())
+            {
+                await run.ApplyAsync(data.Game, data, CancellationToken.None);
+            }
+
+            Assert.AreEqual("Chapter 1", named.Category);
+            // The source's tags replace the provider's; the unlock mode stays.
+            CollectionAssert.AreEquivalent(
+                new[] { "Multiplayer", "Hardcore" },
+                PlayniteAchievements.Services.Achievements.AchievementTagHelper.Parse(named.Tags));
         }
 
         [TestMethod]
@@ -604,6 +625,7 @@ namespace PlayniteAchievements.Tests.Services
         private static PersistedSettings Choices(
             string icons = null,
             string categories = null,
+            string tags = null,
             string capstoneArt = null,
             string trophyTypes = null,
             string points = null)
@@ -613,6 +635,7 @@ namespace PlayniteAchievements.Tests.Services
             {
                 Icons = icons ?? string.Empty,
                 Categories = categories ?? string.Empty,
+                Tags = tags ?? string.Empty,
                 Rarity = string.Empty,
                 CapstoneArt = capstoneArt ?? string.Empty,
                 TrophyTypes = trophyTypes ?? string.Empty,
