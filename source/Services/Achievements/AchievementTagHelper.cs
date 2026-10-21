@@ -323,7 +323,7 @@ namespace PlayniteAchievements.Services.Achievements
                 return null;
             }
 
-            var value = ResourceProvider.GetString($"LOCPlayAch_ManageAchievements_Category_Type_{canonical}");
+            var value = ResourceProvider.GetString($"LOCPlayAch_AchievementTag_{canonical}");
             return string.IsNullOrWhiteSpace(value) || value.StartsWith("<!", StringComparison.Ordinal)
                 ? canonical
                 : value;
