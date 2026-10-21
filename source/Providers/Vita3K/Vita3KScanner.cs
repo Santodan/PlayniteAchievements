@@ -69,46 +69,21 @@ namespace PlayniteAchievements.Providers.Vita3K
                 return new RebuildPayload { Summary = new RebuildSummary() };
             }
 
-            var rarityEnricher = await CreateRarityEnricherAsync(cancel).ConfigureAwait(false);
-            try
-            {
-                return await ProviderRefreshExecutor.RunProviderGamesAsync(
-                    gamesToRefresh,
-                    onGameStarting,
-                    async (game, token) =>
-                    {
-                        var data = await FetchGameDataAsync(game, rarityEnricher, token).ConfigureAwait(false);
-                        return new ProviderRefreshExecutor.ProviderGameResult { Data = data };
-                    },
-                    onGameCompleted,
-                    isAuthRequiredException: _ => false,
-                    onGameError: (game, ex, consecutiveErrors) =>
-                        _logger?.Error(ex, $"[Vita3K] Failed to scan '{game?.Name}'"),
-                    delayBetweenGamesAsync: null,
-                    delayAfterErrorAsync: null,
-                    cancel).ConfigureAwait(false) ?? new RebuildPayload { Summary = new RebuildSummary() };
-            }
-            finally
-            {
-                rarityEnricher?.Dispose();
-            }
+            return await ProviderRefreshExecutor.RunProviderGamesAsync(
+                gamesToRefresh,
+                onGameStarting,
+                (game, token) => Task.FromResult(new ProviderRefreshExecutor.ProviderGameResult { Data = FetchGameData(game, token) }),
+                onGameCompleted,
+                isAuthRequiredException: _ => false,
+                onGameError: (game, ex, consecutiveErrors) =>
+                    _logger?.Error(ex, $"[Vita3K] Failed to scan '{game?.Name}'"),
+                delayBetweenGamesAsync: null,
+                delayAfterErrorAsync: null,
+                cancel).ConfigureAwait(false) ?? new RebuildPayload { Summary = new RebuildSummary() };
         }
 
-        private async Task<ExophaseMetadataEnricher> CreateRarityEnricherAsync(CancellationToken cancel)
-        {
-            if (_settings?.Persisted?.UsesExophaseRarity("Vita3K") != true)
-            {
-                return null;
-            }
-
-            var enricher = new ExophaseMetadataEnricher(_playniteApi, _logger, _settings, _pluginUserDataPath);
-            await enricher.InitializeAsync(cancel).ConfigureAwait(false);
-            return enricher;
-        }
-
-        private async Task<GameAchievementData> FetchGameDataAsync(
+        private GameAchievementData FetchGameData(
             Game game,
-            ExophaseMetadataEnricher rarityEnricher,
             CancellationToken cancel)
         {
             if (game == null)
@@ -133,20 +108,13 @@ namespace PlayniteAchievements.Providers.Vita3K
                 return null;
             }
 
-            if (rarityEnricher != null && data.Achievements.Count > 0)
+            // The trophy set's title, searched before the Playnite name, and the region its title
+            // id belongs to, for the metadata sources that find the game's page.
+            data.MetadataHints = new MetadataHints
             {
-                await rarityEnricher
-                    .EnrichAsync(
-                        game,
-                        data.Achievements,
-                        "psvita",
-                        "PSN",
-                        cancel,
-                        regionHint: ExophaseGameNameMatcher.MapVitaTitleIdToRegionHint(source.TitleId),
-                        searchName: ReadSetTitle(source))
-                    .ConfigureAwait(false);
-            }
-
+                SearchName = ReadSetTitle(source),
+                RegionHint = ExophaseGameNameMatcher.MapVitaTitleIdToRegionHint(source.TitleId)
+            };
             return data;
         }
 
