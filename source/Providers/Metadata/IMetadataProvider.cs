@@ -176,6 +176,12 @@ namespace PlayniteAchievements.Providers.Metadata
         /// </summary>
         public bool ApiNamesMayBeShared { get; set; }
 
+        /// <summary>
+        /// Fields the source could not read this time although it answered (a page whose flags did
+        /// not decode); the game keeps its stored values for them, as for a source that failed.
+        /// </summary>
+        public MetadataField UnavailableFields { get; set; }
+
         /// <summary>Category label to image URL, for sources that supply category art.</summary>
         public IDictionary<string, string> CategoryArtUrls { get; } =
             new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
