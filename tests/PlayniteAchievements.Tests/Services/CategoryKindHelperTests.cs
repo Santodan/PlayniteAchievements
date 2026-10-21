@@ -71,13 +71,12 @@ namespace PlayniteAchievements.Tests.Services
         }
 
         [TestMethod]
-        public void ResolveEffective_PrefersCategoryThenLegacyThenProvider()
+        public void ResolveEffective_PrefersCategoryThenProvider()
         {
-            Assert.AreEqual("DLC", CategoryKindHelper.ResolveEffective("DLC", "Base", "Base"));
-            Assert.IsNull(CategoryKindHelper.ResolveEffective(CategoryKindHelper.None, "Base", "Base"), "None on the category says it has none");
-            Assert.AreEqual("Subset", CategoryKindHelper.ResolveEffective(null, "Subset", "Base"));
-            Assert.AreEqual("Base", CategoryKindHelper.ResolveEffective(null, null, "Base"));
-            Assert.IsNull(CategoryKindHelper.ResolveEffective(null, CategoryKindHelper.None, "Base"), "a legacy override with no kind cleared the provider's");
+            Assert.AreEqual("DLC", CategoryKindHelper.ResolveEffective("DLC", "Base"));
+            Assert.IsNull(CategoryKindHelper.ResolveEffective(CategoryKindHelper.None, "Base"), "None on the category says it has none");
+            Assert.AreEqual("Base", CategoryKindHelper.ResolveEffective(null, "base"));
+            Assert.IsNull(CategoryKindHelper.ResolveEffective(null, null));
         }
     }
 }
