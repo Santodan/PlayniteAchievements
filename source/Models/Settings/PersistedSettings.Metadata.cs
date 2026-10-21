@@ -48,13 +48,29 @@ namespace PlayniteAchievements.Models.Settings
                 "RetroAchievements", "Hoyoverse", "BattleNet", "GameJolt", "Exophase"
             };
 
+        /// <summary>
+        /// Platforms whose games no source has, so they take nothing from a source and have no
+        /// choices at all.
+        /// </summary>
+        public static readonly IReadOnlyCollection<string> NoSourceProviders =
+            new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+            {
+                "RetroAchievements", "BattleNet", "GameJolt", "Riot", "FFXIV", "Minecraft", "GW2", "Hypixel", "Hoyoverse"
+            };
+
+        /// <summary>Whether a platform can take any field from a source; the defaults row (null) can.</summary>
+        public static bool TakesSources(string providerKey) =>
+            string.IsNullOrWhiteSpace(providerKey) || !NoSourceProviders.Contains(providerKey.Trim());
+
         /// <summary>Whether a platform can take points from a source; the defaults row (null) can.</summary>
         public static bool TakesPoints(string providerKey) =>
-            string.IsNullOrWhiteSpace(providerKey) || !OwnPointsProviders.Contains(providerKey.Trim());
+            TakesSources(providerKey) &&
+            (string.IsNullOrWhiteSpace(providerKey) || !OwnPointsProviders.Contains(providerKey.Trim()));
 
         /// <summary>Whether a platform can take trophy types from a source; the defaults row (null) can.</summary>
         public static bool TakesTrophyTypes(string providerKey) =>
-            string.IsNullOrWhiteSpace(providerKey) || !OwnTrophyTypeProviders.Contains(providerKey.Trim());
+            TakesSources(providerKey) &&
+            (string.IsNullOrWhiteSpace(providerKey) || !OwnTrophyTypeProviders.Contains(providerKey.Trim()));
 
         public string Icons { get; set; }
 
@@ -193,10 +209,25 @@ namespace PlayniteAchievements.Models.Settings
 
         /// <summary>
         /// The effective choices for a game: each field from the game's own choices where set,
-        /// else its platform's override, else the defaults.
+        /// else its platform's override, else the defaults. A platform no source has
+        /// (<see cref="MetadataChoices.NoSourceProviders"/>) gets Off everywhere, whatever is stored.
         /// </summary>
         public MetadataChoices ResolveMetadataChoices(string providerKey, MetadataChoices game = null)
         {
+            if (!MetadataChoices.TakesSources(providerKey))
+            {
+                return new MetadataChoices
+                {
+                    Icons = string.Empty,
+                    Categories = string.Empty,
+                    Tags = string.Empty,
+                    Rarity = string.Empty,
+                    CapstoneArt = string.Empty,
+                    TrophyTypes = string.Empty,
+                    Points = string.Empty
+                };
+            }
+
             var defaults = ResolvePlatformDefaults(providerKey);
             MetadataChoices platform = null;
             if (!string.IsNullOrWhiteSpace(providerKey))
