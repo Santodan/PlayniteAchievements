@@ -70,6 +70,21 @@ namespace PlayniteAchievements.Providers.Metadata.TrueGaming
             }
         }
 
+        /// <summary>Each site looked at for <paramref name="name"/>, in lookup order, with its page or null for none.</summary>
+        public IReadOnlyList<(TrueGamingSite Site, string PageSlug)> GetPages(Guid gameId, string name)
+        {
+            var pages = new List<(TrueGamingSite Site, string PageSlug)>();
+            foreach (var site in TrueGamingSite.LookupOrder)
+            {
+                if (TryGet(gameId, name, site, out var pageSlug))
+                {
+                    pages.Add((site, pageSlug));
+                }
+            }
+
+            return pages;
+        }
+
         /// <summary>Forgets the game's pages, so every site is looked at again.</summary>
         public void Clear(Guid gameId)
         {
