@@ -85,11 +85,25 @@ namespace PlayniteAchievements.Providers.Metadata
         string ShownLink(string linkId);
     }
 
-    /// <summary>A source whose link leads to pages a browser can open, shown as buttons on the game's link row.</summary>
+    /// <summary>A source whose link leads to pages a browser can open, from the game's link row.</summary>
     internal interface IMetadataPageLinks
     {
-        /// <summary>The addresses of the pages the link uses for the game, in the source's order; empty when none is known.</summary>
-        IReadOnlyList<string> PageUrls(Guid gameId, string linkId, string servicingProviderKey);
+        /// <summary>The pages the link uses for the game, in the source's order; empty when none is known.</summary>
+        IReadOnlyList<MetadataPageLink> PageLinks(Guid gameId, string linkId, string servicingProviderKey);
+    }
+
+    /// <summary>One page a link uses: a short name for it ("TrueTrophies", a set's page name) and its address.</summary>
+    internal sealed class MetadataPageLink
+    {
+        public MetadataPageLink(string label, string url)
+        {
+            Label = label;
+            Url = url;
+        }
+
+        public string Label { get; }
+
+        public string Url { get; }
     }
 
     /// <summary>
