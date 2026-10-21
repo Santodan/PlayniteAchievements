@@ -329,6 +329,7 @@
                             <!-- The game's own source per field; "Default" follows its platform. -->
                             <metadata:MetadataChoicesGrid DataContext="{Binding ChoiceRows}"
                                                           ShowsRarity="False"
+                                                          ShowsPlatform="False"
                                                           Margin="0,4,0,8" />
                             <ItemsControl ItemsSource="{Binding Rows}" Focusable="False" Grid.IsSharedSizeScope="True">
                                 <ItemsControl.ItemTemplate>
