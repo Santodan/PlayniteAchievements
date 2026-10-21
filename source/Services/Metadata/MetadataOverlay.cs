@@ -246,7 +246,7 @@ namespace PlayniteAchievements.Services.Metadata
                     _links?.Snapshots?.Record(
                         gameId,
                         pair.Key,
-                        pair.Value.Set.LinkId,
+                        pair.Value.LinkId,
                         pair.Value.Set.Achievements,
                         pair.Value.Matches.Select(match => new KeyValuePair<string, string>(match.Target.ApiName, match.Source.ApiName)));
                 }
@@ -429,6 +429,8 @@ namespace PlayniteAchievements.Services.Metadata
                 }
 
                 var set = await provider.FetchAsync(request, linkId, ct).ConfigureAwait(false);
+                // The id the game's link holds after this fetch, which the match list is kept under.
+                var storedId = linkId;
                 if (set == null || set.Achievements.Count == 0)
                 {
                     if (unconfirmed == null)
@@ -466,14 +468,16 @@ namespace PlayniteAchievements.Services.Metadata
                     }
 
                     _links?.SetAuto(gameId, provider.Key, ExtendedOr(set, linkId), unconfirmed.Label);
+                    storedId = ExtendedOr(set, linkId);
                 }
                 else if (!request.LinkIsUserSet && !string.IsNullOrWhiteSpace(set.ExtendedLinkId) &&
                          !string.Equals(set.ExtendedLinkId.Trim(), linkId, StringComparison.OrdinalIgnoreCase))
                 {
                     _links?.ExtendAuto(gameId, provider.Key, set.ExtendedLinkId);
+                    storedId = set.ExtendedLinkId.Trim();
                 }
 
-                return (new MatchedSet(set, matches), false);
+                return (new MatchedSet(set, matches, storedId), false);
             }
             catch (OperationCanceledException)
             {
@@ -847,13 +851,17 @@ namespace PlayniteAchievements.Services.Metadata
 
         private sealed class MatchedSet
         {
-            public MatchedSet(AchievementSourceSet set, List<AchievementMatch> matches)
+            public MatchedSet(AchievementSourceSet set, List<AchievementMatch> matches, string linkId)
             {
                 Set = set;
                 Matches = matches;
+                LinkId = linkId;
             }
 
             public AchievementSourceSet Set { get; }
+
+            /// <summary>The id the game's link holds, which can differ from the fetched one when the source extended it.</summary>
+            public string LinkId { get; }
 
             public List<AchievementMatch> Matches { get; }
         }
