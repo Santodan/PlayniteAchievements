@@ -545,8 +545,8 @@
 
     <!-- Timeline: the reused LiveCharts column chart with range buttons, identical at every size. -->
     <DataTemplate DataType="{x:Type widgets:TimelineWidgetViewModel}">
-        <!-- The window, bar width and platform split are widget settings; with Show Control Bar
-             on they are also set here, above the chart, and saved back to the widget. -->
+        <!-- The window, bar width and platform split are widget settings; the controls the
+             widget's settings show also set them here, below the chart, and save them back. -->
         <DockPanel>
         <DockPanel DockPanel.Dock="Bottom"
                    LastChildFill="True"
@@ -557,6 +557,7 @@
             <ToggleButton DockPanel.Dock="Right"
                           Style="{DynamicResource PlayAch.ToggleButton.BaseStyle}"
                           IsChecked="{Binding SplitByPlatform, Mode=TwoWay}"
+                          Visibility="{Binding ShowSplitControl, Converter={StaticResource BoolToVis}}"
                           Width="34"
                           Padding="0"
                           Margin="{DynamicResource PlayAch.Thickness.Left.Xs}"
@@ -574,7 +575,8 @@
                                        Granularity="{Binding Timeline.Granularity, Mode=TwoWay}"
                                        UnavailableGranularities="{Binding Timeline.UnavailableGranularities}"
                                        ShowGranularity="True"
-                                       MinDate="{Binding Timeline.EarliestDate}"/>
+                                       MinDate="{Binding Timeline.EarliestDate}"
+                                       Visibility="{Binding ShowTimeWindowControl, Converter={StaticResource BoolToVis}}"/>
         </DockPanel>
         <controls:UnlockTimelineChart Series="{Binding Timeline.TimelineSeries}"
                                       Labels="{Binding Timeline.TimelineLabels}"
@@ -741,7 +743,7 @@
                                                  ColumnSettingsKey="{Binding ColumnSettingsKey}"
                                                  PinCollectionId="{Binding PinCollectionId}"
                                                  ControlBar="{Binding ControlBar}"
-                                                 ShowControlBar="{Binding GridOptions.ShowControlBar, FallbackValue=False}"
+                                                 ShowControlBar="{Binding ShowControlBar}"
                                                  EnablePinReorder="True"
                                                  ShowColumnHeaders="{Binding GridOptions.ShowColumnHeaders, FallbackValue=True}"
                                                  FixedRowHeight="{Binding GridOptions.RowHeight, FallbackValue={x:Null}}"
@@ -757,7 +759,7 @@
                                           ColumnSettingsKey="{Binding ColumnSettingsKey}"
                                           PinCollectionId="{Binding PinCollectionId}"
                                           ControlBar="{Binding ControlBar}"
-                                          ShowControlBar="{Binding GridOptions.ShowControlBar, FallbackValue=False}"
+                                          ShowControlBar="{Binding ShowControlBar}"
                                           EnablePinReorder="{Binding PinReorderEnabled}"
                                           ShowColumnHeaders="{Binding GridOptions.ShowColumnHeaders, FallbackValue=True}"
                                           FixedRowHeight="{Binding GridOptions.RowHeight, FallbackValue={x:Null}}"
@@ -773,7 +775,7 @@
         <showcase:ShowcaseAchievementGridControl ItemsSource="{Binding Items}"
                                                  ColumnSettingsKey="{Binding ColumnSettingsKey}"
                                                  ControlBar="{Binding ControlBar}"
-                                                 ShowControlBar="{Binding GridOptions.ShowControlBar, FallbackValue=False}"
+                                                 ShowControlBar="{Binding ShowControlBar}"
                                                  ShowColumnHeaders="{Binding GridOptions.ShowColumnHeaders, FallbackValue=True}"
                                                  FixedRowHeight="{Binding GridOptions.RowHeight, FallbackValue={x:Null}}"
                                                  UseCoverImages="{Binding GridOptions.UseCoverImages, FallbackValue=False}"
@@ -787,7 +789,7 @@
         <showcase:ShowcaseGameGridControl ItemsSource="{Binding Items}"
                                           ColumnSettingsKey="{Binding ColumnSettingsKey}"
                                           ControlBar="{Binding ControlBar}"
-                                          ShowControlBar="{Binding GridOptions.ShowControlBar, FallbackValue=False}"
+                                          ShowControlBar="{Binding ShowControlBar}"
                                           ShowColumnHeaders="{Binding GridOptions.ShowColumnHeaders, FallbackValue=True}"
                                           FixedRowHeight="{Binding GridOptions.RowHeight, FallbackValue={x:Null}}"
                                           UseCoverImages="{Binding GridOptions.UseCoverImages, FallbackValue=False}"
@@ -1170,8 +1172,8 @@
                                                       VerticalAlignment="Top"/>
                 </ScrollViewer>
             </Grid>
-            <!-- With Show Control Bar on, the calendar's window is set here, on the legend's
-                 line, and saved back to the widget. -->
+            <!-- When the widget's settings show it, the calendar's window is set here, on the
+                 legend's line, and saved back to the widget. -->
             <controls:TimeWindowPicker Grid.Row="1"
                                        Margin="0,4,8,0"
                                        HorizontalAlignment="Left"
