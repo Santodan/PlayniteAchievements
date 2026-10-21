@@ -26,22 +26,28 @@ namespace PlayniteAchievements.Services.Metadata
         private readonly MetadataLinkStore _links;
         private readonly ILogger _logger;
         private readonly CategoryArtDownload _downloadCategoryArt;
+        private readonly Func<Guid, GameAchievementData> _loadStored;
 
         /// <param name="downloadCategoryArt">
         /// Saves a source's category art for the categories it gave a game; null keeps none.
+        /// </param>
+        /// <param name="loadStored">
+        /// The game's last saved data, whose values a source that fails keeps; null keeps none.
         /// </param>
         public MetadataOverlay(
             Func<IReadOnlyList<IMetadataProvider>> providers,
             Func<PersistedSettings> settings,
             MetadataLinkStore links,
             ILogger logger,
-            CategoryArtDownload downloadCategoryArt = null)
+            CategoryArtDownload downloadCategoryArt = null,
+            Func<Guid, GameAchievementData> loadStored = null)
         {
             _providers = providers;
             _settings = settings;
             _links = links;
             _logger = logger;
             _downloadCategoryArt = downloadCategoryArt;
+            _loadStored = loadStored;
         }
 
         public MetadataLinkStore Links => _links;
@@ -54,7 +60,8 @@ namespace PlayniteAchievements.Services.Metadata
                 _settings?.Invoke(),
                 _links,
                 _logger,
-                _downloadCategoryArt);
+                _downloadCategoryArt,
+                _loadStored);
         }
     }
 
@@ -84,8 +91,10 @@ namespace PlayniteAchievements.Services.Metadata
             PersistedSettings settings,
             MetadataLinkStore links,
             ILogger logger,
-            CategoryArtDownload downloadCategoryArt = null)
+            CategoryArtDownload downloadCategoryArt = null,
+            Func<Guid, GameAchievementData> loadStored = null)
         {
+            _loadStored = loadStored;
             _providersByKey = (providers ?? Array.Empty<IMetadataProvider>())
                 .Where(provider => provider != null && !string.IsNullOrWhiteSpace(provider.Key))
                 .GroupBy(provider => provider.Key, StringComparer.OrdinalIgnoreCase)
@@ -97,6 +106,7 @@ namespace PlayniteAchievements.Services.Metadata
         }
 
         private readonly CategoryArtDownload _downloadCategoryArt;
+        private readonly Func<Guid, GameAchievementData> _loadStored;
 
         /// <summary>
         /// Applies the enabled metadata fields to the payload. Returns true when the game's icon
@@ -118,25 +128,55 @@ namespace PlayniteAchievements.Services.Metadata
             }
 
             var sets = new Dictionary<string, MatchedSet>(StringComparer.OrdinalIgnoreCase);
+            var failed = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             foreach (var key in plan.AllKeys)
             {
                 ct.ThrowIfCancellationRequested();
-                var matched = await LoadMatchedSetAsync(key, gameId, request, data.Achievements, ct).ConfigureAwait(false);
+                var (matched, fetchFailed) = await LoadMatchedSetAsync(key, gameId, request, data.Achievements, ct).ConfigureAwait(false);
                 if (matched != null)
                 {
                     sets[key] = matched;
                 }
+                else if (fetchFailed)
+                {
+                    failed.Add(key);
+                }
             }
+
+            // A source that could not answer leaves the game as its last refresh saved it, never blank.
+            var previous = failed.Count > 0 ? _links?.GetApplied(gameId) : null;
+            var stored = failed.Count > 0 ? StoredByApiName(gameId) : null;
 
             var ownIcons = new Dictionary<string, OwnIconPaths>(StringComparer.OrdinalIgnoreCase);
             var iconSource = ApplyIcons(plan.IconKeys, sets, ownIcons);
             var borrowedIconApiNames = ownIcons.Keys.ToList();
+            if (iconSource == null && plan.IconKeys.Any(failed.Contains) &&
+                previous?.IconSourceKey != null && failed.Contains(previous.IconSourceKey))
+            {
+                iconSource = previous.IconSourceKey;
+                borrowedIconApiNames = previous.IconApiNames ?? new List<string>();
+                var borrowed = new HashSet<string>(borrowedIconApiNames, StringComparer.OrdinalIgnoreCase);
+                KeepStored(data.Achievements, stored, row => borrowed.Contains(row.ApiName ?? string.Empty), (target, old) =>
+                {
+                    target.UnlockedIconPath = old.UnlockedIconPath;
+                    target.LockedIconPath = old.LockedIconPath;
+                });
+            }
             if (ownIcons.Count > 0)
             {
                 _ownIcons[gameId] = ownIcons;
             }
             Replace(plan.CategoryKeys, sets, ApplyCategory);
             Replace(plan.TagKeys, sets, ApplyTags);
+            if (plan.CategoryKeys.Any(failed.Contains))
+            {
+                KeepStored(data.Achievements, stored, _ => true, ApplyCategory);
+            }
+
+            if (plan.TagKeys.Any(failed.Contains))
+            {
+                KeepStored(data.Achievements, stored, _ => true, ApplyTags);
+            }
             var categoryArt = CollectCategoryArt(plan.CategoryKeys, sets);
             if (categoryArt.Count > 0 && _downloadCategoryArt != null)
             {
@@ -154,8 +194,26 @@ namespace PlayniteAchievements.Services.Metadata
                 sets,
                 source => source.Points.HasValue,
                 (target, source) => target.Points = source.Points);
+            if (plan.TrophyTypeKeys.Any(failed.Contains))
+            {
+                KeepStored(data.Achievements, stored, _ => true, (target, old) => target.TrophyType = old.TrophyType ?? target.TrophyType);
+            }
+
+            if (plan.PointsKeys.Any(failed.Contains))
+            {
+                KeepStored(data.Achievements, stored, _ => true, (target, old) => target.Points = old.Points ?? target.Points);
+            }
+
             var capstone = ResolveCapstone(plan.CapstoneArtKeys, sets);
             var capstoneArt = FirstNonBlank(capstone?.UnlockedIconPath, capstone?.LockedIconPath);
+            var capstoneTitle = capstone?.DisplayName;
+            var capstoneDescription = capstone?.Description;
+            if (capstone == null && plan.CapstoneArtKeys.Any(failed.Contains) && previous != null)
+            {
+                capstoneArt = previous.CapstoneArtUrl;
+                capstoneTitle = previous.CapstoneTitle;
+                capstoneDescription = previous.CapstoneDescription;
+            }
             // A source that supplies achievement data is judged, and shown, by how many of the
             // game's achievements it matched; one used only for the auto capstone by its platinum.
             var coverage = new Dictionary<string, MetadataCoverage>(StringComparer.OrdinalIgnoreCase);
@@ -180,14 +238,22 @@ namespace PlayniteAchievements.Services.Metadata
                 }
             }
 
+            foreach (var key in failed)
+            {
+                if (previous?.Coverage != null && previous.Coverage.TryGetValue(key, out var kept))
+                {
+                    coverage[key] = kept;
+                }
+            }
+
             return _links?.RecordApplied(
                 gameId,
                 iconSource,
                 capstoneArt,
                 coverage,
                 borrowedIconApiNames,
-                capstone?.DisplayName,
-                capstone?.Description) ?? false;
+                capstoneTitle,
+                capstoneDescription) ?? false;
         }
 
         /// <summary>
@@ -315,7 +381,12 @@ namespace PlayniteAchievements.Services.Metadata
             };
         }
 
-        private async Task<MatchedSet> LoadMatchedSetAsync(
+        /// <summary>
+        /// The source's rows for the game, matched to its achievements. Failed is true when the
+        /// source could not answer (no session, an error, or nothing fetched for a link it had
+        /// already confirmed), as opposed to having no link or no match.
+        /// </summary>
+        private async Task<(MatchedSet Set, bool Failed)> LoadMatchedSetAsync(
             string key,
             Guid gameId,
             MetadataLinkRequest request,
@@ -327,19 +398,24 @@ namespace PlayniteAchievements.Services.Metadata
             {
                 if (!await BeginSessionAsync(provider, ct).ConfigureAwait(false))
                 {
-                    return null;
+                    return (null, true);
                 }
 
                 var (linkId, unconfirmed) = await ResolveLinkIdAsync(provider, gameId, request, ct).ConfigureAwait(false);
                 if (string.IsNullOrWhiteSpace(linkId))
                 {
-                    return null;
+                    return (null, false);
                 }
 
                 var set = await provider.FetchAsync(request, linkId, ct).ConfigureAwait(false);
                 if (set == null || set.Achievements.Count == 0)
                 {
-                    return null;
+                    if (unconfirmed == null)
+                    {
+                        _logger?.Debug($"[Metadata] {key} returned nothing for '{request.Game?.Name}' ({linkId}); previous values kept.");
+                    }
+
+                    return (null, unconfirmed == null);
                 }
 
                 // A port that reused the developer's achievement IDs pairs exactly by ID, in any
@@ -364,13 +440,13 @@ namespace PlayniteAchievements.Services.Metadata
                         _logger?.Debug(
                             $"[Metadata] {key} name match '{unconfirmed.Label ?? linkId}' rejected for '{request.Game?.Name}': " +
                             $"{matches.Count}/{targets.Count} achievements matched.");
-                        return null;
+                        return (null, false);
                     }
 
                     _links?.SetAuto(gameId, provider.Key, linkId, unconfirmed.Label);
                 }
 
-                return new MatchedSet(set, matches);
+                return (new MatchedSet(set, matches), false);
             }
             catch (OperationCanceledException)
             {
@@ -378,8 +454,53 @@ namespace PlayniteAchievements.Services.Metadata
             }
             catch (Exception ex)
             {
-                _logger?.Warn(ex, $"[Metadata] {key} failed for '{request.Game?.Name}'; provider data kept.");
-                return null;
+                _logger?.Warn(ex, $"[Metadata] {key} failed for '{request.Game?.Name}'; previous values kept.");
+                return (null, true);
+            }
+        }
+
+        /// <summary>The game's last saved achievements by ApiName; empty when there are none.</summary>
+        private Dictionary<string, AchievementDetail> StoredByApiName(Guid gameId)
+        {
+            var byApiName = new Dictionary<string, AchievementDetail>(StringComparer.OrdinalIgnoreCase);
+            try
+            {
+                foreach (var row in _loadStored?.Invoke(gameId)?.Achievements ?? Enumerable.Empty<AchievementDetail>())
+                {
+                    var apiName = row?.ApiName?.Trim();
+                    if (!string.IsNullOrEmpty(apiName) && !byApiName.ContainsKey(apiName))
+                    {
+                        byApiName[apiName] = row;
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger?.Debug(ex, $"[Metadata] Reading the stored achievements of {gameId} failed.");
+            }
+
+            return byApiName;
+        }
+
+        /// <summary>Copies a field from each achievement's saved row, for the achievements <paramref name="applies"/> selects.</summary>
+        private static void KeepStored(
+            IList<AchievementDetail> targets,
+            IReadOnlyDictionary<string, AchievementDetail> stored,
+            Func<AchievementDetail, bool> applies,
+            Action<AchievementDetail, AchievementDetail> copy)
+        {
+            if (stored == null || stored.Count == 0)
+            {
+                return;
+            }
+
+            foreach (var target in targets)
+            {
+                if (target?.ApiName != null && applies(target) &&
+                    stored.TryGetValue(target.ApiName.Trim(), out var old) && old != null)
+                {
+                    copy(target, old);
+                }
             }
         }
 
