@@ -208,6 +208,7 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
             ControlBar = _controlBarSlot.ShownBar;
 
             var adapter = _controlBarSlot.Adapter;
+            var collection = Projection?.Collection;
             var games = (snapshot.GameSummaries ?? new List<GameSummaryItem>())
                 .Where(game => game != null)
                 .ToList();
@@ -215,8 +216,12 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
             adapter.UpdateOptions(linked && Projection?.LinkedOptionGames != null
                 ? Projection.LinkedOptionGames.Where(game => game != null)
                 : games);
+            adapter.GameFilter.SetScope(collection?.GameIds);
 
-            var filtered = adapter.Apply(games);
+            // The widget's collection comes before the bar, so its games are all the bar offers.
+            var filtered = adapter.Apply(collection == null
+                ? games
+                : games.Where(game => collection.ContainsGame(game.PlayniteGameId)));
             if (filtered.Count == games.Count)
             {
                 return snapshot;
