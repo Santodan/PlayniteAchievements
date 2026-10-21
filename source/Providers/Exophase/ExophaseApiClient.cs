@@ -34,8 +34,7 @@ namespace PlayniteAchievements.Providers.Exophase
         private const int AchievementDomReadyPollAttempts = 8;
 
         // A public page's list can still be rendering when navigation ends (long lists stopped near
-        // 50 rows): after a first wait, its row count is read until it holds for two reads.
-        private const int AwardRowsFirstWaitMs = 1000;
+        // 50 rows): its row count is read until it holds for two reads.
         private const int AwardRowsPollDelayMs = 400;
         private const int AwardRowsPollAttempts = 10;
 
@@ -640,18 +639,17 @@ namespace PlayniteAchievements.Providers.Exophase
 
         /// <summary>
         /// Waits for a public page's award list to finish rendering: none when the page has no
-        /// list (a guessed page that does not exist), otherwise a first wait and then until the row
-        /// count holds for two reads, within a cap.
+        /// list (a guessed page that does not exist), otherwise until the row count holds for two
+        /// reads, within a cap.
         /// </summary>
         private async Task WaitForAwardRowsAsync(IWebView view, string url, CancellationToken ct)
         {
-            if (await CountAwardRowsAsync(view).ConfigureAwait(false) < 0)
+            var first = await CountAwardRowsAsync(view).ConfigureAwait(false);
+            if (first < 0)
             {
                 return;
             }
 
-            await Task.Delay(AwardRowsFirstWaitMs, ct).ConfigureAwait(false);
-            var first = await CountAwardRowsAsync(view).ConfigureAwait(false);
             var previous = first;
             var steady = 0;
             for (var attempt = 0; attempt < AwardRowsPollAttempts && steady < 2; attempt++)
