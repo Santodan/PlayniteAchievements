@@ -8,81 +8,60 @@ using System.Text.RegularExpressions;
 
 namespace PlayniteAchievements.Providers.Metadata.TrueGaming
 {
-    /// <summary>Page slugs and stored links of the TrueGaming source.</summary>
+    /// <summary>Page slugs and the one-name links of the TrueGaming source.</summary>
     internal static class TrueGamingLinks
     {
         private static readonly Regex PageAddress = new Regex(
-            @"^(?:https?://)?(?:www\.)?(trueachievements|truetrophies|truesteamachievements)\.com/game/([^/?#]+)",
+            @"^(?:https?://)?(?:www\.)?(?:trueachievements|truetrophies|truesteamachievements)\.com/game/([^/?#]+)",
             RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
 
+        // A link stored before links became one name ("ta:Hades, tt:Hades-PS5").
         private static readonly Regex SitePrefix = new Regex(
-            @"^(ta|tt|tsa):(.+)$", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+            @"^(?:ta|tt|tsa):", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
 
         /// <summary>
-        /// A stored or pasted link: a bare slug for the platform's own site, a slug with a site
-        /// prefix (<c>ta:</c>, <c>tt:</c>, <c>tsa:</c>), or a page address on any of the three sites.
+        /// The one page name a link stands for on every site, without an edition suffix: from a
+        /// name ("Elden-Ring"), a pasted address on any of the three sites, or a list stored by an
+        /// earlier version (its first page). Null when nothing usable is given.
         /// </summary>
-        internal static bool TryParse(string linkId, string servicingProviderKey, out TrueGamingSite site, out string slug)
+        internal static string Normalize(string linkId)
         {
-            site = TrueGamingSite.For(servicingProviderKey);
-            slug = (linkId ?? string.Empty).Trim().Trim('/');
+            var slug = SitePrefix.Replace(((linkId ?? string.Empty).Split(',')[0]).Trim(), string.Empty).Trim().Trim('/');
             var address = PageAddress.Match(slug);
-            var prefixed = SitePrefix.Match(slug);
-            if (prefixed.Success)
+            if (address.Success)
             {
-                site = TrueGamingSite.ByPrefix(prefixed.Groups[1].Value) ?? site;
-                slug = prefixed.Groups[2].Value.Trim().Trim('/');
-            }
-            else if (address.Success)
-            {
-                site = TrueGamingSite.ByName(address.Groups[1].Value) ?? site;
-                slug = address.Groups[2].Value;
+                slug = address.Groups[1].Value;
             }
             else if (slug.StartsWith("game/", StringComparison.OrdinalIgnoreCase))
             {
                 slug = slug.Substring("game/".Length).Split('/')[0];
             }
 
-            return slug.Length > 0 && slug.IndexOfAny(new[] { '/', '?', '#', ' ' }) < 0;
+            if (slug.Length == 0 || slug.IndexOfAny(new[] { '/', '?', '#', ' ', ':' }) >= 0)
+            {
+                return null;
+            }
+
+            return BaseSlug(slug);
         }
 
-        /// <summary>
-        /// The pages a link names, comma-separated ("ELDEN-RING, tt:ELDEN-RING"), one per site in
-        /// lookup order; a part that does not parse is skipped, as is a second page on one site.
-        /// </summary>
-        internal static List<(TrueGamingSite Site, string Slug)> ParsePages(string linkId, string servicingProviderKey)
+        /// <summary>A slug without any site's edition suffix ("Elden-Ring-PS5" as "Elden-Ring").</summary>
+        internal static string BaseSlug(string slug)
         {
-            var pages = new List<(TrueGamingSite Site, string Slug)>();
-            foreach (var part in (linkId ?? string.Empty).Split(','))
+            foreach (var suffix in TrueGamingSite.LookupOrder.SelectMany(site => site.Suffixes))
             {
-                if (TryParse(part, servicingProviderKey, out var site, out var slug) && pages.All(page => page.Site != site))
+                if (slug != null && slug.Length > suffix.Length && slug.EndsWith(suffix, StringComparison.OrdinalIgnoreCase))
                 {
-                    pages.Add((site, slug));
+                    return slug.Substring(0, slug.Length - suffix.Length);
                 }
             }
 
-            return pages.OrderBy(page => IndexOf(page.Site)).ToList();
+            return slug;
         }
 
-        /// <summary>The stored link of <paramref name="pages"/>, in lookup order.</summary>
-        internal static string Format(IEnumerable<(TrueGamingSite Site, string Slug)> pages, string servicingProviderKey) =>
-            string.Join(", ", (pages ?? Enumerable.Empty<(TrueGamingSite Site, string Slug)>())
-                .OrderBy(page => IndexOf(page.Site))
-                .Select(page => page.Site.LinkId(page.Slug, servicingProviderKey)));
-
-        private static int IndexOf(TrueGamingSite site)
-        {
-            for (var i = 0; i < TrueGamingSite.LookupOrder.Count; i++)
-            {
-                if (TrueGamingSite.LookupOrder[i] == site)
-                {
-                    return i;
-                }
-            }
-
-            return int.MaxValue;
-        }
-
+        /// <summary>The slugs a site's page for <paramref name="slug"/> may have: the name, then with each edition suffix.</summary>
+        internal static IEnumerable<string> SlugsFor(TrueGamingSite site, string slug) =>
+            new[] { slug }.Concat(site.Suffixes.Select(suffix => slug + suffix));
         /// <summary>The site slugs to try for each name: each name's slug, then with each suffix.</summary>
         internal static IEnumerable<string> CandidateSlugs(IEnumerable<string> names, IReadOnlyList<string> suffixes)
         {
@@ -150,7 +129,7 @@ namespace PlayniteAchievements.Providers.Metadata.TrueGaming
 
         public string Name { get; }
 
-        /// <summary>The short site tag of a stored link to a site other than the platform's own.</summary>
+        /// <summary>The short site tag ("ta", "tt", "tsa"), used in diagnosis file names.</summary>
         public string Prefix { get; }
 
         public string Host { get; }
@@ -176,16 +155,5 @@ namespace PlayniteAchievements.Providers.Metadata.TrueGaming
         /// </summary>
         public static readonly IReadOnlyList<TrueGamingSite> LookupOrder =
             new[] { TrueAchievements, TrueTrophies, TrueSteamAchievements };
-
-        /// <summary>The stored link of a page: the bare slug on the platform's own site, else the slug with the site's prefix.</summary>
-        public string LinkId(string slug, string servicingProviderKey) =>
-            For(servicingProviderKey) == this ? slug : $"{Prefix}:{slug}";
-
-        public static TrueGamingSite ByPrefix(string prefix) =>
-            LookupOrder.FirstOrDefault(site => string.Equals(site.Prefix, prefix, StringComparison.OrdinalIgnoreCase));
-
-        public static TrueGamingSite ByName(string name) =>
-            new[] { TrueAchievements, TrueTrophies, TrueSteamAchievements }
-                .FirstOrDefault(site => string.Equals(site.Name, name, StringComparison.OrdinalIgnoreCase));
     }
 }
