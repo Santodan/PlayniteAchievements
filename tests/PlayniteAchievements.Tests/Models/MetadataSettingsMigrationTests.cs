@@ -39,6 +39,27 @@ namespace PlayniteAchievements.Tests.Models
         }
 
         [TestMethod]
+        public void CategoryChoices_AreCopiedIntoTags_Once()
+        {
+            const string json = @"{ ""Persisted"": {
+                ""MetadataChoicesSeeded"": true,
+                ""MetadataDefaults"": { ""Categories"": """" },
+                ""MetadataPlatformChoices"": {
+                    ""Steam"": { ""Categories"": ""SteamHunters"" },
+                    ""Xbox"": { ""Rarity"": ""Exophase"" },
+                    ""GOG"": { ""Categories"": ""SteamHunters"", ""Tags"": """" } } } }";
+
+            var migrated = MetadataSettingsMigration.MigrateFromJson(json);
+            var persisted = (JObject)JObject.Parse(migrated)["Persisted"];
+            Assert.AreEqual("", (string)persisted["MetadataDefaults"]["Tags"]);
+            Assert.AreEqual("SteamHunters", (string)persisted["MetadataPlatformChoices"]["Steam"]["Tags"]);
+            Assert.IsNull(persisted["MetadataPlatformChoices"]["Xbox"]["Tags"]);
+            Assert.AreEqual("", (string)persisted["MetadataPlatformChoices"]["GOG"]["Tags"]);
+            Assert.IsTrue((bool)persisted["MetadataTagChoicesSeeded"]);
+            Assert.AreEqual(migrated, MetadataSettingsMigration.MigrateFromJson(migrated));
+        }
+
+        [TestMethod]
         public void ExistingChoices_AreKept_AndTheSeedRunsOnce()
         {
             const string json = @"{ ""Persisted"": {
