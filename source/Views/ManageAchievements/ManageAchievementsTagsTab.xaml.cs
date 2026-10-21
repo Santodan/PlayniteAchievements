@@ -54,6 +54,13 @@ namespace PlayniteAchievements.Views.ManageAchievements
             };
         }
 
+        /// <summary>Opens Settings on the Metadata tab, where the global list is edited.</summary>
+        private void OpenGlobalTagsSettings_Click(object sender, RoutedEventArgs e)
+        {
+            PlayniteAchievementsPlugin.Instance?.OpenSettingsAt(
+                new Models.Settings.SettingsNavigationRequest(Models.Settings.SettingsNavigationRequest.MetadataTab));
+        }
+
         private void ShowGlobalTags()
         {
             GlobalTags.ItemsSource = AchievementTagRegistry.Global
