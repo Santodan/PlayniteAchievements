@@ -42,14 +42,11 @@ namespace PlayniteAchievements.Tests.Providers
         }
 
         [TestMethod]
-        public void Lookup_TriesTheOwnSiteFirst_AndStoresOtherSitesAsAddresses()
+        public void Lookup_TriesEverySite_AndStoresOtherSitesAsAddresses()
         {
             CollectionAssert.AreEqual(
-                new[] { "truesteamachievements", "trueachievements", "truetrophies" },
-                TrueGamingSite.LookupOrder("Steam").Select(site => site.Name).ToList());
-            CollectionAssert.AreEqual(
-                new[] { "truetrophies", "trueachievements", "truesteamachievements" },
-                TrueGamingSite.LookupOrder("PSN").Select(site => site.Name).ToList());
+                new[] { "trueachievements", "truetrophies", "truesteamachievements" },
+                TrueGamingSite.LookupOrder.Select(site => site.Name).ToList());
 
             var link = TrueGamingSite.TrueAchievements.LinkId("ELDEN-RING-NIGHTREIGN", "Steam");
             Assert.IsTrue(TrueGamingLinks.TryParse(link, "Steam", out var site, out var slug));
