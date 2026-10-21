@@ -85,6 +85,13 @@ namespace PlayniteAchievements.Providers.Metadata
         string ShownLink(string linkId);
     }
 
+    /// <summary>A source whose link leads to pages a browser can open, shown as buttons on the game's link row.</summary>
+    internal interface IMetadataPageLinks
+    {
+        /// <summary>The addresses of the pages the link uses for the game, in the source's order; empty when none is known.</summary>
+        IReadOnlyList<string> PageUrls(Guid gameId, string linkId, string servicingProviderKey);
+    }
+
     /// <summary>
     /// Several metadata sources that share one implementation, such as the Exophase pages of
     /// different platforms. Discovered by reflection like a provider; each of its providers is
