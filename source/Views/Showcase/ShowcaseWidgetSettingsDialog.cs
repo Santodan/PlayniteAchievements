@@ -5,6 +5,7 @@ using System.Windows.Controls;
 using System.Windows.Media;
 using Playnite.SDK;
 using PlayniteAchievements.Common;
+using PlayniteAchievements.Models;
 using PlayniteAchievements.Models.Settings;
 using PlayniteAchievements.Views.Helpers;
 using static PlayniteAchievements.Views.Showcase.ShowcaseUiText;
@@ -170,9 +171,8 @@ namespace PlayniteAchievements.Views.Showcase
             {
                 _sourceWidget.CustomTitle = _titleBox.Text?.Trim();
             }
-            _sourceWidget.Options = new Dictionary<string, string>(
-                _workingWidget.Options ?? new Dictionary<string, string>(),
-                StringComparer.OrdinalIgnoreCase);
+            // The control bar rows edit the live filters, so their saved state stays the source's.
+            _sourceWidget.Options = ShowcaseWidgetOptions.MergeEditedOptions(_sourceWidget, _workingWidget);
             if (_sourceWidget.Kind == ShowcaseWidgetKind.Profile && _profileEditor != null)
             {
                 // Per widget, so the card on a duplicated page is edited on its own.
