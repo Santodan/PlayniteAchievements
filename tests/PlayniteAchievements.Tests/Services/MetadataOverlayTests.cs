@@ -680,6 +680,7 @@ namespace PlayniteAchievements.Tests.Services
             Assert.IsTrue(overlay.Links.TryGet(gameId, trueGaming.Key, out var extended));
             Assert.AreEqual("X, tt:X", extended.Id);
             Assert.AreEqual("t1", extended.Pairings["s1"], "pairings stay with the extended link");
+            Assert.IsNotNull(overlay.Links.Snapshots?.Get(gameId, trueGaming.Key, "X, tt:X"), "the match list is kept under the link the game holds");
 
             overlay.Links.SetUser(gameId, trueGaming.Key, "X");
             var next = Game("Steam", Row("s1", "One"));
