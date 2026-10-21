@@ -194,6 +194,21 @@ namespace PlayniteAchievements.Services.Metadata
                 sets,
                 source => source.Points.HasValue,
                 (target, source) => target.Points = source.Points);
+            // A source's rarity is its players' share of unlocks; it replaces the platform's tier
+            // wherever the source has a share for the achievement.
+            Replace(plan.RarityKeys, sets, ApplyRarity);
+            if (plan.RarityKeys.Any(failed.Contains))
+            {
+                KeepStored(data.Achievements, stored, _ => true, (target, old) =>
+                {
+                    if (old.GlobalPercentUnlocked.HasValue)
+                    {
+                        target.GlobalPercentUnlocked = old.GlobalPercentUnlocked;
+                        target.Rarity = old.Rarity;
+                    }
+                });
+            }
+
             if (plan.TrophyTypeKeys.Any(failed.Contains))
             {
                 KeepStored(data.Achievements, stored, _ => true, (target, old) => target.TrophyType = old.TrophyType ?? target.TrophyType);
@@ -364,6 +379,7 @@ namespace PlayniteAchievements.Services.Metadata
                 Chosen(choices.Icons, MetadataField.Icons),
                 Chosen(choices.Categories, MetadataField.Categories),
                 Chosen(choices.Tags, MetadataField.Tags),
+                Chosen(choices.Rarity, MetadataField.Rarity),
                 Chosen(choices.CapstoneArt, MetadataField.CapstoneArt),
                 Chosen(choices.TrophyTypes, MetadataField.TrophyTypes),
                 Chosen(choices.Points, MetadataField.Points));
@@ -744,6 +760,19 @@ namespace PlayniteAchievements.Services.Metadata
             }
         }
 
+        /// <summary>The source's unlock share and its rarity tier, where the source has a share.</summary>
+        internal static void ApplyRarity(AchievementDetail target, AchievementDetail source)
+        {
+            if (!source.GlobalPercentUnlocked.HasValue)
+            {
+                return;
+            }
+
+            var percent = Math.Max(0, Math.Min(100, source.GlobalPercentUnlocked.Value));
+            target.GlobalPercentUnlocked = percent;
+            target.Rarity = PercentRarityHelper.GetRarityTier(percent);
+        }
+
         /// <summary>Replaces an achievement's category and kind with the source's.</summary>
         internal static void ApplyCategory(AchievementDetail target, AchievementDetail source)
         {
@@ -824,6 +853,7 @@ namespace PlayniteAchievements.Services.Metadata
                 List<string> iconKeys,
                 List<string> categoryKeys,
                 List<string> tagKeys,
+                List<string> rarityKeys,
                 List<string> capstoneArtKeys,
                 List<string> trophyTypeKeys,
                 List<string> pointsKeys)
@@ -831,10 +861,11 @@ namespace PlayniteAchievements.Services.Metadata
                 IconKeys = iconKeys;
                 CategoryKeys = categoryKeys;
                 TagKeys = tagKeys;
+                RarityKeys = rarityKeys;
                 CapstoneArtKeys = capstoneArtKeys;
                 TrophyTypeKeys = trophyTypeKeys;
                 PointsKeys = pointsKeys;
-                PerAchievementKeys = iconKeys.Concat(categoryKeys).Concat(tagKeys).Concat(trophyTypeKeys).Concat(pointsKeys)
+                PerAchievementKeys = iconKeys.Concat(categoryKeys).Concat(tagKeys).Concat(rarityKeys).Concat(trophyTypeKeys).Concat(pointsKeys)
                     .Distinct(StringComparer.OrdinalIgnoreCase)
                     .ToList();
                 AllKeys = PerAchievementKeys.Concat(capstoneArtKeys)
@@ -854,6 +885,8 @@ namespace PlayniteAchievements.Services.Metadata
             public List<string> CategoryKeys { get; }
 
             public List<string> TagKeys { get; }
+
+            public List<string> RarityKeys { get; }
 
             public List<string> CapstoneArtKeys { get; }
 
