@@ -2581,8 +2581,6 @@
                             <controls:CategoryPickerBox x:Name="CategoryPicker"
                                                         Categories="{Binding DataContext.AssignableCategoryOptions, RelativeSource={RelativeSource AncestorType=UserControl}}"
                                                         Placeholder="{DynamicResource LOCPlayAch_ManageAchievements_Category_InputPlaceholder}"
-                                                        AllowCreateNew="True"
-                                                        CreateNewText="{DynamicResource LOCPlayAch_ManageAchievements_Category_NewCategoryEllipsis}"
                                                         IsEnabled="{Binding CanEditAssignments}" />
 
                             <TextBlock Text="{DynamicResource LOCTagsLabel}"
