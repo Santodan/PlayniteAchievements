@@ -108,18 +108,21 @@ namespace PlayniteAchievements.Tests.Services
         }
 
         [TestMethod]
-        public void LegacyCategoryTypes_SplitsKindsFromTags()
+        public void LegacyCategoryTypes_KeepsTagsAndDropsKinds()
         {
             var entry = new AchievementOverride();
             LegacyCategoryTypes.ApplyTo(entry, "Base|Missable|Hardcore");
-            Assert.AreEqual("Base", entry.LegacyCategoryKind);
+            Assert.IsNull(entry.LegacyCategoryType);
             Assert.AreEqual("Missable", entry.Tags);
             Assert.IsFalse(entry.ClearTags);
 
             var cleared = new AchievementOverride();
             LegacyCategoryTypes.ApplyTo(cleared, "Default");
-            Assert.AreEqual(CategoryKindHelper.None, cleared.LegacyCategoryKind, "a Default override cleared the provider's kind");
-            Assert.IsTrue(cleared.ClearTags, "and every tag");
+            Assert.IsTrue(cleared.ClearTags, "a Default override cleared every tag");
+
+            var unlockModeOnly = new AchievementOverride();
+            LegacyCategoryTypes.ApplyTo(unlockModeOnly, "Hardcore");
+            Assert.IsTrue(unlockModeOnly.IsEmpty, "an unlock mode alone overrode nothing");
         }
     }
 }
