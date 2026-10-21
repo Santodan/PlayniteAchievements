@@ -99,11 +99,12 @@ namespace PlayniteAchievements.Models.Settings
         Game = 1
     }
 
+    // 2 was Pinned, now the Recent source with an achievement collection; a stored "Pinned" no
+    // longer parses (ShowcaseWidgetOptions.GetCollectionType reads it as that collection).
     public enum ShowcaseMosaicSource
     {
         Recent = 0,
         Rarest = 1,
-        Pinned = 2,
         Capstones = 3,
 
         /// <summary>
@@ -170,12 +171,26 @@ namespace PlayniteAchievements.Models.Settings
         Games = 1
     }
 
+    /// <summary>
+    /// Which pin collection a showcase widget is limited to: none, an achievement collection
+    /// (achievement widgets), or a game collection.
+    /// </summary>
+    public enum ShowcaseCollectionType
+    {
+        None = 0,
+        Achievements = 1,
+        Games = 2
+    }
+
     /// <summary>Row source for the collapsed Achievements Grid widget.</summary>
+    // 1 was Pinned, now the All source with an achievement collection.
     public enum ShowcaseAchievementGridSource
     {
-        /// <summary>Every unlocked achievement. Locked rows never mix in (not even pinned goals).</summary>
+        /// <summary>
+        /// Every unlocked achievement; with an achievement collection, that collection's pins in
+        /// pin order, locked ones included.
+        /// </summary>
         All = 0,
-        Pinned = 1,
 
         /// <summary>
         /// Locked achievements worth hunting next, from the same bounded candidate pool and options
@@ -185,10 +200,10 @@ namespace PlayniteAchievements.Models.Settings
     }
 
     /// <summary>Row source for the collapsed Game Summaries Grid widget.</summary>
+    // 1 was Pinned, now the Library source with a game collection.
     public enum ShowcaseGameGridSource
     {
         Library = 0,
-        Pinned = 1,
         PlayniteFavorites = 2,
 
         /// <summary>The unfinished games closest to done, as the Finish Next game mosaic ranks them.</summary>
@@ -242,11 +257,11 @@ namespace PlayniteAchievements.Models.Settings
         Bottom = 3
     }
 
+    // 2 was Pinned, now the All source with a game collection.
     public enum ShowcaseGameMosaicSource
     {
         Completed = 0,
         All = 1,
-        Pinned = 2,
         PlayniteFavorites = 3,
 
         /// <summary>
