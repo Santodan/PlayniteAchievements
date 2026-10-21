@@ -45,8 +45,8 @@ namespace PlayniteAchievements.Views.Converters
 
             if (!unlocked)
             {
-                AddTypeQualifier(qualifiers, values[5], "Missable");
-                AddTypeQualifier(qualifiers, values[6], "Unobtainable");            }
+                AddTagQualifier(qualifiers, values[5], "Missable");
+                AddTagQualifier(qualifiers, values[6], "Unobtainable");            }
 
             var state = ResourceProvider.GetString(unlocked ? "LOCPlayAch_Common_Unlocked" : "LOCPlayAch_Common_Locked");
             return qualifiers.Count == 0
@@ -61,11 +61,11 @@ namespace PlayniteAchievements.Views.Converters
 
         private static bool Flag(object value) => value is bool b && b;
 
-        private static void AddTypeQualifier(List<string> qualifiers, object flag, string categoryType)
+        private static void AddTagQualifier(List<string> qualifiers, object flag, string tag)
         {
             if (Flag(flag))
             {
-                qualifiers.Add(ResourceProvider.GetString("LOCPlayAch_ManageAchievements_Category_Type_" + categoryType));
+                qualifiers.Add(ResourceProvider.GetString("LOCPlayAch_AchievementTag_" + tag));
             }
         }
     }
