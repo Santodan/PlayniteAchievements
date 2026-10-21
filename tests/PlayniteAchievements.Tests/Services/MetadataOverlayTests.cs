@@ -642,6 +642,25 @@ namespace PlayniteAchievements.Tests.Services
         }
 
         [TestMethod]
+        public async Task UnavailableTags_KeepTheStoredTags_WhileCategoriesApply()
+        {
+            var trueGaming = new FakeSource("TrueGaming", MetadataField.Categories | MetadataField.Tags) { Unavailable = MetadataField.Tags };
+            trueGaming.Rows.Add(Row("t1", "One", category: "Pack"));
+            var data = Game("Steam", Row("s1", "One", category: "Own"));
+            var stored = Game("Steam", Row("s1", "One", category: "Old", type: "Missable"));
+            var overlay = Overlay(new[] { trueGaming }, Choices(categories: trueGaming.Key, tags: trueGaming.Key), loadStored: _ => stored);
+            overlay.Links.SetUser(data.PlayniteGameId.Value, trueGaming.Key, "link-TrueGaming");
+
+            using (var run = overlay.BeginRun())
+            {
+                await run.ApplyAsync(data.Game, data, CancellationToken.None);
+            }
+
+            Assert.AreEqual("Pack", data.Achievements[0].Category, "the page's categories still apply");
+            Assert.AreEqual("Missable", data.Achievements[0].Tags, "tags the page could not read stay as stored");
+        }
+
+        [TestMethod]
         public async Task Rarity_TakesTheSourcesShare_OnPlatformsThatUseIt()
         {
             var exophase = new FakeSource("Exophase", MetadataField.Rarity);
@@ -799,6 +818,9 @@ namespace PlayniteAchievements.Tests.Services
             /// <summary>The fetch throws, as a source does when its site cannot be reached.</summary>
             public bool FailFetch { get; set; }
 
+            /// <summary>Fields the fetched set reports it could not read.</summary>
+            public MetadataField Unavailable { get; set; }
+
             public string NativeFor { get; set; }
 
             public List<AchievementDetail> Rows { get; } = new List<AchievementDetail>();
@@ -836,7 +858,7 @@ namespace PlayniteAchievements.Tests.Services
                     throw new InvalidOperationException("unreachable");
                 }
 
-                var set = new AchievementSourceSet(Key, linkId, Rows) { ApiNamesMayBeShared = IdsMayBeShared };
+                var set = new AchievementSourceSet(Key, linkId, Rows) { ApiNamesMayBeShared = IdsMayBeShared, UnavailableFields = Unavailable };
                 foreach (var art in CategoryArt)
                 {
                     set.CategoryArtUrls[art.Key] = art.Value;
