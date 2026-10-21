@@ -161,7 +161,8 @@ namespace PlayniteAchievements.Views.Showcase
                             ShowcasePieMode.CompletedGames,
                             ShowcasePieMode.Provider,
                             ShowcasePieMode.Rarity,
-                            ShowcasePieMode.Trophy
+                            ShowcasePieMode.Trophy,
+                            ShowcasePieMode.Tag
                         },
                         ShowcaseWidgetOptions.GetPieMode(_settings),
                         value => ShowcaseWidgetOptions.SetPieMode(_settings, value),
