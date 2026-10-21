@@ -194,6 +194,51 @@ namespace PlayniteAchievements.Services.Cache
             }
         }
 
+        Dictionary<Guid, Dictionary<string, (string Tags, bool Unlocked)>> ICacheReadOptimizations.LoadAchievementTagStatesFast(
+            IReadOnlyDictionary<Guid, HashSet<string>> wanted)
+        {
+            try
+            {
+                lock (_sync)
+                {
+                    EnsureReady_Locked("LoadAchievementTagStatesFast");
+                }
+
+                using (var scope = PerfScope.Start(_logger, "Cache.LoadAchievementTagStatesFast", thresholdMs: 25))
+                {
+                    scope?.SetContext("games=" + (wanted?.Count ?? 0));
+                    return _store.LoadAchievementTagStates(wanted) ??
+                        new Dictionary<Guid, Dictionary<string, (string Tags, bool Unlocked)>>();
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger?.Debug(ex, "Failed reading tagged achievement states.");
+                return null;
+            }
+        }
+
+        Models.Achievements.AchievementTagTally[] ICacheReadOptimizations.LoadTagTotalsForGameFast(Guid playniteGameId)
+        {
+            try
+            {
+                lock (_sync)
+                {
+                    EnsureReady_Locked("LoadTagTotalsForGameFast");
+                }
+
+                using (PerfScope.Start(_logger, "Cache.LoadTagTotalsForGameFast", thresholdMs: 25))
+                {
+                    return _store.LoadTagTotalsForGame(playniteGameId);
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger?.Debug(ex, $"Failed reading tag totals for game {playniteGameId}.");
+                return null;
+            }
+        }
+
         HashSet<Guid> ICacheReadOptimizations.GetGameIdsWithTag(string tagKey)
         {
             var result = new HashSet<Guid>();
