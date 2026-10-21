@@ -46,6 +46,43 @@ namespace PlayniteAchievements.Providers.Metadata.TrueGaming
             return slug.Length > 0 && slug.IndexOfAny(new[] { '/', '?', '#', ' ' }) < 0;
         }
 
+        /// <summary>
+        /// The pages a link names, comma-separated ("ELDEN-RING, tt:ELDEN-RING"), one per site in
+        /// lookup order; a part that does not parse is skipped, as is a second page on one site.
+        /// </summary>
+        internal static List<(TrueGamingSite Site, string Slug)> ParsePages(string linkId, string servicingProviderKey)
+        {
+            var pages = new List<(TrueGamingSite Site, string Slug)>();
+            foreach (var part in (linkId ?? string.Empty).Split(','))
+            {
+                if (TryParse(part, servicingProviderKey, out var site, out var slug) && pages.All(page => page.Site != site))
+                {
+                    pages.Add((site, slug));
+                }
+            }
+
+            return pages.OrderBy(page => IndexOf(page.Site)).ToList();
+        }
+
+        /// <summary>The stored link of <paramref name="pages"/>, in lookup order.</summary>
+        internal static string Format(IEnumerable<(TrueGamingSite Site, string Slug)> pages, string servicingProviderKey) =>
+            string.Join(", ", (pages ?? Enumerable.Empty<(TrueGamingSite Site, string Slug)>())
+                .OrderBy(page => IndexOf(page.Site))
+                .Select(page => page.Site.LinkId(page.Slug, servicingProviderKey)));
+
+        private static int IndexOf(TrueGamingSite site)
+        {
+            for (var i = 0; i < TrueGamingSite.LookupOrder.Count; i++)
+            {
+                if (TrueGamingSite.LookupOrder[i] == site)
+                {
+                    return i;
+                }
+            }
+
+            return int.MaxValue;
+        }
+
         /// <summary>The site slugs to try for each name: each name's slug, then with each suffix.</summary>
         internal static IEnumerable<string> CandidateSlugs(IEnumerable<string> names, IReadOnlyList<string> suffixes)
         {
