@@ -1482,7 +1482,7 @@ namespace PlayniteAchievements.Views.Showcase
                 ItemTemplate = FontOptionTemplate()
             };
             VirtualizingPanel.SetIsVirtualizing(combo, true);
-            Helpers.FontPickerBehavior.SetEnableSearch(combo, true);
+            Helpers.FontPickerBehavior.SetPreviewSelectedFont(combo, true);
             combo.SelectionChanged += (_, __) =>
             {
                 if (!(combo.SelectedItem is FontFamilyOption option) ||
