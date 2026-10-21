@@ -1069,7 +1069,6 @@
     <!-- Metadata tab (tab title reuses Playnite's LOCSettingsMetadataLabel) -->
     <sys:String x:Key="LOCPlayAch_Settings_Metadata_Sources">Sources</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Metadata_SourcesHint">Default follows the top row. Set a game's own sources and matches in Manage Achievements.</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_Metadata_SourceMode">{0} + {1}</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Metadata_Source_Own">Own</sys:String>
     <sys:String x:Key="LOCPlayAch_Metadata_Source_PlayStation">PlayStation</sys:String>
     <sys:String x:Key="LOCPlayAch_Metadata_Source_SteamHunters">SteamHunters</sys:String>
