@@ -1,6 +1,7 @@
 using Playnite.SDK;
 using PlayniteAchievements.Common;
 using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
@@ -38,6 +39,14 @@ namespace PlayniteAchievements.Providers.Metadata.TrueGaming
             "https://truesteamachievements.com/game/ELDEN-RING-NIGHTREIGN/achievements"
         };
 
+        // Games released on more than one platform: each is looked up on every site the way the
+        // provider does, and the rows found are compared by name for flags and DLC pack.
+        private static readonly string[] CompareGames =
+        {
+            "ELDEN RING NIGHTREIGN", "ELDEN RING", "Cyberpunk 2077", "Hades", "Fallout 4",
+            "Hollow Knight", "Baldur's Gate 3", "Clair Obscur: Expedition 33", "PEAK"
+        };
+
         private static readonly Regex AchievementItem = new Regex(@"<li[^>]*\bid=""\d+_\d+_\d+""", RegexOptions.CultureInvariant);
         private static readonly Regex FlagClass = new Regex(@"class=""flg-([0-9a-fA-F]{8})""", RegexOptions.CultureInvariant);
         private static readonly Regex FlagFilter = new Regex(
@@ -68,6 +77,23 @@ namespace PlayniteAchievements.Providers.Metadata.TrueGaming
                     catch (Exception ex)
                     {
                         logger?.Warn(ex, $"[TrueGamingProbe] {url} failed");
+                    }
+                }
+
+                foreach (var game in CompareGames)
+                {
+                    ct.ThrowIfCancellationRequested();
+                    try
+                    {
+                        await CompareAsync(views, logger, game, outputDirectory, ct).ConfigureAwait(false);
+                    }
+                    catch (OperationCanceledException) when (ct.IsCancellationRequested)
+                    {
+                        throw;
+                    }
+                    catch (Exception ex)
+                    {
+                        logger?.Warn(ex, $"[TrueGamingProbe] compare '{game}' failed");
                     }
                 }
             }
@@ -119,6 +145,111 @@ namespace PlayniteAchievements.Providers.Metadata.TrueGaming
                 logger?.Info($"[TrueGamingProbe] api excerpt: {excerpt.Replace("\r", " ").Replace("\n", " ")}");
             }
         }
+
+        /// <summary>
+        /// Finds <paramref name="game"/> on each site, then writes compare-&lt;slug&gt;.txt: per site the
+        /// page and its counts, then per pair of sites the rows matched by name whose flags or DLC
+        /// pack differ.
+        /// </summary>
+        private static async Task CompareAsync(OffscreenViewLeaseSource views, ILogger logger, string game, string outputDirectory, CancellationToken ct)
+        {
+            var found = new List<(TrueGamingSite Site, string Slug, string Address, TrueGamingPage Page)>();
+            foreach (var site in TrueGamingSite.LookupOrder)
+            {
+                foreach (var slug in TrueGamingLinks.CandidateSlugs(new[] { game }, site.Suffixes))
+                {
+                    ct.ThrowIfCancellationRequested();
+                    var url = site.ListUrl(slug);
+                    var (html, address) = await views.WithNavigableViewAsync(async view =>
+                    {
+                        await view.NavigateAndWaitAsync(url, NavigationTimeoutMs).ConfigureAwait(false);
+                        var source = await view.GetPageSourceAsync().ConfigureAwait(false);
+                        for (var attempt = 1; IsChallenge(source) && attempt < Attempts; attempt++)
+                        {
+                            await Task.Delay(RetryDelayMs, ct).ConfigureAwait(false);
+                            source = await view.GetPageSourceAsync().ConfigureAwait(false);
+                        }
+
+                        return (source ?? string.Empty, view.GetCurrentAddress());
+                    }, ct).ConfigureAwait(false);
+
+                    var page = TrueGamingPageParser.Parse(html);
+                    if (page.Achievements.Count > 0)
+                    {
+                        File.WriteAllText(Path.Combine(outputDirectory, $"compare-{site.Prefix}-{slug}.html"), html, Encoding.UTF8);
+                        found.Add((site, slug, address, page));
+                        break;
+                    }
+                }
+            }
+
+            var report = new StringBuilder();
+            report.AppendLine(game);
+            foreach (var entry in found)
+            {
+                var flagged = entry.Page.Achievements.Count(row => row.Flags.Count > 0);
+                var packs = entry.Page.Achievements.Select(row => row.Dlc).Where(dlc => dlc != null).Distinct().ToList();
+                report.AppendLine(
+                    $"  {entry.Site.Prefix}:{entry.Slug} -> {entry.Address} | rows={entry.Page.Achievements.Count}, flagsDecoded={entry.Page.FlagsDecoded}, " +
+                    $"flagged={flagged}, dlc=[{string.Join("; ", packs)}]");
+            }
+
+            for (var i = 0; i < found.Count; i++)
+            {
+                for (var j = i + 1; j < found.Count; j++)
+                {
+                    CompareRows(report, found[i].Site.Prefix, found[i].Page, found[j].Site.Prefix, found[j].Page);
+                }
+            }
+
+            var file = Path.Combine(outputDirectory, $"compare-{TrueGamingLinks.ToSlug(game)}.txt");
+            File.WriteAllText(file, report.ToString(), Encoding.UTF8);
+            logger?.Info($"[TrueGamingProbe] compare {report.ToString().Replace("\r", "").Replace("\n", " || ")}");
+        }
+
+        private static void CompareRows(StringBuilder report, string leftName, TrueGamingPage left, string rightName, TrueGamingPage right)
+        {
+            var rightRows = right.Achievements
+                .GroupBy(row => NameKey(row.Name))
+                .ToDictionary(group => group.Key, group => group.First());
+            int matched = 0, sameFlags = 0, sameDlc = 0;
+            var differences = new List<string>();
+            foreach (var row in left.Achievements)
+            {
+                if (!rightRows.TryGetValue(NameKey(row.Name), out var other))
+                {
+                    continue;
+                }
+
+                matched++;
+                var leftFlags = string.Join(", ", row.Flags.OrderBy(flag => flag, StringComparer.OrdinalIgnoreCase));
+                var rightFlags = string.Join(", ", other.Flags.OrderBy(flag => flag, StringComparer.OrdinalIgnoreCase));
+                var flagsSame = string.Equals(leftFlags, rightFlags, StringComparison.OrdinalIgnoreCase);
+                var dlcSame = string.Equals(row.Dlc ?? "", other.Dlc ?? "", StringComparison.OrdinalIgnoreCase);
+                sameFlags += flagsSame ? 1 : 0;
+                sameDlc += dlcSame ? 1 : 0;
+                if (!flagsSame)
+                {
+                    differences.Add($"    {row.Name}: flags {leftName}=[{leftFlags}] {rightName}=[{rightFlags}]");
+                }
+
+                if (!dlcSame)
+                {
+                    differences.Add($"    {row.Name}: dlc {leftName}=[{row.Dlc}] {rightName}=[{other.Dlc}]");
+                }
+            }
+
+            report.AppendLine(
+                $"  {leftName} vs {rightName}: matched {matched} of {left.Achievements.Count}/{right.Achievements.Count}, " +
+                $"same flags {sameFlags}, same dlc {sameDlc}");
+            foreach (var line in differences)
+            {
+                report.AppendLine(line);
+            }
+        }
+
+        private static string NameKey(string name) =>
+            new string((name ?? string.Empty).ToLowerInvariant().Where(char.IsLetterOrDigit).ToArray());
 
         private static bool IsChallenge(string html) =>
             string.IsNullOrEmpty(html) ||
