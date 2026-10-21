@@ -18,6 +18,7 @@ namespace PlayniteAchievements.Providers.Metadata.Exophase
             nativeProviders: new[] { "Xbox", "Xenia" },
             // Exophase lists current consoles under both -xbox and -xbox-one, and older games -xbox-360.
             pageSuffixes: new[] { "-xbox", "-xbox-one", "-xbox-360" },
+            searchPlatforms: new[] { "xbox", "xbox-one", "xbox-360" },
             platformHint: "xbox",
             preferredPlatform: "Xbox Series",
             ownPlatform: false);
@@ -29,6 +30,7 @@ namespace PlayniteAchievements.Providers.Metadata.Exophase
             nativeProviders: new[] { "PSN", "RPCS3", "ShadPS4", "Vita3K" },
             // Newest first: -psn for recent games, the platform itself for older ones ("dark-souls-iii-ps4").
             pageSuffixes: new[] { "-psn", "-ps4", "-ps3", "-psvita" },
+            searchPlatforms: new[] { "ps5", "ps4", "ps3", "psvita" },
             platformHint: "psn",
             preferredPlatform: "PS5",
             ownPlatform: false);
@@ -39,6 +41,7 @@ namespace PlayniteAchievements.Providers.Metadata.Exophase
             fields: MetadataField.Rarity | MetadataField.Icons,
             nativeProviders: Array.Empty<string>(),
             pageSuffixes: Array.Empty<string>(),
+            searchPlatforms: Array.Empty<string>(),
             platformHint: null,
             preferredPlatform: null,
             ownPlatform: true);
@@ -51,6 +54,7 @@ namespace PlayniteAchievements.Providers.Metadata.Exophase
             MetadataField fields,
             IEnumerable<string> nativeProviders,
             IReadOnlyList<string> pageSuffixes,
+            IReadOnlyList<string> searchPlatforms,
             string platformHint,
             string preferredPlatform,
             bool ownPlatform)
@@ -60,6 +64,7 @@ namespace PlayniteAchievements.Providers.Metadata.Exophase
             Fields = fields;
             NativeProviders = new HashSet<string>(nativeProviders, StringComparer.OrdinalIgnoreCase);
             PageSuffixes = pageSuffixes;
+            SearchPlatforms = searchPlatforms;
             PlatformHint = platformHint;
             PreferredPlatform = preferredPlatform;
             OwnPlatform = ownPlatform;
@@ -76,6 +81,9 @@ namespace PlayniteAchievements.Providers.Metadata.Exophase
 
         /// <summary>A borrowed page's slug suffixes, newest first.</summary>
         public IReadOnlyList<string> PageSuffixes { get; }
+
+        /// <summary>The Exophase platforms a search for the borrowed platform's page accepts, newest first.</summary>
+        public IReadOnlyList<string> SearchPlatforms { get; }
 
         /// <summary>The borrowed platform's Exophase slug ("psn", "xbox"), which picks the page's address.</summary>
         public string PlatformHint { get; }
