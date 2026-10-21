@@ -129,12 +129,12 @@ namespace PlayniteAchievements.Views.Settings.Metadata
             SupportsRarity = supportsRarity;
             SupportsTrophyTypes = MetadataChoices.TakesTrophyTypes(providerKey);
             SupportsPoints = MetadataChoices.TakesPoints(providerKey);
-            IconOptions = BuildSourceOptions(providers, MetadataField.Icons, "LOCPlayAch_Settings_Override_Off");
-            CapstoneArtOptions = BuildSourceOptions(providers, MetadataField.CapstoneArt, "LOCPlayAch_Settings_Override_Off");
-            TrophyTypeOptions = BuildSourceOptions(providers, MetadataField.TrophyTypes, "LOCPlayAch_Settings_Override_Off");
-            PointsOptions = BuildSourceOptions(providers, MetadataField.Points, "LOCPlayAch_Settings_Override_Off");
-            CategoryOptions = BuildScanOptions(providers, MetadataField.Categories);
-            TagOptions = BuildScanOptions(providers, MetadataField.Tags);
+            IconOptions = BuildOptions(providers, MetadataField.Icons);
+            CapstoneArtOptions = BuildOptions(providers, MetadataField.CapstoneArt);
+            TrophyTypeOptions = BuildOptions(providers, MetadataField.TrophyTypes);
+            PointsOptions = BuildOptions(providers, MetadataField.Points);
+            CategoryOptions = BuildOptions(providers, MetadataField.Categories);
+            TagOptions = BuildOptions(providers, MetadataField.Tags);
             RarityOptions = WithDefault(new[]
             {
                 new ChoiceOption(string.Empty, ResourceProvider.GetString("LOCPlayAch_Settings_Override_Off")),
@@ -215,8 +215,7 @@ namespace PlayniteAchievements.Views.Settings.Metadata
         }
 
         /// <summary>
-        /// The label of the option the inherited choices pick; Off when this row cannot offer it
-        /// (a source native to the platform, which the overlay skips).
+        /// The label of the option the inherited choices pick; Off when no option matches.
         /// </summary>
         private string InheritedLabel(IReadOnlyList<ChoiceOption> options, Func<MetadataChoices, string> keyOf)
         {
@@ -312,25 +311,12 @@ namespace PlayniteAchievements.Views.Settings.Metadata
             Saved?.Invoke();
         }
 
-        private IReadOnlyList<ChoiceOption> BuildSourceOptions(
-            IReadOnlyList<IMetadataProvider> providers,
-            MetadataField field,
-            string offLabelKey)
-        {
-            var options = new List<ChoiceOption> { new ChoiceOption(string.Empty, ResourceProvider.GetString(offLabelKey)) };
-            options.AddRange(providers
-                .Where(provider => (provider.SupportedFields & field) == field &&
-                                   (IsDefaults || !provider.IsNativeFor(ProviderKey)))
-                .Select(provider => new ChoiceOption(provider.Key, ResourceProvider.GetString(provider.DisplayNameKey))));
-            return WithDefault(options);
-        }
-
         /// <summary>
-        /// Off, or a source whose values replace the platform's, for categories and tags. Unlike the
-        /// other fields a native source stays offered: the platform's own scan applies it
-        /// (SteamHunters on Steam).
+        /// Off, or each source that supplies <paramref name="field"/>. Every row offers the same
+        /// sources: one native to the platform (PlayStation on PSN) is the platform's own data, so
+        /// choosing it changes nothing, and SteamHunters on Steam is applied by the Steam scan.
         /// </summary>
-        private IReadOnlyList<ChoiceOption> BuildScanOptions(IReadOnlyList<IMetadataProvider> providers, MetadataField field)
+        private IReadOnlyList<ChoiceOption> BuildOptions(IReadOnlyList<IMetadataProvider> providers, MetadataField field)
         {
             var options = new List<ChoiceOption>
             {
