@@ -33,6 +33,8 @@ namespace PlayniteAchievements.Providers.Metadata.TrueGaming
             "https://www.trueachievements.com/game/Fallout-4/achievements",
             "https://www.truetrophies.com/true-api/sitesearch/overviewcategory?q=Cyberpunk%202077&category=Games",
             "https://www.truetrophies.com/true-api/sitesearch/overviewcategory?q=Elden%20Ring&category=Games",
+            "https://www.truetrophies.com/true-api/sitesearch/overviewcategory?q=Ghost%20of%20Tsushima&category=Games",
+            "https://www.truetrophies.com/true-api/sitesearch/overviewcategory?q=Ghost%20of%20Tsushima&category=DLC",
             "https://www.truetrophies.com/game/Elden-Ring/trophies",
             "https://truesteamachievements.com/true-api/sitesearch/overviewcategory?q=Hades&category=Games",
             "https://truesteamachievements.com/game/Hades/achievements",
