@@ -76,10 +76,9 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
 
         protected override void RefreshTiles()
         {
-            if (_controlBarSlot.Bind(Projection?.Instance?.InstanceId))
-            {
-                ControlBar = _controlBarSlot.Adapter.ControlBar;
-            }
+            _controlBarSlot.Bind(Projection?.Instance?.InstanceId);
+            _controlBarSlot.UpdateShownBar(Projection?.Instance);
+            ControlBar = _controlBarSlot.ShownBar;
 
             // The filter stays in effect while the bar is hidden. The dropdown lists the whole
             // library's platforms and rebuilds only when the library's games change.
