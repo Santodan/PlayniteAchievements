@@ -372,37 +372,7 @@ namespace PlayniteAchievements.Steam.Tests
         }
 
         [TestMethod]
-        public void MergeMode_SteamHuntersLeavesNamedSetsAlone()
-        {
-            var schema = LoadApiSchema(1562430);
-            var achievements = Details(schema);
-            var named = SteamAchievementSetMapper.ApplySets(achievements, schema, "DREDGE");
-            var groups = new List<SteamHuntersAchievementGroup>
-            {
-                new SteamHuntersAchievementGroup
-                {
-                    DlcAppId = 2561440,
-                    DlcAppName = "Renamed By SteamHunters",
-                    AchievementApiNames = new List<string> { "DLC_3_1" }
-                },
-                new SteamHuntersAchievementGroup
-                {
-                    Name = "Update 1.1",
-                    AchievementApiNames = new List<string> { "CATCH_FISH_ROD_1" }
-                }
-            };
-
-            SteamHuntersCategoryEnricher.ApplyGroups(achievements, groups, "dlcandupdate", "DREDGE", named);
-
-            Assert.AreEqual("The Pale Reach", achievements.Single(a => a.ApiName == "DLC_3_1").Category);
-            var updated = achievements.Single(a => a.ApiName == "CATCH_FISH_ROD_1");
-            Assert.AreEqual("Update 1.1", updated.Category);
-            Assert.AreEqual("Base|Update", updated.CategoryKind);
-            Assert.IsNull(updated.Tags);
-        }
-
-        [TestMethod]
-        public void OverrideMode_SteamHuntersReplacesSets()
+        public void SteamHuntersReplacesSets()
         {
             var schema = LoadApiSchema(1562430);
             var achievements = Details(schema);
@@ -417,7 +387,7 @@ namespace PlayniteAchievements.Steam.Tests
                 }
             };
 
-            SteamHuntersCategoryEnricher.ApplyGroups(achievements, groups, "dlcandupdate", "DREDGE", preserveApiNames: null);
+            SteamHuntersCategoryEnricher.ApplyGroups(achievements, groups, "dlcandupdate", "DREDGE");
 
             Assert.AreEqual("Renamed By SteamHunters", achievements.Single(a => a.ApiName == "DLC_3_1").Category);
             Assert.AreEqual("DREDGE", achievements.Single(a => a.ApiName == "DLC_4_1").Category);
@@ -436,7 +406,7 @@ namespace PlayniteAchievements.Steam.Tests
         }
 
         [TestMethod]
-        public void CarryForwardCategories_CopiesStoredValuesExceptPreservedAndUnstored()
+        public void CarryForwardCategories_CopiesStoredValues_LeavesUnstoredRows()
         {
             var achievements = new List<AchievementDetail>
             {
@@ -450,16 +420,13 @@ namespace PlayniteAchievements.Steam.Tests
                 new AchievementDetail { ApiName = "Set_1", Category = "Stale", CategoryKind = "Base" }
             };
 
-            SteamAchievementSetMapper.CarryForwardCategories(
-                achievements,
-                stored,
-                new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "Set_1" });
+            SteamAchievementSetMapper.CarryForwardCategories(achievements, stored);
 
             Assert.AreEqual("DREDGE|1.1", achievements[0].Category);
             Assert.AreEqual("Base|Update", achievements[0].CategoryKind);
             Assert.AreEqual("Unobtainable", achievements[0].Tags);
-            Assert.AreEqual("The Pale Reach", achievements[1].Category);
-            Assert.AreEqual("DLC", achievements[1].CategoryKind);
+            Assert.AreEqual("Stale", achievements[1].Category);
+            Assert.AreEqual("Base", achievements[1].CategoryKind);
             Assert.IsNull(achievements[1].Tags);
             Assert.IsNull(achievements[2].Category);
             Assert.IsNull(achievements[2].CategoryKind);
@@ -478,7 +445,7 @@ namespace PlayniteAchievements.Steam.Tests
                 new AchievementDetail { ApiName = "Set_1", Category = "Pale Reach", CategoryKind = "DLC|Update" }
             };
 
-            SteamAchievementSetMapper.CarryForwardCategories(achievements, stored, preserveApiNames: null);
+            SteamAchievementSetMapper.CarryForwardCategories(achievements, stored);
 
             Assert.AreEqual("Pale Reach", achievements[0].Category);
             Assert.AreEqual("DLC|Update", achievements[0].CategoryKind);
