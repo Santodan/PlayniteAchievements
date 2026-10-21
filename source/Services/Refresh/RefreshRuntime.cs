@@ -982,7 +982,8 @@ namespace PlayniteAchievements.Services.Refresh
             IReadOnlyList<IDataProvider> providerScope = null,
             bool? runProvidersInParallelOverride = null,
             TargetSelectionCache targetSelectionCache = null,
-            bool preferCachedDefinitions = false)
+            bool preferCachedDefinitions = false,
+            bool fetchMetadataSources = true)
         {
             var providers = providerScope == null
                 ? MaterializeProviderScope(await GetAuthenticatedProvidersAsync(cancel).ConfigureAwait(false))
@@ -1010,7 +1011,8 @@ namespace PlayniteAchievements.Services.Refresh
                 forceIconRefresh,
                 runProvidersInParallelOverride,
                 initializeProgress: true,
-                preferCachedDefinitions: preferCachedDefinitions).ConfigureAwait(false);
+                preferCachedDefinitions: preferCachedDefinitions,
+                fetchMetadataSources: fetchMetadataSources).ConfigureAwait(false);
         }
 
         private async Task<RebuildPayload> ExecuteCurrentProviderPlansAsync(
@@ -1023,7 +1025,8 @@ namespace PlayniteAchievements.Services.Refresh
             bool forceIconRefresh = false,
             bool? runProvidersInParallelOverride = null,
             bool initializeProgress = true,
-            bool preferCachedDefinitions = false)
+            bool preferCachedDefinitions = false,
+            bool fetchMetadataSources = true)
         {
             var plans = providerPlans?
                 .Where(plan => plan?.Provider != null && plan.Games?.Count > 0)
@@ -1053,7 +1056,7 @@ namespace PlayniteAchievements.Services.Refresh
             _logger?.Debug(
                 $"[RefreshPerf] phase=current.start mode={mode} providers={plans.Count} games={totalGames} parallel={runProvidersInParallel}");
             IReadOnlyList<ProviderRefreshExecutor.ProviderExecutionResult> providerResults;
-            using (var metadataRun = MetadataOverlay?.BeginRun())
+            using (var metadataRun = MetadataOverlay?.BeginRun(fetchMetadataSources))
             {
                 providerResults = await ProviderRefreshExecutor.ExecuteProvidersAsync(
                     plans,
@@ -1108,6 +1111,26 @@ namespace PlayniteAchievements.Services.Refresh
                     $"[RefreshPerf] phase=current.provider provider={plan.Provider.ProviderKey} ms={timer.ElapsedMilliseconds} games={plan.Games.Count}" +
                     MemoryDiagnostics.FormatInlineSuffix(providerMemBaseline));
             }
+        }
+
+        /// <summary>
+        /// True for refreshes that load every metadata source again, as user-initiated "refresh
+        /// this" requests re-download friend schemas: Full, a selected game or games, or a forced
+        /// definition refresh, unless the caller prefers cached definitions. Other refreshes keep
+        /// each game's stored metadata values; see <see cref="Metadata.MetadataOverlay.BeginRun"/>.
+        /// </summary>
+        internal static bool FetchesMetadataSources(RefreshOptions options)
+        {
+            if (options == null)
+            {
+                return true;
+            }
+
+            return !options.PreferCachedDefinitions && (options.ForceDefinitionRefresh ||
+                   options.Scope == RefreshGameScope.All ||
+                   options.Scope == RefreshGameScope.SelectedGame ||
+                   options.Scope == RefreshGameScope.LibrarySelected ||
+                   options.Scope == RefreshGameScope.Explicit);
         }
 
         private RebuildPayload CreateCurrentRefreshPayload(
@@ -1321,6 +1344,7 @@ namespace PlayniteAchievements.Services.Refresh
             var friendOptions = resolved.FriendOptions;
             var forceIconRefresh = resolved.Options?.ForceIconRefresh == true;
             var preferCachedDefinitions = resolved.Options?.PreferCachedDefinitions == true;
+            var fetchMetadataSources = FetchesMetadataSources(resolved.Options);
 
             if (currentOptions == null)
             {
@@ -1344,7 +1368,8 @@ namespace PlayniteAchievements.Services.Refresh
                     resolved.CurrentProviderScope,
                     resolved.RunProvidersInParallelOverride,
                     targetSelectionCache,
-                    preferCachedDefinitions).ConfigureAwait(false);
+                    preferCachedDefinitions,
+                    fetchMetadataSources).ConfigureAwait(false);
             }
 
             var currentProviders = MaterializeProviderScope(resolved.CurrentProviderScope);
@@ -1382,7 +1407,8 @@ namespace PlayniteAchievements.Services.Refresh
                     resolved.CurrentProviderScope,
                     resolved.RunProvidersInParallelOverride,
                     targetSelectionCache,
-                    preferCachedDefinitions).ConfigureAwait(false);
+                    preferCachedDefinitions,
+                    fetchMetadataSources).ConfigureAwait(false);
             }
 
             if (!hasCurrentWork)
@@ -1446,7 +1472,7 @@ namespace PlayniteAchievements.Services.Refresh
             var friendPerf = new FriendRefreshCoordinator.FriendRefreshPerfSession(_logger, friendOptions, friendProviders.Count, "combined");
             var friendPrepareTimer = Stopwatch.StartNew();
 
-            using (var metadataRun = MetadataOverlay?.BeginRun())
+            using (var metadataRun = MetadataOverlay?.BeginRun(fetchMetadataSources))
             using (var friendInvalidationBatch = hasFriendWork ? _friendCache?.BeginFriendCacheInvalidationBatch() : null)
             {
                 try
