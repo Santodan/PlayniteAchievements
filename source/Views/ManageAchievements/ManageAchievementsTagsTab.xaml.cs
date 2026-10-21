@@ -12,8 +12,9 @@ using PlayniteAchievements.ViewModels.Tags;
 namespace PlayniteAchievements.Views.ManageAchievements
 {
     /// <summary>
-    /// Manage Achievements: the tags only this game offers. Each edit is stored at once; Make
-    /// Global moves a tag into the global list, keeping its key so tagged achievements keep it.
+    /// Manage Achievements: the tags only this game offers, its stored ones and those only its
+    /// achievement data defines. Each edit is stored at once; Make Global moves a tag into the
+    /// global list, keeping its key so tagged achievements keep it.
     /// </summary>
     public partial class ManageAchievementsTagsTab : UserControl
     {
@@ -32,6 +33,7 @@ namespace PlayniteAchievements.Views.ManageAchievements
             if (store == null) throw new ArgumentNullException(nameof(store));
 
             var current = store.TryLoad(gameId, out var data) ? data?.AchievementTags : null;
+            var fetched = FetchedTags(gameId, data);
             Editor.DataContext = new AchievementTagListViewModel(
                 current,
                 definitions => store.Update(
@@ -40,7 +42,8 @@ namespace PlayniteAchievements.Views.ManageAchievements
                     affectsSummaryData: false,
                     affectsOverrideMirror: false),
                 value => PlayniteAchievementsPlugin.Instance?.PickColor(Window.GetWindow(this), value),
-                definition => MakeGlobal(definition, settings, saveSettings));
+                definition => MakeGlobal(definition, settings, saveSettings),
+                fetched);
 
             ShowGlobalTags();
             // The global list changes when a tag is made global here or settings are saved.
@@ -52,6 +55,30 @@ namespace PlayniteAchievements.Views.ManageAchievements
                 AchievementTagRegistry.Changed += OnTagsChanged;
                 ShowGlobalTags();
             };
+        }
+
+        /// <summary>
+        /// The tags the game's achievements carry, from their providers, sources or overrides, that
+        /// neither the global list nor the game defines, in tag order.
+        /// </summary>
+        private static List<AchievementTagDefinition> FetchedTags(Guid gameId, Models.Settings.GameCustomDataFile data)
+        {
+            var keys = new List<string>();
+            var achievements = PlayniteAchievementsPlugin.Instance?.CacheManager?.LoadGameData(gameId.ToString())?.Achievements;
+            foreach (var achievement in achievements ?? Enumerable.Empty<AchievementDetail>())
+            {
+                keys.AddRange(AchievementTagHelper.GetComponents(achievement?.Tags));
+            }
+
+            foreach (var pair in data?.AchievementOverrides ?? new Dictionary<string, Models.Settings.AchievementOverride>())
+            {
+                keys.AddRange(AchievementTagHelper.GetComponents(pair.Value?.Tags));
+            }
+
+            return AchievementTagHelper.Parse(string.Join("|", keys))
+                .Where(key => AchievementTagRegistry.IsImplicit(key, gameId))
+                .Select(key => new AchievementTagDefinition { Key = key })
+                .ToList();
         }
 
         /// <summary>Opens Settings on the Metadata tab, where the global list is edited.</summary>
