@@ -367,10 +367,10 @@
                                                         Padding="{StaticResource PlayAch.Thickness.ButtonPadding}"
                                                         VerticalAlignment="Center"
                                                         Margin="{StaticResource PlayAch.Thickness.Left.Sm}" />
-                                                <!-- Only for a link the user set: back to automatic matching. -->
+                                                <!-- For a link the user set, or a stored no-match: back to automatic matching. -->
                                                 <Button Content="{DynamicResource LOCResetLabel}"
                                                         Command="{Binding ClearCommand}"
-                                                        Visibility="{Binding IsUserSet, Converter={StaticResource BoolToVis}}"
+                                                        Visibility="{Binding CanReset, Converter={StaticResource BoolToVis}}"
                                                         Padding="{StaticResource PlayAch.Thickness.ButtonPadding}"
                                                         VerticalAlignment="Center"
                                                         Margin="{StaticResource PlayAch.Thickness.Left.Sm}" />
