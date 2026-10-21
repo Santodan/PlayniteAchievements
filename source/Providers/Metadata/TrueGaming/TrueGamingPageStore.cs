@@ -70,6 +70,15 @@ namespace PlayniteAchievements.Providers.Metadata.TrueGaming
             }
         }
 
+        /// <summary>Forgets the game's pages, so every site is looked at again.</summary>
+        public void Clear(Guid gameId)
+        {
+            lock (_sync)
+            {
+                _dirty |= Games().Remove(gameId);
+            }
+        }
+
         public void Save()
         {
             string json;
