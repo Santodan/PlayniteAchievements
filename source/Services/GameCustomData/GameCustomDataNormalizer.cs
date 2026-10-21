@@ -1345,7 +1345,8 @@ namespace PlayniteAchievements.Services.GameCustomData
             {
                 var key = NormalizeString(pair.Key);
                 var id = NormalizeString(pair.Value?.Id);
-                if (key == null || pair.Value == null || (id == null && !pair.Value.IsUserSet))
+                // A blank id is a stored "no match": the user's, or the source's own matching that found nothing.
+                if (key == null || pair.Value == null)
                 {
                     continue;
                 }
