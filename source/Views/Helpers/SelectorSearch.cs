@@ -231,6 +231,11 @@ namespace PlayniteAchievements.Views.Helpers
             return current;
         }
 
+        private static string PlaceholderText(bool canCreate) =>
+            canCreate
+                ? L("LOCPlayAch_Common_SearchOrAdd", "Search or Add")
+                : L("LOCSearchLabel", "Search");
+
         private static string FormatCreateText(string query) =>
             string.Format(L("LOCPlayAch_Common_AddNamed", "Add \"{0}\""), query);
 
@@ -249,6 +254,7 @@ namespace PlayniteAchievements.Views.Helpers
             public ComboBox Combo;
             public TextBox Box;
             public FrameworkElement Host;
+            public FrameworkElement Placeholder;
             public Button CreateButton;
             public bool IsActive;
             public string Query = string.Empty;
@@ -283,7 +289,8 @@ namespace PlayniteAchievements.Views.Helpers
                 return;
             }
 
-            if (combo.Template?.FindName("PART_SearchPlaceholder", combo) is FrameworkElement placeholder)
+            var placeholder = combo.Template?.FindName("PART_SearchPlaceholder", combo) as FrameworkElement;
+            if (placeholder != null)
             {
                 AlignPlaceholderToCaret(box, placeholder);
             }
@@ -293,6 +300,7 @@ namespace PlayniteAchievements.Views.Helpers
                 Combo = combo,
                 Box = box,
                 Host = combo.Template?.FindName("PART_SearchHost", combo) as FrameworkElement ?? box,
+                Placeholder = placeholder,
                 CreateButton = combo.Template?.FindName("PART_SearchCreate", combo) as Button
             };
             combo.SetValue(ComboStateProperty, state);
@@ -357,6 +365,11 @@ namespace PlayniteAchievements.Views.Helpers
         private static void OnComboOpened(ComboSearchState state)
         {
             var combo = state.Combo;
+            if (state.Placeholder is TextBlock placeholderText)
+            {
+                placeholderText.Text = PlaceholderText(GetCreateAction(combo) != null);
+            }
+
             // A list that can create always searches: the search is the only way to name the new
             // entry, however few there are.
             state.IsActive = !GetIsDisabled(combo) &&
@@ -681,7 +694,7 @@ namespace PlayniteAchievements.Views.Helpers
             };
             var placeholder = new TextBlock
             {
-                Text = L("LOCSearchLabel", "Search"),
+                Text = PlaceholderText(GetCreateAction(level) != null),
                 Margin = new Thickness(10, 0, 0, 2),
                 VerticalAlignment = VerticalAlignment.Center,
                 IsHitTestVisible = false
