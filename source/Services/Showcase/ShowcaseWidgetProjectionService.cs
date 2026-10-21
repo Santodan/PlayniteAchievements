@@ -125,6 +125,93 @@ namespace PlayniteAchievements.Services.Showcase
         public string IconPath => Achievement?.DisplayIcon;
     }
 
+    /// <summary>
+    /// The pin collection a widget is limited to, resolved against the showcase it projects from.
+    /// A game collection keeps its games (and their achievements); an achievement collection
+    /// keeps its pins, whose games are what the widget's Game filter lists.
+    /// </summary>
+    public sealed class ShowcaseCollectionScope
+    {
+        private readonly HashSet<Guid> _games;
+        private readonly HashSet<(Guid, string)> _pins;
+
+        private ShowcaseCollectionScope(
+            ShowcaseCollectionType type,
+            string collectionId,
+            IReadOnlyList<Guid> gameIds,
+            IReadOnlyList<PinnedAchievementReference> pins)
+        {
+            Type = type;
+            CollectionId = collectionId;
+            Pins = pins ?? Array.Empty<PinnedAchievementReference>();
+            GameIds = gameIds;
+            _games = new HashSet<Guid>(gameIds);
+            _pins = new HashSet<(Guid, string)>(Pins.Select(pin => (pin.GameId, pin.ApiName?.ToUpperInvariant())));
+        }
+
+        public ShowcaseCollectionType Type { get; }
+
+        public string CollectionId { get; }
+
+        /// <summary>The collection's games, in pin order for a game collection.</summary>
+        public IReadOnlyList<Guid> GameIds { get; }
+
+        /// <summary>An achievement collection's pins in pin order; empty for a game collection.</summary>
+        public IReadOnlyList<PinnedAchievementReference> Pins { get; }
+
+        /// <summary>The instance's collection, or null when it has none or the collection is gone.</summary>
+        public static ShowcaseCollectionScope Resolve(
+            ShowcaseSettings settings,
+            ShowcaseWidgetInstanceSettings instance)
+        {
+            var collectionId = ShowcaseWidgetOptions.GetPinCollectionId(instance);
+            switch (ShowcaseWidgetOptions.GetCollectionType(instance))
+            {
+                case ShowcaseCollectionType.Achievements:
+                    var achievements = ShowcasePinService.ResolveAchievementCollection(settings, collectionId);
+                    if (achievements == null)
+                    {
+                        return null;
+                    }
+
+                    var pins = (achievements.Pins ?? new List<PinnedAchievementReference>())
+                        .Where(pin => pin != null)
+                        .ToList();
+                    return new ShowcaseCollectionScope(
+                        ShowcaseCollectionType.Achievements,
+                        achievements.CollectionId,
+                        pins.Select(pin => pin.GameId).Distinct().ToList(),
+                        pins);
+                case ShowcaseCollectionType.Games:
+                    var games = ShowcasePinService.ResolveGameCollection(settings, collectionId);
+                    return games == null
+                        ? null
+                        : new ShowcaseCollectionScope(
+                            ShowcaseCollectionType.Games,
+                            games.CollectionId,
+                            (games.GameIds ?? new List<Guid>()).Distinct().ToList(),
+                            null);
+                default:
+                    return null;
+            }
+        }
+
+        public bool ContainsGame(Guid? gameId) => gameId.HasValue && _games.Contains(gameId.Value);
+
+        /// <summary>A pinned achievement for an achievement collection; any achievement of a listed game otherwise.</summary>
+        public bool ContainsAchievement(AchievementDisplayItem item)
+        {
+            if (item?.PlayniteGameId == null)
+            {
+                return false;
+            }
+
+            return Type == ShowcaseCollectionType.Achievements
+                ? _pins.Contains((item.PlayniteGameId.Value, item.ApiName?.ToUpperInvariant()))
+                : _games.Contains(item.PlayniteGameId.Value);
+        }
+    }
+
     public sealed class ShowcaseWidgetProjection
     {
         public ShowcaseWidgetInstanceSettings Instance { get; set; }
@@ -175,10 +262,13 @@ namespace PlayniteAchievements.Services.Showcase
         public object GridWidgetOptions { get; set; }
 
         /// <summary>
-        /// Collection actually used by a pinned-source widget after falling back to the
-        /// protected Default collection. Reorder and unpin commands use this stable id.
+        /// The collection a widget showing a collection in pin order uses, after falling back to
+        /// the protected Default collection. Reorder and unpin commands use this stable id.
         /// </summary>
         public string ResolvedPinCollectionId { get; set; }
+
+        /// <summary>The pin collection the widget is limited to; null when it has none.</summary>
+        public ShowcaseCollectionScope Collection { get; set; }
 
         /// <summary>
         /// Set by the overview's mini-showcase: the snapshot already follows the overview's
@@ -318,74 +408,74 @@ namespace PlayniteAchievements.Services.Showcase
                 case ShowcaseWidgetKind.IconMosaic:
                     // The collapsed Mosaic: achievement icons or game covers per the Content
                     // option; each content mode keeps its own source semantics.
+                    result.Collection = ShowcaseCollectionScope.Resolve(settings, instance);
                     if (ShowcaseWidgetOptions.GetMosaicContent(instance) == ShowcaseMosaicContent.Games)
                     {
-                        if (ShowcaseWidgetOptions.GetGameMosaicSource(instance) == ShowcaseGameMosaicSource.Pinned)
+                        if (ShowsGameCollectionInPinOrder(instance, result.Collection))
                         {
-                            result.ResolvedPinCollectionId = ShowcasePinService.ResolveGameCollection(
-                                settings,
-                                ShowcaseWidgetOptions.GetPinCollectionId(instance))?.CollectionId;
+                            result.ResolvedPinCollectionId = result.Collection.CollectionId;
                         }
+
                         result.Games = ResolveGameMosaic(snapshot, settings, instance, int.MaxValue);
                         break;
                     }
 
-                    if (ShowcaseWidgetOptions.GetMosaicSource(instance) == ShowcaseMosaicSource.Pinned)
+                    if (ShowsPinsInPinOrder(instance, result.Collection))
                     {
-                        result.ResolvedPinCollectionId = ShowcasePinService.ResolveAchievementCollection(
-                            settings,
-                            ShowcaseWidgetOptions.GetPinCollectionId(instance))?.CollectionId;
+                        result.ResolvedPinCollectionId = result.Collection.CollectionId;
                     }
+
                     result.MosaicAchievements = ResolveMosaic(snapshot, settings, instance, int.MaxValue);
                     break;
                 case ShowcaseWidgetKind.RecentAchievements:
-                    // The collapsed Achievements Grid: every unlocked achievement by default, a pin
-                    // collection's rows with reorder support, or the Unlock Next candidates.
-                    switch (ShowcaseWidgetOptions.GetAchievementGridSource(instance))
+                    // The collapsed Achievements Grid: every unlocked achievement by default, an
+                    // achievement collection's pins with reorder support, or the Unlock Next
+                    // candidates; a collection limits the other sources to its rows.
+                    result.Collection = ShowcaseCollectionScope.Resolve(settings, instance);
+                    if (ShowsPinsInPinOrder(instance, result.Collection))
                     {
-                        case ShowcaseAchievementGridSource.Pinned:
-                            var gridPins = ShowcasePinService.ResolveAchievementCollection(
-                                settings,
-                                ShowcaseWidgetOptions.GetPinCollectionId(instance));
-                            result.ResolvedPinCollectionId = gridPins?.CollectionId;
-                            result.Achievements = ResolvePinnedAchievements(snapshot, gridPins?.Pins);
-                            result.AchievementRows = ResolvePinRowsCached(snapshot, result.Achievements);
-                            break;
-                        case ShowcaseAchievementGridSource.UnlockNext:
-                            // Uncapped here: the grid's MaxRows applies after its search filter.
-                            result.AchievementRows = ResolveUnlockNext(snapshot, instance, int.MaxValue, now);
-                            break;
-                        default:
-                            result.AchievementRows = ResolveAllAchievements(snapshot);
-                            break;
+                        result.ResolvedPinCollectionId = result.Collection.CollectionId;
+                        result.Achievements = ResolvePinnedAchievements(snapshot, result.Collection.Pins);
+                        result.AchievementRows = ResolvePinRowsCached(snapshot, result.Achievements);
+                        break;
                     }
 
+                    result.AchievementRows = LimitToCollection(
+                        ShowcaseWidgetOptions.GetAchievementGridSource(instance) == ShowcaseAchievementGridSource.UnlockNext
+                            // Uncapped here: the grid's MaxRows applies after its search filter.
+                            ? ResolveUnlockNext(snapshot, instance, int.MaxValue, now)
+                            : ResolveAllAchievements(snapshot),
+                        result.Collection);
                     break;
                 case ShowcaseWidgetKind.GameSummaries:
-                    // The collapsed Game Summaries Grid: the library by default, or the pinned
-                    // collection / Playnite favorites subsets.
+                    // The collapsed Game Summaries Grid: the library by default, or the Playnite
+                    // favorites or Finish Next subsets; a game collection limits them to its games,
+                    // the library in pin order.
+                    result.Collection = ShowcaseCollectionScope.Resolve(settings, instance);
+                    IReadOnlyList<GameSummaryItem> gridGames;
                     switch (ShowcaseWidgetOptions.GetGameGridSource(instance))
                     {
-                        case ShowcaseGameGridSource.Pinned:
-                            var gridGames = ShowcasePinService.ResolveGameCollection(
-                                settings,
-                                ShowcaseWidgetOptions.GetPinCollectionId(instance));
-                            result.ResolvedPinCollectionId = gridGames?.CollectionId;
-                            result.Games = ResolvePinnedGameSummaries(
-                                snapshot?.GameSummaries ?? new List<GameSummaryItem>(),
-                                gridGames?.GameIds);
-                            break;
                         case ShowcaseGameGridSource.PlayniteFavorites:
-                            result.Games = ResolvePlayniteFavorites(snapshot?.GameSummaries);
+                            gridGames = ResolvePlayniteFavorites(snapshot?.GameSummaries);
                             break;
                         case ShowcaseGameGridSource.FinishNext:
-                            result.Games = ResolveFinishNextGames(snapshot?.GameSummaries, instance, now).ToList();
+                            gridGames = ResolveFinishNextGames(snapshot?.GameSummaries, instance, now).ToList();
                             break;
                         default:
-                            result.Games = ResolveGameSummaries(snapshot, instance);
+                            gridGames = ResolveGameSummaries(snapshot, instance);
+                            if (result.Collection != null)
+                            {
+                                result.ResolvedPinCollectionId = result.Collection.CollectionId;
+                                gridGames = ResolvePinnedGameSummaries(gridGames, result.Collection.GameIds);
+                            }
+
                             break;
                     }
 
+                    result.Games = LimitToCollection(gridGames, result.Collection);
+                    break;
+                case ShowcaseWidgetKind.Pie:
+                    result.Collection = ShowcaseCollectionScope.Resolve(settings, instance);
                     break;
                 case ShowcaseWidgetKind.ActivityCalendar:
                     result.ActivityCalendar = GetActivityCalendar(
@@ -670,6 +760,45 @@ namespace PlayniteAchievements.Services.Showcase
                 .ToList();
         }
 
+        // An achievement collection on the source that lists everything (the grid's All, the
+        // mosaic's Recent) shows the collection itself: its pins in pin order, reorderable.
+        private static bool ShowsPinsInPinOrder(
+            ShowcaseWidgetInstanceSettings instance,
+            ShowcaseCollectionScope collection)
+        {
+            if (collection?.Type != ShowcaseCollectionType.Achievements)
+            {
+                return false;
+            }
+
+            return instance.Kind == ShowcaseWidgetKind.IconMosaic
+                ? ShowcaseWidgetOptions.GetMosaicSource(instance) == ShowcaseMosaicSource.Recent
+                : ShowcaseWidgetOptions.GetAchievementGridSource(instance) == ShowcaseAchievementGridSource.All;
+        }
+
+        // The game mosaic's All source with a game collection shows its games in pin order.
+        private static bool ShowsGameCollectionInPinOrder(
+            ShowcaseWidgetInstanceSettings instance,
+            ShowcaseCollectionScope collection) =>
+            collection?.Type == ShowcaseCollectionType.Games &&
+            ShowcaseWidgetOptions.GetGameMosaicSource(instance) == ShowcaseGameMosaicSource.All;
+
+        private static IReadOnlyList<AchievementDisplayItem> LimitToCollection(
+            IReadOnlyList<AchievementDisplayItem> rows,
+            ShowcaseCollectionScope collection) =>
+            collection == null
+                ? rows
+                : (rows ?? Array.Empty<AchievementDisplayItem>()).Where(collection.ContainsAchievement).ToList();
+
+        private static IReadOnlyList<GameSummaryItem> LimitToCollection(
+            IReadOnlyList<GameSummaryItem> games,
+            ShowcaseCollectionScope collection) =>
+            collection == null
+                ? games
+                : (games ?? Array.Empty<GameSummaryItem>())
+                    .Where(game => collection.ContainsGame(game?.PlayniteGameId))
+                    .ToList();
+
         /// <summary>Pinned games in pin order; unknown ids are skipped.</summary>
         private static IReadOnlyList<GameSummaryItem> ResolvePinnedGameSummaries(
             IReadOnlyList<GameSummaryItem> summaries,
@@ -912,20 +1041,16 @@ namespace PlayniteAchievements.Services.Showcase
             int count)
         {
             var summaries = snapshot?.GameSummaries ?? new List<GameSummaryItem>();
+            var collection = ShowcaseCollectionScope.Resolve(settings, instance);
             IEnumerable<GameSummaryItem> games;
             switch (ShowcaseWidgetOptions.GetGameMosaicSource(instance))
             {
                 case ShowcaseGameMosaicSource.All:
-                    games = summaries
-                        .Where(game => game != null)
-                        .OrderByDescending(game => game.LastUnlockUtc ?? DateTime.MinValue);
-                    break;
-                case ShowcaseGameMosaicSource.Pinned:
-                    games = ResolvePinnedGameSummaries(
-                        summaries,
-                        ShowcasePinService.ResolveGameCollection(
-                            settings,
-                            ShowcaseWidgetOptions.GetPinCollectionId(instance))?.GameIds);
+                    games = ShowsGameCollectionInPinOrder(instance, collection)
+                        ? ResolvePinnedGameSummaries(summaries, collection.GameIds)
+                        : summaries
+                            .Where(game => game != null)
+                            .OrderByDescending(game => game.LastUnlockUtc ?? DateTime.MinValue);
                     break;
                 case ShowcaseGameMosaicSource.PlayniteFavorites:
                     games = summaries
@@ -940,6 +1065,11 @@ namespace PlayniteAchievements.Services.Showcase
                         .Where(game => game?.IsCompleted == true)
                         .OrderByDescending(game => game.LastUnlockUtc ?? DateTime.MinValue);
                     break;
+            }
+
+            if (collection != null)
+            {
+                games = games.Where(game => collection.ContainsGame(game?.PlayniteGameId));
             }
 
             return games.Take(count).ToList();
@@ -1333,6 +1463,7 @@ namespace PlayniteAchievements.Services.Showcase
             int count)
         {
             var source = ShowcaseWidgetOptions.GetMosaicSource(instance);
+            var collection = ShowcaseCollectionScope.Resolve(settings, instance);
             IEnumerable<AchievementDisplayItem> achievements;
             switch (source)
             {
@@ -1355,22 +1486,29 @@ namespace PlayniteAchievements.Services.Showcase
                 case ShowcaseMosaicSource.UnlockNext:
                     // Selection, not re-arrangement: the criterion decides which locked
                     // achievements make the cut, so it runs here and the widget's generic sort
-                    // is hidden for this source.
-                    return ResolveUnlockNext(snapshot, instance, count);
-                case ShowcaseMosaicSource.Pinned:
-                    achievements = ResolvePinnedAchievements(
-                            snapshot,
-                            ShowcasePinService.ResolveAchievementCollection(
-                                settings,
-                                ShowcaseWidgetOptions.GetPinCollectionId(instance))?.Pins)
-                        .Where(item => !item.IsMissing)
-                        .Select(item => item.Achievement);
+                    // is hidden for this source. A collection drops the rest of the ranking, so
+                    // the cap applies after it.
+                    if (collection == null)
+                    {
+                        return ResolveUnlockNext(snapshot, instance, count);
+                    }
+
+                    achievements = ResolveUnlockNext(snapshot, instance, int.MaxValue);
                     break;
                 default:
-                    achievements = (snapshot?.RecentAchievements ?? new List<AchievementDisplayItem>())
-                        .Where(item => item != null)
-                        .OrderByDescending(item => item.UnlockTimeUtc);
+                    achievements = ShowsPinsInPinOrder(instance, collection)
+                        ? ResolvePinnedAchievements(snapshot, collection.Pins)
+                            .Where(item => !item.IsMissing)
+                            .Select(item => item.Achievement)
+                        : (snapshot?.RecentAchievements ?? new List<AchievementDisplayItem>())
+                            .Where(item => item != null)
+                            .OrderByDescending(item => item.UnlockTimeUtc);
                     break;
+            }
+
+            if (collection != null)
+            {
+                achievements = achievements.Where(collection.ContainsAchievement);
             }
 
             return achievements.Take(count).ToList();
