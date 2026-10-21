@@ -882,6 +882,19 @@ namespace PlayniteAchievements.Services.Database
             return _summaryReader.LoadUnlockedApiNames(wanted);
         }
 
+        /// <inheritdoc cref="SummaryCacheReader.LoadAchievementTagStates"/>
+        public Dictionary<Guid, Dictionary<string, (string Tags, bool Unlocked)>> LoadAchievementTagStates(
+            IReadOnlyDictionary<Guid, HashSet<string>> wanted)
+        {
+            return _summaryReader.LoadAchievementTagStates(wanted);
+        }
+
+        /// <inheritdoc cref="SummaryCacheReader.LoadTagTotalsForGame"/>
+        public AchievementTagTally[] LoadTagTotalsForGame(Guid playniteGameId)
+        {
+            return _summaryReader.LoadTagTotalsForGame(playniteGameId);
+        }
+
         internal static Guid? ResolveCachedPlayniteGameId(string cacheKey, string playniteGameId)
         {
             var resolved = ParseGuid(playniteGameId);
