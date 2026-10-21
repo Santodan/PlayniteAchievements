@@ -237,6 +237,17 @@ namespace PlayniteAchievements.Services.Metadata
         }
 
         /// <summary>
+        /// Records that the source's own matching found no page for the game, unless the user set
+        /// this link, so later refreshes do not look again; <see cref="Clear"/> lets matching retry.
+        /// </summary>
+        public bool SetAutoNoMatch(Guid gameId, string sourceKey)
+        {
+            return Write(gameId, sourceKey, existing => existing?.IsUserSet == true
+                ? null
+                : new MetadataLinkData { Id = null });
+        }
+
+        /// <summary>
         /// Stores the user's link. A blank id stores an explicit "no match", which stops automatic
         /// matching for this source; <see cref="Clear"/> removes the record so matching runs again.
         /// </summary>
