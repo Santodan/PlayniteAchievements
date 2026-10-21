@@ -39,24 +39,21 @@ namespace PlayniteAchievements.Tests.Models
         }
 
         [TestMethod]
-        public void CategoryChoices_AreCopiedIntoTags_Once()
+        public void CategoryChoices_LeaveTagsToTheTrueGamingDefault()
         {
             const string json = @"{ ""Persisted"": {
                 ""MetadataChoicesSeeded"": true,
-                ""MetadataDefaults"": { ""Categories"": """" },
-                ""MetadataPlatformChoices"": {
-                    ""Steam"": { ""Categories"": ""SteamHunters"" },
-                    ""Xbox"": { ""Rarity"": ""Exophase"" },
-                    ""GOG"": { ""Categories"": ""SteamHunters"", ""Tags"": """" } } } }";
+                ""MetadataPlatformChoices"": { ""Steam"": { ""Categories"": ""SteamHunters"" } } } }";
 
-            var migrated = MetadataSettingsMigration.MigrateFromJson(json);
-            var persisted = (JObject)JObject.Parse(migrated)["Persisted"];
-            Assert.AreEqual("", (string)persisted["MetadataDefaults"]["Tags"]);
-            Assert.AreEqual("SteamHunters", (string)persisted["MetadataPlatformChoices"]["Steam"]["Tags"]);
-            Assert.IsNull(persisted["MetadataPlatformChoices"]["Xbox"]["Tags"]);
-            Assert.AreEqual("", (string)persisted["MetadataPlatformChoices"]["GOG"]["Tags"]);
-            Assert.IsTrue((bool)persisted["MetadataTagChoicesSeeded"]);
-            Assert.AreEqual(migrated, MetadataSettingsMigration.MigrateFromJson(migrated));
+            Assert.AreEqual(json, MetadataSettingsMigration.MigrateFromJson(json), "nothing is copied into Tags");
+            var settings = new PersistedSettings
+            {
+                MetadataPlatformChoices = new System.Collections.Generic.Dictionary<string, MetadataChoices>
+                {
+                    ["Steam"] = new MetadataChoices { Categories = MetadataChoices.SteamHunters }
+                }
+            };
+            Assert.AreEqual(MetadataChoices.TrueGaming, settings.ResolveMetadataChoices("Steam").Tags);
         }
 
         [TestMethod]
