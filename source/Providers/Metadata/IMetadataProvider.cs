@@ -100,6 +100,15 @@ namespace PlayniteAchievements.Providers.Metadata
         public string ServicingProviderKey => Data?.ProviderKey;
 
         /// <summary>
+        /// The fields the overlay takes from the provider being asked, by the user's choices; a
+        /// source built from several pages loads only the pages these need.
+        /// </summary>
+        public MetadataField WantedFields { get; internal set; }
+
+        /// <summary>True when the link being fetched is one the user set, so the provider reads only what it names.</summary>
+        public bool LinkIsUserSet { get; internal set; }
+
+        /// <summary>
         /// Other names the game is known by: the servicing provider's own, and the labels of its
         /// links to other sources (such as Steam's name from a SteamHunters link). Name searches
         /// try these after the Playnite name.
@@ -181,6 +190,12 @@ namespace PlayniteAchievements.Providers.Metadata
         /// not decode); the game keeps its stored values for them, as for a source that failed.
         /// </summary>
         public MetadataField UnavailableFields { get; set; }
+
+        /// <summary>
+        /// A fuller link the source found while fetching, such as a page on another site the wanted
+        /// fields need; the overlay stores it in place of an automatic link. Null keeps the link.
+        /// </summary>
+        public string ExtendedLinkId { get; set; }
 
         /// <summary>Category label to image URL, for sources that supply category art.</summary>
         public IDictionary<string, string> CategoryArtUrls { get; } =
