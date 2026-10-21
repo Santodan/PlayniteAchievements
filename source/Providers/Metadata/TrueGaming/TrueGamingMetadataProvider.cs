@@ -70,7 +70,10 @@ namespace PlayniteAchievements.Providers.Metadata.TrueGaming
             }
         }
 
-        /// <summary>The first slug built from the game's names whose page lists achievements.</summary>
+        /// <summary>
+        /// The first slug built from the game's names whose page lists achievements, on the
+        /// platform's own site and then the other two.
+        /// </summary>
         public async Task<MetadataSourceLink> ResolveLinkAsync(MetadataLinkRequest request, CancellationToken ct)
         {
             if (_views == null || request == null)
@@ -78,18 +81,20 @@ namespace PlayniteAchievements.Providers.Metadata.TrueGaming
                 return null;
             }
 
-            var site = TrueGamingSite.For(request.ServicingProviderKey);
-            foreach (var slug in TrueGamingLinks.CandidateSlugs(request.SearchNames, site.Suffixes))
+            foreach (var site in TrueGamingSite.LookupOrder(request.ServicingProviderKey))
             {
-                var page = await GetPageAsync(site, slug, ct).ConfigureAwait(false);
-                if (page.Achievements.Count > 0)
+                foreach (var slug in TrueGamingLinks.CandidateSlugs(request.SearchNames, site.Suffixes))
                 {
-                    _logger?.Debug($"[TrueGamingMetadata] '{request.Game?.Name}' -> {site.Host}/game/{slug}.");
-                    return new MetadataSourceLink(slug, request.Game?.Name, foundByName: true);
+                    var page = await GetPageAsync(site, slug, ct).ConfigureAwait(false);
+                    if (page.Achievements.Count > 0)
+                    {
+                        _logger?.Debug($"[TrueGamingMetadata] '{request.Game?.Name}' -> {site.Host}/game/{slug}.");
+                        return new MetadataSourceLink(site.LinkId(slug, request.ServicingProviderKey), request.Game?.Name, foundByName: true);
+                    }
                 }
             }
 
-            _logger?.Debug($"[TrueGamingMetadata] '{request.Game?.Name}': no {site.Host} page.");
+            _logger?.Debug($"[TrueGamingMetadata] '{request.Game?.Name}': no TrueGaming page.");
             return null;
         }
 
