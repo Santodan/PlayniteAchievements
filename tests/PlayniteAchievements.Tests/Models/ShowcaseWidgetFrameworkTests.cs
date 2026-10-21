@@ -92,6 +92,57 @@ namespace PlayniteAchievements.Tests.Models
         }
 
         [TestMethod]
+        public void CollectionType_ReadsAFormerPinnedSourceAsItsCollection()
+        {
+            var grid = new ShowcaseWidgetInstanceSettings { Kind = ShowcaseWidgetKind.RecentAchievements };
+            grid.Options["Source"] = "Pinned";
+            var games = new ShowcaseWidgetInstanceSettings { Kind = ShowcaseWidgetKind.GameSummaries };
+            games.Options["Source"] = "Pinned";
+            var gameMosaic = new ShowcaseWidgetInstanceSettings { Kind = ShowcaseWidgetKind.IconMosaic };
+            ShowcaseWidgetOptions.SetMosaicContent(gameMosaic, ShowcaseMosaicContent.Games);
+            gameMosaic.Options["Source"] = "Pinned";
+
+            Assert.AreEqual(ShowcaseCollectionType.Achievements, ShowcaseWidgetOptions.GetCollectionType(grid));
+            Assert.AreEqual(ShowcaseAchievementGridSource.All, ShowcaseWidgetOptions.GetAchievementGridSource(grid));
+            Assert.AreEqual(ShowcaseCollectionType.Games, ShowcaseWidgetOptions.GetCollectionType(games));
+            Assert.AreEqual(ShowcaseGameGridSource.Library, ShowcaseWidgetOptions.GetGameGridSource(games));
+            Assert.AreEqual(ShowcaseCollectionType.Games, ShowcaseWidgetOptions.GetCollectionType(gameMosaic));
+            Assert.AreEqual(ShowcaseGameMosaicSource.All, ShowcaseWidgetOptions.GetGameMosaicSource(gameMosaic));
+        }
+
+        [TestMethod]
+        public void CollectionType_ASourceChangeKeepsAFormerPinnedSourcesCollection()
+        {
+            var grid = new ShowcaseWidgetInstanceSettings { Kind = ShowcaseWidgetKind.RecentAchievements };
+            grid.Options["Source"] = "Pinned";
+
+            ShowcaseWidgetOptions.SetAchievementGridSource(grid, ShowcaseAchievementGridSource.UnlockNext);
+
+            Assert.AreEqual(ShowcaseCollectionType.Achievements, ShowcaseWidgetOptions.GetCollectionType(grid));
+            Assert.AreEqual(ShowcaseAchievementGridSource.UnlockNext, ShowcaseWidgetOptions.GetAchievementGridSource(grid));
+        }
+
+        [TestMethod]
+        public void CollectionType_AchievementCollectionsOnlyApplyToAchievementWidgets()
+        {
+            var games = new ShowcaseWidgetInstanceSettings { Kind = ShowcaseWidgetKind.GameSummaries };
+            ShowcaseWidgetOptions.SetCollectionType(games, ShowcaseCollectionType.Achievements);
+            var mosaic = new ShowcaseWidgetInstanceSettings { Kind = ShowcaseWidgetKind.IconMosaic };
+            ShowcaseWidgetOptions.SetCollectionType(mosaic, ShowcaseCollectionType.Achievements);
+            var pie = new ShowcaseWidgetInstanceSettings { Kind = ShowcaseWidgetKind.Pie };
+            ShowcaseWidgetOptions.SetCollectionType(pie, ShowcaseCollectionType.Games);
+            var text = new ShowcaseWidgetInstanceSettings { Kind = ShowcaseWidgetKind.Text };
+            ShowcaseWidgetOptions.SetCollectionType(text, ShowcaseCollectionType.Games);
+
+            Assert.AreEqual(ShowcaseCollectionType.None, ShowcaseWidgetOptions.GetCollectionType(games));
+            Assert.AreEqual(ShowcaseCollectionType.Achievements, ShowcaseWidgetOptions.GetCollectionType(mosaic));
+            ShowcaseWidgetOptions.SetMosaicContent(mosaic, ShowcaseMosaicContent.Games);
+            Assert.AreEqual(ShowcaseCollectionType.None, ShowcaseWidgetOptions.GetCollectionType(mosaic));
+            Assert.AreEqual(ShowcaseCollectionType.Games, ShowcaseWidgetOptions.GetCollectionType(pie));
+            Assert.AreEqual(ShowcaseCollectionType.None, ShowcaseWidgetOptions.GetCollectionType(text));
+        }
+
+        [TestMethod]
         public void ControlBarItemVisible_DefaultsOffAndRoundTripsPerItem()
         {
             var instance = new ShowcaseWidgetInstanceSettings { Kind = ShowcaseWidgetKind.Pie };
