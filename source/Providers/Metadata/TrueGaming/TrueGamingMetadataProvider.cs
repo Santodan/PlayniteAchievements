@@ -97,7 +97,9 @@ namespace PlayniteAchievements.Providers.Metadata.TrueGaming
                 return null;
             }
 
+            // A new lookup (a new game, or a reset link) starts the game's pages over.
             var linkId = TrueGamingLinks.BaseSlug(found[0].Slug);
+            _store.Clear(GameId(request));
             Record(request, linkId, outcomes);
             _logger?.Debug($"[TrueGamingMetadata] '{request.Game?.Name}' -> {linkId} ({Describe(found)}).");
             return new MetadataSourceLink(linkId, request.Game?.Name, foundByName: true);
