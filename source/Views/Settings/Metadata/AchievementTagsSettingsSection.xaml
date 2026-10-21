@@ -15,7 +15,7 @@
             </ResourceDictionary.MergedDictionaries>
         </ResourceDictionary>
     </UserControl.Resources>
-    <!-- Scrolled by the Metadata tab, which stacks this below the auto capstone settings. -->
+    <!-- Scrolled by the Metadata tab, which shows it as its own page. -->
     <Border Style="{StaticResource SectionBorderStyle}">
         <StackPanel>
             <TextBlock Text="{DynamicResource LOCTagsLabel}"
