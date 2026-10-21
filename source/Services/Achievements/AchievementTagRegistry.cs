@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
 using PlayniteAchievements.Models.Achievements;
@@ -7,7 +8,10 @@ namespace PlayniteAchievements.Services.Achievements
 {
     /// <summary>
     /// Resolves tag keys to their definitions: a game's own tags first, then the global list from
-    /// settings. A key neither list holds belongs to a deleted tag and is not shown.
+    /// settings. A key a provider or metadata source put on an achievement that neither list
+    /// holds is an implicit tag of that game, named from its key, so deleting a global tag leaves
+    /// its achievements tagged under that game. A user tag (<c>u-</c>) whose definition was
+    /// deleted is not shown.
     /// </summary>
     /// <remarks>
     /// The plugin sets the global list whenever settings load or save, and the game resolver once
@@ -23,8 +27,12 @@ namespace PlayniteAchievements.Services.Achievements
 
         // A game's own tags, read once per game: the resolver reads the stored record, and display code
         // asks per row. Dropped by InvalidateGame when the game's custom data changes.
-        private static readonly System.Collections.Concurrent.ConcurrentDictionary<Guid, IReadOnlyList<AchievementTagDefinition>> GameCache =
-            new System.Collections.Concurrent.ConcurrentDictionary<Guid, IReadOnlyList<AchievementTagDefinition>>();
+        private static readonly ConcurrentDictionary<Guid, IReadOnlyList<AchievementTagDefinition>> GameCache =
+            new ConcurrentDictionary<Guid, IReadOnlyList<AchievementTagDefinition>>();
+
+        // One definition per implicit key, so per-row display does not allocate.
+        private static readonly ConcurrentDictionary<string, AchievementTagDefinition> ImplicitCache =
+            new ConcurrentDictionary<string, AchievementTagDefinition>(StringComparer.OrdinalIgnoreCase);
 
         /// <summary>
         /// Raised after a tag list actually changed: the global one (GameId null) or one game's.
@@ -96,6 +104,7 @@ namespace PlayniteAchievements.Services.Achievements
             return true;
         }
 
+        /// <summary>The tags <paramref name="gameId"/> stores itself, without its implicit tags.</summary>
         public static IReadOnlyList<AchievementTagDefinition> GetGameTags(Guid? gameId)
         {
             if (!gameId.HasValue || gameId.Value == Guid.Empty)
@@ -122,26 +131,36 @@ namespace PlayniteAchievements.Services.Achievements
             });
         }
 
-        /// <summary>The tags available to <paramref name="gameId"/>: global first, then its own.</summary>
-        public static IReadOnlyList<AchievementTagDefinition> GetAvailable(Guid? gameId)
+        /// <summary>
+        /// The tags available to <paramref name="gameId"/>: global first, then its own, then the
+        /// implicit tags among <paramref name="presentKeys"/> (keys its achievements carry).
+        /// </summary>
+        public static IReadOnlyList<AchievementTagDefinition> GetAvailable(Guid? gameId, IEnumerable<string> presentKeys = null)
         {
             var game = GetGameTags(gameId);
-            if (game.Count == 0)
+            var implicitTags = (presentKeys ?? Enumerable.Empty<string>())
+                .Select(key => ResolveImplicit(key, gameId))
+                .Where(definition => definition != null)
+                .ToList();
+            if (game.Count == 0 && implicitTags.Count == 0)
             {
                 return _global;
             }
 
-            var globalKeys = new HashSet<string>(_global.Select(definition => definition.Key), StringComparer.OrdinalIgnoreCase);
-            return _global.Concat(game.Where(definition => !globalKeys.Contains(definition.Key))).ToList();
+            var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            return _global.Concat(game).Concat(implicitTags)
+                .Where(definition => seen.Add(definition.Key))
+                .ToList();
         }
 
         /// <summary>The keys a user can put on an achievement of <paramref name="gameId"/>, in list order.</summary>
-        public static IReadOnlyList<string> GetAssignableKeys(Guid? gameId) =>
-            GetAvailable(gameId)
+        public static IReadOnlyList<string> GetAssignableKeys(Guid? gameId, IEnumerable<string> presentKeys = null) =>
+            GetAvailable(gameId, presentKeys)
                 .Select(definition => definition.Key)
                 .Where(key => !AchievementTagHelper.IsDerivedTag(key))
                 .ToList();
 
+        /// <summary>The definition of <paramref name="key"/> on <paramref name="gameId"/>; null for a deleted user tag.</summary>
         public static AchievementTagDefinition Resolve(string key, Guid? gameId = null)
         {
             if (string.IsNullOrWhiteSpace(key))
@@ -151,12 +170,45 @@ namespace PlayniteAchievements.Services.Achievements
 
             var trimmed = key.Trim();
             return GetGameTags(gameId).FirstOrDefault(definition => KeyEquals(definition, trimmed)) ??
-                   _global.FirstOrDefault(definition => KeyEquals(definition, trimmed));
+                   _global.FirstOrDefault(definition => KeyEquals(definition, trimmed)) ??
+                   ResolveImplicit(trimmed, gameId);
         }
 
         /// <summary>
+        /// The implicit tag for <paramref name="key"/>: a key no list defines that is neither a
+        /// deleted user tag, a derived unlock mode nor a kind. Null otherwise.
+        /// </summary>
+        private static AchievementTagDefinition ResolveImplicit(string key, Guid? gameId)
+        {
+            var trimmed = key?.Trim();
+            if (string.IsNullOrEmpty(trimmed) ||
+                AchievementTagHelper.IsDerivedTag(trimmed) ||
+                trimmed.StartsWith(AchievementTagHelper.UserKeyPrefix, StringComparison.OrdinalIgnoreCase) ||
+                CategoryKindHelper.IsKnownKind(trimmed) ||
+                _global.Any(definition => KeyEquals(definition, trimmed)) ||
+                GetGameTags(gameId).Any(definition => KeyEquals(definition, trimmed)))
+            {
+                return null;
+            }
+
+            return ImplicitCache.GetOrAdd(trimmed, value => new AchievementTagDefinition { Key = value });
+        }
+
+        /// <summary>True when the global list or the game's own list defines <paramref name="key"/>.</summary>
+        public static bool IsDefined(string key, Guid? gameId = null)
+        {
+            var trimmed = key?.Trim();
+            return !string.IsNullOrEmpty(trimmed) &&
+                   (_global.Any(definition => KeyEquals(definition, trimmed)) ||
+                    GetGameTags(gameId).Any(definition => KeyEquals(definition, trimmed)));
+        }
+
+        /// <summary>True when <paramref name="key"/> is an implicit tag of <paramref name="gameId"/>.</summary>
+        public static bool IsImplicit(string key, Guid? gameId) => ResolveImplicit(key, gameId) != null;
+
+        /// <summary>
         /// The tags of <paramref name="value"/> that would be shown, in the order of the available
-        /// list: derived keys and keys without a definition are left out.
+        /// list: derived keys and deleted user tags are left out.
         /// </summary>
         public static IReadOnlyList<AchievementTagDefinition> ResolveVisible(string value, Guid? gameId = null)
         {
@@ -167,7 +219,7 @@ namespace PlayniteAchievements.Services.Achievements
             }
 
             var wanted = new HashSet<string>(keys, StringComparer.OrdinalIgnoreCase);
-            return GetAvailable(gameId)
+            return GetAvailable(gameId, keys)
                 .Where(definition => wanted.Contains(definition.Key) && !AchievementTagHelper.IsDerivedTag(definition.Key))
                 .ToList();
         }
@@ -181,24 +233,19 @@ namespace PlayniteAchievements.Services.Achievements
 
             return !string.IsNullOrWhiteSpace(definition.Name)
                 ? definition.Name
-                : AchievementTagHelper.GetBuiltInName(definition.Key) ?? definition.Key;
+                : AchievementTagHelper.GetDefaultName(definition.Key);
         }
 
         public static string GetName(string key, Guid? gameId = null)
         {
             var definition = Resolve(key, gameId);
-            return definition != null
-                ? GetName(definition)
-                : AchievementTagHelper.GetBuiltInName(key) ?? key;
+            return definition != null ? GetName(definition) : AchievementTagHelper.GetDefaultName(key);
         }
 
         private static bool KeyEquals(AchievementTagDefinition definition, string key) =>
             string.Equals(definition?.Key, key, StringComparison.OrdinalIgnoreCase);
     }
-}
 
-namespace PlayniteAchievements.Services.Achievements
-{
     internal sealed class AchievementTagsChangedEventArgs : EventArgs
     {
         public AchievementTagsChangedEventArgs(Guid? gameId)
