@@ -3124,7 +3124,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                         _gameId,
                         apiNames,
                         BuildAssignmentMap(row => row.CategoryLabel),
-                        BuildAssignmentMap(row => row.TagsValue),
+                        BuildAssignmentMap(row => row.TagsValue, keepEmpty: true),
                         BuildFilteredApiNames(),
                         BuildSummaryFilteredApiNames(),
                         BuildGoalApiNames(),
@@ -4496,18 +4496,19 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             return normalized;
         }
 
+        /// <summary>
+        /// The stored tag overrides by ApiName, read from the override records: "" where the user
+        /// removed every tag, so the row keeps that rather than falling back to the provider's.
+        /// </summary>
         private Dictionary<string, string> GetCurrentTagOverrideMap(ResolvedGameCustomData resolved = null)
         {
-            var source = (resolved ?? ResolveCurrentCustomData())?.AchievementCategoryTypeOverrides
-                ?? new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
             var normalized = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-            foreach (var pair in source)
+            foreach (var pair in GameCustomDataLookup.BuildTagOverrideMap(resolved ?? ResolveCurrentCustomData()))
             {
                 var apiName = NormalizeText(pair.Key);
-                var tag = AchievementTagHelper.Normalize(pair.Value);
-                if (!string.IsNullOrWhiteSpace(apiName) && !string.IsNullOrWhiteSpace(tag))
+                if (!string.IsNullOrWhiteSpace(apiName))
                 {
-                    normalized[apiName] = tag;
+                    normalized[apiName] = AchievementTagHelper.Normalize(pair.Value) ?? string.Empty;
                 }
             }
 
@@ -5554,7 +5555,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         {
             PersistAssignmentMaps(
                 BuildAssignmentMap(row => row.CategoryLabel),
-                BuildAssignmentMap(row => row.TagsValue));
+                BuildAssignmentMap(row => row.TagsValue, keepEmpty: true));
         }
 
         /// <summary>
@@ -5784,14 +5785,19 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         /// Every non-blank assignment the rows carry, keyed by ApiName. A blank one is left out,
         /// which is what removes the override for a row whose assignment was cleared.
         /// </summary>
-        private Dictionary<string, string> BuildAssignmentMap(Func<AchievementEditorRow, string> selector)
+        /// <param name="keepEmpty">
+        /// Writes "" values too: for tags it is an override that removes every tag, where null is
+        /// none.
+        /// </param>
+        private Dictionary<string, string> BuildAssignmentMap(Func<AchievementEditorRow, string> selector, bool keepEmpty = false)
         {
             var map = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
             foreach (var row in AchievementRows)
             {
                 var apiName = row?.OriginalApiName;
                 var value = selector(row);
-                if (string.IsNullOrWhiteSpace(apiName) || string.IsNullOrWhiteSpace(value))
+                if (string.IsNullOrWhiteSpace(apiName) ||
+                    (keepEmpty ? value == null : string.IsNullOrWhiteSpace(value)))
                 {
                     continue;
                 }
