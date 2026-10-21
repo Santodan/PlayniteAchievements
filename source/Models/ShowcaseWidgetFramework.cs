@@ -349,6 +349,7 @@ namespace PlayniteAchievements.Models
     {
         public const string Search = "Search";
         public const string Platform = "Platform";
+        public const string Game = "Game";
         public const string UnlockDate = "UnlockDate";
         public const string Rarity = "Rarity";
         public const string Trophy = "Trophy";
@@ -404,6 +405,8 @@ namespace PlayniteAchievements.Models
         private const string SmallSliceMode = "SmallSliceMode";
         private const string ActivityScope = "ActivityScope";
         internal const string PinCollectionId = "PinCollectionId";
+        private const string CollectionType = "CollectionType";
+        private const string LegacyPinnedSource = "Pinned";
         private const string Content = "Content";
         private const string ProfileStats = "ProfileStats";
         private const string StatisticsStats = "StatisticsStats";
@@ -514,6 +517,97 @@ namespace PlayniteAchievements.Models
                 string.Join(",", (keys ?? Enumerable.Empty<string>())
                     .Where(key => !string.IsNullOrWhiteSpace(key))
                     .Select(key => key.Trim())));
+        }
+
+        /// <summary>
+        /// Which kind of pin collection the widget is limited to; the collection itself is
+        /// <see cref="GetPinCollectionId"/>. Only achievement widgets take achievement
+        /// collections, and only widgets with a game or achievement list take one at all. A widget
+        /// saved with the former Pinned source reads as limited to that source's collection.
+        /// </summary>
+        public static ShowcaseCollectionType GetCollectionType(ShowcaseWidgetInstanceSettings settings)
+        {
+            if (settings == null)
+            {
+                return ShowcaseCollectionType.None;
+            }
+
+            var type = settings.Options?.ContainsKey(CollectionType) == true
+                ? GetEnum(settings, CollectionType, ShowcaseCollectionType.None)
+                : LegacyCollectionType(settings);
+            switch (type)
+            {
+                case ShowcaseCollectionType.Achievements:
+                    return OffersAchievementCollections(settings) ? type : ShowcaseCollectionType.None;
+                case ShowcaseCollectionType.Games:
+                    return OffersCollections(settings) ? type : ShowcaseCollectionType.None;
+                default:
+                    return ShowcaseCollectionType.None;
+            }
+        }
+
+        public static void SetCollectionType(
+            ShowcaseWidgetInstanceSettings settings,
+            ShowcaseCollectionType value) => settings?.SetOption(CollectionType, value);
+
+        /// <summary>Whether the widget lists achievements, so it can take an achievement collection.</summary>
+        public static bool OffersAchievementCollections(ShowcaseWidgetInstanceSettings settings)
+        {
+            switch (settings?.Kind)
+            {
+                case ShowcaseWidgetKind.RecentAchievements:
+                    return true;
+                case ShowcaseWidgetKind.IconMosaic:
+                    return GetMosaicContent(settings) == ShowcaseMosaicContent.Achievements;
+                default:
+                    return false;
+            }
+        }
+
+        /// <summary>Whether the widget lists games or achievements, so it can take a game collection.</summary>
+        public static bool OffersCollections(ShowcaseWidgetInstanceSettings settings)
+        {
+            switch (settings?.Kind)
+            {
+                case ShowcaseWidgetKind.RecentAchievements:
+                case ShowcaseWidgetKind.GameSummaries:
+                case ShowcaseWidgetKind.IconMosaic:
+                case ShowcaseWidgetKind.Pie:
+                    return true;
+                default:
+                    return false;
+            }
+        }
+
+        // A source saved as the former "Pinned" stands for its collection: an achievement one on
+        // the achievement grid and achievement mosaic, a game one on the game grid and game mosaic.
+        private static ShowcaseCollectionType LegacyCollectionType(ShowcaseWidgetInstanceSettings settings)
+        {
+            if (!IsLegacyPinnedSource(settings))
+            {
+                return ShowcaseCollectionType.None;
+            }
+
+            return OffersAchievementCollections(settings)
+                ? ShowcaseCollectionType.Achievements
+                : ShowcaseCollectionType.Games;
+        }
+
+        private static bool IsLegacyPinnedSource(ShowcaseWidgetInstanceSettings settings) =>
+            settings?.Options != null &&
+            settings.Options.TryGetValue(Source, out var raw) &&
+            string.Equals(raw?.Trim(), LegacyPinnedSource, StringComparison.OrdinalIgnoreCase);
+
+        // Writes a former Pinned source's collection type before a source or content change
+        // replaces the value it is read from.
+        private static void KeepLegacyCollection(ShowcaseWidgetInstanceSettings settings)
+        {
+            if (settings != null &&
+                settings.Options?.ContainsKey(CollectionType) != true &&
+                IsLegacyPinnedSource(settings))
+            {
+                SetCollectionType(settings, LegacyCollectionType(settings));
+            }
         }
 
         public static string GetPinCollectionId(ShowcaseWidgetInstanceSettings settings)
@@ -891,7 +985,11 @@ namespace PlayniteAchievements.Models
 
         public static void SetMosaicSource(
             ShowcaseWidgetInstanceSettings settings,
-            ShowcaseMosaicSource value) => settings?.SetOption(Source, value);
+            ShowcaseMosaicSource value)
+        {
+            KeepLegacyCollection(settings);
+            settings?.SetOption(Source, value);
+        }
 
         /// <summary>Standard-density achievement icon size, shown when no size is set.</summary>
         public const int DefaultMosaicIconSize = 42;
@@ -1116,21 +1214,33 @@ namespace PlayniteAchievements.Models
 
         public static void SetMosaicContent(
             ShowcaseWidgetInstanceSettings settings,
-            ShowcaseMosaicContent value) => settings?.SetOption(Content, value);
+            ShowcaseMosaicContent value)
+        {
+            KeepLegacyCollection(settings);
+            settings?.SetOption(Content, value);
+        }
 
         public static ShowcaseAchievementGridSource GetAchievementGridSource(ShowcaseWidgetInstanceSettings settings) =>
             GetEnum(settings, Source, ShowcaseAchievementGridSource.All);
 
         public static void SetAchievementGridSource(
             ShowcaseWidgetInstanceSettings settings,
-            ShowcaseAchievementGridSource value) => settings?.SetOption(Source, value);
+            ShowcaseAchievementGridSource value)
+        {
+            KeepLegacyCollection(settings);
+            settings?.SetOption(Source, value);
+        }
 
         public static ShowcaseGameGridSource GetGameGridSource(ShowcaseWidgetInstanceSettings settings) =>
             GetEnum(settings, Source, ShowcaseGameGridSource.Library);
 
         public static void SetGameGridSource(
             ShowcaseWidgetInstanceSettings settings,
-            ShowcaseGameGridSource value) => settings?.SetOption(Source, value);
+            ShowcaseGameGridSource value)
+        {
+            KeepLegacyCollection(settings);
+            settings?.SetOption(Source, value);
+        }
 
         public static ShowcaseSlideshowSource GetSlideshowSource(ShowcaseWidgetInstanceSettings settings) =>
             GetEnum(settings, Source, ShowcaseSlideshowSource.All);
@@ -1180,12 +1290,19 @@ namespace PlayniteAchievements.Models
         public static void SetHideCompleted(ShowcaseWidgetInstanceSettings settings, bool value) =>
             settings?.SetOption(HideCompleted, value);
 
+        // A former Pinned game mosaic showed every pinned game, so it reads as All with its collection.
         public static ShowcaseGameMosaicSource GetGameMosaicSource(ShowcaseWidgetInstanceSettings settings) =>
-            GetEnum(settings, Source, ShowcaseGameMosaicSource.Completed);
+            IsLegacyPinnedSource(settings)
+                ? ShowcaseGameMosaicSource.All
+                : GetEnum(settings, Source, ShowcaseGameMosaicSource.Completed);
 
         public static void SetGameMosaicSource(
             ShowcaseWidgetInstanceSettings settings,
-            ShowcaseGameMosaicSource value) => settings?.SetOption(Source, value);
+            ShowcaseGameMosaicSource value)
+        {
+            KeepLegacyCollection(settings);
+            settings?.SetOption(Source, value);
+        }
 
         public static int GetGameMosaicCount(ShowcaseWidgetInstanceSettings settings) =>
             Clamp(settings?.GetOption(Count, 24) ?? 24, 1, 200);
