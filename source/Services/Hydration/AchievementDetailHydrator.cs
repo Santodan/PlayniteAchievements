@@ -153,7 +153,6 @@ namespace PlayniteAchievements.Services.Hydration
                     userOverride?.ClearTags == true ? string.Empty : userOverride?.Tags);
                 detail.CategoryKind = CategoryKindHelper.ResolveEffective(
                     customData.GetStoredCategoryKind(detail.Category),
-                    userOverride?.LegacyCategoryKind,
                     providerKind);
                 detail.IsFiltered = !string.IsNullOrWhiteSpace(apiName) && filteredApiNames.Contains(apiName);
                 detail.IsFilteredFromSummaries = !string.IsNullOrWhiteSpace(apiName) &&
