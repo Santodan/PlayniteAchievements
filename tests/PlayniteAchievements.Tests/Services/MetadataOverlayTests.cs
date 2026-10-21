@@ -551,7 +551,7 @@ namespace PlayniteAchievements.Tests.Services
         }
 
         [TestMethod]
-        public async Task NameFoundLink_WithFewMatches_IsNeitherKeptNorUsed()
+        public async Task NameFoundLink_WithFewMatches_IsNotUsed_AndIsRememberedAsNoMatch()
         {
             // "Thief: Definitive Edition" found as "Thief Gold": a different game's achievements.
             var hunters = new FakeSource("SteamHunters", MetadataField.Categories) { FoundByName = true };
@@ -567,7 +567,26 @@ namespace PlayniteAchievements.Tests.Services
             }
 
             Assert.IsNull(first.Category);
-            Assert.IsFalse(overlay.Links.TryGet(data.PlayniteGameId.Value, "SteamHunters", out _));
+            Assert.IsTrue(overlay.Links.TryGet(data.PlayniteGameId.Value, "SteamHunters", out var link));
+            Assert.IsTrue(link.IsNoMatch);
+            Assert.AreEqual(MetadataLinkOrigin.Auto, link.Origin);
+
+            // The next refresh does not search again.
+            using (var run = overlay.BeginRun())
+            {
+                await run.ApplyAsync(data.Game, data, CancellationToken.None);
+            }
+
+            Assert.AreEqual(1, hunters.ResolveCount);
+
+            // Reset lets matching look again.
+            overlay.Links.Clear(data.PlayniteGameId.Value, "SteamHunters");
+            using (var run = overlay.BeginRun())
+            {
+                await run.ApplyAsync(data.Game, data, CancellationToken.None);
+            }
+
+            Assert.AreEqual(2, hunters.ResolveCount);
         }
 
         [TestMethod]
