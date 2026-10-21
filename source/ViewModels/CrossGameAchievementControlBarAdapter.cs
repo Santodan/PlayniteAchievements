@@ -119,34 +119,12 @@ namespace PlayniteAchievements.ViewModels
         /// The tags offered: the global tags with no game picked, a picked game's tags (global, its
         /// own, and the implicit ones its rows carry), or the tags every picked game has.
         /// </summary>
-        public IReadOnlyList<string> TagOptions
-        {
-            get
-            {
-                var picked = GameFilter.SelectedGameIds;
-                if (picked.Count == 0)
-                {
-                    return AchievementTagRegistry.GetAssignableKeys(null);
-                }
-
-                List<string> shared = null;
-                foreach (var gameId in picked)
-                {
-                    var present = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-                    foreach (var row in _tagOptionRows.Where(row => row?.PlayniteGameId == gameId))
-                    {
-                        present.UnionWith(AchievementTagHelper.GetComponents(row.Tags));
-                    }
-
-                    var keys = AchievementTagRegistry.GetAssignableKeys(gameId, present);
-                    shared = shared == null
-                        ? keys.ToList()
-                        : shared.Where(key => keys.Contains(key, StringComparer.OrdinalIgnoreCase)).ToList();
-                }
-
-                return shared;
-            }
-        }
+        public IReadOnlyList<string> TagOptions =>
+            AchievementTagScope.OptionKeys(
+                GameFilter.SelectedGameIds,
+                gameId => _tagOptionRows
+                    .Where(row => row?.PlayniteGameId == gameId)
+                    .SelectMany(row => AchievementTagHelper.GetComponents(row.Tags)));
 
         public string SelectedTagText
         {
@@ -159,7 +137,7 @@ namespace PlayniteAchievements.ViewModels
 
         // A per-game tag resolves its name only on its game, so a picked game names them.
         private string GetTagName(string key) =>
-            AchievementTagRegistry.GetName(key, GameFilter.SelectedGameIds.Cast<Guid?>().FirstOrDefault());
+            AchievementTagRegistry.GetName(key, AchievementTagScope.NamingGame(GameFilter.SelectedGameIds));
 
         private bool IsTagSelected(string key) => key != null && _tags.Contains(key);
 
