@@ -500,7 +500,7 @@
                                                                   ItemsSource="{Binding FontFamilyOptions}"
                                                                   SelectedValuePath="FamilyName"
                                                                   SelectedValue="{Binding DisplayValueText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                                                  helpers:FontPickerBehavior.EnableSearch="True"
+                                                                  helpers:FontPickerBehavior.PreviewSelectedFont="True"
                                                                   VirtualizingPanel.IsVirtualizing="True">
                                                             <ComboBox.ItemsPanel>
                                                                 <ItemsPanelTemplate>
