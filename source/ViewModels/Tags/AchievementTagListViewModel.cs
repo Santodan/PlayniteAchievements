@@ -181,6 +181,12 @@ namespace PlayniteAchievements.ViewModels.Tags
 
         public bool IsSystem => AchievementTagHelper.IsSystemTag(Key);
 
+        /// <summary>A system tag's built-in name (Missable, Unobtainable); null for any other tag.</summary>
+        public string SystemName => IsSystem ? AchievementTagHelper.GetBuiltInName(Key) : null;
+
+        /// <summary>A renamed system tag's built-in name, so it can still be told apart; null otherwise.</summary>
+        public string RenamedSystemName => IsSystem && _name != null ? SystemName : null;
+
         /// <summary>
         /// A tag only the game's achievement data defines. Not stored until edited, and never
         /// deleted: the data keeps putting it on achievements.
@@ -223,6 +229,7 @@ namespace PlayniteAchievements.ViewModels.Tags
 
                 _name = stored;
                 OnPropertyChanged();
+                OnPropertyChanged(nameof(RenamedSystemName));
                 Materialize();
                 _owner.Commit();
             }
