@@ -15,6 +15,7 @@ namespace PlayniteAchievements.Models.Settings
         public const string Exophase = "Exophase";
         public const string PlayStation = "PlayStation";
         public const string Xbox = "Xbox";
+        public const string TrueGaming = "TrueGaming";
 
         /// <summary>Platforms whose scanners can take rarity from Exophase.</summary>
         public static readonly IReadOnlyCollection<string> ExophaseRarityProviders =
@@ -70,17 +71,18 @@ namespace PlayniteAchievements.Models.Settings
             TrophyTypes == null && Points == null;
 
         /// <summary>
-        /// Every field set: each platform's own icons and categories, Exophase rarity (which only
-        /// the platforms in <see cref="ExophaseRarityProviders"/> take) and the PlayStation
-        /// platinum for auto capstones where one matches.
+        /// Every field set: each platform's own icons, SteamHunters categories, TrueGaming tags,
+        /// Exophase rarity (which only the platforms in <see cref="ExophaseRarityProviders"/> take),
+        /// PlayStation trophy types and the platinum for auto capstones where one matches, and
+        /// Xbox points.
         /// </summary>
         public static MetadataChoices CreateDefaults()
         {
             return new MetadataChoices
             {
                 Icons = string.Empty,
-                Categories = string.Empty,
-                Tags = string.Empty,
+                Categories = SteamHunters,
+                Tags = TrueGaming,
                 Rarity = Exophase,
                 CapstoneArt = PlayStation,
                 TrophyTypes = PlayStation,
@@ -219,15 +221,14 @@ namespace PlayniteAchievements.Models.Settings
                    string.Equals(ResolveMetadataChoices(providerKey.Trim()).Rarity, MetadataChoices.Exophase, StringComparison.OrdinalIgnoreCase);
         }
 
-        /// <summary>Fresh installs keep SteamHunters categories and tags on Steam games, as before the Metadata tab.</summary>
+        /// <summary>Fresh installs keep SteamHunters categories on Steam games, as before the Metadata tab.</summary>
         internal static Dictionary<string, MetadataChoices> CreateDefaultMetadataPlatformChoices()
         {
             return new Dictionary<string, MetadataChoices>(StringComparer.OrdinalIgnoreCase)
             {
                 ["Steam"] = new MetadataChoices
                 {
-                    Categories = MetadataChoices.SteamHunters,
-                    Tags = MetadataChoices.SteamHunters
+                    Categories = MetadataChoices.SteamHunters
                 }
             };
         }
