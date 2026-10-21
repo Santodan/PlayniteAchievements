@@ -120,6 +120,17 @@ namespace PlayniteAchievements.Tests.Services
         }
 
         [TestMethod]
+        public void Registry_PrefersTheGlobalDefinition_OverAGamesCopy()
+        {
+            var gameId = Guid.NewGuid();
+            AchievementTagRegistry.SetGlobal(new[] { new AchievementTagDefinition { Key = "Collectable", Name = "Global" } });
+            AchievementTagRegistry.SetGameResolver(id => new[] { new AchievementTagDefinition { Key = "Collectable", Name = "Game copy" } });
+
+            Assert.AreEqual("Global", AchievementTagRegistry.GetName("Collectable", gameId));
+            Assert.AreEqual("Global", AchievementTagHelper.ToDisplayText("Collectable", gameId));
+        }
+
+        [TestMethod]
         public void DefaultName_SpellsOutSourceKeys()
         {
             Assert.AreEqual("Buggy+", AchievementTagHelper.GetDefaultName("BuggyPlus"));
