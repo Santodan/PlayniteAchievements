@@ -19,7 +19,7 @@ namespace PlayniteAchievements.Providers.Metadata.TrueGaming
     internal static class TrueGamingProbe
     {
         /// <summary>Hardcoded gate for the hidden "Probe TrueGaming" menu item. Off in shipped builds.</summary>
-        internal static readonly bool Enabled = false;
+        internal static readonly bool Enabled = true;
 
         private const int Attempts = 3;
         private const int RetryDelayMs = 3000;
