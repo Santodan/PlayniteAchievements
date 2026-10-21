@@ -694,6 +694,65 @@ namespace PlayniteAchievements.Tests.Services
         }
 
         [TestMethod]
+        public async Task RunWithoutFetching_KeepsAnAppliedSource_UntilTheGameOrItsFieldsChange()
+        {
+            var hunters = new FakeSource("SteamHunters", MetadataField.Categories | MetadataField.Tags);
+            hunters.Rows.Add(Row("A", "One", category: "Story"));
+            hunters.Rows.Add(Row("B", "Two", category: "Side"));
+            var first = Game("Epic", Row("e1", "One"));
+            var gameId = first.PlayniteGameId.Value;
+            GameAchievementData stored = null;
+            var settings = Choices(categories: hunters.Key);
+            var overlay = Overlay(new[] { hunters }, settings, loadStored: _ => stored);
+            overlay.Links.SetUser(gameId, hunters.Key, "link-SteamHunters");
+
+            async Task<GameAchievementData> Refresh(bool fetchSources, params AchievementDetail[] rows)
+            {
+                var next = Game("Epic", rows);
+                next.PlayniteGameId = gameId;
+                using (var run = overlay.BeginRun(fetchSources))
+                {
+                    await run.ApplyAsync(first.Game, next, CancellationToken.None);
+                }
+
+                stored = next;
+                return next;
+            }
+
+            await Refresh(fetchSources: false, Row("e1", "One"));
+            Assert.AreEqual(1, hunters.FetchCount, "a source never applied to the game loads");
+
+            var kept = await Refresh(fetchSources: false, Row("e1", "One"));
+            Assert.AreEqual(1, hunters.FetchCount, "an applied source is not loaded again");
+            Assert.AreEqual("Story", kept.Achievements[0].Category, "its stored value stays");
+
+            await Refresh(fetchSources: false, Row("e1", "One"), Row("e2", "Two"));
+            Assert.AreEqual(2, hunters.FetchCount, "an achievement the stored data lacks loads it");
+
+            settings.MetadataDefaults.Tags = hunters.Key;
+            await Refresh(fetchSources: false, Row("e1", "One"), Row("e2", "Two"));
+            Assert.AreEqual(3, hunters.FetchCount, "a new field loads it");
+
+            await Refresh(fetchSources: true, Row("e1", "One"), Row("e2", "Two"));
+            Assert.AreEqual(4, hunters.FetchCount, "a run that fetches sources loads it");
+        }
+
+        [DataTestMethod]
+        [DataRow(RefreshGameScope.All, false, false, true)]
+        [DataRow(RefreshGameScope.SelectedGame, false, false, true)]
+        [DataRow(RefreshGameScope.LibrarySelected, false, false, true)]
+        [DataRow(RefreshGameScope.Explicit, false, false, true)]
+        [DataRow(RefreshGameScope.Recent, false, false, false)]
+        [DataRow(RefreshGameScope.Installed, false, false, false)]
+        [DataRow(RefreshGameScope.Installed, true, false, true)]
+        [DataRow(RefreshGameScope.Explicit, false, true, false)]
+        public void MetadataSources_LoadOnFullAndChosenGameRefreshes(RefreshGameScope scope, bool forceDefinitions, bool preferCached, bool fetches)
+        {
+            Assert.AreEqual(fetches, PlayniteAchievements.Services.Refresh.RefreshRuntime.FetchesMetadataSources(
+                new RefreshOptions { Scope = scope, ForceDefinitionRefresh = forceDefinitions, PreferCachedDefinitions = preferCached }));
+        }
+
+        [TestMethod]
         public async Task Rarity_TakesTheSourcesShare_OnPlatformsThatUseIt()
         {
             var exophase = new FakeSource("Exophase", MetadataField.Rarity);
