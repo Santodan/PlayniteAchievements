@@ -146,7 +146,6 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 // A move changes which category's kind applies.
                 item.CategoryKind = CategoryKindHelper.ResolveEffective(
                     ResolveStoredCategoryKind(storedKinds, item.Category),
-                    item.LegacyCategoryKind,
                     item.ProviderCategoryKind);
             }
         }
