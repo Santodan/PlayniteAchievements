@@ -43,6 +43,10 @@ namespace PlayniteAchievements.Tests.Providers
             Assert.IsTrue(reread.TryGet(gameId, "Elden-Ring", TrueGamingSite.TrueSteamAchievements, out var steam), "a site without the game is known");
             Assert.IsNull(steam);
             Assert.IsFalse(reread.TryGet(Guid.NewGuid(), "Elden-Ring", TrueGamingSite.TrueAchievements, out _));
+            CollectionAssert.AreEqual(
+                new[] { "TrueAchievements=Elden-Ring", "TrueTrophies=Elden-Ring-PS5", "TrueSteamAchievements=" },
+                System.Linq.Enumerable.ToList(System.Linq.Enumerable.Select(reread.GetPages(gameId, "Elden-Ring"), page => page.Site.Title + "=" + page.PageSlug)),
+                "each site looked at, in lookup order");
         }
 
         [TestMethod]
