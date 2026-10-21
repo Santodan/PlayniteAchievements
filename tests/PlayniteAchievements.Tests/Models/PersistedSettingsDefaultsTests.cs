@@ -168,10 +168,10 @@ namespace PlayniteAchievements.Models.Tests
             Assert.AreEqual("SteamHunters", xbox.Categories);
             Assert.AreEqual("PlayStation", settings.ResolveMetadataChoices("Epic").Icons);
 
-            Assert.IsTrue(settings.UsesExophaseRarity("Xbox"));
-            Assert.IsFalse(settings.UsesExophaseRarity("Epic"));
-            // Steam's scanner cannot read Exophase rarity, whatever its row says.
-            Assert.IsFalse(settings.UsesExophaseRarity("Steam"));
+            Assert.AreEqual("Exophase", settings.ResolveMetadataChoices("Xbox").Rarity);
+            Assert.AreEqual("", settings.ResolveMetadataChoices("Epic").Rarity);
+            // Steam has rarity of its own, whatever its row says.
+            Assert.AreEqual("", settings.ResolveMetadataChoices("Steam").Rarity);
         }
 
         [TestMethod]
