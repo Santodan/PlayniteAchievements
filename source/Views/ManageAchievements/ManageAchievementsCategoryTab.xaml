@@ -391,7 +391,7 @@
                                                 MinWidth="110"
                                                 CanUserResize="False"
                                                 CanUserSort="False"
-                                                Header="{DynamicResource LOCPlayAch_Common_Kind}">
+                                                Header="{DynamicResource LOCTypeLabel}">
                             <DataGridTemplateColumn.CellTemplate>
                                 <DataTemplate>
                                     <!-- Built per click like the Filters cell beside it. A kind the
