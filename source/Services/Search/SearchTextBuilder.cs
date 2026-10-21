@@ -36,16 +36,6 @@ namespace PlayniteAchievements.Services.Search
             return FromValues(gameName, achievementName);
         }
 
-        public static string ForManageCategory(
-            string displayName,
-            string description,
-            string apiName,
-            string category,
-            string categoryTypeDisplay)
-        {
-            return FromValues(displayName, description, apiName, category, categoryTypeDisplay);
-        }
-
         public static string ForManageFilter(
             string displayName,
             string description,
