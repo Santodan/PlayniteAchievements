@@ -153,7 +153,6 @@ namespace PlayniteAchievements.Models.Tests
                 {
                     Icons = "PlayStation",
                     Categories = "SteamHunters",
-                    CategoryMode = MetadataCategoryMode.Override,
                     Rarity = "",
                     CapstoneArt = ""
                 },
@@ -167,7 +166,6 @@ namespace PlayniteAchievements.Models.Tests
             var xbox = settings.ResolveMetadataChoices("Xbox");
             Assert.AreEqual("", xbox.Icons);
             Assert.AreEqual("SteamHunters", xbox.Categories);
-            Assert.AreEqual(MetadataCategoryMode.Override, xbox.CategoryMode);
             Assert.AreEqual("PlayStation", settings.ResolveMetadataChoices("Epic").Icons);
 
             Assert.IsTrue(settings.UsesExophaseRarity("Xbox"));
