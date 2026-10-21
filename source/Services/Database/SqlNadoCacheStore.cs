@@ -5454,7 +5454,6 @@ namespace PlayniteAchievements.Services.Database
 
             item.CategoryKind = CategoryKindHelper.ResolveEffective(
                 customData.GetStoredCategoryKind(item.CategoryLabel),
-                userOverride?.LegacyCategoryKind,
                 item.CategoryKind);
 
             item.AchievementNote = customData.AchievementNotes != null &&
