@@ -329,6 +329,43 @@ namespace PlayniteAchievements.Services.Achievements
                 : value;
         }
 
+        /// <summary>
+        /// The name a tag shows until it is renamed: a built-in tag's localized name, a source's key
+        /// spelled out ("PartlyDiscontinued" as "Partly Discontinued", "BuggyPlus" as "Buggy+"), or the key
+        /// itself for a user tag.
+        /// </summary>
+        public static string GetDefaultName(string key)
+        {
+            var builtIn = GetBuiltInName(key);
+            if (builtIn != null)
+            {
+                return builtIn;
+            }
+
+            var trimmed = (key ?? string.Empty).Trim();
+            if (trimmed.StartsWith(UserKeyPrefix, StringComparison.OrdinalIgnoreCase))
+            {
+                return trimmed;
+            }
+
+            var name = new System.Text.StringBuilder(trimmed.Length + 4);
+            for (var i = 0; i < trimmed.Length; i++)
+            {
+                var c = trimmed[i];
+                if (i > 0 && (char.IsUpper(c) || (char.IsDigit(c) && !char.IsDigit(trimmed[i - 1]))) && name[name.Length - 1] != ' ')
+                {
+                    name.Append(' ');
+                }
+
+                name.Append(c);
+            }
+
+            var spelled = name.ToString();
+            return spelled.EndsWith(" Plus", StringComparison.Ordinal) ? spelled.Substring(0, spelled.Length - 5) + "+"
+                : spelled.EndsWith(" Minus", StringComparison.Ordinal) ? spelled.Substring(0, spelled.Length - 6) + "-"
+                : spelled;
+        }
+
         private static List<string> Order(HashSet<string> values)
         {
             var builtIn = BuiltInKeys.Concat(DerivedKeys).Where(values.Contains);
