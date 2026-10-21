@@ -135,7 +135,7 @@ namespace PlayniteAchievements.Services.Metadata
             {
                 _ownIcons[gameId] = ownIcons;
             }
-            ApplyCategories(plan.CategoryKeys, plan.CategoryMode, sets);
+            ApplyCategories(plan.CategoryKeys, sets);
             var categoryArt = CollectCategoryArt(plan.CategoryKeys, sets);
             if (categoryArt.Count > 0 && _downloadCategoryArt != null)
             {
@@ -296,7 +296,6 @@ namespace PlayniteAchievements.Services.Metadata
             return new OverlayPlan(
                 Chosen(choices.Icons, MetadataField.Icons),
                 Chosen(choices.Categories, MetadataField.Categories),
-                choices.CategoryMode ?? MetadataCategoryMode.Merge,
                 Chosen(choices.CapstoneArt, MetadataField.CapstoneArt),
                 Chosen(choices.TrophyTypes, MetadataField.TrophyTypes),
                 Chosen(choices.Points, MetadataField.Points));
@@ -561,12 +560,10 @@ namespace PlayniteAchievements.Services.Metadata
         }
 
         /// <summary>
-        /// Applies each achievement's category and types from the first source that matched it.
-        /// Merge keeps a category the provider named and adds the source's types; Override replaces both.
+        /// Replaces each achievement's category, kind and tags with those of the first source that matched it.
         /// </summary>
         private static void ApplyCategories(
             IReadOnlyList<string> keys,
-            MetadataCategoryMode mode,
             IReadOnlyDictionary<string, MatchedSet> sets)
         {
             var done = new HashSet<AchievementDetail>();
@@ -584,7 +581,7 @@ namespace PlayniteAchievements.Services.Metadata
                         continue;
                     }
 
-                    ApplyCategory(match.Target, match.Source, mode);
+                    ApplyCategory(match.Target, match.Source);
                 }
             }
         }
@@ -624,30 +621,16 @@ namespace PlayniteAchievements.Services.Metadata
             return art;
         }
 
-        internal static void ApplyCategory(AchievementDetail target, AchievementDetail source, MetadataCategoryMode mode)
+        internal static void ApplyCategory(AchievementDetail target, AchievementDetail source)
         {
-            var sourceCategory = AchievementCategoryHelper.NormalizeCategory(source.Category);
-            var sourceKind = CategoryKindHelper.Normalize(source.CategoryKind);
-            var sourceTags = AchievementTagHelper.StripDerived(source.Tags);
+            target.Category = AchievementCategoryHelper.NormalizeCategory(source.Category);
+            target.CategoryKind = CategoryKindHelper.Normalize(source.CategoryKind);
             // The unlock mode says how this user earned it, which only the game's own provider knows.
-            var targetDerived = AchievementTagHelper.DerivedOnly(target.Tags);
-            if (mode == MetadataCategoryMode.Override)
+            target.Tags = AchievementTagHelper.Combine(new[]
             {
-                target.Category = sourceCategory;
-                target.CategoryKind = sourceKind;
-                target.Tags = AchievementTagHelper.Combine(new[] { sourceTags, targetDerived });
-                return;
-            }
-
-            if (AchievementCategoryHelper.NormalizeCategory(target.Category) == null)
-            {
-                target.Category = sourceCategory;
-            }
-
-            // A kind is one coherent value, so the source fills it only where the target has none;
-            // tags add up.
-            target.CategoryKind = CategoryKindHelper.Normalize(target.CategoryKind) ?? sourceKind;
-            target.Tags = AchievementTagHelper.Combine(new[] { target.Tags, sourceTags });
+                AchievementTagHelper.StripDerived(source.Tags),
+                AchievementTagHelper.DerivedOnly(target.Tags)
+            });
         }
 
         /// <summary>The first preferred source's capstone (platinum) icon, when that source matched the game.</summary>
@@ -711,14 +694,12 @@ namespace PlayniteAchievements.Services.Metadata
             public OverlayPlan(
                 List<string> iconKeys,
                 List<string> categoryKeys,
-                MetadataCategoryMode categoryMode,
                 List<string> capstoneArtKeys,
                 List<string> trophyTypeKeys,
                 List<string> pointsKeys)
             {
                 IconKeys = iconKeys;
                 CategoryKeys = categoryKeys;
-                CategoryMode = categoryMode;
                 CapstoneArtKeys = capstoneArtKeys;
                 TrophyTypeKeys = trophyTypeKeys;
                 PointsKeys = pointsKeys;
@@ -740,8 +721,6 @@ namespace PlayniteAchievements.Services.Metadata
             public List<string> IconKeys { get; }
 
             public List<string> CategoryKeys { get; }
-
-            public MetadataCategoryMode CategoryMode { get; }
 
             public List<string> CapstoneArtKeys { get; }
 
