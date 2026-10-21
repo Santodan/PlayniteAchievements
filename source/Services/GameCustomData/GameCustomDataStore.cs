@@ -31,14 +31,23 @@ namespace PlayniteAchievements.Services.GameCustomData
         public GameCustomDataChangedEventArgs(
             Guid playniteGameId,
             bool affectsSummaryData = true,
-            bool affectsOverrideMirror = true)
+            bool affectsOverrideMirror = true,
+            bool affectsTagTotals = false)
         {
             PlayniteGameId = playniteGameId;
             AffectsSummaryData = affectsSummaryData;
             AffectsOverrideMirror = affectsOverrideMirror;
+            AffectsTagTotals = affectsTagTotals;
         }
 
         public Guid PlayniteGameId { get; }
+
+        /// <summary>
+        /// True when the write changed which tags the user put on achievements, or the store could
+        /// not tell. A tag edit leaves every other summary count alone, so its writers report
+        /// <see cref="AffectsSummaryData"/> false and subscribers recount only the game's tags.
+        /// </summary>
+        public bool AffectsTagTotals { get; }
 
         /// <summary>
         /// False when the change cannot have moved the per-achievement override mirror -- the
@@ -594,9 +603,16 @@ namespace PlayniteAchievements.Services.GameCustomData
                     _logger?.Warn(ex, $"A custom-data write subscriber failed for game {playniteGameId}.");
                 }
 
+                // Decided here rather than by each writer: the store holds both records, so every
+                // path that edits tags (the editor, combine-by-name, undo) is covered alike.
+                var affectsTagTotals = previousData == null ||
+                    !string.Equals(
+                        TagEditSignature(previousData),
+                        TagEditSignature(persisted),
+                        StringComparison.Ordinal);
                 using (PerfScope.Start(_logger, "GameCustomData.Save.RaiseChanged", thresholdMs: 10))
                 {
-                    RaiseCustomDataChanged(playniteGameId, affectsSummaryData, affectsOverrideMirror);
+                    RaiseCustomDataChanged(playniteGameId, affectsSummaryData, affectsOverrideMirror, affectsTagTotals);
                 }
             }
         }
@@ -2584,7 +2600,8 @@ namespace PlayniteAchievements.Services.GameCustomData
         private void RaiseCustomDataChanged(
             Guid playniteGameId,
             bool affectsSummaryData = true,
-            bool affectsOverrideMirror = true)
+            bool affectsOverrideMirror = true,
+            bool affectsTagTotals = true)
         {
             if (playniteGameId == Guid.Empty)
             {
@@ -2596,7 +2613,32 @@ namespace PlayniteAchievements.Services.GameCustomData
                 new GameCustomDataChangedEventArgs(
                     playniteGameId,
                     affectsSummaryData,
-                    affectsOverrideMirror));
+                    affectsOverrideMirror,
+                    affectsTagTotals));
+        }
+
+        /// <summary>
+        /// The tags the user put on the game's achievements, in one comparable string: each tag
+        /// edit as its ApiName and stored value, the custom achievements' tags after them.
+        /// </summary>
+        internal static string TagEditSignature(GameCustomDataFile data)
+        {
+            var parts = new List<string>();
+            foreach (var pair in data?.AchievementOverrides ?? new Dictionary<string, AchievementOverride>())
+            {
+                if (AchievementTagTallyBuilder.HasTagEdit(pair.Value))
+                {
+                    parts.Add(pair.Key + "=" + (pair.Value.ClearTags ? string.Empty : pair.Value.Tags));
+                }
+            }
+
+            parts.Sort(StringComparer.OrdinalIgnoreCase);
+            foreach (var custom in data?.CustomAchievements ?? new List<CustomAchievementDefinition>())
+            {
+                parts.Add("custom:" + custom?.Id + "=" + custom?.Tags);
+            }
+
+            return string.Join("\u001f", parts);
         }
 
     }
