@@ -1118,7 +1118,6 @@ namespace PlayniteAchievements.Services.GameCustomData
                     Category = !string.IsNullOrWhiteSpace(category)
                         ? CategoryPathHelper.NormalizePath(category)
                         : null,
-                    LegacyCategoryKind = CategoryKindHelper.NormalizeStored(pair.Value.LegacyCategoryKind),
                     // Softcore/Hardcore come only from RetroAchievements refreshes, never an override.
                     Tags = AchievementTagHelper.StripDerived(pair.Value.Tags),
                     ClearTags = pair.Value.ClearTags && AchievementTagHelper.StripDerived(pair.Value.Tags) == null,
@@ -1646,8 +1645,8 @@ namespace PlayniteAchievements.Services.GameCustomData
         }
 
         /// <summary>
-        /// Copies of <paramref name="values"/> with each pre-v9 type override split into its legacy
-        /// kind and tags (see <see cref="LegacyCategoryTypes.ApplyTo"/>).
+        /// Copies of <paramref name="values"/> with each pre-v9 type override's tags moved to
+        /// <see cref="AchievementOverride.Tags"/> (see <see cref="LegacyCategoryTypes.ApplyTo"/>).
         /// </summary>
         private static Dictionary<string, AchievementOverride> SplitLegacyCategoryTypes(
             Dictionary<string, AchievementOverride> values)
@@ -1666,8 +1665,8 @@ namespace PlayniteAchievements.Services.GameCustomData
                 }
 
                 var entry = pair.Value.Clone();
-                var legacyValue = entry.LegacyCategoryKind;
-                entry.LegacyCategoryKind = null;
+                var legacyValue = entry.LegacyCategoryType;
+                entry.LegacyCategoryType = null;
                 LegacyCategoryTypes.ApplyTo(entry, legacyValue);
                 split[pair.Key] = entry;
             }
