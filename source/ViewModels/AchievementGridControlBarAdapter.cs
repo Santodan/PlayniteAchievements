@@ -453,12 +453,16 @@ namespace PlayniteAchievements.ViewModels
             return controlBar;
         }
 
-        private bool IsCategoryTypeFilterSelected(string value)
+        public bool IsCategoryTypeFilterSelected(string value)
         {
             return IsFilterSelected(_selectedCategoryTypeFilters, value);
         }
 
-        private void SetCategoryTypeFilterSelected(string value, bool isSelected)
+        /// <summary>
+        /// Picks or drops a kind or tag in the Tags filter; the overview's tag pie sets it for the
+        /// selected game's grid.
+        /// </summary>
+        public void SetCategoryTypeFilterSelected(string value, bool isSelected)
         {
             if (!SetFilterSelection(_selectedCategoryTypeFilters, value, isSelected))
             {

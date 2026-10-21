@@ -253,6 +253,10 @@ namespace PlayniteAchievements.ViewModels
             {
                 _gameCustomDataStore.CustomDataChanged += OnCustomDataChanged;
             }
+            if (_achievementDataService != null)
+            {
+                _achievementDataService.TagTotalsChanged += OnTagTotalsChanged;
+            }
             if (_settings != null)
             {
                 _settings.PropertyChanged += OnSettingsChanged;
@@ -381,6 +385,20 @@ namespace PlayniteAchievements.ViewModels
                 () => TrophyFilterOptions,
                 IsTrophyFilterSelected,
                 SetTrophyFilterSelected)
+            {
+                Width = 130
+            });
+            // Achievement tags; a tag pie slice in the mini-showcase toggles them too. The grid
+            // lists every game here, so it offers the global tags; a selected game's grid has its
+            // own Tags filter with that game's tags.
+            RecentAchievementsControlBar.Items.Add(new GridMultiSelectFilter(
+                this,
+                nameof(SelectedTagFilterText),
+                () => SelectedTagFilterText,
+                () => TagFilterOptions,
+                IsTagFilterSelected,
+                SetTagFilterSelected,
+                key => Services.Achievements.AchievementTagRegistry.GetName(key))
             {
                 Width = 130
             });
@@ -2759,6 +2777,27 @@ namespace PlayniteAchievements.ViewModels
             QueueOverviewDelta(isFullReset: false, key: e.PlayniteGameId.ToString("D"));
         }
 
+        // A tag edit recounted one game's tag totals and nothing else, so the game's rows take
+        // the new totals in place instead of a delta rebuilding the game.
+        private void OnTagTotalsChanged(object sender, TagTotalsChangedEventArgs e)
+        {
+            if (e == null || e.PlayniteGameId == Guid.Empty)
+            {
+                return;
+            }
+
+            System.Windows.Application.Current?.Dispatcher?.InvokeIfNeeded(() =>
+            {
+                foreach (var game in _latestSnapshot?.GameSummaries ?? new List<GameSummaryItem>())
+                {
+                    if (game?.PlayniteGameId == e.PlayniteGameId)
+                    {
+                        game.TagTotals = e.TagTotals;
+                    }
+                }
+            });
+        }
+
         private void QueueOverviewDelta(bool isFullReset, string key)
         {
             System.Windows.Application.Current?.Dispatcher?.InvokeIfNeeded(() =>
@@ -4202,6 +4241,10 @@ namespace PlayniteAchievements.ViewModels
             if (_gameCustomDataStore != null)
             {
                 _gameCustomDataStore.CustomDataChanged -= OnCustomDataChanged;
+            }
+            if (_achievementDataService != null)
+            {
+                _achievementDataService.TagTotalsChanged -= OnTagTotalsChanged;
             }
             if (_settings != null)
             {
