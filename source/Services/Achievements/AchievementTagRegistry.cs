@@ -7,8 +7,8 @@ using PlayniteAchievements.Models.Achievements;
 namespace PlayniteAchievements.Services.Achievements
 {
     /// <summary>
-    /// Resolves tag keys to their definitions: a game's own tags first, then the global list from
-    /// settings. A key a provider or metadata source put on an achievement that neither list
+    /// Resolves tag keys to their definitions: the global list from settings first, then a game's
+    /// own tags for keys the global list does not hold. A key a provider or metadata source put on an achievement that neither list
     /// holds is an implicit tag of that game, named from its key, so deleting a global tag leaves
     /// its achievements tagged under that game. A user tag (<c>u-</c>) whose definition was
     /// deleted is not shown.
@@ -169,8 +169,8 @@ namespace PlayniteAchievements.Services.Achievements
             }
 
             var trimmed = key.Trim();
-            return GetGameTags(gameId).FirstOrDefault(definition => KeyEquals(definition, trimmed)) ??
-                   _global.FirstOrDefault(definition => KeyEquals(definition, trimmed)) ??
+            return _global.FirstOrDefault(definition => KeyEquals(definition, trimmed)) ??
+                   GetGameTags(gameId).FirstOrDefault(definition => KeyEquals(definition, trimmed)) ??
                    ResolveImplicit(trimmed, gameId);
         }
 
