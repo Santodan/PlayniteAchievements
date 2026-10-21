@@ -58,12 +58,11 @@ namespace PlayniteAchievements.Models.Settings
         public string Category { get; set; }
 
         /// <summary>
-        /// Legacy per-achievement category kind, from files written before kinds moved onto the
-        /// category. Holds kind tokens only once normalized; tags moved to <see cref="Tags"/>.
-        /// Honored below the category's own kind and cleared when that kind is set.
+        /// The single category type override of files written before kinds and tags split. Read
+        /// only so normalization can move its tags to <see cref="Tags"/>; it is never written back.
         /// </summary>
-        [JsonProperty("CategoryType")]
-        public string LegacyCategoryKind { get; set; }
+        [JsonProperty("CategoryType", NullValueHandling = NullValueHandling.Ignore)]
+        public string LegacyCategoryType { get; set; }
 
         /// <summary>Pipe-joined tag keys replacing the provider's tags. Null means "not customized".</summary>
         public string Tags { get; set; }
@@ -103,7 +102,7 @@ namespace PlayniteAchievements.Models.Settings
             !UnlockTimeUtc.HasValue &&
             !ClearUnlockTime &&
             string.IsNullOrWhiteSpace(Category) &&
-            string.IsNullOrWhiteSpace(LegacyCategoryKind) &&
+            string.IsNullOrWhiteSpace(LegacyCategoryType) &&
             string.IsNullOrWhiteSpace(Tags) &&
             !ClearTags &&
             string.IsNullOrWhiteSpace(Note) &&
@@ -124,7 +123,7 @@ namespace PlayniteAchievements.Models.Settings
                 UnlockTimeUtc = UnlockTimeUtc,
                 ClearUnlockTime = ClearUnlockTime,
                 Category = Category,
-                LegacyCategoryKind = LegacyCategoryKind,
+                LegacyCategoryType = LegacyCategoryType,
                 Tags = Tags,
                 ClearTags = ClearTags,
                 Note = Note,
