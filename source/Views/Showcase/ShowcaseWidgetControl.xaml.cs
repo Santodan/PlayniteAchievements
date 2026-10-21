@@ -463,10 +463,9 @@ namespace PlayniteAchievements.Views.Showcase
                     slideshow.SetEditHold(!IsHitTestVisible);
                     break;
                 case ShowcaseWidgetKind.RecentAchievements:
-                    // The collapsed Achievements Grid: the pinned source rides the pinned
-                    // view model for reorder support and placeholder rows.
-                    if (ShowcaseWidgetOptions.GetAchievementGridSource(_projection.Instance) ==
-                        ShowcaseAchievementGridSource.Pinned)
+                    // The collapsed Achievements Grid: a collection shown in pin order rides the
+                    // pinned view model for reorder support and placeholder rows.
+                    if (_projection.ResolvedPinCollectionId != null)
                     {
                         SetBodyContent(_projection.AchievementRows?.Count > 0
                             ? (object)UpdateBodyViewModel<PinnedAchievementsWidgetViewModel>()
@@ -481,10 +480,12 @@ namespace PlayniteAchievements.Views.Showcase
 
                     break;
                 case ShowcaseWidgetKind.GameSummaries:
-                    // The collapsed Game Summaries Grid: pinned/favorites sources ride the
-                    // favorites view model for pin reorder support.
+                    // The collapsed Game Summaries Grid: a collection shown in pin order and the
+                    // other sources ride the favorites view model, for pin reorder support and
+                    // its pin-order default sort.
                     if (ShowcaseWidgetOptions.GetGameGridSource(_projection.Instance) ==
-                        ShowcaseGameGridSource.Library)
+                        ShowcaseGameGridSource.Library &&
+                        _projection.ResolvedPinCollectionId == null)
                     {
                         SetBodyContent(_projection.Games?.Count > 0
                             ? (object)UpdateBodyViewModel<GameSummariesWidgetViewModel>()
