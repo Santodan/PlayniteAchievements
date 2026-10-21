@@ -126,6 +126,10 @@ namespace PlayniteAchievements.Services.Metadata
 
         private readonly object _sync = new object();
         private readonly object _fileSync = new object();
+
+        // A game's custom data is read, changed and saved whole, so link writes for one game (the
+        // overlay's sources answer at the same time) go one at a time or one would be lost.
+        private readonly object _writeSync = new object();
         private readonly GameCustomDataStore _customData;
         private readonly ILogger _logger;
         private readonly string _path;
@@ -208,17 +212,21 @@ namespace PlayniteAchievements.Services.Metadata
             }
 
             var next = choices?.IsEmpty() == false ? choices.Clone() : null;
-            var current = GetChoices(gameId);
-            if (next == null ? current == null : next.SameAs(current))
+            lock (_writeSync)
             {
-                return false;
+                var current = GetChoices(gameId);
+                if (next == null ? current == null : next.SameAs(current))
+                {
+                    return false;
+                }
+
+                _customData.Update(
+                    gameId,
+                    data => data.MetadataChoices = next,
+                    affectsSummaryData: false,
+                    affectsOverrideMirror: false);
             }
 
-            _customData.Update(
-                gameId,
-                data => data.MetadataChoices = next,
-                affectsSummaryData: false,
-                affectsOverrideMirror: false);
             LinkChanged?.Invoke(gameId);
             return true;
         }
@@ -343,23 +351,27 @@ namespace PlayniteAchievements.Services.Metadata
             }
 
             var key = sourceKey.Trim();
-            if (ReadLinks(gameId)?.ContainsKey(key) != true)
+            lock (_writeSync)
             {
-                return false;
+                if (ReadLinks(gameId)?.ContainsKey(key) != true)
+                {
+                    return false;
+                }
+
+                _customData.Update(
+                    gameId,
+                    data =>
+                    {
+                        data.MetadataLinks?.Remove(key);
+                        if (data.MetadataLinks?.Count == 0)
+                        {
+                            data.MetadataLinks = null;
+                        }
+                    },
+                    affectsSummaryData: false,
+                    affectsOverrideMirror: false);
             }
 
-            _customData.Update(
-                gameId,
-                data =>
-                {
-                    data.MetadataLinks?.Remove(key);
-                    if (data.MetadataLinks?.Count == 0)
-                    {
-                        data.MetadataLinks = null;
-                    }
-                },
-                affectsSummaryData: false,
-                affectsOverrideMirror: false);
             LinkChanged?.Invoke(gameId);
             return true;
         }
@@ -639,40 +651,44 @@ namespace PlayniteAchievements.Services.Metadata
             }
 
             var key = sourceKey.Trim();
-            MetadataLinkData existing = null;
-            ReadLinks(gameId)?.TryGetValue(key, out existing);
-            var next = build(existing);
-            if (next == null)
+            lock (_writeSync)
             {
-                return false;
-            }
-
-            // Pairings belong to the link they were made against: kept while it stays the same.
-            if (next.Pairings == null && existing?.Pairings != null &&
-                string.Equals(existing.Id, next.Id, StringComparison.Ordinal))
-            {
-                next.Pairings = new Dictionary<string, string>(existing.Pairings, StringComparer.OrdinalIgnoreCase);
-            }
-
-            if (existing != null &&
-                existing.IsUserSet == next.IsUserSet &&
-                string.Equals(existing.Id, next.Id, StringComparison.Ordinal) &&
-                string.Equals(existing.Label, next.Label, StringComparison.Ordinal) &&
-                SamePairings(existing.Pairings, next.Pairings))
-            {
-                return false;
-            }
-
-            _customData.Update(
-                gameId,
-                data =>
+                MetadataLinkData existing = null;
+                ReadLinks(gameId)?.TryGetValue(key, out existing);
+                var next = build(existing);
+                if (next == null)
                 {
-                    data.MetadataLinks = data.MetadataLinks ??
-                                         new Dictionary<string, MetadataLinkData>(StringComparer.OrdinalIgnoreCase);
-                    data.MetadataLinks[key] = next;
-                },
-                affectsSummaryData: false,
-                affectsOverrideMirror: false);
+                    return false;
+                }
+
+                // Pairings belong to the link they were made against: kept while it stays the same.
+                if (next.Pairings == null && existing?.Pairings != null &&
+                    string.Equals(existing.Id, next.Id, StringComparison.Ordinal))
+                {
+                    next.Pairings = new Dictionary<string, string>(existing.Pairings, StringComparer.OrdinalIgnoreCase);
+                }
+
+                if (existing != null &&
+                    existing.IsUserSet == next.IsUserSet &&
+                    string.Equals(existing.Id, next.Id, StringComparison.Ordinal) &&
+                    string.Equals(existing.Label, next.Label, StringComparison.Ordinal) &&
+                    SamePairings(existing.Pairings, next.Pairings))
+                {
+                    return false;
+                }
+
+                _customData.Update(
+                    gameId,
+                    data =>
+                    {
+                        data.MetadataLinks = data.MetadataLinks ??
+                                             new Dictionary<string, MetadataLinkData>(StringComparer.OrdinalIgnoreCase);
+                        data.MetadataLinks[key] = next;
+                    },
+                    affectsSummaryData: false,
+                    affectsOverrideMirror: false);
+            }
+
             LinkChanged?.Invoke(gameId);
             return true;
         }
