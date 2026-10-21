@@ -34,6 +34,8 @@ namespace PlayniteAchievements.Tests.Providers
         [DataRow("/game/Fallout-4/achievements", "Steam", "truesteamachievements.com", "Fallout-4")]
         [DataRow("https://www.truetrophies.com/game/Elden-Ring/trophies", "Steam", "www.truetrophies.com", "Elden-Ring")]
         [DataRow("truesteamachievements.com/game/Hades/achievements?x=1", "PSN", "truesteamachievements.com", "Hades")]
+        [DataRow("ta:ELDEN-RING-NIGHTREIGN", "Steam", "www.trueachievements.com", "ELDEN-RING-NIGHTREIGN")]
+        [DataRow("TT:Elden-Ring-PS5", "Xbox", "www.truetrophies.com", "Elden-Ring-PS5")]
         public void Links_AcceptSlugsAndPastedAddresses(string link, string provider, string host, string slug)
         {
             Assert.IsTrue(TrueGamingLinks.TryParse(link, provider, out var site, out var parsed));
@@ -49,6 +51,7 @@ namespace PlayniteAchievements.Tests.Providers
                 TrueGamingSite.LookupOrder.Select(site => site.Name).ToList());
 
             var link = TrueGamingSite.TrueAchievements.LinkId("ELDEN-RING-NIGHTREIGN", "Steam");
+            Assert.AreEqual("ta:ELDEN-RING-NIGHTREIGN", link);
             Assert.IsTrue(TrueGamingLinks.TryParse(link, "Steam", out var site, out var slug));
             Assert.AreSame(TrueGamingSite.TrueAchievements, site);
             Assert.AreEqual("ELDEN-RING-NIGHTREIGN", slug);
