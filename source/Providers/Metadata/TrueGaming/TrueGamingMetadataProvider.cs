@@ -24,7 +24,7 @@ namespace PlayniteAchievements.Providers.Metadata.TrueGaming
     {
         public const string MetadataKey = "TrueGaming";
 
-        // Pages load in under 2 s; one that takes longer is treated as not loaded.
+        // Pages load in under 2 s; one still loading after this is read as it stands.
         private const int PageTimeoutMs = 8000;
 
         private readonly OffscreenViewLeaseSource _views;
@@ -263,12 +263,29 @@ namespace PlayniteAchievements.Providers.Metadata.TrueGaming
             TrueGamingPage page;
             try
             {
-                var html = await _views.WithNavigableViewAsync(async view =>
+                // A page still loading at the timeout (ads, trackers) usually has its list already,
+                // so it is read as it stands. Its view is replaced, so the page's late load cannot
+                // end the next page's wait.
+                var (html, timedOut) = await _views.WithDiscardableViewAsync(async view =>
                 {
-                    await view.NavigateAndWaitAsync(url, PageTimeoutMs).ConfigureAwait(false);
-                    return await view.GetPageSourceAsync().ConfigureAwait(false);
+                    var late = false;
+                    try
+                    {
+                        await view.NavigateAndWaitAsync(url, PageTimeoutMs).ConfigureAwait(false);
+                    }
+                    catch (TimeoutException)
+                    {
+                        late = true;
+                    }
+
+                    var source = await view.GetPageSourceAsync().ConfigureAwait(false);
+                    return ((source, late), late);
                 }, ct).ConfigureAwait(false);
                 page = TrueGamingPageParser.Parse(html);
+                if (timedOut)
+                {
+                    _logger?.Debug($"[TrueGamingMetadata] {url} still loading after {PageTimeoutMs} ms; read with {page.Achievements.Count} rows.");
+                }
             }
             catch (OperationCanceledException) when (ct.IsCancellationRequested)
             {
@@ -276,7 +293,7 @@ namespace PlayniteAchievements.Providers.Metadata.TrueGaming
             }
             catch (Exception ex)
             {
-                _logger?.Debug(ex, $"[TrueGamingMetadata] Loading {url} failed.");
+                _logger?.Debug($"[TrueGamingMetadata] Loading {url} failed: {ex.GetType().Name}: {ex.Message}");
                 page = new TrueGamingPage();
             }
 
