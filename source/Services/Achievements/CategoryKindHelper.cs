@@ -143,19 +143,10 @@ namespace PlayniteAchievements.Services.Achievements
 
         /// <summary>
         /// An achievement's effective kind: the kind stored on its category (<see cref="None"/>
-        /// meaning none), else its legacy per-achievement kind, else the provider's.
+        /// meaning none), else the provider's.
         /// </summary>
-        public static string ResolveEffective(string storedCategoryKind, string legacyAchievementKind, string providerKind)
-        {
-            if (!string.IsNullOrWhiteSpace(storedCategoryKind))
-            {
-                return Normalize(storedCategoryKind);
-            }
-
-            return !string.IsNullOrWhiteSpace(legacyAchievementKind)
-                ? Normalize(legacyAchievementKind)
-                : Normalize(providerKind);
-        }
+        public static string ResolveEffective(string storedCategoryKind, string providerKind) =>
+            Normalize(!string.IsNullOrWhiteSpace(storedCategoryKind) ? storedCategoryKind : providerKind);
 
         public static bool Contains(string value, string kind) =>
             GetComponents(value).Contains(kind, StringComparer.OrdinalIgnoreCase);
