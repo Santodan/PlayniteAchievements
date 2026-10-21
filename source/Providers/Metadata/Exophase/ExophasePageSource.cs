@@ -115,30 +115,24 @@ namespace PlayniteAchievements.Providers.Metadata.Exophase
                 }
             }
 
+            // One search for the name; each platform, newest first, then picks from its results.
             string slug = null;
+            var games = await _client.SearchGamesAsync(normalizedName, null, ct).ConfigureAwait(false);
             foreach (var platformSlug in platformSlugs)
             {
-                var games = await _client.SearchGamesAsync(normalizedName, platformSlug, ct).ConfigureAwait(false);
-                if (games.Count == 0 && !string.IsNullOrWhiteSpace(platformSlug))
-                {
-                    // The search does not validate its platform filter, so an unknown value finds
-                    // nothing; the match below checks each row's platforms itself.
-                    games = await _client.SearchGamesAsync(normalizedName, null, ct).ConfigureAwait(false);
-                }
-
                 var match = ExophaseGameNameMatcher.SelectBestSearchMatch(normalizedName, games, platformSlug, regionHint);
                 slug = ExophaseApiClient.ExtractSlugFromUrl(match?.EndpointAwards);
                 if (!string.IsNullOrWhiteSpace(slug))
                 {
                     break;
                 }
+            }
 
-                if (games.Count > 0)
-                {
-                    _logger?.Debug(
-                        $"[ExophaseMetadata] Search for '{normalizedName}' ({platformSlug}) matched none of {games.Count} results; platforms seen: " +
-                        $"[{string.Join(", ", games.SelectMany(row => row?.Platforms ?? Enumerable.Empty<ExophasePlatform>()).Select(platform => platform?.Slug).Where(value => !string.IsNullOrWhiteSpace(value)).Distinct(StringComparer.OrdinalIgnoreCase))}].");
-                }
+            if (string.IsNullOrWhiteSpace(slug) && games.Count > 0)
+            {
+                _logger?.Debug(
+                    $"[ExophaseMetadata] Search for '{normalizedName}' ({string.Join(", ", platformSlugs)}) matched none of {games.Count} results; platforms seen: " +
+                    $"[{string.Join(", ", games.SelectMany(row => row?.Platforms ?? Enumerable.Empty<ExophasePlatform>()).Select(platform => platform?.Slug).Where(value => !string.IsNullOrWhiteSpace(value)).Distinct(StringComparer.OrdinalIgnoreCase))}].");
             }
 
             lock (_sync)
