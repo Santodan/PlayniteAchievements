@@ -129,15 +129,15 @@ namespace PlayniteAchievements.Views.Settings.Metadata
             SupportsRarity = supportsRarity;
             SupportsTrophyTypes = MetadataChoices.TakesTrophyTypes(providerKey);
             SupportsPoints = MetadataChoices.TakesPoints(providerKey);
-            IconOptions = BuildSourceOptions(providers, MetadataField.Icons, "LOCPlayAch_Settings_Metadata_Source_Own");
-            CapstoneArtOptions = BuildSourceOptions(providers, MetadataField.CapstoneArt, "LOCPlayAch_Settings_Metadata_Source_Own");
-            TrophyTypeOptions = BuildSourceOptions(providers, MetadataField.TrophyTypes, "LOCPlayAch_Settings_Metadata_Source_Own");
-            PointsOptions = BuildSourceOptions(providers, MetadataField.Points, "LOCPlayAch_Settings_Metadata_Source_Own");
+            IconOptions = BuildSourceOptions(providers, MetadataField.Icons, "LOCPlayAch_Settings_Override_Off");
+            CapstoneArtOptions = BuildSourceOptions(providers, MetadataField.CapstoneArt, "LOCPlayAch_Settings_Override_Off");
+            TrophyTypeOptions = BuildSourceOptions(providers, MetadataField.TrophyTypes, "LOCPlayAch_Settings_Override_Off");
+            PointsOptions = BuildSourceOptions(providers, MetadataField.Points, "LOCPlayAch_Settings_Override_Off");
             CategoryOptions = BuildScanOptions(providers, MetadataField.Categories);
             TagOptions = BuildScanOptions(providers, MetadataField.Tags);
             RarityOptions = WithDefault(new[]
             {
-                new ChoiceOption(string.Empty, ResourceProvider.GetString("LOCPlayAch_Settings_Metadata_Source_Own")),
+                new ChoiceOption(string.Empty, ResourceProvider.GetString("LOCPlayAch_Settings_Override_Off")),
                 new ChoiceOption(MetadataChoices.Exophase, ResourceProvider.GetString("LOCPlayAch_Provider_Exophase"))
             });
 
@@ -215,7 +215,7 @@ namespace PlayniteAchievements.Views.Settings.Metadata
         }
 
         /// <summary>
-        /// The label of the option the inherited choices pick; Own when this row cannot offer it
+        /// The label of the option the inherited choices pick; Off when this row cannot offer it
         /// (a source native to the platform, which the overlay skips).
         /// </summary>
         private string InheritedLabel(IReadOnlyList<ChoiceOption> options, Func<MetadataChoices, string> keyOf)
@@ -315,9 +315,9 @@ namespace PlayniteAchievements.Views.Settings.Metadata
         private IReadOnlyList<ChoiceOption> BuildSourceOptions(
             IReadOnlyList<IMetadataProvider> providers,
             MetadataField field,
-            string ownLabelKey)
+            string offLabelKey)
         {
-            var options = new List<ChoiceOption> { new ChoiceOption(string.Empty, ResourceProvider.GetString(ownLabelKey)) };
+            var options = new List<ChoiceOption> { new ChoiceOption(string.Empty, ResourceProvider.GetString(offLabelKey)) };
             options.AddRange(providers
                 .Where(provider => (provider.SupportedFields & field) == field &&
                                    (IsDefaults || !provider.IsNativeFor(ProviderKey)))
@@ -326,7 +326,7 @@ namespace PlayniteAchievements.Views.Settings.Metadata
         }
 
         /// <summary>
-        /// Own, or a source whose values replace the platform's, for categories and tags. Unlike the
+        /// Off, or a source whose values replace the platform's, for categories and tags. Unlike the
         /// other fields a native source stays offered: the platform's own scan applies it
         /// (SteamHunters on Steam).
         /// </summary>
@@ -334,7 +334,7 @@ namespace PlayniteAchievements.Views.Settings.Metadata
         {
             var options = new List<ChoiceOption>
             {
-                new ChoiceOption(string.Empty, ResourceProvider.GetString("LOCPlayAch_Settings_Metadata_Source_Own"))
+                new ChoiceOption(string.Empty, ResourceProvider.GetString("LOCPlayAch_Settings_Override_Off"))
             };
             options.AddRange(providers
                 .Where(provider => (provider.SupportedFields & field) != 0)
