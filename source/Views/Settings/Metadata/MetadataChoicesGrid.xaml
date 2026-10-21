@@ -116,10 +116,20 @@
                 <DataGridTemplateColumn.CellTemplate>
                     <DataTemplate>
                         <ComboBox Style="{StaticResource MetadataChoiceComboStyle}"
-                                  MinWidth="170"
                                   ItemsSource="{Binding CategoryOptions}"
                                   Tag="{Binding InheritedCategories}"
                                   SelectedValue="{Binding Categories, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
+                    </DataTemplate>
+                </DataGridTemplateColumn.CellTemplate>
+            </DataGridTemplateColumn>
+
+            <DataGridTemplateColumn Header="{DynamicResource LOCTagsLabel}" Width="Auto" IsReadOnly="True">
+                <DataGridTemplateColumn.CellTemplate>
+                    <DataTemplate>
+                        <ComboBox Style="{StaticResource MetadataChoiceComboStyle}"
+                                  ItemsSource="{Binding TagOptions}"
+                                  Tag="{Binding InheritedTags}"
+                                  SelectedValue="{Binding Tags, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
                     </DataTemplate>
                 </DataGridTemplateColumn.CellTemplate>
             </DataGridTemplateColumn>
