@@ -131,7 +131,7 @@ namespace PlayniteAchievements.ViewModels
         public string SelectedCategoryTypeFilterText => GetSelectedFilterText(
             _selectedCategoryTypeFilters,
             CategoryTypeFilterOptions,
-            L("LOCTypeLabel"),
+            L("LOCTagsLabel"),
             GetTypeDisplayName);
 
         // The game every listed row belongs to, so a game's own tags show their names; null for a
@@ -213,7 +213,6 @@ namespace PlayniteAchievements.ViewModels
             _optionsGameId = gameIds.Count == 1 ? gameIds[0] : null;
             var typeOptions = AchievementClassificationFilter.GetPresentKeys(
                 sourceItems,
-                item => item.CategoryKind,
                 item => item.Tags,
                 _optionsGameId);
             var categoryOptions = AchievementCategoryFilterOrderHelper.BuildOrderedCategoryLabels(
