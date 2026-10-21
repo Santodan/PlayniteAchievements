@@ -27,13 +27,15 @@ namespace PlayniteAchievements.Providers.Metadata.TrueGaming
 
         private static readonly string[] Urls =
         {
-            "https://www.trueachievements.com/true-api/sitesearch/search?q=Fallout%204&category=Games",
-            "https://www.trueachievements.com/true-api/sitesearch/search?q=Cyberpunk%202077&category=Games,DLC",
-            "https://www.truetrophies.com/true-api/sitesearch/search?q=Elden%20Ring&category=Games",
-            "https://www.truetrophies.com/true-api/sitesearch/search?q=Ghost%20of%20Tsushima&category=Games",
-            "https://www.truetrophies.com/true-api/sitesearch/search?q=Cyberpunk%202077&category=Games,DLC",
-            "https://truesteamachievements.com/true-api/sitesearch/search?q=Hades&category=Games",
-            "https://truesteamachievements.com/true-api/sitesearch/search?q=Cyberpunk%202077&category=Games"
+            // Elden Ring Nightreign on each site: the search (real slugs) and the list page the
+            // lookup's slug opens, with the final address showing any redirect.
+            "https://www.trueachievements.com/true-api/sitesearch/search?q=Elden%20Ring%20Nightreign&category=Games",
+            "https://www.trueachievements.com/game/ELDEN-RING-NIGHTREIGN/achievements",
+            "https://www.truetrophies.com/true-api/sitesearch/search?q=Elden%20Ring%20Nightreign&category=Games",
+            "https://www.truetrophies.com/game/ELDEN-RING-NIGHTREIGN/trophies",
+            "https://www.truetrophies.com/game/ELDEN-RING-NIGHTREIGN-PS5/trophies",
+            "https://truesteamachievements.com/true-api/sitesearch/search?q=Elden%20Ring%20Nightreign&category=Games",
+            "https://truesteamachievements.com/game/ELDEN-RING-NIGHTREIGN/achievements"
         };
 
         private static readonly Regex AchievementItem = new Regex(@"<li[^>]*\bid=""\d+_\d+_\d+""", RegexOptions.CultureInvariant);
