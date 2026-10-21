@@ -58,6 +58,41 @@ namespace PlayniteAchievements.Views.Helpers
         public static Action<string> GetCreateAction(DependencyObject element) =>
             (Action<string>)element.GetValue(CreateActionProperty);
 
+        public static readonly DependencyProperty SearchHandlerProperty =
+            DependencyProperty.RegisterAttached(
+                "SearchHandler",
+                typeof(Func<string, bool>),
+                typeof(SelectorSearch),
+                new PropertyMetadata(null));
+
+        /// <summary>
+        /// Lets a ComboBox narrow its own list: called with the query ("" to restore the full list)
+        /// in place of the shared filter, and returns whether anything matched. For lists whose
+        /// matches need more than themselves shown, as categories need their parents.
+        /// </summary>
+        public static void SetSearchHandler(DependencyObject element, Func<string, bool> value) =>
+            element.SetValue(SearchHandlerProperty, value);
+
+        public static Func<string, bool> GetSearchHandler(DependencyObject element) =>
+            (Func<string, bool>)element.GetValue(SearchHandlerProperty);
+
+        public static readonly DependencyProperty MenuMatcherProperty =
+            DependencyProperty.RegisterAttached(
+                "MenuMatcher",
+                typeof(Func<string, Func<MenuItem, bool>>),
+                typeof(SelectorSearch),
+                new PropertyMetadata(null));
+
+        /// <summary>
+        /// Lets a menu level decide which options a query shows, in place of matching each option's
+        /// own text: given the query, returns whether an option stays.
+        /// </summary>
+        public static void SetMenuMatcher(DependencyObject element, Func<string, Func<MenuItem, bool>> value) =>
+            element.SetValue(MenuMatcherProperty, value);
+
+        public static Func<string, Func<MenuItem, bool>> GetMenuMatcher(DependencyObject element) =>
+            (Func<string, Func<MenuItem, bool>>)element.GetValue(MenuMatcherProperty);
+
         public static readonly DependencyProperty IsDisabledProperty =
             DependencyProperty.RegisterAttached(
                 "IsDisabled",
@@ -368,6 +403,14 @@ namespace PlayniteAchievements.Views.Helpers
                 return;
             }
 
+            var handler = GetSearchHandler(combo);
+            if (handler != null)
+            {
+                state.Query = query;
+                UpdateComboCreate(state, handler(query));
+                return;
+            }
+
             // The picked option stays in the list, hidden when it does not match: a Selector whose
             // SelectedItem leaves its items writes null back through a two-way binding, which would
             // erase the stored value.
@@ -392,7 +435,19 @@ namespace PlayniteAchievements.Views.Helpers
         private static void ClearComboFilter(ComboSearchState state)
         {
             var combo = state.Combo;
+            var hadQuery = state.Query.Length > 0;
             state.Query = string.Empty;
+            var handler = GetSearchHandler(combo);
+            if (handler != null)
+            {
+                if (hadQuery)
+                {
+                    handler(string.Empty);
+                }
+
+                return;
+            }
+
             UpdateSelectedRow(state);
             try
             {
@@ -729,6 +784,7 @@ namespace PlayniteAchievements.Views.Helpers
         {
             var query = state.Box.Text?.Trim() ?? string.Empty;
             var anyMatch = false;
+            var matcher = query.Length == 0 ? null : GetMenuMatcher(state.Level)?.Invoke(query);
             foreach (var pair in state.OriginalVisibility)
             {
                 var element = pair.Key;
@@ -741,7 +797,9 @@ namespace PlayniteAchievements.Views.Helpers
                 // Separators divide groups of a full list; a filtered one has no groups left.
                 var match = pair.Value == Visibility.Visible &&
                             element is MenuItem item &&
-                            GetMenuItemTexts(item).Any(text => Matches(text, query));
+                            (matcher != null
+                                ? matcher(item)
+                                : GetMenuItemTexts(item).Any(text => Matches(text, query)));
                 element.Visibility = match ? Visibility.Visible : Visibility.Collapsed;
                 anyMatch |= match;
             }
