@@ -1,6 +1,7 @@
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using PlayniteAchievements.Providers.GOG.Models;
 using System.Collections.Generic;
+using System.Linq;
 
 namespace PlayniteAchievements.Gog.Tests
 {
@@ -8,7 +9,7 @@ namespace PlayniteAchievements.Gog.Tests
     public class GogProductDataTests
     {
         [TestMethod]
-        public void PreferredBuildMetaUrl_PrefersListedThenNewestPublished()
+        public void CandidateBuildMetaUrls_OrdersListedThenNewestPublished()
         {
             var data = new GogProductData
             {
@@ -20,14 +21,54 @@ namespace PlayniteAchievements.Gog.Tests
                 }
             };
 
-            Assert.AreEqual("https://example.com/listed-new", data.PreferredBuildMetaUrl);
+            CollectionAssert.AreEqual(
+                new[]
+                {
+                    "https://example.com/listed-new",
+                    "https://example.com/listed-old",
+                    "https://example.com/unlisted-new"
+                },
+                data.CandidateBuildMetaUrls.ToList());
         }
 
         [TestMethod]
-        public void PreferredBuildMetaUrl_ReturnsNullWhenNoBuildsPresent()
+        public void CandidateBuildMetaUrls_SkipsBlankAndDuplicateLinks()
+        {
+            var data = new GogProductData
+            {
+                Builds = new List<GogProductBuild>
+                {
+                    null,
+                    new GogProductBuild { Link = " ", Listed = true },
+                    new GogProductBuild { Link = "https://example.com/a", Listed = true, DatePublished = "2025-01-01T00:00:00Z" },
+                    new GogProductBuild { Link = "https://example.com/a", Listed = true, DatePublished = "2024-01-01T00:00:00Z" },
+                    new GogProductBuild { Link = "https://example.com/b", Listed = false }
+                }
+            };
+
+            CollectionAssert.AreEqual(
+                new[] { "https://example.com/a", "https://example.com/b" },
+                data.CandidateBuildMetaUrls.ToList());
+        }
+
+        [TestMethod]
+        public void CandidateBuildMetaUrls_CapsCandidateCount()
+        {
+            var data = new GogProductData
+            {
+                Builds = Enumerable.Range(0, 45)
+                    .Select(i => new GogProductBuild { Link = "https://example.com/" + i, Listed = true })
+                    .ToList()
+            };
+
+            Assert.AreEqual(GogProductData.MaxBuildMetaCandidates, data.CandidateBuildMetaUrls.Count);
+        }
+
+        [TestMethod]
+        public void CandidateBuildMetaUrls_EmptyWhenNoBuildsPresent()
         {
             var data = new GogProductData();
-            Assert.IsNull(data.PreferredBuildMetaUrl);
+            Assert.AreEqual(0, data.CandidateBuildMetaUrls.Count);
         }
 
         [TestMethod]
