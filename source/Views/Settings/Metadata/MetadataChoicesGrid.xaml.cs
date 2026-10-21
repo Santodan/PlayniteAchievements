@@ -22,6 +22,16 @@ namespace PlayniteAchievements.Views.Settings.Metadata
         }
 
         /// <summary>
+        /// Whether the Platform column shows; a single game's row, whose platform is the game's own,
+        /// leaves it out.
+        /// </summary>
+        public bool ShowsPlatform
+        {
+            get => PlatformColumn.Visibility == Visibility.Visible;
+            set => PlatformColumn.Visibility = value ? Visibility.Visible : Visibility.Collapsed;
+        }
+
+        /// <summary>
         /// Whether the grid takes all the height it is given and scrolls inside it, for a page where
         /// it is the only content; otherwise it stops at a fixed height among other sections.
         /// </summary>
