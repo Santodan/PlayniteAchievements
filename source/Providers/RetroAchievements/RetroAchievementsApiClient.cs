@@ -172,7 +172,7 @@ namespace PlayniteAchievements.Providers.RetroAchievements
                         if (resp.StatusCode == (HttpStatusCode)429)
                         {
                             var delay = GetRetryAfterDelay(resp) ?? backoff;
-                            _logger?.Warn($"[RA] 429 received. Backing off for {delay.TotalSeconds:0.0}s (attempt {attempt}/{MaxAttempts}).");
+                            _logger?.Debug($"[RA] 429 received. Backing off for {delay.TotalSeconds:0.0}s (attempt {attempt}/{MaxAttempts}).");
                             resp.Dispose();
                             await Task.Delay(delay, cancel).ConfigureAwait(false);
                             backoff = TimeSpan.FromSeconds(Math.Min(backoff.TotalSeconds * 2, 30));
