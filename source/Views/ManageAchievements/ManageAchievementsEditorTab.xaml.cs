@@ -1514,6 +1514,7 @@ namespace PlayniteAchievements.Views.ManageAchievements
 
             AppendCategoryItems(categoryMenu.Items, selection);
             SelectorSearch.SetCreateAction(categoryMenu, CreateCategory);
+            SelectorSearch.SetMenuMatcher(categoryMenu, MatchCategoryWithParents);
             menu.Items.Add(categoryMenu);
 
             var typeMenu = new MenuItem
@@ -2045,6 +2046,7 @@ namespace PlayniteAchievements.Views.ManageAchievements
                 {
                     Header = option.LeafDisplay,
                     ToolTip = option.PathDisplay,
+                    Tag = label,
                     IsCheckable = true,
                     IsChecked = selection.All(row =>
                         string.Equals(row.EffectiveCategoryLabel, label, StringComparison.OrdinalIgnoreCase))
@@ -2055,6 +2057,36 @@ namespace PlayniteAchievements.Views.ManageAchievements
                     viewModel.SetCategoryForSelection(categoryItem.IsChecked ? label : null);
                 items.Add(categoryItem);
             }
+        }
+
+        /// <summary>
+        /// The category menu's search: categories whose name holds the query, and every category
+        /// above one, as the category picker shows them.
+        /// </summary>
+        private static Func<MenuItem, bool> MatchCategoryWithParents(string query)
+        {
+            return item =>
+            {
+                var label = item.Tag as string;
+                return !string.IsNullOrEmpty(label) &&
+                       ((item.Header as string ?? string.Empty).IndexOf(query, StringComparison.OrdinalIgnoreCase) >= 0 ||
+                        HasMatchingDescendant(item, label, query));
+            };
+        }
+
+        private static bool HasMatchingDescendant(MenuItem item, string label, string query)
+        {
+            var level = ItemsControl.ItemsControlFromItemContainer(item) ?? item.Parent as ItemsControl;
+            if (level == null)
+            {
+                return false;
+            }
+
+            return level.Items.OfType<MenuItem>().Any(other =>
+                other.Tag is string otherLabel &&
+                !ReferenceEquals(other, item) &&
+                CategoryPathHelper.IsDescendantOf(otherLabel, label) &&
+                (other.Header as string ?? string.Empty).IndexOf(query, StringComparison.OrdinalIgnoreCase) >= 0);
         }
 
         /// <summary>
