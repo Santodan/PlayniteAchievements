@@ -868,11 +868,9 @@ namespace PlayniteAchievements.Services.Achievements
 
         /// <summary>
         /// Sets the kind stored for <paramref name="categoryPath"/>: a kind,
-        /// <see cref="CategoryKindHelper.None"/> for none, or null to let the providers decide. The
-        /// legacy per-achievement kinds of <paramref name="memberApiNames"/> are cleared, so the
-        /// category's kind is the only one its members answer to from then on.
+        /// <see cref="CategoryKindHelper.None"/> for none, or null to let the providers decide.
         /// </summary>
-        public void SetCategoryKind(Guid gameId, string categoryPath, string kind, IEnumerable<string> memberApiNames)
+        public void SetCategoryKind(Guid gameId, string categoryPath, string kind)
         {
             var key = CategoryPathHelper.NormalizePath(categoryPath);
             if (gameId == Guid.Empty || key == null)
@@ -880,9 +878,6 @@ namespace PlayniteAchievements.Services.Achievements
                 return;
             }
 
-            var members = new HashSet<string>(
-                (memberApiNames ?? Enumerable.Empty<string>()).Where(name => !string.IsNullOrWhiteSpace(name)),
-                StringComparer.OrdinalIgnoreCase);
             _gameCustomDataStore.Update(
                 gameId,
                 customData =>
@@ -900,20 +895,6 @@ namespace PlayniteAchievements.Services.Achievements
                     }
 
                     customData.AchievementCategoryKinds = kinds.Count > 0 ? kinds : null;
-
-                    if (members.Count > 0)
-                    {
-                        var overrides = CloneOverrides(customData);
-                        foreach (var pair in overrides)
-                        {
-                            if (members.Contains(pair.Key) && pair.Value != null)
-                            {
-                                pair.Value.LegacyCategoryKind = null;
-                            }
-                        }
-
-                        StoreOverrides(customData, overrides);
-                    }
                 },
                 affectsSummaryData: false);
         }
