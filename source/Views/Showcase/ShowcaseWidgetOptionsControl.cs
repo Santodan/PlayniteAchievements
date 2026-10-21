@@ -10,6 +10,10 @@ using PlayniteAchievements.Models.Settings;
 using PlayniteAchievements.Services.Settings;
 using PlayniteAchievements.Services.Showcase;
 using PlayniteAchievements.Services.UI;
+using PlayniteAchievements.ViewModels;
+using PlayniteAchievements.ViewModels.Items;
+using PlayniteAchievements.ViewModels.Showcase.Widgets;
+using PlayniteAchievements.Views.Controls;
 using PlayniteAchievements.Views.Settings.Controls;
 using static PlayniteAchievements.Views.Showcase.ShowcaseUiText;
 
@@ -207,11 +211,7 @@ namespace PlayniteAchievements.Views.Showcase
                         ShowcaseWidgetOptions.GetPieSmallSliceMode(_settings),
                         value => ShowcaseWidgetOptions.SetPieSmallSliceMode(_settings, value),
                         SmallSliceModeName);
-                    AddToggle(
-                        panel,
-                        Localize("LOCPlayAch_Settings_ShowGridControlBar"),
-                        ShowcaseWidgetOptions.GetPieShowControlBar(_settings),
-                        value => ShowcaseWidgetOptions.SetPieShowControlBar(_settings, value));
+                    AddControlBarRows<PieControlBarAdapter>(panel);
                     break;
                 case ShowcaseWidgetKind.Timeline:
                     AddRangeChoice(panel);
@@ -220,7 +220,7 @@ namespace PlayniteAchievements.Views.Showcase
                         Localize("LOCPlayAch_Timeline_SplitByPlatform"),
                         ShowcaseTimelineOptions.GetSplitByPlatform(_settings),
                         value => ShowcaseTimelineOptions.SetSplitByPlatform(_settings, value));
-                    AddShowControlsToggle(panel);
+                    AddTimeControlRows(panel, includeSplit: true);
                     break;
                 case ShowcaseWidgetKind.Statistics:
                     AddStatisticsSlots(panel);
@@ -244,6 +244,23 @@ namespace PlayniteAchievements.Views.Showcase
                     // achievement-icon rows and the game-cover rows; the count is shared.
                     var achievementMosaicPanel = new StackPanel();
                     var gameMosaicPanel = new StackPanel();
+                    // Each content has its own control bar, listed last.
+                    var achievementMosaicBarPanel = new StackPanel();
+                    var gameMosaicBarPanel = new StackPanel();
+                    void ApplyMosaicContent(ShowcaseMosaicContent content)
+                    {
+                        var achievements = content == ShowcaseMosaicContent.Achievements
+                            ? Visibility.Visible
+                            : Visibility.Collapsed;
+                        var games = content == ShowcaseMosaicContent.Games
+                            ? Visibility.Visible
+                            : Visibility.Collapsed;
+                        achievementMosaicPanel.Visibility = achievements;
+                        achievementMosaicBarPanel.Visibility = achievements;
+                        gameMosaicPanel.Visibility = games;
+                        gameMosaicBarPanel.Visibility = games;
+                    }
+
                     AddChoice(
                         panel,
                         Localize("LOCPlayAch_Showcase_Mode"),
@@ -252,29 +269,12 @@ namespace PlayniteAchievements.Views.Showcase
                         value =>
                         {
                             ShowcaseWidgetOptions.SetMosaicContent(_settings, value);
-                            achievementMosaicPanel.Visibility = value == ShowcaseMosaicContent.Achievements
-                                ? Visibility.Visible
-                                : Visibility.Collapsed;
-                            gameMosaicPanel.Visibility = value == ShowcaseMosaicContent.Games
-                                ? Visibility.Visible
-                                : Visibility.Collapsed;
+                            ApplyMosaicContent(value);
                         },
                         MosaicContentName);
-                    AddToggle(
-                        panel,
-                        Localize("LOCPlayAch_Settings_ShowGridControlBar"),
-                        ShowcaseWidgetOptions.GetMosaicShowControlBar(_settings),
-                        value => ShowcaseWidgetOptions.SetMosaicShowControlBar(_settings, value));
                     panel.Children.Add(achievementMosaicPanel);
                     panel.Children.Add(gameMosaicPanel);
-                    achievementMosaicPanel.Visibility =
-                        ShowcaseWidgetOptions.GetMosaicContent(_settings) == ShowcaseMosaicContent.Achievements
-                            ? Visibility.Visible
-                            : Visibility.Collapsed;
-                    gameMosaicPanel.Visibility =
-                        ShowcaseWidgetOptions.GetMosaicContent(_settings) == ShowcaseMosaicContent.Games
-                            ? Visibility.Visible
-                            : Visibility.Collapsed;
+                    ApplyMosaicContent(ShowcaseWidgetOptions.GetMosaicContent(_settings));
 
                     FrameworkElement achievementMosaicCollectionRow = null;
                     var unlockNextRows = new List<FrameworkElement>();
@@ -448,6 +448,10 @@ namespace PlayniteAchievements.Views.Showcase
                         Localize("LOCPlayAch_Showcase_TileSpacing"),
                         () => ShowcaseWidgetOptions.GetMosaicSpacing(_settings),
                         value => ShowcaseWidgetOptions.SetMosaicSpacing(_settings, value));
+                    panel.Children.Add(achievementMosaicBarPanel);
+                    panel.Children.Add(gameMosaicBarPanel);
+                    AddControlBarRows<CrossGameAchievementControlBarAdapter>(achievementMosaicBarPanel);
+                    AddControlBarRows<GameSummaryGridControlBarAdapter>(gameMosaicBarPanel);
                     break;
                 case ShowcaseWidgetKind.ScreenshotSlideshow:
                     FrameworkElement slideshowGameCollectionRow = null;
@@ -667,6 +671,7 @@ namespace PlayniteAchievements.Views.Showcase
                         Localize("LOCPlayAch_Showcase_HideCompleted"),
                         ShowcaseWidgetOptions.GetHideCompleted(_settings),
                         value => ShowcaseWidgetOptions.SetHideCompleted(_settings, value));
+                    AddControlBarRows<GameSummaryGridControlBarAdapter>(panel);
                     break;
                 case ShowcaseWidgetKind.RecentAchievements:
                     // The collapsed Achievements Grid: every achievement, or a pin collection.
@@ -697,10 +702,11 @@ namespace PlayniteAchievements.Views.Showcase
                         achievementGridCollectionRow,
                         achievementGridUnlockNextRows,
                         ShowcaseWidgetOptions.GetAchievementGridSource(_settings));
+                    AddControlBarRows<CrossGameAchievementControlBarAdapter>(panel);
                     break;
                 case ShowcaseWidgetKind.ActivityCalendar:
                     AddRangeChoice(panel);
-                    AddShowControlsToggle(panel);
+                    AddTimeControlRows(panel, includeSplit: false);
                     break;
             }
 
@@ -855,21 +861,140 @@ namespace PlayniteAchievements.Views.Showcase
             }
         }
 
+        // Which of the time window (with the timeline's bar width) and the timeline's platform
+        // split the widget shows with its chart. Their values are the rows above.
+        private void AddTimeControlRows(Panel panel, bool includeSplit)
+        {
+            AddControlBarHeader(panel);
+            AddControlBarItemRow(
+                panel,
+                ShowcaseControlBarItems.TimeWindow,
+                Localize("LOCPlayAch_Showcase_Range"),
+                editor: null);
+            if (includeSplit)
+            {
+                AddControlBarItemRow(
+                    panel,
+                    ShowcaseControlBarItems.SplitByPlatform,
+                    Localize("LOCPlayAch_Timeline_SplitByPlatform"),
+                    editor: null);
+            }
+        }
+
+        /// <summary>
+        /// One row per item of the widget's control bar: a checkbox that shows the item in the
+        /// widget, saved with the other options, beside the item itself. The item is the object
+        /// the widget's bar holds, so a filter set here applies to the widget at once, whether or
+        /// not the bar shows it, and is saved by the bar's own state store.
+        /// </summary>
+        private void AddControlBarRows<TAdapter>(Panel panel)
+            where TAdapter : SharedControlBarAdapter, new()
+        {
+            var adapter = ShowcaseControlBarStates.Get<TAdapter>(_settings.InstanceId);
+            var entries = adapter.Entries;
+            if (entries.Count == 0)
+            {
+                return;
+            }
+
+            AddControlBarHeader(panel);
+            foreach (var entry in entries)
+            {
+                var bar = new GridControlBarViewModel();
+                if (entry is GridSearchControl search)
+                {
+                    bar.Search = search;
+                }
+                else if (entry is GridControlBarItem item)
+                {
+                    bar.Items.Add(item);
+                }
+
+                var editor = new GridControlBarControl
+                {
+                    ControlBar = bar,
+                    ShowControlBar = true,
+                    HorizontalAlignment = HorizontalAlignment.Left
+                };
+                AddControlBarItemRow(panel, entry.Id, Localize(entry.LabelKey), editor);
+            }
+        }
+
+        private void AddControlBarHeader(Panel panel)
+        {
+            var header = new TextBlock
+            {
+                Text = Localize("LOCPlayAch_Settings_ShowGridControlBar"),
+                FontWeight = FontWeights.SemiBold
+            };
+            header.SetResourceReference(TextBlock.ForegroundProperty, "PlayAch.Brush.Text");
+            header.SetResourceReference(MarginProperty, "PlayAch.Thickness.Bottom.Sm");
+            panel.Children.Add(header);
+        }
+
+        private void AddControlBarItemRow(Panel panel, string itemId, string label, FrameworkElement editor)
+        {
+            var row = new Grid();
+            row.SetResourceReference(MarginProperty, "PlayAch.Thickness.Bottom.Md");
+            row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(2, GridUnitType.Star) });
+            row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(3, GridUnitType.Star) });
+            var labelBlock = new TextBlock
+            {
+                Text = label,
+                TextWrapping = TextWrapping.Wrap
+            };
+            labelBlock.SetResourceReference(TextBlock.ForegroundProperty, "PlayAch.Brush.Text");
+            var checkBox = new CheckBox
+            {
+                Content = labelBlock,
+                IsChecked = ShowcaseWidgetOptions.GetControlBarItemVisible(_settings, itemId, LegacyControlBarVisible()),
+                VerticalAlignment = VerticalAlignment.Center,
+                Margin = new Thickness(0, 0, 8, 0)
+            };
+            void Commit()
+            {
+                ShowcaseWidgetOptions.SetControlBarItemVisible(_settings, itemId, checkBox.IsChecked == true);
+                _persist?.Invoke();
+                if (_publishChanges)
+                {
+                    ShowcaseConfigurationEvents.RaiseChanged();
+                }
+            }
+
+            checkBox.Checked += (_, __) => Commit();
+            checkBox.Unchecked += (_, __) => Commit();
+            row.Children.Add(checkBox);
+            if (editor != null)
+            {
+                editor.VerticalAlignment = VerticalAlignment.Center;
+                Grid.SetColumn(editor, 1);
+                row.Children.Add(editor);
+            }
+
+            panel.Children.Add(row);
+        }
+
+        // A grid widget's former whole-bar option lives on its grid surface, not in the widget's
+        // options; the widget reads it the same way (ShowcaseGridWidgetViewModelBase).
+        private bool? LegacyControlBarVisible()
+        {
+            var catalog = PlayniteAchievementsPlugin.Instance?.Settings?.Persisted?.GridOptions;
+            var surfaceKey = ShowcaseGridSurfaces.ResolveWidgetSurface(_settings.Kind, _settings.InstanceId);
+            if (catalog == null || surfaceKey == null)
+            {
+                return null;
+            }
+
+            var options = ShowcaseGridSurfaces.IsAchievementSurface(surfaceKey)
+                ? (GridCommonOptions)catalog.GetAchievement(surfaceKey)
+                : catalog.GetGameSummaries(surfaceKey);
+            return options?.ShowControlBar == true;
+        }
+
         /// <summary>
         /// The shared time-window picker used by every range-windowed widget (Timeline, Scores,
         /// Activity Calendar). Only the Timeline chart has a bar granularity to override.
         /// </summary>
-        // The time window (and the timeline's bar width and platform split) set from the widget
-        // itself, above its chart.
-        private void AddShowControlsToggle(Panel panel)
-        {
-            AddToggle(
-                panel,
-                Localize("LOCPlayAch_Settings_ShowGridControlBar"),
-                ShowcaseWidgetOptions.GetShowControls(_settings),
-                value => ShowcaseWidgetOptions.SetShowControls(_settings, value));
-        }
-
         private void AddRangeChoice(Panel panel)
         {
             var hasGranularity = _settings.Kind == ShowcaseWidgetKind.Timeline;
