@@ -92,14 +92,61 @@ namespace PlayniteAchievements.Tests.Models
         }
 
         [TestMethod]
-        public void PieShowControlBar_DefaultsOffAndRoundTrips()
+        public void ControlBarItemVisible_DefaultsOffAndRoundTripsPerItem()
         {
             var instance = new ShowcaseWidgetInstanceSettings { Kind = ShowcaseWidgetKind.Pie };
-            Assert.IsFalse(ShowcaseWidgetOptions.GetPieShowControlBar(instance));
+            Assert.IsFalse(ShowcaseWidgetOptions.GetControlBarItemVisible(instance, ShowcaseControlBarItems.Platform));
 
-            ShowcaseWidgetOptions.SetPieShowControlBar(instance, true);
+            ShowcaseWidgetOptions.SetControlBarItemVisible(instance, ShowcaseControlBarItems.Platform, true);
 
-            Assert.IsTrue(ShowcaseWidgetOptions.GetPieShowControlBar(instance));
+            Assert.IsTrue(ShowcaseWidgetOptions.GetControlBarItemVisible(instance, ShowcaseControlBarItems.Platform));
+            Assert.IsFalse(ShowcaseWidgetOptions.GetControlBarItemVisible(instance, ShowcaseControlBarItems.Progress));
+        }
+
+        [TestMethod]
+        public void ControlBarItemVisible_FallsBackToTheFormerWholeBarOption()
+        {
+            var instance = new ShowcaseWidgetInstanceSettings { Kind = ShowcaseWidgetKind.IconMosaic };
+            instance.SetOption("ShowControlBar", true);
+
+            Assert.IsTrue(ShowcaseWidgetOptions.GetControlBarItemVisible(instance, ShowcaseControlBarItems.Search));
+
+            ShowcaseWidgetOptions.SetControlBarItemVisible(instance, ShowcaseControlBarItems.Search, false);
+
+            Assert.IsFalse(ShowcaseWidgetOptions.GetControlBarItemVisible(instance, ShowcaseControlBarItems.Search));
+            Assert.IsTrue(ShowcaseWidgetOptions.GetControlBarItemVisible(instance, ShowcaseControlBarItems.Rarity));
+        }
+
+        [TestMethod]
+        public void ControlBarItemVisible_PrefersTheCallersLegacyValue()
+        {
+            var instance = new ShowcaseWidgetInstanceSettings { Kind = ShowcaseWidgetKind.RecentAchievements };
+
+            Assert.IsTrue(ShowcaseWidgetOptions.GetControlBarItemVisible(
+                instance,
+                ShowcaseControlBarItems.Search,
+                legacyVisible: true));
+            Assert.IsFalse(ShowcaseWidgetOptions.GetControlBarItemVisible(
+                instance,
+                ShowcaseControlBarItems.Search,
+                legacyVisible: false));
+        }
+
+        [TestMethod]
+        public void MergeEditedOptions_KeepsTheLiveControlBarState()
+        {
+            var live = new ShowcaseWidgetInstanceSettings { Kind = ShowcaseWidgetKind.RecentAchievements };
+            live.Options["ControlBar.Achievements"] = "{\"SearchText\":\"new\"}";
+            var edited = live.Clone();
+            edited.Options["ControlBar.Achievements"] = "{\"SearchText\":\"old\"}";
+            edited.Options["ControlBar.Games"] = "{}";
+            ShowcaseWidgetOptions.SetControlBarItemVisible(edited, ShowcaseControlBarItems.Search, true);
+
+            var merged = ShowcaseWidgetOptions.MergeEditedOptions(live, edited);
+
+            Assert.AreEqual("{\"SearchText\":\"new\"}", merged["ControlBar.Achievements"]);
+            Assert.IsFalse(merged.ContainsKey("ControlBar.Games"));
+            Assert.AreEqual("True", merged["ShowControlBarItem.Search"]);
         }
 
         [TestMethod]
