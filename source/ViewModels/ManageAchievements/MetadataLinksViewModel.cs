@@ -74,6 +74,11 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 fields.Add(ResourceProvider.GetString("LOCPlayAch_ManageAchievements_Tab_Category"));
             }
 
+            if (Uses(choices.Tags, MetadataField.Tags))
+            {
+                fields.Add(ResourceProvider.GetString("LOCTagsLabel"));
+            }
+
             if (Uses(choices.Rarity, MetadataField.Rarity))
             {
                 fields.Add(ResourceProvider.GetString("LOCPlayAch_Column_Rarity"));
