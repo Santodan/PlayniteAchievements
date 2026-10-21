@@ -23,7 +23,7 @@ namespace PlayniteAchievements.Providers.Metadata
     /// pairs with the provider's achievements, and SteamHunters groups those schema rows the same
     /// way the Steam provider groups its own. Steam games get this from the Steam scan itself.
     /// </summary>
-    internal sealed class SteamHuntersMetadataProvider : IMetadataProvider
+    internal sealed class SteamHuntersMetadataProvider : IMetadataProvider, IMetadataPageLinks
     {
         public const string MetadataKey = "SteamHunters";
 
@@ -53,6 +53,12 @@ namespace PlayniteAchievements.Providers.Metadata
         public string DisplayNameKey => "LOCPlayAch_Metadata_Source_SteamHunters";
 
         public string LinkPlaceholder => "123456";
+
+        /// <summary>The app's achievement page; the link is the Steam app id.</summary>
+        public IReadOnlyList<string> PageUrls(Guid gameId, string linkId, string servicingProviderKey) =>
+            int.TryParse(linkId?.Trim(), out var appId) && appId > 0
+                ? new[] { $"https://steamhunters.com/apps/{appId}/achievements" }
+                : Array.Empty<string>();
 
         public MetadataField SupportedFields => MetadataField.Categories | MetadataField.CategoryArt | MetadataField.Tags;
 
