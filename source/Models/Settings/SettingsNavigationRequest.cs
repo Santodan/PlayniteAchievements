@@ -8,6 +8,7 @@ namespace PlayniteAchievements.Models.Settings
     public sealed class SettingsNavigationRequest
     {
         public const string DisplayTab = "Display";
+        public const string MetadataTab = "Metadata";
         public const string NotificationsTab = "Notifications";
         public const string WorkshopTab = "Workshop";
 
