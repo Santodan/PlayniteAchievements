@@ -105,7 +105,7 @@ namespace PlayniteAchievements.Providers.Metadata.TrueGaming
                 _logger?.Warn($"[TrueGamingMetadata] {site.Host}/game/{slug}: flags could not be read; rows carry no tags.");
             }
 
-            var set = new AchievementSourceSet(Key, linkId, page.Achievements.Select(ToRow).ToList());
+            var set = new AchievementSourceSet(Key, linkId, page.Achievements.Select(row => ToRow(row, request?.BaseCategoryLabel)).ToList());
             foreach (var art in page.DlcArt)
             {
                 var label = CategoryPathHelper.SanitizeSegment(art.Key);
@@ -118,7 +118,8 @@ namespace PlayniteAchievements.Providers.Metadata.TrueGaming
             return set;
         }
 
-        private static AchievementDetail ToRow(TrueGamingAchievement row)
+        /// <summary>A DLC pack's rows go under the pack's name; the base game's under <paramref name="baseLabel"/>.</summary>
+        private static AchievementDetail ToRow(TrueGamingAchievement row, string baseLabel)
         {
             var dlc = CategoryPathHelper.SanitizeSegment(row.Dlc);
             return new AchievementDetail
@@ -126,7 +127,7 @@ namespace PlayniteAchievements.Providers.Metadata.TrueGaming
                 ApiName = row.Id,
                 DisplayName = row.Name,
                 Description = row.Description,
-                Category = string.IsNullOrWhiteSpace(dlc) ? null : dlc,
+                Category = string.IsNullOrWhiteSpace(dlc) ? baseLabel : dlc,
                 CategoryKind = string.IsNullOrWhiteSpace(dlc) ? CategoryKindHelper.Base : CategoryKindHelper.Dlc,
                 Tags = TrueGamingFlags.ToTags(row.Flags)
             };
