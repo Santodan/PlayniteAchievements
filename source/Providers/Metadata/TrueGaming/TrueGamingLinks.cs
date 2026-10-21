@@ -121,17 +121,11 @@ namespace PlayniteAchievements.Providers.Metadata.TrueGaming
         }
 
         /// <summary>
-        /// The sites to look a game up on: the platform's own first, then the others, since a game
-        /// one site does not list can be on another with the same achievements. Xbox comes before
-        /// PlayStation, as PC games more often also release there.
+        /// The sites a game is looked up on, in order, whatever its platform: a cross-platform
+        /// release is often listed on only one of them.
         /// </summary>
-        public static IReadOnlyList<TrueGamingSite> LookupOrder(string servicingProviderKey)
-        {
-            var own = For(servicingProviderKey);
-            return new[] { own }
-                .Concat(new[] { TrueAchievements, TrueTrophies, TrueSteamAchievements }.Where(site => site != own))
-                .ToList();
-        }
+        public static readonly IReadOnlyList<TrueGamingSite> LookupOrder =
+            new[] { TrueAchievements, TrueTrophies, TrueSteamAchievements };
 
         /// <summary>The stored link of a page: the bare slug on the platform's own site, else its address.</summary>
         public string LinkId(string slug, string servicingProviderKey) =>
