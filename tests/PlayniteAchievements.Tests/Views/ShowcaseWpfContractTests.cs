@@ -432,7 +432,7 @@ namespace PlayniteAchievements.Tests.Views
             StringAssert.Contains(menuBuilder, "IsCheckable = true");
             StringAssert.Contains(menuBuilder, "AutomationProperties.SetName(button, label)");
             StringAssert.Contains(menuBuilder, "e.Handled = true");
-            StringAssert.Contains(menuBuilder, "LOCPlayAch_Showcase_NewCollection");
+            StringAssert.Contains(menuBuilder, "SelectorSearch.SetCreateAction");
             StringAssert.Contains(menuBuilder, "ShowcaseConfigurationCommit.Commit()");
             StringAssert.Contains(achievementMenus, "ShowcasePinMenuBuilder.AppendAchievementMenu");
             StringAssert.Contains(gameMenus, "ShowcasePinMenuBuilder.AppendGameMenu");
