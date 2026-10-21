@@ -50,10 +50,8 @@ namespace PlayniteAchievements.Models.Settings
 
         public string Icons { get; set; }
 
+        /// <summary>The source whose categories replace the platform's own; empty keeps the platform's.</summary>
         public string Categories { get; set; }
-
-        /// <summary>How <see cref="Categories"/> combines with the platform's own; set alongside it.</summary>
-        public MetadataCategoryMode? CategoryMode { get; set; }
 
         public string Rarity { get; set; }
 
@@ -79,7 +77,6 @@ namespace PlayniteAchievements.Models.Settings
             {
                 Icons = string.Empty,
                 Categories = string.Empty,
-                CategoryMode = MetadataCategoryMode.Merge,
                 Rarity = Exophase,
                 CapstoneArt = PlayStation,
                 TrophyTypes = PlayStation,
@@ -102,7 +99,6 @@ namespace PlayniteAchievements.Models.Settings
             var complete = stored.Clone();
             complete.Icons = complete.Icons ?? defaults.Icons;
             complete.Categories = complete.Categories ?? defaults.Categories;
-            complete.CategoryMode = complete.CategoryMode ?? defaults.CategoryMode;
             complete.Rarity = complete.Rarity ?? defaults.Rarity;
             complete.CapstoneArt = complete.CapstoneArt ?? defaults.CapstoneArt;
             complete.TrophyTypes = complete.TrophyTypes ?? defaults.TrophyTypes;
@@ -115,7 +111,6 @@ namespace PlayniteAchievements.Models.Settings
             return other != null &&
                    Icons == other.Icons &&
                    Categories == other.Categories &&
-                   CategoryMode == other.CategoryMode &&
                    Rarity == other.Rarity &&
                    CapstoneArt == other.CapstoneArt &&
                    TrophyTypes == other.TrophyTypes &&
@@ -128,7 +123,6 @@ namespace PlayniteAchievements.Models.Settings
             {
                 Icons = Icons,
                 Categories = Categories,
-                CategoryMode = CategoryMode,
                 Rarity = Rarity,
                 CapstoneArt = CapstoneArt,
                 TrophyTypes = TrophyTypes,
@@ -182,13 +176,10 @@ namespace PlayniteAchievements.Models.Settings
                 MetadataPlatformChoices?.TryGetValue(providerKey, out platform);
             }
 
-            // Categories and their mode come from the same level.
-            var categories = game?.Categories != null ? game : platform?.Categories != null ? platform : defaults;
             return new MetadataChoices
             {
                 Icons = game?.Icons ?? platform?.Icons ?? defaults.Icons ?? string.Empty,
-                Categories = categories.Categories ?? string.Empty,
-                CategoryMode = categories.CategoryMode ?? MetadataCategoryMode.Merge,
+                Categories = game?.Categories ?? platform?.Categories ?? defaults.Categories ?? string.Empty,
                 Rarity = platform?.Rarity ?? defaults.Rarity ?? string.Empty,
                 CapstoneArt = game?.CapstoneArt ?? platform?.CapstoneArt ?? defaults.CapstoneArt ?? string.Empty,
                 TrophyTypes = MetadataChoices.TakesTrophyTypes(providerKey)
@@ -215,8 +206,7 @@ namespace PlayniteAchievements.Models.Settings
             {
                 ["Steam"] = new MetadataChoices
                 {
-                    Categories = MetadataChoices.SteamHunters,
-                    CategoryMode = MetadataCategoryMode.Merge
+                    Categories = MetadataChoices.SteamHunters
                 }
             };
         }
