@@ -202,7 +202,9 @@ namespace PlayniteAchievements.Models.Settings
                 Icons = game?.Icons ?? platform?.Icons ?? defaults.Icons ?? string.Empty,
                 Categories = game?.Categories ?? platform?.Categories ?? defaults.Categories ?? string.Empty,
                 Tags = game?.Tags ?? platform?.Tags ?? defaults.Tags ?? string.Empty,
-                Rarity = platform?.Rarity ?? defaults.Rarity ?? string.Empty,
+                Rarity = !string.IsNullOrWhiteSpace(providerKey) && MetadataChoices.ExophaseRarityProviders.Contains(providerKey.Trim())
+                    ? platform?.Rarity ?? defaults.Rarity ?? string.Empty
+                    : string.Empty,
                 CapstoneArt = game?.CapstoneArt ?? platform?.CapstoneArt ?? defaults.CapstoneArt ?? string.Empty,
                 TrophyTypes = MetadataChoices.TakesTrophyTypes(providerKey)
                     ? game?.TrophyTypes ?? platform?.TrophyTypes ?? defaults.TrophyTypes ?? string.Empty
@@ -213,15 +215,10 @@ namespace PlayniteAchievements.Models.Settings
             };
         }
 
-        /// <summary>True when the platform can take rarity from Exophase and its choice turns that on.</summary>
-        public bool UsesExophaseRarity(string providerKey)
-        {
-            return !string.IsNullOrWhiteSpace(providerKey) &&
-                   MetadataChoices.ExophaseRarityProviders.Contains(providerKey.Trim()) &&
-                   string.Equals(ResolveMetadataChoices(providerKey.Trim()).Rarity, MetadataChoices.Exophase, StringComparison.OrdinalIgnoreCase);
-        }
-
-        /// <summary>Fresh installs keep SteamHunters categories on Steam games, as before the Metadata tab.</summary>
+        /// <summary>
+        /// Fresh installs keep SteamHunters categories on Steam games, as before the Metadata tab,
+        /// and give EA games Exophase's icons, which EA's achievements come without.
+        /// </summary>
         internal static Dictionary<string, MetadataChoices> CreateDefaultMetadataPlatformChoices()
         {
             return new Dictionary<string, MetadataChoices>(StringComparer.OrdinalIgnoreCase)
@@ -229,6 +226,10 @@ namespace PlayniteAchievements.Models.Settings
                 ["Steam"] = new MetadataChoices
                 {
                     Categories = MetadataChoices.SteamHunters
+                },
+                ["EA"] = new MetadataChoices
+                {
+                    Icons = MetadataChoices.Exophase
                 }
             };
         }
