@@ -15,7 +15,8 @@ namespace PlayniteAchievements.Services.Overview
         Completeness = 2,
         UnlockSpan = 4,
         Rarity = 8,
-        Trophy = 16
+        Trophy = 16,
+        Tag = 32
     }
 
     /// <summary>
