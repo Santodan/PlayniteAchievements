@@ -75,6 +75,34 @@ namespace PlayniteAchievements.Tests.Models
         }
 
         [TestMethod]
+        public void TagScope_OffersGlobalTagsThenAGamesOwnThenSharedOnes()
+        {
+            var first = Guid.NewGuid();
+            var second = Guid.NewGuid();
+            var present = new Dictionary<Guid, string[]>
+            {
+                [first] = new[] { "first-only", "both-games" },
+                [second] = new[] { "both-games" }
+            };
+
+            CollectionAssert.AreEqual(
+                AchievementTagRegistry.GetAssignableKeys(null).ToArray(),
+                AchievementTagScope.OptionKeys(Array.Empty<Guid>(), id => present[id]).ToArray());
+
+            var one = AchievementTagScope.OptionKeys(new[] { first }, id => present[id]);
+            CollectionAssert.Contains(one.ToArray(), "first-only");
+            CollectionAssert.Contains(one.ToArray(), AchievementTagHelper.Missable);
+
+            var both = AchievementTagScope.OptionKeys(new[] { first, second }, id => present[id]);
+            CollectionAssert.DoesNotContain(both.ToArray(), "first-only");
+            CollectionAssert.Contains(both.ToArray(), "both-games");
+            CollectionAssert.Contains(both.ToArray(), AchievementTagHelper.Missable);
+
+            Assert.AreEqual(first, AchievementTagScope.NamingGame(new[] { first }));
+            Assert.IsNull(AchievementTagScope.NamingGame(new[] { first, second }));
+        }
+
+        [TestMethod]
         public void EffectiveTags_KeepsTheProvidersDerivedModes()
         {
             var effective = AchievementTagTallyBuilder.EffectiveTags(
