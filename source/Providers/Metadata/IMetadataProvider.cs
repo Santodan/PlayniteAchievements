@@ -72,6 +72,17 @@ namespace PlayniteAchievements.Providers.Metadata
         Task<AchievementSourceSet> FetchAsync(MetadataLinkRequest request, string linkId, CancellationToken ct);
     }
 
+    /// <summary>
+    /// Several metadata sources that share one implementation, such as the Exophase pages of
+    /// different platforms. Discovered by reflection like a provider; each of its providers is
+    /// registered on its own. A provider type without a public constructor belongs to a family
+    /// and is not created by itself.
+    /// </summary>
+    internal interface IMetadataProviderFamily
+    {
+        IReadOnlyList<IMetadataProvider> Providers { get; }
+    }
+
     /// <summary>What a metadata provider knows about the game it is asked to link or fetch for.</summary>
     internal sealed class MetadataLinkRequest
     {
