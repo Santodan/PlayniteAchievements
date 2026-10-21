@@ -9,9 +9,7 @@ namespace PlayniteAchievements.Models.Settings
     /// gated by <see cref="PersistedSettings.MetadataChoicesSeeded"/>. Each provider's
     /// UseExophaseForRarity becomes its Rarity choice, and the Steam SteamHuntersCategoryMode (or its
     /// older UseSteamHuntersForCategories checkbox) becomes Steam's Categories choice. Choices the
-    /// config already holds are kept. A second step, gated by
-    /// <see cref="PersistedSettings.MetadataTagChoicesSeeded"/>, copies each Categories choice into
-    /// Tags, since a category source supplied the tags too until tags got a choice of their own.
+    /// config already holds are kept. Tags are not seeded: they follow the TrueGaming default.
     /// Runs before deserialization so the writes persist.
     /// </summary>
     public static class MetadataSettingsMigration
@@ -31,9 +29,7 @@ namespace PlayniteAchievements.Models.Settings
                     return json;
                 }
 
-                var seeded = Seed(persisted);
-                var tagsSeeded = SeedTags(persisted);
-                return seeded || tagsSeeded ? root.ToString(Formatting.None) : json;
+                return Seed(persisted) ? root.ToString(Formatting.None) : json;
             }
             catch (Exception)
             {
@@ -76,37 +72,6 @@ namespace PlayniteAchievements.Models.Settings
 
             persisted[flagName] = true;
             return true;
-        }
-
-        private static bool SeedTags(JObject persisted)
-        {
-            const string flagName = nameof(PersistedSettings.MetadataTagChoicesSeeded);
-            var flag = persisted[flagName];
-            if (flag != null && flag.Type == JTokenType.Boolean && flag.Value<bool>())
-            {
-                return false;
-            }
-
-            CopyCategoriesToTags(persisted[nameof(PersistedSettings.MetadataDefaults)] as JObject);
-            if (persisted[nameof(PersistedSettings.MetadataPlatformChoices)] is JObject platforms)
-            {
-                foreach (var property in platforms.Properties())
-                {
-                    CopyCategoriesToTags(property.Value as JObject);
-                }
-            }
-
-            persisted[flagName] = true;
-            return true;
-        }
-
-        private static void CopyCategoriesToTags(JObject choices)
-        {
-            var categories = choices?[nameof(MetadataChoices.Categories)];
-            if (categories?.Type == JTokenType.String)
-            {
-                SetIfAbsent(choices, nameof(MetadataChoices.Tags), categories.Value<string>());
-            }
         }
 
         /// <summary>
