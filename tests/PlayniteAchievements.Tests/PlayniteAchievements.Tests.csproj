@@ -419,6 +419,7 @@
     <Compile Include="..\..\source\Providers\Metadata\TrueGaming\TrueGamingPageParser.cs" Link="Source\Providers\Metadata\TrueGaming\TrueGamingPageParser.cs" />
     <Compile Include="..\..\source\Providers\Metadata\TrueGaming\TrueGamingLinks.cs" Link="Source\Providers\Metadata\TrueGaming\TrueGamingLinks.cs" />
     <Compile Include="..\..\source\Providers\Metadata\TrueGaming\TrueGamingPageSet.cs" Link="Source\Providers\Metadata\TrueGaming\TrueGamingPageSet.cs" />
+    <Compile Include="..\..\source\Providers\Metadata\TrueGaming\TrueGamingPageStore.cs" Link="Source\Providers\Metadata\TrueGaming\TrueGamingPageStore.cs" />
     <Compile Include="..\..\source\Providers\Metadata\TrueGaming\TrueGamingFlags.cs" Link="Source\Providers\Metadata\TrueGaming\TrueGamingFlags.cs" />
     <Compile Include="..\..\source\Providers\Exophase\ExophaseSteamAppIdParser.cs" Link="Source\Providers\Exophase\ExophaseSteamAppIdParser.cs" />
     <Compile Include="..\..\source\Providers\ISessionManager.cs" Link="Source\Providers\ISessionManager.cs" />
