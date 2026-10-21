@@ -34,6 +34,13 @@ namespace PlayniteAchievements.Models.Settings
                 "Epic", "RetroAchievements", "FFXIV", "GW2", "Hypixel", "Hoyoverse", "BattleNet", "GameJolt", "Exophase"
             };
 
+        /// <summary>
+        /// Platforms whose achievements come without icons (EA) or with only unlocked ones
+        /// (Ubisoft), so by default their icons come from Exophase.
+        /// </summary>
+        public static readonly IReadOnlyCollection<string> ExophaseIconProviders =
+            new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "EA", "Ubisoft" };
+
         /// <summary>Platforms whose achievements carry their own trophy types, so they have no trophy type choice.</summary>
         public static readonly IReadOnlyCollection<string> OwnTrophyTypeProviders =
             new HashSet<string>(StringComparer.OrdinalIgnoreCase)
@@ -190,7 +197,7 @@ namespace PlayniteAchievements.Models.Settings
         /// </summary>
         public MetadataChoices ResolveMetadataChoices(string providerKey, MetadataChoices game = null)
         {
-            var defaults = MetadataDefaults ?? MetadataChoices.CreateDefaults();
+            var defaults = ResolvePlatformDefaults(providerKey);
             MetadataChoices platform = null;
             if (!string.IsNullOrWhiteSpace(providerKey))
             {
@@ -216,9 +223,21 @@ namespace PlayniteAchievements.Models.Settings
         }
 
         /// <summary>
-        /// Fresh installs keep SteamHunters categories on Steam games, as before the Metadata tab,
-        /// and give EA games Exophase's icons, which EA's achievements come without.
+        /// What a platform row's Default stands for: the defaults row, with Exophase icons for the
+        /// platforms whose achievements lack their own (<see cref="MetadataChoices.ExophaseIconProviders"/>).
         /// </summary>
+        public MetadataChoices ResolvePlatformDefaults(string providerKey)
+        {
+            var defaults = (MetadataDefaults ?? MetadataChoices.CreateDefaults()).Clone();
+            if (!string.IsNullOrWhiteSpace(providerKey) && MetadataChoices.ExophaseIconProviders.Contains(providerKey.Trim()))
+            {
+                defaults.Icons = MetadataChoices.Exophase;
+            }
+
+            return defaults;
+        }
+
+        /// <summary>Fresh installs keep SteamHunters categories on Steam games, as before the Metadata tab.</summary>
         internal static Dictionary<string, MetadataChoices> CreateDefaultMetadataPlatformChoices()
         {
             return new Dictionary<string, MetadataChoices>(StringComparer.OrdinalIgnoreCase)
@@ -226,10 +245,6 @@ namespace PlayniteAchievements.Models.Settings
                 ["Steam"] = new MetadataChoices
                 {
                     Categories = MetadataChoices.SteamHunters
-                },
-                ["EA"] = new MetadataChoices
-                {
-                    Icons = MetadataChoices.Exophase
                 }
             };
         }
