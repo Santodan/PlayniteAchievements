@@ -59,8 +59,9 @@ namespace PlayniteAchievements.Services.GameCustomData
             normalized.ForceUseExophase = normalized.ForceUseExophase == true ? true : (bool?)null;
             NormalizeCapstones(normalized);
             normalized.ExophaseSlugOverride = NormalizeString(normalized.ExophaseSlugOverride);
-            normalized.ExophaseEnrichmentSlugOverride = NormalizeString(normalized.ExophaseEnrichmentSlugOverride);
-            normalized.MetadataLinks = NormalizeMetadataLinks(normalized.MetadataLinks);
+            // The Exophase rarity page was once its own field; it is now the game's Exophase link.
+            normalized.MetadataLinks = NormalizeMetadataLinks(MoveEnrichmentSlugToLink(normalized.MetadataLinks, NormalizeString(normalized.ExophaseEnrichmentSlugOverride)));
+            normalized.ExophaseEnrichmentSlugOverride = null;
             normalized.MetadataChoices = normalized.MetadataChoices?.IsEmpty() == false ? normalized.MetadataChoices : null;
             normalized.XeniaTitleIdOverride = XeniaTitleIdHelper.Normalize(normalized.XeniaTitleIdOverride);
             normalized.ShadPS4MatchIdOverride = ShadPS4MatchIdHelper.Normalize(normalized.ShadPS4MatchIdOverride);
@@ -127,8 +128,9 @@ namespace PlayniteAchievements.Services.GameCustomData
             normalized.ForceUseExophase = normalized.ForceUseExophase == true ? true : (bool?)null;
             NormalizeCapstones(normalized);
             normalized.ExophaseSlugOverride = NormalizeString(normalized.ExophaseSlugOverride);
-            normalized.ExophaseEnrichmentSlugOverride = NormalizeString(normalized.ExophaseEnrichmentSlugOverride);
-            normalized.MetadataLinks = NormalizeMetadataLinks(normalized.MetadataLinks);
+            // The Exophase rarity page was once its own field; it is now the game's Exophase link.
+            normalized.MetadataLinks = NormalizeMetadataLinks(MoveEnrichmentSlugToLink(normalized.MetadataLinks, NormalizeString(normalized.ExophaseEnrichmentSlugOverride)));
+            normalized.ExophaseEnrichmentSlugOverride = null;
             normalized.MetadataChoices = normalized.MetadataChoices?.IsEmpty() == false ? normalized.MetadataChoices : null;
             normalized.XeniaTitleIdOverride = XeniaTitleIdHelper.Normalize(normalized.XeniaTitleIdOverride);
             normalized.ShadPS4MatchIdOverride = ShadPS4MatchIdHelper.Normalize(normalized.ShadPS4MatchIdOverride);
@@ -1303,6 +1305,28 @@ namespace PlayniteAchievements.Services.GameCustomData
                     ? normalizedLabel
                     : CategoryPathHelper.NormalizePath(providerLabel)
             };
+        }
+
+        /// <summary>
+        /// <paramref name="links"/> with <paramref name="slug"/>, a slug the user set for the Exophase rarity page
+        /// before that page was a metadata link, as the game's Exophase link, unless it already has one.
+        /// </summary>
+        private static Dictionary<string, MetadataLinkData> MoveEnrichmentSlugToLink(Dictionary<string, MetadataLinkData> links, string slug)
+        {
+            if (string.IsNullOrWhiteSpace(slug))
+            {
+                return links;
+            }
+
+            var moved = links == null
+                ? new Dictionary<string, MetadataLinkData>(StringComparer.OrdinalIgnoreCase)
+                : new Dictionary<string, MetadataLinkData>(links, StringComparer.OrdinalIgnoreCase);
+            if (!moved.ContainsKey(MetadataChoices.Exophase))
+            {
+                moved[MetadataChoices.Exophase] = new MetadataLinkData { Id = slug.Trim(), IsUserSet = true };
+            }
+
+            return moved;
         }
 
         /// <summary>
