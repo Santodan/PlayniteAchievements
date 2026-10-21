@@ -39,17 +39,17 @@ namespace PlayniteAchievements.Views.Settings.Metadata
                     "Sources",
                     ResourceProvider.GetString("LOCPlayAch_Settings_Metadata_Sources"),
                     iconGlyph: "",
-                    viewFactory: () => Scrolled(new MetadataSourcesSection(settings, registry))),
+                    viewFactory: () => Page(new MetadataSourcesSection(settings, registry), scrolls: false)),
                 new SettingsNavigationItem(
                     "Tags",
                     ResourceProvider.GetString("LOCTagsLabel"),
                     iconGlyph: "",
-                    viewFactory: () => Scrolled(new AchievementTagsSettingsSection(settings, plugin))),
+                    viewFactory: () => Page(new AchievementTagsSettingsSection(settings, plugin))),
                 new SettingsNavigationItem(
                     "AutoCapstone",
                     ResourceProvider.GetString("LOCPlayAch_ManageAchievements_Custom_AutoCapstone"),
                     iconGlyph: "",
-                    viewFactory: () => Scrolled(new AutoCapstoneSettingsSection(settings, plugin)))
+                    viewFactory: () => Page(new AutoCapstoneSettingsSection(settings, plugin)))
             };
 
             MasterDetail.ItemsSource = items;
@@ -66,18 +66,23 @@ namespace PlayniteAchievements.Views.Settings.Metadata
             }
         }
 
-        /// <summary>A section in its own scrolling page, with the margin the other tabs' sections have.</summary>
-        private static UserControl Scrolled(FrameworkElement section)
+        /// <summary>
+        /// A section as its own page, with the margin the other tabs' sections have. A page that
+        /// does not scroll gives the section the page's height (the sources grid scrolls itself).
+        /// </summary>
+        private static UserControl Page(FrameworkElement section, bool scrolls = true)
         {
             section.Margin = new Thickness(20);
             return new UserControl
             {
-                Content = new ScrollViewer
-                {
-                    VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
-                    HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
-                    Content = section
-                }
+                Content = scrolls
+                    ? new ScrollViewer
+                    {
+                        VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+                        HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
+                        Content = section
+                    }
+                    : (object)section
             };
         }
     }
