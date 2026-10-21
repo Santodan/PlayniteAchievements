@@ -138,7 +138,8 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         {
             Rows.Clear();
             var store = _store?.Invoke();
-            if (gameId == Guid.Empty || store == null)
+            // A platform no source has gets no metadata section.
+            if (gameId == Guid.Empty || store == null || !MetadataChoices.TakesSources(servicingProviderKey))
             {
                 SetChoiceRows(Guid.Empty, null, Array.Empty<MetadataChoiceRow>());
             }
