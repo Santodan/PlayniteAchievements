@@ -855,36 +855,19 @@ namespace PlayniteAchievements.Views.Showcase
             return rows;
         }
 
-        // The widget's Show Control Bar switch, heading the item rows: off shows no bar, on shows
-        // the items checked below it.
+        // The widget's Show Control Bar switch, heading the item rows like any other toggle: off
+        // shows no bar, on shows the items checked below it.
         private void AddControlBarHeader(Panel panel)
         {
-            var label = new TextBlock
-            {
-                Text = Localize("LOCPlayAch_Settings_ShowGridControlBar"),
-                FontWeight = FontWeights.SemiBold
-            };
-            label.SetResourceReference(TextBlock.ForegroundProperty, "PlayAch.Brush.Text");
-            var header = new CheckBox
-            {
-                Content = label,
-                IsChecked = ShowcaseWidgetOptions.GetShowControlBar(_settings, LegacyControlBarVisible())
-            };
-            header.SetResourceReference(MarginProperty, "PlayAch.Thickness.Bottom.Sm");
-            void Commit()
-            {
-                ShowcaseWidgetOptions.SetShowControlBar(_settings, header.IsChecked == true);
-                ApplyControlBarItemRows();
-                _persist?.Invoke();
-                if (_publishChanges)
+            AddToggle(
+                panel,
+                Localize("LOCPlayAch_Settings_ShowGridControlBar"),
+                ShowcaseWidgetOptions.GetShowControlBar(_settings, LegacyControlBarVisible()),
+                value =>
                 {
-                    ShowcaseConfigurationEvents.RaiseChanged();
-                }
-            }
-
-            header.Checked += (_, __) => Commit();
-            header.Unchecked += (_, __) => Commit();
-            panel.Children.Add(header);
+                    ShowcaseWidgetOptions.SetShowControlBar(_settings, value);
+                    ApplyControlBarItemRows();
+                });
         }
 
         private void ApplyControlBarItemRows()
@@ -896,7 +879,8 @@ namespace PlayniteAchievements.Views.Showcase
             }
         }
 
-        // One item: its show checkbox, its editor across the row, and a button clearing its filter.
+        // One item, laid out like the other option rows: its name in the label column, then its
+        // show checkbox, its editor across the rest of the row, and a button clearing its filter.
         private FrameworkElement AddControlBarItemRow(
             Panel panel,
             string itemId,
@@ -908,17 +892,28 @@ namespace PlayniteAchievements.Views.Showcase
             row.SetResourceReference(MarginProperty, "PlayAch.Thickness.Bottom.Md");
             row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(2, GridUnitType.Star) });
             row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(3, GridUnitType.Star) });
-            row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
             var labelBlock = new TextBlock
             {
                 Text = label,
+                Margin = new Thickness(0, 0, 8, 0),
+                FontWeight = FontWeights.SemiBold,
+                VerticalAlignment = VerticalAlignment.Center,
                 TextWrapping = TextWrapping.Wrap
             };
             labelBlock.SetResourceReference(TextBlock.ForegroundProperty, "PlayAch.Brush.Text");
+            row.Children.Add(labelBlock);
+
+            var controls = new Grid { VerticalAlignment = VerticalAlignment.Center };
+            controls.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+            controls.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+            controls.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+            Grid.SetColumn(controls, 1);
+            row.Children.Add(controls);
+
             var checkBox = new CheckBox
             {
-                Content = labelBlock,
                 IsChecked = ShowcaseWidgetOptions.GetControlBarItemChecked(_settings, itemId),
+                ToolTip = Localize("LOCPlayAch_Settings_ShowGridControlBar"),
                 VerticalAlignment = VerticalAlignment.Center,
                 Margin = new Thickness(0, 0, 8, 0)
             };
@@ -934,12 +929,15 @@ namespace PlayniteAchievements.Views.Showcase
 
             checkBox.Checked += (_, __) => Commit();
             checkBox.Unchecked += (_, __) => Commit();
-            row.Children.Add(checkBox);
+            controls.Children.Add(checkBox);
             if (editor != null)
             {
+                // The bar's filter items keep a small left margin (the search box has none); this
+                // lines the editor up with the other rows' controls.
+                editor.Margin = new Thickness(entry is GridSearchControl ? 0 : -4, 0, 0, 0);
                 editor.VerticalAlignment = VerticalAlignment.Center;
                 Grid.SetColumn(editor, 1);
-                row.Children.Add(editor);
+                controls.Children.Add(editor);
             }
 
             if (entry != null)
@@ -948,14 +946,17 @@ namespace PlayniteAchievements.Views.Showcase
                 {
                     Content = "\u00D7",
                     ToolTip = Localize("LOCClearLabel"),
+                    Width = 30,
+                    MinHeight = 0,
                     VerticalAlignment = VerticalAlignment.Center,
-                    Margin = new Thickness(4, 0, 0, 0)
+                    Margin = new Thickness(6, 0, 0, 0)
                 };
                 clear.SetResourceReference(StyleProperty, "PlayAch.Button.ToolbarIconStyle");
+                clear.SetResourceReference(HeightProperty, "PlayAch.Size.Control.Height");
                 clear.SetResourceReference(Control.FontFamilyProperty, "PlayAch.FontFamily.Body");
                 clear.Click += (_, __) => entry.ClearSelection();
                 Grid.SetColumn(clear, 2);
-                row.Children.Add(clear);
+                controls.Children.Add(clear);
             }
 
             panel.Children.Add(row);
