@@ -95,7 +95,8 @@ namespace PlayniteAchievements.Services.Achievements
                 if (!string.Equals(a?.Key, b?.Key, StringComparison.Ordinal) ||
                     !string.Equals(a?.Name, b?.Name, StringComparison.Ordinal) ||
                     !string.Equals(a?.Color, b?.Color, StringComparison.Ordinal) ||
-                    !string.Equals(a?.Icon, b?.Icon, StringComparison.Ordinal))
+                    !string.Equals(a?.Icon, b?.Icon, StringComparison.Ordinal) ||
+                    a?.Hidden != b?.Hidden)
                 {
                     return false;
                 }
@@ -160,6 +161,19 @@ namespace PlayniteAchievements.Services.Achievements
                 .Where(key => !AchievementTagHelper.IsDerivedTag(key))
                 .ToList();
 
+        /// <summary>
+        /// <see cref="GetAssignableKeys"/> without hidden tags: the tags filters, pies and menus
+        /// outside the editor offer.
+        /// </summary>
+        public static IReadOnlyList<string> GetShownKeys(Guid? gameId, IEnumerable<string> presentKeys = null) =>
+            GetAvailable(gameId, presentKeys)
+                .Where(definition => !definition.Hidden && !AchievementTagHelper.IsDerivedTag(definition.Key))
+                .Select(definition => definition.Key)
+                .ToList();
+
+        /// <summary>True when <paramref name="key"/> resolves on <paramref name="gameId"/> to a hidden tag.</summary>
+        public static bool IsHidden(string key, Guid? gameId = null) => Resolve(key, gameId)?.Hidden == true;
+
         /// <summary>The definition of <paramref name="key"/> on <paramref name="gameId"/>; null for a deleted user tag.</summary>
         public static AchievementTagDefinition Resolve(string key, Guid? gameId = null)
         {
@@ -208,9 +222,10 @@ namespace PlayniteAchievements.Services.Achievements
 
         /// <summary>
         /// The tags of <paramref name="value"/> that would be shown, in the order of the available
-        /// list: derived keys and deleted user tags are left out.
+        /// list: derived keys and deleted user tags are left out, and hidden tags unless
+        /// <paramref name="includeHidden"/> (the editor shows them).
         /// </summary>
-        public static IReadOnlyList<AchievementTagDefinition> ResolveVisible(string value, Guid? gameId = null)
+        public static IReadOnlyList<AchievementTagDefinition> ResolveVisible(string value, Guid? gameId = null, bool includeHidden = false)
         {
             var keys = AchievementTagHelper.GetComponents(value);
             if (keys.Count == 0)
@@ -220,7 +235,9 @@ namespace PlayniteAchievements.Services.Achievements
 
             var wanted = new HashSet<string>(keys, StringComparer.OrdinalIgnoreCase);
             return GetAvailable(gameId, keys)
-                .Where(definition => wanted.Contains(definition.Key) && !AchievementTagHelper.IsDerivedTag(definition.Key))
+                .Where(definition => wanted.Contains(definition.Key) &&
+                                     !AchievementTagHelper.IsDerivedTag(definition.Key) &&
+                                     (includeHidden || !definition.Hidden))
                 .ToList();
         }
 

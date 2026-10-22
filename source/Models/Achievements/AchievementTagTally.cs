@@ -46,13 +46,13 @@ namespace PlayniteAchievements.Models.Achievements
         {
             if (gameIds == null || gameIds.Count == 0)
             {
-                return AchievementTagRegistry.GetAssignableKeys(null);
+                return AchievementTagRegistry.GetShownKeys(null);
             }
 
             List<string> shared = null;
             foreach (var gameId in gameIds)
             {
-                var keys = AchievementTagRegistry.GetAssignableKeys(gameId, presentKeys?.Invoke(gameId));
+                var keys = AchievementTagRegistry.GetShownKeys(gameId, presentKeys?.Invoke(gameId));
                 shared = shared == null
                     ? keys.ToList()
                     : shared.Where(key => keys.Contains(key, StringComparer.OrdinalIgnoreCase)).ToList();

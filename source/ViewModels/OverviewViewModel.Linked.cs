@@ -27,7 +27,7 @@ namespace PlayniteAchievements.ViewModels
         private readonly HashSet<string> _selectedTagFilters = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
         /// <summary>The global tags: the Achievements grid lists every game's unlocks.</summary>
-        public IReadOnlyList<string> TagFilterOptions => AchievementTagRegistry.GetAssignableKeys(null);
+        public IReadOnlyList<string> TagFilterOptions => AchievementTagRegistry.GetShownKeys(null);
 
         public string SelectedTagFilterText => _selectedTagFilters.Count == 0
             ? L("LOCTagsLabel")
