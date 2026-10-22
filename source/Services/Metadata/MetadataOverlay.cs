@@ -242,15 +242,6 @@ namespace PlayniteAchievements.Services.Metadata
                 capstoneDescription = previous.CapstoneDescription;
                 capstoneMatch = previous.CapstoneMatchApiName;
             }
-
-            // The platinum's counterpart is the game's platinum too, as an authored auto capstone is.
-            var matchedCapstone = capstoneMatch == null
-                ? null
-                : data.Achievements.FirstOrDefault(row => string.Equals(row?.ApiName, capstoneMatch, StringComparison.OrdinalIgnoreCase));
-            if (matchedCapstone != null && string.IsNullOrWhiteSpace(matchedCapstone.TrophyType))
-            {
-                matchedCapstone.TrophyType = AutoCapstoneTemplate.PlatinumTrophyType;
-            }
             // A source that supplies achievement data is judged, and shown, by how many of the
             // game's achievements it matched; one used only for the auto capstone by its platinum.
             var coverage = new Dictionary<string, MetadataCoverage>(StringComparer.OrdinalIgnoreCase);
@@ -291,7 +282,7 @@ namespace PlayniteAchievements.Services.Metadata
                 borrowedIconApiNames,
                 capstoneTitle,
                 capstoneDescription,
-                matchedCapstone?.ApiName) ?? false;
+                capstoneMatch) ?? false;
         }
 
         /// <summary>
