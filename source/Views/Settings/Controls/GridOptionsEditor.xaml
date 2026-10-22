@@ -5,6 +5,7 @@
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:settings="clr-namespace:PlayniteAchievements.Models.Settings"
+             xmlns:converters="clr-namespace:PlayniteAchievements.Views.Converters"
              mc:Ignorable="d"
              d:DesignHeight="400"
              d:DesignWidth="500">
@@ -14,6 +15,8 @@
                 <ResourceDictionary Source="pack://application:,,,/PlayniteAchievements;component/Resources/SettingsScopedControlStyles.xaml"/>
                 <ResourceDictionary Source="pack://application:,,,/PlayniteAchievements;component/Resources/CommonResources.xaml"/>
             </ResourceDictionary.MergedDictionaries>
+
+            <converters:AchievementTagDisplayTextConverter x:Key="AchievementTagDisplayTextConverter"/>
 
             <!-- Collapses a typed row panel when the editor's typed options cast is null. -->
             <Style x:Key="AchievementPanelStyle" TargetType="StackPanel">
@@ -75,14 +78,54 @@
                       IsChecked="{Binding AchievementOptions.ShowRarityGlow, ElementName=EditorRoot}"
                       Visibility="{Binding ShowRarityGlowRow, ElementName=EditorRoot, Converter={StaticResource BoolToVis}}"
                       Margin="{StaticResource PlayAch.Thickness.Bottom.Sm}"/>
-            <CheckBox Content="{DynamicResource LOCPlayAch_Settings_ColorNamesByRarity}"
-                      IsChecked="{Binding AchievementOptions.ColorNamesByRarity, ElementName=EditorRoot}"
-                      Visibility="{Binding ShowColorNamesRow, ElementName=EditorRoot, Converter={StaticResource BoolToVis}}"
-                      Margin="{StaticResource PlayAch.Thickness.Bottom.Sm}"/>
             <CheckBox Content="{DynamicResource LOCPlayAch_Settings_ColorRarityTextByRarity}"
                       IsChecked="{Binding AchievementOptions.ColorRarityColumnsByRarity, ElementName=EditorRoot}"
                       Visibility="{Binding ShowColorNamesRow, ElementName=EditorRoot, Converter={StaticResource BoolToVis}}"
                       Margin="{StaticResource PlayAch.Thickness.Bottom.Sm}"/>
+            <!-- Name color, tag display and status color: the grid's own coloring choices. -->
+            <StackPanel Visibility="{Binding ShowColorNamesRow, ElementName=EditorRoot, Converter={StaticResource BoolToVis}}">
+                <StackPanel Orientation="Horizontal" Margin="{StaticResource PlayAch.Thickness.Bottom.Sm}">
+                    <TextBlock Text="{DynamicResource LOCPlayAch_Settings_NameColor}"
+                               VerticalAlignment="Center"/>
+                    <ComboBox SelectedValue="{Binding AchievementOptions.NameColor, ElementName=EditorRoot, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                              SelectedValuePath="Tag"
+                              MinWidth="140"
+                              Margin="{StaticResource PlayAch.Thickness.Left.Sm}">
+                        <ComboBoxItem Content="{DynamicResource LOCNone}" Tag="{x:Static settings:AchievementNameColorSource.None}"/>
+                        <ComboBoxItem Content="{DynamicResource LOCPlayAch_Column_Rarity}" Tag="{x:Static settings:AchievementNameColorSource.Rarity}"/>
+                        <ComboBoxItem Content="{DynamicResource LOCPlayAch_Column_Trophy}" Tag="{x:Static settings:AchievementNameColorSource.Trophy}"/>
+                        <ComboBoxItem Content="{DynamicResource LOCTagLabel}" Tag="{x:Static settings:AchievementNameColorSource.Tag}"/>
+                    </ComboBox>
+                </StackPanel>
+                <StackPanel Orientation="Horizontal" Margin="{StaticResource PlayAch.Thickness.Bottom.Sm}">
+                    <TextBlock Text="{DynamicResource LOCTagsLabel}"
+                               VerticalAlignment="Center"/>
+                    <Button x:Name="TagDisplayButton"
+                            Style="{StaticResource AchievementSelectorButtonStyle}"
+                            Content="{Binding AchievementOptions.TagDisplay, ElementName=EditorRoot, Converter={StaticResource AchievementTagDisplayTextConverter}}"
+                            Click="TagDisplayButton_Click"
+                            MinWidth="140"
+                            Height="{StaticResource PlayAch.Size.Control.Height}"
+                            Margin="{StaticResource PlayAch.Thickness.Left.Sm}">
+                        <Button.ContextMenu>
+                            <ContextMenu Style="{StaticResource AchievementSelectorContextMenuStyle}"
+                                         ItemContainerStyle="{StaticResource AchievementMultiSelectMenuItemStyle}"/>
+                        </Button.ContextMenu>
+                    </Button>
+                </StackPanel>
+                <StackPanel Orientation="Horizontal" Margin="{StaticResource PlayAch.Thickness.Bottom.Sm}">
+                    <TextBlock Text="{DynamicResource LOCPlayAch_Settings_StatusColor}"
+                               VerticalAlignment="Center"/>
+                    <ComboBox SelectedValue="{Binding AchievementOptions.StatusColor, ElementName=EditorRoot, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                              SelectedValuePath="Tag"
+                              MinWidth="140"
+                              Margin="{StaticResource PlayAch.Thickness.Left.Sm}">
+                        <ComboBoxItem Content="{DynamicResource LOCNone}" Tag="{x:Static settings:AchievementStatusColorMode.None}"/>
+                        <ComboBoxItem Content="{DynamicResource LOCPlayAch_Settings_StatusColor_MissableUnobtainable}" Tag="{x:Static settings:AchievementStatusColorMode.MissableUnobtainable}"/>
+                        <ComboBoxItem Content="{DynamicResource LOCAll}" Tag="{x:Static settings:AchievementStatusColorMode.AllTags}"/>
+                    </ComboBox>
+                </StackPanel>
+            </StackPanel>
         </StackPanel>
 
         <!-- Game-summary-specific leading rows -->

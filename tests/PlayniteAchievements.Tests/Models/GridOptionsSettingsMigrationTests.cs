@@ -28,7 +28,91 @@ namespace PlayniteAchievements.Models.Tests
             var singleGame = MigrateSingleGame(json);
 
             Assert.IsFalse(singleGame["ShowRarityGlow"].Value<bool>());
-            Assert.IsTrue(singleGame["ColorNamesByRarity"].Value<bool>());
+            Assert.AreEqual((int)AchievementNameColorSource.Rarity, singleGame["NameColor"].Value<int>());
+            Assert.IsNull(singleGame["ColorNamesByRarity"]);
+        }
+
+        [TestMethod]
+        public void MigrateFromJson_ConvertsColorNamesByRarityToNameColor()
+        {
+            const string json = @"{
+                ""Persisted"": {
+                    ""GridOptions"": {
+                        ""Achievement"": {
+                            ""OverviewRecent"": { ""ColorNamesByRarity"": true },
+                            ""FriendsOverviewRecent"": { ""ColorNamesByRarity"": false },
+                            ""ShowcaseRecentAchievements:abc"": { ""ColorNamesByRarity"": true },
+                            ""DesktopTheme"": { ""ColorNamesByRarity"": true, ""NameColor"": 2 }
+                        }
+                    }
+                }
+            }";
+
+            var achievement = (JObject)MigratePersisted(json)["GridOptions"]["Achievement"];
+
+            Assert.AreEqual((int)AchievementNameColorSource.Rarity, achievement["OverviewRecent"]["NameColor"].Value<int>());
+            Assert.AreEqual((int)AchievementNameColorSource.None, achievement["FriendsOverviewRecent"]["NameColor"].Value<int>());
+            Assert.AreEqual((int)AchievementNameColorSource.Rarity, achievement["ShowcaseRecentAchievements:abc"]["NameColor"].Value<int>());
+            // An entry that already has a source keeps it.
+            Assert.AreEqual((int)AchievementNameColorSource.Trophy, achievement["DesktopTheme"]["NameColor"].Value<int>());
+            foreach (var property in achievement.Properties())
+            {
+                Assert.IsNull(property.Value["ColorNamesByRarity"], property.Name);
+            }
+        }
+
+        [TestMethod]
+        public void MigrateFromJson_MovesTintMissableLocksIntoEveryAchievementGrid()
+        {
+            const string json = @"{
+                ""Persisted"": {
+                    ""TintMissableLocks"": false,
+                    ""GridOptions"": {
+                        ""Achievement"": {
+                            ""SingleGame"": { ""ShowRarityGlow"": true },
+                            ""ShowcaseRecentAchievements:abc"": { },
+                            ""OverviewRecent"": { ""StatusColor"": 2 }
+                        }
+                    }
+                }
+            }";
+
+            var persisted = MigratePersisted(json);
+            var achievement = (JObject)persisted["GridOptions"]["Achievement"];
+
+            Assert.IsNull(persisted["TintMissableLocks"]);
+            Assert.AreEqual((int)AchievementStatusColorMode.None, achievement["SingleGame"]["StatusColor"].Value<int>());
+            Assert.AreEqual((int)AchievementStatusColorMode.None, achievement["ShowcaseRecentAchievements:abc"]["StatusColor"].Value<int>());
+            Assert.AreEqual((int)AchievementStatusColorMode.AllTags, achievement["OverviewRecent"]["StatusColor"].Value<int>());
+        }
+
+        [TestMethod]
+        public void MigrateFromJson_TintMissableLocksTrueKeepsMissableColoring()
+        {
+            const string json = @"{
+                ""Persisted"": {
+                    ""TintMissableLocks"": true,
+                    ""GridOptions"": { ""Achievement"": { ""SingleGame"": { } } }
+                }
+            }";
+
+            var persisted = MigratePersisted(json);
+
+            Assert.IsNull(persisted["TintMissableLocks"]);
+            Assert.AreEqual(
+                (int)AchievementStatusColorMode.MissableUnobtainable,
+                persisted["GridOptions"]["Achievement"]["SingleGame"]["StatusColor"].Value<int>());
+        }
+
+        [TestMethod]
+        public void AchievementGridOptions_ReadsLegacyColorNamesByRarityButNeverWritesIt()
+        {
+            var options = Newtonsoft.Json.JsonConvert.DeserializeObject<AchievementGridOptions>(@"{ ""ColorNamesByRarity"": true }");
+
+            Assert.AreEqual(AchievementNameColorSource.Rarity, options.NameColor);
+            var written = JObject.Parse(Newtonsoft.Json.JsonConvert.SerializeObject(options));
+            Assert.IsNull(written["ColorNamesByRarity"]);
+            Assert.AreEqual((int)AchievementNameColorSource.Rarity, written["NameColor"].Value<int>());
         }
 
         [TestMethod]

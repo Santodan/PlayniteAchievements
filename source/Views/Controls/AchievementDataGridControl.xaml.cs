@@ -39,6 +39,9 @@ namespace PlayniteAchievements.Views.Controls
         private bool _isAttached;
         private bool _wheelDiagnosticsAttached;
         private PersistedSettingsSubscription _persistedSubscription;
+        private AchievementGridOptions _appearanceRecord;
+        private GridOptionsCatalog _appearanceCatalog;
+        private bool _appearanceSubscribed;
         private List<AchievementDisplayItem> _preSortItems;
         private const double DefaultStatusColumnWidth = 40;
         private const double DefaultIconColumnWidth = 72;
@@ -551,22 +554,48 @@ namespace PlayniteAchievements.Views.Controls
         }
 
         /// <summary>
-        /// Identifies the ColorNamesByRarity dependency property.
-        /// When true, achievement name text in this grid is colored by rarity tier (capstone
-        /// achievements use the completed color) instead of the default text color.
+        /// Identifies the AppearanceOptions dependency property: the grid options record the name
+        /// color, tag display and status color come from. When null, the grid reads the record of
+        /// its own surface (<see cref="ColumnSettingsKey"/>) from the settings catalog, so every
+        /// window follows its Display Settings without plumbing. Hosts whose record lives outside
+        /// the settings catalog (showcase widgets, the Workshop preview) set it.
         /// </summary>
-        public static readonly DependencyProperty ColorNamesByRarityProperty =
-            DependencyProperty.Register(nameof(ColorNamesByRarity), typeof(bool),
-                typeof(AchievementDataGridControl), new PropertyMetadata(false));
+        public static readonly DependencyProperty AppearanceOptionsProperty =
+            DependencyProperty.Register(nameof(AppearanceOptions), typeof(AchievementGridOptions),
+                typeof(AchievementDataGridControl), new PropertyMetadata(null, OnAppearanceOptionsChanged));
 
-        /// <summary>
-        /// Gets or sets whether achievement name text in this grid is colored by rarity.
-        /// </summary>
-        public bool ColorNamesByRarity
+        public AchievementGridOptions AppearanceOptions
         {
-            get => (bool)GetValue(ColorNamesByRarityProperty);
-            set => SetValue(ColorNamesByRarityProperty, value);
+            get => (AchievementGridOptions)GetValue(AppearanceOptionsProperty);
+            set => SetValue(AppearanceOptionsProperty, value);
         }
+
+        private static readonly DependencyPropertyKey NameColorPropertyKey =
+            DependencyProperty.RegisterReadOnly(nameof(NameColor), typeof(AchievementNameColorSource),
+                typeof(AchievementDataGridControl), new PropertyMetadata(AchievementNameColorSource.None));
+
+        /// <summary>Identifies the NameColor dependency property: where achievement names take their color from.</summary>
+        public static readonly DependencyProperty NameColorProperty = NameColorPropertyKey.DependencyProperty;
+
+        public AchievementNameColorSource NameColor => (AchievementNameColorSource)GetValue(NameColorProperty);
+
+        private static readonly DependencyPropertyKey TagDisplayPropertyKey =
+            DependencyProperty.RegisterReadOnly(nameof(TagDisplay), typeof(AchievementTagDisplay),
+                typeof(AchievementDataGridControl), new PropertyMetadata(AchievementTagDisplay.None));
+
+        /// <summary>Identifies the TagDisplay dependency property: how the Tags column draws each tag.</summary>
+        public static readonly DependencyProperty TagDisplayProperty = TagDisplayPropertyKey.DependencyProperty;
+
+        public AchievementTagDisplay TagDisplay => (AchievementTagDisplay)GetValue(TagDisplayProperty);
+
+        private static readonly DependencyPropertyKey StatusColorPropertyKey =
+            DependencyProperty.RegisterReadOnly(nameof(StatusColor), typeof(AchievementStatusColorMode),
+                typeof(AchievementDataGridControl), new PropertyMetadata(AchievementStatusColorMode.MissableUnobtainable));
+
+        /// <summary>Identifies the StatusColor dependency property: how the Status column glyph is colored.</summary>
+        public static readonly DependencyProperty StatusColorProperty = StatusColorPropertyKey.DependencyProperty;
+
+        public AchievementStatusColorMode StatusColor => (AchievementStatusColorMode)GetValue(StatusColorProperty);
 
         /// <summary>
         /// Identifies the ColorRarityColumnsByRarity dependency property.
@@ -2601,6 +2630,7 @@ namespace PlayniteAchievements.Views.Controls
                 // application for the incoming surface.
                 control._startInCategoryModeApplied = false;
                 control.UpdateUnlockDateMode();
+                control.RefreshAppearance();
                 control.ReattachColumnPersistence();
                 control.SyncModeToggle();
             }
@@ -2901,6 +2931,8 @@ namespace PlayniteAchievements.Views.Controls
             UpdateColumnHeadersVisibility();
             UpdateRealizedRowHeights();
             UpdateUnlockDateMode();
+            RefreshAppearance();
+            SubscribeAppearance();
             SyncModeToggle();
             ApplyCategoryViewState();
             AttachWheelDiagnostics();
@@ -2935,6 +2967,12 @@ namespace PlayniteAchievements.Views.Controls
                 UpdateUnlockDateMode();
             }
 
+            if (string.IsNullOrEmpty(e.PropertyName) ||
+                e.PropertyName == nameof(PersistedSettings.GridOptions))
+            {
+                RefreshAppearance();
+            }
+
             // Category rows repaint without reopening the window. Grids not currently in category
             // mode pick new modes up from the rebuild that entering category mode already does.
             if (_isCategoryMode)
@@ -2965,6 +3003,115 @@ namespace PlayniteAchievements.Views.Controls
             UnlockDateMode = persisted.UnlockDateDisplayMode;
         }
 
+        private static void OnAppearanceOptionsChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
+        {
+            ((AchievementDataGridControl)d).RefreshAppearance();
+        }
+
+        /// <summary>
+        /// Resolves the record the name color, tag display and status color come from, and copies
+        /// those values onto this grid. The record is <see cref="AppearanceOptions"/> when a host
+        /// set one, otherwise this surface's record in the settings catalog; an unrecognised
+        /// surface gets the defaults.
+        /// </summary>
+        private void RefreshAppearance()
+        {
+            var catalog = AppearanceOptions == null
+                ? PlayniteAchievementsPlugin.Instance?.Settings?.Persisted?.GridOptions
+                : null;
+            var record = AppearanceOptions ?? ResolveSurfaceAppearance(catalog);
+
+            if (!ReferenceEquals(record, _appearanceRecord) || !ReferenceEquals(catalog, _appearanceCatalog))
+            {
+                var resubscribe = _appearanceSubscribed;
+                UnsubscribeAppearance();
+                _appearanceRecord = record;
+                _appearanceCatalog = catalog;
+                if (resubscribe)
+                {
+                    SubscribeAppearance();
+                }
+            }
+
+            SetValue(NameColorPropertyKey, record?.NameColor ?? AchievementNameColorSource.None);
+            SetValue(TagDisplayPropertyKey, record?.TagDisplay ?? AchievementTagDisplay.None);
+            SetValue(StatusColorPropertyKey, record?.StatusColor ?? AchievementStatusColorMode.MissableUnobtainable);
+        }
+
+        // Reads without creating: GetAchievement would add a record for every unknown key.
+        private AchievementGridOptions ResolveSurfaceAppearance(GridOptionsCatalog catalog)
+        {
+            if (catalog == null || !GridOptionsCatalog.TryResolveAchievementId(ColumnSettingsKey, out var id))
+            {
+                return null;
+            }
+
+            return catalog.Achievement.TryGetValue(id, out var record) ? record : null;
+        }
+
+        // Only while loaded, so a settings record that outlives this grid never holds it.
+        private void SubscribeAppearance()
+        {
+            if (_appearanceSubscribed)
+            {
+                return;
+            }
+
+            if (_appearanceRecord != null)
+            {
+                _appearanceRecord.PropertyChanged += OnAppearanceRecordChanged;
+            }
+
+            if (_appearanceCatalog != null)
+            {
+                _appearanceCatalog.PropertyChanged += OnAppearanceCatalogChanged;
+            }
+
+            _appearanceSubscribed = true;
+        }
+
+        private void UnsubscribeAppearance()
+        {
+            if (!_appearanceSubscribed)
+            {
+                return;
+            }
+
+            if (_appearanceRecord != null)
+            {
+                _appearanceRecord.PropertyChanged -= OnAppearanceRecordChanged;
+            }
+
+            if (_appearanceCatalog != null)
+            {
+                _appearanceCatalog.PropertyChanged -= OnAppearanceCatalogChanged;
+            }
+
+            _appearanceSubscribed = false;
+        }
+
+        private void OnAppearanceRecordChanged(object sender, PropertyChangedEventArgs e)
+        {
+            if (string.IsNullOrEmpty(e.PropertyName) ||
+                e.PropertyName == nameof(AchievementGridOptions.NameColor) ||
+                e.PropertyName == nameof(AchievementGridOptions.TagDisplay) ||
+                e.PropertyName == nameof(AchievementGridOptions.StatusColor))
+            {
+                RefreshAppearance();
+            }
+        }
+
+        // The catalog's achievement dictionary is replaced wholesale on settings load, which swaps
+        // every record.
+        private void OnAppearanceCatalogChanged(object sender, PropertyChangedEventArgs e)
+        {
+            if (string.IsNullOrEmpty(e.PropertyName) ||
+                e.PropertyName == nameof(GridOptionsCatalog.Achievement))
+            {
+                RefreshAppearance();
+            }
+        }
+
         private void OnDataContextChanged(object sender, DependencyPropertyChangedEventArgs e)
         {
             UpdateRealizedRowHeights();
@@ -2973,6 +3120,7 @@ namespace PlayniteAchievements.Views.Controls
         private void OnUnloaded(object sender, RoutedEventArgs e)
         {
             AchievementTagRegistry.Changed -= OnTagsChanged;
+            UnsubscribeAppearance();
 
             // Restore the control bar so a bar reused across navigations does not keep our injected
             // items or hidden dropdowns; everything is re-applied on the next load.

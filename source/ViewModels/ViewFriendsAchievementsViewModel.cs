@@ -378,9 +378,6 @@ namespace PlayniteAchievements.ViewModels
         public bool ShowRarityGlow =>
             AchievementGridOptions?.ShowRarityGlow ?? true;
 
-        public bool ColorNamesByRarity =>
-            AchievementGridOptions?.ColorNamesByRarity ?? false;
-
         public bool ColorRarityColumnsByRarity =>
             AchievementGridOptions?.ColorRarityColumnsByRarity ?? false;
 
@@ -849,7 +846,6 @@ namespace PlayniteAchievements.ViewModels
             OnPropertyChanged(nameof(ShowAchievementsGridControlBar));
             OnPropertyChanged(nameof(UseCoverImages));
             OnPropertyChanged(nameof(ShowRarityGlow));
-            OnPropertyChanged(nameof(ColorNamesByRarity));
             OnPropertyChanged(nameof(ColorRarityColumnsByRarity));
             OnPropertyChanged(nameof(SummaryUseCoverImages));
             OnPropertyChanged(nameof(SummaryShowCompletionGlow));

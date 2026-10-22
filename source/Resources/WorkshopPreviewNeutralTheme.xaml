@@ -82,7 +82,7 @@
     <SolidColorBrush x:Key="PlayAch.Brush.Trophy.Gold" Color="#CF9B1F"/>
     <SolidColorBrush x:Key="PlayAch.Brush.Trophy.Platinum" Color="#86C8FF"/>
     <SolidColorBrush x:Key="PlayAch.Brush.CompletedGame" Color="#2196F3"/>
-    <SolidColorBrush x:Key="PlayAch.Brush.Status.MissableLock" Color="#E04848"/>
+    <SolidColorBrush x:Key="PlayAch.Brush.MissableLock" Color="#E04848"/>
     <DropShadowEffect x:Key="PlayAch.Effect.CompletedGlowStart" po:Freeze="True" BlurRadius="14" ShadowDepth="2" Direction="135" Color="#9C27B0" Opacity="1"/>
     <DropShadowEffect x:Key="PlayAch.Effect.CompletedGlowEnd" po:Freeze="True" BlurRadius="14" ShadowDepth="2" Direction="315" Color="#2196F3" Opacity="1"/>
     <DropShadowEffect x:Key="PlayAch.Effect.CompletedGlowEdge" po:Freeze="True" BlurRadius="4" ShadowDepth="0" Color="#2196F3" Opacity="1"/>

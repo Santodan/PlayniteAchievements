@@ -1,6 +1,8 @@
 using System.Windows;
 using System.Windows.Controls;
+using Playnite.SDK;
 using PlayniteAchievements.Models.Settings;
+using PlayniteAchievements.Views.Converters;
 
 namespace PlayniteAchievements.Views.Settings.Controls
 {
@@ -187,6 +189,38 @@ namespace PlayniteAchievements.Views.Settings.Controls
             editor.ShowMetadataRows = rows.ShowMetadataRows;
             editor.ShowCompletionGlowRow = rows.ShowCompletionGlowRow;
             editor.ShowGameSortPinOrderChoice = rows.ShowGameSortPinOrderChoice;
+        }
+
+        // The Tags selector's checkable menu. Each toggle reads the record fresh, because the menu
+        // stays open across clicks.
+        private void TagDisplayButton_Click(object sender, RoutedEventArgs e)
+        {
+            if (!(sender is Button button) || button.ContextMenu == null || AchievementOptions == null)
+            {
+                return;
+            }
+
+            var menu = button.ContextMenu;
+            menu.Items.Clear();
+            menu.Items.Add(CreateTagDisplayItem(button, AchievementTagDisplayTextConverter.IconsKey, AchievementTagDisplay.Icons));
+            menu.Items.Add(CreateTagDisplayItem(button, AchievementTagDisplayTextConverter.ColorsKey, AchievementTagDisplay.Colors));
+            MultiSelectMenu.Open(button, menu);
+        }
+
+        private MenuItem CreateTagDisplayItem(Button button, string labelKey, AchievementTagDisplay flag)
+        {
+            return MultiSelectMenu.CreateItem(
+                button,
+                ResourceProvider.GetString(labelKey),
+                (AchievementOptions.TagDisplay & flag) != 0,
+                isChecked =>
+                {
+                    var options = AchievementOptions;
+                    if (options != null)
+                    {
+                        options.TagDisplay = isChecked ? options.TagDisplay | flag : options.TagDisplay & ~flag;
+                    }
+                });
         }
 
         private static DependencyProperty RegisterFlag(string name, bool defaultValue)

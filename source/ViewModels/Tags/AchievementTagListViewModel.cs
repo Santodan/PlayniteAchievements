@@ -286,7 +286,7 @@ namespace PlayniteAchievements.ViewModels.Tags
             }
         }
 
-        public Brush Brush => ToBrush(_color);
+        public Brush Brush => AchievementTagPresentation.ToBrush(_color);
 
         public bool HasColor => _color != null;
 
@@ -323,26 +323,6 @@ namespace PlayniteAchievements.ViewModels.Tags
         public ICommand DeleteCommand { get; }
 
         public ICommand MakeGlobalCommand { get; }
-
-        private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, Brush> BrushByColor =
-            new System.Collections.Concurrent.ConcurrentDictionary<string, Brush>(StringComparer.OrdinalIgnoreCase);
-
-        // One frozen brush per color for the swatch.
-        private static Brush ToBrush(string color)
-        {
-            var normalized = AchievementTagHelper.NormalizeColor(color);
-            if (normalized == null)
-            {
-                return null;
-            }
-
-            return BrushByColor.GetOrAdd(normalized, value =>
-            {
-                var brush = new SolidColorBrush((System.Windows.Media.Color)ColorConverter.ConvertFromString(value));
-                brush.Freeze();
-                return brush;
-            });
-        }
 
         internal AchievementTagDefinition ToDefinition() =>
             new AchievementTagDefinition { Key = Key, Name = _name, Color = _color, Icon = _icon };
@@ -395,7 +375,7 @@ namespace PlayniteAchievements.ViewModels.Tags
 
         public string Color { get; }
 
-        public Brush Brush => Color == null ? null : new SolidColorBrush((System.Windows.Media.Color)ColorConverter.ConvertFromString(Color));
+        public Brush Brush => AchievementTagPresentation.ToBrush(Color);
 
         public bool HasColor => Color != null;
     }

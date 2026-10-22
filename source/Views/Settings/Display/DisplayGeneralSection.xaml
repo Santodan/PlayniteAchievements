@@ -101,10 +101,6 @@
                     <controls:SettingRow Label="{DynamicResource LOCPlayAch_Settings_ShowCompletedProgressColoring}">
                         <CheckBox IsChecked="{Binding Persisted.ShowCompletedProgressColoring}"/>
                     </controls:SettingRow>
-                    <controls:SettingRow Label="{DynamicResource LOCPlayAch_Settings_HighlightMissable}"
-                                         Hint="{DynamicResource LOCPlayAch_Settings_HighlightMissable_Help}">
-                        <CheckBox IsChecked="{Binding Persisted.TintMissableLocks}"/>
-                    </controls:SettingRow>
                     <controls:SettingRow Label="{DynamicResource LOCPlayAch_Settings_CategoryCompletionBadge}"
                                          Hint="{DynamicResource LOCPlayAch_Settings_CategoryCompletionBadge_Help}"
                                          Margin="0">

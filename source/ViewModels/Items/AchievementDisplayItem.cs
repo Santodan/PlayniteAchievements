@@ -14,6 +14,7 @@ using PlayniteAchievements.Services;
 using PlayniteAchievements.Services.Achievements;
 using PlayniteAchievements.Services.GameCustomData;
 using PlayniteAchievements.Services.Images;
+using PlayniteAchievements.ViewModels.Tags;
 using Playnite.SDK;
 
 using ObservableObject = PlayniteAchievements.Common.ObservableObject;
@@ -1045,12 +1046,48 @@ namespace PlayniteAchievements.ViewModels.Items
         /// </summary>
         public bool IsUnobtainable => AchievementTagHelper.IsUnobtainable(Tags);
 
+        /// <summary>The visible tags with their icons and colors, for the Tags column's icon and color modes.</summary>
+        public IReadOnlyList<AchievementTagChip> TagChips => AchievementTagPresentation.Resolve(Tags, PlayniteGameId);
+
+        /// <summary>
+        /// The color of the first visible tag that has one, in tag list order; null for none.
+        /// Colors the name under the Tag name color source, and a locked status glyph under All Tags.
+        /// </summary>
+        public System.Windows.Media.Brush TagBrush => AchievementTagPresentation.FirstColoredBrush(Tags, PlayniteGameId);
+
+        public bool HasTagBrush => TagBrush != null;
+
+        /// <summary>
+        /// Like <see cref="TagBrush"/> without Missable and Unobtainable, which color only a locked
+        /// glyph. Colors the unlocked status glyph under All Tags.
+        /// </summary>
+        public System.Windows.Media.Brush UnlockedStatusTagBrush =>
+            AchievementTagPresentation.FirstColoredBrush(Tags, PlayniteGameId, key => !AchievementTagHelper.IsSystemTag(key));
+
+        public bool HasUnlockedStatusTagBrush => UnlockedStatusTagBrush != null;
+
+        /// <summary>
+        /// The color of the achievement's Missable or Unobtainable tag, whichever comes first in tag
+        /// list order with a color; null when neither has one, where the lock uses the missable red.
+        /// </summary>
+        public System.Windows.Media.Brush MissableStatusBrush =>
+            AchievementTagPresentation.FirstColoredBrush(Tags, PlayniteGameId, AchievementTagHelper.IsSystemTag);
+
+        public bool HasMissableStatusBrush => MissableStatusBrush != null;
+
         /// <summary>Re-reads tag names and colors after the tag lists change.</summary>
         public void RefreshTagPresentation() => NotifyTagsChanged();
 
         private void NotifyTagsChanged()
         {
             OnPropertyChanged(nameof(TagsDisplay));
+            OnPropertyChanged(nameof(TagChips));
+            OnPropertyChanged(nameof(TagBrush));
+            OnPropertyChanged(nameof(HasTagBrush));
+            OnPropertyChanged(nameof(UnlockedStatusTagBrush));
+            OnPropertyChanged(nameof(HasUnlockedStatusTagBrush));
+            OnPropertyChanged(nameof(MissableStatusBrush));
+            OnPropertyChanged(nameof(HasMissableStatusBrush));
             OnPropertyChanged(nameof(CategoryType));
             OnPropertyChanged(nameof(CategoryTypeDisplay));
             OnPropertyChanged(nameof(IsHardcore));
@@ -1276,7 +1313,7 @@ namespace PlayniteAchievements.ViewModels.Items
         /// <summary>
         /// Rarity-based foreground brush for the achievement name: the completed color for capstone
         /// achievements (which takes precedence), otherwise the rarity tier brush. Computed unconditionally;
-        /// grids decide whether to use it via their per-grid ColorNamesByRarity toggle.
+        /// grids use it when their per-grid name color source is Rarity.
         /// </summary>
         public System.Windows.Media.Brush RarityNameBrush
         {

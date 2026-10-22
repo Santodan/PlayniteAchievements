@@ -206,7 +206,6 @@ namespace PlayniteAchievements.Models.Settings
         private int _friendsOverviewRecentUnlockLimit = 200;
         private bool _showTopMenuBarButton = true;
         private bool _showCompletedProgressColoring = true;
-        private bool _tintMissableLocks = true;
         private bool _showCompactListRarityBar = true;
         private bool _progressColumnAlignmentDefaulted = false;
         private bool _inlineSurfaceTransparencySeeded = true;
@@ -2416,16 +2415,6 @@ namespace PlayniteAchievements.Models.Settings
         }
 
         /// <summary>
-        /// When true, the status column draws the lock of a locked Missable achievement in red
-        /// instead of the glyph color.
-        /// </summary>
-        public bool TintMissableLocks
-        {
-            get => _tintMissableLocks;
-            set => SetValue(ref _tintMissableLocks, value);
-        }
-
-        /// <summary>
         /// When false, friend achievement rows for achievements the current user has not unlocked
         /// are obscured using the achievement visibility settings, as if locked for the user.
         /// Applies to all friend surfaces (overview, friends achievements window, recent unlocks, themes).
@@ -3428,7 +3417,6 @@ namespace PlayniteAchievements.Models.Settings
                 ShowOverviewScoreCard2 = this.ShowOverviewScoreCard2,
                 ShowTopMenuBarButton = this.ShowTopMenuBarButton,
                 ShowCompletedProgressColoring = this.ShowCompletedProgressColoring,
-                TintMissableLocks = this.TintMissableLocks,
                 ShowFriendSpoilers = this.ShowFriendSpoilers,
                 FriendsOverviewRecentUnlockLimit = this.FriendsOverviewRecentUnlockLimit,
                 ShowCompactListRarityBar = this.ShowCompactListRarityBar,
@@ -3596,7 +3584,6 @@ namespace PlayniteAchievements.Models.Settings
             ShowOverviewScoreCard2 = defaults.ShowOverviewScoreCard2;
             ShowTopMenuBarButton = defaults.ShowTopMenuBarButton;
             ShowCompletedProgressColoring = defaults.ShowCompletedProgressColoring;
-            TintMissableLocks = defaults.TintMissableLocks;
             ShowCompactListRarityBar = defaults.ShowCompactListRarityBar;
 
             GridColumnHeaderAlignment = defaults.GridColumnHeaderAlignment;

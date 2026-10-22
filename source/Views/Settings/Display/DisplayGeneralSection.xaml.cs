@@ -144,8 +144,7 @@ namespace PlayniteAchievements.Views.Settings.Display
 
         private void OnPersistedPropertyChanged(object sender, PropertyChangedEventArgs e)
         {
-            if (e.PropertyName == nameof(PersistedSettings.ShowCompletedProgressColoring) ||
-                e.PropertyName == nameof(PersistedSettings.TintMissableLocks))
+            if (e.PropertyName == nameof(PersistedSettings.ShowCompletedProgressColoring))
             {
                 RarityAppearanceHelper.ApplyBadgeApplicationResources(_settings?.Persisted);
             }

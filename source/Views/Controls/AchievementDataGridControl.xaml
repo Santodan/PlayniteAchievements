@@ -214,23 +214,9 @@
                                        VerticalAlignment="{Binding RelativeSource={RelativeSource AncestorType={x:Type DataGridCell}}, Path=Column.(helpers:DataGridAlignmentBehavior.CellVerticalAlignment)}"
                                        HorizontalAlignment="{Binding RelativeSource={RelativeSource AncestorType={x:Type DataGridCell}}, Path=Column.(helpers:DataGridAlignmentBehavior.CellHorizontalAlignment)}">
                                 <TextBlock.Style>
-                                    <Style TargetType="TextBlock">
-                                        <Setter Property="FontSize" Value="{DynamicResource PlayAch.FontSize.Body}"/>
-                                        <Setter Property="Foreground" Value="{DynamicResource PlayAch.Brush.Text}"/>
-                                        <Setter Property="Opacity" Value="0.7"/>
+                                    <Style TargetType="TextBlock" BasedOn="{StaticResource AchievementNameTextStyle}">
                                         <Setter Property="TextAlignment"
                                                 Value="{Binding RelativeSource={RelativeSource AncestorType={x:Type DataGridCell}}, Path=Column.(helpers:DataGridAlignmentBehavior.CellTextAlignment)}"/>
-                                        <Style.Triggers>
-                                            <DataTrigger Binding="{Binding Unlocked}" Value="True">
-                                                <Setter Property="Opacity" Value="1"/>
-                                            </DataTrigger>
-                                            <DataTrigger Binding="{Binding IsTitleHidden}" Value="True">
-                                                <Setter Property="FontStyle" Value="Italic"/>
-                                            </DataTrigger>
-                                            <DataTrigger Binding="{Binding ColorNamesByRarity, RelativeSource={RelativeSource AncestorType=controls:AchievementDataGridControl}}" Value="True">
-                                                <Setter Property="Foreground" Value="{Binding RarityNameBrush}"/>
-                                            </DataTrigger>
-                                        </Style.Triggers>
                                     </Style>
                                 </TextBlock.Style>
                                 <Run Text="{Binding DisplayNameResolved, Mode=OneWay}"/>
@@ -425,7 +411,8 @@
             <DataGridTemplateColumn Width="*" MinWidth="22" CanUserResize="True" Header="{DynamicResource LOCTagsLabel}" SortMemberPath="CategoryType" helpers:ColumnVisibilityHelper.ColumnKey="CategoryType">
                 <DataGridTemplateColumn.CellTemplate>
                     <DataTemplate>
-                        <TextBlock Text="{Binding TagsDisplay}"
+                        <TextBlock helpers:TagInlines.Chips="{Binding TagChips}"
+                                   helpers:TagInlines.Display="{Binding TagDisplay, RelativeSource={RelativeSource AncestorType=controls:AchievementDataGridControl}}"
                                    Style="{StaticResource WrappedCenteredDataGridTextStyle}"
                                    Foreground="{DynamicResource PlayAch.Brush.Text}"
                                    Opacity="{StaticResource PlayAch.Opacity.Subtle}"/>

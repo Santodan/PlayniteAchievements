@@ -424,8 +424,6 @@ namespace PlayniteAchievements.ViewModels
 
         public bool ShowRarityGlow => _settings?.Persisted?.ViewAchievementsAchievementGridShowRarityGlow ?? true;
 
-        public bool ColorNamesByRarity => _settings?.Persisted?.ViewAchievementsAchievementGridColorNamesByRarity ?? false;
-
         public bool ColorRarityColumnsByRarity => _settings?.Persisted?.ViewAchievementsAchievementGridColorRarityColumnsByRarity ?? false;
 
         #endregion
@@ -959,7 +957,6 @@ namespace PlayniteAchievements.ViewModels
                 OnPropertyChanged(nameof(CategorySummariesUseCoverImages));
                 OnPropertyChanged(nameof(CategorySummariesShowCompletionGlow));
                 OnPropertyChanged(nameof(ShowRarityGlow));
-                OnPropertyChanged(nameof(ColorNamesByRarity));
                 OnPropertyChanged(nameof(ColorRarityColumnsByRarity));
                 RaiseSummaryAppearanceProperties();
                 ApplySavedTimelineState();
@@ -1021,12 +1018,6 @@ namespace PlayniteAchievements.ViewModels
             if (e?.PropertyName == nameof(PersistedSettings.ViewAchievementsAchievementGridShowRarityGlow))
             {
                 OnPropertyChanged(nameof(ShowRarityGlow));
-                return;
-            }
-
-            if (e?.PropertyName == nameof(PersistedSettings.ViewAchievementsAchievementGridColorNamesByRarity))
-            {
-                OnPropertyChanged(nameof(ColorNamesByRarity));
                 return;
             }
 
