@@ -3249,7 +3249,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 // never awarded for finishing one DLC, so a category capstone is always authored.
                 if (category == null)
                 {
-                    var platinum = AutoCapstoneAuthoring.SelectPlatinum(authoring.LoadAchievementsInOrder(_gameId));
+                    var platinum = authoring.SelectPlatinum(_gameId, authoring.LoadAchievementsInOrder(_gameId));
                     var platinumRow = FindRow(platinum?.ApiName);
                     if (platinumRow != null)
                     {
