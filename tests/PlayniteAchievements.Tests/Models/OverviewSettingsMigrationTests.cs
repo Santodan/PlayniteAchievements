@@ -486,7 +486,7 @@ namespace PlayniteAchievements.Models.Tests
             Assert.AreEqual(PieLegendPosition.Left, ShowcaseWidgetOptions.GetPieLegendPosition(placed[1]));
             Assert.IsFalse(ShowcaseWidgetOptions.GetPieIncludeLocked(placed[1]));
             Assert.AreEqual(TimelineGranularity.Week, ShowcaseTimelineOptions.GetGranularity(placed[2]));
-            Assert.IsTrue(ShowcaseTimelineOptions.GetSplitByPlatform(placed[2]));
+            Assert.AreEqual(ShowcaseTimelineSplit.Platform, ShowcaseTimelineOptions.GetSplit(placed[2]));
             // The strip's own default window, not the timeline widget's.
             Assert.AreEqual(TimeWindow.FromPreset(TimelineRange.OneYear), ShowcaseTimelineOptions.GetWindow(placed[2]));
 

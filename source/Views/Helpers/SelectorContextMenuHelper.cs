@@ -14,7 +14,7 @@ namespace PlayniteAchievements.Views.Helpers
     /// </summary>
     internal static class SelectorContextMenuHelper
     {
-        public static void Open(Button button, ContextMenu menu)
+        public static void Open(ButtonBase button, ContextMenu menu)
         {
             if (button == null || menu == null)
             {

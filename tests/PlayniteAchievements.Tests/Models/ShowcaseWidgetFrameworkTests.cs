@@ -330,6 +330,23 @@ namespace PlayniteAchievements.Tests.Models
         }
 
         [TestMethod]
+        public void TimelineSplit_ReadsTheFormerPlatformSwitchAndReplacesIt()
+        {
+            var legacy = new ShowcaseWidgetInstanceSettings { Kind = ShowcaseWidgetKind.Timeline };
+            legacy.Options["TimelineSplitByPlatform"] = "True";
+            var unset = new ShowcaseWidgetInstanceSettings { Kind = ShowcaseWidgetKind.Timeline };
+            var junk = new ShowcaseWidgetInstanceSettings { Kind = ShowcaseWidgetKind.Timeline };
+            junk.Options["TimelineSplit"] = "999";
+
+            Assert.AreEqual(ShowcaseTimelineSplit.Platform, ShowcaseTimelineOptions.GetSplit(legacy));
+            Assert.AreEqual(ShowcaseTimelineSplit.None, ShowcaseTimelineOptions.GetSplit(unset));
+            Assert.AreEqual(ShowcaseTimelineSplit.None, ShowcaseTimelineOptions.GetSplit(junk));
+
+            ShowcaseTimelineOptions.SetSplit(legacy, ShowcaseTimelineSplit.Trophy);
+            Assert.AreEqual(ShowcaseTimelineSplit.Trophy, ShowcaseTimelineOptions.GetSplit(legacy));
+            Assert.IsFalse(legacy.Options.ContainsKey("TimelineSplitByPlatform"));
+        }
+        [TestMethod]
         public void MigrateSlideshowVariant_MovesTheStyleIntoTheControlBarState()
         {
             var framed = new ShowcaseWidgetInstanceSettings { Kind = ShowcaseWidgetKind.ScreenshotSlideshow };

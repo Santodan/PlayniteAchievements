@@ -271,13 +271,21 @@ namespace PlayniteAchievements.Views.Showcase
                             ? "LOCPlayAch_Showcase_Stat_CompletedGames"
                             : "LOCPlayAch_Column_Unlocks"));
                     AddRangeChoice(panel);
-                    AddToggle(
+                    AddChoice(
                         panel,
-                        Localize("LOCPlayAch_Timeline_SplitByPlatform"),
-                        ShowcaseTimelineOptions.GetSplitByPlatform(_settings),
-                        value => ShowcaseTimelineOptions.SetSplitByPlatform(_settings, value));
+                        Localize("LOCPlayAch_Timeline_SplitBy"),
+                        new[]
+                        {
+                            ShowcaseTimelineSplit.None,
+                            ShowcaseTimelineSplit.Platform,
+                            ShowcaseTimelineSplit.Rarity,
+                            ShowcaseTimelineSplit.Trophy
+                        },
+                        ShowcaseTimelineOptions.GetSplit(_settings),
+                        value => ShowcaseTimelineOptions.SetSplit(_settings, value),
+                        TimelineSplitName);
                     AddTimeControlRows(panel, includeSplit: true);
-                    AddControlBarRows<ChartControlBarAdapter>(panel, header: false);
+                    AddControlBarRows<TimelineControlBarAdapter>(panel, header: false);
                     break;
                 case ShowcaseWidgetKind.Statistics:
                     AddStatisticsSlots(panel);
@@ -811,8 +819,8 @@ namespace PlayniteAchievements.Views.Showcase
             }
         }
 
-        // Which of the time window (with the timeline's bar width) and the timeline's platform
-        // split the widget shows with its chart. Their values are the rows above.
+        // Which of the time window (with the timeline's bar width) and the timeline's split
+        // menu the widget shows with its chart. Their values are the rows above.
         private void AddTimeControlRows(Panel panel, bool includeSplit)
         {
             AddControlBarHeader(panel);
@@ -826,7 +834,7 @@ namespace PlayniteAchievements.Views.Showcase
                 AddControlBarItemRow(
                     panel,
                     ShowcaseControlBarItems.SplitByPlatform,
-                    Localize("LOCPlayAch_Timeline_SplitByPlatform"),
+                    Localize("LOCPlayAch_Timeline_SplitBy"),
                     editor: null);
             }
         }
@@ -1447,6 +1455,21 @@ namespace PlayniteAchievements.Views.Showcase
                     return Localize("LOCPlayAch_Common_Hide");
                 default:
                     return Localize("LOCPlayAch_Settings_OverviewPieSmallSliceMode_Round");
+            }
+        }
+
+        private static string TimelineSplitName(ShowcaseTimelineSplit value)
+        {
+            switch (value)
+            {
+                case ShowcaseTimelineSplit.Platform:
+                    return Localize("LOCPlatformTitle");
+                case ShowcaseTimelineSplit.Rarity:
+                    return Localize("LOCPlayAch_Column_Rarity");
+                case ShowcaseTimelineSplit.Trophy:
+                    return Localize("LOCPlayAch_Column_Trophy");
+                default:
+                    return Localize("LOCNone");
             }
         }
 

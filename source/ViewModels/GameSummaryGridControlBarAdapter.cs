@@ -22,6 +22,7 @@ namespace PlayniteAchievements.ViewModels
             new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         private readonly HashSet<string> _selectedActivityFilters =
             new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        private readonly bool _includeProgress;
         private string _searchText = string.Empty;
         private List<GameSummaryItem> _optionGames;
         private ObservableCollection<ProviderFilterGroup> _providerFilterGroups =
@@ -37,9 +38,11 @@ namespace PlayniteAchievements.ViewModels
         /// and In Progress. Search, No Progress and activity are left out, and their saved state
         /// is not restored.
         /// </param>
-        protected GameSummaryGridControlBarAdapter(bool chartFilters)
+        /// <param name="includeProgress">False to leave the progress filter out as well.</param>
+        protected GameSummaryGridControlBarAdapter(bool chartFilters, bool includeProgress = true)
         {
             _chartFilters = chartFilters;
+            _includeProgress = includeProgress;
             ProgressFilterOptions = chartFilters
                 ? new ObservableCollection<string> { CompleteLabel, InProgressLabel }
                 : new ObservableCollection<string> { CompleteLabel, InProgressLabel, NoProgressLabel };
@@ -184,7 +187,10 @@ namespace PlayniteAchievements.ViewModels
             _searchText = _chartFilters ? string.Empty : state.SearchText ?? string.Empty;
             PendingPlatformSelections = state.Platforms;
             GameFilter.Restore(state.Games);
-            RestorePositions(ProgressFilterOptions, _selectedProgressFilters, state.Progress);
+            RestorePositions(
+                ProgressFilterOptions,
+                _selectedProgressFilters,
+                _includeProgress ? state.Progress : null);
             RestorePositions(
                 ActivityFilterOptions,
                 _selectedActivityFilters,
@@ -300,18 +306,22 @@ namespace PlayniteAchievements.ViewModels
                 Width = 170
             });
             controlBar.Items.Add(GameFilter.Item);
-            controlBar.Items.Add(new GridMultiSelectFilter(
-                this,
-                nameof(SelectedProgressFilterText),
-                () => SelectedProgressFilterText,
-                () => ProgressFilterOptions,
-                IsProgressFilterSelected,
-                SetProgressFilterSelected)
+            if (_includeProgress)
             {
-                Id = ShowcaseControlBarItems.Progress,
-                LabelKey = "LOCPlayAch_Progress",
-                Width = 170
-            });
+                controlBar.Items.Add(new GridMultiSelectFilter(
+                    this,
+                    nameof(SelectedProgressFilterText),
+                    () => SelectedProgressFilterText,
+                    () => ProgressFilterOptions,
+                    IsProgressFilterSelected,
+                    SetProgressFilterSelected)
+                {
+                    Id = ShowcaseControlBarItems.Progress,
+                    LabelKey = "LOCPlayAch_Progress",
+                    Width = 170
+                });
+            }
+
             if (_chartFilters)
             {
                 return controlBar;

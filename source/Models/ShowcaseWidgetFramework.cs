@@ -332,14 +332,37 @@ namespace PlayniteAchievements.Models
         public static void SetGranularity(ShowcaseWidgetInstanceSettings instance, TimelineGranularity value) =>
             instance?.SetOption(GranularityOption, value);
 
-        /// <summary>Splits each Timeline bar into one stacked segment per platform.</summary>
-        public static bool GetSplitByPlatform(ShowcaseWidgetInstanceSettings instance) =>
-            instance?.GetOption(SplitByPlatformOption, false) ?? false;
+        /// <summary>
+        /// What each Timeline bar is split into. A widget saved with the former split-by-platform
+        /// switch on splits by platform.
+        /// </summary>
+        public static ShowcaseTimelineSplit GetSplit(ShowcaseWidgetInstanceSettings instance)
+        {
+            if (instance?.Options?.ContainsKey(SplitOption) == true)
+            {
+                var value = instance.GetOption(SplitOption, ShowcaseTimelineSplit.None);
+                return Enum.IsDefined(typeof(ShowcaseTimelineSplit), value) ? value : ShowcaseTimelineSplit.None;
+            }
 
-        public static void SetSplitByPlatform(ShowcaseWidgetInstanceSettings instance, bool value) =>
-            instance?.SetOption(SplitByPlatformOption, value);
+            return instance?.GetOption(LegacySplitByPlatformOption, false) == true
+                ? ShowcaseTimelineSplit.Platform
+                : ShowcaseTimelineSplit.None;
+        }
 
-        public const string SplitByPlatformOption = "TimelineSplitByPlatform";
+        public static void SetSplit(ShowcaseWidgetInstanceSettings instance, ShowcaseTimelineSplit value)
+        {
+            if (instance == null)
+            {
+                return;
+            }
+
+            instance.SetOption(SplitOption, value);
+            instance.Options?.Remove(LegacySplitByPlatformOption);
+        }
+
+        public const string SplitOption = "TimelineSplit";
+
+        private const string LegacySplitByPlatformOption = "TimelineSplitByPlatform";
 
         /// <summary>What a Timeline's bars count: unlocks, or games completed.</summary>
         public static ShowcaseTimelineCount GetCount(ShowcaseWidgetInstanceSettings instance)
