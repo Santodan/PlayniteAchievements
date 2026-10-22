@@ -55,6 +55,23 @@ namespace PlayniteAchievements.Views.Controls
             set => SetValue(WrapItemsProperty, value);
         }
 
+        /// <summary>
+        /// Whether each item spans the bar's width instead of keeping its own, for a bar holding
+        /// one item, such as a row of a widget's settings.
+        /// </summary>
+        public static readonly DependencyProperty FillsWidthProperty =
+            DependencyProperty.Register(
+                nameof(FillsWidth),
+                typeof(bool),
+                typeof(GridControlBarControl),
+                new PropertyMetadata(false));
+
+        public bool FillsWidth
+        {
+            get => (bool)GetValue(FillsWidthProperty);
+            set => SetValue(FillsWidthProperty, value);
+        }
+
         public GridControlBarControl()
         {
             InitializeComponent();
