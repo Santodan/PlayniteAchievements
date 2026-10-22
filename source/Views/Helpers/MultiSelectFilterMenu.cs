@@ -197,6 +197,11 @@ namespace PlayniteAchievements.Views.Helpers
             string label,
             bool showMarkerGutter)
         {
+            if (filter.HasIcons)
+            {
+                return BuildIconHeader(filter.IconKeyOf(value), label);
+            }
+
             if (!showMarkerGutter)
             {
                 return label;
@@ -213,6 +218,32 @@ namespace PlayniteAchievements.Views.Helpers
             };
             DockPanel.SetDock(star, Dock.Left);
             panel.Children.Add(star);
+            panel.Children.Add(new TextBlock
+            {
+                Text = label,
+                VerticalAlignment = VerticalAlignment.Center,
+                TextTrimming = TextTrimming.CharacterEllipsis,
+                TextWrapping = TextWrapping.NoWrap
+            });
+            return panel;
+        }
+
+        // The option's badge before its label; an option without one keeps the badge's width so
+        // the labels stay aligned.
+        private static object BuildIconHeader(string iconKey, string label)
+        {
+            var panel = new DockPanel { LastChildFill = true };
+            var icon = new Image
+            {
+                Width = 16,
+                Height = 16,
+                Margin = new Thickness(0, 0, 6, 0),
+                Stretch = System.Windows.Media.Stretch.Uniform,
+                VerticalAlignment = VerticalAlignment.Center
+            };
+            ImageResourceKey.SetKey(icon, iconKey);
+            DockPanel.SetDock(icon, Dock.Left);
+            panel.Children.Add(icon);
             panel.Children.Add(new TextBlock
             {
                 Text = label,
