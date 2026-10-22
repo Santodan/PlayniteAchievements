@@ -522,14 +522,15 @@ namespace PlayniteAchievements.Tests.Services
         }
 
         [TestMethod]
-        public async Task CapstoneArtPlatinum_MatchesTheGamesAchievementByTitle_AndLabelsItPlatinum()
+        public async Task CapstoneArtPlatinum_MatchesTheGamesAchievementByTitle_AndLeavesItsTrophyType()
         {
             var data = Game("Steam", Row("ACH_MASTER", "Master"), Row("ACH_ONE", "One"));
             var overlay = await ApplyPlatinumAsync(data, "Master", "Earn every trophy.");
 
             Assert.AreEqual("ACH_MASTER", overlay.Links.GetCapstoneMatch(data.PlayniteGameId.Value));
-            Assert.AreEqual("platinum", data.Achievements[0].TrophyType);
-            Assert.IsNull(data.Achievements[1].TrophyType);
+            // Labeling it platinum is the auto capstone's, in custom data; a platinum type here
+            // would seed a capstone in the cache whatever the setting.
+            Assert.IsNull(data.Achievements[0].TrophyType);
         }
 
         [TestMethod]
@@ -541,19 +542,6 @@ namespace PlayniteAchievements.Tests.Services
             var overlay = await ApplyPlatinumAsync(data, "Master", "Earn every trophy.");
 
             Assert.AreEqual("ACH_ALL", overlay.Links.GetCapstoneMatch(data.PlayniteGameId.Value));
-            Assert.AreEqual("platinum", all.TrophyType);
-        }
-
-        [TestMethod]
-        public async Task CapstoneArtPlatinum_KeepsAnAchievementsOwnTrophyType()
-        {
-            var master = Row("ACH_MASTER", "Master");
-            master.TrophyType = "gold";
-            var data = Game("Steam", master, Row("ACH_ONE", "One"));
-            var overlay = await ApplyPlatinumAsync(data, "Master", null);
-
-            Assert.AreEqual("ACH_MASTER", overlay.Links.GetCapstoneMatch(data.PlayniteGameId.Value));
-            Assert.AreEqual("gold", master.TrophyType);
         }
 
         [TestMethod]
