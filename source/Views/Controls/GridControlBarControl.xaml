@@ -4,6 +4,7 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:controls="clr-namespace:PlayniteAchievements.Views.Controls"
              xmlns:helpers="clr-namespace:PlayniteAchievements.Views.Helpers"
+             xmlns:converters="clr-namespace:PlayniteAchievements.Views.Converters"
              xmlns:vm="clr-namespace:PlayniteAchievements.ViewModels.Items"
              UseLayoutRounding="True"
              SnapsToDevicePixels="True">
@@ -16,6 +17,7 @@
             </ResourceDictionary.MergedDictionaries>
 
             <BooleanToVisibilityConverter x:Key="GridControlBarBoolToVis"/>
+            <converters:ControlBarItemWidthConverter x:Key="GridControlBarItemWidth"/>
 
             <!-- Toolbar mode toggle (category-summaries mode), rendered as the right half of a
                  segmented unit: a bordered, icon-only button that butts flush against the category
@@ -285,10 +287,16 @@
                             Style="{StaticResource AchievementSelectorButtonStyle}"
                             Content="{Binding ButtonText}"
                             Click="MultiSelectFilter_Click"
-                            Width="{Binding Width}"
                             MinWidth="{Binding MinWidth}"
                             Height="{StaticResource PlayAch.Size.Control.Height}"
                             ToolTip="{Binding ButtonToolTip}">
+                        <Button.Width>
+                            <MultiBinding Converter="{StaticResource GridControlBarItemWidth}">
+                                <Binding Path="Width"/>
+                                <Binding Path="FillsWidth" ElementName="Root"/>
+                                <Binding Path="ActualWidth" ElementName="Root"/>
+                            </MultiBinding>
+                        </Button.Width>
                         <Button.ContextMenu>
                             <ContextMenu Style="{StaticResource AchievementSelectorContextMenuStyle}"
                                          ItemContainerStyle="{StaticResource AchievementMultiSelectMenuItemStyle}"/>
@@ -350,13 +358,19 @@
                 <Button Style="{StaticResource AchievementSelectorButtonStyle}"
                         Content="{Binding DisplayText}"
                         Click="ProviderFilter_Click"
-                        Width="{Binding Width}"
                         MinWidth="{Binding MinWidth}"
                         Height="{StaticResource PlayAch.Size.Control.Height}"
                         Margin="{StaticResource PlayAch.Thickness.Left.Xs}"
                         VerticalAlignment="Center"
                         ToolTip="{Binding ToolTip}"
                         Visibility="{Binding EffectiveIsVisible, Converter={StaticResource GridControlBarBoolToVis}}">
+                    <Button.Width>
+                            <MultiBinding Converter="{StaticResource GridControlBarItemWidth}">
+                                <Binding Path="Width"/>
+                                <Binding Path="FillsWidth" ElementName="Root"/>
+                                <Binding Path="ActualWidth" ElementName="Root"/>
+                            </MultiBinding>
+                    </Button.Width>
                     <Button.ContextMenu>
                         <ContextMenu Style="{StaticResource ProviderFilterContextMenuStyle}"
                                      Closed="ProviderFilterContextMenu_Closed"/>
@@ -545,9 +559,16 @@
                             Content="{Binding DisplayText}"
                             Click="DateRange_Click"
                             Tag="{Binding ElementName=RangePopup}"
-                            Width="{Binding Width}"
                             Height="{StaticResource PlayAch.Size.Control.Height}"
-                            VerticalAlignment="Center"/>
+                            VerticalAlignment="Center">
+                        <Button.Width>
+                            <MultiBinding Converter="{StaticResource GridControlBarItemWidth}">
+                                <Binding Path="Width"/>
+                                <Binding Path="FillsWidth" ElementName="Root"/>
+                                <Binding Path="ActualWidth" ElementName="Root"/>
+                            </MultiBinding>
+                        </Button.Width>
+                    </Button>
                     <Popup x:Name="RangePopup"
                            PlacementTarget="{Binding ElementName=RangeButton}"
                            Placement="Bottom"
