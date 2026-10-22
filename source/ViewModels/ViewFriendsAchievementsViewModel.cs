@@ -493,6 +493,10 @@ namespace PlayniteAchievements.ViewModels
                     value => FriendSearchText = value,
                     GridControlBarText.Get("LOCPlayAch_FriendsOverview_SearchFriends", "Search Friends"),
                     ClearFriendSearch)
+                {
+                    Id = PlayniteAchievements.Models.ShowcaseControlBarItems.Search,
+                    LabelKey = "LOCPlayAch_FriendsOverview_SearchFriends"
+                }
             };
             controlBar.Items.Add(new GridToggleFilter(
                 this,
@@ -500,7 +504,12 @@ namespace PlayniteAchievements.ViewModels
                 L("LOCPlayAch_RefreshModeShort_Favorites"),
                 () => FavoritesOnly,
                 value => FavoritesOnly = value,
-                GridToggleFilterIcon.Favorite));
+                GridToggleFilterIcon.Favorite)
+            {
+                Id = PlayniteAchievements.Models.ShowcaseControlBarItems.Favorites,
+                LabelKey = "LOCPlayAch_RefreshModeShort_Favorites",
+                ClearedValue = false
+            });
             return controlBar;
         }
 
