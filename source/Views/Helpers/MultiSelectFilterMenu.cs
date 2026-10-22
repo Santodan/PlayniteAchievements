@@ -20,6 +20,8 @@ namespace PlayniteAchievements.Views.Helpers
     /// </remarks>
     internal static class MultiSelectFilterMenu
     {
+        private const int VirtualizeAbove = 100;
+
         /// <summary>
         /// Fills <paramref name="button"/>'s context menu with one checkable row per option and
         /// opens it beneath the button.
@@ -55,6 +57,14 @@ namespace PlayniteAchievements.Views.Helpers
             }
             else
             {
+                // A long list (the Game filter over a whole library) lays out only the rows in
+                // view; laying out every row made the drop-down slow to open.
+                if (options.Count > VirtualizeAbove &&
+                    button.TryFindResource("AchievementSelectorVirtualizingContextMenuStyle") is Style virtualizing)
+                {
+                    menu.Style = virtualizing;
+                }
+
                 var itemStyle = button.TryFindResource("AchievementMultiSelectMenuItemStyle") as Style;
                 foreach (var option in options)
                 {
