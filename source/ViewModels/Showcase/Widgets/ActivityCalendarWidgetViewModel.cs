@@ -107,7 +107,7 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
         private ShowcaseActivityCalendar _builtCalendar;
 
         // The widget instance's shared adapter, so the filters survive view model swaps.
-        private readonly ShowcaseControlBarSlot<ChartControlBarAdapter> _controlBarSlot;
+        private readonly ShowcaseControlBarSlot<ActivityCalendarControlBarAdapter> _controlBarSlot;
         private GridControlBarViewModel _controlBar;
 
         // The last calendar built for a filtered view, reused while its source, games and window
@@ -133,7 +133,7 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
 
         public ActivityCalendarWidgetViewModel()
         {
-            _controlBarSlot = new ShowcaseControlBarSlot<ChartControlBarAdapter>(
+            _controlBarSlot = new ShowcaseControlBarSlot<ActivityCalendarControlBarAdapter>(
                 () => BuildWeeks(ResolveCalendar()));
             LegendCells = Enumerable.Range(0, 5)
                 .Select(ActivityCalendarDayViewModel.ForLegend)
@@ -258,7 +258,8 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
                 .ToList();
             adapter.UpdateOptions(games);
             var kept = adapter.Apply(games);
-            if (kept.Count == games.Count && pickedWindow == null)
+            var tags = adapter.TagFilter;
+            if (kept.Count == games.Count && pickedWindow == null && !tags.HasSelection)
             {
                 return Projection.ActivityCalendar ?? new ShowcaseActivityCalendar();
             }
@@ -267,6 +268,7 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
                 ",",
                 kept.Select(game => game.PlayniteGameId?.ToString("N") ?? string.Empty)) +
                 "|" + (pickedWindow ?? ShowcaseTimelineOptions.GetWindow(instance)).ToKey() +
+                "|" + string.Join(",", tags.SelectedTags.OrderBy(tag => tag, StringComparer.OrdinalIgnoreCase)) +
                 "|" + DateTime.Now.Date.Ticks;
             if (_filteredCalendar != null &&
                 ReferenceEquals(_filteredSource, source) &&
@@ -276,6 +278,12 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
             }
 
             var snapshot = kept.Count == games.Count ? source : OverviewLinkedSnapshots.NarrowToGames(source, kept);
+            if (tags.HasSelection)
+            {
+                // Only the tagged unlocks fill the days.
+                snapshot = OverviewLinkedSnapshots.ClipToAchievements(snapshot, tags.MatchesRow);
+            }
+
             var calendar = ShowcaseWidgetProjectionService.BuildActivityCalendar(
                 snapshot,
                 instance,
