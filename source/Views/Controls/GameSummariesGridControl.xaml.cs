@@ -686,8 +686,17 @@ namespace PlayniteAchievements.Views.Controls
         /// </summary>
         public ISet<string> AllowedColumnKeys { get; set; }
 
+        // The bar leaves out the items this grid's Display Settings hide.
+        private void UpdateControlBarOptions()
+        {
+            ControlBarHost.GridOptions = Helpers.GridSurfaceOptions.Resolve(
+                Settings.Controls.GridOptionKind.GameSummaries,
+                ColumnSettingsKey);
+        }
+
         private void OnLoaded(object sender, RoutedEventArgs e)
         {
+            UpdateControlBarOptions();
             if (_isAttached)
             {
                 return;
@@ -1855,6 +1864,7 @@ namespace PlayniteAchievements.Views.Controls
         {
             var control = (GameSummariesGridControl)d;
             var settings = PlayniteAchievementsPlugin.Instance?.Settings;
+            control.UpdateControlBarOptions();
             control.UpdateShowcaseOptionsSubscription(settings);
             control.UpdateLastPlayedDateMode(settings);
             control.UpdateColorRarityColumnsByRarity(settings);
