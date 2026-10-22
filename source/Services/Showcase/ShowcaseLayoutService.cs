@@ -1347,6 +1347,7 @@ namespace PlayniteAchievements.Services.Showcase
                     : new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
                 NormalizeProfile(widget);
                 ShowcaseWidgetOptions.MigrateCompletedGameMosaic(widget);
+                ShowcaseWidgetOptions.MigrateSlideshowVariant(widget);
                 result.Add(widget);
             }
 
@@ -1566,6 +1567,7 @@ namespace PlayniteAchievements.Services.Showcase
                     : new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
                 NormalizeProfile(pair.Value);
                 ShowcaseWidgetOptions.MigrateCompletedGameMosaic(pair.Value);
+                ShowcaseWidgetOptions.MigrateSlideshowVariant(pair.Value);
                 result[pair.Key.Trim()] = pair.Value;
             }
 
