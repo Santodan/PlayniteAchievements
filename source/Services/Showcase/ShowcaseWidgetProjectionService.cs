@@ -494,7 +494,7 @@ namespace PlayniteAchievements.Services.Showcase
                     result.Timeline = NormalizeDailyCounts(snapshot);
                     // Built per call rather than cached on the snapshot, so a platform recolor
                     // reaches the segments on the next rebuild.
-                    result.TimelineByPlatform = ShowcaseTimelineOptions.GetSplitByPlatform(instance)
+                    result.TimelineByPlatform = ShowcaseTimelineOptions.GetSplit(instance) == ShowcaseTimelineSplit.Platform
                         ? TimelinePlatformSeries.FromSnapshot(snapshot)
                         : null;
                     break;
