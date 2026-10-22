@@ -31,6 +31,7 @@ namespace PlayniteAchievements.Views.Showcase
         private readonly bool _includeScoreHistory;
         private readonly bool? _backgroundDefault;
         private DebouncedSettingsPersist _gridOptionsPersist;
+        private FrameworkElement _scoreBarRows;
 
         /// <param name="includeScoreHistory">
         /// False for a score card with no history chart (the Overview header's cards), which drops
@@ -150,6 +151,13 @@ namespace PlayniteAchievements.Views.Showcase
                     break;
                 case ShowcaseWidgetKind.Scores:
                     AddScoreCardOptions(panel);
+                    // A points card sums one provider's points, which its bar narrows to games;
+                    // the library-wide Collection and Prestige cards have no bar.
+                    var scoreBarRows = new StackPanel();
+                    _scoreBarRows = scoreBarRows;
+                    panel.Children.Add(scoreBarRows);
+                    AddControlBarRows<ChartControlBarAdapter>(scoreBarRows);
+                    SyncScoreBarRows(ShowcaseWidgetOptions.GetScoreCardType(_settings));
                     break;
                 case ShowcaseWidgetKind.Pie:
                     // The bar's Tags item picks a Tag pie's slices, and only a Provider pie can
@@ -1706,6 +1714,14 @@ namespace PlayniteAchievements.Views.Showcase
         /// The score card's options. Show-total applies to points cards and the rarity colors to
         /// Collection and Prestige, so each row shows only for the card type it affects.
         /// </summary>
+        private void SyncScoreBarRows(ScoreCardType type)
+        {
+            if (_scoreBarRows != null)
+            {
+                _scoreBarRows.Visibility = type.IsPoints ? Visibility.Visible : Visibility.Collapsed;
+            }
+        }
+
         private void AddScoreCardOptions(Panel panel)
         {
             Grid showTotalRow = null;
@@ -1721,6 +1737,8 @@ namespace PlayniteAchievements.Views.Showcase
                 {
                     customColorsRow.Visibility = type.IsPoints ? Visibility.Collapsed : Visibility.Visible;
                 }
+
+                SyncScoreBarRows(type);
             }
 
             AddChoice(
