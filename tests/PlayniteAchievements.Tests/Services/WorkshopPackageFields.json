@@ -15,6 +15,7 @@
       "HideCategorySummaryRow": "value",
       "MaxHeight": "value",
       "MaxRows": "value",
+      "NameColor": "value",
       "RowHeight": "value",
       "ShowColumnHeaders": "value",
       "ShowControlBar": "value",
@@ -22,6 +23,8 @@
       "SortDescending": "value",
       "SortMode": "value",
       "StartInCategoryMode": "value",
+      "StatusColor": "value",
+      "TagDisplay": "value",
       "UnlockDateMode": "value",
       "UseCoverImages": "value"
     },

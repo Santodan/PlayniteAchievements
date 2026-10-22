@@ -280,7 +280,9 @@ namespace PlayniteAchievements.Models.Settings
     {
         private bool _useCoverImages;
         private bool _showRarityGlow = true;
-        private bool _colorNamesByRarity;
+        private AchievementNameColorSource _nameColor;
+        private AchievementTagDisplay _tagDisplay;
+        private AchievementStatusColorMode _statusColor = AchievementStatusColorMode.MissableUnobtainable;
         private bool _colorRarityColumnsByRarity;
         private DateDisplayMode _unlockDateMode = DateDisplayMode.DateAndTime;
         private CompactListSortMode _sortMode = CompactListSortMode.UnlockTime;
@@ -301,10 +303,60 @@ namespace PlayniteAchievements.Models.Settings
             set => SetValue(ref _showRarityGlow, value);
         }
 
+        public AchievementNameColorSource NameColor
+        {
+            get => _nameColor;
+            set
+            {
+                if (_nameColor == value)
+                {
+                    return;
+                }
+
+                var wasRarity = ColorNamesByRarity;
+                SetValue(ref _nameColor, value);
+                if (wasRarity != ColorNamesByRarity)
+                {
+                    OnPropertyChanged(nameof(ColorNamesByRarity));
+                }
+            }
+        }
+
+        /// <summary>
+        /// Compatibility view of <see cref="NameColor"/> for the flat settings names themes bind:
+        /// true while names follow rarity. Clearing it turns name colors off only when they
+        /// followed rarity. Read from older settings and showcase page files but never written
+        /// (<see cref="ShouldSerializeColorNamesByRarity"/>), so a file carrying it still loads
+        /// and still passes the Workshop field list.
+        /// </summary>
         public bool ColorNamesByRarity
         {
-            get => _colorNamesByRarity;
-            set => SetValue(ref _colorNamesByRarity, value);
+            get => _nameColor == AchievementNameColorSource.Rarity;
+            set
+            {
+                if (value)
+                {
+                    NameColor = AchievementNameColorSource.Rarity;
+                }
+                else if (_nameColor == AchievementNameColorSource.Rarity)
+                {
+                    NameColor = AchievementNameColorSource.None;
+                }
+            }
+        }
+
+        public bool ShouldSerializeColorNamesByRarity() => false;
+
+        public AchievementTagDisplay TagDisplay
+        {
+            get => _tagDisplay;
+            set => SetValue(ref _tagDisplay, value);
+        }
+
+        public AchievementStatusColorMode StatusColor
+        {
+            get => _statusColor;
+            set => SetValue(ref _statusColor, value);
         }
 
         public bool ColorRarityColumnsByRarity
@@ -357,7 +409,9 @@ namespace PlayniteAchievements.Models.Settings
             CopyCommonTo(clone);
             clone.UseCoverImages = UseCoverImages;
             clone.ShowRarityGlow = ShowRarityGlow;
-            clone.ColorNamesByRarity = ColorNamesByRarity;
+            clone.NameColor = NameColor;
+            clone.TagDisplay = TagDisplay;
+            clone.StatusColor = StatusColor;
             clone.ColorRarityColumnsByRarity = ColorRarityColumnsByRarity;
             clone.UnlockDateMode = UnlockDateMode;
             clone.SortMode = SortMode;
