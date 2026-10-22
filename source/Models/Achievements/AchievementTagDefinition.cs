@@ -23,6 +23,12 @@ namespace PlayniteAchievements.Models.Achievements
         /// </summary>
         public string Icon { get; set; }
 
+        /// <summary>
+        /// Left out of every view but the Manage Achievements editor and the tag lists. Achievements
+        /// keep the tag, so filters, counts and system tag behavior are unchanged.
+        /// </summary>
+        public bool Hidden { get; set; }
+
         public AchievementTagDefinition Clone()
         {
             return new AchievementTagDefinition
@@ -30,7 +36,8 @@ namespace PlayniteAchievements.Models.Achievements
                 Key = Key,
                 Name = Name,
                 Color = Color,
-                Icon = Icon
+                Icon = Icon,
+                Hidden = Hidden
             };
         }
     }
