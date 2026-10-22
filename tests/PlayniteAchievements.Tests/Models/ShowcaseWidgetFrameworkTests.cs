@@ -298,7 +298,6 @@ namespace PlayniteAchievements.Tests.Models
 
             Assert.AreEqual(200, ShowcaseWidgetOptions.GetGameMosaicCount(instance));
             Assert.AreEqual(ShowcaseGameMosaicSource.All, ShowcaseWidgetOptions.GetGameMosaicSource(instance));
-            Assert.IsFalse(ShowcaseWidgetOptions.GetHideCompleted(instance));
 
             instance.SetOption("Count", 0);
             Assert.AreEqual(1, ShowcaseWidgetOptions.GetGameMosaicCount(instance));
@@ -385,6 +384,45 @@ namespace PlayniteAchievements.Tests.Models
         }
 
         [TestMethod]
+        public void MigrateGameGridScope_MovesHideCompletedAndActivityIntoTheBar()
+        {
+            var library = new ShowcaseWidgetInstanceSettings { Kind = ShowcaseWidgetKind.GameSummaries };
+            library.Options["HideCompleted"] = "True";
+            library.Options["ActivityScope"] = "Played";
+            var narrowed = new ShowcaseWidgetInstanceSettings { Kind = ShowcaseWidgetKind.GameSummaries };
+            narrowed.Options["HideCompleted"] = "True";
+            narrowed.Options["ControlBar.Games"] = "{\"SearchText\":\"zelda\",\"Progress\":[0,1]}";
+            var allScope = new ShowcaseWidgetInstanceSettings { Kind = ShowcaseWidgetKind.GameSummaries };
+            allScope.Options["ActivityScope"] = "All";
+            allScope.Options["HideCompleted"] = "False";
+            var favorites = new ShowcaseWidgetInstanceSettings { Kind = ShowcaseWidgetKind.GameSummaries };
+            ShowcaseWidgetOptions.SetGameGridSource(favorites, ShowcaseGameGridSource.PlayniteFavorites);
+            favorites.Options["HideCompleted"] = "True";
+            var untouched = new ShowcaseWidgetInstanceSettings { Kind = ShowcaseWidgetKind.GameSummaries };
+
+            Assert.IsTrue(ShowcaseWidgetOptions.MigrateGameGridScope(library));
+            Assert.IsTrue(ShowcaseWidgetOptions.MigrateGameGridScope(narrowed));
+            Assert.IsTrue(ShowcaseWidgetOptions.MigrateGameGridScope(allScope));
+            Assert.IsTrue(ShowcaseWidgetOptions.MigrateGameGridScope(favorites));
+            Assert.IsFalse(ShowcaseWidgetOptions.MigrateGameGridScope(untouched));
+            Assert.IsFalse(ShowcaseWidgetOptions.MigrateGameGridScope(library), "runs once");
+
+            var state = Newtonsoft.Json.Linq.JObject.Parse(library.Options["ControlBar.Games"]);
+            CollectionAssert.AreEqual(new[] { 1, 2 }, state["Progress"].ToObject<int[]>());
+            CollectionAssert.AreEqual(new[] { 0 }, state["Activity"].ToObject<int[]>());
+            Assert.IsFalse(library.Options.ContainsKey("HideCompleted"));
+            Assert.IsFalse(library.Options.ContainsKey("ActivityScope"));
+
+            var narrowedState = Newtonsoft.Json.Linq.JObject.Parse(narrowed.Options["ControlBar.Games"]);
+            Assert.AreEqual("zelda", (string)narrowedState["SearchText"]);
+            CollectionAssert.AreEqual(new[] { 1 }, narrowedState["Progress"].ToObject<int[]>(), "completed drops out of the picks");
+
+            Assert.IsFalse(allScope.Options.ContainsKey("ControlBar.Games"), "nothing to filter");
+            Assert.IsFalse(favorites.Options.ContainsKey("ControlBar.Games"), "the option did nothing on favorites");
+            Assert.IsFalse(favorites.Options.ContainsKey("HideCompleted"));
+        }
+
+        [TestMethod]
         public void TimelineSplit_ReadsTheFormerPlatformSwitchAndReplacesIt()
         {
             var legacy = new ShowcaseWidgetInstanceSettings { Kind = ShowcaseWidgetKind.Timeline };
@@ -450,7 +488,7 @@ namespace PlayniteAchievements.Tests.Models
         public void WidgetFactory_SeedsDefaultsForGridMosaicAndCalendarKinds()
         {
             var summaries = ShowcaseWidgetSettingsFactory.CreateDefault(ShowcaseWidgetKind.GameSummaries);
-            Assert.IsFalse(ShowcaseWidgetOptions.GetHideCompleted(summaries));
+            Assert.IsFalse(summaries.Options.ContainsKey("HideCompleted"), "progress is a control bar filter");
 
             var mosaic = ShowcaseWidgetSettingsFactory.CreateDefault(ShowcaseWidgetKind.IconMosaic);
             Assert.AreEqual(ShowcaseMosaicContent.Achievements, ShowcaseWidgetOptions.GetMosaicContent(mosaic));
