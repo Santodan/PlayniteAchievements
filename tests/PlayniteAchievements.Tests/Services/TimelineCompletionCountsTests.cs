@@ -89,5 +89,35 @@ namespace PlayniteAchievements.Tests.Services
             Assert.AreEqual(UnlockDayCounts.DayOf(platinumUtc), counts[platinumThenFull].Single().Key);
             Assert.IsFalse(counts.ContainsKey(unfinished));
         }
+
+        [TestMethod]
+        public void CompletionSnapshot_HoldsEachGamesFinishingUnlockOnItsDay()
+        {
+            var finished = Guid.NewGuid();
+            var open = Guid.NewGuid();
+            var firstUtc = new DateTime(2026, 3, 1, 12, 0, 0, DateTimeKind.Utc);
+            var finishUtc = new DateTime(2026, 3, 9, 12, 0, 0, DateTimeKind.Utc);
+            var finishing = new AchievementDisplayItem { PlayniteGameId = finished, Unlocked = true, UnlockTimeUtc = finishUtc, ApiName = "last" };
+            var snapshot = new OverviewDataSnapshot
+            {
+                GameSummaries = new List<GameSummaryItem>
+                {
+                    new GameSummaryItem { PlayniteGameId = finished, TotalAchievements = 2, UnlockedAchievements = 2, IsCompleted = true, LastUnlockUtc = finishUtc },
+                    new GameSummaryItem { PlayniteGameId = open, TotalAchievements = 5, UnlockedAchievements = 1, LastUnlockUtc = firstUtc }
+                },
+                Achievements = new List<AchievementDisplayItem>
+                {
+                    new AchievementDisplayItem { PlayniteGameId = finished, Unlocked = true, UnlockTimeUtc = firstUtc, ApiName = "first" },
+                    finishing,
+                    new AchievementDisplayItem { PlayniteGameId = open, Unlocked = true, UnlockTimeUtc = firstUtc, ApiName = "open" }
+                }
+            };
+
+            var completions = TimelinePlatformSeries.CompletionSnapshot(snapshot);
+
+            CollectionAssert.AreEqual(new[] { finishing }, completions.Achievements.ToArray());
+            Assert.AreEqual(1, completions.GlobalUnlockCountsByDate.Count);
+            Assert.AreEqual(1, completions.GlobalUnlockCountsByDate[UnlockDayCounts.DayOf(finishUtc)]);
+        }
     }
 }
