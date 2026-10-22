@@ -31,14 +31,20 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         private readonly Func<string> _gameName;
         private readonly Func<PersistedSettings> _settings;
         private readonly Action _onChanged;
+        private readonly Action<Guid, string> _promotePairedPlatinum;
 
+        /// <param name="promotePairedPlatinum">
+        /// Makes the achievement (game id, ApiName) the user paired with a source's platinum the
+        /// game's capstone; null leaves capstones to the next refresh.
+        /// </param>
         internal MetadataLinksViewModel(
             Func<MetadataLinkStore> store,
             Func<IReadOnlyList<IMetadataProvider>> providers,
             Func<Guid, IReadOnlyList<AchievementDetail>> achievements,
             Func<string> gameName,
             Func<PersistedSettings> settings,
-            Action onChanged)
+            Action onChanged,
+            Action<Guid, string> promotePairedPlatinum = null)
         {
             _store = store;
             _providers = providers;
@@ -46,6 +52,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             _gameName = gameName;
             _settings = settings;
             _onChanged = onChanged;
+            _promotePairedPlatinum = promotePairedPlatinum;
         }
 
         /// <summary>
@@ -282,8 +289,23 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 return;
             }
 
-            if (store.SetPairings(row.GameId, row.SourceKey, viewModel.GetChanges()))
+            var changes = viewModel.GetChanges();
+            if (store.SetPairings(row.GameId, row.SourceKey, changes))
             {
+                // Pairing the platinum by hand names the game's capstone, so it is promoted now
+                // rather than left to automatic generation, which handles a game only once.
+                var platinums = new HashSet<string>(
+                    row.Snapshot.Rows
+                        .Where(source => source?.IsPlatinum == true && !string.IsNullOrWhiteSpace(source.ApiName))
+                        .Select(source => source.ApiName.Trim()),
+                    StringComparer.OrdinalIgnoreCase);
+                var paired = changes.FirstOrDefault(change =>
+                    !string.IsNullOrWhiteSpace(change.Value) && platinums.Contains(change.Value.Trim()));
+                if (paired.Key != null)
+                {
+                    _promotePairedPlatinum?.Invoke(row.GameId, paired.Key);
+                }
+
                 _onChanged?.Invoke();
             }
         }
