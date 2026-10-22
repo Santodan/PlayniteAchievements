@@ -37,6 +37,9 @@ namespace PlayniteAchievements.Views.Showcase
         // control bar. Their filters apply either way, so the editors beside them stay enabled.
         private readonly List<FrameworkElement> _controlBarItemRows = new List<FrameworkElement>();
 
+        // The widget's control bars, whose Game filters a collection choice limits.
+        private readonly List<SharedControlBarAdapter> _controlBarAdapters = new List<SharedControlBarAdapter>();
+
         /// <param name="includeScoreHistory">
         /// False for a score card with no history chart (the Overview header's cards), which drops
         /// the history toggle and range.
@@ -816,6 +819,7 @@ namespace PlayniteAchievements.Views.Showcase
         {
             var rows = new Dictionary<string, FrameworkElement>(StringComparer.OrdinalIgnoreCase);
             var adapter = ShowcaseControlBarStates.Get<TAdapter>(_settings.InstanceId);
+            _controlBarAdapters.Add(adapter);
             var entries = adapter.Entries;
             if (entries.Count == 0)
             {
@@ -1275,6 +1279,13 @@ namespace PlayniteAchievements.Views.Showcase
                     if (value.Item1 != ShowcaseCollectionType.None)
                     {
                         ShowcaseWidgetOptions.SetPinCollectionId(_settings, value.Item2);
+                    }
+
+                    // The Game filters list the collection's games and drop picks outside it.
+                    var gameIds = ShowcaseCollectionScope.Resolve(showcase, _settings)?.GameIds;
+                    foreach (var adapter in _controlBarAdapters)
+                    {
+                        adapter.GameFilter.SetScope(gameIds, notify: true);
                     }
                 },
                 value => names.TryGetValue(value, out var name) ? name : string.Empty);
