@@ -1354,7 +1354,6 @@
     <sys:String x:Key="LOCPlayAch_Showcase_FitMode">Fit</sys:String>
     <sys:String x:Key="LOCPlayAch_Showcase_Shuffle">Shuffle</sys:String>
     <sys:String x:Key="LOCPlayAch_Showcase_InfoPanel">Info panel</sys:String>
-    <sys:String x:Key="LOCPlayAch_Showcase_HideCompleted">Hide completed games</sys:String>
     <sys:String x:Key="LOCPlayAch_Showcase_CustomTitle">Title</sys:String>
     <sys:String x:Key="LOCPlayAch_Showcase_Day">{0} day</sys:String>
     <sys:String x:Key="LOCPlayAch_Showcase_Days">{0} days</sys:String>
