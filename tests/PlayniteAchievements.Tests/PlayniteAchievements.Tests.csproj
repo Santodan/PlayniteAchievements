@@ -477,7 +477,10 @@
     <Compile Include="..\..\source\ViewModels\GameSummaryGridControlBarAdapter.cs" Link="Source\ViewModels\GameSummaryGridControlBarAdapter.cs" />
     <Compile Include="..\..\source\ViewModels\SharedControlBarAdapter.cs" Link="Source\ViewModels\SharedControlBarAdapter.cs" />
     <Compile Include="..\..\source\ViewModels\RarityTrophyControlBarFilters.cs" Link="Source\ViewModels\RarityTrophyControlBarFilters.cs" />
+    <Compile Include="..\..\source\ViewModels\TagControlBarFilter.cs" Link="Source\ViewModels\TagControlBarFilter.cs" />
     <Compile Include="..\..\source\ViewModels\Showcase\Widgets\TimelineControlBarAdapter.cs" Link="Source\ViewModels\Showcase\Widgets\TimelineControlBarAdapter.cs" />
+    <Compile Include="..\..\source\ViewModels\Showcase\Widgets\ChartControlBarAdapter.cs" Link="Source\ViewModels\Showcase\Widgets\ChartControlBarAdapter.cs" />
+    <Compile Include="..\..\source\ViewModels\Showcase\Widgets\ActivityCalendarControlBarAdapter.cs" Link="Source\ViewModels\Showcase\Widgets\ActivityCalendarControlBarAdapter.cs" />
     <Compile Include="..\..\source\ViewModels\Showcase\Widgets\SlideshowControlBarAdapter.cs" Link="Source\ViewModels\Showcase\Widgets\SlideshowControlBarAdapter.cs" />
     <Compile Include="..\..\source\ViewModels\Showcase\Widgets\ShowcaseControlBarStates.cs" Link="Source\ViewModels\Showcase\Widgets\ShowcaseControlBarStates.cs" />
     <Compile Include="..\..\source\ViewModels\Items\GridControlBarModels.cs" Link="Source\ViewModels\Items\GridControlBarModels.cs" />
