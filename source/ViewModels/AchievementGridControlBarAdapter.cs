@@ -394,6 +394,8 @@ namespace PlayniteAchievements.ViewModels
                 GetTypeDisplayName)
             {
                 Width = 120,
+                // A tag's icon; the other classification keys have none, and name themselves.
+                IconKeyOf = key => TagControlBarFilter.IconKey(key, _optionsGameId),
                 IsCategoryFilter = true,
                 ToolTip = L("LOCPlayAch_ManageAchievements_Category_Filter_Tags")
             });
