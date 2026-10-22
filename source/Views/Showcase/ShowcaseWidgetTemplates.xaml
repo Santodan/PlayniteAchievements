@@ -554,24 +554,42 @@
 
     <!-- Timeline: the reused LiveCharts column chart with range buttons, identical at every size. -->
     <DataTemplate DataType="{x:Type widgets:TimelineWidgetViewModel}">
-        <!-- The window, bar width and platform split are widget settings; the controls the
-             widget's settings show also set them here, below the chart, and save them back. -->
+        <!-- The window, bar width and split are widget settings; the controls the widget's
+             settings show also set them here, below the chart, and save them back. -->
         <DockPanel>
         <DockPanel DockPanel.Dock="Bottom"
                    LastChildFill="True"
                    Margin="0,8,0,0"
                    Visibility="{Binding ShowControls, Converter={StaticResource BoolToVis}}">
-            <!-- IcoFont "layers": stacked per-platform segments, drawn as vector geometry like
-                 the plugin's other icon glyphs, in the button's own foreground. -->
+            <!-- IcoFont "layers": stacked segments, drawn as vector geometry like the plugin's
+                 other icon glyphs, in the button's own foreground. A click opens the split menu;
+                 the button shows checked while the bars are split. -->
             <ToggleButton DockPanel.Dock="Right"
                           Style="{DynamicResource PlayAch.ToggleButton.BaseStyle}"
-                          IsChecked="{Binding SplitByPlatform, Mode=TwoWay}"
+                          IsChecked="{Binding IsSplit, Mode=OneWay}"
+                          helpers:ContextMenuButtonBehavior.OpensMenu="True"
                           Visibility="{Binding ShowSplitControl, Converter={StaticResource BoolToVis}}"
                           Width="34"
                           Padding="0"
                           Margin="{DynamicResource PlayAch.Thickness.Left.Xs}"
                           VerticalAlignment="Center"
-                          ToolTip="{DynamicResource LOCPlayAch_Timeline_SplitByPlatform}">
+                          ToolTip="{DynamicResource LOCPlayAch_Timeline_SplitBy}">
+                <ToggleButton.ContextMenu>
+                    <ContextMenu>
+                        <MenuItem Header="{Binding SplitChoices[0].Label}"
+                                  IsChecked="{Binding SplitChoices[0].IsSelected, Mode=OneWay}"
+                                  IsEnabled="{Binding SplitChoices[0].IsEnabled}"
+                                  Command="{Binding SplitChoices[0].PickCommand}"/>
+                        <MenuItem Header="{Binding SplitChoices[1].Label}"
+                                  IsChecked="{Binding SplitChoices[1].IsSelected, Mode=OneWay}"
+                                  IsEnabled="{Binding SplitChoices[1].IsEnabled}"
+                                  Command="{Binding SplitChoices[1].PickCommand}"/>
+                        <MenuItem Header="{Binding SplitChoices[2].Label}"
+                                  IsChecked="{Binding SplitChoices[2].IsSelected, Mode=OneWay}"
+                                  IsEnabled="{Binding SplitChoices[2].IsEnabled}"
+                                  Command="{Binding SplitChoices[2].PickCommand}"/>
+                    </ContextMenu>
+                </ToggleButton.ContextMenu>
                 <controls:GlyphIcon Glyph="&#xEF5C;"
                                     Size="16"
                                     FontFamily="{DynamicResource PlayAch.FontFamily.Icon}"
