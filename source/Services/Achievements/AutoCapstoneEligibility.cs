@@ -84,18 +84,32 @@ namespace PlayniteAchievements.Services.Achievements
                 return new AutoCapstoneGenerationDecision(AutoCapstoneGenerationAction.MarkHandled);
             }
 
+            var platinum = SelectNominee(achievements, matchedCapstoneApiName);
+            return platinum != null
+                ? new AutoCapstoneGenerationDecision(AutoCapstoneGenerationAction.NominatePlatinum, platinum)
+                : new AutoCapstoneGenerationDecision(AutoCapstoneGenerationAction.Author);
+        }
+
+        /// <summary>
+        /// The achievement to nominate for the whole game: its own platinum, else the provider
+        /// achievement a metadata source's platinum matched; null when it has neither.
+        /// </summary>
+        public static AchievementDetail SelectNominee(
+            IReadOnlyList<AchievementDetail> achievementsInOrder,
+            string matchedCapstoneApiName)
+        {
+            var achievements = (achievementsInOrder ?? Array.Empty<AchievementDetail>())
+                .Where(achievement => achievement != null)
+                .ToList();
             var platinum = AutoCapstoneTemplate.SelectPlatinum(
                 achievements,
                 achievement => achievement.TrophyType,
                 achievement => achievement.CategoryKind);
-            platinum = platinum ?? (string.IsNullOrWhiteSpace(matchedCapstoneApiName)
+            return platinum ?? (string.IsNullOrWhiteSpace(matchedCapstoneApiName)
                 ? null
                 : achievements.FirstOrDefault(achievement =>
                     !achievement.IsCustom &&
                     string.Equals(achievement.ApiName, matchedCapstoneApiName.Trim(), StringComparison.OrdinalIgnoreCase)));
-            return platinum != null
-                ? new AutoCapstoneGenerationDecision(AutoCapstoneGenerationAction.NominatePlatinum, platinum)
-                : new AutoCapstoneGenerationDecision(AutoCapstoneGenerationAction.Author);
         }
     }
 }
