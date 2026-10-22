@@ -123,6 +123,27 @@ namespace PlayniteAchievements.Views.Helpers
         public static bool GetIsComboBoxSearchBox(DependencyObject element) =>
             (bool)element.GetValue(IsComboBoxSearchBoxProperty);
 
+        /// <summary>
+        /// The search box of an open menu level whose template pins it above the options: a
+        /// presenter named <see cref="SearchHeaderPartName"/> showing this property of the menu
+        /// or submenu item. Null while the level has no search.
+        /// </summary>
+        public static readonly DependencyProperty SearchHeaderProperty =
+            DependencyProperty.RegisterAttached(
+                "SearchHeader",
+                typeof(object),
+                typeof(SelectorSearch),
+                new PropertyMetadata(null));
+
+        public static void SetSearchHeader(DependencyObject element, object value) =>
+            element.SetValue(SearchHeaderProperty, value);
+
+        public static object GetSearchHeader(DependencyObject element) =>
+            element.GetValue(SearchHeaderProperty);
+
+        /// <summary>The template part that pins a menu level's search box above its scrolling options.</summary>
+        public const string SearchHeaderPartName = "PART_SearchHeader";
+
         private static readonly DependencyProperty MenuStateProperty =
             DependencyProperty.RegisterAttached(
                 "MenuState",
@@ -716,22 +737,32 @@ namespace PlayniteAchievements.Views.Helpers
             host.Children.Add(state.Box);
             host.Children.Add(placeholder);
 
-            // A bare presenter: the header is the box, without the highlight, check and arrow
-            // columns of an option.
-            state.SearchItem = new MenuItem
+            // The plugin's menu templates pin the box above the scrolling options, so it stays in
+            // view however far the list scrolls. Any other menu gets it as its first row.
+            if (level.Template?.FindName(SearchHeaderPartName, level) is FrameworkElement)
             {
-                Header = host,
-                Tag = InjectedTag,
-                StaysOpenOnClick = true,
-                Template = CreateBareTemplate()
-            };
-            state.SearchItem.GotKeyboardFocus += (_, args) =>
+                host.Margin = new Thickness(2, 0, 2, 4);
+                SetSearchHeader(level, host);
+            }
+            else
             {
-                if (ReferenceEquals(args.NewFocus, state.SearchItem))
+                // A bare presenter: the header is the box, without the highlight, check and
+                // arrow columns of an option.
+                state.SearchItem = new MenuItem
                 {
-                    Keyboard.Focus(state.Box);
-                }
-            };
+                    Header = host,
+                    Tag = InjectedTag,
+                    StaysOpenOnClick = true,
+                    Template = CreateBareTemplate()
+                };
+                state.SearchItem.GotKeyboardFocus += (_, args) =>
+                {
+                    if (ReferenceEquals(args.NewFocus, state.SearchItem))
+                    {
+                        Keyboard.Focus(state.Box);
+                    }
+                };
+            }
 
             state.CreateItem = new MenuItem
             {
@@ -746,8 +777,12 @@ namespace PlayniteAchievements.Views.Helpers
             }
 
             level.SetValue(MenuStateProperty, state);
-            level.Items.Insert(0, state.SearchItem);
-            level.Items.Insert(1, state.CreateItem);
+            if (state.SearchItem != null)
+            {
+                level.Items.Insert(0, state.SearchItem);
+            }
+
+            level.Items.Insert(state.SearchItem != null ? 1 : 0, state.CreateItem);
 
             state.Box.TextChanged += (_, __) =>
             {
@@ -771,8 +806,9 @@ namespace PlayniteAchievements.Views.Helpers
                 DispatcherPriority.Input);
         }
 
-        // The box is the level's first row, inside the menu's scrolling area. A virtualizing menu
-        // opened scrolled down has not realized that row, so its scroller is found from the menu.
+        // Scrolls the options back to the first one. A box in the options is their first row; a
+        // pinned box, or a row a virtualizing menu has not realized, leaves the scroller to be
+        // found from the menu.
         private static void ScrollToSearchBox(MenuSearchState state)
         {
             DependencyObject current = state.SearchItem;
@@ -795,6 +831,12 @@ namespace PlayniteAchievements.Views.Helpers
             for (var i = 0; i < VisualTreeHelper.GetChildrenCount(root); i++)
             {
                 var child = VisualTreeHelper.GetChild(root, i);
+                // The search box scrolls its own text; the options' scroller is the other one.
+                if (child is TextBoxBase)
+                {
+                    continue;
+                }
+
                 if (child is ScrollViewer scroller)
                 {
                     return scroller;
@@ -842,7 +884,12 @@ namespace PlayniteAchievements.Views.Helpers
             }
 
             level.ClearValue(MenuStateProperty);
-            level.Items.Remove(state.SearchItem);
+            level.ClearValue(SearchHeaderProperty);
+            if (state.SearchItem != null)
+            {
+                level.Items.Remove(state.SearchItem);
+            }
+
             level.Items.Remove(state.CreateItem);
             foreach (var pair in state.OriginalVisibility)
             {
