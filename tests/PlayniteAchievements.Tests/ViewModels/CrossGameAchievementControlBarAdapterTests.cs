@@ -122,6 +122,41 @@ namespace PlayniteAchievements.Tests.ViewModels
         }
 
         [TestMethod]
+        public void ClearSelection_ResetsEachEntryOnItsOwn()
+        {
+            var rows = Rows();
+            var adapter = CreateAdapter(rows);
+            adapter.SearchText = "summit";
+            adapter.ProviderFilterGroups.Single(group => group.ProviderKey == "Xbox").SetAll(true);
+            adapter.RestoreState(new ControlBarFilterState
+            {
+                SearchText = "summit",
+                Games = new[] { SteamPcId.ToString("D"), Guid.NewGuid().ToString("D") }.ToList(),
+                UnlockedFrom = new DateTime(2026, 1, 1),
+                Rarities = new[] { 2 }.ToList()
+            });
+            adapter.UpdateGames(Games());
+            var entries = adapter.Entries.ToDictionary(entry => entry.Id);
+
+            entries[PlayniteAchievements.Models.ShowcaseControlBarItems.Search].ClearSelection();
+            Assert.AreEqual(string.Empty, adapter.SearchText);
+            Assert.IsTrue(adapter.GameFilter.HasSelection, "only the search box clears");
+
+            entries[PlayniteAchievements.Models.ShowcaseControlBarItems.Game].ClearSelection();
+            Assert.IsFalse(adapter.GameFilter.HasSelection, "unlisted games clear too");
+
+            entries[PlayniteAchievements.Models.ShowcaseControlBarItems.UnlockDate].ClearSelection();
+            Assert.IsNull(adapter.UnlockedFrom);
+
+            entries[PlayniteAchievements.Models.ShowcaseControlBarItems.Rarity].ClearSelection();
+            Assert.IsNull(adapter.CaptureState().Rarities);
+
+            adapter.ProviderFilterGroups.Single(group => group.ProviderKey == "Xbox").SetAll(true);
+            entries[PlayniteAchievements.Models.ShowcaseControlBarItems.Platform].ClearSelection();
+            Assert.IsFalse(adapter.ProviderFilterGroups.Any(group => group.HasAnySelected));
+        }
+
+        [TestMethod]
         public void LocksRows_LeavesLockedRowsToTheUnlockRangeAndHidesItsItem()
         {
             var adapter = new CrossGameAchievementControlBarAdapter();
