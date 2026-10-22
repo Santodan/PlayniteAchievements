@@ -392,54 +392,42 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
                 gameId => (snapshot.GameSummaries ?? new List<GameSummaryItem>())
                     .Where(game => game?.PlayniteGameId == gameId)
                     .SelectMany(game => game.TagTotals ?? Array.Empty<AchievementTagTally>())
-                    .Select(tally => tally.Key));
+                    .SelectMany(tally => tally.Tags));
 
         /// <summary>
         /// One slice per picked tag (every offered tag when none are picked) of its unlocked
-        /// achievements, then the locked ones among them. A view cut to matching unlocks has only
-        /// unlocked rows to count, so there every count is of unlocks.
+        /// achievements, then the locked ones among them, each counted once however many of the
+        /// drawn tags it carries; the centre counts the same way. A view cut to matching unlocks
+        /// has only unlocked rows to count, so there every count is of unlocks.
         /// </summary>
         private void SetTagData(PieChartViewModel chart, OverviewDataSnapshot snapshot, IReadOnlyCollection<Guid> scope)
         {
             var options = TagOptions(snapshot, scope);
             var picked = _controlBarSlot.Adapter.TagSlices;
             var keys = options.Where(key => picked.Count == 0 || picked.Contains(key)).ToList();
-            var counts = keys.ToDictionary(key => key, _ => (Unlocked: 0, Total: 0), StringComparer.OrdinalIgnoreCase);
+            IEnumerable<AchievementTagTally> tallies;
             if (snapshot.IsAchievementClip)
             {
+                var unlockedRows = new AchievementTagTallyBuilder();
                 foreach (var row in snapshot.Achievements ?? new List<AchievementDisplayItem>())
                 {
-                    if (row?.Unlocked != true)
+                    if (row?.Unlocked == true)
                     {
-                        continue;
-                    }
-
-                    foreach (var key in AchievementTagHelper.GetComponents(row.Tags))
-                    {
-                        if (counts.TryGetValue(key, out var count))
-                        {
-                            counts[key] = (count.Unlocked + 1, count.Total + 1);
-                        }
+                        unlockedRows.Add(row.Tags, unlocked: true);
                     }
                 }
+
+                tallies = unlockedRows.Build() ?? Array.Empty<AchievementTagTally>();
             }
             else
             {
-                foreach (var game in snapshot.GameSummaries ?? new List<GameSummaryItem>())
-                {
-                    foreach (var tally in game?.TagTotals ?? Array.Empty<AchievementTagTally>())
-                    {
-                        if (counts.TryGetValue(tally.Key, out var count))
-                        {
-                            counts[tally.Key] = (count.Unlocked + tally.Unlocked, count.Total + tally.Total);
-                        }
-                    }
-                }
+                tallies = (snapshot.GameSummaries ?? new List<GameSummaryItem>())
+                    .SelectMany(game => game?.TagTotals ?? Array.Empty<AchievementTagTally>());
             }
 
+            var (counts, unlocked, total) = AchievementTagTallyBuilder.CountShown(tallies, keys);
             var namingGame = AchievementTagScope.NamingGame(scope);
             var slices = new List<(string Key, string Label, int Unlocked, int Total, string ColorHex, string IconKey)>();
-            var locked = 0;
             foreach (var key in keys)
             {
                 var count = counts[key];
@@ -456,16 +444,9 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
                     count.Total,
                     AchievementTagHelper.NormalizeColor(definition?.Color) ?? TagPalette[slices.Count % TagPalette.Length],
                     Views.Converters.ProviderIconConverter.TagIconKey(definition?.Icon)));
-                locked += Math.Max(0, count.Total - count.Unlocked);
             }
 
-            // The centre's unlocked-of-total counts an achievement once per tag it carries, so with
-            // several tags it overstates whatever they share; one tag is exact.
-            var centerMode = ShowcaseWidgetOptions.GetPieCenterMode(Projection?.Instance);
-            chart.CenterMode = centerMode == PieCenterMode.Percentage && slices.Count > 1
-                ? PieCenterMode.Empty
-                : centerMode;
-            chart.SetTagData(slices, locked, Localize("LOCPlayAch_Common_Locked"));
+            chart.SetTagData(slices, unlocked, total, Localize("LOCPlayAch_Common_Locked"));
         }
 
         private void OnTagDefinitionsChanged(object sender, AchievementTagsChangedEventArgs e) => RefreshTagPie();
