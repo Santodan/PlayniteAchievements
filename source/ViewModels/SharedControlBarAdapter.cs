@@ -165,7 +165,8 @@ namespace PlayniteAchievements.ViewModels
             {
                 Id = PlayniteAchievements.Models.ShowcaseControlBarItems.Game,
                 LabelKey = "LOCPlayAch_Column_Game",
-                Width = 170
+                Width = 170,
+                ClearAll = Clear
             };
         }
 
@@ -240,6 +241,19 @@ namespace PlayniteAchievements.ViewModels
             }
 
             OnPropertyChanged(nameof(DisplayText));
+        }
+
+        /// <summary>Unpicks every game, listed or not.</summary>
+        public void Clear()
+        {
+            if (_selected.Count == 0)
+            {
+                return;
+            }
+
+            _selected.Clear();
+            OnPropertyChanged(nameof(DisplayText));
+            _changed?.Invoke();
         }
 
         private bool IsSelected(string option) =>
