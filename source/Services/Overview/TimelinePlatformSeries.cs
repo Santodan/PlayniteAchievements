@@ -39,23 +39,35 @@ namespace PlayniteAchievements.Services.Overview
         }
 
         /// <summary>
-        /// One count per completed game, on the day it was completed: when its last capstone was
-        /// unlocked for a game its capstones finished, otherwise its last unlock. No completion
-        /// date is stored, so a game finished by its capstones whose capstone rows the snapshot
-        /// lacks falls back to its last unlock too.
+        /// One count per completed game, on the day it was first completed by any of: its last
+        /// capstone unlocking (every capstone unlocked), its last achievement unlocking (100%), or
+        /// a platinum unlocking. No completion date is stored, so the day is read from the
+        /// unlocks: a game at 100% whose rows the snapshot lacks uses its last unlock.
         /// </summary>
         public static Dictionary<Guid, Dictionary<DateTime, int>> CompletionCountsByGame(OverviewDataSnapshot snapshot)
         {
             var lastCapstoneUnlock = new Dictionary<Guid, DateTime>();
+            var firstPlatinumUnlock = new Dictionary<Guid, DateTime>();
             var rows = snapshot?.Achievements;
             for (var i = 0; i < (rows?.Count ?? 0); i++)
             {
                 var row = rows[i];
-                if (row?.Unlocked == true && row.IsCapstone &&
-                    row.UnlockTimeUtc.HasValue && row.PlayniteGameId is Guid rowGame &&
-                    (!lastCapstoneUnlock.TryGetValue(rowGame, out var latest) || row.UnlockTimeUtc.Value > latest))
+                if (row?.Unlocked != true || !row.UnlockTimeUtc.HasValue || !(row.PlayniteGameId is Guid rowGame))
                 {
-                    lastCapstoneUnlock[rowGame] = row.UnlockTimeUtc.Value;
+                    continue;
+                }
+
+                var unlockedUtc = row.UnlockTimeUtc.Value;
+                if (row.IsCapstone &&
+                    (!lastCapstoneUnlock.TryGetValue(rowGame, out var latest) || unlockedUtc > latest))
+                {
+                    lastCapstoneUnlock[rowGame] = unlockedUtc;
+                }
+
+                if (string.Equals(row.TrophyType?.Trim(), "platinum", StringComparison.OrdinalIgnoreCase) &&
+                    (!firstPlatinumUnlock.TryGetValue(rowGame, out var earliest) || unlockedUtc < earliest))
+                {
+                    firstPlatinumUnlock[rowGame] = unlockedUtc;
                 }
             }
 
@@ -64,15 +76,42 @@ namespace PlayniteAchievements.Services.Overview
             for (var i = 0; i < (games?.Count ?? 0); i++)
             {
                 var game = games[i];
-                if (game?.IsCompleted != true || !(game.PlayniteGameId is Guid gameId))
+                if (game == null || !(game.PlayniteGameId is Guid gameId))
                 {
                     continue;
                 }
 
-                var finishedByCapstones = game.CapstoneTotal > 0 && game.CapstoneUnlocked >= game.CapstoneTotal;
-                var completedUtc = finishedByCapstones && lastCapstoneUnlock.TryGetValue(gameId, out var capstoneUtc)
-                    ? capstoneUtc
-                    : game.LastUnlockUtc;
+                DateTime? completedUtc = null;
+                void Consider(DateTime? candidate)
+                {
+                    if (candidate.HasValue && (!completedUtc.HasValue || candidate.Value < completedUtc.Value))
+                    {
+                        completedUtc = candidate;
+                    }
+                }
+
+                if (game.CapstoneTotal > 0 && game.CapstoneUnlocked >= game.CapstoneTotal &&
+                    lastCapstoneUnlock.TryGetValue(gameId, out var capstoneUtc))
+                {
+                    Consider(capstoneUtc);
+                }
+
+                if (game.TotalAchievements > 0 && game.UnlockedAchievements >= game.TotalAchievements)
+                {
+                    Consider(game.LastUnlockUtc);
+                }
+
+                if (firstPlatinumUnlock.TryGetValue(gameId, out var platinumUtc))
+                {
+                    Consider(platinumUtc);
+                }
+
+                // Finished by its capstones, but their rows are missing: the last unlock stands in.
+                if (!completedUtc.HasValue && game.IsCompleted)
+                {
+                    Consider(game.LastUnlockUtc);
+                }
+
                 if (completedUtc.HasValue)
                 {
                     result[gameId] = new Dictionary<DateTime, int> { [UnlockDayCounts.DayOf(completedUtc.Value)] = 1 };
