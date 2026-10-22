@@ -968,6 +968,69 @@ namespace PlayniteAchievements.Models
         public static bool IsControlBarState(string key) =>
             key != null && key.StartsWith(ControlBarStatePrefix, StringComparison.OrdinalIgnoreCase);
 
+        // The control bar state field holding Game selections, which are this library's game IDs.
+        private const string ControlBarGamesField = "Games";
+
+        /// <summary>
+        /// The part of a control bar's saved state that travels with a page: everything but its
+        /// Game selections, which name this library's games. Null when nothing is left.
+        /// </summary>
+        public static string PortableControlBarState(string json)
+        {
+            var state = ParseControlBarState(json);
+            if (state == null)
+            {
+                return null;
+            }
+
+            state.Remove(ControlBarGamesField);
+            foreach (var property in state.Properties().ToList())
+            {
+                if (property.Value.Type == Newtonsoft.Json.Linq.JTokenType.Null)
+                {
+                    property.Remove();
+                }
+            }
+
+            return state.HasValues ? state.ToString(Newtonsoft.Json.Formatting.None) : null;
+        }
+
+        /// <summary>
+        /// <paramref name="portableJson"/> with the Game selections of <paramref name="localJson"/>
+        /// put back, so a page update that brings a control bar's filters keeps the games this
+        /// library picked. Null when neither has anything.
+        /// </summary>
+        public static string WithLocalControlBarGames(string portableJson, string localJson)
+        {
+            var games = ParseControlBarState(localJson)?[ControlBarGamesField];
+            var state = ParseControlBarState(portableJson);
+            if (games == null || games.Type == Newtonsoft.Json.Linq.JTokenType.Null)
+            {
+                return state == null ? null : PortableControlBarState(portableJson);
+            }
+
+            state = state ?? new Newtonsoft.Json.Linq.JObject();
+            state[ControlBarGamesField] = games.DeepClone();
+            return state.ToString(Newtonsoft.Json.Formatting.None);
+        }
+
+        private static Newtonsoft.Json.Linq.JObject ParseControlBarState(string json)
+        {
+            if (string.IsNullOrWhiteSpace(json))
+            {
+                return null;
+            }
+
+            try
+            {
+                return Newtonsoft.Json.Linq.JObject.Parse(json);
+            }
+            catch (Newtonsoft.Json.JsonException)
+            {
+                return null;
+            }
+        }
+
         /// <summary>
         /// Which counts the profile medal row shows. Trophy is only meaningful for a library
         /// holding PlayStation-shaped games; every other library sums to zero and the row hides.
