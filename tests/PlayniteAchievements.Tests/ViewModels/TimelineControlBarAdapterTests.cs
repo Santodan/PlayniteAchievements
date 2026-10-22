@@ -92,5 +92,29 @@ namespace PlayniteAchievements.Tests.ViewModels
             Assert.IsTrue(adapter.TierFilters.Matches(new AchievementDisplayItem { Rarity = RarityTier.Rare, TrophyType = "Gold" }));
             Assert.IsFalse(adapter.TierFilters.Matches(new AchievementDisplayItem { Rarity = RarityTier.Common, TrophyType = "gold" }));
         }
+
+        [TestMethod]
+        public void PickedOptions_ShowBadgesOnlyWhenEveryPickHasOne()
+        {
+            var picked = new System.Collections.Generic.HashSet<string>();
+            var filter = new GridMultiSelectFilter(
+                null,
+                null,
+                () => string.Join(", ", picked),
+                new[] { "a", "b", "c" },
+                picked.Contains,
+                (option, selected) => { if (selected) { picked.Add(option); } else { picked.Remove(option); } })
+            {
+                IconKeyOf = option => option == "c" ? null : "Badge" + option
+            };
+
+            filter.SetSelected("a", true);
+            filter.SetSelected("b", true);
+            CollectionAssert.AreEqual(new[] { "Badgea", "Badgeb" }, filter.SelectedIconKeys.ToArray());
+
+            filter.SetSelected("c", true);
+            Assert.AreEqual(0, filter.SelectedIconKeys.Count, "a pick without a badge brings the names back");
+            Assert.AreEqual("a, b, c", filter.ButtonText);
+        }
     }
 }
