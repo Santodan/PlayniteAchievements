@@ -398,8 +398,19 @@ namespace PlayniteAchievements.Models
         /// <summary>The Timeline and Activity Calendar time window picker.</summary>
         public const string TimeWindow = "TimeWindow";
 
-        /// <summary>The Timeline's split-by-platform toggle.</summary>
+        /// <summary>The Timeline's split menu.</summary>
         public const string SplitByPlatform = "SplitByPlatform";
+
+        /// <summary>Every item a Timeline's control bar offers.</summary>
+        public static readonly IReadOnlyList<string> TimelineItems = new[]
+        {
+            TimeWindow,
+            SplitByPlatform,
+            Platform,
+            Game,
+            Rarity,
+            Trophy
+        };
     }
 
     /// <summary>
@@ -921,30 +932,62 @@ namespace PlayniteAchievements.Models
         public const string ControlBarStatePrefix = "ControlBar.";
 
         /// <summary>
+        /// Whether the widget shows a control bar at all, off by default. A grid widget saved
+        /// before it had this option of its own reads its grid surface's Show Control Bar,
+        /// <paramref name="gridSurfaceVisible"/>.
+        /// </summary>
+        public static bool GetShowControlBar(
+            ShowcaseWidgetInstanceSettings settings,
+            bool? gridSurfaceVisible = null)
+        {
+            if (settings?.Options != null &&
+                settings.Options.TryGetValue(ShowControlBar, out var raw) &&
+                bool.TryParse(raw, out var shown))
+            {
+                return shown;
+            }
+
+            return gridSurfaceVisible ?? false;
+        }
+
+        public static void SetShowControlBar(ShowcaseWidgetInstanceSettings settings, bool value) =>
+            settings?.SetOption(ShowControlBar, value);
+
+        /// <summary>
         /// Whether the widget's control bar shows the item <paramref name="itemId"/> (one of
-        /// <see cref="ShowcaseControlBarItems"/>). A hidden item's filter stays in effect, and its
-        /// editor stays in the widget settings. Without a per-item choice, the widget's former
-        /// whole-bar option decides: <paramref name="legacyVisible"/> when the caller has one (a
-        /// grid widget's surface option), else the widget's own Show Control Bar option.
+        /// <see cref="ShowcaseControlBarItems"/>): only while the widget shows its control bar
+        /// (<see cref="GetShowControlBar"/>), and then unless the item is turned off on its own. A
+        /// hidden item's filter stays in effect, and its editor stays in the widget settings.
         /// </summary>
         public static bool GetControlBarItemVisible(
             ShowcaseWidgetInstanceSettings settings,
             string itemId,
-            bool? legacyVisible = null)
+            bool? gridSurfaceVisible = null) =>
+            !string.IsNullOrWhiteSpace(itemId) &&
+            GetShowControlBar(settings, gridSurfaceVisible) &&
+            GetControlBarItemChecked(settings, itemId);
+
+        /// <summary>The item's own choice, on unless turned off, whether or not the bar shows.</summary>
+        public static bool GetControlBarItemChecked(ShowcaseWidgetInstanceSettings settings, string itemId) =>
+            settings?.Options == null ||
+            !settings.Options.TryGetValue(ControlBarItemPrefix + itemId, out var raw) ||
+            !bool.TryParse(raw, out var visible) ||
+            visible;
+
+        /// <summary>
+        /// Shows the widget's control bar with only <paramref name="shown"/> of
+        /// <paramref name="items"/> turned on.
+        /// </summary>
+        public static void ShowOnlyControlBarItems(
+            ShowcaseWidgetInstanceSettings settings,
+            IEnumerable<string> items,
+            params string[] shown)
         {
-            if (settings == null || string.IsNullOrWhiteSpace(itemId))
+            SetShowControlBar(settings, true);
+            foreach (var item in items ?? Enumerable.Empty<string>())
             {
-                return false;
+                SetControlBarItemVisible(settings, item, shown.Contains(item));
             }
-
-            if (settings.Options != null &&
-                settings.Options.TryGetValue(ControlBarItemPrefix + itemId, out var raw) &&
-                bool.TryParse(raw, out var visible))
-            {
-                return visible;
-            }
-
-            return legacyVisible ?? settings.GetOption(ShowControlBar, false);
         }
 
         public static void SetControlBarItemVisible(
