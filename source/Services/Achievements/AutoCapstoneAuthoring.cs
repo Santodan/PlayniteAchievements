@@ -312,8 +312,36 @@ namespace PlayniteAchievements.Services.Achievements
                 return false;
             }
 
+            LabelPlatinum(gameId, platinum);
             _overridesService.MarkAutoCapstoneGenerated(gameId);
             return true;
+        }
+
+        /// <summary>
+        /// Gives a nominated achievement with no trophy type the platinum's, as an authored auto
+        /// capstone has, in the game's custom data. A type the achievement has, or a None the user
+        /// chose, is kept.
+        /// </summary>
+        private void LabelPlatinum(Guid gameId, AchievementDetail achievement)
+        {
+            if (achievement == null || !string.IsNullOrWhiteSpace(achievement.TrophyType) || achievement.IsCustom)
+            {
+                return;
+            }
+
+            var overrides = _store?.LoadOrDefault(gameId)?.AchievementOverrides;
+            if (overrides != null &&
+                overrides.TryGetValue(achievement.ApiName, out var existing) &&
+                existing?.ClearTrophyType == true)
+            {
+                return;
+            }
+
+            _overridesService.SetAchievementFieldOverride(
+                gameId,
+                achievement.ApiName,
+                AchievementEditableField.TrophyType,
+                AutoCapstoneTemplate.PlatinumTrophyType);
         }
 
         /// <summary>
@@ -380,6 +408,8 @@ namespace PlayniteAchievements.Services.Achievements
                 _logger?.Warn($"[AutoCapstone] Could not nominate {match.ApiName} for gameId={gameId}; its auto capstone stays.");
                 return false;
             }
+
+            LabelPlatinum(gameId, match);
 
             _overridesService.SetCustomAchievements(
                 gameId,
