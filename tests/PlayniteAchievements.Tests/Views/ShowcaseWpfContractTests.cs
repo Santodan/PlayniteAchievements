@@ -195,7 +195,11 @@ namespace PlayniteAchievements.Tests.Views
                 localization,
                 "LOCPlayAch_Showcase_PointsGrouping_",
                 value => value != ShowcasePointsGrouping.Game);
-            AssertEnumKeys<ShowcaseMosaicSource>(localization, "LOCPlayAch_Showcase_MosaicSource_");
+            // The mosaic's All shares the achievement grid's All label.
+            AssertEnumKeys<ShowcaseMosaicSource>(
+                localization,
+                "LOCPlayAch_Showcase_MosaicSource_",
+                value => value != ShowcaseMosaicSource.All);
 
             AssertEnumKeys<ShowcaseAchievementGridSource>(
                 localization,
