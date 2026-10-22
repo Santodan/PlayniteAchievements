@@ -1045,13 +1045,6 @@ namespace PlayniteAchievements.Services.Showcase
             IEnumerable<GameSummaryItem> games;
             switch (ShowcaseWidgetOptions.GetGameMosaicSource(instance))
             {
-                case ShowcaseGameMosaicSource.All:
-                    games = ShowsGameCollectionInPinOrder(instance, collection)
-                        ? ResolvePinnedGameSummaries(summaries, collection.GameIds)
-                        : summaries
-                            .Where(game => game != null)
-                            .OrderByDescending(game => game.LastUnlockUtc ?? DateTime.MinValue);
-                    break;
                 case ShowcaseGameMosaicSource.PlayniteFavorites:
                     games = summaries
                         .Where(game => game?.IsFavorite == true)
@@ -1061,9 +1054,11 @@ namespace PlayniteAchievements.Services.Showcase
                     games = ResolveFinishNextGames(summaries, instance);
                     break;
                 default:
-                    games = summaries
-                        .Where(game => game?.IsCompleted == true)
-                        .OrderByDescending(game => game.LastUnlockUtc ?? DateTime.MinValue);
+                    games = ShowsGameCollectionInPinOrder(instance, collection)
+                        ? ResolvePinnedGameSummaries(summaries, collection.GameIds)
+                        : summaries
+                            .Where(game => game != null)
+                            .OrderByDescending(game => game.LastUnlockUtc ?? DateTime.MinValue);
                     break;
             }
 
