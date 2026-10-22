@@ -8064,7 +8064,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 // A row without tags reads None, since a button needs a label. Except on the bulk
                 // proxy, where a blank effective value means the selection disagrees and the button
                 // has to stay empty rather than claim they all have none.
-                var text = AchievementTagHelper.ToDisplayText(EffectiveTagsValue, _gameId);
+                var text = AchievementTagHelper.ToDisplayText(EffectiveTagsValue, _gameId, includeHidden: true);
                 if (!string.IsNullOrWhiteSpace(text))
                 {
                     return text;
