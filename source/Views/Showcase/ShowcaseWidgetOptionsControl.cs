@@ -33,6 +33,10 @@ namespace PlayniteAchievements.Views.Showcase
         private DebouncedSettingsPersist _gridOptionsPersist;
         private FrameworkElement _scoreBarRows;
 
+        // The control bar items' show checkboxes, which only apply while the widget shows its
+        // control bar. Their filters apply either way, so the editors beside them stay enabled.
+        private readonly List<FrameworkElement> _controlBarItemRows = new List<FrameworkElement>();
+
         /// <param name="includeScoreHistory">
         /// False for a score card with no history chart (the Overview header's cards), which drops
         /// the history toggle and range.
@@ -884,16 +888,45 @@ namespace PlayniteAchievements.Views.Showcase
             return rows;
         }
 
+        // The widget's Show Control Bar switch, heading the item rows: off shows no bar, on shows
+        // the items checked below it.
         private void AddControlBarHeader(Panel panel)
         {
-            var header = new TextBlock
+            var label = new TextBlock
             {
                 Text = Localize("LOCPlayAch_Settings_ShowGridControlBar"),
                 FontWeight = FontWeights.SemiBold
             };
-            header.SetResourceReference(TextBlock.ForegroundProperty, "PlayAch.Brush.Text");
+            label.SetResourceReference(TextBlock.ForegroundProperty, "PlayAch.Brush.Text");
+            var header = new CheckBox
+            {
+                Content = label,
+                IsChecked = ShowcaseWidgetOptions.GetShowControlBar(_settings, LegacyControlBarVisible())
+            };
             header.SetResourceReference(MarginProperty, "PlayAch.Thickness.Bottom.Sm");
+            void Commit()
+            {
+                ShowcaseWidgetOptions.SetShowControlBar(_settings, header.IsChecked == true);
+                ApplyControlBarItemRows();
+                _persist?.Invoke();
+                if (_publishChanges)
+                {
+                    ShowcaseConfigurationEvents.RaiseChanged();
+                }
+            }
+
+            header.Checked += (_, __) => Commit();
+            header.Unchecked += (_, __) => Commit();
             panel.Children.Add(header);
+        }
+
+        private void ApplyControlBarItemRows()
+        {
+            var shown = ShowcaseWidgetOptions.GetShowControlBar(_settings, LegacyControlBarVisible());
+            foreach (var row in _controlBarItemRows)
+            {
+                row.IsEnabled = shown;
+            }
         }
 
         private FrameworkElement AddControlBarItemRow(Panel panel, string itemId, string label, FrameworkElement editor)
@@ -911,7 +944,7 @@ namespace PlayniteAchievements.Views.Showcase
             var checkBox = new CheckBox
             {
                 Content = labelBlock,
-                IsChecked = ShowcaseWidgetOptions.GetControlBarItemVisible(_settings, itemId, LegacyControlBarVisible()),
+                IsChecked = ShowcaseWidgetOptions.GetControlBarItemChecked(_settings, itemId),
                 VerticalAlignment = VerticalAlignment.Center,
                 Margin = new Thickness(0, 0, 8, 0)
             };
@@ -936,6 +969,8 @@ namespace PlayniteAchievements.Views.Showcase
             }
 
             panel.Children.Add(row);
+            _controlBarItemRows.Add(checkBox);
+            checkBox.IsEnabled = ShowcaseWidgetOptions.GetShowControlBar(_settings, LegacyControlBarVisible());
             return row;
         }
 
