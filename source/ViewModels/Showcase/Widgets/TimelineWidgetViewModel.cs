@@ -201,6 +201,10 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
             ControlBar = _controlBarSlot.ShownBar;
 
             var adapter = _controlBarSlot.Adapter;
+            // Rarity and trophy describe unlocks, so they hide while the bars count completions.
+            var countsUnlocks = !CountsCompletions;
+            adapter.TierFilters.RarityItem.IsVisible = countsUnlocks;
+            adapter.TierFilters.TrophyItem.IsVisible = countsUnlocks;
             var games = (snapshot.GameSummaries ?? new List<GameSummaryItem>())
                 .Where(game => game != null)
                 .ToList();
