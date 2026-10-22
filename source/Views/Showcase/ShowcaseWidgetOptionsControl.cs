@@ -347,21 +347,16 @@ namespace PlayniteAchievements.Views.Showcase
 
                     var unlockNextRows = new List<FrameworkElement>();
                     var achievementSortRows = new List<FrameworkElement>();
-                    AddChoice(
+                    AddToggle(
                         achievementMosaicPanel,
-                        Localize("LOCSourceLabel"),
-                        new[]
+                        MosaicSourceName(ShowcaseMosaicSource.UnlockNext),
+                        ShowcaseWidgetOptions.GetMosaicSource(_settings) == ShowcaseMosaicSource.UnlockNext,
+                        unlockNext =>
                         {
-                            ShowcaseMosaicSource.All,
-                            ShowcaseMosaicSource.UnlockNext
-                        },
-                        ShowcaseWidgetOptions.GetMosaicSource(_settings),
-                        value =>
-                        {
+                            var value = unlockNext ? ShowcaseMosaicSource.UnlockNext : ShowcaseMosaicSource.All;
                             ShowcaseWidgetOptions.SetMosaicSource(_settings, value);
                             ApplyUnlockNextVisibility(unlockNextRows, achievementSortRows, value);
-                        },
-                        MosaicSourceName);
+                        });
 
                     // Unlock Next ranks during selection, so its criterion replaces the generic
                     // sort rows rather than stacking with them.
@@ -649,21 +644,16 @@ namespace PlayniteAchievements.Views.Showcase
                     // The collapsed Achievements Grid: every achievement, or the Unlock Next
                     // candidates; a collection limits either.
                     var achievementGridUnlockNextRows = new List<FrameworkElement>();
-                    AddChoice(
+                    AddToggle(
                         panel,
-                        Localize("LOCSourceLabel"),
-                        new[]
+                        AchievementGridSourceName(ShowcaseAchievementGridSource.UnlockNext),
+                        ShowcaseWidgetOptions.GetAchievementGridSource(_settings) == ShowcaseAchievementGridSource.UnlockNext,
+                        unlockNext =>
                         {
-                            ShowcaseAchievementGridSource.All,
-                            ShowcaseAchievementGridSource.UnlockNext
-                        },
-                        ShowcaseWidgetOptions.GetAchievementGridSource(_settings),
-                        value =>
-                        {
+                            var value = unlockNext ? ShowcaseAchievementGridSource.UnlockNext : ShowcaseAchievementGridSource.All;
                             ShowcaseWidgetOptions.SetAchievementGridSource(_settings, value);
                             ApplyAchievementGridSourceRows(achievementGridUnlockNextRows, value);
-                        },
-                        AchievementGridSourceName);
+                        });
                     achievementGridUnlockNextRows.AddRange(AddUnlockNextOptions(panel));
                     ApplyAchievementGridSourceRows(
                         achievementGridUnlockNextRows,
