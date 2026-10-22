@@ -136,11 +136,15 @@ namespace PlayniteAchievements.Models.Settings
 
     // 2 was Pinned, now the Recent source with an achievement collection; a stored "Pinned" no
     // longer parses (ShowcaseWidgetOptions.GetCollectionType reads it as that collection).
+    // 1 was Rarest and 3 Capstones, now All sorted by rarity and All with the bar's Capstone
+    // filter (ShowcaseWidgetOptions.MigrateAchievementMosaicSource).
     public enum ShowcaseMosaicSource
     {
-        Recent = 0,
-        Rarest = 1,
-        Capstones = 3,
+        /// <summary>
+        /// Every unlocked achievement, newest first; with an achievement collection, that
+        /// collection's pins in pin order.
+        /// </summary>
+        All = 0,
 
         /// <summary>
         /// Locked achievements worth hunting next. Unlike every other source these rows are not in
