@@ -109,8 +109,11 @@ namespace PlayniteAchievements.Views.Controls
                 var searchWidth = hasSearch ? Math.Max(0, finalSize.Width - leading.Width - items.Width) : 0;
                 Leading?.Arrange(new Rect(0, 0, leading.Width, height));
                 Search?.Arrange(new Rect(leading.Width, 0, searchWidth, height));
-                // Right-aligned, as the auto column of a grid would place it.
-                Items?.Arrange(new Rect(Math.Max(0, finalSize.Width - items.Width), 0, items.Width, height));
+                // Right-aligned beside the search box, as the auto column of a grid would place it;
+                // with no search box (a grid's Display Settings can hide it) they follow the
+                // leading items instead of leaving its space empty.
+                var itemsLeft = hasSearch ? Math.Max(0, finalSize.Width - items.Width) : leading.Width;
+                Items?.Arrange(new Rect(itemsLeft, 0, items.Width, height));
                 return finalSize;
             }
 
