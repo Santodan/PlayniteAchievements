@@ -75,8 +75,12 @@ namespace PlayniteAchievements.Views.Showcase
                 ? Localize("LOCPlayAch_Column_Game")
                 : EnumValueName("LOCPlayAch_Showcase_PointsGrouping_", value);
 
+        // All shares the achievement grid's label; Unlock Next is the mosaic's own string, which
+        // the grid shares in turn.
         public static string MosaicSourceName(ShowcaseMosaicSource value) =>
-            EnumValueName("LOCPlayAch_Showcase_MosaicSource_", value);
+            value == ShowcaseMosaicSource.UnlockNext
+                ? EnumValueName("LOCPlayAch_Showcase_MosaicSource_", value)
+                : Localize("LOCPlayAch_Showcase_AchievementGridSource_All");
 
         // Closest to completion and easiest share the Unlock Next labels; only Fewest remaining is
         // its own string.
