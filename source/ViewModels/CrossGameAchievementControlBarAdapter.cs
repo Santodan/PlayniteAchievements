@@ -65,47 +65,12 @@ namespace PlayniteAchievements.ViewModels
         // Rarity and Trophy, which the Timeline's bar shares.
         private readonly RarityTrophyControlBarFilters _tierFilters;
 
-        private readonly HashSet<string> _tags = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-
-        // The rows of the last filter pass, which the tag options read the picked games' own tags from.
+        // Tags, which the game, chart and pie bars share. Its options read the picked games' own
+        // tags from the rows of the last filter pass.
+        private readonly TagControlBarFilter _tagFilter;
         private IReadOnlyList<AchievementDisplayItem> _tagOptionRows = Array.Empty<AchievementDisplayItem>();
 
-        /// <summary>
-        /// The tags offered: the global tags with no game picked, a picked game's tags (global, its
-        /// own, and the implicit ones its rows carry), or the tags every picked game has.
-        /// </summary>
-        public IReadOnlyList<string> TagOptions =>
-            AchievementTagScope.OptionKeys(
-                GameFilter.SelectedGameIds,
-                gameId => _tagOptionRows
-                    .Where(row => row?.PlayniteGameId == gameId)
-                    .SelectMany(row => AchievementTagHelper.GetComponents(row.Tags)));
-
-        public string SelectedTagText
-        {
-            get
-            {
-                var names = _tags.Select(GetTagName).OrderBy(name => name, StringComparer.CurrentCultureIgnoreCase).ToList();
-                return names.Count == 0 ? ResourceProvider.GetString("LOCTagsLabel") : string.Join(", ", names);
-            }
-        }
-
-        // A per-game tag resolves its name only on its game, so a picked game names them.
-        private string GetTagName(string key) =>
-            AchievementTagRegistry.GetName(key, AchievementTagScope.NamingGame(GameFilter.SelectedGameIds));
-
-        private bool IsTagSelected(string key) => key != null && _tags.Contains(key);
-
-        private void SetTagSelected(string key, bool selected)
-        {
-            if (string.IsNullOrWhiteSpace(key) || !(selected ? _tags.Add(key.Trim()) : _tags.Remove(key.Trim())))
-            {
-                return;
-            }
-
-            OnPropertyChanged(nameof(SelectedTagText));
-            RaiseFilterChanged();
-        }
+        public IReadOnlyList<string> TagOptions => _tagFilter.TagOptions;
 
         /// <summary>Raised for the range item; its from and to change together.</summary>
         public string UnlockedRangeKey => (_unlockedFrom?.Ticks ?? 0) + "-" + (_unlockedTo?.Ticks ?? 0);
@@ -128,6 +93,12 @@ namespace PlayniteAchievements.ViewModels
         public CrossGameAchievementControlBarAdapter()
         {
             _tierFilters = new RarityTrophyControlBarFilters(RaiseFilterChanged);
+            _tagFilter = new TagControlBarFilter(
+                RaiseFilterChanged,
+                () => GameFilter.SelectedGameIds,
+                gameId => _tagOptionRows
+                    .Where(row => row?.PlayniteGameId == gameId)
+                    .SelectMany(row => AchievementTagHelper.GetComponents(row.Tags)));
             ControlBar = CreateControlBar();
         }
 
@@ -209,11 +180,11 @@ namespace PlayniteAchievements.ViewModels
                 SearchText = SearchText,
                 Platforms = CapturePlatformSelections(ProviderFilterGroups),
                 Games = GameFilter.Capture(),
-                Tags = _tags.Count > 0 ? _tags.ToList() : null,
                 UnlockedFrom = _unlockedFrom,
                 UnlockedTo = _unlockedTo
             };
             _tierFilters.Capture(state);
+            _tagFilter.Capture(state);
             return state;
         }
 
@@ -228,16 +199,7 @@ namespace PlayniteAchievements.ViewModels
             OnPropertyChanged(nameof(SearchText));
             PendingPlatformSelections = state.Platforms;
             GameFilter.Restore(state.Games);
-            _tags.Clear();
-            foreach (var tag in state.Tags ?? new List<string>())
-            {
-                if (!string.IsNullOrWhiteSpace(tag))
-                {
-                    _tags.Add(tag.Trim());
-                }
-            }
-
-            OnPropertyChanged(nameof(SelectedTagText));
+            _tagFilter.Restore(state);
             _unlockedFrom = state.UnlockedFrom?.Date;
             _unlockedTo = state.UnlockedTo?.Date;
             OnPropertyChanged(nameof(UnlockedRangeKey));
@@ -249,7 +211,7 @@ namespace PlayniteAchievements.ViewModels
             SearchQuery.From(SearchText).HasValue ||
             (ProviderFilterGroups ?? Enumerable.Empty<ProviderFilterGroup>()).Any(group => group?.HasAnySelected == true) ||
             GameFilter.HasSelection ||
-            _tags.Count > 0 ||
+            _tagFilter.HasSelection ||
             _unlockedFrom.HasValue ||
             _unlockedTo.HasValue ||
             _tierFilters.HasSelection;
@@ -288,9 +250,9 @@ namespace PlayniteAchievements.ViewModels
             }
 
             _tagOptionRows = items;
-            if (_tags.Count > 0)
+            if (_tagFilter.HasSelection)
             {
-                filtered = filtered.Where(item => _tags.Any(tag => AchievementTagHelper.Contains(item.Tags, tag)));
+                filtered = filtered.Where(_tagFilter.MatchesRow);
             }
 
             if (_tierFilters.HasSelection)
@@ -366,21 +328,7 @@ namespace PlayniteAchievements.ViewModels
                 Width = 170
             });
             controlBar.Items.Add(GameFilter.Item);
-            controlBar.Items.Add(new GridMultiSelectFilter(
-                this,
-                nameof(SelectedTagText),
-                () => SelectedTagText,
-                () => TagOptions,
-                IsTagSelected,
-                SetTagSelected,
-                GetTagName)
-            {
-                Id = ShowcaseControlBarItems.Tag,
-                LabelKey = "LOCTagsLabel",
-                // The options follow the picked games, so the item stays shown while they change.
-                AutoHideWhenUnavailable = false,
-                Width = 150
-            });
+            controlBar.Items.Add(_tagFilter.Item);
             _unlockDateItem = new GridDateRangeFilter(
                 this,
                 nameof(UnlockedRangeKey),
