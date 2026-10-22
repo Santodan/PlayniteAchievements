@@ -580,10 +580,9 @@ namespace PlayniteAchievements.Views.Showcase
                     AddAlignmentChoices(panel);
                     break;
                 case ShowcaseWidgetKind.GameSummaries:
-                    // The collapsed Game Summaries Grid: library scope filters only apply to
-                    // the Library source, so their rows hide for the favorites and Finish Next sources.
+                    // The collapsed Game Summaries Grid: progress and activity are its control
+                    // bar's filters.
                     FrameworkElement gameGridFinishNextOptions = null;
-                    var gameGridLibraryPanel = new StackPanel();
                     AddChoice(
                         panel,
                         Localize("LOCSourceLabel"),
@@ -603,10 +602,6 @@ namespace PlayniteAchievements.Views.Showcase
                                     ? Visibility.Visible
                                     : Visibility.Collapsed;
                             }
-
-                            gameGridLibraryPanel.Visibility = value == ShowcaseGameGridSource.Library
-                                ? Visibility.Visible
-                                : Visibility.Collapsed;
                         },
                         GameGridSourceName);
                     // Finish Next's options, the same set as on the Finish Next game mosaic.
@@ -615,28 +610,6 @@ namespace PlayniteAchievements.Views.Showcase
                         ShowcaseWidgetOptions.GetGameGridSource(_settings) == ShowcaseGameGridSource.FinishNext
                             ? Visibility.Visible
                             : Visibility.Collapsed;
-                    panel.Children.Add(gameGridLibraryPanel);
-                    gameGridLibraryPanel.Visibility =
-                        ShowcaseWidgetOptions.GetGameGridSource(_settings) == ShowcaseGameGridSource.Library
-                            ? Visibility.Visible
-                            : Visibility.Collapsed;
-                    AddChoice(
-                        gameGridLibraryPanel,
-                        Localize("LOCPlayAch_Filter_ActivitySelectorPlaceholder"),
-                        new[]
-                        {
-                            GameActivityScope.All,
-                            GameActivityScope.Played,
-                            GameActivityScope.Unplayed
-                        },
-                        ShowcaseWidgetOptions.GetGameActivityScope(_settings),
-                        value => ShowcaseWidgetOptions.SetGameActivityScope(_settings, value),
-                        ActivityScopeName);
-                    AddToggle(
-                        gameGridLibraryPanel,
-                        Localize("LOCPlayAch_Showcase_HideCompleted"),
-                        ShowcaseWidgetOptions.GetHideCompleted(_settings),
-                        value => ShowcaseWidgetOptions.SetHideCompleted(_settings, value));
                     AddCollectionChoice(panel, includeAchievementCollections: false);
                     AddControlBarRows<GameSummaryGridControlBarAdapter>(panel);
                     break;
@@ -1429,19 +1402,6 @@ namespace PlayniteAchievements.Views.Showcase
                     return Localize("LOCNameLabel");
                 default:
                     return Localize("LOCDefault");
-            }
-        }
-
-        private static string ActivityScopeName(GameActivityScope value)
-        {
-            switch (value)
-            {
-                case GameActivityScope.Played:
-                    return Localize("LOCPlayAch_Filter_Played");
-                case GameActivityScope.Unplayed:
-                    return Localize("LOCPlayAch_Filter_Unplayed");
-                default:
-                    return Localize("LOCAll");
             }
         }
 
