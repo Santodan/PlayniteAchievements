@@ -294,7 +294,9 @@
                                          ItemContainerStyle="{StaticResource AchievementMultiSelectMenuItemStyle}"/>
                         </Button.ContextMenu>
                     </Button>
-                    <!-- The picked options' badges, in place of their names, where the text sits. -->
+                    <!-- The picked options' badges, comma separated, in place of their names, where
+                         the text sits. -->
+
                     <ItemsControl ItemsSource="{Binding SelectedIconKeys}"
                                   IsHitTestVisible="False"
                                   Margin="10,0,20,0"
@@ -309,11 +311,28 @@
                         </ItemsControl.ItemsPanel>
                         <ItemsControl.ItemTemplate>
                             <DataTemplate>
-                                <Image helpers:ImageResourceKey.Key="{Binding}"
-                                       Width="16"
-                                       Height="16"
-                                       Margin="0,0,3,0"
-                                       Stretch="Uniform"/>
+                                <StackPanel Orientation="Horizontal">
+                                    <!-- A comma before every badge but the first. -->
+                                    <TextBlock Text=","
+                                               Margin="0,0,4,0"
+                                               VerticalAlignment="Bottom"
+                                               Foreground="{DynamicResource PlayAch.Brush.Text}">
+                                        <TextBlock.Style>
+                                            <Style TargetType="TextBlock">
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding RelativeSource={RelativeSource PreviousData}}" Value="{x:Null}">
+                                                        <Setter Property="Visibility" Value="Collapsed"/>
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </TextBlock.Style>
+                                    </TextBlock>
+                                    <Image helpers:ImageResourceKey.Key="{Binding}"
+                                           Width="16"
+                                           Height="16"
+                                           Stretch="Uniform"
+                                           VerticalAlignment="Center"/>
+                                </StackPanel>
                             </DataTemplate>
                         </ItemsControl.ItemTemplate>
                     </ItemsControl>
