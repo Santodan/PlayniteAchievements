@@ -152,6 +152,18 @@ namespace PlayniteAchievements.Views.Showcase
                     AddScoreCardOptions(panel);
                     break;
                 case ShowcaseWidgetKind.Pie:
+                    // The bar's Tags item picks a Tag pie's slices; no other mode has it.
+                    FrameworkElement pieTagRow = null;
+                    void ApplyPieTagRow(ShowcasePieMode mode)
+                    {
+                        if (pieTagRow != null)
+                        {
+                            pieTagRow.Visibility = mode == ShowcasePieMode.Tag
+                                ? Visibility.Visible
+                                : Visibility.Collapsed;
+                        }
+                    }
+
                     AddChoice(
                         panel,
                         Localize("LOCPlayAch_Showcase_Mode"),
@@ -164,7 +176,11 @@ namespace PlayniteAchievements.Views.Showcase
                             ShowcasePieMode.Tag
                         },
                         ShowcaseWidgetOptions.GetPieMode(_settings),
-                        value => ShowcaseWidgetOptions.SetPieMode(_settings, value),
+                        value =>
+                        {
+                            ShowcaseWidgetOptions.SetPieMode(_settings, value);
+                            ApplyPieTagRow(value);
+                        },
                         PieModeName);
                     AddChoice(
                         panel,
@@ -213,7 +229,9 @@ namespace PlayniteAchievements.Views.Showcase
                         value => ShowcaseWidgetOptions.SetPieSmallSliceMode(_settings, value),
                         SmallSliceModeName);
                     AddCollectionChoice(panel, includeAchievementCollections: false);
-                    AddControlBarRows<PieControlBarAdapter>(panel);
+                    AddControlBarRows<PieControlBarAdapter>(panel)
+                        .TryGetValue(ShowcaseControlBarItems.Tag, out pieTagRow);
+                    ApplyPieTagRow(ShowcaseWidgetOptions.GetPieMode(_settings));
                     break;
                 case ShowcaseWidgetKind.Timeline:
                     AddRangeChoice(panel);
@@ -837,14 +855,15 @@ namespace PlayniteAchievements.Views.Showcase
         /// the widget's bar holds, so a filter set here applies to the widget at once, whether or
         /// not the bar shows it, and is saved by the bar's own state store.
         /// </summary>
-        private void AddControlBarRows<TAdapter>(Panel panel)
+        private Dictionary<string, FrameworkElement> AddControlBarRows<TAdapter>(Panel panel)
             where TAdapter : SharedControlBarAdapter, new()
         {
+            var rows = new Dictionary<string, FrameworkElement>(StringComparer.OrdinalIgnoreCase);
             var adapter = ShowcaseControlBarStates.Get<TAdapter>(_settings.InstanceId);
             var entries = adapter.Entries;
             if (entries.Count == 0)
             {
-                return;
+                return rows;
             }
 
             AddControlBarHeader(panel);
@@ -866,8 +885,10 @@ namespace PlayniteAchievements.Views.Showcase
                     ShowControlBar = true,
                     HorizontalAlignment = HorizontalAlignment.Left
                 };
-                AddControlBarItemRow(panel, entry.Id, Localize(entry.LabelKey), editor);
+                rows[entry.Id] = AddControlBarItemRow(panel, entry.Id, Localize(entry.LabelKey), editor);
             }
+
+            return rows;
         }
 
         private void AddControlBarHeader(Panel panel)
@@ -882,7 +903,7 @@ namespace PlayniteAchievements.Views.Showcase
             panel.Children.Add(header);
         }
 
-        private void AddControlBarItemRow(Panel panel, string itemId, string label, FrameworkElement editor)
+        private FrameworkElement AddControlBarItemRow(Panel panel, string itemId, string label, FrameworkElement editor)
         {
             var row = new Grid();
             row.SetResourceReference(MarginProperty, "PlayAch.Thickness.Bottom.Md");
@@ -922,6 +943,7 @@ namespace PlayniteAchievements.Views.Showcase
             }
 
             panel.Children.Add(row);
+            return row;
         }
 
         // A grid widget's former whole-bar option lives on its grid surface, not in the widget's
