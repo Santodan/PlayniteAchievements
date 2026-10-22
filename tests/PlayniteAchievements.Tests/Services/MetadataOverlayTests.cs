@@ -522,6 +522,83 @@ namespace PlayniteAchievements.Tests.Services
         }
 
         [TestMethod]
+        public async Task CapstoneArtPlatinum_MatchesTheGamesAchievementByTitle_AndLabelsItPlatinum()
+        {
+            var data = Game("Steam", Row("ACH_MASTER", "Master"), Row("ACH_ONE", "One"));
+            var overlay = await ApplyPlatinumAsync(data, "Master", "Earn every trophy.");
+
+            Assert.AreEqual("ACH_MASTER", overlay.Links.GetCapstoneMatch(data.PlayniteGameId.Value));
+            Assert.AreEqual("platinum", data.Achievements[0].TrophyType);
+            Assert.IsNull(data.Achievements[1].TrophyType);
+        }
+
+        [TestMethod]
+        public async Task CapstoneArtPlatinum_FallsBackToTheDescription()
+        {
+            var all = Row("ACH_ALL", "Completionist");
+            all.Description = "Earn every trophy.";
+            var data = Game("Steam", all, Row("ACH_ONE", "One"));
+            var overlay = await ApplyPlatinumAsync(data, "Master", "Earn every trophy.");
+
+            Assert.AreEqual("ACH_ALL", overlay.Links.GetCapstoneMatch(data.PlayniteGameId.Value));
+            Assert.AreEqual("platinum", all.TrophyType);
+        }
+
+        [TestMethod]
+        public async Task CapstoneArtPlatinum_KeepsAnAchievementsOwnTrophyType()
+        {
+            var master = Row("ACH_MASTER", "Master");
+            master.TrophyType = "gold";
+            var data = Game("Steam", master, Row("ACH_ONE", "One"));
+            var overlay = await ApplyPlatinumAsync(data, "Master", null);
+
+            Assert.AreEqual("ACH_MASTER", overlay.Links.GetCapstoneMatch(data.PlayniteGameId.Value));
+            Assert.AreEqual("gold", master.TrophyType);
+        }
+
+        [TestMethod]
+        public async Task CapstoneArtPlatinum_MatchesNoDlcAchievement()
+        {
+            var data = Game("Steam", Row("ACH_MASTER", "Master", type: "DLC"), Row("ACH_ONE", "One"));
+            var overlay = await ApplyPlatinumAsync(data, "Master", null);
+
+            Assert.IsNull(overlay.Links.GetCapstoneMatch(data.PlayniteGameId.Value));
+            Assert.IsNull(data.Achievements[0].TrophyType);
+        }
+
+        [TestMethod]
+        public async Task CapstoneArtPlatinum_SharedDescription_MatchesNothing()
+        {
+            var first = Row("ACH_A", "A");
+            first.Description = "Earn every trophy.";
+            var second = Row("ACH_B", "B");
+            second.Description = "Earn every trophy.";
+            var data = Game("Steam", first, second, Row("ACH_ONE", "One"));
+            var overlay = await ApplyPlatinumAsync(data, "Master", "Earn every trophy.");
+
+            Assert.IsNull(overlay.Links.GetCapstoneMatch(data.PlayniteGameId.Value));
+        }
+
+        /// <summary>Overlays a PlayStation source used for capstone art: a platinum and a trophy titled "One".</summary>
+        private async Task<MetadataOverlay> ApplyPlatinumAsync(GameAchievementData data, string title, string description)
+        {
+            var playstation = new FakeSource("PlayStation", MetadataField.CapstoneArt);
+            var platinum = Row("p0", title, icon: "https://psn/platinum.png");
+            platinum.TrophyType = "platinum";
+            platinum.Description = description;
+            playstation.Rows.Add(platinum);
+            playstation.Rows.Add(Row("p1", "One", icon: "https://psn/one.png"));
+            var overlay = Overlay(new[] { playstation }, Choices(capstoneArt: "PlayStation"));
+
+            using (var run = overlay.BeginRun())
+            {
+                await run.ApplyAsync(data.Game, data, CancellationToken.None);
+            }
+
+            return overlay;
+        }
+
+        [TestMethod]
         public async Task StoredNoMatch_StopsResolution()
         {
             var playstation = new FakeSource("PlayStation", MetadataField.Icons);
