@@ -224,9 +224,13 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
             _controlBarSlot.UpdateShownBar(Projection?.Instance);
             ControlBar = _controlBarSlot.ShownBar;
 
+            // Only the card's platform earns its points, so the bar lists and filters that
+            // platform's games alone.
             var adapter = _controlBarSlot.Adapter;
+            var family = PointsFamilies.Normalize(type.PointsFamily);
             var games = (source.GameSummaries ?? new List<GameSummaryItem>())
-                .Where(game => game != null)
+                .Where(game => game != null &&
+                               string.Equals(PointsFamilies.Normalize(game.PointsFamily), family, StringComparison.OrdinalIgnoreCase))
                 .ToList();
             adapter.UpdateOptions(games);
             var kept = adapter.Apply(games);
