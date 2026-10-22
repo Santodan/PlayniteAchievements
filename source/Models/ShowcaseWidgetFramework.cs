@@ -340,6 +340,18 @@ namespace PlayniteAchievements.Models
             instance?.SetOption(SplitByPlatformOption, value);
 
         public const string SplitByPlatformOption = "TimelineSplitByPlatform";
+
+        /// <summary>What a Timeline's bars count: unlocks, or games completed.</summary>
+        public static ShowcaseTimelineCount GetCount(ShowcaseWidgetInstanceSettings instance)
+        {
+            var value = instance?.GetOption(CountOption, ShowcaseTimelineCount.Unlocks) ?? ShowcaseTimelineCount.Unlocks;
+            return Enum.IsDefined(typeof(ShowcaseTimelineCount), value) ? value : ShowcaseTimelineCount.Unlocks;
+        }
+
+        public static void SetCount(ShowcaseWidgetInstanceSettings instance, ShowcaseTimelineCount value) =>
+            instance?.SetOption(CountOption, value);
+
+        private const string CountOption = "TimelineCount";
     }
 
     /// <summary>
@@ -784,6 +796,15 @@ namespace PlayniteAchievements.Models
 
         public static void SetPieMode(ShowcaseWidgetInstanceSettings settings, ShowcasePieMode value) =>
             settings?.SetOption(Mode, value);
+
+        /// <summary>What a Provider pie counts per platform; other modes ignore it.</summary>
+        public static ShowcasePieCount GetPieCount(ShowcaseWidgetInstanceSettings settings) =>
+            GetEnum(settings, PieCount, ShowcasePieCount.Achievements);
+
+        public static void SetPieCount(ShowcaseWidgetInstanceSettings settings, ShowcasePieCount value) =>
+            settings?.SetOption(PieCount, value);
+
+        private const string PieCount = "PieCount";
 
         /// <summary>
         /// Falls back to the legacy show-percentage toggle for widgets saved before the center
@@ -1295,7 +1316,55 @@ namespace PlayniteAchievements.Models
         public static ShowcaseGameMosaicSource GetGameMosaicSource(ShowcaseWidgetInstanceSettings settings) =>
             IsLegacyPinnedSource(settings)
                 ? ShowcaseGameMosaicSource.All
-                : GetEnum(settings, Source, ShowcaseGameMosaicSource.Completed);
+                : GetEnum(settings, Source, ShowcaseGameMosaicSource.All);
+
+        /// <summary>
+        /// Turns a game mosaic on the former Completed source into the All source with its Progress
+        /// filter on Complete, which lists the same games in the same order. Completed was also
+        /// what a game mosaic showed for any source value that is not a game source (unset, or an
+        /// achievement mosaic's), so those move too. True when the widget changed.
+        /// </summary>
+        public static bool MigrateCompletedGameMosaic(ShowcaseWidgetInstanceSettings settings)
+        {
+            if (settings?.Kind != ShowcaseWidgetKind.IconMosaic ||
+                GetMosaicContent(settings) != ShowcaseMosaicContent.Games ||
+                IsLegacyPinnedSource(settings))
+            {
+                return false;
+            }
+
+            string raw = null;
+            settings.Options?.TryGetValue(Source, out raw);
+            if (Enum.TryParse(raw?.Trim(), true, out ShowcaseGameMosaicSource current) &&
+                Enum.IsDefined(typeof(ShowcaseGameMosaicSource), current))
+            {
+                return false;
+            }
+
+            settings.SetOption(Source, ShowcaseGameMosaicSource.All);
+            Newtonsoft.Json.Linq.JObject state = null;
+            if (settings.Options.TryGetValue(GameControlBarStateKey, out var stateJson) &&
+                !string.IsNullOrWhiteSpace(stateJson))
+            {
+                try
+                {
+                    state = Newtonsoft.Json.Linq.JObject.Parse(stateJson);
+                }
+                catch (Newtonsoft.Json.JsonException)
+                {
+                    state = null;
+                }
+            }
+
+            state = state ?? new Newtonsoft.Json.Linq.JObject();
+            // The first Progress option is Complete.
+            state["Progress"] = new Newtonsoft.Json.Linq.JArray(0);
+            settings.Options[GameControlBarStateKey] = state.ToString(Newtonsoft.Json.Formatting.None);
+            return true;
+        }
+
+        // The game control bar's saved state (GameSummaryGridControlBarAdapter.StateKey).
+        private const string GameControlBarStateKey = ControlBarStatePrefix + "Games";
 
         public static void SetGameMosaicSource(
             ShowcaseWidgetInstanceSettings settings,
