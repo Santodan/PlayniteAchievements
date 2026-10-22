@@ -71,6 +71,25 @@ namespace PlayniteAchievements.Models.Settings
         Tag = 4
     }
 
+    /// <summary>What a Provider pie's slices count.</summary>
+    public enum ShowcasePieCount
+    {
+        /// <summary>Unlocked achievements per platform, then the locked ones.</summary>
+        Achievements = 0,
+
+        /// <summary>Completed games per platform, then the games not completed.</summary>
+        CompletedGames = 1
+    }
+
+    /// <summary>What a Timeline's bars count.</summary>
+    public enum ShowcaseTimelineCount
+    {
+        Unlocks = 0,
+
+        /// <summary>Games completed, each on the day it was completed.</summary>
+        Completions = 1
+    }
+
     /// <summary>
     /// Which counts the profile medal row shows. Trophy replaces the rarity tiers and the
     /// completions medal outright rather than adding to them, so a PlayStation-shaped library
@@ -260,16 +279,17 @@ namespace PlayniteAchievements.Models.Settings
         Bottom = 3
     }
 
-    // 2 was Pinned, now the All source with a game collection.
+    // 0 was Completed, now the All source with the bar's Progress filter on Complete
+    // (ShowcaseWidgetOptions.MigrateCompletedGameMosaic). 2 was Pinned, now the All source with a
+    // game collection.
     public enum ShowcaseGameMosaicSource
     {
-        Completed = 0,
         All = 1,
         PlayniteFavorites = 3,
 
         /// <summary>
         /// The unfinished games closest to being finished: the games counterpart of
-        /// <see cref="ShowcaseMosaicSource.UnlockNext"/>, and the inverse of Completed.
+        /// <see cref="ShowcaseMosaicSource.UnlockNext"/>.
         /// </summary>
         FinishNext = 4
     }
