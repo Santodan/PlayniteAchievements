@@ -45,7 +45,8 @@ namespace PlayniteAchievements.ViewModels
                 Id = ShowcaseControlBarItems.Tag,
                 LabelKey = "LOCTagsLabel",
                 AutoHideWhenUnavailable = false,
-                Width = 150
+                Width = 150,
+                IconKeyOf = key => IconKey(key, AchievementTagScope.NamingGame(_pickedGames?.Invoke() ?? Array.Empty<Guid>()))
             };
         }
 
@@ -102,6 +103,20 @@ namespace PlayniteAchievements.ViewModels
             }
 
             OnPropertyChanged(nameof(SelectedTagText));
+        }
+
+        /// <summary>
+        /// A tag's badge key: its icon font codepoint in its color, as the Tag pie draws it
+        /// ("TagIcon:<codepoint>|<color>", the prefix being ProviderIconConverter.TagIconPrefix,
+        /// with an empty color drawing in the text color); null for a tag without an icon.
+        /// </summary>
+        public static string IconKey(string key, Guid? gameId)
+        {
+            var definition = AchievementTagRegistry.Resolve(key, gameId);
+            var icon = AchievementTagHelper.NormalizeIcon(definition?.Icon);
+            return icon == null
+                ? null
+                : "TagIcon:" + icon + "|" + (AchievementTagHelper.NormalizeColor(definition?.Color) ?? string.Empty);
         }
 
         /// <summary>The tags' names, which the picked games resolve when exactly one is picked.</summary>
