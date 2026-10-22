@@ -140,7 +140,7 @@ namespace PlayniteAchievements.Views.Showcase
             _transport = BuildTransport();
             _captionBar = BuildCaptionBar();
             _controlBarSlot = new ShowcaseControlBarSlot<SlideshowControlBarAdapter>(OnBarFilterChanged);
-            _barControl = new GridControlBarControl { Margin = new Thickness(0, 8, 0, 0) };
+            _barControl = new GridControlBarControl { Margin = new Thickness(0, 0, 0, 8) };
             ApplyShownBar();
             _timer = new DispatcherTimer();
             _timer.Tick += Timer_Tick;
@@ -331,9 +331,12 @@ namespace PlayniteAchievements.Views.Showcase
 
         private UIElement Build()
         {
+            // The control bar on top, then the media, then the caption.
             var root = new Grid();
+            root.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
             root.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
             root.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+            root.Children.Add(_barControl);
 
             var mediaRow = new Grid();
             mediaRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
@@ -395,13 +398,11 @@ namespace PlayniteAchievements.Views.Showcase
             mediaRow.Children.Add(_mediaPair);
             Grid.SetColumn(_next, 2);
             mediaRow.Children.Add(_next);
+            Grid.SetRow(mediaRow, 1);
             root.Children.Add(mediaRow);
 
-            Grid.SetRow(_captionBar, 1);
+            Grid.SetRow(_captionBar, 2);
             root.Children.Add(_captionBar);
-            root.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
-            Grid.SetRow(_barControl, 2);
-            root.Children.Add(_barControl);
             ApplyInfoPanelLayout();
             return root;
         }
