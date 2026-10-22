@@ -1377,9 +1377,6 @@
     <sys:String x:Key="LOCPlayAch_Showcase_PieMode_Trophy">Trophy distribution</sys:String>
     <sys:String x:Key="LOCPlayAch_Showcase_PieMode_Tag">Tag distribution</sys:String>
     <sys:String x:Key="LOCPlayAch_Showcase_PointsGrouping_Provider">Provider or service</sys:String>
-    <sys:String x:Key="LOCPlayAch_Showcase_MosaicSource_Recent">Recent achievements</sys:String>
-    <sys:String x:Key="LOCPlayAch_Showcase_MosaicSource_Rarest">Rarest achievements</sys:String>
-    <sys:String x:Key="LOCPlayAch_Showcase_MosaicSource_Capstones">Capstone achievements</sys:String>
     <sys:String x:Key="LOCPlayAch_Showcase_MosaicSource_UnlockNext">Unlock next</sys:String>
     <sys:String x:Key="LOCPlayAch_Showcase_GameMosaicSource_Completed">Completed games</sys:String>
     <sys:String x:Key="LOCPlayAch_Showcase_GameMosaicSource_All">All games</sys:String>
