@@ -299,6 +299,8 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
                 .ToList();
             adapter.UpdateGames(Projection?.Snapshot?.GameSummaries);
             adapter.GameFilter.SetScope(Projection?.Collection?.GameIds);
+            adapter.LocksRows = Projection?.Instance?.Kind == ShowcaseWidgetKind.RecentAchievements &&
+                ShowcaseWidgetOptions.GetAchievementGridSource(Projection.Instance) == ShowcaseAchievementGridSource.UnlockNext;
             return adapter.Apply(list);
         }
 
