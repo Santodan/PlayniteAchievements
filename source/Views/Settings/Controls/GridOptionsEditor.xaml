@@ -331,6 +331,20 @@
                 <CheckBox Style="{StaticResource OptionCheckBoxStyle}"
                           IsChecked="{Binding CommonOptions.ShowControlBar, ElementName=EditorRoot}"/>
             </HeaderedContentControl>
+            <!-- One row per bar item: unchecked leaves it out of the bar and clears its filter. -->
+            <ItemsControl ItemsSource="{Binding ControlBarItemRows, ElementName=EditorRoot}"
+                          IsEnabled="{Binding CommonOptions.ShowControlBar, ElementName=EditorRoot}"
+                          Visibility="{Binding ShowControlBarRow, ElementName=EditorRoot, Converter={StaticResource BoolToVis}}">
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate>
+                        <HeaderedContentControl Header="{Binding Label}"
+                                                Style="{StaticResource OptionRowStyle}">
+                            <CheckBox Style="{StaticResource OptionCheckBoxStyle}"
+                                      IsChecked="{Binding IsShown, Mode=TwoWay}"/>
+                        </HeaderedContentControl>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
         </StackPanel>
 
         <!-- Achievement category mode row -->
