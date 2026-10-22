@@ -15,6 +15,8 @@ namespace PlayniteAchievements.Services.Achievements
     /// A game is handled once and never again: it gets an authored auto capstone standing for the
     /// whole game, or its own platinum nominated, or, when it already had a capstone, nothing at
     /// all. Whichever it was, the game is marked, so a capstone the user deletes stays deleted.
+    /// The one later change: an authored capstone the user left as written gives way to the game's
+    /// own achievement once a metadata source's platinum matches one.
     /// A game with no provider data yet is left unmarked and looked at again after a later refresh.
     /// What gets written is <see cref="AutoCapstoneAuthoring"/>'s, the same as the editor's button.
     /// </remarks>
@@ -109,8 +111,16 @@ namespace PlayniteAchievements.Services.Achievements
 
             // Checked before hydrating: once the library has been handled, every refresh reaches
             // here for games with the marker, and hydrating each one only to skip it adds up.
+            var matchedCapstone = _authoring.MatchedCapstoneApiName(gameId);
             if (stored?.AutoCapstoneGenerated == true)
             {
+                // A real capstone matched after the game got an authored one takes its place.
+                if (matchedCapstone != null &&
+                    stored.CustomAchievements?.Any(definition => definition?.IsWholeGameAutoCapstone == true && definition.IsAutoCapstone) == true)
+                {
+                    _authoring.ReplaceWithMatchedCapstone(gameId);
+                }
+
                 return;
             }
 
@@ -118,7 +128,8 @@ namespace PlayniteAchievements.Services.Achievements
             var decision = AutoCapstoneEligibility.Decide(
                 false,
                 stored?.CustomAchievements?.Any(definition => definition?.IsAutoCapstone == true) == true,
-                ordered);
+                ordered,
+                matchedCapstone);
 
             switch (decision.Action)
             {
