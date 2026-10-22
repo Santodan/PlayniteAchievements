@@ -777,6 +777,44 @@
         </Setter>
     </Style>
 
+    <!-- The selector drop-down for long option lists: rows are laid out as they scroll into view,
+         still scrolled in pixels like the plain one. -->
+    <Style x:Key="AchievementSelectorVirtualizingContextMenuStyle"
+           TargetType="ContextMenu"
+           BasedOn="{StaticResource AchievementSelectorContextMenuStyle}">
+        <Setter Property="MinWidth" Value="220"/>
+        <Setter Property="VirtualizingPanel.IsVirtualizing" Value="True"/>
+        <Setter Property="VirtualizingPanel.ScrollUnit" Value="Pixel"/>
+        <Setter Property="ItemsPanel">
+            <Setter.Value>
+                <ItemsPanelTemplate>
+                    <VirtualizingStackPanel/>
+                </ItemsPanelTemplate>
+            </Setter.Value>
+        </Setter>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="ContextMenu">
+                    <Border Background="{TemplateBinding Background}"
+                            BorderBrush="{TemplateBinding BorderBrush}"
+                            BorderThickness="1"
+                            CornerRadius="5"
+                            Padding="{TemplateBinding Padding}"
+                            SnapsToDevicePixels="True">
+                        <ScrollViewer VerticalScrollBarVisibility="Auto"
+                                      HorizontalScrollBarVisibility="Disabled"
+                                      CanContentScroll="True"
+                                      MaxHeight="400">
+                            <ItemsPresenter KeyboardNavigation.DirectionalNavigation="Cycle"
+                                            KeyboardNavigation.TabNavigation="Cycle"
+                                            SnapsToDevicePixels="{TemplateBinding SnapsToDevicePixels}"/>
+                        </ScrollViewer>
+                    </Border>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
     <Style x:Key="AchievementContextMenuStyle"
            TargetType="ContextMenu"
            BasedOn="{StaticResource AchievementSelectorContextMenuStyle}">
