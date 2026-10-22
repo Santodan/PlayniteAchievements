@@ -346,6 +346,15 @@
          cumulative score-over-time line under each card outside compact. -->
     <DataTemplate DataType="{x:Type widgets:ScoresWidgetViewModel}">
       <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+        <!-- A points card's platform, game and progress filters over the games it sums. -->
+        <controls:GridControlBarControl Grid.Row="1"
+                                        Margin="0,8,0,0"
+                                        ControlBar="{Binding ControlBar}"
+                                        ShowControlBar="{Binding ShowControlBar}"/>
         <ItemsControl ItemsSource="{Binding Cards}">
             <ItemsControl.ItemsPanel>
                 <ItemsPanelTemplate>
