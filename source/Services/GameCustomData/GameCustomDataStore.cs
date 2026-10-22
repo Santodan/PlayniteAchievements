@@ -620,6 +620,7 @@ namespace PlayniteAchievements.Services.GameCustomData
         public void Delete(Guid playniteGameId)
         {
             _repository.Delete(playniteGameId);
+            _repository.DeleteCapstoneArtRecords(playniteGameId);
             lock (_cacheSync)
             {
                 EnsureCacheCollections();
@@ -630,6 +631,32 @@ namespace PlayniteAchievements.Services.GameCustomData
             _managedCustomIconService?.ClearGameCustomCache(playniteGameId.ToString("D"));
             _notificationImageStore?.DeleteGameImages(playniteGameId);
             RaiseCustomDataChanged(playniteGameId);
+        }
+
+        /// <summary>
+        /// Loads every capstone art record. These rows live beside the per-game payload, are not
+        /// cached by this store, and are not part of portable packages.
+        /// </summary>
+        internal IReadOnlyList<CapstoneArtRecordRow> LoadAllCapstoneArtRecords()
+        {
+            return _repository.LoadAllCapstoneArtRecords();
+        }
+
+        /// <summary>
+        /// Upserts one game's capstone art record for <paramref name="apiName"/>, or deletes it
+        /// when <paramref name="record"/> is null. Raises no change event.
+        /// </summary>
+        internal void SetCapstoneArtRecord(Guid playniteGameId, string apiName, CapstoneArtRecordRow record)
+        {
+            _repository.SetCapstoneArtRecord(playniteGameId, apiName, record);
+        }
+
+        /// <summary>
+        /// Upserts every capstone art record in one transaction. Raises no change event.
+        /// </summary>
+        internal void ImportCapstoneArtRecords(IReadOnlyList<CapstoneArtRecordRow> rows)
+        {
+            _repository.ImportCapstoneArtRecords(rows);
         }
 
         /// <summary>

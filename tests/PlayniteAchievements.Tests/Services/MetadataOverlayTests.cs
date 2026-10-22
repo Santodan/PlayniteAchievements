@@ -956,7 +956,7 @@ namespace PlayniteAchievements.Tests.Services
             return new MetadataOverlay(
                 () => providers,
                 () => settings,
-                new MetadataLinkStore(_directory, new GameCustomDataStore(_directory), null),
+                MetadataTestStores.Links(_directory, new FakeMetadataStateDatabase()),
                 null,
                 downloadCategoryArt,
                 loadStored);

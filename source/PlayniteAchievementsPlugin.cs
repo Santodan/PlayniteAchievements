@@ -89,6 +89,7 @@ namespace PlayniteAchievements
         private readonly FallbackIconStore _fallbackIconStore;
         private readonly ShowcaseImageStore _showcaseImageStore;
         private readonly Services.Metadata.MetadataLinkStore _metadataLinkStore;
+        private readonly Services.Metadata.MetadataStateStore _metadataState;
         private NotificationStylePortableStore _notificationStylePortableStore;
         private NotificationStylePresetStore _notificationStylePresetStore;
         private Services.Workshop.PackagePresetStore _colorPresetStore;
@@ -935,8 +936,12 @@ namespace PlayniteAchievements
                 Views.Converters.ProviderIconConverter.CustomGeometryResolver = id => _customProviderStore?.GetGeometry(id);
                 Views.Converters.ProviderIconConverter.CustomGeometryVersionResolver = id => _customProviderStore?.GetVersion(id) ?? 0;
 
+                // Metadata state lives in the cache database, which exists only later; the store
+                // starts empty and is attached to it below. TrueGaming takes it as a shared service.
+                _metadataState = new Services.Metadata.MetadataStateStore(_logger);
+
                 // Create provider registry
-                _providerRegistry = new ProviderRegistry(settings, ProviderDisplayOrder, _logger, _manualSourceRegistry);
+                _providerRegistry = new ProviderRegistry(settings, ProviderDisplayOrder, _logger, _manualSourceRegistry, _metadataState);
                 _providerRegistry.SyncFromSettings(settings.Persisted);
                 settings.Persisted?.MigrateLegacyProviderFriends();
                 _gameCustomDataStore = _settingsViewModel.GameCustomDataStore;
@@ -945,6 +950,10 @@ namespace PlayniteAchievements
                     id => _customProviderStore.TryGet(id, out var definition) ? definition : null,
                     definition => _customProviderStore.ImportIfMissing(definition));
                 _gameCustomDataStore.AttachGameKeyResolver(ResolvePortableGameKeys);
+                // The metadata folder's capstone art records move into the custom data database
+                // before the state store reads them; the rest of the folder is rebuilt by refreshes.
+                Services.Metadata.MetadataFolderRetirement.Run(pluginUserDataPath, _gameCustomDataStore, _logger);
+                _metadataState.AttachCustomData(_gameCustomDataStore);
                 AchievementTagRegistry.SetGlobal(settings.Persisted?.ResolveAchievementTags());
                 var tagStore = _gameCustomDataStore;
                 AchievementTagRegistry.SetGameResolver(gameId =>
@@ -959,7 +968,7 @@ namespace PlayniteAchievements
                 {
                     providers = _providerRegistry.CreateProviders(settings, PlayniteApi, pluginUserDataPath);
                     _providerRegistry.CreateMetadataProviders(settings, PlayniteApi, pluginUserDataPath);
-                    _metadataLinkStore = new Services.Metadata.MetadataLinkStore(pluginUserDataPath, _gameCustomDataStore, _logger);
+                    _metadataLinkStore = new Services.Metadata.MetadataLinkStore(_gameCustomDataStore, _metadataState, _logger);
                     Services.Achievements.AutoCapstoneTemplate.MetadataArtAccessor = _metadataLinkStore.GetCapstoneArtUrl;
                     Services.Achievements.AutoCapstoneTemplate.MetadataTextAccessor = _metadataLinkStore.GetCapstoneText;
                 }
@@ -1000,6 +1009,7 @@ namespace PlayniteAchievements
                         (gameId, art, ct) => CategoryDefaultArtDownloader.DownloadAsync(_diskImageService, gameId, art, _logger, ct),
                         gameId => _cacheManager?.LoadGameData(gameId.ToString()));
                     _cacheManager = _refreshService.Cache;
+                    _metadataState.AttachDatabase(_cacheManager as Services.Cache.IMetadataStateDatabase);
                     _friendCacheManager = _cacheManager as Services.Friends.IFriendCacheManager;
                     _friendsOverviewDataCoordinator = new FriendsOverviewDataCoordinator(
                         _friendCacheManager,
@@ -3231,6 +3241,9 @@ namespace PlayniteAchievements
                     // Custom achievements alone keep a synthetic row alive, and nothing can
                     // reattach them: a re-added game gets a new id.
                     _gameCustomDataStore?.Delete(game.Id);
+
+                    // The game's metadata rows went with its cache and custom data; drop the copies in memory.
+                    _metadataState?.ForgetGame(game.Id);
                 }
                 catch (Exception ex)
                 {

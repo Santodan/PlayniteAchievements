@@ -4,9 +4,7 @@ using PlayniteAchievements.Models.Settings;
 using PlayniteAchievements.Services.GameCustomData;
 using System;
 using System.Collections.Generic;
-using System.IO;
 using System.Linq;
-using System.Text;
 
 namespace PlayniteAchievements.Services.Metadata
 {
@@ -119,58 +117,35 @@ namespace PlayniteAchievements.Services.Metadata
 
     /// <summary>
     /// Per-game links to metadata sources (a Steam appId, a PlayStation NPWR id), keyed by game and
-    /// source key, plus a local record of what the last overlay applied. Links are stored with the
-    /// game's custom data so they travel with exports and the Workshop; the applied record and the
-    /// capstone art record describe this machine's files and stay in a local file.
+    /// source key. Links are stored with the game's custom data so they travel with exports and the
+    /// Workshop. What the last overlay applied, and the capstone art records, describe this
+    /// machine's files; they are kept by <see cref="MetadataStateStore"/>, which this store reads through.
     /// </summary>
     public sealed class MetadataLinkStore
     {
-        private const string FileName = "links.json";
-        private const int FileVersion = 2;
-
-        private readonly object _sync = new object();
-        private readonly object _fileSync = new object();
 
         // A game's custom data is read, changed and saved whole, so link writes for one game (the
         // overlay's sources answer at the same time) go one at a time or one would be lost.
         private readonly object _writeSync = new object();
         private readonly GameCustomDataStore _customData;
         private readonly ILogger _logger;
-        private readonly string _path;
-        private Dictionary<Guid, MetadataAppliedState> _applied = new Dictionary<Guid, MetadataAppliedState>();
-        private Dictionary<Guid, Dictionary<string, CapstoneArtRecord>> _capstoneArt =
-            new Dictionary<Guid, Dictionary<string, CapstoneArtRecord>>();
-
-        private sealed class AppliedFile
-        {
-            [JsonProperty("version")]
-            public int Version { get; set; } = FileVersion;
-
-            [JsonProperty("applied")]
-            public Dictionary<Guid, MetadataAppliedState> Applied { get; set; }
-
-            [JsonProperty("capstoneArt")]
-            public Dictionary<Guid, Dictionary<string, CapstoneArtRecord>> CapstoneArt { get; set; }
-        }
+        private readonly MetadataStateStore _state;
 
         /// <summary>Raised after a link is added, changed or removed, with the game id.</summary>
         public event Action<Guid> LinkChanged;
 
-        /// <summary>Each source's list and matches from the last overlay; null without a data folder.</summary>
-        public MetadataSourceSnapshotStore Snapshots { get; }
+        /// <summary>Each source's list and matches from the last overlay; null without a state store.</summary>
+        public MetadataSourceSnapshotStore Snapshots => _state?.Snapshots;
 
-        public MetadataLinkStore(string pluginUserDataPath, GameCustomDataStore customData, ILogger logger)
+        /// <param name="state">
+        /// Where the applied state, capstone art records and source lists are kept; the links
+        /// themselves stay in <paramref name="customData"/>.
+        /// </param>
+        internal MetadataLinkStore(GameCustomDataStore customData, MetadataStateStore state, ILogger logger)
         {
             _customData = customData;
+            _state = state;
             _logger = logger;
-            if (!string.IsNullOrWhiteSpace(pluginUserDataPath))
-            {
-                var directory = Path.Combine(pluginUserDataPath, "metadata");
-                Directory.CreateDirectory(directory);
-                _path = Path.Combine(directory, FileName);
-                Snapshots = new MetadataSourceSnapshotStore(directory, logger);
-                Load();
-            }
         }
 
         public bool TryGet(Guid gameId, string sourceKey, out MetadataLinkRecord record)
@@ -381,38 +356,18 @@ namespace PlayniteAchievements.Services.Metadata
         }
 
         /// <summary>The capstone art URL the last overlay recorded for the game, or null.</summary>
-        public string GetCapstoneArtUrl(Guid gameId)
-        {
-            lock (_sync)
-            {
-                return _applied.TryGetValue(gameId, out var state) ? state?.CapstoneArtUrl : null;
-            }
-        }
-
-        /// <summary>The borrowed capstone title and description the last overlay recorded, or nulls.</summary>
-        public (string Title, string Description) GetCapstoneText(Guid gameId)
-        {
-            lock (_sync)
-            {
-                return _applied.TryGetValue(gameId, out var state) && state != null
-                    ? (state.CapstoneTitle, state.CapstoneDescription)
-                    : (null, null);
-            }
-        }
+        public string GetCapstoneArtUrl(Guid gameId) => _state?.GetCapstoneArtUrl(gameId);
 
         /// <summary>ApiName of the game's achievement the last overlay matched to the borrowed capstone, or null.</summary>
-        public string GetCapstoneMatch(Guid gameId)
-        {
-            lock (_sync)
-            {
-                return _applied.TryGetValue(gameId, out var state) ? state?.CapstoneMatchApiName : null;
-            }
-        }
+        public string GetCapstoneMatch(Guid gameId) => _state?.GetCapstoneMatch(gameId);
+
+        /// <summary>The borrowed capstone title and description the last overlay recorded, or nulls.</summary>
+        public (string Title, string Description) GetCapstoneText(Guid gameId) =>
+            _state?.GetCapstoneText(gameId) ?? (null, null);
 
         /// <summary>
         /// Records what an overlay applied to the game. Returns true when the game's icons changed
-        /// since the last record (another icon source, or other achievements borrowing from it, as
-        /// after a pairing), so the caller re-downloads icons kept under the same file names.
+        /// since the last record, so the caller re-downloads icons kept under the same file names.
         /// </summary>
         public bool RecordApplied(
             Guid gameId,
@@ -422,231 +377,32 @@ namespace PlayniteAchievements.Services.Metadata
             IEnumerable<string> iconApiNames = null,
             string capstoneTitle = null,
             string capstoneDescription = null,
-            string capstoneMatchApiName = null)
-        {
-            if (gameId == Guid.Empty)
-            {
-                return false;
-            }
+            string capstoneMatchApiName = null) =>
+            _state?.RecordApplied(gameId, iconSourceKey, capstoneArtUrl, coverage, iconApiNames, capstoneTitle, capstoneDescription, capstoneMatchApiName) ?? false;
 
-            var icon = string.IsNullOrWhiteSpace(iconSourceKey) ? null : iconSourceKey.Trim();
-            var art = string.IsNullOrWhiteSpace(capstoneArtUrl) ? null : capstoneArtUrl.Trim();
-            var title = string.IsNullOrWhiteSpace(capstoneTitle) ? null : capstoneTitle.Trim();
-            var description = string.IsNullOrWhiteSpace(capstoneDescription) ? null : capstoneDescription.Trim();
-            var match = art == null || string.IsNullOrWhiteSpace(capstoneMatchApiName) ? null : capstoneMatchApiName.Trim();
-            var counts = coverage == null || coverage.Count == 0
-                ? null
-                : coverage.ToDictionary(pair => pair.Key, pair => pair.Value, StringComparer.OrdinalIgnoreCase);
-            var borrowed = icon == null
-                ? null
-                : (iconApiNames ?? Enumerable.Empty<string>())
-                    .Where(apiName => !string.IsNullOrWhiteSpace(apiName))
-                    .Distinct(StringComparer.OrdinalIgnoreCase)
-                    .OrderBy(apiName => apiName, StringComparer.OrdinalIgnoreCase)
-                    .ToList();
-            bool iconChanged;
-            lock (_sync)
-            {
-                _applied.TryGetValue(gameId, out var previous);
-                iconChanged = !string.Equals(previous?.IconSourceKey, icon, StringComparison.OrdinalIgnoreCase) ||
-                              !(previous?.IconApiNames ?? new List<string>()).SequenceEqual(borrowed ?? new List<string>(), StringComparer.OrdinalIgnoreCase);
-                if (!iconChanged &&
-                    string.Equals(previous?.CapstoneArtUrl, art, StringComparison.Ordinal) &&
-                    string.Equals(previous?.CapstoneTitle, title, StringComparison.Ordinal) &&
-                    string.Equals(previous?.CapstoneDescription, description, StringComparison.Ordinal) &&
-                    string.Equals(previous?.CapstoneMatchApiName, match, StringComparison.OrdinalIgnoreCase) &&
-                    SameCoverage(previous?.Coverage, counts))
-                {
-                    return false;
-                }
-
-                if (icon == null && art == null && counts == null)
-                {
-                    _applied.Remove(gameId);
-                }
-                else
-                {
-                    _applied[gameId] = new MetadataAppliedState
-                    {
-                        IconSourceKey = icon,
-                        CapstoneArtUrl = art,
-                        CapstoneTitle = art == null ? null : title,
-                        CapstoneDescription = art == null ? null : description,
-                        CapstoneMatchApiName = match,
-                        Coverage = counts,
-                        IconApiNames = borrowed?.Count > 0 ? borrowed : null,
-                        // Still the files' state while the borrowed set is unchanged; a changed set
-                        // overwrites every file anyway.
-                        IconFallbackApiNames = iconChanged ? null : previous?.IconFallbackApiNames
-                    };
-                }
-            }
-
-            Save();
-            return iconChanged;
-        }
+        /// <summary>A copy of what the last overlay applied to the game, or null.</summary>
+        public MetadataAppliedState GetApplied(Guid gameId) => _state?.GetApplied(gameId);
 
         /// <summary>The borrowed icons that fell back to the game's own at the last refresh.</summary>
-        /// <summary>A copy of what the last overlay applied to the game, or null.</summary>
-        public MetadataAppliedState GetApplied(Guid gameId)
-        {
-            lock (_sync)
-            {
-                if (!_applied.TryGetValue(gameId, out var state) || state == null)
-                {
-                    return null;
-                }
+        public IReadOnlyCollection<string> GetIconFallbacks(Guid gameId) =>
+            _state?.GetIconFallbacks(gameId) ?? Array.Empty<string>();
 
-                return new MetadataAppliedState
-                {
-                    IconSourceKey = state.IconSourceKey,
-                    CapstoneArtUrl = state.CapstoneArtUrl,
-                    CapstoneTitle = state.CapstoneTitle,
-                    CapstoneDescription = state.CapstoneDescription,
-                    CapstoneMatchApiName = state.CapstoneMatchApiName,
-                    Coverage = state.Coverage == null ? null : new Dictionary<string, MetadataCoverage>(state.Coverage, StringComparer.OrdinalIgnoreCase),
-                    IconApiNames = state.IconApiNames == null ? null : new List<string>(state.IconApiNames),
-                    IconFallbackApiNames = state.IconFallbackApiNames == null ? null : new List<string>(state.IconFallbackApiNames)
-                };
-            }
-        }
-
-        public IReadOnlyCollection<string> GetIconFallbacks(Guid gameId)
-        {
-            lock (_sync)
-            {
-                return _applied.TryGetValue(gameId, out var state) && state?.IconFallbackApiNames != null
-                    ? state.IconFallbackApiNames.ToList()
-                    : (IReadOnlyCollection<string>)Array.Empty<string>();
-            }
-        }
-
-        /// <summary>
-        /// Records which borrowed icons fell back to the game's own because their download failed,
-        /// returning the ones recorded before.
-        /// </summary>
-        public IReadOnlyCollection<string> ReplaceIconFallbacks(Guid gameId, IEnumerable<string> apiNames)
-        {
-            var next = (apiNames ?? Enumerable.Empty<string>())
-                .Where(apiName => !string.IsNullOrWhiteSpace(apiName))
-                .Distinct(StringComparer.OrdinalIgnoreCase)
-                .OrderBy(apiName => apiName, StringComparer.OrdinalIgnoreCase)
-                .ToList();
-            if (gameId == Guid.Empty)
-            {
-                return Array.Empty<string>();
-            }
-
-            List<string> previous;
-            lock (_sync)
-            {
-                if (!_applied.TryGetValue(gameId, out var state) || state == null)
-                {
-                    return Array.Empty<string>();
-                }
-
-                previous = state.IconFallbackApiNames ?? new List<string>();
-                if (previous.SequenceEqual(next, StringComparer.OrdinalIgnoreCase))
-                {
-                    return previous;
-                }
-
-                state.IconFallbackApiNames = next.Count > 0 ? next : null;
-            }
-
-            Save();
-            return previous;
-        }
+        /// <summary>Records which borrowed icons fell back to the game's own, returning the ones recorded before.</summary>
+        public IReadOnlyCollection<string> ReplaceIconFallbacks(Guid gameId, IEnumerable<string> apiNames) =>
+            _state?.ReplaceIconFallbacks(gameId, apiNames) ?? Array.Empty<string>();
 
         /// <summary>A source's match count for the game at the last overlay, or null when it did not run.</summary>
-        public MetadataCoverage GetCoverage(Guid gameId, string sourceKey)
-        {
-            if (string.IsNullOrWhiteSpace(sourceKey))
-            {
-                return null;
-            }
-
-            lock (_sync)
-            {
-                return _applied.TryGetValue(gameId, out var state) &&
-                       state?.Coverage != null &&
-                       state.Coverage.TryGetValue(sourceKey.Trim(), out var counts)
-                    ? new MetadataCoverage { Matched = counts.Matched, Total = counts.Total }
-                    : null;
-            }
-        }
+        public MetadataCoverage GetCoverage(Guid gameId, string sourceKey) => _state?.GetCoverage(gameId, sourceKey);
 
         /// <summary>The source key whose icon the last overlay gave this achievement, or null for its own.</summary>
-        public string GetBorrowedIconSource(Guid gameId, string apiName)
-        {
-            if (string.IsNullOrWhiteSpace(apiName))
-            {
-                return null;
-            }
-
-            lock (_sync)
-            {
-                return _applied.TryGetValue(gameId, out var state) &&
-                       state?.IconApiNames?.Contains(apiName.Trim(), StringComparer.OrdinalIgnoreCase) == true
-                    ? state.IconSourceKey
-                    : null;
-            }
-        }
+        public string GetBorrowedIconSource(Guid gameId, string apiName) => _state?.GetBorrowedIconSource(gameId, apiName);
 
         /// <summary>The art the plugin last wrote for an auto capstone, or null.</summary>
-        public CapstoneArtRecord GetCapstoneArtRecord(Guid gameId, string apiName)
-        {
-            if (string.IsNullOrWhiteSpace(apiName))
-            {
-                return null;
-            }
-
-            lock (_sync)
-            {
-                return _capstoneArt.TryGetValue(gameId, out var byApiName) &&
-                       byApiName.TryGetValue(apiName.Trim(), out var record)
-                    ? record
-                    : null;
-            }
-        }
+        public CapstoneArtRecord GetCapstoneArtRecord(Guid gameId, string apiName) => _state?.GetCapstoneArtRecord(gameId, apiName);
 
         /// <summary>Records (or, with null, forgets) the art the plugin wrote for an auto capstone.</summary>
-        public void SetCapstoneArtRecord(Guid gameId, string apiName, CapstoneArtRecord record)
-        {
-            if (gameId == Guid.Empty || string.IsNullOrWhiteSpace(apiName))
-            {
-                return;
-            }
-
-            lock (_sync)
-            {
-                if (!_capstoneArt.TryGetValue(gameId, out var byApiName))
-                {
-                    if (record == null)
-                    {
-                        return;
-                    }
-
-                    byApiName = new Dictionary<string, CapstoneArtRecord>(StringComparer.OrdinalIgnoreCase);
-                    _capstoneArt[gameId] = byApiName;
-                }
-
-                if (record == null)
-                {
-                    byApiName.Remove(apiName.Trim());
-                    if (byApiName.Count == 0)
-                    {
-                        _capstoneArt.Remove(gameId);
-                    }
-                }
-                else
-                {
-                    byApiName[apiName.Trim()] = record;
-                }
-            }
-
-            Save();
-        }
+        public void SetCapstoneArtRecord(Guid gameId, string apiName, CapstoneArtRecord record) =>
+            _state?.SetCapstoneArtRecord(gameId, apiName, record);
 
         private Dictionary<string, MetadataLinkData> ReadLinks(Guid gameId)
         {
@@ -738,94 +494,6 @@ namespace PlayniteAchievements.Services.Metadata
         private static string NormalizeLabel(string label)
         {
             return string.IsNullOrWhiteSpace(label) ? null : label.Trim();
-        }
-
-        private static bool SameCoverage(
-            IReadOnlyDictionary<string, MetadataCoverage> previous,
-            IReadOnlyDictionary<string, MetadataCoverage> next)
-        {
-            if ((previous?.Count ?? 0) != (next?.Count ?? 0))
-            {
-                return false;
-            }
-
-            return next == null || next.All(pair =>
-                previous.TryGetValue(pair.Key, out var counts) && pair.Value.SameAs(counts));
-        }
-
-        private void Load()
-        {
-            if (string.IsNullOrWhiteSpace(_path) || !File.Exists(_path))
-            {
-                return;
-            }
-
-            try
-            {
-                var parsed = JsonConvert.DeserializeObject<AppliedFile>(File.ReadAllText(_path, Encoding.UTF8));
-                lock (_sync)
-                {
-                    _applied = (parsed?.Applied ?? new Dictionary<Guid, MetadataAppliedState>())
-                        .Where(pair => pair.Key != Guid.Empty && pair.Value != null)
-                        .ToDictionary(pair => pair.Key, pair => NormalizeLoaded(pair.Value));
-                    _capstoneArt = (parsed?.CapstoneArt ?? new Dictionary<Guid, Dictionary<string, CapstoneArtRecord>>())
-                        .Where(pair => pair.Key != Guid.Empty && pair.Value != null)
-                        .ToDictionary(
-                            pair => pair.Key,
-                            pair => new Dictionary<string, CapstoneArtRecord>(pair.Value, StringComparer.OrdinalIgnoreCase));
-                }
-            }
-            catch (Exception ex)
-            {
-                _logger?.Warn(ex, $"[Metadata] Failed to read the metadata applied state; starting empty: {_path}");
-            }
-        }
-
-        private static MetadataAppliedState NormalizeLoaded(MetadataAppliedState state)
-        {
-            if (state.Coverage != null)
-            {
-                state.Coverage = new Dictionary<string, MetadataCoverage>(state.Coverage, StringComparer.OrdinalIgnoreCase);
-            }
-
-            return state;
-        }
-
-        private void Save()
-        {
-            if (string.IsNullOrWhiteSpace(_path))
-            {
-                return;
-            }
-
-            string json;
-            lock (_sync)
-            {
-                json = JsonConvert.SerializeObject(
-                    new AppliedFile { Applied = _applied, CapstoneArt = _capstoneArt },
-                    Formatting.None);
-            }
-
-            var temporaryPath = _path + ".tmp";
-            try
-            {
-                lock (_fileSync)
-                {
-                    File.WriteAllText(temporaryPath, json, new UTF8Encoding(false));
-                    if (File.Exists(_path))
-                    {
-                        File.Replace(temporaryPath, _path, destinationBackupFileName: null);
-                    }
-                    else
-                    {
-                        File.Move(temporaryPath, _path);
-                    }
-                }
-            }
-            catch (Exception ex)
-            {
-                _logger?.Warn(ex, $"[Metadata] Failed to save the metadata applied state: {_path}");
-            }
         }
     }
 }

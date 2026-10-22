@@ -29,7 +29,7 @@ namespace PlayniteAchievements.Services.Cache
         void ResyncAllAchievementOverrides(IReadOnlyDictionary<Guid, IReadOnlyList<AchievementOverrideMirrorEntry>> entriesByGameId);
     }
 
-    public sealed class CacheManager : ICacheManager, ICacheReadOptimizations, IAchievementOverrideMirror, IFriendCacheManager, IInGameProgressCacheWriter, IDisposable
+    public sealed class CacheManager : ICacheManager, ICacheReadOptimizations, IAchievementOverrideMirror, IMetadataStateDatabase, IFriendCacheManager, IInGameProgressCacheWriter, IDisposable
     {
         private const int MaxInMemoryGames = 256;
 
@@ -118,6 +118,15 @@ namespace PlayniteAchievements.Services.Cache
         {
             add => FriendCacheInvalidated += value;
             remove => FriendCacheInvalidated -= value;
+        }
+
+        // Raised at the end of ClearCache, after the database file has been deleted and recreated.
+        private event EventHandler MetadataStateCleared;
+
+        event EventHandler IMetadataStateDatabase.MetadataStateCleared
+        {
+            add => MetadataStateCleared += value;
+            remove => MetadataStateCleared -= value;
         }
 
         public CacheManager(IPlayniteAPI api, ILogger logger, PlayniteAchievementsPlugin plugin, DiskImageService diskImageService)
@@ -328,6 +337,58 @@ namespace PlayniteAchievements.Services.Cache
             {
                 _logger?.Warn(ex, "Failed to resync achievement filter mirror.");
             }
+        }
+
+        // Metadata state access delegates straight to the store; exceptions propagate so the
+        // consumer can tell a failed load from an empty one.
+        List<MetadataAppliedRow> IMetadataStateDatabase.LoadMetadataApplied()
+        {
+            return _store.LoadMetadataApplied();
+        }
+
+        List<MetadataCoverageRow> IMetadataStateDatabase.LoadMetadataCoverage()
+        {
+            return _store.LoadMetadataCoverage();
+        }
+
+        void IMetadataStateDatabase.SaveMetadataApplied(
+            MetadataAppliedRow applied,
+            IReadOnlyList<MetadataCoverageRow> coverage)
+        {
+            _store.SaveMetadataApplied(applied, coverage);
+        }
+
+        void IMetadataStateDatabase.DeleteMetadataApplied(string playniteGameId)
+        {
+            _store.DeleteMetadataApplied(playniteGameId);
+        }
+
+        MetadataSourceSnapshotRow IMetadataStateDatabase.GetMetadataSourceSnapshot(string playniteGameId, string sourceKey)
+        {
+            return _store.GetMetadataSourceSnapshot(playniteGameId, sourceKey);
+        }
+
+        void IMetadataStateDatabase.SaveMetadataSourceSnapshot(MetadataSourceSnapshotRow row)
+        {
+            _store.SaveMetadataSourceSnapshot(row);
+        }
+
+        void IMetadataStateDatabase.DeleteMetadataSourceSnapshot(string playniteGameId, string sourceKey)
+        {
+            _store.DeleteMetadataSourceSnapshot(playniteGameId, sourceKey);
+        }
+
+        List<MetadataSourcePageRow> IMetadataStateDatabase.LoadMetadataSourcePages(string sourceKey)
+        {
+            return _store.LoadMetadataSourcePages(sourceKey);
+        }
+
+        void IMetadataStateDatabase.ReplaceMetadataSourcePages(
+            string playniteGameId,
+            string sourceKey,
+            IReadOnlyList<MetadataSourcePageRow> rows)
+        {
+            _store.ReplaceMetadataSourcePages(playniteGameId, sourceKey, rows);
         }
 
         private void InitializeCacheStartup()
@@ -812,6 +873,12 @@ namespace PlayniteAchievements.Services.Cache
 
             RaiseCacheDeltaUpdatedEvent(string.Empty, CacheDeltaOperationType.FullReset);
             RaiseCacheInvalidatedEvent();
+
+            try { MetadataStateCleared?.Invoke(this, EventArgs.Empty); }
+            catch (Exception ex)
+            {
+                _logger?.Error(ex, "Failed to notify metadata state subscribers.");
+            }
         }
 
         // ---------------------------

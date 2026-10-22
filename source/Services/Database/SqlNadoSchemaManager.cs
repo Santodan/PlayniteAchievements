@@ -14,7 +14,10 @@ namespace PlayniteAchievements.Services.Database
     {
         // v18: AchievementFilters became the general AchievementOverrides mirror, adding the
         // user-editable points and trophy type alongside the two filter flags.
-        public const int SchemaVersion = 19;
+        // v20: metadata state tables (MetadataApplied, MetadataCoverage, MetadataSourceSnapshots,
+        // MetadataSourcePages) hold the applied metadata links, per-source snapshots and source
+        // page slugs.
+        public const int SchemaVersion = 20;
         private const string LegacyGamesProviderGameIdIndexName = "UX_Games_Provider_GameId";
         private const string GamesProviderGameIdNonRaIndexName = "UX_Games_Provider_GameId_NonRA";
         private const string GamesProviderGameIdLookupIndexName = "IX_Games_Provider_GameId";
@@ -157,6 +160,7 @@ namespace PlayniteAchievements.Services.Database
             EnsureFriendOwnershipTable(db);
             EnsureProviderGameDefinitionStateTable(db);
             EnsureAchievementOverridesTable(db);
+            EnsureMetadataStateTables(db);
 
             var storedVersion = GetStoredSchemaVersion(db);
             var verification = VerifyRequiredColumns(db);
@@ -337,6 +341,8 @@ namespace PlayniteAchievements.Services.Database
             EnsureProviderGameDefinitionStateTable(db);
             EnsureProviderGameDefinitionStateIndexes(db);
             EnsureAchievementOverridesTable(db);
+            EnsureMetadataStateTables(db);
+            EnsureMetadataStateIndexes(db);
         }
 
         private void EnsureFriendOwnershipTable(SQLiteDatabase db)
@@ -432,6 +438,61 @@ namespace PlayniteAchievements.Services.Database
 
             ExecuteSafe(db, @"CREATE INDEX IF NOT EXISTS IX_ProviderGameDefinitionState_Status_Checked
                 ON ProviderGameDefinitionState (Status, LastCheckedUtc);");
+        }
+
+        /// <summary>
+        /// Creates the metadata state tables: the applied metadata per game (MetadataApplied),
+        /// the per-source match coverage of that applied state (MetadataCoverage), the fetched
+        /// rows per game and source (MetadataSourceSnapshots), and the linked source page slugs
+        /// per game, source and site (MetadataSourcePages).
+        /// </summary>
+        private void EnsureMetadataStateTables(SQLiteDatabase db)
+        {
+            ExecuteSafe(db, @"CREATE TABLE IF NOT EXISTS MetadataApplied (
+                PlayniteGameId TEXT PRIMARY KEY NOT NULL,
+                IconSourceKey TEXT NULL COLLATE NOCASE,
+                CapstoneArtUrl TEXT NULL,
+                CapstoneTitle TEXT NULL,
+                CapstoneDescription TEXT NULL,
+                CapstoneMatchApiName TEXT NULL,
+                IconApiNamesJson TEXT NULL,
+                IconFallbackApiNamesJson TEXT NULL,
+                UpdatedUtc TEXT NOT NULL
+            );");
+
+            ExecuteSafe(db, @"CREATE TABLE IF NOT EXISTS MetadataCoverage (
+                PlayniteGameId TEXT NOT NULL,
+                SourceKey TEXT NOT NULL COLLATE NOCASE,
+                Matched INTEGER NOT NULL,
+                Total INTEGER NOT NULL,
+                Fields INTEGER NOT NULL DEFAULT 0,
+                PRIMARY KEY (PlayniteGameId, SourceKey)
+            );");
+
+            ExecuteSafe(db, @"CREATE TABLE IF NOT EXISTS MetadataSourceSnapshots (
+                PlayniteGameId TEXT NOT NULL,
+                SourceKey TEXT NOT NULL COLLATE NOCASE,
+                LinkId TEXT NULL,
+                RowsJson TEXT NOT NULL,
+                MatchesJson TEXT NULL,
+                UpdatedUtc TEXT NOT NULL,
+                PRIMARY KEY (PlayniteGameId, SourceKey)
+            );");
+
+            ExecuteSafe(db, @"CREATE TABLE IF NOT EXISTS MetadataSourcePages (
+                PlayniteGameId TEXT NOT NULL,
+                SourceKey TEXT NOT NULL COLLATE NOCASE,
+                LinkName TEXT NOT NULL,
+                Site TEXT NOT NULL COLLATE NOCASE,
+                PageSlug TEXT NULL,
+                PRIMARY KEY (PlayniteGameId, SourceKey, Site)
+            );");
+        }
+
+        private void EnsureMetadataStateIndexes(SQLiteDatabase db)
+        {
+            ExecuteSafe(db, @"CREATE INDEX IF NOT EXISTS IX_MetadataSourcePages_SourceKey
+                ON MetadataSourcePages (SourceKey);");
         }
 
         private void BackfillRequiredAchievementCategoryValues(SQLiteDatabase db)
@@ -718,9 +779,55 @@ namespace PlayniteAchievements.Services.Database
             EnsureProviderGameDefinitionStateTable(db);
             EnsureProviderGameDefinitionStateIndexes(db);
             EnsureAchievementOverridesTable(db);
+            ReconcileMetadataStateTables(db, ref backupPath);
+            EnsureMetadataStateTables(db);
+            EnsureMetadataStateIndexes(db);
 
             return backupPath;
         }
+
+        /// <summary>
+        /// Drops each metadata state table that exists but lacks a required column, so
+        /// <see cref="EnsureMetadataStateTables"/> recreates it with the current shape.
+        /// </summary>
+        private void ReconcileMetadataStateTables(SQLiteDatabase db, ref string backupPath)
+        {
+            foreach (var table in MetadataStateRequiredColumns)
+            {
+                var columns = GetColumnNames(db, table.Key);
+                if (columns.Count == 0 || table.Value.All(columns.Contains))
+                {
+                    continue;
+                }
+
+                ExecuteSchemaChangeWithBackup(
+                    db,
+                    $"DROP TABLE IF EXISTS {table.Key};",
+                    ref backupPath,
+                    $"Recreated {table.Key} for missing columns.");
+            }
+        }
+
+        private static readonly KeyValuePair<string, string[]>[] MetadataStateRequiredColumns =
+        {
+            new KeyValuePair<string, string[]>("MetadataApplied", new[]
+            {
+                "PlayniteGameId", "IconSourceKey", "CapstoneArtUrl", "CapstoneTitle",
+                "CapstoneDescription", "CapstoneMatchApiName", "IconApiNamesJson", "IconFallbackApiNamesJson", "UpdatedUtc"
+            }),
+            new KeyValuePair<string, string[]>("MetadataCoverage", new[]
+            {
+                "PlayniteGameId", "SourceKey", "Matched", "Total", "Fields"
+            }),
+            new KeyValuePair<string, string[]>("MetadataSourceSnapshots", new[]
+            {
+                "PlayniteGameId", "SourceKey", "LinkId", "RowsJson", "MatchesJson", "UpdatedUtc"
+            }),
+            new KeyValuePair<string, string[]>("MetadataSourcePages", new[]
+            {
+                "PlayniteGameId", "SourceKey", "LinkName", "Site", "PageSlug"
+            })
+        };
 
         private void ReconcileProviderGameDefinitionStateTable(SQLiteDatabase db, ref string backupPath)
         {
@@ -1086,6 +1193,15 @@ namespace PlayniteAchievements.Services.Database
             EnsureRequiredColumn(providerGameDefinitionStateColumns, "LastCheckedUtc", "ProviderGameDefinitionState", missing);
             EnsureRequiredColumn(providerGameDefinitionStateColumns, "CreatedUtc", "ProviderGameDefinitionState", missing);
             EnsureRequiredColumn(providerGameDefinitionStateColumns, "UpdatedUtc", "ProviderGameDefinitionState", missing);
+
+            foreach (var table in MetadataStateRequiredColumns)
+            {
+                var metadataStateColumns = GetColumnNames(db, table.Key);
+                foreach (var column in table.Value)
+                {
+                    EnsureRequiredColumn(metadataStateColumns, column, table.Key, missing);
+                }
+            }
 
             // Note: Index verification is intentionally NOT done here because indexes are
             // created in CreateProviderKeyIndexes which runs AFTER this verification passes.

@@ -12,17 +12,16 @@ namespace PlayniteAchievements.Tests.Services
     public class MetadataLinkStoreTests
     {
         private string _directory;
+        private FakeMetadataStateDatabase _database;
 
         [TestInitialize]
         public void SetUp()
         {
             _directory = Path.Combine(Path.GetTempPath(), "pa-metadata-links-" + Guid.NewGuid().ToString("N"));
+            _database = new FakeMetadataStateDatabase();
         }
 
-        private MetadataLinkStore Store()
-        {
-            return new MetadataLinkStore(_directory, new GameCustomDataStore(_directory), null);
-        }
+        private MetadataLinkStore Store() => MetadataTestStores.Links(_directory, _database);
 
         [TestCleanup]
         public void TearDown()
@@ -114,6 +113,64 @@ namespace PlayniteAchievements.Tests.Services
             var record = Store().GetCapstoneArtRecord(game, "custom:auto-capstone");
             Assert.AreEqual("https://psn/plat.png", record.Source);
             Assert.AreEqual(42, record.Length);
+        }
+
+        [TestMethod]
+        public void AppliedState_ComesBackFromTheDatabase_UntilTheCacheIsCleared()
+        {
+            var game = Guid.NewGuid();
+            var coverage = new Dictionary<string, MetadataCoverage>
+            {
+                ["TrueGaming"] = new MetadataCoverage { Matched = 46, Total = 600 }
+            };
+            Store().RecordApplied(game, "PlayStation", "https://psn/plat.png", coverage, new[] { "a1" }, "Platinum", "All trophies", "all-achievements");
+
+            var reread = Store();
+            Assert.AreEqual(46, reread.GetCoverage(game, "truegaming").Matched);
+            Assert.AreEqual("PlayStation", reread.GetBorrowedIconSource(game, "A1"));
+            Assert.AreEqual("https://psn/plat.png", reread.GetCapstoneArtUrl(game));
+            Assert.AreEqual("Platinum", reread.GetCapstoneText(game).Title);
+            Assert.AreEqual("all-achievements", reread.GetCapstoneMatch(game));
+
+            reread.SetCapstoneArtRecord(game, "custom:auto-capstone", new CapstoneArtRecord { Source = "https://psn/plat.png" });
+            _database.Clear();
+            Assert.IsNull(reread.GetCoverage(game, "TrueGaming"), "the applied state went with the cache");
+            Assert.IsNotNull(Store().GetCapstoneArtRecord(game, "custom:auto-capstone"), "the capstone art record outlasts it");
+        }
+
+        [TestMethod]
+        public void OldMetadataFolder_CarriesItsCapstoneRecordsOver_AndIsRemoved()
+        {
+            var game = Guid.NewGuid();
+            var folder = Path.Combine(_directory, MetadataFolderRetirement.FolderName);
+            Directory.CreateDirectory(Path.Combine(folder, "sources"));
+            File.WriteAllText(Path.Combine(folder, "sources", game + ".json"), "{}");
+            File.WriteAllText(Path.Combine(folder, "icon-match-test.csv"), "Game");
+            File.WriteAllText(Path.Combine(folder, "links.json"),
+                "{\"version\":2,\"applied\":{},\"capstoneArt\":{\"" + game + "\":{\"custom:auto-capstone\":" +
+                "{\"title\":\"Platinum\",\"source\":\"https://psn/plat.png\",\"path\":\"C:\\\\art.png\",\"length\":42,\"writeUtc\":\"2026-10-20T08:00:00Z\"}}}}");
+
+            MetadataFolderRetirement.Run(_directory, new GameCustomDataStore(_directory), null);
+
+            Assert.IsFalse(Directory.Exists(folder), "the whole folder goes");
+            var record = Store().GetCapstoneArtRecord(game, "custom:auto-capstone");
+            Assert.AreEqual("https://psn/plat.png", record.Source);
+            Assert.AreEqual("Platinum", record.Title);
+            Assert.AreEqual(42, record.Length);
+            Assert.AreEqual(new DateTime(2026, 10, 20, 8, 0, 0, DateTimeKind.Utc), record.WriteTimeUtc.ToUniversalTime());
+        }
+
+        [TestMethod]
+        public void UnreadableLinksFile_IsMovedAside_AndTheFolderStillGoes()
+        {
+            var folder = Path.Combine(_directory, MetadataFolderRetirement.FolderName);
+            Directory.CreateDirectory(folder);
+            File.WriteAllText(Path.Combine(folder, "links.json"), "{ not json");
+
+            MetadataFolderRetirement.Run(_directory, new GameCustomDataStore(_directory), null);
+
+            Assert.IsFalse(Directory.Exists(folder));
+            Assert.AreEqual(1, Directory.GetFiles(_directory, "metadata-links.unreadable-*.json").Length);
         }
 
         [TestMethod]

@@ -5936,6 +5936,266 @@ namespace PlayniteAchievements.Services.Database
                         @"DELETE FROM Games
                           WHERE PlayniteGameId = ?;",
                         playniteGameIdText);
+
+                    db.ExecuteNonQuery(
+                        "DELETE FROM MetadataApplied WHERE PlayniteGameId = ?;",
+                        playniteGameIdText);
+
+                    db.ExecuteNonQuery(
+                        "DELETE FROM MetadataCoverage WHERE PlayniteGameId = ?;",
+                        playniteGameIdText);
+
+                    db.ExecuteNonQuery(
+                        "DELETE FROM MetadataSourceSnapshots WHERE PlayniteGameId = ?;",
+                        playniteGameIdText);
+
+                    db.ExecuteNonQuery(
+                        "DELETE FROM MetadataSourcePages WHERE PlayniteGameId = ?;",
+                        playniteGameIdText);
+                });
+            });
+        }
+
+        /// <summary>
+        /// Loads every MetadataApplied row.
+        /// </summary>
+        internal List<MetadataAppliedRow> LoadMetadataApplied()
+        {
+            return WithDb(db => db.Load<MetadataAppliedRow>(
+                    @"SELECT PlayniteGameId, IconSourceKey, CapstoneArtUrl, CapstoneTitle,
+                             CapstoneDescription, CapstoneMatchApiName, IconApiNamesJson, IconFallbackApiNamesJson, UpdatedUtc
+                      FROM MetadataApplied;")
+                .Where(row => row != null)
+                .ToList());
+        }
+
+        /// <summary>
+        /// Loads every MetadataCoverage row.
+        /// </summary>
+        internal List<MetadataCoverageRow> LoadMetadataCoverage()
+        {
+            return WithDb(db => db.Load<MetadataCoverageRow>(
+                    @"SELECT PlayniteGameId, SourceKey, Matched, Total, Fields
+                      FROM MetadataCoverage;")
+                .Where(row => row != null)
+                .ToList());
+        }
+
+        /// <summary>
+        /// Upserts a game's MetadataApplied row and replaces that game's MetadataCoverage rows
+        /// with <paramref name="coverage"/>, in one transaction. Coverage rows are written under
+        /// <paramref name="applied"/>'s PlayniteGameId; rows with a blank SourceKey are skipped.
+        /// </summary>
+        internal void SaveMetadataApplied(MetadataAppliedRow applied, IReadOnlyList<MetadataCoverageRow> coverage)
+        {
+            if (applied == null || string.IsNullOrWhiteSpace(applied.PlayniteGameId))
+            {
+                return;
+            }
+
+            var gameIdText = applied.PlayniteGameId;
+            var updatedUtc = string.IsNullOrWhiteSpace(applied.UpdatedUtc)
+                ? ToIso(DateTime.UtcNow)
+                : applied.UpdatedUtc;
+            WithDb(db =>
+            {
+                db.RunTransaction(() =>
+                {
+                    db.ExecuteNonQuery(
+                        @"INSERT OR REPLACE INTO MetadataApplied
+                              (PlayniteGameId, IconSourceKey, CapstoneArtUrl, CapstoneTitle,
+                               CapstoneDescription, CapstoneMatchApiName, IconApiNamesJson, IconFallbackApiNamesJson, UpdatedUtc)
+                          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);",
+                        gameIdText,
+                        applied.IconSourceKey,
+                        applied.CapstoneArtUrl,
+                        applied.CapstoneTitle,
+                        applied.CapstoneDescription,
+                        applied.CapstoneMatchApiName,
+                        applied.IconApiNamesJson,
+                        applied.IconFallbackApiNamesJson,
+                        updatedUtc);
+
+                    db.ExecuteNonQuery(
+                        "DELETE FROM MetadataCoverage WHERE PlayniteGameId = ?;",
+                        gameIdText);
+
+                    foreach (var row in coverage ?? Array.Empty<MetadataCoverageRow>())
+                    {
+                        if (row == null || string.IsNullOrWhiteSpace(row.SourceKey))
+                        {
+                            continue;
+                        }
+
+                        db.ExecuteNonQuery(
+                            @"INSERT OR REPLACE INTO MetadataCoverage
+                                  (PlayniteGameId, SourceKey, Matched, Total, Fields)
+                              VALUES (?, ?, ?, ?, ?);",
+                            gameIdText,
+                            row.SourceKey,
+                            row.Matched,
+                            row.Total,
+                            row.Fields);
+                    }
+                });
+            });
+        }
+
+        /// <summary>
+        /// Deletes a game's MetadataApplied row and its MetadataCoverage rows.
+        /// </summary>
+        internal void DeleteMetadataApplied(string playniteGameId)
+        {
+            if (string.IsNullOrWhiteSpace(playniteGameId))
+            {
+                return;
+            }
+
+            WithDb(db =>
+            {
+                db.RunTransaction(() =>
+                {
+                    db.ExecuteNonQuery(
+                        "DELETE FROM MetadataApplied WHERE PlayniteGameId = ?;",
+                        playniteGameId);
+                    db.ExecuteNonQuery(
+                        "DELETE FROM MetadataCoverage WHERE PlayniteGameId = ?;",
+                        playniteGameId);
+                });
+            });
+        }
+
+        /// <summary>
+        /// Returns the MetadataSourceSnapshots row for a game and source, or null when none is stored.
+        /// </summary>
+        internal MetadataSourceSnapshotRow GetMetadataSourceSnapshot(string playniteGameId, string sourceKey)
+        {
+            if (string.IsNullOrWhiteSpace(playniteGameId) || string.IsNullOrWhiteSpace(sourceKey))
+            {
+                return null;
+            }
+
+            return WithDb(db => db.Load<MetadataSourceSnapshotRow>(
+                    @"SELECT PlayniteGameId, SourceKey, LinkId, RowsJson, MatchesJson, UpdatedUtc
+                      FROM MetadataSourceSnapshots
+                      WHERE PlayniteGameId = ? AND SourceKey = ?
+                      LIMIT 1;",
+                    playniteGameId,
+                    sourceKey)
+                .FirstOrDefault());
+        }
+
+        /// <summary>
+        /// Upserts a MetadataSourceSnapshots row keyed by its PlayniteGameId and SourceKey.
+        /// A null RowsJson is stored as an empty string; a blank UpdatedUtc is stored as now.
+        /// </summary>
+        internal void SaveMetadataSourceSnapshot(MetadataSourceSnapshotRow row)
+        {
+            if (row == null ||
+                string.IsNullOrWhiteSpace(row.PlayniteGameId) ||
+                string.IsNullOrWhiteSpace(row.SourceKey))
+            {
+                return;
+            }
+
+            var updatedUtc = string.IsNullOrWhiteSpace(row.UpdatedUtc)
+                ? ToIso(DateTime.UtcNow)
+                : row.UpdatedUtc;
+            WithDb(db =>
+            {
+                db.ExecuteNonQuery(
+                    @"INSERT OR REPLACE INTO MetadataSourceSnapshots
+                          (PlayniteGameId, SourceKey, LinkId, RowsJson, MatchesJson, UpdatedUtc)
+                      VALUES (?, ?, ?, ?, ?, ?);",
+                    row.PlayniteGameId,
+                    row.SourceKey,
+                    row.LinkId,
+                    row.RowsJson ?? string.Empty,
+                    row.MatchesJson,
+                    updatedUtc);
+            });
+        }
+
+        /// <summary>
+        /// Deletes the MetadataSourceSnapshots row for a game and source.
+        /// </summary>
+        internal void DeleteMetadataSourceSnapshot(string playniteGameId, string sourceKey)
+        {
+            if (string.IsNullOrWhiteSpace(playniteGameId) || string.IsNullOrWhiteSpace(sourceKey))
+            {
+                return;
+            }
+
+            WithDb(db =>
+            {
+                db.ExecuteNonQuery(
+                    "DELETE FROM MetadataSourceSnapshots WHERE PlayniteGameId = ? AND SourceKey = ?;",
+                    playniteGameId,
+                    sourceKey);
+            });
+        }
+
+        /// <summary>
+        /// Loads every MetadataSourcePages row for one source, across all games.
+        /// </summary>
+        internal List<MetadataSourcePageRow> LoadMetadataSourcePages(string sourceKey)
+        {
+            if (string.IsNullOrWhiteSpace(sourceKey))
+            {
+                return new List<MetadataSourcePageRow>();
+            }
+
+            return WithDb(db => db.Load<MetadataSourcePageRow>(
+                    @"SELECT PlayniteGameId, SourceKey, LinkName, Site, PageSlug
+                      FROM MetadataSourcePages
+                      WHERE SourceKey = ?;",
+                    sourceKey)
+                .Where(row => row != null)
+                .ToList());
+        }
+
+        /// <summary>
+        /// Replaces a game's MetadataSourcePages rows for one source with <paramref name="rows"/>,
+        /// in one transaction. Rows are written under the given game and source; rows with a blank
+        /// Site are skipped, and a null LinkName is stored as an empty string. An empty list only
+        /// deletes.
+        /// </summary>
+        internal void ReplaceMetadataSourcePages(
+            string playniteGameId,
+            string sourceKey,
+            IReadOnlyList<MetadataSourcePageRow> rows)
+        {
+            if (string.IsNullOrWhiteSpace(playniteGameId) || string.IsNullOrWhiteSpace(sourceKey))
+            {
+                return;
+            }
+
+            WithDb(db =>
+            {
+                db.RunTransaction(() =>
+                {
+                    db.ExecuteNonQuery(
+                        "DELETE FROM MetadataSourcePages WHERE PlayniteGameId = ? AND SourceKey = ?;",
+                        playniteGameId,
+                        sourceKey);
+
+                    foreach (var row in rows ?? Array.Empty<MetadataSourcePageRow>())
+                    {
+                        if (row == null || string.IsNullOrWhiteSpace(row.Site))
+                        {
+                            continue;
+                        }
+
+                        db.ExecuteNonQuery(
+                            @"INSERT OR REPLACE INTO MetadataSourcePages
+                                  (PlayniteGameId, SourceKey, LinkName, Site, PageSlug)
+                              VALUES (?, ?, ?, ?, ?);",
+                            playniteGameId,
+                            sourceKey,
+                            row.LinkName ?? string.Empty,
+                            row.Site,
+                            row.PageSlug);
+                    }
                 });
             });
         }
