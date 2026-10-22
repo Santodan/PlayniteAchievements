@@ -90,6 +90,19 @@ namespace PlayniteAchievements.Models.Settings
         Completions = 1
     }
 
+    /// <summary>What each Timeline bar is split into, as stacked segments.</summary>
+    public enum ShowcaseTimelineSplit
+    {
+        None = 0,
+        Platform = 1,
+
+        /// <summary>One segment per rarity tier of the unlocked achievements.</summary>
+        Rarity = 2,
+
+        /// <summary>One segment per trophy type of the unlocked achievements.</summary>
+        Trophy = 3
+    }
+
     /// <summary>
     /// Which counts the profile medal row shows. Trophy replaces the rarity tiers and the
     /// completions medal outright rather than adding to them, so a PlayStation-shaped library
