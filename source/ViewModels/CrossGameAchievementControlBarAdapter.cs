@@ -37,78 +37,8 @@ namespace PlayniteAchievements.ViewModels
         /// <summary>The unlock date range's end day, or null for an open end.</summary>
         public DateTime? UnlockedTo => _unlockedTo;
 
-        private readonly HashSet<RarityTier> _rarities = new HashSet<RarityTier>();
-        private readonly HashSet<string> _trophies = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-
-        private static readonly (RarityTier Tier, string Key)[] RarityChoices =
-        {
-            (RarityTier.Common, "LOCPlayAch_Rarity_Common"),
-            (RarityTier.Uncommon, "LOCPlayAch_Rarity_Uncommon"),
-            (RarityTier.Rare, "LOCPlayAch_Rarity_Rare"),
-            (RarityTier.UltraRare, "LOCPlayAch_Rarity_UltraRare")
-        };
-
-        private static readonly (string Type, string Key)[] TrophyChoices =
-        {
-            ("platinum", "LOCPlayAch_Trophy_Platinum"),
-            ("gold", "LOCPlayAch_Trophy_Gold"),
-            ("silver", "LOCPlayAch_Trophy_Silver"),
-            ("bronze", "LOCPlayAch_Trophy_Bronze")
-        };
-
-        public ObservableCollection<string> RarityOptions { get; } = new ObservableCollection<string>(
-            RarityChoices.Select(choice => ResourceProvider.GetString(choice.Key)));
-
-        /// <summary>Empty, which hides the trophy filter, while no library game has trophies.</summary>
-        public ObservableCollection<string> TrophyOptions { get; } = new ObservableCollection<string>();
-
-        public string SelectedRarityText => SelectionText(
-            RarityChoices.Where(choice => _rarities.Contains(choice.Tier)).Select(choice => choice.Key),
-            "LOCPlayAch_Column_Rarity");
-
-        public string SelectedTrophyText => SelectionText(
-            TrophyChoices.Where(choice => _trophies.Contains(choice.Type)).Select(choice => choice.Key),
-            "LOCPlayAch_Column_Trophy");
-
-        private static string SelectionText(IEnumerable<string> selectedKeys, string placeholderKey)
-        {
-            var labels = selectedKeys.Select(key => ResourceProvider.GetString(key)).ToList();
-            return labels.Count == 0 ? ResourceProvider.GetString(placeholderKey) : string.Join(", ", labels);
-        }
-
-        private bool IsRaritySelected(string label) =>
-            RarityChoices.Any(choice => _rarities.Contains(choice.Tier) &&
-                                        string.Equals(ResourceProvider.GetString(choice.Key), label, StringComparison.Ordinal));
-
-        private bool IsTrophySelected(string label) =>
-            TrophyChoices.Any(choice => _trophies.Contains(choice.Type) &&
-                                        string.Equals(ResourceProvider.GetString(choice.Key), label, StringComparison.Ordinal));
-
-        private void SetRaritySelected(string label, bool selected)
-        {
-            foreach (var choice in RarityChoices.Where(choice =>
-                         string.Equals(ResourceProvider.GetString(choice.Key), label, StringComparison.Ordinal)))
-            {
-                if (selected ? _rarities.Add(choice.Tier) : _rarities.Remove(choice.Tier))
-                {
-                    OnPropertyChanged(nameof(SelectedRarityText));
-                    RaiseFilterChanged();
-                }
-            }
-        }
-
-        private void SetTrophySelected(string label, bool selected)
-        {
-            foreach (var choice in TrophyChoices.Where(choice =>
-                         string.Equals(ResourceProvider.GetString(choice.Key), label, StringComparison.Ordinal)))
-            {
-                if (selected ? _trophies.Add(choice.Type) : _trophies.Remove(choice.Type))
-                {
-                    OnPropertyChanged(nameof(SelectedTrophyText));
-                    RaiseFilterChanged();
-                }
-            }
-        }
+        // Rarity and Trophy, which the Timeline's bar shares.
+        private readonly RarityTrophyControlBarFilters _tierFilters;
 
         private readonly HashSet<string> _tags = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
@@ -172,6 +102,7 @@ namespace PlayniteAchievements.ViewModels
 
         public CrossGameAchievementControlBarAdapter()
         {
+            _tierFilters = new RarityTrophyControlBarFilters(RaiseFilterChanged);
             ControlBar = CreateControlBar();
         }
 
@@ -238,15 +169,7 @@ namespace PlayniteAchievements.ViewModels
                 PendingPlatformSelections);
             PendingPlatformSelections = null;
             OnPropertyChanged(nameof(SelectedProviderFilterText));
-            var hasTrophies = _libraryGames.Any(game => game?.HasTrophyPieChartData == true);
-            if (hasTrophies != (TrophyOptions.Count > 0))
-            {
-                TrophyOptions.Clear();
-                foreach (var choice in hasTrophies ? TrophyChoices : Array.Empty<(string Type, string Key)>())
-                {
-                    TrophyOptions.Add(ResourceProvider.GetString(choice.Key));
-                }
-            }
+            _tierFilters.UpdateGames(_libraryGames);
 
             ControlBar.Refresh();
         }
@@ -255,17 +178,17 @@ namespace PlayniteAchievements.ViewModels
 
         public override ControlBarFilterState CaptureState()
         {
-            return new ControlBarFilterState
+            var state = new ControlBarFilterState
             {
                 SearchText = SearchText,
                 Platforms = CapturePlatformSelections(ProviderFilterGroups),
                 Games = GameFilter.Capture(),
                 Tags = _tags.Count > 0 ? _tags.ToList() : null,
                 UnlockedFrom = _unlockedFrom,
-                UnlockedTo = _unlockedTo,
-                Rarities = _rarities.Count > 0 ? _rarities.Select(tier => (int)tier).ToList() : null,
-                Trophies = _trophies.Count > 0 ? _trophies.ToList() : null
+                UnlockedTo = _unlockedTo
             };
+            _tierFilters.Capture(state);
+            return state;
         }
 
         public override void RestoreState(ControlBarFilterState state)
@@ -292,26 +215,7 @@ namespace PlayniteAchievements.ViewModels
             _unlockedFrom = state.UnlockedFrom?.Date;
             _unlockedTo = state.UnlockedTo?.Date;
             OnPropertyChanged(nameof(UnlockedRangeKey));
-            _rarities.Clear();
-            foreach (var tier in state.Rarities ?? new List<int>())
-            {
-                if (Enum.IsDefined(typeof(RarityTier), tier))
-                {
-                    _rarities.Add((RarityTier)tier);
-                }
-            }
-
-            _trophies.Clear();
-            foreach (var trophy in state.Trophies ?? new List<string>())
-            {
-                if (TrophyChoices.Any(choice => string.Equals(choice.Type, trophy, StringComparison.OrdinalIgnoreCase)))
-                {
-                    _trophies.Add(trophy);
-                }
-            }
-
-            OnPropertyChanged(nameof(SelectedRarityText));
-            OnPropertyChanged(nameof(SelectedTrophyText));
+            _tierFilters.Restore(state);
         }
 
         /// <summary>True while any filter would drop a row.</summary>
@@ -322,8 +226,7 @@ namespace PlayniteAchievements.ViewModels
             _tags.Count > 0 ||
             _unlockedFrom.HasValue ||
             _unlockedTo.HasValue ||
-            _rarities.Count > 0 ||
-            _trophies.Count > 0;
+            _tierFilters.HasSelection;
 
         /// <summary>
         /// Applies the search, then the provider/platform selection. While a platform is selected,
@@ -364,14 +267,9 @@ namespace PlayniteAchievements.ViewModels
                 filtered = filtered.Where(item => _tags.Any(tag => AchievementTagHelper.Contains(item.Tags, tag)));
             }
 
-            if (_rarities.Count > 0)
+            if (_tierFilters.HasSelection)
             {
-                filtered = filtered.Where(item => _rarities.Contains(item.Rarity));
-            }
-
-            if (_trophies.Count > 0)
-            {
-                filtered = filtered.Where(item => _trophies.Contains((item.TrophyType ?? string.Empty).Trim()));
+                filtered = filtered.Where(_tierFilters.Matches);
             }
 
             if ((ProviderFilterGroups ?? Enumerable.Empty<ProviderFilterGroup>()).Any(group => group?.HasAnySelected == true))
@@ -470,30 +368,8 @@ namespace PlayniteAchievements.ViewModels
                 AutoHideWhenUnavailable = false,
                 Width = 190
             });
-            controlBar.Items.Add(new GridMultiSelectFilter(
-                this,
-                nameof(SelectedRarityText),
-                () => SelectedRarityText,
-                () => RarityOptions,
-                IsRaritySelected,
-                SetRaritySelected)
-            {
-                Id = ShowcaseControlBarItems.Rarity,
-                LabelKey = "LOCPlayAch_Column_Rarity",
-                Width = 130
-            });
-            controlBar.Items.Add(new GridMultiSelectFilter(
-                this,
-                nameof(SelectedTrophyText),
-                () => SelectedTrophyText,
-                () => TrophyOptions,
-                IsTrophySelected,
-                SetTrophySelected)
-            {
-                Id = ShowcaseControlBarItems.Trophy,
-                LabelKey = "LOCPlayAch_Column_Trophy",
-                Width = 130
-            });
+            controlBar.Items.Add(_tierFilters.RarityItem);
+            controlBar.Items.Add(_tierFilters.TrophyItem);
             return controlBar;
         }
 
