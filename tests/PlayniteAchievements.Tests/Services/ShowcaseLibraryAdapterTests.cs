@@ -139,6 +139,32 @@ namespace PlayniteAchievements.Services.Tests
         }
 
         [TestMethod]
+        public void Update_MergesEachControlBarOnItsOwn_AndKeepsGameSelections()
+        {
+            var page = Install("1.0.0");
+            var recent = Local(page, ShowcaseWidgetKind.RecentAchievements);
+            var pie = Local(page, ShowcaseWidgetKind.Pie);
+            var gameId = Guid.NewGuid().ToString("D");
+            recent.Options["ControlBar.Achievements"] = "{\"SearchText\":\"mine\",\"Games\":[\"" + gameId + "\"]}";
+            pie.Options["ControlBar.Achievements"] = "{\"Games\":[\"" + gameId + "\"]}";
+
+            _authorRecent.Options["ControlBar.Achievements"] = "{\"SearchText\":\"author\"}";
+            _authorRecent.SetOption("MaxPerGame", 9);
+            _authorPie.Options["ControlBar.Achievements"] = "{\"Rarities\":[1]}";
+            WritePackage("1.1.0");
+            _updates.MergeIntoTargets("ws:trophies", LibraryApplyMode.Merge);
+
+            var recentState = Newtonsoft.Json.Linq.JObject.Parse(recent.Options["ControlBar.Achievements"]);
+            Assert.AreEqual("mine", (string)recentState["SearchText"], "the user's filters win");
+            Assert.AreEqual(gameId, (string)recentState["Games"][0]);
+            Assert.AreEqual(9, recent.GetOption("MaxPerGame", 0), "a changed filter does not hold back the widget's options");
+
+            var pieState = Newtonsoft.Json.Linq.JObject.Parse(pie.Options["ControlBar.Achievements"]);
+            CollectionAssert.AreEqual(new[] { 1 }, pieState["Rarities"].ToObject<int[]>(), "an untouched bar takes the update");
+            Assert.AreEqual(gameId, (string)pieState["Games"][0], "game selections are this library's own");
+        }
+
+        [TestMethod]
         public void Update_KeepsAWidgetTheUserRemoved_Removed()
         {
             var page = Install("1.0.0");
