@@ -146,13 +146,14 @@ namespace PlayniteAchievements.ViewModels.Tags
         }
     }
 
-    /// <summary>One editable tag: its name, color and icon.</summary>
+    /// <summary>One editable tag: its name, color, icon and visibility.</summary>
     public sealed class AchievementTagEditorRow : ObservableObject
     {
         private readonly AchievementTagListViewModel _owner;
         private string _name;
         private string _color;
         private string _icon;
+        private bool _hidden;
         private bool _isFetched;
 
         internal AchievementTagEditorRow(AchievementTagListViewModel owner, AchievementTagDefinition definition)
@@ -162,6 +163,8 @@ namespace PlayniteAchievements.ViewModels.Tags
             _name = definition.Name;
             _color = AchievementTagHelper.NormalizeColor(definition.Color);
             _icon = AchievementTagHelper.NormalizeIcon(definition.Icon);
+            _hidden = definition.Hidden;
+            ToggleHiddenCommand = new RelayCommand(_ => IsHidden = !IsHidden);
             PickColorCommand = new RelayCommand(_ => PickColor());
             ClearColorCommand = new RelayCommand(_ => Color = null);
             PickIconCommand = new RelayCommand(_ => PickIcon());
@@ -314,6 +317,28 @@ namespace PlayniteAchievements.ViewModels.Tags
 
         public bool HasGlyph => _icon != null;
 
+        /// <summary>
+        /// Left out of every view but the Manage Achievements editor; the achievements keep the tag.
+        /// </summary>
+        public bool IsHidden
+        {
+            get => _hidden;
+            set
+            {
+                if (_hidden == value)
+                {
+                    return;
+                }
+
+                _hidden = value;
+                OnPropertyChanged();
+                Materialize();
+                _owner.Commit();
+            }
+        }
+
+        public ICommand ToggleHiddenCommand { get; }
+
         public ICommand PickColorCommand { get; }
 
         public ICommand ClearColorCommand { get; }
@@ -325,7 +350,7 @@ namespace PlayniteAchievements.ViewModels.Tags
         public ICommand MakeGlobalCommand { get; }
 
         internal AchievementTagDefinition ToDefinition() =>
-            new AchievementTagDefinition { Key = Key, Name = _name, Color = _color, Icon = _icon };
+            new AchievementTagDefinition { Key = Key, Name = _name, Color = _color, Icon = _icon, Hidden = _hidden };
 
         private void PickColor()
         {
