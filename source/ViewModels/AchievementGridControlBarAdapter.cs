@@ -4,6 +4,7 @@ using System.Collections.ObjectModel;
 using System.Linq;
 using Playnite.SDK;
 using PlayniteAchievements.Common;
+using PlayniteAchievements.Models;
 using PlayniteAchievements.Models.Achievements;
 using PlayniteAchievements.Services;
 using PlayniteAchievements.Services.Achievements;
@@ -383,6 +384,10 @@ namespace PlayniteAchievements.ViewModels
                     value => SearchText = value,
                     L("LOCPlayAch_Filter_Achievements"),
                     () => SearchText = string.Empty)
+                {
+                    Id = ShowcaseControlBarItems.Search,
+                    LabelKey = "LOCPlayAch_Filter_Achievements"
+                }
             };
             controlBar.Items.Add(new GridMultiSelectFilter(
                 this,
@@ -393,6 +398,8 @@ namespace PlayniteAchievements.ViewModels
                 SetCategoryTypeFilterSelected,
                 GetTypeDisplayName)
             {
+                Id = ShowcaseControlBarItems.Tag,
+                LabelKey = "LOCTagsLabel",
                 Width = 120,
                 // A tag's icon; the other classification keys have none, and name themselves.
                 IconKeyOf = key => TagControlBarFilter.IconKey(key, _optionsGameId),
@@ -408,6 +415,8 @@ namespace PlayniteAchievements.ViewModels
                 SetCategoryLabelFilterSelected,
                 AchievementCategoryHelper.ToCategoryLabelDisplayText)
             {
+                Id = ShowcaseControlBarItems.Category,
+                LabelKey = "LOCCategoryLabel",
                 Width = 140,
                 IsCategoryFilter = true,
                 RendersCategoryTree = true,
@@ -424,6 +433,8 @@ namespace PlayniteAchievements.ViewModels
                 () => _friendCompare?.IsCompareAvailable == true,
                 key => _friendCompare?.IsKeyFavorite(key) == true)
             {
+                Id = ShowcaseControlBarItems.Compare,
+                LabelKey = "LOCPlayAch_Filter_CompareSelectorPlaceholder",
                 Width = 140,
                 ToolTip = L("LOCPlayAch_Filter_CompareSelectorPlaceholder")
             };
@@ -435,7 +446,12 @@ namespace PlayniteAchievements.ViewModels
                 () => ShowUnlocked,
                 value => ShowUnlocked = value,
                 GridToggleFilterIcon.Unlocked,
-                () => _hasUnlocked && _hasLocked));
+                () => _hasUnlocked && _hasLocked)
+            {
+                Id = ShowcaseControlBarItems.Unlocked,
+                LabelKey = "LOCPlayAch_Common_Unlocked",
+                ClearedValue = true
+            });
             controlBar.Items.Add(new GridToggleFilter(
                 this,
                 nameof(ShowLocked),
@@ -443,7 +459,12 @@ namespace PlayniteAchievements.ViewModels
                 () => ShowLocked,
                 value => ShowLocked = value,
                 GridToggleFilterIcon.Locked,
-                () => _hasUnlocked && _hasLocked));
+                () => _hasUnlocked && _hasLocked)
+            {
+                Id = ShowcaseControlBarItems.Locked,
+                LabelKey = "LOCPlayAch_Common_Locked",
+                ClearedValue = true
+            });
             controlBar.Items.Add(new GridToggleFilter(
                 this,
                 nameof(ShowHidden),
@@ -451,7 +472,12 @@ namespace PlayniteAchievements.ViewModels
                 () => ShowHidden,
                 value => ShowHidden = value,
                 GridToggleFilterIcon.Hidden,
-                () => _hasHiddenLocked));
+                () => _hasHiddenLocked)
+            {
+                Id = ShowcaseControlBarItems.Hidden,
+                LabelKey = "LOCPlayAch_Filter_Hidden",
+                ClearedValue = true
+            });
             return controlBar;
         }
 
