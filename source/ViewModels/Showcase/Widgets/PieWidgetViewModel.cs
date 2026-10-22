@@ -459,6 +459,12 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
                 locked += Math.Max(0, count.Total - count.Unlocked);
             }
 
+            // The centre's unlocked-of-total counts an achievement once per tag it carries, so with
+            // several tags it overstates whatever they share; one tag is exact.
+            var centerMode = ShowcaseWidgetOptions.GetPieCenterMode(Projection?.Instance);
+            chart.CenterMode = centerMode == PieCenterMode.Percentage && slices.Count > 1
+                ? PieCenterMode.Empty
+                : centerMode;
             chart.SetTagData(slices, locked, Localize("LOCPlayAch_Common_Locked"));
         }
 
