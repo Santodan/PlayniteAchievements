@@ -347,15 +347,15 @@
     <DataTemplate DataType="{x:Type widgets:ScoresWidgetViewModel}">
       <Grid>
         <Grid.RowDefinitions>
-            <RowDefinition Height="*"/>
             <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
         </Grid.RowDefinitions>
         <!-- A points card's platform, game and progress filters over the games it sums. -->
-        <controls:GridControlBarControl Grid.Row="1"
-                                        Margin="0,8,0,0"
+        <controls:GridControlBarControl Margin="0,0,0,8"
                                         ControlBar="{Binding ControlBar}"
                                         ShowControlBar="{Binding ShowControlBar}"/>
-        <ItemsControl ItemsSource="{Binding Cards}">
+        <ItemsControl Grid.Row="1"
+                      ItemsSource="{Binding Cards}">
             <ItemsControl.ItemsPanel>
                 <ItemsPanelTemplate>
                     <UniformGrid Rows="{Binding Rows}"
@@ -477,8 +477,8 @@
          the View Achievements window on the achievement, as the compact lists do. -->
     <DataTemplate DataType="{x:Type widgets:IconMosaicWidgetViewModel}">
       <DockPanel>
-        <controls:GridControlBarControl DockPanel.Dock="Bottom"
-                                        Margin="0,8,0,0"
+        <controls:GridControlBarControl DockPanel.Dock="Top"
+                                        Margin="0,0,0,8"
                                         ControlBar="{Binding ControlBar}"
                                         ShowControlBar="{Binding ShowControlBar}"/>
         <ListBox ItemsSource="{Binding Items}"
@@ -588,8 +588,8 @@
                                        Visibility="{Binding ShowTimeWindowControl, Converter={StaticResource BoolToVis}}"/>
         </DockPanel>
         <!-- Platform, game and progress filters over the games the bars count. -->
-        <controls:GridControlBarControl DockPanel.Dock="Bottom"
-                                        Margin="0,8,0,0"
+        <controls:GridControlBarControl DockPanel.Dock="Top"
+                                        Margin="0,0,0,8"
                                         ControlBar="{Binding ControlBar}"
                                         ShowControlBar="{Binding ShowControlBar}"/>
         <controls:UnlockTimelineChart Series="{Binding Timeline.TimelineSeries}"
@@ -818,8 +818,8 @@
          tiles, reorder/unpin. -->
     <DataTemplate DataType="{x:Type widgets:GameMosaicWidgetViewModel}">
       <DockPanel>
-        <controls:GridControlBarControl DockPanel.Dock="Bottom"
-                                        Margin="0,8,0,0"
+        <controls:GridControlBarControl DockPanel.Dock="Top"
+                                        Margin="0,0,0,8"
                                         ControlBar="{Binding ControlBar}"
                                         ShowControlBar="{Binding ShowControlBar}"/>
         <ListBox ItemsSource="{Binding Tiles}"
@@ -1144,16 +1144,16 @@
     <DataTemplate DataType="{x:Type widgets:ActivityCalendarWidgetViewModel}">
         <Grid>
             <Grid.RowDefinitions>
-                <RowDefinition Height="*"/>
                 <RowDefinition Height="Auto"/>
+                <RowDefinition Height="*"/>
                 <RowDefinition Height="Auto"/>
             </Grid.RowDefinitions>
             <!-- Platform, game and progress filters over the games whose unlocks fill the days. -->
-            <controls:GridControlBarControl Grid.Row="2"
-                                            Margin="0,8,0,0"
+            <controls:GridControlBarControl Margin="0,0,0,8"
                                             ControlBar="{Binding ControlBar}"
                                             ShowControlBar="{Binding ShowControlBar}"/>
-            <TextBlock Grid.RowSpan="2"
+            <TextBlock Grid.Row="1"
+                       Grid.RowSpan="2"
                        Text="{DynamicResource LOCPlayAch_Showcase_NoData}"
                        Foreground="{DynamicResource PlayAch.Brush.Text}"
                        Opacity="{StaticResource PlayAch.Opacity.Placeholder}"
@@ -1168,7 +1168,8 @@
                  and the legend sit outside the scroll area so they stay put while the
                  calendar scrolls, and the gutter shares the heatmap's metrics so its
                  rows line up. -->
-            <Grid TextElement.FontSize="{DynamicResource PlayAch.FontSize.Title}"
+            <Grid Grid.Row="1"
+                  TextElement.FontSize="{DynamicResource PlayAch.FontSize.Title}"
                   VerticalAlignment="Center">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="Auto"/>
@@ -1194,13 +1195,13 @@
             </Grid>
             <!-- When the widget's settings show it, the calendar's window is set here, on the
                  legend's line, and saved back to the widget. -->
-            <controls:TimeWindowPicker Grid.Row="1"
+            <controls:TimeWindowPicker Grid.Row="2"
                                        Margin="0,4,8,0"
                                        HorizontalAlignment="Left"
                                        VerticalAlignment="Center"
                                        Window="{Binding Window, Mode=TwoWay}"
                                        Visibility="{Binding ShowControls, Converter={StaticResource BoolToVis}}"/>
-            <StackPanel Grid.Row="1"
+            <StackPanel Grid.Row="2"
                         Orientation="Horizontal"
                         HorizontalAlignment="Right"
                         VerticalAlignment="Center"
