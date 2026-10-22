@@ -13,11 +13,11 @@ namespace PlayniteAchievements.Services.Achievements
     {
         /// <summary>
         /// The filter keys offered for <paramref name="gameId"/> (all games when null): every kind,
-        /// then every tag available there, in list order.
+        /// then every tag shown there, in list order.
         /// </summary>
         public static IReadOnlyList<string> GetFilterKeys(Guid? gameId = null) =>
             CategoryKindHelper.AssignableKinds
-                .Concat(AchievementTagRegistry.GetAvailable(gameId).Select(definition => definition.Key))
+                .Concat(AchievementTagRegistry.GetAvailable(gameId).Where(definition => !definition.Hidden).Select(definition => definition.Key))
                 .Distinct(StringComparer.OrdinalIgnoreCase)
                 .ToList();
 
@@ -62,7 +62,7 @@ namespace PlayniteAchievements.Services.Achievements
         /// <summary>
         /// The tag keys that occur on <paramref name="items"/>, in list order, then the derived unlock
         /// modes: the options of the in-app Tags filters. Kinds are filtered by category instead, and
-        /// deleted user tags are left out; a source's key no list defines is offered as the game's own.
+        /// deleted and hidden tags are left out; a source's key no list defines is offered as the game's own.
         /// </summary>
         public static List<string> GetPresentKeys<T>(
             IEnumerable<T> items,
@@ -80,7 +80,7 @@ namespace PlayniteAchievements.Services.Achievements
                 present.UnionWith(AchievementTagHelper.GetComponents(tagsSelector(item)));
             }
 
-            return AchievementTagRegistry.GetAssignableKeys(gameId, present)
+            return AchievementTagRegistry.GetShownKeys(gameId, present)
                 .Concat(new[] { AchievementTagHelper.Softcore, AchievementTagHelper.Hardcore })
                 .Where(present.Contains)
                 .ToList();
