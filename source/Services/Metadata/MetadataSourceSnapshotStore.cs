@@ -23,10 +23,6 @@ namespace PlayniteAchievements.Services.Metadata
 
         [JsonProperty("icon", NullValueHandling = NullValueHandling.Ignore)]
         public string Icon { get; set; }
-
-        /// <summary>Whether the row is the source's capstone (a PlayStation platinum).</summary>
-        [JsonProperty("platinum", DefaultValueHandling = DefaultValueHandling.Ignore)]
-        public bool IsPlatinum { get; set; }
     }
 
     /// <summary>A source's rows for a game at its last overlay, and which of the game's achievements each matched.</summary>
@@ -122,9 +118,7 @@ namespace PlayniteAchievements.Services.Metadata
                     ApiName = row.ApiName,
                     Name = row.DisplayName,
                     Description = string.IsNullOrWhiteSpace(row.Description) ? null : row.Description,
-                    Icon = string.IsNullOrWhiteSpace(row.UnlockedIconPath) ? row.LockedIconPath : row.UnlockedIconPath,
-                    IsPlatinum = row.IsCapstone ||
-                                 string.Equals(row.TrophyType?.Trim(), "platinum", StringComparison.OrdinalIgnoreCase)
+                    Icon = string.IsNullOrWhiteSpace(row.UnlockedIconPath) ? row.LockedIconPath : row.UnlockedIconPath
                 })
                 .ToList();
             var pairs = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
