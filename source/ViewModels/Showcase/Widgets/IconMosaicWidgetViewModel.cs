@@ -90,10 +90,14 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
             adapter.GameFilter.SetScope(Projection?.Collection?.GameIds);
             adapter.LocksRows = ShowcaseWidgetOptions.GetMosaicSource(Projection?.Instance) == ShowcaseMosaicSource.UnlockNext;
 
-            var capped = adapter.Apply(list).Take(ShowcaseWidgetOptions.GetMosaicCount(Projection?.Instance)).ToList();
+            // Sorted before the Count cap, so a sort picks which tiles show (the rarest of every
+            // unlock, not of the newest few), as the grids do. Unlock Next keeps its ranking.
+            var capped = OrderAchievements(adapter.Apply(list))
+                .Take(ShowcaseWidgetOptions.GetMosaicCount(Projection?.Instance))
+                .ToList();
 
             // The widget's own copies of any revealable tiles, so a reveal stays in this widget.
-            CollectionHelper.Replace(Items, _reveals.Map(OrderAchievements(capped)));
+            CollectionHelper.Replace(Items, _reveals.Map(capped));
         }
 
         /// <summary>
