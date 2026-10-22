@@ -5,12 +5,13 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
 {
     /// <summary>
     /// The Timeline control bar: platform and game filters over the games whose unlocks or
-    /// completions the chart counts, and rarity and trophy filters over the unlocks themselves.
+    /// completions the chart counts, and tag, rarity and trophy filters over the unlocks
+    /// themselves.
     /// </summary>
     public sealed class TimelineControlBarAdapter : GameSummaryGridControlBarAdapter
     {
         public TimelineControlBarAdapter()
-            : base(chartFilters: true, includeProgress: false)
+            : base(chartFilters: true, includeProgress: false, includeTags: true)
         {
             TierFilters = new RarityTrophyControlBarFilters(RaiseFilterChanged);
             ControlBar.Items.Add(TierFilters.RarityItem);

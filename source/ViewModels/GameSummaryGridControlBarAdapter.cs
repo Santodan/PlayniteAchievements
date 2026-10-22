@@ -29,7 +29,7 @@ namespace PlayniteAchievements.ViewModels
             new ObservableCollection<ProviderFilterGroup>();
 
         public GameSummaryGridControlBarAdapter()
-            : this(chartFilters: false)
+            : this(chartFilters: false, includeTags: true)
         {
         }
 
@@ -39,10 +39,22 @@ namespace PlayniteAchievements.ViewModels
         /// is not restored.
         /// </param>
         /// <param name="includeProgress">False to leave the progress filter out as well.</param>
-        protected GameSummaryGridControlBarAdapter(bool chartFilters, bool includeProgress = true)
+        /// <param name="includeTags">
+        /// True to add the Tags filter after Game, which keeps the games with an achievement,
+        /// locked or not, carrying a picked tag.
+        /// </param>
+        protected GameSummaryGridControlBarAdapter(bool chartFilters, bool includeProgress = true, bool includeTags = false)
         {
             _chartFilters = chartFilters;
             _includeProgress = includeProgress;
+            if (includeTags)
+            {
+                TagFilter = new TagControlBarFilter(
+                    RaiseFilterChanged,
+                    () => GameFilter.SelectedGameIds,
+                    GameTagKeys);
+            }
+
             ProgressFilterOptions = chartFilters
                 ? new ObservableCollection<string> { CompleteLabel, InProgressLabel }
                 : new ObservableCollection<string> { CompleteLabel, InProgressLabel, NoProgressLabel };
@@ -55,6 +67,16 @@ namespace PlayniteAchievements.ViewModels
         }
 
         public override GridControlBarViewModel ControlBar { get; }
+
+        /// <summary>The bar's Tags filter; null for a bar without one.</summary>
+        public TagControlBarFilter TagFilter { get; }
+
+        // The tag keys a game's achievements carry, locked or not, from the games the options list.
+        private IEnumerable<string> GameTagKeys(Guid gameId) =>
+            (_optionGames ?? new List<GameSummaryItem>())
+                .Where(game => game?.PlayniteGameId == gameId)
+                .SelectMany(game => game.TagTotals ?? Array.Empty<PlayniteAchievements.Models.Achievements.AchievementTagTally>())
+                .SelectMany(tally => tally.Tags);
 
         public string SearchText
         {
@@ -118,6 +140,11 @@ namespace PlayniteAchievements.ViewModels
                 filtered = filtered.Where(item => GameFilter.Matches(item.PlayniteGameId));
             }
 
+            if (TagFilter?.HasSelection == true)
+            {
+                filtered = filtered.Where(TagFilter.MatchesGame);
+            }
+
             filtered = OverviewGameSummaryFilters.ApplyActivityAndProgressFilters(
                 filtered,
                 _selectedActivityFilters,
@@ -168,7 +195,7 @@ namespace PlayniteAchievements.ViewModels
 
         public override ControlBarFilterState CaptureState()
         {
-            return new ControlBarFilterState
+            var state = new ControlBarFilterState
             {
                 SearchText = SearchText,
                 Platforms = CapturePlatformSelections(ProviderFilterGroups),
@@ -176,6 +203,8 @@ namespace PlayniteAchievements.ViewModels
                 Progress = SelectedPositions(ProgressFilterOptions, _selectedProgressFilters),
                 Activity = SelectedPositions(ActivityFilterOptions, _selectedActivityFilters)
             };
+            TagFilter?.Capture(state);
+            return state;
         }
 
         public override void RestoreState(ControlBarFilterState state)
@@ -188,6 +217,7 @@ namespace PlayniteAchievements.ViewModels
             _searchText = _chartFilters ? string.Empty : state.SearchText ?? string.Empty;
             PendingPlatformSelections = state.Platforms;
             GameFilter.Restore(state.Games);
+            TagFilter?.Restore(state);
             RestorePositions(
                 ProgressFilterOptions,
                 _selectedProgressFilters,
@@ -307,6 +337,11 @@ namespace PlayniteAchievements.ViewModels
                 Width = 170
             });
             controlBar.Items.Add(GameFilter.Item);
+            if (TagFilter != null)
+            {
+                controlBar.Items.Add(TagFilter.Item);
+            }
+
             if (_includeProgress)
             {
                 controlBar.Items.Add(new GridMultiSelectFilter(

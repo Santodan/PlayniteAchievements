@@ -13,7 +13,7 @@ namespace PlayniteAchievements.Tests.ViewModels
     public class TimelineControlBarAdapterTests
     {
         [TestMethod]
-        public void Bar_OffersPlatformGameRarityAndTrophy_WithoutProgress()
+        public void Bar_OffersPlatformGameTagRarityAndTrophy_WithoutProgress()
         {
             var adapter = new TimelineControlBarAdapter();
 
@@ -22,6 +22,7 @@ namespace PlayniteAchievements.Tests.ViewModels
                 {
                     ShowcaseControlBarItems.Platform,
                     ShowcaseControlBarItems.Game,
+                    ShowcaseControlBarItems.Tag,
                     ShowcaseControlBarItems.Rarity,
                     ShowcaseControlBarItems.Trophy
                 },

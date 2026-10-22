@@ -645,7 +645,7 @@ namespace PlayniteAchievements.Views.Showcase
                 case ShowcaseWidgetKind.ActivityCalendar:
                     AddRangeChoice(panel);
                     AddTimeControlRows(panel, includeSplit: false);
-                    AddControlBarRows<ChartControlBarAdapter>(panel, header: false);
+                    AddControlBarRows<ActivityCalendarControlBarAdapter>(panel, header: false);
                     break;
             }
 

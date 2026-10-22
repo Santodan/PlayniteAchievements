@@ -154,16 +154,19 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
         // when the saved option asked for them; filtered games and unlocks, completions, and a
         // split the menu picked before a reprojection are counted here from the snapshot. Rarity
         // and trophy describe unlocks, so completions count without them and split by platform
-        // only.
+        // only; tags then keep the completed games with an achievement carrying a picked tag.
         private void FeedCounts()
         {
             var source = Projection?.Snapshot ?? new OverviewDataSnapshot();
             var completions = CountsCompletions;
             var snapshot = ApplyControlBarFilter(source);
             var tiers = _controlBarSlot.Adapter.TierFilters;
-            if (!completions && tiers.HasSelection)
+            var tags = _controlBarSlot.Adapter.TagFilter;
+            if (!completions && (tiers.HasSelection || tags.HasSelection))
             {
-                snapshot = OverviewLinkedSnapshots.ClipToAchievements(snapshot, tiers.Matches);
+                snapshot = OverviewLinkedSnapshots.ClipToAchievements(
+                    snapshot,
+                    row => tiers.Matches(row) && tags.MatchesRow(row));
             }
 
             var unfiltered = ReferenceEquals(snapshot, source);

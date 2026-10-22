@@ -408,6 +408,7 @@ namespace PlayniteAchievements.Models
             SplitByPlatform,
             Platform,
             Game,
+            Tag,
             Rarity,
             Trophy
         };
