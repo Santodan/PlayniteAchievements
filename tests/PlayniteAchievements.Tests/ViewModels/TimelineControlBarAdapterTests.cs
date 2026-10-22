@@ -29,6 +29,50 @@ namespace PlayniteAchievements.Tests.ViewModels
         }
 
         [TestMethod]
+        public void Capstone_NarrowsThePickedTiers_OrKeepsEveryCapstoneAlone()
+        {
+            var adapter = new TimelineControlBarAdapter();
+            var filters = adapter.TierFilters;
+            var rareCapstone = new AchievementDisplayItem { Rarity = RarityTier.Rare, IsCapstone = true };
+            var commonCapstone = new AchievementDisplayItem { Rarity = RarityTier.Common, IsCapstone = true };
+            var rare = new AchievementDisplayItem { Rarity = RarityTier.Rare };
+
+            adapter.RestoreState(new ControlBarFilterState { Capstones = true });
+            Assert.IsTrue(filters.Matches(rareCapstone));
+            Assert.IsTrue(filters.Matches(commonCapstone));
+            Assert.IsFalse(filters.Matches(rare));
+
+            adapter.RestoreState(new ControlBarFilterState
+            {
+                Rarities = new[] { (int)RarityTier.Rare, (int)RarityTier.UltraRare }.ToList(),
+                Capstones = true
+            });
+            Assert.IsTrue(filters.Matches(rareCapstone));
+            Assert.IsFalse(filters.Matches(commonCapstone), "capstone narrows the tiers");
+            Assert.IsFalse(filters.Matches(rare));
+            Assert.AreEqual(true, adapter.CaptureState().Capstones);
+        }
+
+        [TestMethod]
+        public void RarityItem_OffersCapstoneLast_AndShowsThePickedBadges()
+        {
+            var adapter = new TimelineControlBarAdapter();
+            var rarity = adapter.TierFilters.RarityItem;
+            var options = rarity.Options.ToList();
+            Assert.AreEqual(5, options.Count);
+
+            rarity.SetSelected(options[4], true);
+            rarity.SetSelected(options[2], true);
+
+            CollectionAssert.AreEqual(new[] { "BadgeRarityRare", "BadgeRarityCompleted" }, rarity.SelectedIconKeys.ToArray());
+            Assert.IsTrue(rarity.ShowsSelectedIcons);
+            Assert.AreEqual(string.Empty, rarity.ButtonText, "badges stand in for the names");
+            Assert.AreEqual(rarity.DisplayText, rarity.ButtonToolTip);
+            Assert.AreEqual("TrophyGold", adapter.TierFilters.TrophyItem.IconKeyOf(
+                Playnite.SDK.ResourceProvider.GetString("LOCPlayAch_Trophy_Gold")));
+        }
+
+        [TestMethod]
         public void RarityAndTrophy_RoundTripThroughState_AndProgressIsIgnored()
         {
             var state = new ControlBarFilterState
