@@ -1132,12 +1132,6 @@ namespace PlayniteAchievements.Models
         public static void SetProfileShowLinks(ShowcaseWidgetInstanceSettings settings, bool value) =>
             settings?.SetOption(ProfileLinks, value);
 
-        public static GameActivityScope GetGameActivityScope(ShowcaseWidgetInstanceSettings settings) =>
-            GetEnum(settings, ActivityScope, GameActivityScope.All);
-
-        public static void SetGameActivityScope(
-            ShowcaseWidgetInstanceSettings settings,
-            GameActivityScope value) => settings?.SetOption(ActivityScope, value);
 
         public static ShowcasePointsGrouping GetPointsGrouping(ShowcaseWidgetInstanceSettings settings) =>
             GetEnum(settings, Grouping, ShowcasePointsGrouping.Provider);
@@ -1490,11 +1484,6 @@ namespace PlayniteAchievements.Models
             ShowcaseWidgetInstanceSettings settings,
             ShowcaseInfoPanelPosition value) => settings?.SetOption(InfoPanel, value);
 
-        public static bool GetHideCompleted(ShowcaseWidgetInstanceSettings settings) =>
-            settings?.GetOption(HideCompleted, false) ?? false;
-
-        public static void SetHideCompleted(ShowcaseWidgetInstanceSettings settings, bool value) =>
-            settings?.SetOption(HideCompleted, value);
 
         // A former Pinned game mosaic showed every pinned game, so it reads as All with its collection.
         public static ShowcaseGameMosaicSource GetGameMosaicSource(ShowcaseWidgetInstanceSettings settings) =>
@@ -1587,6 +1576,67 @@ namespace PlayniteAchievements.Models
                 default:
                     return false;
             }
+        }
+
+        /// <summary>
+        /// Moves a Game Summaries grid's former Hide Completed and Activity options into its control
+        /// bar's Progress and Activity filters, which match the same games. Only the Library source
+        /// applied them; on the other sources they are dropped. True when the widget changed.
+        /// </summary>
+        public static bool MigrateGameGridScope(ShowcaseWidgetInstanceSettings settings)
+        {
+            if (settings?.Kind != ShowcaseWidgetKind.GameSummaries ||
+                settings.Options == null ||
+                (!settings.Options.ContainsKey(HideCompleted) && !settings.Options.ContainsKey(ActivityScope)))
+            {
+                return false;
+            }
+
+            var hideCompleted = settings.GetOption(HideCompleted, false);
+            var activity = settings.GetOption(ActivityScope, GameActivityScope.All);
+            settings.Options.Remove(HideCompleted);
+            settings.Options.Remove(ActivityScope);
+            if (GetGameGridSource(settings) != ShowcaseGameGridSource.Library)
+            {
+                return true;
+            }
+
+            // Option positions, as the bar saves them: Progress is Complete, In Progress, No
+            // Progress; Activity is Played, Unplayed.
+            var progress = hideCompleted ? new[] { 1, 2 } : null;
+            var activityPositions = activity == GameActivityScope.Played
+                ? new[] { 0 }
+                : activity == GameActivityScope.Unplayed ? new[] { 1 } : null;
+            if (progress == null && activityPositions == null)
+            {
+                return true;
+            }
+
+            var state = ParseControlBarState(
+                settings.Options.TryGetValue(GameControlBarStateKey, out var json) ? json : null)
+                ?? new Newtonsoft.Json.Linq.JObject();
+            NarrowPositions(state, "Progress", progress);
+            NarrowPositions(state, "Activity", activityPositions);
+            settings.Options[GameControlBarStateKey] = state.ToString(Newtonsoft.Json.Formatting.None);
+            return true;
+        }
+
+        // Limits a saved position filter to <paramref name="allowed"/>: the filter's own picks
+        // among them, or all of them when it had none.
+        private static void NarrowPositions(Newtonsoft.Json.Linq.JObject state, string field, int[] allowed)
+        {
+            if (allowed == null)
+            {
+                return;
+            }
+
+            var picked = (state[field] as Newtonsoft.Json.Linq.JArray)?
+                .Select(token => (int?)token)
+                .Where(value => value.HasValue && allowed.Contains(value.Value))
+                .Select(value => value.Value)
+                .ToArray();
+            var hadPicks = (state[field] as Newtonsoft.Json.Linq.JArray)?.Count > 0;
+            state[field] = new Newtonsoft.Json.Linq.JArray(hadPicks && picked.Length > 0 ? picked : allowed);
         }
 
         // The game control bar's saved state (GameSummaryGridControlBarAdapter.StateKey).
@@ -1809,8 +1859,6 @@ namespace PlayniteAchievements.Models
                     break;
                 case ShowcaseWidgetKind.GameSummaries:
                     ShowcaseWidgetOptions.SetGameGridSource(settings, ShowcaseGameGridSource.Library);
-                    ShowcaseWidgetOptions.SetHideCompleted(settings, false);
-                    ShowcaseWidgetOptions.SetGameActivityScope(settings, GameActivityScope.All);
                     break;
                 case ShowcaseWidgetKind.ActivityCalendar:
                     ShowcaseTimelineOptions.SetWindow(settings, TimeWindow.All);
