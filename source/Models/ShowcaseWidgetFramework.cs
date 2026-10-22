@@ -1110,7 +1110,7 @@ namespace PlayniteAchievements.Models
             settings?.SetOption(TopN, Clamp(value, 1, 25));
 
         public static ShowcaseMosaicSource GetMosaicSource(ShowcaseWidgetInstanceSettings settings) =>
-            GetEnum(settings, Source, ShowcaseMosaicSource.Recent);
+            GetEnum(settings, Source, ShowcaseMosaicSource.All);
 
         public static void SetMosaicSource(
             ShowcaseWidgetInstanceSettings settings,
@@ -1504,6 +1504,48 @@ namespace PlayniteAchievements.Models
             return true;
         }
 
+        /// <summary>
+        /// Moves an achievement mosaic off a former source: Recent is All, Rarest is All sorted
+        /// rarest first (unless a sort was already chosen), and Capstones is All with the control
+        /// bar's Capstone filter. True when the widget changed.
+        /// </summary>
+        public static bool MigrateAchievementMosaicSource(ShowcaseWidgetInstanceSettings settings)
+        {
+            if (settings?.Kind != ShowcaseWidgetKind.IconMosaic ||
+                GetMosaicContent(settings) != ShowcaseMosaicContent.Achievements ||
+                settings.Options == null ||
+                !settings.Options.TryGetValue(Source, out var raw))
+            {
+                return false;
+            }
+
+            switch (raw?.Trim().ToLowerInvariant())
+            {
+                case "recent":
+                    settings.SetOption(Source, ShowcaseMosaicSource.All);
+                    return true;
+                case "rarest":
+                    settings.SetOption(Source, ShowcaseMosaicSource.All);
+                    if (GetMosaicSort(settings) == CompactListSortMode.None)
+                    {
+                        SetMosaicSort(settings, CompactListSortMode.Rarity);
+                        SetMosaicSortDescending(settings, false);
+                    }
+
+                    return true;
+                case "capstones":
+                    settings.SetOption(Source, ShowcaseMosaicSource.All);
+                    var state = ParseControlBarState(
+                        settings.Options.TryGetValue(AchievementControlBarStateKey, out var json) ? json : null)
+                        ?? new Newtonsoft.Json.Linq.JObject();
+                    state["Capstones"] = true;
+                    settings.Options[AchievementControlBarStateKey] = state.ToString(Newtonsoft.Json.Formatting.None);
+                    return true;
+                default:
+                    return false;
+            }
+        }
+
         // The game control bar's saved state (GameSummaryGridControlBarAdapter.StateKey).
         private const string GameControlBarStateKey = ControlBarStatePrefix + "Games";
 
@@ -1707,7 +1749,7 @@ namespace PlayniteAchievements.Models
                     break;
                 case ShowcaseWidgetKind.IconMosaic:
                     ShowcaseWidgetOptions.SetMosaicContent(settings, ShowcaseMosaicContent.Achievements);
-                    ShowcaseWidgetOptions.SetMosaicSource(settings, ShowcaseMosaicSource.Recent);
+                    ShowcaseWidgetOptions.SetMosaicSource(settings, ShowcaseMosaicSource.All);
                     ShowcaseWidgetOptions.SetMosaicCount(settings, 24);
                     ShowcaseWidgetOptions.SetMosaicShowRarityGlow(settings, true);
                     ShowcaseWidgetOptions.SetMosaicSort(settings, CompactListSortMode.None);
