@@ -16,6 +16,7 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
         private readonly HashSet<string> _tagSlices = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         private Func<IReadOnlyList<string>> _tagOptions = () => Array.Empty<string>();
         private Func<string, string> _tagName = key => key;
+        private Func<string, string> _tagIcon = key => null;
 
         public PieControlBarAdapter()
             : base(chartFilters: true)
@@ -34,7 +35,8 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
                 // Shown on a Tag pie only, whose tags follow the games in view.
                 IsVisible = false,
                 AutoHideWhenUnavailable = false,
-                Width = 150
+                Width = 150,
+                IconKeyOf = key => _tagIcon(key)
             };
             ControlBar.Items.Add(TagSliceItem);
         }
@@ -52,13 +54,17 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
             : string.Join(", ", _tagSlices.Select(key => _tagName(key)).OrderBy(name => name, StringComparer.CurrentCultureIgnoreCase));
 
         /// <summary>
-        /// Points the tag picker at the tags the pie offers now and how to name them, and shows
-        /// it; null for a pie of another mode hides it.
+        /// Points the tag picker at the tags the pie offers now and how to name them and draw their
+        /// badges, and shows it; null for a pie of another mode hides it.
         /// </summary>
-        public void SetTagSliceSource(Func<IReadOnlyList<string>> options, Func<string, string> name)
+        public void SetTagSliceSource(
+            Func<IReadOnlyList<string>> options,
+            Func<string, string> name,
+            Func<string, string> icon = null)
         {
             _tagOptions = options ?? (() => Array.Empty<string>());
             _tagName = name ?? (key => key);
+            _tagIcon = icon ?? (key => null);
             TagSliceItem.IsVisible = options != null;
             OnPropertyChanged(nameof(SelectedTagSliceText));
         }
