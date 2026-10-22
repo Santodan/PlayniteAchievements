@@ -381,8 +381,8 @@ namespace PlayniteAchievements.Services.Showcase
         }
 
         /// <summary>
-        /// Removes what identifies the user from a widget: its pin collection, its control-bar
-        /// search and filter state, and every part of a profile card but the background.
+        /// Removes what identifies the user from a widget: its pin collection, its control bars'
+        /// Game selections, and every part of a profile card but the background.
         /// </summary>
         internal static void StripUserOptions(ShowcaseWidgetInstanceSettings widget)
         {
@@ -391,7 +391,15 @@ namespace PlayniteAchievements.Services.Showcase
                 .Where(ShowcaseWidgetOptions.IsControlBarState)
                 .ToList())
             {
-                widget.Options.Remove(key);
+                var portable = ShowcaseWidgetOptions.PortableControlBarState(widget.Options[key]);
+                if (portable == null)
+                {
+                    widget.Options.Remove(key);
+                }
+                else
+                {
+                    widget.Options[key] = portable;
+                }
             }
 
             // Of the profile card only the background travels; the rest identifies the user.
@@ -531,7 +539,11 @@ namespace PlayniteAchievements.Services.Showcase
             }
         }
 
-        /// <summary>True for a widget option that belongs to the user rather than the page (search and filter state, the pin collection).</summary>
+        /// <summary>
+        /// True for a widget option kept out of the widget's options as a whole: the pin
+        /// collection, which belongs to the user, and control bar state, which a library page
+        /// merges one bar at a time.
+        /// </summary>
         internal static bool IsUserOption(string key)
         {
             return !string.IsNullOrWhiteSpace(key)
