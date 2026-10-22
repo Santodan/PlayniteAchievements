@@ -14,10 +14,11 @@ namespace PlayniteAchievements.Services.Library
     /// One showcase page as a library target. The projection holds the page's scalars
     /// (<c>Page</c>: name, row and column counts and weights), its grid (<c>Layout</c>, one
     /// value) and each widget on it by its id on this page (<c>Widgets</c>: kind, title, options
-    /// as one value, grid settings as one value, and its image - a profile background or an Image
-    /// widget's picture - as a file hash under Background).
-    /// Options that belong to the user (pin collection, search and filter state) and every part
-    /// of a profile card but its background stay out, as they stay out of a page package. The
+    /// as one value, each control bar's filters as one value under ControlBar, grid settings as
+    /// one value, and its image - a profile background or an Image widget's picture - as a file
+    /// hash under Background).
+    /// What belongs to the user (the pin collection, control bars' Game selections) and every
+    /// part of a profile card but its background stay out, as they stay out of a page package. The
     /// link maps the package's widget ids to this page's, so a merge pairs each widget with the
     /// one it became; a widget the user added or removed stays as they left it.
     /// </summary>
@@ -30,6 +31,7 @@ namespace PlayniteAchievements.Services.Library
         private const string KindKey = "Kind";
         private const string TitleKey = "Title";
         private const string OptionsKey = "Options";
+        private const string ControlBarKey = "ControlBar";
         private const string GridKey = "Grid";
         private const string BackgroundKey = "Background";
 
@@ -161,6 +163,10 @@ namespace PlayniteAchievements.Services.Library
                 var incoming = ProjectPackage(portable, map, out var incomingBackgrounds);
                 var current = Project(target);
                 var merged = replace ? incoming : MergeProjections(baseline, current, incoming, out keptEdits);
+                if (replace || baseline == null)
+                {
+                    KeepCurrentControlBars(merged, current);
+                }
 
                 WritePage(layout, grid, page, merged, current, incoming, incomingBackgrounds);
                 ShowcaseLayoutService.Normalize(layout);
@@ -363,6 +369,22 @@ namespace PlayniteAchievements.Services.Library
             return merged;
         }
 
+        // A replace (a reset, or an update without a baseline, where nothing tells the user's
+        // filters apart from ones they never changed) leaves each widget the page already has
+        // with its control bars' filters; a widget it adds takes the package's.
+        private static void KeepCurrentControlBars(JObject merged, JObject current)
+        {
+            var currentWidgets = current[WidgetsKey] as JObject;
+            foreach (var property in (merged[WidgetsKey] as JObject ?? new JObject()).Properties())
+            {
+                if (property.Value is JObject widget &&
+                    currentWidgets?.GetValue(property.Name, StringComparison.OrdinalIgnoreCase) is JObject existing)
+                {
+                    widget[ControlBarKey] = existing[ControlBarKey]?.DeepClone() ?? new JObject();
+                }
+            }
+        }
+
         private void WritePage(
             ShowcaseSettings layout,
             GridOptionsCatalog grid,
@@ -438,13 +460,36 @@ namespace PlayniteAchievements.Services.Library
                 // Read before the options are rebuilt: an Image widget keeps its file there.
                 var currentImage = ShowcaseWidgetImages.GetFilePath(widget);
 
-                // The user's own options (pin collection, search and filter state) stay.
+                // The user's pin collection stays.
                 var options = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+                var localBars = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
                 foreach (var pair in widget.Options ?? new Dictionary<string, string>())
                 {
-                    if (ShowcasePagePortableStore.IsUserOption(pair.Key))
+                    if (ShowcaseWidgetOptions.IsControlBarState(pair.Key))
+                    {
+                        localBars[pair.Key] = pair.Value;
+                    }
+                    else if (ShowcasePagePortableStore.IsUserOption(pair.Key))
                     {
                         options[pair.Key] = pair.Value;
+                    }
+                }
+
+                // Each bar takes its merged filters, with this library's Game selections kept.
+                var mergedBars = value[ControlBarKey] as JObject ?? new JObject();
+                foreach (var key in localBars.Keys
+                             .Concat(mergedBars.Properties().Select(property => property.Name))
+                             .Where(ShowcaseWidgetOptions.IsControlBarState)
+                             .Distinct(StringComparer.OrdinalIgnoreCase)
+                             .ToList())
+                {
+                    localBars.TryGetValue(key, out var local);
+                    var state = ShowcaseWidgetOptions.WithLocalControlBarGames(
+                        (string)mergedBars.GetValue(key, StringComparison.OrdinalIgnoreCase),
+                        local);
+                    if (state != null)
+                    {
+                        options[key] = state;
                     }
                 }
 
@@ -581,11 +626,26 @@ namespace PlayniteAchievements.Services.Library
                     options[pair.Key] = pair.Value;
                 }
 
+                // Each bar's filters are one value of their own, so a filter the user changed
+                // keeps their whole bar without holding back the widget's other options.
+                var controlBar = new JObject();
+                foreach (var pair in (widget.Options ?? new Dictionary<string, string>())
+                         .Where(pair => ShowcaseWidgetOptions.IsControlBarState(pair.Key))
+                         .OrderBy(pair => pair.Key, StringComparer.OrdinalIgnoreCase))
+                {
+                    var state = ShowcaseWidgetOptions.PortableControlBarState(pair.Value);
+                    if (state != null)
+                    {
+                        controlBar[pair.Key] = state;
+                    }
+                }
+
                 widgets[id] = new JObject
                 {
                     [KindKey] = widget.Kind.ToString(),
                     [TitleKey] = widget.CustomTitle,
                     [OptionsKey] = options,
+                    [ControlBarKey] = controlBar,
                     [GridKey] = gridOf(widget),
                     [BackgroundKey] = LibraryFileTokens.FileValue(backgroundOf(widget))
                 };
