@@ -107,7 +107,8 @@ namespace PlayniteAchievements.Services.Achievements
                     Key = CanonicalByAlias.TryGetValue(key, out var canonical) ? canonical : key,
                     Name = name.Length == 0 ? null : name,
                     Color = NormalizeColor(definition.Color),
-                    Icon = NormalizeIcon(definition.Icon)
+                    Icon = NormalizeIcon(definition.Icon),
+                    Hidden = definition.Hidden
                 });
             }
 
@@ -309,10 +310,11 @@ namespace PlayniteAchievements.Services.Achievements
 
         /// <summary>
         /// Joined names of the tags in <paramref name="value"/> that resolve for
-        /// <paramref name="gameId"/>, in display order; derived and deleted tags are left out.
+        /// <paramref name="gameId"/>, in display order; derived and deleted tags are left out, and
+        /// hidden ones unless <paramref name="includeHidden"/>.
         /// </summary>
-        public static string ToDisplayText(string value, Guid? gameId = null) =>
-            string.Join(", ", AchievementTagRegistry.ResolveVisible(value, gameId).Select(AchievementTagRegistry.GetName));
+        public static string ToDisplayText(string value, Guid? gameId = null, bool includeHidden = false) =>
+            string.Join(", ", AchievementTagRegistry.ResolveVisible(value, gameId, includeHidden).Select(AchievementTagRegistry.GetName));
 
         /// <summary>The localized default name of a built-in tag, or null for any other key.</summary>
         public static string GetBuiltInName(string key)
