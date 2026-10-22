@@ -154,6 +154,16 @@ namespace PlayniteAchievements.ViewModels
             }
         }
 
+        // The badges the Rarity and Trophy filters show beside their labels and in the bar.
+        private string RarityFilterIconKey(string label) =>
+            RarityByLabel().TryGetValue(label ?? string.Empty, out var tier) ? tier.ToDynamicIconKey() : null;
+
+        private string TrophyFilterIconKey(string label) =>
+            TrophyTypeByLabel().TryGetValue(label ?? string.Empty, out var type)
+                ? RarityTrophyControlBarFilters.TrophyChoices
+                    .FirstOrDefault(choice => string.Equals(choice.Type, type, StringComparison.OrdinalIgnoreCase)).IconKey
+                : null;
+
         private Dictionary<string, RarityTier> RarityByLabel() =>
             new Dictionary<string, RarityTier>(StringComparer.OrdinalIgnoreCase)
             {
