@@ -488,6 +488,17 @@ namespace PlayniteAchievements.ViewModels.Items
 
         protected override bool HasAvailableAction => (_getIsAvailable?.Invoke() ?? true) || !IsChecked;
 
+        /// <summary>The state that filters nothing, which clearing the toggle restores; null leaves it as is.</summary>
+        public bool? ClearedValue { get; set; }
+
+        public override void ClearSelection()
+        {
+            if (ClearedValue.HasValue)
+            {
+                IsChecked = ClearedValue.Value;
+            }
+        }
+
         public bool IsChecked
         {
             get => _getIsChecked?.Invoke() == true;
