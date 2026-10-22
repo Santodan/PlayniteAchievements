@@ -1354,6 +1354,7 @@ namespace PlayniteAchievements.Services.Showcase
                 ShowcaseWidgetOptions.MigrateCompletedGameMosaic(widget);
                 ShowcaseWidgetOptions.MigrateSlideshowVariant(widget);
                 ShowcaseWidgetOptions.MigrateAchievementMosaicSource(widget);
+                ShowcaseWidgetOptions.MigrateGameGridScope(widget);
                 result.Add(widget);
             }
 
@@ -1575,6 +1576,7 @@ namespace PlayniteAchievements.Services.Showcase
                 ShowcaseWidgetOptions.MigrateCompletedGameMosaic(pair.Value);
                 ShowcaseWidgetOptions.MigrateSlideshowVariant(pair.Value);
                 ShowcaseWidgetOptions.MigrateAchievementMosaicSource(pair.Value);
+                ShowcaseWidgetOptions.MigrateGameGridScope(pair.Value);
                 result[pair.Key.Trim()] = pair.Value;
             }
 
