@@ -1123,7 +1123,7 @@ namespace PlayniteAchievements.Tests.Models
         }
 
         [TestMethod]
-        public void GameSummaries_AppliesActivityScopeAndHideCompletedWithoutSortingOrCapping()
+        public void GameSummaries_KeepsEveryGameInSnapshotOrder()
         {
             var oldest = new GameSummaryItem
             {
@@ -1166,28 +1166,12 @@ namespace PlayniteAchievements.Tests.Models
             };
             var instance = new ShowcaseWidgetInstanceSettings { Kind = ShowcaseWidgetKind.GameSummaries };
 
-            // Sorting and the MaxRows cap live in the widget view model; the resolver keeps
-            // snapshot order and only applies the activity scope and HideCompleted options.
+            // Sorting, the MaxRows cap and the progress and activity filters live in the widget
+            // view model and its control bar; the resolver keeps every game in snapshot order.
             var resolved = ShowcaseWidgetProjectionService.ResolveGameSummaries(snapshot, instance);
             CollectionAssert.AreEqual(
                 new[] { oldest, newest, completed, neverUnlocked },
                 resolved.ToArray());
-
-            instance.SetOption("HideCompleted", true);
-            var withoutCompleted = ShowcaseWidgetProjectionService.ResolveGameSummaries(snapshot, instance);
-            Assert.IsFalse(withoutCompleted.Contains(completed));
-            Assert.AreEqual(3, withoutCompleted.Count);
-
-            instance.SetOption("HideCompleted", false);
-            ShowcaseWidgetOptions.SetGameActivityScope(instance, GameActivityScope.Played);
-            CollectionAssert.AreEqual(
-                new[] { oldest, newest, completed },
-                ShowcaseWidgetProjectionService.ResolveGameSummaries(snapshot, instance).ToArray());
-
-            ShowcaseWidgetOptions.SetGameActivityScope(instance, GameActivityScope.Unplayed);
-            CollectionAssert.AreEqual(
-                new[] { neverUnlocked },
-                ShowcaseWidgetProjectionService.ResolveGameSummaries(snapshot, instance).ToArray());
         }
 
         [TestMethod]
