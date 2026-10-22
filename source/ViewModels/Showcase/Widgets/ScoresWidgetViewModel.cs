@@ -12,6 +12,7 @@ using PlayniteAchievements.Models.Settings;
 using PlayniteAchievements.Services.Overview;
 using PlayniteAchievements.Services.Showcase;
 using PlayniteAchievements.ViewModels;
+using PlayniteAchievements.ViewModels.Items;
 using ObservableObject = PlayniteAchievements.Common.ObservableObject;
 
 namespace PlayniteAchievements.ViewModels.Showcase.Widgets
@@ -147,6 +148,40 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
     /// </summary>
     public sealed class ScoresWidgetViewModel : ShowcaseWidgetViewModelBase
     {
+        // The widget instance's shared adapter, so the filters survive view model swaps. Only a
+        // points card uses it: one provider's points narrowed to games.
+        private readonly ShowcaseControlBarSlot<ChartControlBarAdapter> _controlBarSlot;
+        private GridControlBarViewModel _controlBar;
+
+        // The last narrowed view, reused while its source and games hold, so a refresh that keeps
+        // them neither rebuilds the card nor recounts its history. The source is held weakly, as
+        // the built snapshot below is.
+        private WeakReference<OverviewDataSnapshot> _narrowedFrom;
+        private HashSet<GameSummaryItem> _narrowedGames;
+        private OverviewDataSnapshot _narrowed;
+        private string _narrowedHistoryKey;
+        private IReadOnlyList<ShowcaseScorePoint> _narrowedHistory;
+
+        public ScoresWidgetViewModel()
+        {
+            _controlBarSlot = new ShowcaseControlBarSlot<ChartControlBarAdapter>(Refresh);
+        }
+
+        /// <summary>A points card's platform, game and progress filters its settings show; null otherwise.</summary>
+        public GridControlBarViewModel ControlBar
+        {
+            get => _controlBar;
+            private set
+            {
+                if (SetValueAndReturn(ref _controlBar, value))
+                {
+                    OnPropertyChanged(nameof(ShowControlBar));
+                }
+            }
+        }
+
+        public bool ShowControlBar => ControlBar != null;
+
         private int _rows = 1;
         private int _columns = 1;
         private bool _isFeatured = true;
@@ -173,11 +208,68 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
 
         public double MaxCardWidth { get => _maxCardWidth; private set => SetValue(ref _maxCardWidth, value); }
 
+        /// <summary>
+        /// A points card's snapshot narrowed to the games its control bar keeps; the snapshot
+        /// itself for the other cards, or while the bar keeps every game.
+        /// </summary>
+        private OverviewDataSnapshot ApplyControlBarFilter(OverviewDataSnapshot source, ScoreCardType type)
+        {
+            _controlBarSlot.Bind(Projection?.Instance?.InstanceId);
+            if (!type.IsPoints)
+            {
+                ControlBar = null;
+                return source;
+            }
+
+            _controlBarSlot.UpdateShownBar(Projection?.Instance);
+            ControlBar = _controlBarSlot.ShownBar;
+
+            var adapter = _controlBarSlot.Adapter;
+            var games = (source.GameSummaries ?? new List<GameSummaryItem>())
+                .Where(game => game != null)
+                .ToList();
+            adapter.UpdateOptions(games);
+            var kept = adapter.Apply(games);
+            if (kept.Count == games.Count)
+            {
+                return source;
+            }
+
+            OverviewDataSnapshot narrowedFrom = null;
+            _narrowedFrom?.TryGetTarget(out narrowedFrom);
+            if (!ReferenceEquals(narrowedFrom, source) || _narrowedGames == null || !_narrowedGames.SetEquals(kept))
+            {
+                _narrowedFrom = new WeakReference<OverviewDataSnapshot>(source);
+                _narrowedGames = new HashSet<GameSummaryItem>(kept);
+                _narrowed = OverviewLinkedSnapshots.NarrowToGames(source, kept);
+                _narrowedHistory = null;
+            }
+
+            return _narrowed;
+        }
+
+        // The narrowed view's history over the card's window, counted once per view and day.
+        private IReadOnlyList<ShowcaseScorePoint> NarrowedHistory(
+            OverviewDataSnapshot snapshot,
+            ShowcaseWidgetInstanceSettings instance)
+        {
+            var today = DateTime.Now.Date;
+            var key = ShowcaseTimelineOptions.GetWindow(instance).ToKey() + "@" + today.Ticks;
+            if (_narrowedHistory == null || !string.Equals(_narrowedHistoryKey, key, StringComparison.Ordinal))
+            {
+                _narrowedHistory = ShowcaseWidgetProjectionService.BuildScoreHistory(snapshot, instance, today);
+                _narrowedHistoryKey = key;
+            }
+
+            return _narrowedHistory;
+        }
+
         protected override void Refresh()
         {
-            var snapshot = Projection?.Snapshot ?? new OverviewDataSnapshot();
+            var source = Projection?.Snapshot ?? new OverviewDataSnapshot();
             var instance = Projection?.Instance;
             var type = ShowcaseWidgetOptions.GetScoreCardType(instance);
+            var snapshot = ApplyControlBarFilter(source, type);
 
             Rows = 1;
             Columns = 1;
@@ -193,7 +285,9 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
                 existing.Card.SetShowTotal(showTotal);
             }
 
-            var history = Projection?.ScoreHistory ?? new List<ShowcaseScorePoint>();
+            var history = ReferenceEquals(snapshot, source)
+                ? Projection?.ScoreHistory ?? new List<ShowcaseScorePoint>()
+                : NarrowedHistory(snapshot, instance);
             // Two points is the least that draws a line at all; the option then decides whether
             // the card spends its space on one.
             var showChart = history.Count >= 2 && ShowcaseWidgetOptions.GetScoreHistoryShown(instance);
@@ -201,7 +295,7 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
             _builtSnapshot?.TryGetTarget(out builtSnapshot);
             if (Cards.Count == 1 &&
                 ReferenceEquals(_builtHistory, history) &&
-                ReferenceEquals(builtSnapshot, Projection?.Snapshot) &&
+                ReferenceEquals(builtSnapshot, snapshot) &&
                 _builtType == type &&
                 _builtShowChart == showChart)
             {
@@ -209,9 +303,7 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
             }
 
             _builtHistory = history;
-            _builtSnapshot = Projection?.Snapshot == null
-                ? null
-                : new WeakReference<OverviewDataSnapshot>(Projection.Snapshot);
+            _builtSnapshot = new WeakReference<OverviewDataSnapshot>(snapshot);
             _builtType = type;
             _builtShowChart = showChart;
 
