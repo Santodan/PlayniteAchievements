@@ -287,13 +287,13 @@ namespace PlayniteAchievements.Services.Achievements
                 gameData?.AchievementOrder);
         }
 
-        /// <summary>The game's platinum to nominate for the whole game, or null when it has none.</summary>
-        public static AchievementDetail SelectPlatinum(IEnumerable<AchievementDetail> achievementsInOrder)
+        /// <summary>
+        /// The game's platinum to nominate for the whole game, else the achievement a metadata
+        /// source's platinum matched, as automatic generation picks them; null when it has neither.
+        /// </summary>
+        public AchievementDetail SelectPlatinum(Guid gameId, IReadOnlyList<AchievementDetail> achievementsInOrder)
         {
-            return AutoCapstoneTemplate.SelectPlatinum(
-                achievementsInOrder,
-                achievement => achievement.TrophyType,
-                achievement => achievement.CategoryKind);
+            return AutoCapstoneEligibility.SelectNominee(achievementsInOrder, MatchedCapstoneApiName(gameId));
         }
 
         /// <summary>
