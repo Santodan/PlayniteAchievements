@@ -1054,7 +1054,12 @@ namespace PlayniteAchievements.Services.Showcase
                         3,
                         3,
                         ShowcaseWidgetKind.IconMosaic,
-                        widget => ConfigureAchievementMosaic(widget, ShowcaseMosaicSource.Rarest));
+                        widget =>
+                        {
+                            ConfigureAchievementMosaic(widget, ShowcaseMosaicSource.All);
+                            ShowcaseWidgetOptions.SetMosaicSort(widget, CompactListSortMode.Rarity);
+                            ShowcaseWidgetOptions.SetMosaicSortDescending(widget, false);
+                        });
                     AddBlock(
                         settings,
                         page,
@@ -1348,6 +1353,7 @@ namespace PlayniteAchievements.Services.Showcase
                 NormalizeProfile(widget);
                 ShowcaseWidgetOptions.MigrateCompletedGameMosaic(widget);
                 ShowcaseWidgetOptions.MigrateSlideshowVariant(widget);
+                ShowcaseWidgetOptions.MigrateAchievementMosaicSource(widget);
                 result.Add(widget);
             }
 
@@ -1568,6 +1574,7 @@ namespace PlayniteAchievements.Services.Showcase
                 NormalizeProfile(pair.Value);
                 ShowcaseWidgetOptions.MigrateCompletedGameMosaic(pair.Value);
                 ShowcaseWidgetOptions.MigrateSlideshowVariant(pair.Value);
+                ShowcaseWidgetOptions.MigrateAchievementMosaicSource(pair.Value);
                 result[pair.Key.Trim()] = pair.Value;
             }
 
