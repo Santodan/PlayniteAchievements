@@ -122,6 +122,23 @@ namespace PlayniteAchievements.Tests.ViewModels
         }
 
         [TestMethod]
+        public void Collection_UnpicksGamesOutsideIt()
+        {
+            var adapter = CreateAdapter(Rows());
+            adapter.RestoreState(new ControlBarFilterState
+            {
+                Games = new[] { SteamPcId.ToString("D"), XboxId.ToString("D") }.ToList()
+            });
+
+            adapter.GameFilter.SetScope(null);
+            Assert.AreEqual(2, adapter.GameFilter.SelectedGameIds.Count, "no collection keeps every pick");
+
+            adapter.GameFilter.SetScope(new[] { SteamPcId, SteamDeckId });
+            CollectionAssert.AreEquivalent(new[] { SteamPcId }, adapter.GameFilter.SelectedGameIds.ToArray());
+            CollectionAssert.AreEqual(new[] { SteamPcId.ToString("D") }, adapter.CaptureState().Games);
+        }
+
+        [TestMethod]
         public void ClearSelection_ResetsEachEntryOnItsOwn()
         {
             var rows = Rows();
