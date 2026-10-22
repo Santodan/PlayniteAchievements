@@ -96,24 +96,7 @@ namespace PlayniteAchievements.Views.Showcase
         public static string UnlockNextCriterionName(UnlockNextCriterion value) =>
             EnumValueName("LOCPlayAch_Showcase_UnlockNextCriterion_", value);
 
-        // The variants share the capture settings' labels.
-        public static string ScreenshotVariantName(ShowcaseScreenshotVariant value)
-        {
-            switch (value)
-            {
-                case ShowcaseScreenshotVariant.Clean:
-                    return Localize("LOCPlayAch_Settings_ScreenshotVariantClean");
-                case ShowcaseScreenshotVariant.Notification:
-                    return Localize("LOCPlayAch_Settings_Style_ToastTab");
-                case ShowcaseScreenshotVariant.Framed:
-                    return Localize("LOCPlayAch_Settings_ScreenshotVariantFramed");
-                default:
-                    return Localize("LOCAll");
-            }
-        }
 
-        public static string SlideshowSourceName(ShowcaseSlideshowSource value) =>
-            EnumValueName("LOCPlayAch_Showcase_SlideshowSource_", value);
 
         // The content kinds share the overview's Achievements and Games labels.
         public static string MosaicContentName(ShowcaseMosaicContent value) =>

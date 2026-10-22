@@ -330,6 +330,51 @@ namespace PlayniteAchievements.Tests.Models
         }
 
         [TestMethod]
+        public void MigrateSlideshowVariant_MovesTheStyleIntoTheControlBarState()
+        {
+            var framed = new ShowcaseWidgetInstanceSettings { Kind = ShowcaseWidgetKind.ScreenshotSlideshow };
+            framed.Options["Variant"] = "Framed";
+            framed.Options["ControlBar.Achievements"] = "{\"SearchText\":\"boss\"}";
+            var all = new ShowcaseWidgetInstanceSettings { Kind = ShowcaseWidgetKind.ScreenshotSlideshow };
+            all.Options["Variant"] = "All";
+            var junk = new ShowcaseWidgetInstanceSettings { Kind = ShowcaseWidgetKind.ScreenshotSlideshow };
+            junk.Options["Variant"] = "999";
+            var grid = new ShowcaseWidgetInstanceSettings { Kind = ShowcaseWidgetKind.RecentAchievements };
+            grid.Options["Variant"] = "Framed";
+
+            Assert.IsTrue(ShowcaseWidgetOptions.MigrateSlideshowVariant(framed));
+            Assert.IsTrue(ShowcaseWidgetOptions.MigrateSlideshowVariant(all));
+            Assert.IsTrue(ShowcaseWidgetOptions.MigrateSlideshowVariant(junk));
+            Assert.IsFalse(ShowcaseWidgetOptions.MigrateSlideshowVariant(grid));
+            Assert.IsFalse(ShowcaseWidgetOptions.MigrateSlideshowVariant(framed), "runs once");
+
+            Assert.IsFalse(framed.Options.ContainsKey("Variant"));
+            var state = Newtonsoft.Json.Linq.JObject.Parse(framed.Options["ControlBar.Achievements"]);
+            Assert.AreEqual("boss", (string)state["SearchText"]);
+            Assert.AreEqual("Framed", (string)state["Variant"]);
+            Assert.IsFalse(all.Options.ContainsKey("ControlBar.Achievements"), "every style is the bar's default");
+            Assert.IsFalse(junk.Options.ContainsKey("ControlBar.Achievements"));
+            Assert.AreEqual("Framed", grid.Options["Variant"]);
+        }
+
+        [TestMethod]
+        public void CollectionType_ReadsASlideshowsFormerCollectionSource()
+        {
+            var games = new ShowcaseWidgetInstanceSettings { Kind = ShowcaseWidgetKind.ScreenshotSlideshow };
+            games.Options["Source"] = "GameCollection";
+            var achievements = new ShowcaseWidgetInstanceSettings { Kind = ShowcaseWidgetKind.ScreenshotSlideshow };
+            achievements.Options["Source"] = "AchievementCollection";
+            var all = new ShowcaseWidgetInstanceSettings { Kind = ShowcaseWidgetKind.ScreenshotSlideshow };
+            all.Options["Source"] = "All";
+
+            Assert.AreEqual(ShowcaseCollectionType.Games, ShowcaseWidgetOptions.GetCollectionType(games));
+            Assert.AreEqual(ShowcaseCollectionType.Achievements, ShowcaseWidgetOptions.GetCollectionType(achievements));
+            Assert.AreEqual(ShowcaseCollectionType.None, ShowcaseWidgetOptions.GetCollectionType(all));
+
+            ShowcaseWidgetOptions.SetCollectionType(all, ShowcaseCollectionType.Achievements);
+            Assert.AreEqual(ShowcaseCollectionType.Achievements, ShowcaseWidgetOptions.GetCollectionType(all));
+        }
+        [TestMethod]
         public void WidgetFactory_SeedsDefaultsForGridMosaicAndCalendarKinds()
         {
             var summaries = ShowcaseWidgetSettingsFactory.CreateDefault(ShowcaseWidgetKind.GameSummaries);
@@ -531,8 +576,7 @@ namespace PlayniteAchievements.Tests.Models
                 " slideshow ");
 
             Assert.AreEqual("slideshow", instance.InstanceId);
-            Assert.AreEqual(ShowcaseScreenshotVariant.All,
-                ShowcaseWidgetOptions.GetScreenshotVariant(instance));
+            Assert.IsFalse(instance.Options.ContainsKey("Variant"), "the style lives in the control bar");
             Assert.AreEqual(8, ShowcaseWidgetOptions.GetSlideshowIntervalSeconds(instance));
             Assert.AreEqual(ShowcaseImageFitMode.Fit,
                 ShowcaseWidgetOptions.GetImageFitMode(instance));

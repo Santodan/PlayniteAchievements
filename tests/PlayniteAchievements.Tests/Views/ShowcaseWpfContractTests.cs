@@ -196,7 +196,7 @@ namespace PlayniteAchievements.Tests.Views
                 "LOCPlayAch_Showcase_PointsGrouping_",
                 value => value != ShowcasePointsGrouping.Game);
             AssertEnumKeys<ShowcaseMosaicSource>(localization, "LOCPlayAch_Showcase_MosaicSource_");
-            AssertEnumKeys<ShowcaseSlideshowSource>(localization, "LOCPlayAch_Showcase_SlideshowSource_");
+
             AssertEnumKeys<ShowcaseAchievementGridSource>(
                 localization,
                 "LOCPlayAch_Showcase_AchievementGridSource_",
@@ -439,7 +439,7 @@ namespace PlayniteAchievements.Tests.Views
             Assert.IsFalse(nativeMenus.Contains("ShowcasePinMenuBuilder"));
             Assert.IsFalse(nativeMenus.Contains("LOCPlayAch_Showcase_Title"));
 
-            StringAssert.Contains(options, "AddPinCollectionChoice");
+            StringAssert.Contains(options, "AddCollectionChoice(panel, includeAchievementCollections: true)");
             // A widget's collection is its own setting, offered by every widget listing games or
             // achievements; only achievement widgets offer achievement collections.
             StringAssert.Contains(options, "AddCollectionChoice(achievementMosaicBarPanel, includeAchievementCollections: true)");

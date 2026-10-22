@@ -484,63 +484,6 @@ namespace PlayniteAchievements.Views.Showcase
                     AddControlBarRows<GameSummaryGridControlBarAdapter>(gameMosaicBarPanel);
                     break;
                 case ShowcaseWidgetKind.ScreenshotSlideshow:
-                    FrameworkElement slideshowGameCollectionRow = null;
-                    FrameworkElement slideshowAchievementCollectionRow = null;
-                    AddChoice(
-                        panel,
-                        Localize("LOCSourceLabel"),
-                        new[]
-                        {
-                            ShowcaseSlideshowSource.All,
-                            ShowcaseSlideshowSource.GameCollection,
-                            ShowcaseSlideshowSource.AchievementCollection
-                        },
-                        ShowcaseWidgetOptions.GetSlideshowSource(_settings),
-                        value =>
-                        {
-                            ShowcaseWidgetOptions.SetSlideshowSource(_settings, value);
-                            if (slideshowGameCollectionRow != null)
-                            {
-                                slideshowGameCollectionRow.Visibility =
-                                    value == ShowcaseSlideshowSource.GameCollection
-                                        ? Visibility.Visible
-                                        : Visibility.Collapsed;
-                            }
-
-                            if (slideshowAchievementCollectionRow != null)
-                            {
-                                slideshowAchievementCollectionRow.Visibility =
-                                    value == ShowcaseSlideshowSource.AchievementCollection
-                                        ? Visibility.Visible
-                                        : Visibility.Collapsed;
-                            }
-                        },
-                        SlideshowSourceName);
-                    slideshowGameCollectionRow = AddPinCollectionChoice(panel, achievementCollection: false);
-                    slideshowGameCollectionRow.Visibility =
-                        ShowcaseWidgetOptions.GetSlideshowSource(_settings) ==
-                        ShowcaseSlideshowSource.GameCollection
-                            ? Visibility.Visible
-                            : Visibility.Collapsed;
-                    slideshowAchievementCollectionRow = AddPinCollectionChoice(panel, achievementCollection: true);
-                    slideshowAchievementCollectionRow.Visibility =
-                        ShowcaseWidgetOptions.GetSlideshowSource(_settings) ==
-                        ShowcaseSlideshowSource.AchievementCollection
-                            ? Visibility.Visible
-                            : Visibility.Collapsed;
-                    AddChoice(
-                        panel,
-                        Localize("LOCPlayAch_Showcase_Variant"),
-                        new[]
-                        {
-                            ShowcaseScreenshotVariant.All,
-                            ShowcaseScreenshotVariant.Clean,
-                            ShowcaseScreenshotVariant.Notification,
-                            ShowcaseScreenshotVariant.Framed
-                        },
-                        ShowcaseWidgetOptions.GetScreenshotVariant(_settings),
-                        value => ShowcaseWidgetOptions.SetScreenshotVariant(_settings, value),
-                        ScreenshotVariantName);
                     AddNumberRow(
                         panel,
                         Localize("LOCPlayAch_Showcase_Interval") + " (s)",
@@ -571,6 +514,8 @@ namespace PlayniteAchievements.Views.Showcase
                         ShowcaseWidgetOptions.GetInfoPanelPosition(_settings),
                         value => ShowcaseWidgetOptions.SetInfoPanelPosition(_settings, value),
                         InfoPanelPositionName);
+                    AddCollectionChoice(panel, includeAchievementCollections: true);
+                    AddControlBarRows<SlideshowControlBarAdapter>(panel);
                     break;
                 case ShowcaseWidgetKind.Image:
                     ShowcaseProfileSettingsEditor.AddImagePicker(
@@ -1306,43 +1251,6 @@ namespace PlayniteAchievements.Views.Showcase
                     }
                 },
                 value => names.TryGetValue(value, out var name) ? name : string.Empty);
-        }
-
-        private FrameworkElement AddPinCollectionChoice(Panel panel, bool achievementCollection)
-        {
-            var showcase = PlayniteAchievementsPlugin.Instance?.Settings?.Persisted?.Showcase;
-            if (achievementCollection)
-            {
-                var selected = ShowcasePinService.ResolveAchievementCollection(
-                    showcase,
-                    ShowcaseWidgetOptions.GetPinCollectionId(_settings));
-                var collections = (showcase?.AchievementPinCollections ??
-                    new System.Collections.Generic.List<PinnedAchievementCollection>())
-                    .Where(collection => collection != null)
-                    .ToArray();
-                return AddChoice(
-                    panel,
-                    Localize("LOCPlayAch_Showcase_PinCollection"),
-                    collections,
-                    selected,
-                    value => ShowcaseWidgetOptions.SetPinCollectionId(_settings, value?.CollectionId),
-                    value => value?.Name ?? string.Empty);
-            }
-
-            var selectedGameCollection = ShowcasePinService.ResolveGameCollection(
-                showcase,
-                ShowcaseWidgetOptions.GetPinCollectionId(_settings));
-            var gameCollections = (showcase?.GamePinCollections ??
-                new System.Collections.Generic.List<PinnedGameCollection>())
-                .Where(collection => collection != null)
-                .ToArray();
-            return AddChoice(
-                panel,
-                Localize("LOCPlayAch_Showcase_PinCollection"),
-                gameCollections,
-                selectedGameCollection,
-                value => ShowcaseWidgetOptions.SetPinCollectionId(_settings, value?.CollectionId),
-                value => value?.Name ?? string.Empty);
         }
 
         /// <summary>

@@ -179,12 +179,7 @@ namespace PlayniteAchievements.Models.Settings
         Framed = 3
     }
 
-    public enum ShowcaseSlideshowSource
-    {
-        All = 0,
-        GameCollection = 1,
-        AchievementCollection = 2
-    }
+
 
     /// <summary>What the collapsed Mosaic widget renders: achievement icons or game covers.</summary>
     public enum ShowcaseMosaicContent

@@ -363,6 +363,9 @@ namespace PlayniteAchievements.Models
         public const string Platform = "Platform";
         public const string Game = "Game";
         public const string Tag = "Tag";
+
+        /// <summary>The Screenshot Slideshow's screenshot style.</summary>
+        public const string ScreenshotStyle = "ScreenshotStyle";
         public const string UnlockDate = "UnlockDate";
         public const string Rarity = "Rarity";
         public const string Trophy = "Trophy";
@@ -569,6 +572,7 @@ namespace PlayniteAchievements.Models
             switch (settings?.Kind)
             {
                 case ShowcaseWidgetKind.RecentAchievements:
+                case ShowcaseWidgetKind.ScreenshotSlideshow:
                     return true;
                 case ShowcaseWidgetKind.IconMosaic:
                     return GetMosaicContent(settings) == ShowcaseMosaicContent.Achievements;
@@ -586,6 +590,7 @@ namespace PlayniteAchievements.Models
                 case ShowcaseWidgetKind.GameSummaries:
                 case ShowcaseWidgetKind.IconMosaic:
                 case ShowcaseWidgetKind.Pie:
+                case ShowcaseWidgetKind.ScreenshotSlideshow:
                     return true;
                 default:
                     return false;
@@ -594,8 +599,24 @@ namespace PlayniteAchievements.Models
 
         // A source saved as the former "Pinned" stands for its collection: an achievement one on
         // the achievement grid and achievement mosaic, a game one on the game grid and game mosaic.
+        // A slideshow's former collection sources name their kind.
         private static ShowcaseCollectionType LegacyCollectionType(ShowcaseWidgetInstanceSettings settings)
         {
+            if (settings?.Kind == ShowcaseWidgetKind.ScreenshotSlideshow)
+            {
+                string raw = null;
+                settings.Options?.TryGetValue(Source, out raw);
+                switch (raw?.Trim())
+                {
+                    case "GameCollection":
+                        return ShowcaseCollectionType.Games;
+                    case "AchievementCollection":
+                        return ShowcaseCollectionType.Achievements;
+                    default:
+                        return ShowcaseCollectionType.None;
+                }
+            }
+
             if (!IsLegacyPinnedSource(settings))
             {
                 return ShowcaseCollectionType.None;
@@ -1264,19 +1285,53 @@ namespace PlayniteAchievements.Models
             settings?.SetOption(Source, value);
         }
 
-        public static ShowcaseSlideshowSource GetSlideshowSource(ShowcaseWidgetInstanceSettings settings) =>
-            GetEnum(settings, Source, ShowcaseSlideshowSource.All);
+        /// <summary>
+        /// Moves a Screenshot Slideshow's screenshot style from its options into its control bar's
+        /// saved state, where the bar's Style item keeps it. True when the widget changed.
+        /// </summary>
+        public static bool MigrateSlideshowVariant(ShowcaseWidgetInstanceSettings settings)
+        {
+            if (settings?.Kind != ShowcaseWidgetKind.ScreenshotSlideshow ||
+                settings.Options == null ||
+                !settings.Options.TryGetValue(Variant, out var raw))
+            {
+                return false;
+            }
 
-        public static void SetSlideshowSource(
-            ShowcaseWidgetInstanceSettings settings,
-            ShowcaseSlideshowSource value) => settings?.SetOption(Source, value);
+            settings.Options.Remove(Variant);
+            if (!Enum.TryParse(raw?.Trim(), true, out ShowcaseScreenshotVariant variant) ||
+                !Enum.IsDefined(typeof(ShowcaseScreenshotVariant), variant) ||
+                variant == ShowcaseScreenshotVariant.All)
+            {
+                return true;
+            }
 
-        public static ShowcaseScreenshotVariant GetScreenshotVariant(ShowcaseWidgetInstanceSettings settings) =>
-            GetEnum(settings, Variant, ShowcaseScreenshotVariant.All);
+            Newtonsoft.Json.Linq.JObject state = null;
+            if (settings.Options.TryGetValue(AchievementControlBarStateKey, out var stateJson) &&
+                !string.IsNullOrWhiteSpace(stateJson))
+            {
+                try
+                {
+                    state = Newtonsoft.Json.Linq.JObject.Parse(stateJson);
+                }
+                catch (Newtonsoft.Json.JsonException)
+                {
+                    state = null;
+                }
+            }
 
-        public static void SetScreenshotVariant(
-            ShowcaseWidgetInstanceSettings settings,
-            ShowcaseScreenshotVariant value) => settings?.SetOption(Variant, value);
+            state = state ?? new Newtonsoft.Json.Linq.JObject();
+            if (state["Variant"] == null)
+            {
+                state["Variant"] = variant.ToString();
+            }
+
+            settings.Options[AchievementControlBarStateKey] = state.ToString(Newtonsoft.Json.Formatting.None);
+            return true;
+        }
+
+        // The achievement control bar's saved state (CrossGameAchievementControlBarAdapter.StateKey).
+        private const string AchievementControlBarStateKey = ControlBarStatePrefix + "Achievements";
 
         public static int GetSlideshowIntervalSeconds(ShowcaseWidgetInstanceSettings settings) =>
             Clamp(settings?.GetOption(IntervalSeconds, 8) ?? 8, 1, 300);
@@ -1573,8 +1628,6 @@ namespace PlayniteAchievements.Models
                     ShowcaseWidgetOptions.SetMosaicSortDescending(settings, true);
                     break;
                 case ShowcaseWidgetKind.ScreenshotSlideshow:
-                    ShowcaseWidgetOptions.SetSlideshowSource(settings, ShowcaseSlideshowSource.All);
-                    ShowcaseWidgetOptions.SetScreenshotVariant(settings, ShowcaseScreenshotVariant.All);
                     ShowcaseWidgetOptions.SetShuffle(settings, true);
                     ShowcaseWidgetOptions.SetSlideshowIntervalSeconds(settings, 8);
                     ShowcaseWidgetOptions.SetImageFitMode(settings, ShowcaseImageFitMode.Fit);
