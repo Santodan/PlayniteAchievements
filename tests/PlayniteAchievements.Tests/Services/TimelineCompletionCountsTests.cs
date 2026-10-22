@@ -55,5 +55,39 @@ namespace PlayniteAchievements.Tests.Services
             Assert.AreEqual(UnlockDayCounts.DayOf(lastUnlockUtc), counts[byLastUnlock].Single().Key);
             Assert.AreEqual(2, TimelinePlatformSeries.Sum(counts).Values.Sum());
         }
+
+        [TestMethod]
+        public void CompletionCountsByGame_CountsAPlatinumAndTakesTheEarliestFinish()
+        {
+            var platinumOnly = Guid.NewGuid();
+            var platinumThenFull = Guid.NewGuid();
+            var unfinished = Guid.NewGuid();
+            var platinumUtc = new DateTime(2026, 2, 1, 12, 0, 0, DateTimeKind.Utc);
+            var laterUtc = new DateTime(2026, 8, 1, 12, 0, 0, DateTimeKind.Utc);
+            var snapshot = new OverviewDataSnapshot
+            {
+                GameSummaries = new List<GameSummaryItem>
+                {
+                    // A platinum the user no longer counts as a capstone, with DLC still open.
+                    new GameSummaryItem { PlayniteGameId = platinumOnly, TotalAchievements = 50, UnlockedAchievements = 40, LastUnlockUtc = laterUtc },
+                    // Platinum first, 100% later: the platinum day is the finish.
+                    new GameSummaryItem { PlayniteGameId = platinumThenFull, TotalAchievements = 10, UnlockedAchievements = 10, IsCompleted = true, LastUnlockUtc = laterUtc },
+                    new GameSummaryItem { PlayniteGameId = unfinished, TotalAchievements = 10, UnlockedAchievements = 3, LastUnlockUtc = laterUtc }
+                },
+                Achievements = new List<AchievementDisplayItem>
+                {
+                    new AchievementDisplayItem { PlayniteGameId = platinumOnly, Unlocked = true, TrophyType = "Platinum", UnlockTimeUtc = platinumUtc },
+                    new AchievementDisplayItem { PlayniteGameId = platinumThenFull, Unlocked = true, TrophyType = "platinum", UnlockTimeUtc = platinumUtc },
+                    new AchievementDisplayItem { PlayniteGameId = unfinished, Unlocked = true, TrophyType = "gold", UnlockTimeUtc = platinumUtc }
+                }
+            };
+
+            var counts = TimelinePlatformSeries.CompletionCountsByGame(snapshot);
+
+            Assert.AreEqual(2, counts.Count);
+            Assert.AreEqual(UnlockDayCounts.DayOf(platinumUtc), counts[platinumOnly].Single().Key);
+            Assert.AreEqual(UnlockDayCounts.DayOf(platinumUtc), counts[platinumThenFull].Single().Key);
+            Assert.IsFalse(counts.ContainsKey(unfinished));
+        }
     }
 }
