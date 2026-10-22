@@ -2,9 +2,9 @@ using Playnite.SDK;
 using PlayniteAchievements.Common;
 using PlayniteAchievements.Models.Achievements;
 using PlayniteAchievements.Services.Achievements;
+using PlayniteAchievements.Services.Metadata;
 using System;
 using System.Collections.Generic;
-using System.IO;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -36,13 +36,11 @@ namespace PlayniteAchievements.Providers.Metadata.TrueGaming
 
         private IDisposable _lease;
 
-        public TrueGamingMetadataProvider(IPlayniteAPI api, ILogger logger, string pluginUserDataPath)
+        public TrueGamingMetadataProvider(IPlayniteAPI api, ILogger logger, MetadataStateStore state)
         {
             _views = api == null ? null : new OffscreenViewLeaseSource(api, logger);
             _logger = logger;
-            _store = new TrueGamingPageStore(
-                string.IsNullOrWhiteSpace(pluginUserDataPath) ? null : Path.Combine(pluginUserDataPath, "metadata", "truegaming-pages.json"),
-                logger);
+            _store = new TrueGamingPageStore(state?.Pages(MetadataKey));
         }
 
         public string Key => MetadataKey;
@@ -74,8 +72,6 @@ namespace PlayniteAchievements.Providers.Metadata.TrueGaming
             {
                 _pages.Clear();
             }
-
-            _store.Save();
         }
 
         /// <summary>
