@@ -164,6 +164,7 @@ namespace PlayniteAchievements.ViewModels.Tags
             _color = AchievementTagHelper.NormalizeColor(definition.Color);
             _icon = AchievementTagHelper.NormalizeIcon(definition.Icon);
             _hidden = definition.Hidden;
+            ToggleHiddenCommand = new RelayCommand(_ => IsHidden = !IsHidden);
             PickColorCommand = new RelayCommand(_ => PickColor());
             ClearColorCommand = new RelayCommand(_ => Color = null);
             PickIconCommand = new RelayCommand(_ => PickIcon());
@@ -335,6 +336,13 @@ namespace PlayniteAchievements.ViewModels.Tags
                 _owner.Commit();
             }
         }
+
+        /// <summary>
+        /// Flips <see cref="IsHidden"/>. The row's toggle runs this rather than binding two-way:
+        /// the tag list's DataGrid holds a cell's two-way update in its row binding group, so a
+        /// bound toggle never reached the row.
+        /// </summary>
+        public ICommand ToggleHiddenCommand { get; }
 
         public ICommand PickColorCommand { get; }
 
