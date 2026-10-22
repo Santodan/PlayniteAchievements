@@ -176,7 +176,8 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 {
                     Reload();
                     TriggerRefresh();
-                });
+                },
+                (gameId, apiName) => _plugin?.AutoCapstoneAuthoring?.PromotePairedPlatinum(gameId, apiName));
             FollowSavedFiltersCommand = new RelayCommand(_ => FollowSavedFilters(), _ => HasGame && IsExclusionOverridingFilter);
             UnlinkManualTrackingCommand = new RelayCommand(_ => UnlinkManualTracking(), _ => HasGame && HasManualTrackingLink);
             RefreshStateCommand = new RelayCommand(_ => Reload());
