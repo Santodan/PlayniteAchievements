@@ -1,3 +1,4 @@
+using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
 using Playnite.SDK;
@@ -126,6 +127,48 @@ namespace PlayniteAchievements.Views.Settings.Controls
             editor.SetValue(FriendSummaryOptionsPropertyKey, e.NewValue as FriendSummaryGridOptions);
             editor.SetValue(CategorySummaryOptionsPropertyKey, e.NewValue as CategorySummaryGridOptions);
             editor.SetValue(CommonOptionsPropertyKey, e.NewValue as GridCommonOptions);
+            editor.RebuildControlBarItemRows();
+        }
+
+        /// <summary>
+        /// The grid's control bar items, which the editor lists under Show Control Bar with a
+        /// checkbox each; null or empty lists none.
+        /// </summary>
+        public static readonly DependencyProperty ControlBarEntriesProperty = DependencyProperty.Register(
+            nameof(ControlBarEntries),
+            typeof(System.Collections.Generic.IReadOnlyList<PlayniteAchievements.ViewModels.Items.IGridControlBarEntry>),
+            typeof(GridOptionsEditor),
+            new PropertyMetadata(null, (d, e) => ((GridOptionsEditor)d).RebuildControlBarItemRows()));
+
+        public System.Collections.Generic.IReadOnlyList<PlayniteAchievements.ViewModels.Items.IGridControlBarEntry> ControlBarEntries
+        {
+            get => (System.Collections.Generic.IReadOnlyList<PlayniteAchievements.ViewModels.Items.IGridControlBarEntry>)GetValue(ControlBarEntriesProperty);
+            set => SetValue(ControlBarEntriesProperty, value);
+        }
+
+        private static readonly DependencyPropertyKey ControlBarItemRowsPropertyKey =
+            DependencyProperty.RegisterReadOnly(
+                nameof(ControlBarItemRows),
+                typeof(System.Collections.Generic.IReadOnlyList<ControlBarItemRow>),
+                typeof(GridOptionsEditor),
+                new PropertyMetadata(null));
+
+        /// <summary>One row per control bar item, for the record being edited.</summary>
+        public System.Collections.Generic.IReadOnlyList<ControlBarItemRow> ControlBarItemRows =>
+            (System.Collections.Generic.IReadOnlyList<ControlBarItemRow>)GetValue(ControlBarItemRowsPropertyKey.DependencyProperty);
+
+        private void RebuildControlBarItemRows()
+        {
+            var options = CommonOptions;
+            var entries = ControlBarEntries;
+            SetValue(
+                ControlBarItemRowsPropertyKey,
+                options == null || entries == null
+                    ? null
+                    : entries
+                        .Where(entry => entry != null && !string.IsNullOrWhiteSpace(entry.Id) && !string.IsNullOrWhiteSpace(entry.LabelKey))
+                        .Select(entry => new ControlBarItemRow(options, entry))
+                        .ToList());
         }
 
         public static readonly DependencyProperty HeaderProperty = DependencyProperty.Register(
