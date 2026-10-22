@@ -299,6 +299,9 @@ namespace PlayniteAchievements.ViewModels
         /// <summary>Selected achievement tags, as tag keys, for achievement control bars.</summary>
         public List<string> Tags { get; set; }
 
+        /// <summary>The Screenshot Slideshow's screenshot style (a ShowcaseScreenshotVariant name); null for every style.</summary>
+        public string Variant { get; set; }
+
         public List<int> Progress { get; set; }
 
         public List<int> Activity { get; set; }
