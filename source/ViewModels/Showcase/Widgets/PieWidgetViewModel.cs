@@ -86,7 +86,8 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
             var tagScope = mode == ShowcasePieMode.Tag ? ResolveTagScope(snapshot, linked) : null;
             _controlBarSlot.Adapter.SetTagSliceSource(
                 tagScope == null ? null : (Func<IReadOnlyList<string>>)(() => TagOptions(snapshot, tagScope)),
-                tagScope == null ? null : (Func<string, string>)(key => AchievementTagRegistry.GetName(key, AchievementTagScope.NamingGame(tagScope))));
+                tagScope == null ? null : (Func<string, string>)(key => AchievementTagRegistry.GetName(key, AchievementTagScope.NamingGame(tagScope))),
+                tagScope == null ? null : (Func<string, string>)(key => TagControlBarFilter.IconKey(key, AchievementTagScope.NamingGame(tagScope))));
 
             // A linked pie is reprojected when the overview's selection moves even though its
             // data did not; then only the highlight changes, and rebuilding the chart would
