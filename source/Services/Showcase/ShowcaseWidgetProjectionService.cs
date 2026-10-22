@@ -772,7 +772,7 @@ namespace PlayniteAchievements.Services.Showcase
             }
 
             return instance.Kind == ShowcaseWidgetKind.IconMosaic
-                ? ShowcaseWidgetOptions.GetMosaicSource(instance) == ShowcaseMosaicSource.Recent
+                ? ShowcaseWidgetOptions.GetMosaicSource(instance) == ShowcaseMosaicSource.All
                 : ShowcaseWidgetOptions.GetAchievementGridSource(instance) == ShowcaseAchievementGridSource.All;
         }
 
@@ -1462,22 +1462,6 @@ namespace PlayniteAchievements.Services.Showcase
             IEnumerable<AchievementDisplayItem> achievements;
             switch (source)
             {
-                case ShowcaseMosaicSource.Rarest:
-                    achievements = (snapshot?.Achievements ?? new List<AchievementDisplayItem>())
-                        .Where(item => item?.Unlocked == true)
-                        // Match every established rarity-sorted surface. The resolver keeps
-                        // tier-only achievements in their correct band instead of pushing them
-                        // behind all percentage-backed achievements.
-                        .OrderBy(item => item.RaritySortValue)
-                        .ThenByDescending(item => item.UnlockTimeUtc);
-                    break;
-                case ShowcaseMosaicSource.Capstones:
-                    // Hydration folds a game's manual capstone override into IsCapstone, so the
-                    // flag on the display item is already the effective capstone.
-                    achievements = (snapshot?.Achievements ?? new List<AchievementDisplayItem>())
-                        .Where(item => item?.Unlocked == true && item.IsCapstone)
-                        .OrderByDescending(item => item.UnlockTimeUtc);
-                    break;
                 case ShowcaseMosaicSource.UnlockNext:
                     // Selection, not re-arrangement: the criterion decides which locked
                     // achievements make the cut, so it runs here and the widget's generic sort
