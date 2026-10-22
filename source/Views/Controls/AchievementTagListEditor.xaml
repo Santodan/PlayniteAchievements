@@ -9,7 +9,7 @@
              d:DesignHeight="300"
              d:DesignWidth="700">
     <!-- DataContext: AchievementTagListViewModel. One row per tag: drag handle, icon, name, color
-         (swatch, hex, Pick, Reset), then Make Global (a game's own tags) and Remove. -->
+         (swatch, hex, Pick, Reset), then Show/Hide, Make Global (a game's own tags) and Remove. -->
     <UserControl.Resources>
         <ResourceDictionary>
             <ResourceDictionary.MergedDictionaries>
@@ -203,6 +203,21 @@
                         <DataGridTemplateColumn.CellTemplate>
                             <DataTemplate>
                                 <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="4,0">
+                                    <!-- A hidden tag shows only in the Manage Achievements editor. -->
+                                    <Button Command="{Binding ToggleHiddenCommand}">
+                                        <Button.Style>
+                                            <Style TargetType="Button" BasedOn="{StaticResource TagIconButtonStyle}">
+                                                <Setter Property="Content" Value="&#xEF24;"/>
+                                                <Setter Property="ToolTip" Value="{DynamicResource LOCPlayAch_Dynamic_Visible}"/>
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding IsHidden}" Value="True">
+                                                        <Setter Property="Content" Value="&#xEF22;"/>
+                                                        <Setter Property="ToolTip" Value="{DynamicResource LOCPlayAch_Filter_Hidden}"/>
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </Button.Style>
+                                    </Button>
                                     <Button Content="&#xEF3E;"
                                             Command="{Binding MakeGlobalCommand}"
                                             ToolTip="{DynamicResource LOCPlayAch_ManageAchievements_Tags_MakeGlobal}"
