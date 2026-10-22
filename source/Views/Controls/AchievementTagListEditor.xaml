@@ -211,22 +211,17 @@
                         <DataGridTemplateColumn.CellTemplate>
                             <DataTemplate>
                                 <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="4,0">
-                                    <!-- A hidden tag shows only in the Manage Achievements editor. -->
-                                    <Button Command="{Binding ToggleHiddenCommand}">
-                                        <Button.Style>
-                                            <Style TargetType="Button" BasedOn="{StaticResource TagIconButtonStyle}">
-                                                <Setter Property="Content" Value="&#xEF24;"/>
-                                                <Setter Property="ToolTip" Value="{DynamicResource LOCPlayAch_Dynamic_Visible}"/>
-                                                <Style.Triggers>
-                                                    <DataTrigger Binding="{Binding IsHidden}" Value="True">
-                                                        <Setter Property="Content" Value="&#xEF22;"/>
-                                                        <Setter Property="Foreground" Value="{DynamicResource PlayAch.Brush.Accent}"/>
-                                                        <Setter Property="ToolTip" Value="{DynamicResource LOCPlayAch_Filter_Hidden}"/>
-                                                    </DataTrigger>
-                                                </Style.Triggers>
-                                            </Style>
-                                        </Button.Style>
-                                    </Button>
+                                    <!-- On while the tag is hidden, which shows it only in the Manage
+                                         Achievements editor; drawn like the control bar's Hidden filter. -->
+                                    <ToggleButton Content="&#xEF22;"
+                                                  IsChecked="{Binding IsHidden, Mode=TwoWay}"
+                                                  ToolTip="{DynamicResource LOCPlayAch_Filter_Hidden}"
+                                                  Style="{StaticResource PlayAch.ToggleButton.FilterStyle}"
+                                                  ContentTemplate="{StaticResource PlayAch.ButtonContent.Glyph}"
+                                                  Width="34"
+                                                  MinHeight="30"
+                                                  Padding="0"
+                                                  Margin="4,0"/>
                                     <Button Content="&#xEF3E;"
                                             Command="{Binding MakeGlobalCommand}"
                                             ToolTip="{DynamicResource LOCPlayAch_ManageAchievements_Tags_MakeGlobal}"
