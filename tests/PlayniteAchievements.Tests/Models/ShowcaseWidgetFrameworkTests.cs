@@ -330,6 +330,44 @@ namespace PlayniteAchievements.Tests.Models
         }
 
         [TestMethod]
+        public void MigrateAchievementMosaicSource_TurnsFormerSourcesIntoSortAndFilter()
+        {
+            ShowcaseWidgetInstanceSettings Mosaic(string source)
+            {
+                var widget = new ShowcaseWidgetInstanceSettings { Kind = ShowcaseWidgetKind.IconMosaic };
+                widget.Options["Source"] = source;
+                return widget;
+            }
+
+            var recent = Mosaic("Recent");
+            var rarest = Mosaic("Rarest");
+            var sortedRarest = Mosaic("Rarest");
+            ShowcaseWidgetOptions.SetMosaicSort(sortedRarest, CompactListSortMode.UnlockTime);
+            var capstones = Mosaic("Capstones");
+            capstones.Options["ControlBar.Achievements"] = "{\"SearchText\":\"boss\"}";
+            var unlockNext = Mosaic("UnlockNext");
+            var games = Mosaic("Recent");
+            ShowcaseWidgetOptions.SetMosaicContent(games, ShowcaseMosaicContent.Games);
+
+            Assert.IsTrue(ShowcaseWidgetOptions.MigrateAchievementMosaicSource(recent));
+            Assert.IsTrue(ShowcaseWidgetOptions.MigrateAchievementMosaicSource(rarest));
+            Assert.IsTrue(ShowcaseWidgetOptions.MigrateAchievementMosaicSource(sortedRarest));
+            Assert.IsTrue(ShowcaseWidgetOptions.MigrateAchievementMosaicSource(capstones));
+            Assert.IsFalse(ShowcaseWidgetOptions.MigrateAchievementMosaicSource(unlockNext));
+            Assert.IsFalse(ShowcaseWidgetOptions.MigrateAchievementMosaicSource(games), "a game mosaic's source is its own");
+            Assert.IsFalse(ShowcaseWidgetOptions.MigrateAchievementMosaicSource(rarest), "runs once");
+
+            Assert.AreEqual("All", recent.Options["Source"]);
+            Assert.AreEqual(CompactListSortMode.Rarity, ShowcaseWidgetOptions.GetMosaicSort(rarest));
+            Assert.IsFalse(ShowcaseWidgetOptions.GetMosaicSortDescending(rarest), "rarest first");
+            Assert.AreEqual(CompactListSortMode.UnlockTime, ShowcaseWidgetOptions.GetMosaicSort(sortedRarest), "a chosen sort stays");
+            var state = Newtonsoft.Json.Linq.JObject.Parse(capstones.Options["ControlBar.Achievements"]);
+            Assert.AreEqual("boss", (string)state["SearchText"]);
+            Assert.IsTrue((bool)state["Capstones"]);
+            Assert.AreEqual(ShowcaseMosaicSource.All, ShowcaseWidgetOptions.GetMosaicSource(capstones));
+        }
+
+        [TestMethod]
         public void TimelineSplit_ReadsTheFormerPlatformSwitchAndReplacesIt()
         {
             var legacy = new ShowcaseWidgetInstanceSettings { Kind = ShowcaseWidgetKind.Timeline };
@@ -399,7 +437,7 @@ namespace PlayniteAchievements.Tests.Models
 
             var mosaic = ShowcaseWidgetSettingsFactory.CreateDefault(ShowcaseWidgetKind.IconMosaic);
             Assert.AreEqual(ShowcaseMosaicContent.Achievements, ShowcaseWidgetOptions.GetMosaicContent(mosaic));
-            Assert.AreEqual(ShowcaseMosaicSource.Recent, ShowcaseWidgetOptions.GetMosaicSource(mosaic));
+            Assert.AreEqual(ShowcaseMosaicSource.All, ShowcaseWidgetOptions.GetMosaicSource(mosaic));
             Assert.AreEqual(ShowcaseGameMosaicSource.All, ShowcaseWidgetOptions.GetGameMosaicSource(mosaic));
             Assert.AreEqual(24, ShowcaseWidgetOptions.GetGameMosaicCount(mosaic));
 
