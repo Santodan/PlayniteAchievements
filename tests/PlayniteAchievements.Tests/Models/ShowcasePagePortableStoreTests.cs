@@ -99,6 +99,7 @@ namespace PlayniteAchievements.Tests.Models
             recent.Options["ControlBar.Achievements"] =
                 "{\"SearchText\":\"zelda\",\"Games\":[\"" + Guid.NewGuid().ToString("D") + "\"],\"Rarities\":[2]}";
             games.Options["ControlBar.Games"] = "{\"Games\":[\"" + Guid.NewGuid().ToString("D") + "\"]}";
+            ShowcaseWidgetOptions.SetShowControlBar(recent, true);
             ShowcaseWidgetOptions.SetControlBarItemVisible(recent, ShowcaseControlBarItems.Rarity, true);
             var background = Path.Combine(_tempDirectory, "banner.png");
             File.WriteAllBytes(background, new byte[] { 1, 2, 3, 4 });
