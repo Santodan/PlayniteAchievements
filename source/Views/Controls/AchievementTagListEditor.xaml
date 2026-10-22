@@ -25,8 +25,7 @@
 
             <Style x:Key="TagIconButtonStyle" TargetType="Button" BasedOn="{StaticResource PlayAch.Button.ToolbarIconStyle}">
                 <Setter Property="Margin" Value="4,0"/>
-                <Setter Property="TextOptions.TextFormattingMode" Value="Display"/>
-                <Setter Property="TextOptions.TextRenderingMode" Value="Grayscale"/>
+                <Setter Property="ContentTemplate" Value="{StaticResource PlayAch.ButtonContent.Glyph}"/>
             </Style>
 
         </ResourceDictionary>
