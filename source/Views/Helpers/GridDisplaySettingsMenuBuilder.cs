@@ -2,7 +2,9 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
 using System.Windows.Input;
+using System.Collections.Generic;
 using PlayniteAchievements.Models.Settings;
+using PlayniteAchievements.ViewModels.Items;
 using PlayniteAchievements.Views.Controls;
 using PlayniteAchievements.Views.Dialogs;
 using PlayniteAchievements.Views.Settings.Controls;
@@ -29,7 +31,7 @@ namespace PlayniteAchievements.Views.Helpers
         /// </summary>
         public static bool Append(ContextMenu menu, FrameworkElement resourceOwner, DependencyObject source)
         {
-            if (menu == null || !TryResolveSurface(source, out var kind, out var surfaceKey, out var categoryKey))
+            if (menu == null || !TryResolveSurface(source, out var kind, out var surfaceKey, out var categoryKey, out var barEntries))
             {
                 return false;
             }
@@ -39,7 +41,7 @@ namespace PlayniteAchievements.Views.Helpers
                 menu.Items.Add(new Separator());
             }
 
-            menu.Items.Add(CreateItem(resourceOwner, kind, surfaceKey, categoryKey));
+            menu.Items.Add(CreateItem(resourceOwner, kind, surfaceKey, categoryKey, barEntries));
             return true;
         }
 
@@ -49,13 +51,13 @@ namespace PlayniteAchievements.Views.Helpers
         /// </summary>
         public static ContextMenu BuildStandalone(FrameworkElement resourceOwner, DependencyObject source)
         {
-            if (!TryResolveSurface(source, out var kind, out var surfaceKey, out var categoryKey))
+            if (!TryResolveSurface(source, out var kind, out var surfaceKey, out var categoryKey, out var barEntries))
             {
                 return null;
             }
 
             var menu = new ContextMenu();
-            menu.Items.Add(CreateItem(resourceOwner, kind, surfaceKey, categoryKey));
+            menu.Items.Add(CreateItem(resourceOwner, kind, surfaceKey, categoryKey, barEntries));
             return menu;
         }
 
@@ -121,12 +123,13 @@ namespace PlayniteAchievements.Views.Helpers
             FrameworkElement resourceOwner,
             GridOptionKind kind,
             string surfaceKey,
-            string categoryKey)
+            string categoryKey,
+            IReadOnlyList<IGridControlBarEntry> barEntries)
         {
             return GameRowContextMenuBuilder.CreateMenuItem(
                 resourceOwner,
                 MenuItemKey,
-                () => GridDisplaySettingsDialog.Show(kind, surfaceKey, categoryKey));
+                () => GridDisplaySettingsDialog.Show(kind, surfaceKey, categoryKey, barEntries));
         }
 
         /// <summary>
@@ -137,11 +140,13 @@ namespace PlayniteAchievements.Views.Helpers
             DependencyObject source,
             out GridOptionKind kind,
             out string surfaceKey,
-            out string categorySurfaceKey)
+            out string categorySurfaceKey,
+            out IReadOnlyList<IGridControlBarEntry> barEntries)
         {
             kind = GridOptionKind.Achievement;
             surfaceKey = null;
             categorySurfaceKey = null;
+            barEntries = null;
 
             if (source == null)
             {
@@ -162,6 +167,7 @@ namespace PlayniteAchievements.Views.Helpers
                 }
 
                 var rawKey = achievementHost.ColumnSettingsKey;
+                barEntries = achievementHost.ControlBarHost.GetSettingsEntries();
 
                 kind = GridOptionKind.Achievement;
                 if (!GridOptionsCatalog.TryResolveAchievementId(rawKey, out surfaceKey))
@@ -183,6 +189,7 @@ namespace PlayniteAchievements.Views.Helpers
                 }
 
                 var rawKey = gameHost.ColumnSettingsKey;
+                barEntries = gameHost.ControlBarHost.GetSettingsEntries();
 
                 kind = GridOptionKind.GameSummaries;
                 return GridOptionsCatalog.TryResolveGameSummariesId(rawKey, out surfaceKey);
@@ -197,6 +204,7 @@ namespace PlayniteAchievements.Views.Helpers
                 }
 
                 kind = GridOptionKind.FriendSummaries;
+                barEntries = friendHost.ControlBarHost.GetSettingsEntries();
                 return GridOptionsCatalog.TryResolveFriendSummariesId(
                     friendHost.ColumnSettingsKey,
                     out surfaceKey);
