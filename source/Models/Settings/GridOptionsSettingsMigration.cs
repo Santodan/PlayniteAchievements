@@ -84,6 +84,8 @@ namespace PlayniteAchievements.Models.Settings
                 changed |= SeedSingleGameAppearanceFromOverviewSelectedGame(gridOptions);
                 changed |= SeedDesktopThemeAppearanceFromLegacyDataGrid(gridOptions);
                 changed |= SeedCategoryProgressColumnRightDefault(persisted, gridOptions);
+                changed |= ConvertColorNamesByRarityToNameColor(gridOptions);
+                changed |= MoveTintMissableLocksToStatusColor(persisted, gridOptions);
 
                 return changed
                     ? root.ToString(Formatting.None)
@@ -346,7 +348,8 @@ namespace PlayniteAchievements.Models.Settings
                 nameof(GridOptionsCatalog.Achievement),
                 GridOptionKeys.Achievement.SingleGame,
                 (nameof(AchievementGridOptions.ShowRarityGlow), nameof(AchievementGridOptions.ShowRarityGlow)),
-                (nameof(AchievementGridOptions.ColorNamesByRarity), nameof(AchievementGridOptions.ColorNamesByRarity)));
+                (nameof(AchievementGridOptions.ColorNamesByRarity), nameof(AchievementGridOptions.ColorNamesByRarity)),
+                (nameof(AchievementGridOptions.NameColor), nameof(AchievementGridOptions.NameColor)));
         }
 
         /// <summary>
@@ -367,8 +370,92 @@ namespace PlayniteAchievements.Models.Settings
                 GridOptionKeys.Achievement.DesktopTheme,
                 (nameof(AchievementGridOptions.ShowRarityGlow), nameof(AchievementGridOptions.ShowRarityGlow)),
                 (nameof(AchievementGridOptions.ColorNamesByRarity), nameof(AchievementGridOptions.ColorNamesByRarity)),
+                (nameof(AchievementGridOptions.NameColor), nameof(AchievementGridOptions.NameColor)),
                 (nameof(AchievementGridOptions.ColorRarityColumnsByRarity), nameof(AchievementGridOptions.ColorRarityColumnsByRarity)),
                 (nameof(AchievementGridOptions.MaxHeight), nameof(AchievementGridOptions.MaxHeight)));
+        }
+
+        /// <summary>
+        /// The achievement grids' name coloring was a ColorNamesByRarity bool; it is now the
+        /// NameColor source. Rewrites the bool on every achievement entry (true to Rarity, false to
+        /// None) and drops it. An entry that already has NameColor keeps it: the bool there was
+        /// copied in from a legacy flat key after the conversion ran. Runs after the legacy copies
+        /// above, so values they bring in are converted in the same pass. Written as integers to
+        /// match how enums are serialized.
+        /// </summary>
+        private static bool ConvertColorNamesByRarityToNameColor(JObject gridOptions)
+        {
+            const string oldName = nameof(AchievementGridOptions.ColorNamesByRarity);
+            const string newName = nameof(AchievementGridOptions.NameColor);
+
+            var changed = false;
+            foreach (var entry in AchievementEntries(gridOptions))
+            {
+                var oldValue = entry[oldName];
+                if (oldValue == null)
+                {
+                    continue;
+                }
+
+                if (entry[newName] == null)
+                {
+                    var byRarity = oldValue.Type == JTokenType.Boolean && oldValue.Value<bool>();
+                    entry[newName] = (int)(byRarity ? AchievementNameColorSource.Rarity : AchievementNameColorSource.None);
+                }
+
+                entry.Remove(oldName);
+                changed = true;
+            }
+
+            return changed;
+        }
+
+        /// <summary>
+        /// The missable lock tint was one global TintMissableLocks bool; it is now each achievement
+        /// grid's StatusColor. Writes the global value into every achievement entry that has no
+        /// StatusColor yet (true to Missable and Unobtainable, false to None) and drops the global
+        /// key. Entries absent from the JSON keep the runtime default, which matches the old
+        /// default of true.
+        /// </summary>
+        private static bool MoveTintMissableLocksToStatusColor(JObject persisted, JObject gridOptions)
+        {
+            const string oldName = "TintMissableLocks";
+            const string newName = nameof(AchievementGridOptions.StatusColor);
+
+            var oldValue = persisted?[oldName];
+            if (oldValue == null)
+            {
+                return false;
+            }
+
+            var tint = oldValue.Type != JTokenType.Boolean || oldValue.Value<bool>();
+            var mode = (int)(tint ? AchievementStatusColorMode.MissableUnobtainable : AchievementStatusColorMode.None);
+            foreach (var entry in AchievementEntries(gridOptions))
+            {
+                if (entry[newName] == null)
+                {
+                    entry[newName] = mode;
+                }
+            }
+
+            persisted.Remove(oldName);
+            return true;
+        }
+
+        private static System.Collections.Generic.IEnumerable<JObject> AchievementEntries(JObject gridOptions)
+        {
+            if (!(gridOptions?[nameof(GridOptionsCatalog.Achievement)] is JObject group))
+            {
+                yield break;
+            }
+
+            foreach (var property in group.Properties())
+            {
+                if (property.Value is JObject entry)
+                {
+                    yield return entry;
+                }
+            }
         }
 
         private static bool SeedStartPageControlBarDefaults(JObject gridOptions)
