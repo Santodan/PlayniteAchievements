@@ -93,9 +93,12 @@ namespace PlayniteAchievements.Tests.Models
         }
 
         [TestMethod]
-        public void Export_StripsPinsControlBarStateAndProfileIdentity()
+        public void Export_StripsPinsGameSelectionsAndProfileIdentity()
         {
-            var (settings, grids, page, recent, _) = BuildSource();
+            var (settings, grids, page, recent, games) = BuildSource();
+            recent.Options["ControlBar.Achievements"] =
+                "{\"SearchText\":\"zelda\",\"Games\":[\"" + Guid.NewGuid().ToString("D") + "\"],\"Rarities\":[2]}";
+            games.Options["ControlBar.Games"] = "{\"Games\":[\"" + Guid.NewGuid().ToString("D") + "\"]}";
             ShowcaseWidgetOptions.SetControlBarItemVisible(recent, ShowcaseControlBarItems.Rarity, true);
             var background = Path.Combine(_tempDirectory, "banner.png");
             File.WriteAllBytes(background, new byte[] { 1, 2, 3, 4 });
@@ -123,7 +126,12 @@ namespace PlayniteAchievements.Tests.Models
 
             var exportedRecent = portable.Widgets.Single(w => w.Kind == ShowcaseWidgetKind.RecentAchievements);
             Assert.IsNull(ShowcaseWidgetOptions.GetPinCollectionId(exportedRecent));
-            Assert.IsFalse(exportedRecent.Options.Keys.Any(key => key.StartsWith("ControlBar.")));
+            Assert.AreEqual(
+                "{\"SearchText\":\"zelda\",\"Rarities\":[2]}",
+                exportedRecent.Options["ControlBar.Achievements"],
+                "the bar's filters travel without its game selections");
+            var exportedGames = portable.Widgets.Single(w => w.Kind == ShowcaseWidgetKind.GameSummaries);
+            Assert.IsFalse(exportedGames.Options.ContainsKey("ControlBar.Games"), "a bar with only game selections is dropped");
             Assert.IsTrue(
                 ShowcaseWidgetOptions.GetControlBarItemVisible(exportedRecent, ShowcaseControlBarItems.Rarity),
                 "which items the bar shows is part of the page");
@@ -139,7 +147,7 @@ namespace PlayniteAchievements.Tests.Models
 
             var json = ReadManifest(path);
             StringAssert.DoesNotMatch(json, new System.Text.RegularExpressions.Regex(
-                @"Secret Name|Secret Subtitle|secret-user|avatar\.png|custom-pins|zelda|ControlBar\.|GameIds"));
+                @"Secret Name|Secret Subtitle|secret-user|avatar\.png|custom-pins|GameIds|\\""Games\\"""));
             StringAssert.Contains(json, "images/banner.png");
             using (var archive = ZipFile.OpenRead(path))
             {
