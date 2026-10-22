@@ -41,6 +41,8 @@ namespace PlayniteAchievements.Views.Helpers
             // Only reserve the marker gutter when at least one option is actually marked; with none
             // marked the dropdown drops the gutter entirely and labels sit flush left.
             var showMarkerGutter = filter.HasMarker && options.Any(filter.IsMarked);
+            // Likewise the badge gutter: only when some option has a badge to show.
+            var showIconGutter = filter.HasIcons && options.Any(option => !string.IsNullOrWhiteSpace(filter.IconKeyOf(option)));
 
             // Every checkable item created for this opening, so a click can re-sync its siblings.
             var checkableItems = new List<MenuItem>();
@@ -53,6 +55,7 @@ namespace PlayniteAchievements.Views.Helpers
                     filter,
                     options,
                     showMarkerGutter,
+                    showIconGutter,
                     checkableItems);
             }
             else
@@ -74,6 +77,7 @@ namespace PlayniteAchievements.Views.Helpers
                         filter.GetDisplayLabel(option),
                         itemStyle,
                         showMarkerGutter,
+                        showIconGutter,
                         checkableItems));
                 }
             }
@@ -98,6 +102,7 @@ namespace PlayniteAchievements.Views.Helpers
             GridMultiSelectFilter filter,
             IReadOnlyList<string> options,
             bool showMarkerGutter,
+            bool showIconGutter,
             List<MenuItem> checkableItems)
         {
             var rows = CategoryFilterMenuBuilder.BuildRows(options);
@@ -122,6 +127,7 @@ namespace PlayniteAchievements.Views.Helpers
                     row.LeafDisplay,
                     itemStyle,
                     showMarkerGutter,
+                    showIconGutter,
                     checkableItems,
                     row.TreeShape,
                     row.PathDisplay));
@@ -139,11 +145,12 @@ namespace PlayniteAchievements.Views.Helpers
             string label,
             Style itemStyle,
             bool showMarkerGutter,
+            bool showIconGutter,
             List<MenuItem> checkableItems,
             CategoryTreeShape treeShape = null,
             string toolTip = null)
         {
-            var header = BuildMultiSelectHeader(filter, value, label, showMarkerGutter);
+            var header = BuildMultiSelectHeader(filter, value, label, showMarkerGutter, showIconGutter);
             var item = new CategoryTreeMenuItem
             {
                 Header = header,
@@ -195,9 +202,10 @@ namespace PlayniteAchievements.Views.Helpers
             GridMultiSelectFilter filter,
             string value,
             string label,
-            bool showMarkerGutter)
+            bool showMarkerGutter,
+            bool showIconGutter)
         {
-            if (filter.HasIcons)
+            if (showIconGutter)
             {
                 return BuildIconHeader(filter.IconKeyOf(value), label);
             }
