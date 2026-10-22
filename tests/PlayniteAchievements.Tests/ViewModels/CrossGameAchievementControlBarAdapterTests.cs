@@ -122,6 +122,24 @@ namespace PlayniteAchievements.Tests.ViewModels
         }
 
         [TestMethod]
+        public void PickedPlatforms_LimitTheGameListAndUnpickOtherGames()
+        {
+            var adapter = CreateAdapter(Rows());
+            adapter.GameFilter.Item.SetSelected(SteamDeckId.ToString("D"), true);
+            adapter.GameFilter.Item.SetSelected(XboxId.ToString("D"), true);
+
+            adapter.ProviderFilterGroups.Single(group => group.ProviderKey == "Steam").SetAll(true);
+
+            CollectionAssert.AreEquivalent(
+                new[] { SteamPcId.ToString("D"), SteamDeckId.ToString("D") },
+                adapter.GameFilter.Item.Options.ToArray());
+            CollectionAssert.AreEquivalent(new[] { SteamDeckId }, adapter.GameFilter.SelectedGameIds.ToArray());
+
+            adapter.ProviderFilterGroups.Single(group => group.ProviderKey == "Steam").SetAll(false);
+            Assert.AreEqual(3, adapter.GameFilter.Item.Options.Count(), "no platform picks list every game");
+        }
+
+        [TestMethod]
         public void Collection_UnpicksGamesOutsideIt()
         {
             var adapter = CreateAdapter(Rows());
@@ -143,8 +161,6 @@ namespace PlayniteAchievements.Tests.ViewModels
         {
             var rows = Rows();
             var adapter = CreateAdapter(rows);
-            adapter.SearchText = "summit";
-            adapter.ProviderFilterGroups.Single(group => group.ProviderKey == "Xbox").SetAll(true);
             adapter.RestoreState(new ControlBarFilterState
             {
                 SearchText = "summit",
