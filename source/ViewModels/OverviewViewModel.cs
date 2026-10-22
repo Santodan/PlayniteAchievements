@@ -376,7 +376,8 @@ namespace PlayniteAchievements.ViewModels
                 IsRarityFilterSelected,
                 SetRarityFilterSelected)
             {
-                Width = 130
+                Width = 130,
+                IconKeyOf = RarityFilterIconKey
             });
             RecentAchievementsControlBar.Items.Add(new GridMultiSelectFilter(
                 this,
@@ -386,7 +387,8 @@ namespace PlayniteAchievements.ViewModels
                 IsTrophyFilterSelected,
                 SetTrophyFilterSelected)
             {
-                Width = 130
+                Width = 130,
+                IconKeyOf = TrophyFilterIconKey
             });
             // Achievement tags; a tag pie slice in the mini-showcase toggles them too. The grid
             // lists every game here, so it offers the global tags; a selected game's grid has its
@@ -400,7 +402,8 @@ namespace PlayniteAchievements.ViewModels
                 SetTagFilterSelected,
                 key => Services.Achievements.AchievementTagRegistry.GetName(key))
             {
-                Width = 130
+                Width = 130,
+                IconKeyOf = key => TagControlBarFilter.IconKey(key, null)
             });
 
             // The selected-game control bar is built and owned by _selectedGameControlBar.
