@@ -280,7 +280,7 @@ namespace PlayniteAchievements.Tests.Models
             instance.SetOption("Source", 999);
 
             Assert.AreEqual(200, ShowcaseWidgetOptions.GetGameMosaicCount(instance));
-            Assert.AreEqual(ShowcaseGameMosaicSource.Completed, ShowcaseWidgetOptions.GetGameMosaicSource(instance));
+            Assert.AreEqual(ShowcaseGameMosaicSource.All, ShowcaseWidgetOptions.GetGameMosaicSource(instance));
             Assert.IsFalse(ShowcaseWidgetOptions.GetHideCompleted(instance));
 
             instance.SetOption("Count", 0);
@@ -303,6 +303,33 @@ namespace PlayniteAchievements.Tests.Models
         }
 
         [TestMethod]
+        public void MigrateCompletedGameMosaic_MovesTheCompletedSourceToAProgressFilter()
+        {
+            var completed = new ShowcaseWidgetInstanceSettings { Kind = ShowcaseWidgetKind.IconMosaic };
+            ShowcaseWidgetOptions.SetMosaicContent(completed, ShowcaseMosaicContent.Games);
+            completed.Options["Source"] = "Completed";
+            completed.Options["ControlBar.Games"] = "{\"SearchText\":\"zelda\",\"Progress\":[1]}";
+            var unset = new ShowcaseWidgetInstanceSettings { Kind = ShowcaseWidgetKind.IconMosaic };
+            ShowcaseWidgetOptions.SetMosaicContent(unset, ShowcaseMosaicContent.Games);
+            var favorites = new ShowcaseWidgetInstanceSettings { Kind = ShowcaseWidgetKind.IconMosaic };
+            ShowcaseWidgetOptions.SetMosaicContent(favorites, ShowcaseMosaicContent.Games);
+            ShowcaseWidgetOptions.SetGameMosaicSource(favorites, ShowcaseGameMosaicSource.PlayniteFavorites);
+            var achievements = new ShowcaseWidgetInstanceSettings { Kind = ShowcaseWidgetKind.IconMosaic };
+
+            Assert.IsTrue(ShowcaseWidgetOptions.MigrateCompletedGameMosaic(completed));
+            Assert.IsTrue(ShowcaseWidgetOptions.MigrateCompletedGameMosaic(unset));
+            Assert.IsFalse(ShowcaseWidgetOptions.MigrateCompletedGameMosaic(favorites));
+            Assert.IsFalse(ShowcaseWidgetOptions.MigrateCompletedGameMosaic(achievements));
+            Assert.IsFalse(ShowcaseWidgetOptions.MigrateCompletedGameMosaic(completed), "runs once");
+
+            Assert.AreEqual(ShowcaseGameMosaicSource.All, ShowcaseWidgetOptions.GetGameMosaicSource(completed));
+            var state = Newtonsoft.Json.Linq.JObject.Parse(completed.Options["ControlBar.Games"]);
+            Assert.AreEqual("zelda", (string)state["SearchText"]);
+            CollectionAssert.AreEqual(new[] { 0 }, state["Progress"].ToObject<int[]>());
+            StringAssert.Contains(unset.Options["ControlBar.Games"], "\"Progress\":[0]");
+        }
+
+        [TestMethod]
         public void WidgetFactory_SeedsDefaultsForGridMosaicAndCalendarKinds()
         {
             var summaries = ShowcaseWidgetSettingsFactory.CreateDefault(ShowcaseWidgetKind.GameSummaries);
@@ -311,7 +338,7 @@ namespace PlayniteAchievements.Tests.Models
             var mosaic = ShowcaseWidgetSettingsFactory.CreateDefault(ShowcaseWidgetKind.IconMosaic);
             Assert.AreEqual(ShowcaseMosaicContent.Achievements, ShowcaseWidgetOptions.GetMosaicContent(mosaic));
             Assert.AreEqual(ShowcaseMosaicSource.Recent, ShowcaseWidgetOptions.GetMosaicSource(mosaic));
-            Assert.AreEqual(ShowcaseGameMosaicSource.Completed, ShowcaseWidgetOptions.GetGameMosaicSource(mosaic));
+            Assert.AreEqual(ShowcaseGameMosaicSource.All, ShowcaseWidgetOptions.GetGameMosaicSource(mosaic));
             Assert.AreEqual(24, ShowcaseWidgetOptions.GetGameMosaicCount(mosaic));
 
             var achievementGrid = ShowcaseWidgetSettingsFactory.CreateDefault(ShowcaseWidgetKind.RecentAchievements);
