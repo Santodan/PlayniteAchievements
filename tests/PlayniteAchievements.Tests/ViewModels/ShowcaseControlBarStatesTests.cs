@@ -149,7 +149,10 @@ namespace PlayniteAchievements.Tests.ViewModels
             Assert.IsTrue(slot.UpdateShownBar(instance));
             Assert.IsNull(slot.ShownBar);
 
-            ShowcaseWidgetOptions.SetControlBarItemVisible(instance, ShowcaseControlBarItems.Rarity, true);
+            ShowcaseWidgetOptions.ShowOnlyControlBarItems(
+                instance,
+                slot.Adapter.Entries.Select(entry => entry.Id),
+                ShowcaseControlBarItems.Rarity);
             Assert.IsTrue(slot.UpdateShownBar(instance));
 
             Assert.IsNull(slot.ShownBar.Search);
@@ -161,9 +164,12 @@ namespace PlayniteAchievements.Tests.ViewModels
         public void UpdateShownBar_KeepsTheBarWhileTheShownItemsAreUnchanged()
         {
             var instance = new ShowcaseWidgetInstanceSettings { Kind = ShowcaseWidgetKind.GameSummaries };
-            ShowcaseWidgetOptions.SetControlBarItemVisible(instance, ShowcaseControlBarItems.Search, true);
             var slot = new ShowcaseControlBarSlot<GameSummaryGridControlBarAdapter>(() => { });
             slot.Bind(instance.InstanceId);
+            ShowcaseWidgetOptions.ShowOnlyControlBarItems(
+                instance,
+                slot.Adapter.Entries.Select(entry => entry.Id),
+                ShowcaseControlBarItems.Search);
             slot.UpdateShownBar(instance);
             var bar = slot.ShownBar;
 
