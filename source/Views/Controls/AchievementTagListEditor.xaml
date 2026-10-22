@@ -212,9 +212,12 @@
                             <DataTemplate>
                                 <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="4,0">
                                     <!-- On while the tag is hidden, which shows it only in the Manage
-                                         Achievements editor; drawn like the control bar's Hidden filter. -->
+                                         Achievements editor; drawn like the control bar's Hidden filter.
+                                         The click runs the command and the check only mirrors IsHidden:
+                                         the DataGrid holds a cell's two-way update, so it never saved. -->
                                     <ToggleButton Content="&#xEF22;"
-                                                  IsChecked="{Binding IsHidden, Mode=TwoWay}"
+                                                  IsChecked="{Binding IsHidden, Mode=OneWay}"
+                                                  Command="{Binding ToggleHiddenCommand}"
                                                   ToolTip="{DynamicResource LOCPlayAch_Filter_Hidden}"
                                                   Style="{StaticResource PlayAch.ToggleButton.FilterStyle}"
                                                   ContentTemplate="{StaticResource PlayAch.ButtonContent.Glyph}"
