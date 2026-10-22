@@ -389,12 +389,13 @@
     </Style>
 
     <!-- An icon button's face: its string Content, an icon font glyph, drawn as vector geometry
-         with GlyphIcon; the same glyph rendered as text comes out soft at this size. -->
+         with GlyphIcon in the glyph color, as the grid control bar draws its toggles; the same
+         glyph rendered as text comes out soft at this size. -->
     <DataTemplate x:Key="PlayAch.ButtonContent.Glyph">
         <controls:GlyphIcon Glyph="{Binding}"
-                            Size="16"
+                            Size="15"
                             FontFamily="{DynamicResource PlayAch.FontFamily.Icon}"
-                            Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"
+                            Foreground="{DynamicResource PlayAch.Brush.Glyph}"
                             HorizontalAlignment="Center"
                             VerticalAlignment="Center"
                             SnapsToDevicePixels="True"/>
@@ -1598,6 +1599,51 @@
         <Setter Property="HorizontalContentAlignment" Value="Center"/>
         <Setter Property="VerticalContentAlignment" Value="Center"/>
         <Setter Property="ToolTipService.ShowOnDisabled" Value="True"/>
+    </Style>
+
+    <!-- On/off toggle as the grid control bar's filters draw it: it rests on the same button
+         background and border as the other buttons so it reads as a button when off; the border
+         turns to the accent color (with a subtle selection fill) to signal on, and the glyph keeps
+         its normal brush. Keys on IsChecked, the ToggleButton analog of the tab style's IsSelected
+         trigger (PlayAch.TabItem.BaseStyle). -->
+    <Style x:Key="PlayAch.ToggleButton.FilterStyle" TargetType="ToggleButton">
+        <Setter Property="Background" Value="{DynamicResource PlayAch.Brush.Button.Background}"/>
+        <Setter Property="BorderBrush" Value="{DynamicResource PlayAch.Brush.Button.Border}"/>
+        <Setter Property="BorderThickness" Value="{StaticResource PlayAch.Thickness.Border}"/>
+        <Setter Property="Foreground" Value="{DynamicResource PlayAch.Brush.Text}"/>
+        <Setter Property="Padding" Value="8,4"/>
+        <Setter Property="Cursor" Value="Hand"/>
+        <Setter Property="Focusable" Value="False"/>
+        <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="ToggleButton">
+                    <Border x:Name="Chrome"
+                            Background="{TemplateBinding Background}"
+                            BorderBrush="{TemplateBinding BorderBrush}"
+                            BorderThickness="{TemplateBinding BorderThickness}"
+                            CornerRadius="{StaticResource PlayAch.Radius.Small}"
+                            SnapsToDevicePixels="True">
+                        <ContentPresenter Margin="{TemplateBinding Padding}"
+                                          HorizontalAlignment="Center"
+                                          VerticalAlignment="Center"/>
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Chrome" Property="Background" Value="{DynamicResource PlayAch.Brush.Button.Background.Hover}"/>
+                            <Setter TargetName="Chrome" Property="BorderBrush" Value="{DynamicResource PlayAch.Brush.Accent}"/>
+                        </Trigger>
+                        <Trigger Property="IsChecked" Value="True">
+                            <Setter TargetName="Chrome" Property="Background" Value="{DynamicResource PlayAch.Brush.Button.Background.Selected}"/>
+                            <Setter TargetName="Chrome" Property="BorderBrush" Value="{DynamicResource PlayAch.Brush.Accent}"/>
+                        </Trigger>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter TargetName="Chrome" Property="Opacity" Value="{StaticResource PlayAch.Opacity.Disabled}"/>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
     </Style>
 
     <Style x:Key="PlayAch.SectionHeaderTextStyle" TargetType="TextBlock" BasedOn="{StaticResource PlayAch.TextBlock.BaseStyle}">
