@@ -388,6 +388,18 @@
         </Style.Triggers>
     </Style>
 
+    <!-- An icon button's face: its string Content, an icon font glyph, drawn as vector geometry
+         with GlyphIcon; the same glyph rendered as text comes out soft at this size. -->
+    <DataTemplate x:Key="PlayAch.ButtonContent.Glyph">
+        <controls:GlyphIcon Glyph="{Binding}"
+                            Size="16"
+                            FontFamily="{DynamicResource PlayAch.FontFamily.Icon}"
+                            Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"
+                            HorizontalAlignment="Center"
+                            VerticalAlignment="Center"
+                            SnapsToDevicePixels="True"/>
+    </DataTemplate>
+
     <!-- Import and Export button faces: the editor toolbar's download and upload glyphs before
          the localized word, so every Import and Export in the plugin reads the same. Content
          stays the localized string; the template only adds the glyph. -->
