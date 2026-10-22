@@ -60,8 +60,11 @@ namespace PlayniteAchievements.Services.Showcase
                 configureTimeline: timeline =>
                 {
                     ShowcaseTimelineOptions.SetWindow(timeline, TimeWindow.FromPreset(TimelineRange.OneYear));
-                    ShowcaseWidgetOptions.SetControlBarItemVisible(timeline, ShowcaseControlBarItems.TimeWindow, true);
-                    ShowcaseWidgetOptions.SetControlBarItemVisible(timeline, ShowcaseControlBarItems.SplitByPlatform, true);
+                    ShowcaseWidgetOptions.ShowOnlyControlBarItems(
+                        timeline,
+                        ShowcaseControlBarItems.TimelineItems,
+                        ShowcaseControlBarItems.TimeWindow,
+                        ShowcaseControlBarItems.SplitByPlatform);
                 });
         }
 
