@@ -538,13 +538,16 @@ namespace PlayniteAchievements.ViewModels
         /// <summary>
         /// Sets the pie chart data for tags: one slice per tag of its unlocked achievements, in the
         /// order given, then the locked slice. An achievement with several tags counts under each,
-        /// so the slices can overlap.
+        /// so the tag slices can overlap; <paramref name="unlocked"/> and <paramref name="total"/>
+        /// count every achievement once, and are what the locked slice and the centre show.
         /// </summary>
         public void SetTagData(
             IReadOnlyList<(string Key, string Label, int Unlocked, int Total, string ColorHex, string IconKey)> tags,
-            int locked,
+            int unlocked,
+            int total,
             string lockedLabel)
         {
+            var locked = Math.Max(0, total - unlocked);
             _labelToTagKey.Clear();
             var dataPoints = new List<PieSliceInputData>();
             foreach (var tag in tags ?? Array.Empty<(string, string, int, int, string, string)>())
@@ -594,6 +597,10 @@ namespace PlayniteAchievements.ViewModels
             }
 
             ApplySmallSliceMode(dataPoints);
+
+            // The slices add up to more than the achievements when tags overlap, so the centre
+            // takes the once-each counts instead of the slice sums.
+            UpdateExactCounts(unlocked, _includeLocked ? total : unlocked);
         }
 
         /// <summary>
