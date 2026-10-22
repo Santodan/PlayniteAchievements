@@ -348,9 +348,7 @@ namespace PlayniteAchievements.Views.Showcase
                         Localize("LOCSourceLabel"),
                         new[]
                         {
-                            ShowcaseMosaicSource.Recent,
-                            ShowcaseMosaicSource.Rarest,
-                            ShowcaseMosaicSource.Capstones,
+                            ShowcaseMosaicSource.All,
                             ShowcaseMosaicSource.UnlockNext
                         },
                         ShowcaseWidgetOptions.GetMosaicSource(_settings),
