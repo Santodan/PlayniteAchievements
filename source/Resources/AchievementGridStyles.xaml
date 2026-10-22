@@ -764,13 +764,20 @@
                             CornerRadius="5"
                             Padding="{TemplateBinding Padding}"
                             SnapsToDevicePixels="True">
-                        <ScrollViewer VerticalScrollBarVisibility="Auto"
-                                      HorizontalScrollBarVisibility="Disabled"
-                                      MaxHeight="400">
-                            <ItemsPresenter KeyboardNavigation.DirectionalNavigation="Cycle"
-                                            KeyboardNavigation.TabNavigation="Cycle"
-                                            SnapsToDevicePixels="{TemplateBinding SnapsToDevicePixels}"/>
-                        </ScrollViewer>
+                        <DockPanel>
+                            <!-- SelectorSearch pins a long list's search box here, above the
+                                 scrolling options. -->
+                            <ContentPresenter x:Name="PART_SearchHeader"
+                                              DockPanel.Dock="Top"
+                                              Content="{Binding (helpers:SelectorSearch.SearchHeader), RelativeSource={RelativeSource TemplatedParent}}"/>
+                            <ScrollViewer VerticalScrollBarVisibility="Auto"
+                                          HorizontalScrollBarVisibility="Disabled"
+                                          MaxHeight="400">
+                                <ItemsPresenter KeyboardNavigation.DirectionalNavigation="Cycle"
+                                                KeyboardNavigation.TabNavigation="Cycle"
+                                                SnapsToDevicePixels="{TemplateBinding SnapsToDevicePixels}"/>
+                            </ScrollViewer>
+                        </DockPanel>
                     </Border>
                 </ControlTemplate>
             </Setter.Value>
@@ -801,14 +808,19 @@
                             CornerRadius="5"
                             Padding="{TemplateBinding Padding}"
                             SnapsToDevicePixels="True">
-                        <ScrollViewer VerticalScrollBarVisibility="Auto"
-                                      HorizontalScrollBarVisibility="Disabled"
-                                      CanContentScroll="True"
-                                      MaxHeight="400">
-                            <ItemsPresenter KeyboardNavigation.DirectionalNavigation="Cycle"
-                                            KeyboardNavigation.TabNavigation="Cycle"
-                                            SnapsToDevicePixels="{TemplateBinding SnapsToDevicePixels}"/>
-                        </ScrollViewer>
+                        <DockPanel>
+                            <ContentPresenter x:Name="PART_SearchHeader"
+                                              DockPanel.Dock="Top"
+                                              Content="{Binding (helpers:SelectorSearch.SearchHeader), RelativeSource={RelativeSource TemplatedParent}}"/>
+                            <ScrollViewer VerticalScrollBarVisibility="Auto"
+                                          HorizontalScrollBarVisibility="Disabled"
+                                          CanContentScroll="True"
+                                          MaxHeight="400">
+                                <ItemsPresenter KeyboardNavigation.DirectionalNavigation="Cycle"
+                                                KeyboardNavigation.TabNavigation="Cycle"
+                                                SnapsToDevicePixels="{TemplateBinding SnapsToDevicePixels}"/>
+                            </ScrollViewer>
+                        </DockPanel>
                     </Border>
                 </ControlTemplate>
             </Setter.Value>
@@ -897,14 +909,19 @@
                                     SnapsToDevicePixels="True">
                                 <!-- Same scroll cap as the menu itself: a submenu listing every
                                      category (merge targets, subcategory targets) can outgrow
-                                     the screen. -->
-                                <ScrollViewer VerticalScrollBarVisibility="Auto"
-                                              HorizontalScrollBarVisibility="Disabled"
-                                              MaxHeight="400">
-                                    <ItemsPresenter KeyboardNavigation.DirectionalNavigation="Cycle"
-                                                    KeyboardNavigation.TabNavigation="Cycle"
-                                                    SnapsToDevicePixels="True"/>
-                                </ScrollViewer>
+                                     the screen. Its search box stays above the scroll. -->
+                                <DockPanel>
+                                    <ContentPresenter x:Name="PART_SearchHeader"
+                                                      DockPanel.Dock="Top"
+                                                      Content="{Binding (helpers:SelectorSearch.SearchHeader), RelativeSource={RelativeSource TemplatedParent}}"/>
+                                    <ScrollViewer VerticalScrollBarVisibility="Auto"
+                                                  HorizontalScrollBarVisibility="Disabled"
+                                                  MaxHeight="400">
+                                        <ItemsPresenter KeyboardNavigation.DirectionalNavigation="Cycle"
+                                                        KeyboardNavigation.TabNavigation="Cycle"
+                                                        SnapsToDevicePixels="True"/>
+                                    </ScrollViewer>
+                                </DockPanel>
                             </Border>
                         </Popup>
                     </Grid>
