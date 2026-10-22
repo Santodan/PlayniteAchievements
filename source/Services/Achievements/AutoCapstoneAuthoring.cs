@@ -371,18 +371,20 @@ namespace PlayniteAchievements.Services.Achievements
                 return false;
             }
 
-            // Removed first, so the game never shows two capstones; nominating then drops the
-            // removed one from the capstone list.
+            // Nominated first, so a nomination that fails leaves the authored capstone in place.
+            // Nominating displaces it within its category; removing it then drops it from the
+            // capstone list wherever it was filed.
+            var nominated = _overridesService.SetCapstone(gameId, match.ApiName, true);
+            if (nominated?.Success != true)
+            {
+                _logger?.Warn($"[AutoCapstone] Could not nominate {match.ApiName} for gameId={gameId}; its auto capstone stays.");
+                return false;
+            }
+
             _overridesService.SetCustomAchievements(
                 gameId,
                 definitions.Where(definition => !ReferenceEquals(definition, authored)).ToList());
             links.SetCapstoneArtRecord(gameId, authoredApiName, null);
-            var nominated = _overridesService.SetCapstone(gameId, match.ApiName, true);
-            if (nominated?.Success != true)
-            {
-                _logger?.Warn($"[AutoCapstone] Removed the auto capstone for gameId={gameId} but could not nominate {match.ApiName}.");
-                return false;
-            }
 
             _logger?.Debug($"[AutoCapstone] gameId={gameId} {authoredApiName} replaced by its matched platinum {match.ApiName}.");
             return true;
