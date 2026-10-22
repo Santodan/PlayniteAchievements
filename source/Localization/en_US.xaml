@@ -1209,7 +1209,7 @@
     <sys:String x:Key="LOCPlayAch_TimeRange_6M">6M</sys:String>
     <sys:String x:Key="LOCPlayAch_TimeRange_7D">7D</sys:String>
     <sys:String x:Key="LOCPlayAch_Timeline_NoUnlocksInPeriod">No unlocks in this period</sys:String>
-    <sys:String x:Key="LOCPlayAch_Timeline_SplitByPlatform">Split by platform</sys:String>
+    <sys:String x:Key="LOCPlayAch_Timeline_SplitBy">Split by</sys:String>
     <sys:String x:Key="LOCPlayAch_Playtime_HoursMinutes">{0}h{1}m</sys:String>
     <sys:String x:Key="LOCPlayAch_Playtime_Hours">{0}h</sys:String>
     <sys:String x:Key="LOCPlayAch_Playtime_LessThanOneHour">&lt;1h</sys:String>
