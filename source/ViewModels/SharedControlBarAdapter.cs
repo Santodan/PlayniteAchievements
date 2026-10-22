@@ -315,6 +315,9 @@ namespace PlayniteAchievements.ViewModels
         /// <summary>Selected rarity tiers, for achievement control bars.</summary>
         public List<int> Rarities { get; set; }
 
+        /// <summary>True when the Rarity filter keeps only capstones; null otherwise.</summary>
+        public bool? Capstones { get; set; }
+
         /// <summary>Selected trophy types ("platinum", "gold", ...), for achievement control bars.</summary>
         public List<string> Trophies { get; set; }
     }
