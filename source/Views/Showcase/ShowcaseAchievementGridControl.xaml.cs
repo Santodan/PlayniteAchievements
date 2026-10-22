@@ -1,6 +1,7 @@
 using System;
 using System.Windows;
 using System.Windows.Controls;
+using PlayniteAchievements.Models.Settings;
 using PlayniteAchievements.Services.Showcase;
 
 namespace PlayniteAchievements.Views.Showcase
@@ -24,17 +25,19 @@ namespace PlayniteAchievements.Views.Showcase
             set => SetValue(ShowRarityGlowProperty, value);
         }
 
-        public static readonly DependencyProperty ColorNamesByRarityProperty =
+        // The widget's own grid options record, which carries the name color, tag display and
+        // status color; showcase records live outside the grid's settings catalog lookup.
+        public static readonly DependencyProperty AppearanceOptionsProperty =
             DependencyProperty.Register(
-                nameof(ColorNamesByRarity),
-                typeof(bool),
+                nameof(AppearanceOptions),
+                typeof(AchievementGridOptions),
                 typeof(ShowcaseAchievementGridControl),
-                new PropertyMetadata(false));
+                new PropertyMetadata(null));
 
-        public bool ColorNamesByRarity
+        public AchievementGridOptions AppearanceOptions
         {
-            get => (bool)GetValue(ColorNamesByRarityProperty);
-            set => SetValue(ColorNamesByRarityProperty, value);
+            get => (AchievementGridOptions)GetValue(AppearanceOptionsProperty);
+            set => SetValue(AppearanceOptionsProperty, value);
         }
 
         public static readonly DependencyProperty ColorRarityColumnsByRarityProperty =

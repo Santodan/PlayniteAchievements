@@ -781,8 +781,8 @@
                                                  FixedRowHeight="{Binding GridOptions.RowHeight, FallbackValue={x:Null}}"
                                                  UseCoverImages="{Binding GridOptions.UseCoverImages, FallbackValue=False}"
                                                  ShowRarityGlow="{Binding GridOptions.ShowRarityGlow, FallbackValue=True}"
-                                                 ColorNamesByRarity="{Binding GridOptions.ColorNamesByRarity, FallbackValue=False}"
-                                                 ColorRarityColumnsByRarity="{Binding GridOptions.ColorRarityColumnsByRarity, FallbackValue=False}"/>
+                                                 ColorRarityColumnsByRarity="{Binding GridOptions.ColorRarityColumnsByRarity, FallbackValue=False}"
+                                                 AppearanceOptions="{Binding GridOptions, FallbackValue={x:Null}}"/>
     </DataTemplate>
 
     <!-- Pinned games: the shared game-summaries grid over pinned (or favorite) games. -->
@@ -812,8 +812,8 @@
                                                  FixedRowHeight="{Binding GridOptions.RowHeight, FallbackValue={x:Null}}"
                                                  UseCoverImages="{Binding GridOptions.UseCoverImages, FallbackValue=False}"
                                                  ShowRarityGlow="{Binding GridOptions.ShowRarityGlow, FallbackValue=True}"
-                                                 ColorNamesByRarity="{Binding GridOptions.ColorNamesByRarity, FallbackValue=False}"
-                                                 ColorRarityColumnsByRarity="{Binding GridOptions.ColorRarityColumnsByRarity, FallbackValue=False}"/>
+                                                 ColorRarityColumnsByRarity="{Binding GridOptions.ColorRarityColumnsByRarity, FallbackValue=False}"
+                                                 AppearanceOptions="{Binding GridOptions, FallbackValue={x:Null}}"/>
     </DataTemplate>
 
     <!-- GameSummaries: the shared game-summaries grid over the whole library. -->

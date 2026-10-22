@@ -501,7 +501,8 @@ namespace PlayniteAchievements.Views.Workshop.Preview
                 grid.AllowLayoutPersistence = false;
                 grid.AllowColumnVisibilityMenu = false;
                 grid.ShowRarityGlow = false;
-                grid.ColorNamesByRarity = false;
+                // A fresh record: plain names and tags, whatever the sharer's grids use.
+                grid.AppearanceOptions = new AchievementGridOptions();
                 grid.ColorRarityColumnsByRarity = false;
                 grid.FixedRowHeight = null;
                 grid.ShowColumnHeaders = true;
@@ -563,7 +564,7 @@ namespace PlayniteAchievements.Views.Workshop.Preview
             var persisted = PlayniteAchievementsPlugin.Instance?.Settings?.Persisted;
             grid.ColumnSettingsKey = LiveColumnSettingsKey;
             grid.ShowRarityGlow = persisted?.ViewAchievementsAchievementGridShowRarityGlow ?? true;
-            grid.ColorNamesByRarity = persisted?.ViewAchievementsAchievementGridColorNamesByRarity ?? false;
+            grid.AppearanceOptions = persisted?.GridOptions.GetAchievement(GridOptionKeys.Achievement.SingleGame);
             grid.ColorRarityColumnsByRarity = persisted?.ViewAchievementsAchievementGridColorRarityColumnsByRarity ?? false;
             grid.FixedRowHeight = persisted?.SingleGameGridRowHeight;
             grid.ShowColumnHeaders = persisted?.ShowViewAchievementsAchievementGridColumnHeaders ?? true;
