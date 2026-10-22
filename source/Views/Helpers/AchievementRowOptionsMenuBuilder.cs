@@ -363,7 +363,7 @@ namespace PlayniteAchievements.Views.Helpers
                 Header = L(resourceOwner, "LOCTagsLabel")
             };
             var effectiveTypes = AchievementTagHelper.Parse(context.Tags);
-            foreach (var tag in AchievementTagRegistry.GetAssignableKeys(context.GameId))
+            foreach (var tag in AchievementTagRegistry.GetShownKeys(context.GameId))
             {
                 var capturedType = tag;
                 var typeItem = new MenuItem
