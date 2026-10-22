@@ -342,11 +342,43 @@ namespace PlayniteAchievements.ViewModels.Items
             return _isMarked?.Invoke(option) == true;
         }
 
+        /// <summary>
+        /// The image resource key of an option's badge, or null for none. When set, the dropdown
+        /// shows each option's badge before its label, and the button shows the picked options'
+        /// badges in place of their names.
+        /// </summary>
+        public Func<string, string> IconKeyOf { get; set; }
+
+        public bool HasIcons => IconKeyOf != null;
+
+        /// <summary>The badges of the picked options, in option order.</summary>
+        public IReadOnlyList<string> SelectedIconKeys =>
+            IconKeyOf == null
+                ? Array.Empty<string>()
+                : (IReadOnlyList<string>)(Options ?? Array.Empty<string>())
+                    .Where(IsSelected)
+                    .Select(IconKeyOf)
+                    .Where(key => !string.IsNullOrWhiteSpace(key))
+                    .ToList();
+
+        /// <summary>Whether the button shows badges rather than text.</summary>
+        public bool ShowsSelectedIcons => SelectedIconKeys.Count > 0;
+
+        /// <summary>The button's text: the selection's names, or nothing while badges stand in for them.</summary>
+        public string ButtonText => ShowsSelectedIcons ? string.Empty : DisplayText;
+
+        /// <summary>The button's tooltip, which names the picked options while badges stand in for them.</summary>
+        public string ButtonToolTip => ShowsSelectedIcons ? DisplayText : ToolTip;
+
         public override void Refresh()
         {
             OnPropertyChanged(nameof(DisplayText));
             OnPropertyChanged(nameof(Options));
             OnPropertyChanged(nameof(EffectiveIsVisible));
+            OnPropertyChanged(nameof(SelectedIconKeys));
+            OnPropertyChanged(nameof(ShowsSelectedIcons));
+            OnPropertyChanged(nameof(ButtonText));
+            OnPropertyChanged(nameof(ButtonToolTip));
         }
 
         private void Subscribe(INotifyPropertyChanged source, string propertyName)
