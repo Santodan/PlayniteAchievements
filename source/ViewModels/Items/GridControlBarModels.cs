@@ -67,6 +67,9 @@ namespace PlayniteAchievements.ViewModels.Items
         string Id { get; }
 
         string LabelKey { get; }
+
+        /// <summary>Resets the entry to applying no filter: no text, no selection, no range.</summary>
+        void ClearSelection();
     }
 
     public abstract class GridControlBarItem : PlayniteAchievements.Common.ObservableObject, IGridControlBarEntry
@@ -130,6 +133,11 @@ namespace PlayniteAchievements.ViewModels.Items
         {
             OnPropertyChanged(string.Empty);
             OnPropertyChanged(nameof(EffectiveIsVisible));
+        }
+
+        /// <summary>Resets the item to applying no filter; items that filter nothing do nothing.</summary>
+        public virtual void ClearSelection()
+        {
         }
 
         protected virtual bool HasAvailableAction => true;
@@ -212,6 +220,8 @@ namespace PlayniteAchievements.ViewModels.Items
         {
             OnPropertyChanged(nameof(Text));
         }
+
+        public void ClearSelection() => Clear();
 
         internal static void Subscribe(INotifyPropertyChanged source, string propertyName, Action refresh)
         {
@@ -369,6 +379,29 @@ namespace PlayniteAchievements.ViewModels.Items
 
         /// <summary>The button's tooltip, which names the picked options while badges stand in for them.</summary>
         public string ButtonToolTip => ShowsSelectedIcons ? DisplayText : ToolTip;
+
+        /// <summary>
+        /// Clears every selection, for a filter that keeps selections its options do not list;
+        /// null unpicks the listed options.
+        /// </summary>
+        public Action ClearAll { get; set; }
+
+        public override void ClearSelection()
+        {
+            if (ClearAll != null)
+            {
+                ClearAll();
+            }
+            else
+            {
+                foreach (var option in (Options ?? Array.Empty<string>()).Where(IsSelected).ToList())
+                {
+                    _setSelection?.Invoke(option, false);
+                }
+            }
+
+            Refresh();
+        }
 
         public override void Refresh()
         {
@@ -594,6 +627,12 @@ namespace PlayniteAchievements.ViewModels.Items
             }
         }
 
+        public override void ClearSelection()
+        {
+            _set?.Invoke(null, null);
+            Refresh();
+        }
+
         public bool HasFrom => From.HasValue;
 
         public bool HasTo => To.HasValue;
@@ -714,6 +753,18 @@ namespace PlayniteAchievements.ViewModels.Items
         public void OnClosed()
         {
             _closed?.Invoke();
+        }
+
+        public override void ClearSelection()
+        {
+            foreach (var group in (Groups ?? new ObservableCollection<ProviderFilterGroup>())
+                         .Where(group => group?.HasAnySelected == true)
+                         .ToList())
+            {
+                group.SetAll(false);
+            }
+
+            Refresh();
         }
 
         public override void Refresh()
