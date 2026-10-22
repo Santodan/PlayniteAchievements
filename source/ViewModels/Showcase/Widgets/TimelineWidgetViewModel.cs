@@ -4,8 +4,10 @@ using System.ComponentModel;
 using System.Globalization;
 using System.Linq;
 using PlayniteAchievements.Models;
+using PlayniteAchievements.Models.Settings;
 using PlayniteAchievements.Services.Overview;
 using PlayniteAchievements.ViewModels;
+using PlayniteAchievements.ViewModels.Items;
 
 namespace PlayniteAchievements.ViewModels.Showcase.Widgets
 {
@@ -27,12 +29,32 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
         // back as if the user had picked them.
         private bool _applying;
 
+        // The widget instance's shared adapter, so the filters survive view model swaps.
+        private readonly ShowcaseControlBarSlot<ChartControlBarAdapter> _controlBarSlot;
+        private GridControlBarViewModel _controlBar;
+
         public TimelineWidgetViewModel()
         {
             _timeline.PropertyChanged += Timeline_PropertyChanged;
+            _controlBarSlot = new ShowcaseControlBarSlot<ChartControlBarAdapter>(FeedCounts);
         }
 
         public TimelineViewModel Timeline => _timeline;
+
+        /// <summary>The platform, game and progress filters the widget's settings show; null when they show none.</summary>
+        public GridControlBarViewModel ControlBar
+        {
+            get => _controlBar;
+            private set
+            {
+                if (SetValueAndReturn(ref _controlBar, value))
+                {
+                    OnPropertyChanged(nameof(ShowControlBar));
+                }
+            }
+        }
+
+        public bool ShowControlBar => ControlBar != null;
 
         /// <summary>Whether the widget's settings show either control above the chart.</summary>
         public bool ShowControls
@@ -99,21 +121,44 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
             FeedCounts();
         }
 
-        // The projection carries the per-platform series only when the saved option asked for
-        // them; the toggle can turn the split on before a reprojection, so the series are built
-        // here from the same snapshot when they are missing.
+        // The projection carries the unfiltered unlock counts, and the per-platform series only
+        // when the saved option asked for them; filtered games, completions and a split the
+        // toggle turned on before a reprojection are counted here from the snapshot.
         private void FeedCounts()
         {
+            var source = Projection?.Snapshot ?? new OverviewDataSnapshot();
+            var snapshot = ApplyControlBarFilter(source);
+            var unfiltered = ReferenceEquals(snapshot, source);
+            var completions = ShowcaseTimelineOptions.GetCount(Projection?.Instance) == ShowcaseTimelineCount.Completions;
             if (_splitByPlatform)
             {
-                _timeline.SetSeriesCounts(Projection?.TimelineByPlatform ??
-                    TimelinePlatformSeries.FromSnapshot(Projection?.Snapshot));
+                _timeline.SetSeriesCounts(completions
+                    ? TimelinePlatformSeries.FromCounts(snapshot, TimelinePlatformSeries.CompletionCountsByGame(snapshot))
+                    : (unfiltered ? Projection?.TimelineByPlatform : null) ?? TimelinePlatformSeries.FromSnapshot(snapshot));
                 return;
             }
 
-            // The chart itself shows the empty caption when the window holds no unlocks.
-            var counts = Projection?.Timeline ?? new Dictionary<DateTime, int>();
-            _timeline.SetCounts(counts.ToDictionary(pair => pair.Key, pair => pair.Value));
+            // The chart itself shows the empty caption when the window holds nothing.
+            var counts = completions
+                ? TimelinePlatformSeries.Sum(TimelinePlatformSeries.CompletionCountsByGame(snapshot))
+                : (unfiltered ? Projection?.Timeline : null) ?? snapshot.GlobalUnlockCountsByDate ?? new Dictionary<DateTime, int>();
+            _timeline.SetCounts(counts.ToDictionary(pair => pair.Key, pair => Math.Max(0, pair.Value)));
+        }
+
+        /// <summary>The snapshot narrowed to the games the control bar keeps; the snapshot itself when it keeps every one.</summary>
+        private OverviewDataSnapshot ApplyControlBarFilter(OverviewDataSnapshot snapshot)
+        {
+            _controlBarSlot.Bind(Projection?.Instance?.InstanceId);
+            _controlBarSlot.UpdateShownBar(Projection?.Instance);
+            ControlBar = _controlBarSlot.ShownBar;
+
+            var adapter = _controlBarSlot.Adapter;
+            var games = (snapshot.GameSummaries ?? new List<GameSummaryItem>())
+                .Where(game => game != null)
+                .ToList();
+            adapter.UpdateOptions(games);
+            var kept = adapter.Apply(games);
+            return kept.Count == games.Count ? snapshot : OverviewLinkedSnapshots.NarrowToGames(snapshot, kept);
         }
 
         private void Timeline_PropertyChanged(object sender, PropertyChangedEventArgs e)

@@ -147,6 +147,28 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
                         group => group.Select(game => game.Provider)
                             .FirstOrDefault(value => !string.IsNullOrWhiteSpace(value)) ?? group.Key,
                         StringComparer.OrdinalIgnoreCase);
+                    if (ShowcaseWidgetOptions.GetPieCount(Projection?.Instance) == ShowcasePieCount.CompletedGames)
+                    {
+                        // Games rather than achievements: each platform's completed games, then
+                        // every game not completed yet.
+                        var completed = providerGroups.ToDictionary(
+                            group => group.Key,
+                            group => group.Count(game => game.IsCompleted),
+                            StringComparer.OrdinalIgnoreCase);
+                        var gameCounts = providerGroups.ToDictionary(
+                            group => group.Key,
+                            group => group.Count(),
+                            StringComparer.OrdinalIgnoreCase);
+                        chart.SetProviderData(
+                            completed.Where(pair => pair.Value > 0).ToDictionary(pair => pair.Key, pair => pair.Value, StringComparer.OrdinalIgnoreCase),
+                            gameCounts,
+                            gameCounts.Values.Sum() - completed.Values.Sum(),
+                            Localize("LOCPlayAch_Overview_Incomplete"),
+                            metadata,
+                            providerNames);
+                        break;
+                    }
+
                     chart.SetProviderData(
                         snapshot.UnlockedByProvider,
                         snapshot.TotalByProvider,

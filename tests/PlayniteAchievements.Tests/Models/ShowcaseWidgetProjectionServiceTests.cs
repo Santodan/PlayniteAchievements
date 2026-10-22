@@ -1236,8 +1236,8 @@ namespace PlayniteAchievements.Tests.Models
             var instance = new ShowcaseWidgetInstanceSettings { Kind = ShowcaseWidgetKind.IconMosaic };
             ShowcaseWidgetOptions.SetMosaicContent(instance, ShowcaseMosaicContent.Games);
 
-            var completed = ShowcaseWidgetProjectionService.ResolveGameMosaic(snapshot, settings, instance);
-            CollectionAssert.AreEqual(new[] { completedNew, completedOld }, completed.ToArray());
+            // Unset reads as All; completed games are the bar's Progress filter.
+            Assert.AreEqual(3, ShowcaseWidgetProjectionService.ResolveGameMosaic(snapshot, settings, instance).Count);
 
             instance.SetOption("Source", ShowcaseGameMosaicSource.All);
             var all = ShowcaseWidgetProjectionService.ResolveGameMosaic(snapshot, settings, instance);

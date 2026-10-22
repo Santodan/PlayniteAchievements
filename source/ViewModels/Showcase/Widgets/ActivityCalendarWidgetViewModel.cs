@@ -4,6 +4,7 @@ using System.Linq;
 using Playnite.SDK;
 using PlayniteAchievements.Common;
 using PlayniteAchievements.Models;
+using PlayniteAchievements.Services.Overview;
 using PlayniteAchievements.Services.Showcase;
 using PlayniteAchievements.ViewModels.Items;
 
@@ -105,8 +106,35 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
         // heatmap, so an unrelated refresh must leave them alone.
         private ShowcaseActivityCalendar _builtCalendar;
 
+        // The widget instance's shared adapter, so the filters survive view model swaps.
+        private readonly ShowcaseControlBarSlot<ChartControlBarAdapter> _controlBarSlot;
+        private GridControlBarViewModel _controlBar;
+
+        // The last calendar built for a filtered view, reused while its source, games and window
+        // hold, so an unrelated refresh keeps the heatmap as it is.
+        private string _filteredKey;
+        private OverviewDataSnapshot _filteredSource;
+        private ShowcaseActivityCalendar _filteredCalendar;
+
+        /// <summary>The platform, game and progress filters the widget's settings show; null when they show none.</summary>
+        public GridControlBarViewModel ControlBar
+        {
+            get => _controlBar;
+            private set
+            {
+                if (SetValueAndReturn(ref _controlBar, value))
+                {
+                    OnPropertyChanged(nameof(ShowControlBar));
+                }
+            }
+        }
+
+        public bool ShowControlBar => ControlBar != null;
+
         public ActivityCalendarWidgetViewModel()
         {
+            _controlBarSlot = new ShowcaseControlBarSlot<ChartControlBarAdapter>(
+                () => BuildWeeks(ResolveCalendar()));
             LegendCells = Enumerable.Range(0, 5)
                 .Select(ActivityCalendarDayViewModel.ForLegend)
                 .ToList();
@@ -194,11 +222,7 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
                 }
 
                 ShowcaseControlBarStates.Store?.Save(instance.InstanceId, ShowcaseTimelineOptions.RangeOption, value.ToKey());
-                BuildWeeks(ShowcaseWidgetProjectionService.BuildActivityCalendar(
-                    Projection.Snapshot,
-                    instance,
-                    DateTime.Now.Date,
-                    trimToUnlocks: Projection.IsLinked));
+                BuildWeeks(ResolveCalendar(value));
             }
         }
 
@@ -208,7 +232,59 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
                 Projection?.Instance,
                 ShowcaseControlBarItems.TimeWindow);
             SetValue(ref _window, ShowcaseTimelineOptions.GetWindow(Projection?.Instance), nameof(Window));
-            BuildWeeks(Projection?.ActivityCalendar ?? new ShowcaseActivityCalendar());
+            BuildWeeks(ResolveCalendar());
+        }
+
+        /// <summary>
+        /// The calendar for the games the control bar keeps: the projected one while it keeps
+        /// every game and the window is the saved one, else one built from the narrowed snapshot.
+        /// </summary>
+        private ShowcaseActivityCalendar ResolveCalendar(TimeWindow pickedWindow = null)
+        {
+            _controlBarSlot.Bind(Projection?.Instance?.InstanceId);
+            _controlBarSlot.UpdateShownBar(Projection?.Instance);
+            ControlBar = _controlBarSlot.ShownBar;
+
+            var source = Projection?.Snapshot;
+            var instance = Projection?.Instance;
+            if (source == null || instance == null)
+            {
+                return Projection?.ActivityCalendar ?? new ShowcaseActivityCalendar();
+            }
+
+            var adapter = _controlBarSlot.Adapter;
+            var games = (source.GameSummaries ?? new List<GameSummaryItem>())
+                .Where(game => game != null)
+                .ToList();
+            adapter.UpdateOptions(games);
+            var kept = adapter.Apply(games);
+            if (kept.Count == games.Count && pickedWindow == null)
+            {
+                return Projection.ActivityCalendar ?? new ShowcaseActivityCalendar();
+            }
+
+            var key = string.Join(
+                ",",
+                kept.Select(game => game.PlayniteGameId?.ToString("N") ?? string.Empty)) +
+                "|" + (pickedWindow ?? ShowcaseTimelineOptions.GetWindow(instance)).ToKey() +
+                "|" + DateTime.Now.Date.Ticks;
+            if (_filteredCalendar != null &&
+                ReferenceEquals(_filteredSource, source) &&
+                string.Equals(_filteredKey, key, StringComparison.Ordinal))
+            {
+                return _filteredCalendar;
+            }
+
+            var snapshot = kept.Count == games.Count ? source : OverviewLinkedSnapshots.NarrowToGames(source, kept);
+            var calendar = ShowcaseWidgetProjectionService.BuildActivityCalendar(
+                snapshot,
+                instance,
+                DateTime.Now.Date,
+                trimToUnlocks: Projection.IsLinked);
+            _filteredKey = key;
+            _filteredSource = source;
+            _filteredCalendar = calendar;
+            return calendar;
         }
 
         private void BuildWeeks(ShowcaseActivityCalendar calendar)

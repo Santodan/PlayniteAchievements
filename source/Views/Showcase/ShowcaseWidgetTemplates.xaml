@@ -578,6 +578,11 @@
                                        MinDate="{Binding Timeline.EarliestDate}"
                                        Visibility="{Binding ShowTimeWindowControl, Converter={StaticResource BoolToVis}}"/>
         </DockPanel>
+        <!-- Platform, game and progress filters over the games the bars count. -->
+        <controls:GridControlBarControl DockPanel.Dock="Bottom"
+                                        Margin="0,8,0,0"
+                                        ControlBar="{Binding ControlBar}"
+                                        ShowControlBar="{Binding ShowControlBar}"/>
         <controls:UnlockTimelineChart Series="{Binding Timeline.TimelineSeries}"
                                       Labels="{Binding Timeline.TimelineLabels}"
                                       TooltipLabels="{Binding Timeline.TooltipLabels}"
@@ -1132,7 +1137,13 @@
             <Grid.RowDefinitions>
                 <RowDefinition Height="*"/>
                 <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
             </Grid.RowDefinitions>
+            <!-- Platform, game and progress filters over the games whose unlocks fill the days. -->
+            <controls:GridControlBarControl Grid.Row="2"
+                                            Margin="0,8,0,0"
+                                            ControlBar="{Binding ControlBar}"
+                                            ShowControlBar="{Binding ShowControlBar}"/>
             <TextBlock Grid.RowSpan="2"
                        Text="{DynamicResource LOCPlayAch_Showcase_NoData}"
                        Foreground="{DynamicResource PlayAch.Brush.Text}"
