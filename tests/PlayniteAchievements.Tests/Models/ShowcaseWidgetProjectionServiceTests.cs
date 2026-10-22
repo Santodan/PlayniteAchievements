@@ -255,18 +255,7 @@ namespace PlayniteAchievements.Tests.Models
             Assert.AreEqual(secondGameId, liveFavorites.Single().PlayniteGameId);
 
             var mosaic = new ShowcaseWidgetInstanceSettings { Kind = ShowcaseWidgetKind.IconMosaic };
-            mosaic.SetOption("Source", ShowcaseMosaicSource.Rarest);
-            var rarest = ShowcaseWidgetProjectionService.ResolveMosaic(snapshot, settings, mosaic);
-            CollectionAssert.AreEqual(
-                new[]
-                {
-                    timestampLessRare,
-                    rareAchievement,
-                    tierOnlyUltraRare,
-                    firstAchievement
-                },
-                rarest.ToArray());
-            ShowcaseWidgetOptions.SetMosaicSource(mosaic, ShowcaseMosaicSource.Recent);
+            ShowcaseWidgetOptions.SetMosaicSource(mosaic, ShowcaseMosaicSource.All);
             ShowcaseWidgetOptions.SetCollectionType(mosaic, ShowcaseCollectionType.Achievements);
             var pinnedMosaic = ShowcaseWidgetProjectionService.ResolveMosaic(snapshot, settings, mosaic);
             CollectionAssert.AreEqual(new[] { firstAchievement, lockedRare }, pinnedMosaic.ToArray());
@@ -1455,7 +1444,7 @@ namespace PlayniteAchievements.Tests.Models
             {
                 Kind = ShowcaseWidgetKind.IconMosaic
             };
-            ShowcaseWidgetOptions.SetMosaicSource(iconMosaic, ShowcaseMosaicSource.Recent);
+            ShowcaseWidgetOptions.SetMosaicSource(iconMosaic, ShowcaseMosaicSource.All);
             ShowcaseWidgetOptions.SetCollectionType(iconMosaic, ShowcaseCollectionType.Achievements);
             ShowcaseWidgetOptions.SetPinCollectionId(iconMosaic, achievementCollection.CollectionId);
             Assert.AreSame(
