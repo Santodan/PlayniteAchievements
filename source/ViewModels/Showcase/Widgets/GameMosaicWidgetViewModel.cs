@@ -97,9 +97,14 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
             adapter.UpdateOptions(Projection?.Snapshot?.GameSummaries);
             adapter.GameFilter.SetScope(Projection?.Collection?.GameIds);
 
-            var capped = adapter.Apply(list)
-                .Take(ShowcaseWidgetOptions.GetGameMosaicCount(Projection?.Instance));
-            var tiles = OrderGames(capped).Select(GetTile).ToList();
+            // Sorted before the Count cap, so a sort picks which tiles show, as the grids do. Finish
+            // Next ranks which games make the cut, so its sort only orders the ones it picked.
+            var count = ShowcaseWidgetOptions.GetGameMosaicCount(Projection?.Instance);
+            var filtered = adapter.Apply(list);
+            var shown = ShowcaseWidgetOptions.GetGameMosaicSource(Projection?.Instance) == ShowcaseGameMosaicSource.FinishNext
+                ? OrderGames(filtered.Take(count))
+                : OrderGames(filtered).Take(count);
+            var tiles = shown.Select(GetTile).ToList();
             CollectionHelper.Replace(Tiles, tiles);
             ProbeCoverAspects(tiles);
         }
