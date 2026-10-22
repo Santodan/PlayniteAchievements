@@ -234,11 +234,22 @@ namespace PlayniteAchievements.Services.Metadata
             var capstoneArt = FirstNonBlank(capstone?.UnlockedIconPath, capstone?.LockedIconPath);
             var capstoneTitle = capstone?.DisplayName;
             var capstoneDescription = capstone?.Description;
+            var capstoneMatch = MatchCapstone(plan.CapstoneArtKeys, sets, capstone, data.Achievements);
             if (capstone == null && plan.CapstoneArtKeys.Any(failed.Contains) && previous != null)
             {
                 capstoneArt = previous.CapstoneArtUrl;
                 capstoneTitle = previous.CapstoneTitle;
                 capstoneDescription = previous.CapstoneDescription;
+                capstoneMatch = previous.CapstoneMatchApiName;
+            }
+
+            // The platinum's counterpart is the game's platinum too, as an authored auto capstone is.
+            var matchedCapstone = capstoneMatch == null
+                ? null
+                : data.Achievements.FirstOrDefault(row => string.Equals(row?.ApiName, capstoneMatch, StringComparison.OrdinalIgnoreCase));
+            if (matchedCapstone != null && string.IsNullOrWhiteSpace(matchedCapstone.TrophyType))
+            {
+                matchedCapstone.TrophyType = AutoCapstoneTemplate.PlatinumTrophyType;
             }
             // A source that supplies achievement data is judged, and shown, by how many of the
             // game's achievements it matched; one used only for the auto capstone by its platinum.
@@ -279,7 +290,8 @@ namespace PlayniteAchievements.Services.Metadata
                 coverage,
                 borrowedIconApiNames,
                 capstoneTitle,
-                capstoneDescription) ?? false;
+                capstoneDescription,
+                matchedCapstone?.ApiName) ?? false;
         }
 
         /// <summary>
@@ -851,6 +863,64 @@ namespace PlayniteAchievements.Services.Metadata
             }
 
             return null;
+        }
+
+        /// <summary>
+        /// ApiName of the game's achievement that is <paramref name="capstone"/>'s counterpart: the
+        /// one its source paired with it (a user pairing or a title match), else the one achievement
+        /// no other row paired whose description is the platinum's. DLC and subset achievements
+        /// never count; null when there is none.
+        /// </summary>
+        private static string MatchCapstone(
+            IReadOnlyList<string> keys,
+            IReadOnlyDictionary<string, MatchedSet> sets,
+            AchievementDetail capstone,
+            IList<AchievementDetail> targets)
+        {
+            if (capstone == null || targets == null)
+            {
+                return null;
+            }
+
+            bool Eligible(AchievementDetail target) =>
+                target != null &&
+                !target.IsCustom &&
+                !string.IsNullOrWhiteSpace(target.ApiName) &&
+                !CategoryKindHelper.IsDlc(target.CategoryKind) &&
+                !CategoryKindHelper.IsSubset(target.CategoryKind);
+
+            var set = keys
+                .Select(key => sets.TryGetValue(key, out var found) ? found : null)
+                .FirstOrDefault(found => found != null && found.Set.Achievements.Contains(capstone));
+            if (set == null)
+            {
+                return null;
+            }
+
+            foreach (var match in set.Matches)
+            {
+                if (ReferenceEquals(match.Source, capstone))
+                {
+                    return Eligible(match.Target) ? match.Target.ApiName.Trim() : null;
+                }
+            }
+
+            var description = CrossSourceAchievementMatcher.NormalizeText(capstone.Description);
+            if (string.IsNullOrEmpty(description))
+            {
+                return null;
+            }
+
+            var paired = new HashSet<AchievementDetail>(set.Matches.Select(match => match.Target));
+            var byDescription = targets
+                .Where(target => Eligible(target) && !paired.Contains(target))
+                .Where(target => string.Equals(
+                    CrossSourceAchievementMatcher.NormalizeText(target.Description),
+                    description,
+                    StringComparison.OrdinalIgnoreCase))
+                .Take(2)
+                .ToList();
+            return byDescription.Count == 1 ? byDescription[0].ApiName.Trim() : null;
         }
 
         private static string FirstNonBlank(params string[] values)
