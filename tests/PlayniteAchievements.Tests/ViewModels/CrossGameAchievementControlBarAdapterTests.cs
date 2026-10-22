@@ -122,6 +122,25 @@ namespace PlayniteAchievements.Tests.ViewModels
         }
 
         [TestMethod]
+        public void LocksRows_LeavesLockedRowsToTheUnlockRangeAndHidesItsItem()
+        {
+            var adapter = new CrossGameAchievementControlBarAdapter();
+            adapter.RestoreState(new ControlBarFilterState { UnlockedFrom = new DateTime(2026, 1, 1) });
+            var locked = new[] { new AchievementDisplayItem { DisplayName = "Next", Unlocked = false } };
+            var dateItem = adapter.ControlBar.Items.Single(item => item.Id == PlayniteAchievements.Models.ShowcaseControlBarItems.UnlockDate);
+
+            Assert.AreEqual(0, adapter.Apply(locked).Count, "the range keeps unlocked rows only");
+
+            adapter.LocksRows = true;
+            Assert.AreEqual(1, adapter.Apply(locked).Count);
+            Assert.IsFalse(dateItem.IsVisible);
+            Assert.AreEqual(new DateTime(2026, 1, 1), adapter.UnlockedFrom, "the range is kept");
+
+            adapter.LocksRows = false;
+            Assert.IsTrue(dateItem.IsVisible);
+        }
+
+        [TestMethod]
         public void CapturedState_RestoresIntoAFreshAdapter()
         {
             var rows = Rows();
