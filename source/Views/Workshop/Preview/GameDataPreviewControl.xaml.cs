@@ -502,7 +502,7 @@ namespace PlayniteAchievements.Views.Workshop.Preview
                 grid.AllowColumnVisibilityMenu = false;
                 grid.ShowRarityGlow = false;
                 // A fresh record: plain names and tags, whatever the sharer's grids use.
-                grid.AppearanceOptions = new AchievementGridOptions();
+                grid.AppearanceOptions = new AchievementGridOptions { TagDisplay = AchievementTagDisplay.None };
                 grid.ColorRarityColumnsByRarity = false;
                 grid.FixedRowHeight = null;
                 grid.ShowColumnHeaders = true;
