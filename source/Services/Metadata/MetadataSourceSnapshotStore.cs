@@ -1,11 +1,11 @@
 using Newtonsoft.Json;
 using Playnite.SDK;
 using PlayniteAchievements.Models.Achievements;
+using PlayniteAchievements.Services.Cache;
+using PlayniteAchievements.Services.Database.Rows;
 using System;
 using System.Collections.Generic;
-using System.IO;
 using System.Linq;
-using System.Text;
 
 namespace PlayniteAchievements.Services.Metadata
 {
@@ -42,43 +42,60 @@ namespace PlayniteAchievements.Services.Metadata
     }
 
     /// <summary>
-    /// Each metadata source's list and matches for a game at its last overlay, one file per game
-    /// under <c>metadata/sources</c>, so Manage Achievements can show and fix the pairings without
-    /// fetching anything. Local state: it is rebuilt by the next refresh and never travels.
+    /// Each metadata source's list and matches for a game at its last overlay, kept in the cache
+    /// database, so Manage Achievements can show and fix the pairings without fetching anything.
+    /// Rebuilt by the next refresh and never exported.
     /// </summary>
     public sealed class MetadataSourceSnapshotStore
     {
         private readonly object _sync = new object();
-        private readonly string _directory;
+        private readonly Func<IMetadataStateDatabase> _database;
         private readonly ILogger _logger;
 
-        public MetadataSourceSnapshotStore(string metadataDirectory, ILogger logger)
+        internal MetadataSourceSnapshotStore(Func<IMetadataStateDatabase> database, ILogger logger)
         {
+            _database = database;
             _logger = logger;
-            if (!string.IsNullOrWhiteSpace(metadataDirectory))
-            {
-                _directory = Path.Combine(metadataDirectory, "sources");
-            }
         }
 
         /// <summary>The source's snapshot for the game when it was taken from <paramref name="linkId"/>, else null.</summary>
         public MetadataSourceSnapshot Get(Guid gameId, string sourceKey, string linkId)
         {
-            if (string.IsNullOrWhiteSpace(sourceKey) || string.IsNullOrWhiteSpace(linkId))
+            var database = _database?.Invoke();
+            if (database == null || string.IsNullOrWhiteSpace(sourceKey) || string.IsNullOrWhiteSpace(linkId))
             {
                 return null;
             }
 
-            lock (_sync)
+            try
             {
-                return Read(gameId).TryGetValue(sourceKey.Trim(), out var snapshot) &&
-                       string.Equals(snapshot?.LinkId, linkId.Trim(), StringComparison.OrdinalIgnoreCase)
-                    ? snapshot
-                    : null;
+                var row = database.GetMetadataSourceSnapshot(gameId.ToString(), sourceKey.Trim());
+                if (row == null || !string.Equals(row.LinkId, linkId.Trim(), StringComparison.OrdinalIgnoreCase))
+                {
+                    return null;
+                }
+
+                return new MetadataSourceSnapshot
+                {
+                    LinkId = row.LinkId,
+                    Rows = string.IsNullOrWhiteSpace(row.RowsJson)
+                        ? new List<MetadataSourceRow>()
+                        : JsonConvert.DeserializeObject<List<MetadataSourceRow>>(row.RowsJson) ?? new List<MetadataSourceRow>(),
+                    Matches = new Dictionary<string, string>(
+                        string.IsNullOrWhiteSpace(row.MatchesJson)
+                            ? new Dictionary<string, string>()
+                            : JsonConvert.DeserializeObject<Dictionary<string, string>>(row.MatchesJson) ?? new Dictionary<string, string>(),
+                        StringComparer.OrdinalIgnoreCase)
+                };
+            }
+            catch (Exception ex)
+            {
+                _logger?.Warn(ex, $"[Metadata] Failed to read the {sourceKey} snapshot of {gameId}.");
+                return null;
             }
         }
 
-        /// <summary>Records a source's rows and matches for the game; the file is rewritten only when they changed.</summary>
+        /// <summary>Records a source's rows and matches for the game; the row is written only when they changed.</summary>
         public void Record(
             Guid gameId,
             string sourceKey,
@@ -86,103 +103,80 @@ namespace PlayniteAchievements.Services.Metadata
             IEnumerable<AchievementDetail> rows,
             IEnumerable<KeyValuePair<string, string>> matches)
         {
-            if (gameId == Guid.Empty || string.IsNullOrWhiteSpace(sourceKey) || string.IsNullOrWhiteSpace(linkId) || _directory == null)
+            var database = _database?.Invoke();
+            if (database == null || gameId == Guid.Empty || string.IsNullOrWhiteSpace(sourceKey) || string.IsNullOrWhiteSpace(linkId))
             {
                 return;
             }
 
-            var snapshot = new MetadataSourceSnapshot
-            {
-                LinkId = linkId.Trim(),
-                Rows = (rows ?? Enumerable.Empty<AchievementDetail>())
-                    .Where(row => !string.IsNullOrWhiteSpace(row?.ApiName))
-                    .GroupBy(row => row.ApiName, StringComparer.OrdinalIgnoreCase)
-                    .Select(group => group.First())
-                    .Select(row => new MetadataSourceRow
-                    {
-                        ApiName = row.ApiName,
-                        Name = row.DisplayName,
-                        Description = string.IsNullOrWhiteSpace(row.Description) ? null : row.Description,
-                        Icon = string.IsNullOrWhiteSpace(row.UnlockedIconPath) ? row.LockedIconPath : row.UnlockedIconPath
-                    })
-                    .ToList()
-            };
+            var sourceRows = (rows ?? Enumerable.Empty<AchievementDetail>())
+                .Where(row => !string.IsNullOrWhiteSpace(row?.ApiName))
+                .GroupBy(row => row.ApiName, StringComparer.OrdinalIgnoreCase)
+                .Select(group => group.First())
+                .Select(row => new MetadataSourceRow
+                {
+                    ApiName = row.ApiName,
+                    Name = row.DisplayName,
+                    Description = string.IsNullOrWhiteSpace(row.Description) ? null : row.Description,
+                    Icon = string.IsNullOrWhiteSpace(row.UnlockedIconPath) ? row.LockedIconPath : row.UnlockedIconPath
+                })
+                .ToList();
+            var pairs = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
             foreach (var pair in matches ?? Enumerable.Empty<KeyValuePair<string, string>>())
             {
                 if (!string.IsNullOrWhiteSpace(pair.Key) && !string.IsNullOrWhiteSpace(pair.Value))
                 {
-                    snapshot.Matches[pair.Key] = pair.Value;
+                    pairs[pair.Key] = pair.Value;
                 }
             }
 
-            lock (_sync)
+            var next = new MetadataSourceSnapshotRow
             {
-                var all = Read(gameId);
-                all[sourceKey.Trim()] = snapshot;
-                Write(gameId, all);
+                PlayniteGameId = gameId.ToString(),
+                SourceKey = sourceKey.Trim(),
+                LinkId = linkId.Trim(),
+                RowsJson = JsonConvert.SerializeObject(sourceRows, Formatting.None),
+                MatchesJson = JsonConvert.SerializeObject(pairs, Formatting.None)
+            };
+
+            try
+            {
+                lock (_sync)
+                {
+                    var current = database.GetMetadataSourceSnapshot(next.PlayniteGameId, next.SourceKey);
+                    if (current != null &&
+                        string.Equals(current.LinkId, next.LinkId, StringComparison.Ordinal) &&
+                        string.Equals(current.RowsJson, next.RowsJson, StringComparison.Ordinal) &&
+                        string.Equals(current.MatchesJson, next.MatchesJson, StringComparison.Ordinal))
+                    {
+                        return;
+                    }
+
+                    database.SaveMetadataSourceSnapshot(next);
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger?.Warn(ex, $"[Metadata] Failed to save the {sourceKey} snapshot of {gameId}.");
             }
         }
 
         /// <summary>Drops a source's snapshot, for a source the game no longer takes achievement data from.</summary>
         public void Forget(Guid gameId, string sourceKey)
         {
-            if (gameId == Guid.Empty || string.IsNullOrWhiteSpace(sourceKey) || _directory == null)
+            var database = _database?.Invoke();
+            if (database == null || gameId == Guid.Empty || string.IsNullOrWhiteSpace(sourceKey))
             {
                 return;
             }
 
-            lock (_sync)
-            {
-                var all = Read(gameId);
-                if (all.Remove(sourceKey.Trim()))
-                {
-                    Write(gameId, all);
-                }
-            }
-        }
-
-        private string PathFor(Guid gameId) => _directory == null ? null : Path.Combine(_directory, gameId.ToString("D") + ".json");
-
-        private Dictionary<string, MetadataSourceSnapshot> Read(Guid gameId)
-        {
-            var empty = new Dictionary<string, MetadataSourceSnapshot>(StringComparer.OrdinalIgnoreCase);
-            var path = PathFor(gameId);
-            if (path == null || !File.Exists(path))
-            {
-                return empty;
-            }
-
             try
             {
-                var loaded = JsonConvert.DeserializeObject<Dictionary<string, MetadataSourceSnapshot>>(File.ReadAllText(path, Encoding.UTF8));
-                return loaded == null
-                    ? empty
-                    : new Dictionary<string, MetadataSourceSnapshot>(loaded, StringComparer.OrdinalIgnoreCase);
+                database.DeleteMetadataSourceSnapshot(gameId.ToString(), sourceKey.Trim());
             }
             catch (Exception ex)
             {
-                _logger?.Warn(ex, $"[Metadata] Failed to read the source snapshot; starting empty: {path}");
-                return empty;
-            }
-        }
-
-        private void Write(Guid gameId, Dictionary<string, MetadataSourceSnapshot> all)
-        {
-            var path = PathFor(gameId);
-            try
-            {
-                var json = JsonConvert.SerializeObject(all, Formatting.None);
-                if (File.Exists(path) && string.Equals(File.ReadAllText(path, Encoding.UTF8), json, StringComparison.Ordinal))
-                {
-                    return;
-                }
-
-                Directory.CreateDirectory(_directory);
-                File.WriteAllText(path, json, Encoding.UTF8);
-            }
-            catch (Exception ex)
-            {
-                _logger?.Warn(ex, $"[Metadata] Failed to write the source snapshot: {path}");
+                _logger?.Warn(ex, $"[Metadata] Failed to drop the {sourceKey} snapshot of {gameId}.");
             }
         }
     }
