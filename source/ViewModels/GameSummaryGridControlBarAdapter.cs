@@ -160,6 +160,7 @@ namespace PlayniteAchievements.ViewModels
                 PendingPlatformSelections);
             PendingPlatformSelections = null;
             OnPropertyChanged(nameof(SelectedProviderFilterText));
+            GameFilter.SetPlatforms(ProviderFilterGroups);
             ControlBar.Refresh();
         }
 
@@ -345,6 +346,7 @@ namespace PlayniteAchievements.ViewModels
         private void OnProviderFilterSelectionChanged()
         {
             OnPropertyChanged(nameof(SelectedProviderFilterText));
+            GameFilter.SetPlatforms(ProviderFilterGroups);
             RaiseFilterChanged();
         }
 
