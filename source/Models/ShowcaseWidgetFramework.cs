@@ -401,6 +401,17 @@ namespace PlayniteAchievements.Models
         /// <summary>The Timeline's split menu.</summary>
         public const string SplitByPlatform = "SplitByPlatform";
 
+        // The single-game achievement grids' items (Overview selected game, View Achievements,
+        // the friends achievement grids) and the friends lists'.
+        public const string Category = "Category";
+        public const string Compare = "Compare";
+        public const string Unlocked = "Unlocked";
+        public const string Locked = "Locked";
+        public const string Hidden = "Hidden";
+        public const string CategoryMode = "CategoryMode";
+        public const string Favorites = "Favorites";
+        public const string Ownership = "Ownership";
+
         /// <summary>Every item a Timeline's control bar offers.</summary>
         public static readonly IReadOnlyList<string> TimelineItems = new[]
         {

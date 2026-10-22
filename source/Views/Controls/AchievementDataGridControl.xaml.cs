@@ -1249,7 +1249,11 @@ namespace PlayniteAchievements.Views.Controls
                     {
                         _categorySearchText = string.Empty;
                         ApplyCategoryNameFilter();
-                    });
+                    })
+                {
+                    // Shown and hidden with the search box it stands in for.
+                    Id = PlayniteAchievements.Models.ShowcaseControlBarItems.Search
+                };
             }
 
             if (_modeToggle == null)
@@ -1262,7 +1266,11 @@ namespace PlayniteAchievements.Views.Controls
                     SetCategoryMode,
                     CategoryModeText("LOCPlayAch_CategorySummaries_ToggleToolTip", "Group by category"),
                     CanEnterCategoryMode,
-                    HasMultipleCategories);
+                    HasMultipleCategories)
+                {
+                    Id = PlayniteAchievements.Models.ShowcaseControlBarItems.CategoryMode,
+                    LabelKey = "LOCPlayAch_ManageAchievements_Tab_Category"
+                };
             }
 
             if (_expandAllButton == null)
@@ -1402,9 +1410,12 @@ namespace PlayniteAchievements.Views.Controls
         // empty space. Runs after the per-item visibility pass, which is what it keys off.
         private void SyncSegmentedUnit()
         {
+            // Joined only while both show: a Display Settings choice can hide either one.
             var connected =
                 _modeToggle?.EffectiveIsVisible == true &&
-                _connectedCategoryFilter?.EffectiveIsVisible == true;
+                _connectedCategoryFilter?.EffectiveIsVisible == true &&
+                !ControlBarHost.IsItemHidden(_modeToggle) &&
+                !ControlBarHost.IsItemHidden(_connectedCategoryFilter);
 
             if (_connectedCategoryFilter != null)
             {
@@ -1452,6 +1463,8 @@ namespace PlayniteAchievements.Views.Controls
             {
                 bar.Search = _originalSearch;
             }
+
+            ControlBarHost.BaseSearch = null;
         }
 
         // Shows/hides the injected items and swaps the search box to match the active nested grid:
@@ -1498,6 +1511,7 @@ namespace PlayniteAchievements.Views.Controls
                 if (!ReferenceEquals(bar.Search, _categorySearch))
                 {
                     _originalSearch = bar.Search;
+                    ControlBarHost.BaseSearch = _originalSearch;
                     bar.Search = _categorySearch;
                 }
             }
@@ -2633,7 +2647,18 @@ namespace PlayniteAchievements.Views.Controls
                 control.RefreshAppearance();
                 control.ReattachColumnPersistence();
                 control.SyncModeToggle();
+                control.UpdateControlBarOptions();
             }
+        }
+
+        private void ControlBarHost_ShownItemsChanged(object sender, EventArgs e) => SyncSegmentedUnit();
+
+        // The bar leaves out the items this grid's Display Settings hide.
+        private void UpdateControlBarOptions()
+        {
+            ControlBarHost.GridOptions = Helpers.GridSurfaceOptions.Resolve(
+                Settings.Controls.GridOptionKind.Achievement,
+                ColumnSettingsKey);
         }
 
         private void ReattachColumnPersistence()
@@ -2925,6 +2950,9 @@ namespace PlayniteAchievements.Views.Controls
 
         private void OnLoaded(object sender, RoutedEventArgs e)
         {
+            UpdateControlBarOptions();
+            ControlBarHost.ShownItemsChanged -= ControlBarHost_ShownItemsChanged;
+            ControlBarHost.ShownItemsChanged += ControlBarHost_ShownItemsChanged;
             AchievementTagRegistry.Changed -= OnTagsChanged;
             AchievementTagRegistry.Changed += OnTagsChanged;
             UpdateColumnVisibility();

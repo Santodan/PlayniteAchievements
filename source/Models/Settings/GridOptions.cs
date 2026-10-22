@@ -248,6 +248,47 @@ namespace PlayniteAchievements.Models.Settings
             set => SetValue(ref _showControlBar, value);
         }
 
+        private IReadOnlyList<string> _hiddenControlBarItems;
+
+        /// <summary>
+        /// The control bar items (by id) this grid's bar leaves out while it shows; null or empty
+        /// shows every item. Always replaced, never edited in place, so a settings snapshot can
+        /// restore it.
+        /// </summary>
+        [Newtonsoft.Json.JsonProperty(ObjectCreationHandling = Newtonsoft.Json.ObjectCreationHandling.Replace)]
+        public IReadOnlyList<string> HiddenControlBarItems
+        {
+            get => _hiddenControlBarItems;
+            set => SetValue(
+                ref _hiddenControlBarItems,
+                value == null || value.Count == 0 ? null : (IReadOnlyList<string>)value.Distinct(StringComparer.OrdinalIgnoreCase).ToList());
+        }
+
+        public bool IsControlBarItemHidden(string itemId) =>
+            !string.IsNullOrWhiteSpace(itemId) &&
+            _hiddenControlBarItems?.Contains(itemId, StringComparer.OrdinalIgnoreCase) == true;
+
+        /// <summary>Shows or hides one control bar item, replacing the list.</summary>
+        public void SetControlBarItemHidden(string itemId, bool hidden)
+        {
+            if (string.IsNullOrWhiteSpace(itemId) || IsControlBarItemHidden(itemId) == hidden)
+            {
+                return;
+            }
+
+            var items = (_hiddenControlBarItems ?? Array.Empty<string>()).ToList();
+            if (hidden)
+            {
+                items.Add(itemId);
+            }
+            else
+            {
+                items.RemoveAll(item => string.Equals(item, itemId, StringComparison.OrdinalIgnoreCase));
+            }
+
+            HiddenControlBarItems = items;
+        }
+
         public double? RowHeight
         {
             get => _rowHeight;
@@ -270,6 +311,7 @@ namespace PlayniteAchievements.Models.Settings
         {
             target.ShowColumnHeaders = ShowColumnHeaders;
             target.ShowControlBar = ShowControlBar;
+            target.HiddenControlBarItems = HiddenControlBarItems?.ToList();
             target.RowHeight = RowHeight;
             target.MaxRows = MaxRows;
             target.Columns = Columns?.Clone() ?? new GridColumnLayoutOptions();

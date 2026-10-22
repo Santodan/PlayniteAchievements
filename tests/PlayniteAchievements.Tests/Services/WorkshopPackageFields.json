@@ -12,6 +12,9 @@
       "ColorNamesByRarity": "value",
       "ColorRarityColumnsByRarity": "value",
       "Columns": "GridColumnLayoutOptions",
+      "HiddenControlBarItems": {
+        "list": "value"
+      },
       "HideCategorySummaryRow": "value",
       "MaxHeight": "value",
       "MaxRows": "value",
@@ -194,6 +197,9 @@
     "GameSummaryGridOptions": {
       "ColorRarityColumnsByRarity": "value",
       "Columns": "GridColumnLayoutOptions",
+      "HiddenControlBarItems": {
+        "list": "value"
+      },
       "LastPlayedDateMode": "value",
       "MaxRows": "value",
       "RowHeight": "value",
