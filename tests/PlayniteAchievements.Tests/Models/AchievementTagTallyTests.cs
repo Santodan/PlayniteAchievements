@@ -103,6 +103,27 @@ namespace PlayniteAchievements.Tests.Models
         }
 
         [TestMethod]
+        public void CountShown_CountsAnAchievementWithSeveralShownTagsOnce()
+        {
+            // X carries both tags and is unlocked; Y and Z carry one each and are locked.
+            var builder = new AchievementTagTallyBuilder();
+            builder.Add(AchievementTagHelper.Missable + "|Collectable", unlocked: true);
+            builder.Add(AchievementTagHelper.Missable, unlocked: false);
+            builder.Add("Collectable", unlocked: false);
+            var tallies = builder.Build();
+
+            var both = AchievementTagTallyBuilder.CountShown(tallies, new[] { AchievementTagHelper.Missable, "Collectable" });
+            Assert.AreEqual((1, 2), both.PerTag[AchievementTagHelper.Missable]);
+            Assert.AreEqual((1, 2), both.PerTag["Collectable"]);
+            Assert.AreEqual(1, both.Unlocked);
+            Assert.AreEqual(3, both.Total);
+
+            var one = AchievementTagTallyBuilder.CountShown(tallies, new[] { "Collectable" });
+            Assert.AreEqual(1, one.Unlocked);
+            Assert.AreEqual(2, one.Total);
+        }
+
+        [TestMethod]
         public void EffectiveTags_KeepsTheProvidersDerivedModes()
         {
             var effective = AchievementTagTallyBuilder.EffectiveTags(
