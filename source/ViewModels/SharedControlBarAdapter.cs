@@ -140,7 +140,7 @@ namespace PlayniteAchievements.ViewModels
     /// A showcase control bar's Game filter. It lists the games last given to
     /// <see cref="UpdateGames"/> by name, limited to <see cref="SetScope"/>'s games when the widget
     /// has a collection. Selections are game IDs, so a rename keeps them, and a selected game
-    /// stays selected while it is not listed.
+    /// stays selected while it is not listed, unless a collection leaves it out.
     /// </summary>
     public sealed class ControlBarGameFilter : PlayniteAchievements.Common.ObservableObject
     {
@@ -213,8 +213,13 @@ namespace PlayniteAchievements.ViewModels
             Rebuild();
         }
 
-        /// <summary>Limits the listed games to <paramref name="gameIds"/>; null lists them all.</summary>
-        public void SetScope(IEnumerable<Guid> gameIds)
+        /// <summary>
+        /// Limits the listed games to <paramref name="gameIds"/>, and unpicks any game outside
+        /// them; null lists them all. A widget sets it during its filter pass, which applies the
+        /// unpicked games itself, so only <paramref name="notify"/> raises a filter change for
+        /// them (saving them and refreshing the widget).
+        /// </summary>
+        public void SetScope(IEnumerable<Guid> gameIds, bool notify = false)
         {
             var scope = gameIds != null ? new HashSet<Guid>(gameIds) : null;
             if (scope == null ? _scope == null : _scope != null && _scope.SetEquals(scope))
@@ -223,7 +228,12 @@ namespace PlayniteAchievements.ViewModels
             }
 
             _scope = scope;
+            var unpicked = scope != null && _selected.RemoveWhere(id => !scope.Contains(id)) > 0;
             Rebuild();
+            if (unpicked && notify)
+            {
+                _changed?.Invoke();
+            }
         }
 
         public List<string> Capture() =>
