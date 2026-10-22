@@ -3234,6 +3234,34 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                     (category == null
                         ? row.IsWholeGameAutoCapstone || singleCategory
                         : IsInCategory(row, category)));
+                if (existing != null && category == null && existing.IsWholeGameAutoCapstone &&
+                    authoring.MatchedCapstoneApiName(_gameId) != null)
+                {
+                    // Saved first, so the swap reads the rows as shown; then the rows are read back
+                    // from the store the swap wrote.
+                    await SaveAsync().ConfigureAwait(true);
+                    if (authoring.ReplaceWithMatchedCapstone(_gameId))
+                    {
+                        _gameDataSnapshotProvider?.Invalidate();
+                        RaiseAssignmentsChanged();
+                        ReloadData();
+
+                        var matchedApiName = authoring.MatchedCapstoneApiName(_gameId);
+                        var matched = FindRow(matchedApiName);
+                        if (matched != null)
+                        {
+                            SelectRowAndScrollTo(matched);
+                            CapstoneChanged?.Invoke(this, new CapstoneChangedEventArgs(matchedApiName, matched.DisplayName));
+                        }
+
+                        SetStatus(null, false);
+                        return;
+                    }
+
+                    // An edited auto capstone stays, and is brought up to date below.
+                    existing = FindRow(existing.OriginalApiName) ?? existing;
+                }
+
                 if (existing != null)
                 {
                     ApplyAutoCapstoneDerivation(existing);
