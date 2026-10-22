@@ -1,7 +1,9 @@
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using PlayniteAchievements.Providers.Metadata.TrueGaming;
+using PlayniteAchievements.Services.Metadata;
+using PlayniteAchievements.Tests.Services;
 using System;
-using System.IO;
+using System.Linq;
 
 namespace PlayniteAchievements.Tests.Providers
 {
@@ -9,35 +11,22 @@ namespace PlayniteAchievements.Tests.Providers
     [TestCategory("Providers")]
     public class TrueGamingPageStoreTests
     {
-        private string _directory;
-
-        [TestInitialize]
-        public void CreateDirectory()
-        {
-            _directory = Path.Combine(Path.GetTempPath(), "pa-truegaming-" + Guid.NewGuid().ToString("N"));
-        }
-
-        [TestCleanup]
-        public void DeleteDirectory()
-        {
-            if (Directory.Exists(_directory))
-            {
-                Directory.Delete(_directory, recursive: true);
-            }
-        }
+        private static TrueGamingPageStore Store(FakeMetadataStateDatabase database) =>
+            new TrueGamingPageStore(new MetadataSourcePageStore("TrueGaming", () => database, null));
 
         [TestMethod]
-        public void Pages_AreKeptPerSite_AndSurviveASave()
+        public void Pages_AreKeptPerSite_InTheDatabase()
         {
-            var path = Path.Combine(_directory, "truegaming-pages.json");
+            var database = new FakeMetadataStateDatabase();
             var gameId = Guid.NewGuid();
-            var store = new TrueGamingPageStore(path, null);
+            var store = Store(database);
             store.Set(gameId, "Elden-Ring", TrueGamingSite.TrueAchievements, "Elden-Ring");
             store.Set(gameId, "Elden-Ring", TrueGamingSite.TrueTrophies, "Elden-Ring-PS5");
             store.Set(gameId, "Elden-Ring", TrueGamingSite.TrueSteamAchievements, null);
-            store.Save();
+            store.Set(gameId, "Elden-Ring", TrueGamingSite.TrueSteamAchievements, null);
+            Assert.AreEqual(3, database.PageWrites, "an unchanged page writes nothing");
 
-            var reread = new TrueGamingPageStore(path, null);
+            var reread = Store(database);
             Assert.IsTrue(reread.TryGet(gameId, "elden-ring", TrueGamingSite.TrueTrophies, out var trophies));
             Assert.AreEqual("Elden-Ring-PS5", trophies);
             Assert.IsTrue(reread.TryGet(gameId, "Elden-Ring", TrueGamingSite.TrueSteamAchievements, out var steam), "a site without the game is known");
@@ -45,15 +34,16 @@ namespace PlayniteAchievements.Tests.Providers
             Assert.IsFalse(reread.TryGet(Guid.NewGuid(), "Elden-Ring", TrueGamingSite.TrueAchievements, out _));
             CollectionAssert.AreEqual(
                 new[] { "TrueAchievements=Elden-Ring", "TrueTrophies=Elden-Ring-PS5", "TrueSteamAchievements=" },
-                System.Linq.Enumerable.ToList(System.Linq.Enumerable.Select(reread.GetPages(gameId, "Elden-Ring"), page => page.Site.Title + "=" + page.PageSlug)),
+                reread.GetPages(gameId, "Elden-Ring").Select(page => page.Site.Title + "=" + page.PageSlug).ToList(),
                 "each site looked at, in lookup order");
         }
 
         [TestMethod]
         public void ANewName_StartsTheGameAgain()
         {
+            var database = new FakeMetadataStateDatabase();
             var gameId = Guid.NewGuid();
-            var store = new TrueGamingPageStore(Path.Combine(_directory, "pages.json"), null);
+            var store = Store(database);
             store.Set(gameId, "Peak", TrueGamingSite.TrueTrophies, "Peak");
             store.Set(gameId, "PEAK-2025", TrueGamingSite.TrueAchievements, null);
 
@@ -63,6 +53,22 @@ namespace PlayniteAchievements.Tests.Providers
 
             store.Clear(gameId);
             Assert.IsFalse(store.TryGet(gameId, "PEAK-2025", TrueGamingSite.TrueAchievements, out _), "a cleared game is looked at again");
+            Assert.IsFalse(Store(database).TryGet(gameId, "PEAK-2025", TrueGamingSite.TrueAchievements, out _), "and its rows are gone");
+        }
+
+        [TestMethod]
+        public void ClearingTheCache_DropsThePagesKeptInMemory()
+        {
+            var database = new FakeMetadataStateDatabase();
+            var gameId = Guid.NewGuid();
+            var state = new MetadataStateStore(null);
+            state.AttachDatabase(database);
+            var store = new TrueGamingPageStore(state.Pages("TrueGaming"));
+            store.Set(gameId, "Hades", TrueGamingSite.TrueAchievements, "Hades");
+
+            database.Clear();
+
+            Assert.IsFalse(store.TryGet(gameId, "Hades", TrueGamingSite.TrueAchievements, out _));
         }
     }
 }
