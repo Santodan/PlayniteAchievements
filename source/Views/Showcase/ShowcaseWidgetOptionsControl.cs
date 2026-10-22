@@ -843,9 +843,9 @@ namespace PlayniteAchievements.Views.Showcase
                 {
                     ControlBar = bar,
                     ShowControlBar = true,
-                    HorizontalAlignment = HorizontalAlignment.Left
+                    FillsWidth = true
                 };
-                rows[entry.Id] = AddControlBarItemRow(panel, entry.Id, Localize(entry.LabelKey), editor);
+                rows[entry.Id] = AddControlBarItemRow(panel, entry.Id, Localize(entry.LabelKey), editor, entry);
             }
 
             return rows;
@@ -892,12 +892,19 @@ namespace PlayniteAchievements.Views.Showcase
             }
         }
 
-        private FrameworkElement AddControlBarItemRow(Panel panel, string itemId, string label, FrameworkElement editor)
+        // One item: its show checkbox, its editor across the row, and a button clearing its filter.
+        private FrameworkElement AddControlBarItemRow(
+            Panel panel,
+            string itemId,
+            string label,
+            FrameworkElement editor,
+            IGridControlBarEntry entry = null)
         {
             var row = new Grid();
             row.SetResourceReference(MarginProperty, "PlayAch.Thickness.Bottom.Md");
             row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(2, GridUnitType.Star) });
             row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(3, GridUnitType.Star) });
+            row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
             var labelBlock = new TextBlock
             {
                 Text = label,
@@ -929,6 +936,22 @@ namespace PlayniteAchievements.Views.Showcase
                 editor.VerticalAlignment = VerticalAlignment.Center;
                 Grid.SetColumn(editor, 1);
                 row.Children.Add(editor);
+            }
+
+            if (entry != null)
+            {
+                var clear = new Button
+                {
+                    Content = "\u00D7",
+                    ToolTip = Localize("LOCClearLabel"),
+                    VerticalAlignment = VerticalAlignment.Center,
+                    Margin = new Thickness(4, 0, 0, 0)
+                };
+                clear.SetResourceReference(StyleProperty, "PlayAch.Button.ToolbarIconStyle");
+                clear.SetResourceReference(Control.FontFamilyProperty, "PlayAch.FontFamily.Body");
+                clear.Click += (_, __) => entry.ClearSelection();
+                Grid.SetColumn(clear, 2);
+                row.Children.Add(clear);
             }
 
             panel.Children.Add(row);
