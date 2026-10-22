@@ -131,6 +131,57 @@ namespace PlayniteAchievements.Tests.Services
         }
 
         [TestMethod]
+        public void Registry_LeavesHiddenTagsOutOfViews_ButNotTheEditor()
+        {
+            var gameId = Guid.NewGuid();
+            AchievementTagRegistry.SetGlobal(new[]
+            {
+                new AchievementTagDefinition { Key = "Missable", Hidden = true },
+                new AchievementTagDefinition { Key = "u-global", Name = "Global" }
+            });
+            AchievementTagRegistry.SetGameResolver(id => id == gameId
+                ? new[] { new AchievementTagDefinition { Key = "u-game", Name = "Game Only", Hidden = true } }
+                : Array.Empty<AchievementTagDefinition>());
+
+            const string tags = "Missable|u-global|u-game";
+            Assert.AreEqual("Global", AchievementTagHelper.ToDisplayText(tags, gameId));
+            Assert.AreEqual("Missable, Global, Game Only", AchievementTagHelper.ToDisplayText(tags, gameId, includeHidden: true));
+            Assert.IsTrue(AchievementTagHelper.IsMissable(tags), "hiding the tag keeps its behavior");
+            Assert.IsTrue(AchievementTagRegistry.IsHidden("u-game", gameId));
+            Assert.IsFalse(AchievementTagRegistry.IsHidden("u-global", gameId));
+
+            CollectionAssert.AreEqual(
+                new[] { "Missable", "u-global", "u-game" },
+                AchievementTagRegistry.GetAssignableKeys(gameId).ToList());
+            CollectionAssert.AreEqual(new[] { "u-global" }, AchievementTagRegistry.GetShownKeys(gameId).ToList());
+            CollectionAssert.AreEqual(
+                new[] { "u-global" },
+                AchievementClassificationFilter.GetPresentKeys(new[] { tags }, value => value, gameId));
+            Assert.IsFalse(AchievementClassificationFilter.GetFilterKeys(gameId).Contains("Missable"));
+        }
+
+        [TestMethod]
+        public void Registry_RaisesChanged_WhenOnlyVisibilityChanges()
+        {
+            AchievementTagRegistry.SetGlobal(new[] { new AchievementTagDefinition { Key = "Missable" } });
+            var raised = 0;
+            EventHandler<AchievementTagsChangedEventArgs> handler = (_, __) => raised++;
+            AchievementTagRegistry.Changed += handler;
+            try
+            {
+                AchievementTagRegistry.SetGlobal(new[] { new AchievementTagDefinition { Key = "Missable", Hidden = true } });
+            }
+            finally
+            {
+                AchievementTagRegistry.Changed -= handler;
+            }
+
+            Assert.AreEqual(1, raised);
+            Assert.IsTrue(AchievementTagHelper.NormalizeDefinitions(AchievementTagRegistry.Global, ensureSystemTags: true)[0].Hidden,
+                "normalizing keeps the flag");
+        }
+
+        [TestMethod]
         public void DefaultName_SpellsOutSourceKeys()
         {
             Assert.AreEqual("Buggy+", AchievementTagHelper.GetDefaultName("BuggyPlus"));
