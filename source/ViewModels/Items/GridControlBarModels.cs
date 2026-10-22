@@ -361,15 +361,26 @@ namespace PlayniteAchievements.ViewModels.Items
 
         public bool HasIcons => IconKeyOf != null;
 
-        /// <summary>The badges of the picked options, in option order.</summary>
-        public IReadOnlyList<string> SelectedIconKeys =>
-            IconKeyOf == null
-                ? Array.Empty<string>()
-                : (IReadOnlyList<string>)(Options ?? Array.Empty<string>())
+        /// <summary>
+        /// The badges of the picked options, in option order; none when any picked option has no
+        /// badge, so the button names them instead of leaving one out.
+        /// </summary>
+        public IReadOnlyList<string> SelectedIconKeys
+        {
+            get
+            {
+                if (IconKeyOf == null)
+                {
+                    return Array.Empty<string>();
+                }
+
+                var keys = (Options ?? Array.Empty<string>())
                     .Where(IsSelected)
                     .Select(IconKeyOf)
-                    .Where(key => !string.IsNullOrWhiteSpace(key))
                     .ToList();
+                return keys.Any(string.IsNullOrWhiteSpace) ? (IReadOnlyList<string>)Array.Empty<string>() : keys;
+            }
+        }
 
         /// <summary>Whether the button shows badges rather than text.</summary>
         public bool ShowsSelectedIcons => SelectedIconKeys.Count > 0;
