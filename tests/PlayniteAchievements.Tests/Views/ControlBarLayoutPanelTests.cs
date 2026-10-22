@@ -84,6 +84,17 @@ namespace PlayniteAchievements.Tests.Views
         }
 
         [TestMethod]
+        public void NoSearch_OneLine_FiltersFollowTheLeadingItems()
+        {
+            RunOnStaThread(() =>
+            {
+                var (panel, _, _, items) = Create(wrap: false, withSearch: false);
+                Layout(panel, 600);
+
+                Assert.AreEqual(40, LayoutRect(items).X, "no empty search space before the filters");
+            });
+        }
+        [TestMethod]
         public void CenteredWrapPanel_CentersEachLine()
         {
             RunOnStaThread(() =>
