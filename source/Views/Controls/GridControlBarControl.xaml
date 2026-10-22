@@ -682,9 +682,9 @@
             </ItemsControl.ItemsPanel>
         </ItemsControl>
 
-        <ContentControl Content="{Binding ControlBar.Search, ElementName=Root}"/>
+        <ContentControl Content="{Binding ShownSearch, ElementName=Root}"/>
 
-        <ItemsControl ItemsSource="{Binding ControlBar.Items, ElementName=Root}"
+        <ItemsControl ItemsSource="{Binding ShownItems, ElementName=Root}"
                       VerticalAlignment="Center">
             <ItemsControl.Style>
                 <Style TargetType="ItemsControl">
