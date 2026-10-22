@@ -520,6 +520,12 @@
     <Compile Include="..\..\source\Models\Settings\PersistedSettings.Metadata.cs" Link="Source\Models\Settings\PersistedSettings.Metadata.cs" />
     <Compile Include="..\..\source\Models\Settings\MetadataLinkData.cs" Link="Source\Models\Settings\MetadataLinkData.cs" />
     <Compile Include="..\..\source\Services\Metadata\MetadataLinkStore.cs" Link="Source\Services\Metadata\MetadataLinkStore.cs" />
+    <Compile Include="..\..\source\Services\Metadata\MetadataStateStore.cs" Link="Source\Services\Metadata\MetadataStateStore.cs" />
+    <Compile Include="..\..\source\Services\Metadata\MetadataSourcePageStore.cs" Link="Source\Services\Metadata\MetadataSourcePageStore.cs" />
+    <Compile Include="..\..\source\Services\Metadata\MetadataFolderRetirement.cs" Link="Source\Services\Metadata\MetadataFolderRetirement.cs" />
+    <Compile Include="..\..\source\Services\Cache\IMetadataStateDatabase.cs" Link="Source\Services\Cache\IMetadataStateDatabase.cs" />
+    <Compile Include="..\..\source\Services\Database\Rows\MetadataStateRows.cs" Link="Source\Services\Database\Rows\MetadataStateRows.cs" />
+    <Compile Include="..\..\source\Services\GameCustomData\CapstoneArtRecordRow.cs" Link="Source\Services\GameCustomData\CapstoneArtRecordRow.cs" />
     <Compile Include="..\..\source\Services\Metadata\MetadataSourceSnapshotStore.cs" Link="Source\Services\Metadata\MetadataSourceSnapshotStore.cs" />
     <Compile Include="..\..\source\Services\Metadata\MetadataOverlay.cs" Link="Source\Services\Metadata\MetadataOverlay.cs" />
     <Compile Include="..\..\source\Services\Metadata\MetadataSourceRouting.cs" Link="Source\Services\Metadata\MetadataSourceRouting.cs" />
