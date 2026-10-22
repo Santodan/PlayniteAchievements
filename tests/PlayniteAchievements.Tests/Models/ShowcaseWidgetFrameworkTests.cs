@@ -143,19 +143,18 @@ namespace PlayniteAchievements.Tests.Models
         }
 
         [TestMethod]
-        public void ControlBarItemVisible_DefaultsOffAndRoundTripsPerItem()
+        public void ShowControlBar_IsOffByDefault_AndHidesEveryItem()
         {
             var instance = new ShowcaseWidgetInstanceSettings { Kind = ShowcaseWidgetKind.Pie };
-            Assert.IsFalse(ShowcaseWidgetOptions.GetControlBarItemVisible(instance, ShowcaseControlBarItems.Platform));
-
             ShowcaseWidgetOptions.SetControlBarItemVisible(instance, ShowcaseControlBarItems.Platform, true);
 
-            Assert.IsTrue(ShowcaseWidgetOptions.GetControlBarItemVisible(instance, ShowcaseControlBarItems.Platform));
-            Assert.IsFalse(ShowcaseWidgetOptions.GetControlBarItemVisible(instance, ShowcaseControlBarItems.Progress));
+            Assert.IsFalse(ShowcaseWidgetOptions.GetShowControlBar(instance));
+            Assert.IsFalse(ShowcaseWidgetOptions.GetControlBarItemVisible(instance, ShowcaseControlBarItems.Platform));
+            Assert.IsTrue(ShowcaseWidgetOptions.GetControlBarItemChecked(instance, ShowcaseControlBarItems.Platform));
         }
 
         [TestMethod]
-        public void ControlBarItemVisible_FallsBackToTheFormerWholeBarOption()
+        public void ShowControlBar_On_ShowsEveryItemNotTurnedOff()
         {
             var instance = new ShowcaseWidgetInstanceSettings { Kind = ShowcaseWidgetKind.IconMosaic };
             instance.SetOption("ShowControlBar", true);
@@ -169,18 +168,36 @@ namespace PlayniteAchievements.Tests.Models
         }
 
         [TestMethod]
-        public void ControlBarItemVisible_PrefersTheCallersLegacyValue()
+        public void ShowControlBar_FallsBackToTheGridSurface_UntilTheWidgetHasItsOwn()
         {
             var instance = new ShowcaseWidgetInstanceSettings { Kind = ShowcaseWidgetKind.RecentAchievements };
 
             Assert.IsTrue(ShowcaseWidgetOptions.GetControlBarItemVisible(
                 instance,
                 ShowcaseControlBarItems.Search,
-                legacyVisible: true));
+                gridSurfaceVisible: true));
             Assert.IsFalse(ShowcaseWidgetOptions.GetControlBarItemVisible(
                 instance,
                 ShowcaseControlBarItems.Search,
-                legacyVisible: false));
+                gridSurfaceVisible: false));
+
+            ShowcaseWidgetOptions.SetShowControlBar(instance, false);
+            Assert.IsFalse(ShowcaseWidgetOptions.GetShowControlBar(instance, gridSurfaceVisible: true));
+        }
+
+        [TestMethod]
+        public void ShowOnlyControlBarItems_TurnsTheBarOnWithJustThoseItems()
+        {
+            var timeline = new ShowcaseWidgetInstanceSettings { Kind = ShowcaseWidgetKind.Timeline };
+
+            ShowcaseWidgetOptions.ShowOnlyControlBarItems(
+                timeline,
+                ShowcaseControlBarItems.TimelineItems,
+                ShowcaseControlBarItems.TimeWindow);
+
+            Assert.IsTrue(ShowcaseWidgetOptions.GetControlBarItemVisible(timeline, ShowcaseControlBarItems.TimeWindow));
+            Assert.IsFalse(ShowcaseWidgetOptions.GetControlBarItemVisible(timeline, ShowcaseControlBarItems.Platform));
+            Assert.IsFalse(ShowcaseWidgetOptions.GetControlBarItemVisible(timeline, ShowcaseControlBarItems.SplitByPlatform));
         }
 
         [TestMethod]
