@@ -164,7 +164,6 @@ namespace PlayniteAchievements.ViewModels.Tags
             _color = AchievementTagHelper.NormalizeColor(definition.Color);
             _icon = AchievementTagHelper.NormalizeIcon(definition.Icon);
             _hidden = definition.Hidden;
-            ToggleHiddenCommand = new RelayCommand(_ => IsHidden = !IsHidden);
             PickColorCommand = new RelayCommand(_ => PickColor());
             ClearColorCommand = new RelayCommand(_ => Color = null);
             PickIconCommand = new RelayCommand(_ => PickIcon());
@@ -336,8 +335,6 @@ namespace PlayniteAchievements.ViewModels.Tags
                 _owner.Commit();
             }
         }
-
-        public ICommand ToggleHiddenCommand { get; }
 
         public ICommand PickColorCommand { get; }
 
