@@ -37,6 +37,31 @@ namespace PlayniteAchievements.ViewModels
         /// <summary>The unlock date range's end day, or null for an open end.</summary>
         public DateTime? UnlockedTo => _unlockedTo;
 
+        private GridDateRangeFilter _unlockDateItem;
+        private bool _locksRows;
+
+        /// <summary>
+        /// True while the rows are locked achievements (Unlock Next): the unlock date range would
+        /// drop every one, so it does not apply and its item hides. The range itself is kept.
+        /// </summary>
+        public bool LocksRows
+        {
+            get => _locksRows;
+            set
+            {
+                if (_locksRows == value)
+                {
+                    return;
+                }
+
+                _locksRows = value;
+                if (_unlockDateItem != null)
+                {
+                    _unlockDateItem.IsVisible = !value;
+                }
+            }
+        }
+
         // Rarity and Trophy, which the Timeline's bar shares.
         private readonly RarityTrophyControlBarFilters _tierFilters;
 
@@ -247,7 +272,7 @@ namespace PlayniteAchievements.ViewModels
             }
 
             // The unlock range keeps unlocked rows whose local unlock day falls in it.
-            if (_unlockedFrom.HasValue || _unlockedTo.HasValue)
+            if (!_locksRows && (_unlockedFrom.HasValue || _unlockedTo.HasValue))
             {
                 var span = new UnlockDaySpan(_unlockedFrom ?? DateTime.MinValue, _unlockedTo ?? DateTime.MaxValue.Date);
                 filtered = filtered.Where(item =>
@@ -355,7 +380,7 @@ namespace PlayniteAchievements.ViewModels
                 AutoHideWhenUnavailable = false,
                 Width = 150
             });
-            controlBar.Items.Add(new GridDateRangeFilter(
+            _unlockDateItem = new GridDateRangeFilter(
                 this,
                 nameof(UnlockedRangeKey),
                 () => UnlockedFrom,
@@ -367,7 +392,8 @@ namespace PlayniteAchievements.ViewModels
                 LabelKey = "LOCPlayAch_Common_Unlocked",
                 AutoHideWhenUnavailable = false,
                 Width = 190
-            });
+            };
+            controlBar.Items.Add(_unlockDateItem);
             controlBar.Items.Add(_tierFilters.RarityItem);
             controlBar.Items.Add(_tierFilters.TrophyItem);
             return controlBar;
