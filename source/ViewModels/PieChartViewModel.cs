@@ -1147,9 +1147,27 @@ namespace PlayniteAchievements.ViewModels
                 }
             }
 
-            while (PieSeries.Count > targetCount)
+            // LiveCharts erases a removed series from the chart that drew it, and throws for one
+            // the chart has not drawn yet (added by a refresh just before this one). Such a series
+            // stays as an empty slice instead, and goes once a later refresh finds it drawn.
+            for (var i = PieSeries.Count - 1; i >= targetCount; i--)
             {
-                PieSeries.RemoveAt(PieSeries.Count - 1);
+                var surplus = PieSeries[i] as LiveCharts.Wpf.PieSeries;
+                if (surplus?.Model?.Chart?.View != null)
+                {
+                    PieSeries.RemoveAt(i);
+                    continue;
+                }
+
+                if (surplus != null)
+                {
+                    surplus.Title = string.Empty;
+                    surplus.StrokeThickness = 0;
+                    if (surplus.Values is ChartValues<PieSliceChartData> surplusValues && surplusValues.Count > 0)
+                    {
+                        ApplySliceChartData(surplusValues[0], null);
+                    }
+                }
             }
         }
 
