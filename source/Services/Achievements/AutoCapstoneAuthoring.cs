@@ -387,6 +387,9 @@ namespace PlayniteAchievements.Services.Achievements
                 string.Equals(achievement?.ApiName, authoredApiName, StringComparison.OrdinalIgnoreCase));
             if (match == null || current?.IsCapstone != true)
             {
+                _logger?.Debug(
+                    $"[AutoCapstone] gameId={gameId} keeps {authoredApiName}: " +
+                    (match == null ? $"matched platinum {matchApiName} is not among its achievements." : "it is no longer a capstone."));
                 return false;
             }
 
@@ -394,8 +397,14 @@ namespace PlayniteAchievements.Services.Achievements
                 _templates?.Invoke(),
                 ResolveGameName(API.Instance?.Database?.Games?.Get(gameId)),
                 null);
-            if (!IsUntouched(authored, links.GetCapstoneArtRecord(gameId, authoredApiName), templateText))
+            var record = links.GetCapstoneArtRecord(gameId, authoredApiName);
+            if (!IsUntouched(authored, record, templateText))
             {
+                _logger?.Debug(
+                    $"[AutoCapstone] gameId={gameId} keeps {authoredApiName} over matched platinum {matchApiName}: edited " +
+                    $"(record={(record == null ? "none" : "yes")}, icon='{authored.UnlockedIconPath}', recordedIcon='{record?.Path}', " +
+                    $"lockedIcon={!string.IsNullOrWhiteSpace(authored.LockedIconPath)}, title='{authored.DisplayName}', " +
+                    $"recordedTitle='{record?.Title}', templateTitle='{templateText.Title}').");
                 return false;
             }
 
