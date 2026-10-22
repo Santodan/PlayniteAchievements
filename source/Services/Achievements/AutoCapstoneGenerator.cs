@@ -47,7 +47,9 @@ namespace PlayniteAchievements.Services.Achievements
         }
 
         /// <summary>
-        /// Handles every game in <paramref name="gameIds"/> that is not handled yet.
+        /// Handles every game in <paramref name="gameIds"/> that is not handled yet, while the
+        /// setting is on, and in any case puts a matched platinum in place of an auto capstone
+        /// left as written, which the editor's button authors whatever the setting.
         /// </summary>
         /// <param name="progress">Called after each game with how many are done and the total.</param>
         public async Task GenerateAsync(
@@ -55,10 +57,12 @@ namespace PlayniteAchievements.Services.Achievements
             CancellationToken cancel = default,
             Action<int, int> progress = null)
         {
-            if (_isEnabled?.Invoke() != true || _store == null || _overridesService == null || _authoring == null)
+            if (_store == null || _overridesService == null || _authoring == null)
             {
                 return;
             }
+
+            var enabled = _isEnabled?.Invoke() == true;
 
             var ids = (gameIds ?? Enumerable.Empty<Guid>())
                 .Where(gameId => gameId != Guid.Empty)
@@ -77,7 +81,7 @@ namespace PlayniteAchievements.Services.Achievements
                     cancel.ThrowIfCancellationRequested();
                     try
                     {
-                        await GenerateOneAsync(ids[i]).ConfigureAwait(false);
+                        await GenerateOneAsync(ids[i], enabled).ConfigureAwait(false);
                     }
                     catch (Exception ex)
                     {
@@ -93,7 +97,7 @@ namespace PlayniteAchievements.Services.Achievements
             }
         }
 
-        private async Task GenerateOneAsync(Guid gameId)
+        private async Task GenerateOneAsync(Guid gameId, bool enabled)
         {
             if (_overridesService.IsExcludedFromRefreshes(gameId))
             {
@@ -112,15 +116,17 @@ namespace PlayniteAchievements.Services.Achievements
             // Checked before hydrating: once the library has been handled, every refresh reaches
             // here for games with the marker, and hydrating each one only to skip it adds up.
             var matchedCapstone = _authoring.MatchedCapstoneApiName(gameId);
-            if (stored?.AutoCapstoneGenerated == true)
-            {
-                // A real capstone matched after the game got an authored one takes its place.
-                if (matchedCapstone != null &&
-                    stored.CustomAchievements?.Any(definition => definition?.IsWholeGameAutoCapstone == true && definition.IsAutoCapstone) == true)
-                {
-                    _authoring.ReplaceWithMatchedCapstone(gameId);
-                }
 
+            // A real capstone matched after the game got an authored one takes its place, however
+            // it was authored and whatever the setting.
+            if (matchedCapstone != null &&
+                stored?.CustomAchievements?.Any(definition => definition?.IsWholeGameAutoCapstone == true && definition.IsAutoCapstone) == true)
+            {
+                _authoring.ReplaceWithMatchedCapstone(gameId);
+            }
+
+            if (!enabled || stored?.AutoCapstoneGenerated == true)
+            {
                 return;
             }
 
