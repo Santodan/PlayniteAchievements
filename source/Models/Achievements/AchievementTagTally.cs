@@ -7,9 +7,11 @@ using PlayniteAchievements.Services.Achievements;
 namespace PlayniteAchievements.Models.Achievements
 {
     /// <summary>
-    /// One tag's achievements in a game: how many carry it, and how many of those are unlocked.
-    /// Filtered achievements are not counted. Keys are stored raw; display resolves them, so a
-    /// renamed or deleted tag needs no recount.
+    /// A game's achievements that carry exactly one set of tags: how many there are, and how many
+    /// of those are unlocked. <see cref="Key"/> is the set ("Missable|Collectable"), so an
+    /// achievement with several tags is counted once, and a count over any choice of tags can
+    /// still count each achievement once. Filtered achievements are not counted. Keys are stored
+    /// raw; display resolves them, so a renamed or deleted tag needs no recount.
     /// </summary>
     public readonly struct AchievementTagTally
     {
@@ -20,11 +22,15 @@ namespace PlayniteAchievements.Models.Achievements
             Total = total;
         }
 
+        /// <summary>The tag set, its keys joined by "|".</summary>
         public string Key { get; }
 
         public int Unlocked { get; }
 
         public int Total { get; }
+
+        /// <summary>The tags in <see cref="Key"/>.</summary>
+        public IReadOnlyList<string> Tags => AchievementTagHelper.GetComponents(Key);
     }
 
     /// <summary>
@@ -61,9 +67,9 @@ namespace PlayniteAchievements.Models.Achievements
     }
 
     /// <summary>
-    /// Builds a game's <see cref="AchievementTagTally"/> list from tag values. An achievement
-    /// counts once under each tag it carries; the derived unlock modes (Softcore, Hardcore) describe
-    /// how it was earned, not what it is, and are not counted.
+    /// Builds a game's <see cref="AchievementTagTally"/> list from tag values: one entry per tag
+    /// set its achievements carry. The derived unlock modes (Softcore, Hardcore) describe how an
+    /// achievement was earned, not what it is, and are not part of its set.
     /// </summary>
     internal sealed class AchievementTagTallyBuilder
     {
@@ -129,7 +135,8 @@ namespace PlayniteAchievements.Models.Achievements
         /// <summary>Counts <paramref name="total"/> achievements carrying <paramref name="tags"/>, <paramref name="unlocked"/> of them unlocked.</summary>
         public void Add(string tags, int unlocked, int total)
         {
-            foreach (var key in CountedKeys(tags))
+            var key = SetKey(tags);
+            if (key != null)
             {
                 Shift(key, unlocked, total);
             }
@@ -140,10 +147,47 @@ namespace PlayniteAchievements.Models.Achievements
         /// <summary>Takes back one achievement counted under <paramref name="tags"/>.</summary>
         public void Remove(string tags, bool unlocked)
         {
-            foreach (var key in CountedKeys(tags))
+            var key = SetKey(tags);
+            if (key != null)
             {
                 Shift(key, unlocked ? -1 : 0, -1);
             }
+        }
+
+        /// <summary>
+        /// Counts over <paramref name="tallies"/> for the tags in <paramref name="shown"/>: each
+        /// tag's own achievements, and the achievements carrying any of them, each counted once
+        /// however many of the shown tags it has.
+        /// </summary>
+        public static (Dictionary<string, (int Unlocked, int Total)> PerTag, int Unlocked, int Total) CountShown(
+            IEnumerable<AchievementTagTally> tallies,
+            IEnumerable<string> shown)
+        {
+            var perTag = (shown ?? Enumerable.Empty<string>())
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToDictionary(key => key, _ => (Unlocked: 0, Total: 0), StringComparer.OrdinalIgnoreCase);
+            var unlocked = 0;
+            var total = 0;
+            foreach (var tally in tallies ?? Enumerable.Empty<AchievementTagTally>())
+            {
+                var any = false;
+                foreach (var key in tally.Tags)
+                {
+                    if (perTag.TryGetValue(key, out var count))
+                    {
+                        perTag[key] = (count.Unlocked + tally.Unlocked, count.Total + tally.Total);
+                        any = true;
+                    }
+                }
+
+                if (any)
+                {
+                    unlocked += tally.Unlocked;
+                    total += tally.Total;
+                }
+            }
+
+            return (perTag, unlocked, total);
         }
 
         public void AddAll(IEnumerable<AchievementTagTally> tallies)
@@ -171,8 +215,11 @@ namespace PlayniteAchievements.Models.Achievements
                 .ToArray();
         }
 
-        private static IEnumerable<string> CountedKeys(string tags) =>
-            AchievementTagHelper.GetComponents(tags).Where(key => !AchievementTagHelper.IsDerivedTag(key));
+        // The set an achievement is counted under: its tags less the derived ones, in the tag
+        // helper's canonical order so the same set always has the same key. Null for none.
+        private static string SetKey(string tags) =>
+            AchievementTagHelper.Combine(
+                AchievementTagHelper.GetComponents(tags).Where(key => !AchievementTagHelper.IsDerivedTag(key)));
 
         private void Shift(string key, int unlocked, int total)
         {
