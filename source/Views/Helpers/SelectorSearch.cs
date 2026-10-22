@@ -749,12 +749,65 @@ namespace PlayniteAchievements.Views.Helpers
             level.Items.Insert(0, state.SearchItem);
             level.Items.Insert(1, state.CreateItem);
 
-            state.Box.TextChanged += (_, __) => ApplyMenuFilter(state);
+            state.Box.TextChanged += (_, __) =>
+            {
+                ApplyMenuFilter(state);
+                ScrollToSearchBox(state);
+            };
             state.Box.PreviewKeyDown += (_, args) => MenuSearchBox_PreviewKeyDown(state, args);
 
+            // A menu built once and opened again keeps its scroll offset, which would open it
+            // with the search box scrolled out of view.
             level.Dispatcher.BeginInvoke(
-                new Action(() => Keyboard.Focus(state.Box)),
+                new Action(() =>
+                {
+                    ScrollToSearchBox(state);
+                    // After the scroll is laid out: a virtualizing menu realizes the box only once
+                    // its row is in view.
+                    level.Dispatcher.BeginInvoke(
+                        new Action(() => Keyboard.Focus(state.Box)),
+                        DispatcherPriority.Input);
+                }),
                 DispatcherPriority.Input);
+        }
+
+        // The box is the level's first row, inside the menu's scrolling area. A virtualizing menu
+        // opened scrolled down has not realized that row, so its scroller is found from the menu.
+        private static void ScrollToSearchBox(MenuSearchState state)
+        {
+            DependencyObject current = state.SearchItem;
+            while (current != null && !(current is ScrollViewer))
+            {
+                current = VisualTreeHelper.GetParent(current);
+            }
+
+            var scroller = current as ScrollViewer ?? FindDescendantScrollViewer(state.Level);
+            scroller?.ScrollToTop();
+        }
+
+        private static ScrollViewer FindDescendantScrollViewer(DependencyObject root)
+        {
+            if (root == null)
+            {
+                return null;
+            }
+
+            for (var i = 0; i < VisualTreeHelper.GetChildrenCount(root); i++)
+            {
+                var child = VisualTreeHelper.GetChild(root, i);
+                if (child is ScrollViewer scroller)
+                {
+                    return scroller;
+                }
+
+                var nested = FindDescendantScrollViewer(child);
+                if (nested != null)
+                {
+                    return nested;
+                }
+            }
+
+            return null;
         }
 
         private static ControlTemplate CreateBareTemplate()
