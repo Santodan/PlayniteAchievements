@@ -39,6 +39,7 @@ namespace PlayniteAchievements.Views.Dialogs
         private readonly GridOptionKind _kind;
         private readonly string _surfaceKey;
         private readonly string _categorySurfaceKey;
+        private readonly System.Collections.Generic.IReadOnlyList<PlayniteAchievements.ViewModels.Items.IGridControlBarEntry> _barEntries;
 
         private GridOptionsEditor _primaryEditor;
         private GridOptionsEditor _categoryEditor;
@@ -48,11 +49,16 @@ namespace PlayniteAchievements.Views.Dialogs
         private PersistedSettingsSubscription _persistedSubscription;
         private bool _saved;
 
-        private GridDisplaySettingsDialog(GridOptionKind kind, string surfaceKey, string categorySurfaceKey)
+        private GridDisplaySettingsDialog(
+            GridOptionKind kind,
+            string surfaceKey,
+            string categorySurfaceKey,
+            System.Collections.Generic.IReadOnlyList<PlayniteAchievements.ViewModels.Items.IGridControlBarEntry> barEntries)
         {
             _kind = kind;
             _surfaceKey = surfaceKey;
             _categorySurfaceKey = categorySurfaceKey;
+            _barEntries = barEntries;
 
             // The editor merges its own dictionaries, but this control's own header, checkbox and
             // buttons need the settings window's keyed and implicit styles too.
@@ -80,14 +86,19 @@ namespace PlayniteAchievements.Views.Dialogs
         /// adds the grid's nested category sub-grid section, and applies only to achievement
         /// surfaces.
         /// </summary>
-        public static void Show(GridOptionKind kind, string surfaceKey, string categorySurfaceKey)
+        /// <param name="barEntries">The grid's control bar items, listed under Show Control Bar.</param>
+        public static void Show(
+            GridOptionKind kind,
+            string surfaceKey,
+            string categorySurfaceKey,
+            System.Collections.Generic.IReadOnlyList<PlayniteAchievements.ViewModels.Items.IGridControlBarEntry> barEntries = null)
         {
             if (string.IsNullOrEmpty(surfaceKey))
             {
                 return;
             }
 
-            var editor = new GridDisplaySettingsDialog(kind, surfaceKey, categorySurfaceKey);
+            var editor = new GridDisplaySettingsDialog(kind, surfaceKey, categorySurfaceKey, barEntries);
             var title = string.Format(
                 FormattingCulture.Current,
                 Localize("LOCPlayAch_Showcase_WidgetSettingsTitle"),
@@ -155,7 +166,8 @@ namespace PlayniteAchievements.Views.Dialogs
             _primaryEditor = new GridOptionsEditor
             {
                 SurfaceKind = _kind,
-                SurfaceKey = _surfaceKey
+                SurfaceKey = _surfaceKey,
+                ControlBarEntries = _barEntries
             };
             panel.Children.Add(_primaryEditor);
 
