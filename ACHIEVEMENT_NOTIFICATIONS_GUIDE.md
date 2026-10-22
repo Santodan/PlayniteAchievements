@@ -21,6 +21,10 @@ The monitor runs only for the currently running game. On start it creates a base
 
 The **Show in-app notification when achievement is unlocked** and **Send System notification** switches can further enable or disable the two outputs. If a selected delivery mode appears to do nothing, confirm that its matching switch is enabled.
 
+Live custom notifications also respect **Notifications > Platforms**: **Unlock Notifications** controls your own unlocks, while **Progress Notifications** controls incremental progress independently. These filters apply to in-app messages, custom popups, and unlock sounds. To keep only Local notifications, turn off unlock and progress notifications for Xbox, Steam, and GOG while leaving Local enabled. A game's saved notification behavior override replaces the global/platform notification settings; check it if a game still notifies. Explicit settings previews bypass these filters.
+
+Notification filtering does not disable separately configured screenshots or recordings, or stop achievement events from reaching other extension features.
+
 Overlay behavior includes position, duration, fade/slide transition, opacity, and scale. Multiple unlocks can be stacked. Some SAN templates require overlay delivery; the test action forces overlay mode for those templates.
 
 ## Styles and templates
@@ -100,6 +104,7 @@ The unlock was detected, but its metadata schema was incomplete or did not corre
 - Check whether both overlay and system toast are enabled in Hybrid mode; two visible surfaces are expected there.
 - A batch of multiple achievements may be displayed as stacked notifications.
 - If an external achievement notifier is also monitoring the same files, disable one of the two applications.
+- For duplicate native Xbox/Steam/GOG and plugin notifications, disable that platform's unlock notifications (and progress notifications if unwanted). The custom live renderer uses the same filters as the standard renderer, unless the game has its own notification behavior override.
 
 ### Screenshots are missing
 

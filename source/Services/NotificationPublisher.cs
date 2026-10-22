@@ -28,6 +28,7 @@ using Playnite.SDK.Models;
 using PlayniteAchievements.Models;
 using PlayniteAchievements.Models.Achievements;
 using PlayniteAchievements.Models.Achievements.Scoring;
+using PlayniteAchievements.Models.Settings;
 using PlayniteAchievements.Providers;
 using PlayniteAchievements.Providers.Local;
 using PlayniteAchievements.Services.Logging;
@@ -52,6 +53,7 @@ namespace PlayniteAchievements.Services
         private readonly IPlayniteAPI _api;
         private readonly PlayniteAchievementsSettings _settings;
         private readonly ILogger _logger;
+        private readonly Func<Guid, GameCustomDataFile> _loadGameData;
         private static Window _persistentSettingsPreviewOverlay;
         private static readonly List<OverlayWindowState> ActiveOverlayWindows = new List<OverlayWindowState>();
         private static readonly List<IWebView> ActiveSanOverlayWebViews = new List<IWebView>();
@@ -68,11 +70,13 @@ namespace PlayniteAchievements.Services
         [DllImport("kernel32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
         private static extern IntPtr LoadLibrary(string lpFileName);
 
-        public NotificationPublisher(IPlayniteAPI api, PlayniteAchievementsSettings settings, ILogger logger)
+        public NotificationPublisher(IPlayniteAPI api, PlayniteAchievementsSettings settings, ILogger logger,
+            Func<Guid, GameCustomDataFile> loadGameData = null)
         {
             _api = api;
             _settings = settings;
             _logger = logger;
+            _loadGameData = loadGameData;
             WarmUpSanWebView2();
         }
 
@@ -319,6 +323,24 @@ namespace PlayniteAchievements.Services
             if (unlockCount <= 0 || achievements.Count == 0)
             {
                 return;
+            }
+
+            var resolvedProviderKey = string.IsNullOrWhiteSpace(notificationProviderKey) ? "Local" : notificationProviderKey.Trim();
+            if (!isSettingsPreview)
+            {
+                var gameId = progressContext?.PlayniteGameId ?? game?.Id ?? Guid.Empty;
+                var gameData = gameId != Guid.Empty ? _loadGameData?.Invoke(gameId) : null;
+                var effective = ProviderNotificationPolicy.Resolve(
+                    _settings?.Persisted, resolvedProviderKey, gameData);
+                var shouldNotify = progressContext?.IsProgressUpdate == true
+                    ? effective.ProgressToasts
+                    : effective.UnlockToasts;
+                if (!shouldNotify)
+                {
+                    ForkLog.Wrap(_logger)?.Info(
+                        $"Skipped custom achievement notification for '{gameName}' because effective notifications are disabled: provider='{resolvedProviderKey}', gameId='{gameId}', progress='{progressContext?.IsProgressUpdate == true}'.");
+                    return;
+                }
             }
 
             var configuredSettings = overrideLocalSettings ?? ProviderRegistry.Settings<LocalSettings>();
