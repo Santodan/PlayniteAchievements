@@ -18,7 +18,7 @@ namespace PlayniteAchievements.ViewModels
     /// row carries no platform of its own, so the dropdown and its filter go through the game
     /// summary each row belongs to.
     /// </summary>
-    public sealed class CrossGameAchievementControlBarAdapter : SharedControlBarAdapter
+    public class CrossGameAchievementControlBarAdapter : SharedControlBarAdapter
     {
         private readonly SearchTextIndex<AchievementDisplayItem> _searchIndex =
             new SearchTextIndex<AchievementDisplayItem>(item =>
@@ -313,6 +313,17 @@ namespace PlayniteAchievements.ViewModels
             OnPropertyChanged(nameof(SelectedRarityText));
             OnPropertyChanged(nameof(SelectedTrophyText));
         }
+
+        /// <summary>True while any filter would drop a row.</summary>
+        public bool HasActiveFilters =>
+            SearchQuery.From(SearchText).HasValue ||
+            (ProviderFilterGroups ?? Enumerable.Empty<ProviderFilterGroup>()).Any(group => group?.HasAnySelected == true) ||
+            GameFilter.HasSelection ||
+            _tags.Count > 0 ||
+            _unlockedFrom.HasValue ||
+            _unlockedTo.HasValue ||
+            _rarities.Count > 0 ||
+            _trophies.Count > 0;
 
         /// <summary>
         /// Applies the search, then the provider/platform selection. While a platform is selected,
