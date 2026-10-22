@@ -98,9 +98,14 @@ namespace PlayniteAchievements.Views.Showcase
             }
         }
 
+        // Dropdowns and control bar item editors share one height (their labels do not take part,
+        // so a wrapped label grows only its own row), so the two kinds of row space evenly.
+        private const string ControlRowSizeGroup = "OptionControlRow";
+
         private UIElement Build(Thickness margin)
         {
             var panel = new StackPanel { Margin = margin };
+            Grid.SetIsSharedSizeScope(panel, true);
             if (_backgroundDefault.HasValue)
             {
                 AddChoice(
@@ -904,6 +909,11 @@ namespace PlayniteAchievements.Views.Showcase
             row.Children.Add(labelBlock);
 
             var controls = new Grid { VerticalAlignment = VerticalAlignment.Center };
+            if (editor != null)
+            {
+                controls.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto, SharedSizeGroup = ControlRowSizeGroup });
+            }
+
             controls.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
             controls.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
             controls.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
@@ -1793,8 +1803,11 @@ namespace PlayniteAchievements.Views.Showcase
                     ShowcaseConfigurationEvents.RaiseChanged();
                 }
             };
-            Grid.SetColumn(combo, 1);
-            row.Children.Add(combo);
+            var comboHost = new Grid { VerticalAlignment = VerticalAlignment.Center };
+            comboHost.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto, SharedSizeGroup = ControlRowSizeGroup });
+            comboHost.Children.Add(combo);
+            Grid.SetColumn(comboHost, 1);
+            row.Children.Add(comboHost);
             panel.Children.Add(row);
             return row;
         }
