@@ -88,6 +88,7 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
                 .ToList();
             adapter.UpdateGames(Projection?.Snapshot?.GameSummaries);
             adapter.GameFilter.SetScope(Projection?.Collection?.GameIds);
+            adapter.LocksRows = ShowcaseWidgetOptions.GetMosaicSource(Projection?.Instance) == ShowcaseMosaicSource.UnlockNext;
 
             var capped = adapter.Apply(list).Take(ShowcaseWidgetOptions.GetMosaicCount(Projection?.Instance)).ToList();
 
