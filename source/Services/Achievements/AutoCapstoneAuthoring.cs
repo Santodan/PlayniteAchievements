@@ -317,6 +317,99 @@ namespace PlayniteAchievements.Services.Achievements
         }
 
         /// <summary>
+        /// ApiName of the game's own achievement a metadata source's platinum matched, its real
+        /// capstone, or null when none did.
+        /// </summary>
+        public string MatchedCapstoneApiName(Guid gameId)
+        {
+            return gameId == Guid.Empty ? null : _metadataLinks?.Invoke()?.GetCapstoneMatch(gameId);
+        }
+
+        /// <summary>
+        /// Puts the game's own achievement a metadata source's platinum matched in place of its
+        /// whole-game auto capstone, while that capstone is still only what the plugin wrote: still
+        /// a capstone, with the art and text the plugin recorded. Returns whether it was replaced.
+        /// </summary>
+        public bool ReplaceWithMatchedCapstone(Guid gameId)
+        {
+            var links = _metadataLinks?.Invoke();
+            var matchApiName = MatchedCapstoneApiName(gameId);
+            if (string.IsNullOrWhiteSpace(matchApiName) || links == null || _store == null || _overridesService == null)
+            {
+                return false;
+            }
+
+            var definitions = _store.LoadOrDefault(gameId)?.CustomAchievements?
+                .Where(definition => definition != null)
+                .ToList();
+            var authored = definitions?.FirstOrDefault(definition =>
+                definition.IsAutoCapstone && definition.IsWholeGameAutoCapstone);
+            if (authored == null)
+            {
+                return false;
+            }
+
+            var authoredApiName = CustomAchievementProjectionService.BuildApiName(authored.Id);
+            var achievements = LoadAchievementsInOrder(gameId);
+            var match = achievements.FirstOrDefault(achievement =>
+                achievement != null &&
+                !achievement.IsCustom &&
+                string.Equals(achievement.ApiName, matchApiName, StringComparison.OrdinalIgnoreCase));
+            var current = achievements.FirstOrDefault(achievement =>
+                string.Equals(achievement?.ApiName, authoredApiName, StringComparison.OrdinalIgnoreCase));
+            if (match == null || current?.IsCapstone != true)
+            {
+                return false;
+            }
+
+            var templateText = AutoCapstoneText.Describe(
+                _templates?.Invoke(),
+                ResolveGameName(API.Instance?.Database?.Games?.Get(gameId)),
+                null);
+            if (!IsUntouched(authored, links.GetCapstoneArtRecord(gameId, authoredApiName), templateText))
+            {
+                return false;
+            }
+
+            // Removed first, so the game never shows two capstones; nominating then drops the
+            // removed one from the capstone list.
+            _overridesService.SetCustomAchievements(
+                gameId,
+                definitions.Where(definition => !ReferenceEquals(definition, authored)).ToList());
+            links.SetCapstoneArtRecord(gameId, authoredApiName, null);
+            var nominated = _overridesService.SetCapstone(gameId, match.ApiName, true);
+            if (nominated?.Success != true)
+            {
+                _logger?.Warn($"[AutoCapstone] Removed the auto capstone for gameId={gameId} but could not nominate {match.ApiName}.");
+                return false;
+            }
+
+            _logger?.Debug($"[AutoCapstone] gameId={gameId} {authoredApiName} replaced by its matched platinum {match.ApiName}.");
+            return true;
+        }
+
+        /// <summary>
+        /// Whether a whole-game auto capstone holds only what the plugin wrote: its recorded art
+        /// (or none) and the templates' or the recorded platinum's text.
+        /// </summary>
+        private static bool IsUntouched(
+            CustomAchievementDefinition definition,
+            CapstoneArtRecord record,
+            (string Title, string Description) template)
+        {
+            if (definition == null || !string.IsNullOrWhiteSpace(definition.LockedIconPath))
+            {
+                return false;
+            }
+
+            var pluginArt = string.IsNullOrWhiteSpace(definition.UnlockedIconPath) ||
+                            (record != null && IsRecordedFile(definition.UnlockedIconPath, record));
+            return pluginArt &&
+                   IsPluginText(definition.DisplayName, record?.Title, template.Title) &&
+                   IsPluginText(definition.Description, record?.Description, template.Description);
+        }
+
+        /// <summary>
         /// Authors an auto capstone, files it, nominates it, and marks the game as handled.
         /// </summary>
         /// <param name="category">The category it stands for, or null for the whole game.</param>

@@ -50,10 +50,15 @@ namespace PlayniteAchievements.Services.Achievements
         /// Its hydrated achievements, authored ones included, with capstones resolved and in the
         /// order the game shows them.
         /// </param>
+        /// <param name="matchedCapstoneApiName">
+        /// The game's own achievement a metadata source's platinum matched, nominated when the
+        /// game has no platinum of its own; null when none matched.
+        /// </param>
         public static AutoCapstoneGenerationDecision Decide(
             bool alreadyHandled,
             bool hasAutoCapstone,
-            IReadOnlyList<AchievementDetail> achievementsInOrder)
+            IReadOnlyList<AchievementDetail> achievementsInOrder,
+            string matchedCapstoneApiName = null)
         {
             if (alreadyHandled)
             {
@@ -83,6 +88,11 @@ namespace PlayniteAchievements.Services.Achievements
                 achievements,
                 achievement => achievement.TrophyType,
                 achievement => achievement.CategoryKind);
+            platinum = platinum ?? (string.IsNullOrWhiteSpace(matchedCapstoneApiName)
+                ? null
+                : achievements.FirstOrDefault(achievement =>
+                    !achievement.IsCustom &&
+                    string.Equals(achievement.ApiName, matchedCapstoneApiName.Trim(), StringComparison.OrdinalIgnoreCase)));
             return platinum != null
                 ? new AutoCapstoneGenerationDecision(AutoCapstoneGenerationAction.NominatePlatinum, platinum)
                 : new AutoCapstoneGenerationDecision(AutoCapstoneGenerationAction.Author);
