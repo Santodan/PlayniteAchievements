@@ -278,22 +278,46 @@
             </DataTemplate>
 
             <DataTemplate DataType="{x:Type vm:GridMultiSelectFilter}">
-                <Button x:Name="FilterButton"
-                        Style="{StaticResource AchievementSelectorButtonStyle}"
-                        Content="{Binding DisplayText}"
-                        Click="MultiSelectFilter_Click"
-                        Width="{Binding Width}"
-                        MinWidth="{Binding MinWidth}"
-                        Height="{StaticResource PlayAch.Size.Control.Height}"
-                        Margin="{StaticResource PlayAch.Thickness.Left.Xs}"
-                        VerticalAlignment="Center"
-                        ToolTip="{Binding ToolTip}"
-                        Visibility="{Binding EffectiveIsVisible, Converter={StaticResource GridControlBarBoolToVis}}">
-                    <Button.ContextMenu>
-                        <ContextMenu Style="{StaticResource AchievementSelectorContextMenuStyle}"
-                                     ItemContainerStyle="{StaticResource AchievementMultiSelectMenuItemStyle}"/>
-                    </Button.ContextMenu>
-                </Button>
+                <Grid Margin="{StaticResource PlayAch.Thickness.Left.Xs}"
+                      VerticalAlignment="Center"
+                      Visibility="{Binding EffectiveIsVisible, Converter={StaticResource GridControlBarBoolToVis}}">
+                    <Button x:Name="FilterButton"
+                            Style="{StaticResource AchievementSelectorButtonStyle}"
+                            Content="{Binding ButtonText}"
+                            Click="MultiSelectFilter_Click"
+                            Width="{Binding Width}"
+                            MinWidth="{Binding MinWidth}"
+                            Height="{StaticResource PlayAch.Size.Control.Height}"
+                            ToolTip="{Binding ButtonToolTip}">
+                        <Button.ContextMenu>
+                            <ContextMenu Style="{StaticResource AchievementSelectorContextMenuStyle}"
+                                         ItemContainerStyle="{StaticResource AchievementMultiSelectMenuItemStyle}"/>
+                        </Button.ContextMenu>
+                    </Button>
+                    <!-- The picked options' badges, in place of their names, where the text sits. -->
+                    <ItemsControl ItemsSource="{Binding SelectedIconKeys}"
+                                  IsHitTestVisible="False"
+                                  Margin="10,0,20,0"
+                                  HorizontalAlignment="Left"
+                                  VerticalAlignment="Center"
+                                  ClipToBounds="True"
+                                  Visibility="{Binding ShowsSelectedIcons, Converter={StaticResource GridControlBarBoolToVis}}">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <StackPanel Orientation="Horizontal"/>
+                            </ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Image helpers:ImageResourceKey.Key="{Binding}"
+                                       Width="16"
+                                       Height="16"
+                                       Margin="0,0,3,0"
+                                       Stretch="Uniform"/>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </Grid>
                 <DataTemplate.Triggers>
                     <!-- Segmented with the mode toggle on its right: flat right edge. The toggle
                          carries the 1px overlap that closes the seam. -->
