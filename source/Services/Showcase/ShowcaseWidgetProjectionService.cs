@@ -1002,22 +1002,7 @@ namespace PlayniteAchievements.Services.Showcase
             var games = (snapshot?.GameSummaries ?? new List<GameSummaryItem>())
                 .Where(game => game != null);
 
-            // Per-widget scope: which games qualify by played/unplayed activity.
-            var activityScope = ShowcaseWidgetOptions.GetGameActivityScope(instance);
-            if (activityScope != GameActivityScope.All && activityScope != GameActivityScope.None)
-            {
-                games = OverviewGameSummaryFilters.ApplyActivityAndProgressFilters(
-                    games,
-                    activityScope,
-                    GameProgressScope.None);
-            }
-
-            if (ShowcaseWidgetOptions.GetHideCompleted(instance))
-            {
-                games = games.Where(game => !game.IsCompleted);
-            }
-
-            // Sorting and the MaxRows cap apply in the widget view model (alongside its
+            // Progress and activity are the control bar's filters. Sorting and the MaxRows cap apply in the widget view model (alongside its
             // control-bar filters), so editing those options re-orders one widget's rows
             // instead of re-projecting the whole dashboard.
             return games.ToList();
