@@ -581,7 +581,7 @@ namespace PlayniteAchievements.Views.Controls
 
         private static readonly DependencyPropertyKey TagDisplayPropertyKey =
             DependencyProperty.RegisterReadOnly(nameof(TagDisplay), typeof(AchievementTagDisplay),
-                typeof(AchievementDataGridControl), new PropertyMetadata(AchievementTagDisplay.None));
+                typeof(AchievementDataGridControl), new PropertyMetadata(AchievementTagDisplay.Icons));
 
         /// <summary>Identifies the TagDisplay dependency property: how the Tags column draws each tag.</summary>
         public static readonly DependencyProperty TagDisplayProperty = TagDisplayPropertyKey.DependencyProperty;
@@ -3062,7 +3062,7 @@ namespace PlayniteAchievements.Views.Controls
             }
 
             SetValue(NameColorPropertyKey, record?.NameColor ?? AchievementNameColorSource.None);
-            SetValue(TagDisplayPropertyKey, record?.TagDisplay ?? AchievementTagDisplay.None);
+            SetValue(TagDisplayPropertyKey, record?.TagDisplay ?? AchievementTagDisplay.Icons);
             SetValue(StatusColorPropertyKey, record?.StatusColor ?? AchievementStatusColorMode.MissableUnobtainable);
         }
 

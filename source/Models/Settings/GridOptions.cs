@@ -323,7 +323,7 @@ namespace PlayniteAchievements.Models.Settings
         private bool _useCoverImages;
         private bool _showRarityGlow = true;
         private AchievementNameColorSource _nameColor;
-        private AchievementTagDisplay _tagDisplay;
+        private AchievementTagDisplay _tagDisplay = AchievementTagDisplay.Icons;
         private AchievementStatusColorMode _statusColor = AchievementStatusColorMode.MissableUnobtainable;
         private bool _colorRarityColumnsByRarity;
         private DateDisplayMode _unlockDateMode = DateDisplayMode.DateAndTime;
