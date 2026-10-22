@@ -360,69 +360,43 @@ namespace PlayniteAchievements.Services.Achievements
         /// </summary>
         public bool ReplaceWithMatchedCapstone(Guid gameId)
         {
-            return PromotePlatinum(gameId, MatchedCapstoneApiName(gameId), userPaired: false);
-        }
-
-        /// <summary>
-        /// Makes the achievement the user just paired with a metadata source's platinum the game's
-        /// capstone, whatever the game held before and whether or not it was handled. Its auto
-        /// capstone is removed only while still as the plugin wrote it. Returns whether it was promoted.
-        /// </summary>
-        public bool PromotePairedPlatinum(Guid gameId, string apiName)
-        {
-            // The open editor saves its own rows over this write, so the game waits for it to close.
-            if (OpenEditorRegistry.DeferWhileOpen(gameId, _pairedPromotionOwner, () => PromotePairedPlatinum(gameId, apiName)))
-            {
-                return false;
-            }
-
-            return PromotePlatinum(gameId, apiName, userPaired: true);
-        }
-
-        private readonly object _pairedPromotionOwner = new object();
-
-        private bool PromotePlatinum(Guid gameId, string apiName, bool userPaired)
-        {
             var links = _metadataLinks?.Invoke();
-            if (gameId == Guid.Empty || string.IsNullOrWhiteSpace(apiName) || links == null || _store == null || _overridesService == null)
+            var matchApiName = MatchedCapstoneApiName(gameId);
+            if (string.IsNullOrWhiteSpace(matchApiName) || links == null || _store == null || _overridesService == null)
             {
                 return false;
             }
 
             var definitions = _store.LoadOrDefault(gameId)?.CustomAchievements?
                 .Where(definition => definition != null)
-                .ToList() ?? new List<CustomAchievementDefinition>();
-            var authored = definitions.FirstOrDefault(definition =>
+                .ToList();
+            var authored = definitions?.FirstOrDefault(definition =>
                 definition.IsAutoCapstone && definition.IsWholeGameAutoCapstone);
-            var authoredApiName = authored == null ? null : CustomAchievementProjectionService.BuildApiName(authored.Id);
-            var achievements = LoadAchievementsInOrder(gameId);
-            var match = achievements.FirstOrDefault(achievement =>
-                achievement != null &&
-                !achievement.IsCustom &&
-                string.Equals(achievement.ApiName, apiName.Trim(), StringComparison.OrdinalIgnoreCase));
-            if (match == null)
+            if (authored == null)
             {
                 return false;
             }
 
-            var removeAuthored = authored != null && IsUntouched(
-                authored,
-                links.GetCapstoneArtRecord(gameId, authoredApiName),
-                AutoCapstoneText.Describe(
-                    _templates?.Invoke(),
-                    ResolveGameName(API.Instance?.Database?.Games?.Get(gameId)),
-                    null));
-
-            // An automatic match only ever takes the place of an authored capstone the user left as
-            // written; a pairing is the user's own choice and stands over whatever the game held.
-            if (!userPaired)
+            var authoredApiName = CustomAchievementProjectionService.BuildApiName(authored.Id);
+            var achievements = LoadAchievementsInOrder(gameId);
+            var match = achievements.FirstOrDefault(achievement =>
+                achievement != null &&
+                !achievement.IsCustom &&
+                string.Equals(achievement.ApiName, matchApiName, StringComparison.OrdinalIgnoreCase));
+            var current = achievements.FirstOrDefault(achievement =>
+                string.Equals(achievement?.ApiName, authoredApiName, StringComparison.OrdinalIgnoreCase));
+            if (match == null || current?.IsCapstone != true)
             {
-                var current = achievements.FirstOrDefault(achievement =>
-                    string.Equals(achievement?.ApiName, authoredApiName, StringComparison.OrdinalIgnoreCase));
-                if (!removeAuthored || current?.IsCapstone != true)
-                {
-                    return false;
-                }
+                return false;
+            }
+
+            var templateText = AutoCapstoneText.Describe(
+                _templates?.Invoke(),
+                ResolveGameName(API.Instance?.Database?.Games?.Get(gameId)),
+                null);
+            if (!IsUntouched(authored, links.GetCapstoneArtRecord(gameId, authoredApiName), templateText))
+            {
+                return false;
             }
 
             // Nominated first, so a nomination that fails leaves the authored capstone in place.
@@ -437,18 +411,12 @@ namespace PlayniteAchievements.Services.Achievements
 
             LabelPlatinum(gameId, match);
 
-            if (removeAuthored)
-            {
-                _overridesService.SetCustomAchievements(
-                    gameId,
-                    definitions.Where(definition => !ReferenceEquals(definition, authored)).ToList());
-                links.SetCapstoneArtRecord(gameId, authoredApiName, null);
-            }
+            _overridesService.SetCustomAchievements(
+                gameId,
+                definitions.Where(definition => !ReferenceEquals(definition, authored)).ToList());
+            links.SetCapstoneArtRecord(gameId, authoredApiName, null);
 
-            _overridesService.MarkAutoCapstoneGenerated(gameId);
-            _logger?.Debug(
-                $"[AutoCapstone] gameId={gameId} {match.ApiName} promoted as its {(userPaired ? "paired" : "matched")} platinum" +
-                (removeAuthored ? $", replacing {authoredApiName}." : "."));
+            _logger?.Debug($"[AutoCapstone] gameId={gameId} {authoredApiName} replaced by its matched platinum {match.ApiName}.");
             return true;
         }
 
