@@ -7201,6 +7201,9 @@ namespace PlayniteAchievements.Services.Database
 
                 if (!existingByApiName.TryGetValue(apiName, out var existing))
                 {
+                    // The payload carries the stored flag back, so the caller's in-memory copy
+                    // reads the capstone the table holds.
+                    achievement.IsCapstone = isCapstone;
                     db.ExecuteNonQuery(
                         @"INSERT INTO AchievementDefinitions
                             (GameId, ApiName, DisplayName, Description, UnlockedIconPath, LockedIconPath, Points, ScaledPoints, Category, Tags, CategoryKind, TrophyType, Hidden, IsCapstone, GlobalPercentUnlocked, Rarity, ProgressMax, CreatedUtc, UpdatedUtc)
@@ -7249,6 +7252,7 @@ namespace PlayniteAchievements.Services.Database
                 // refresh never restamps one. Without this an achievement the user has since
                 // dropped or nominated would silently revert on the next scan.
                 var incomingIsCapstone = existing.IsCapstone;
+                achievement.IsCapstone = incomingIsCapstone != 0;
                 var incomingStoredRarity = incomingRarity;
                 var incomingProgressMax = achievement.ProgressDenom;
 
