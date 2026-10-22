@@ -273,15 +273,8 @@ namespace PlayniteAchievements.Views.Showcase
                     ApplyPieTagRow(ShowcaseWidgetOptions.GetPieMode(_settings));
                     break;
                 case ShowcaseWidgetKind.Timeline:
-                    AddChoice(
-                        panel,
-                        Localize("LOCPlayAch_Showcase_Variant"),
-                        new[] { ShowcaseTimelineCount.Unlocks, ShowcaseTimelineCount.Completions },
-                        ShowcaseTimelineOptions.GetCount(_settings),
-                        value => ShowcaseTimelineOptions.SetCount(_settings, value),
-                        value => Localize(value == ShowcaseTimelineCount.Completions
-                            ? "LOCPlayAch_Showcase_Stat_CompletedGames"
-                            : "LOCPlayAch_Column_Unlocks"));
+                    AddCountChoice(panel);
+
                     AddRangeChoice(panel);
                     AddChoice(
                         panel,
@@ -643,6 +636,7 @@ namespace PlayniteAchievements.Views.Showcase
                     AddControlBarRows<CrossGameAchievementControlBarAdapter>(panel);
                     break;
                 case ShowcaseWidgetKind.ActivityCalendar:
+                    AddCountChoice(panel);
                     AddRangeChoice(panel);
                     AddTimeControlRows(panel, includeSplit: false);
                     AddControlBarRows<ActivityCalendarControlBarAdapter>(panel, header: false);
@@ -1484,6 +1478,20 @@ namespace PlayniteAchievements.Views.Showcase
                 default:
                     return Localize("LOCPlayAch_Settings_OverviewPieSmallSliceMode_Round");
             }
+        }
+
+        // What a Timeline's bars or an Activity Calendar's days count: unlocks, or completed games.
+        private void AddCountChoice(Panel panel)
+        {
+            AddChoice(
+                panel,
+                Localize("LOCPlayAch_Showcase_Variant"),
+                new[] { ShowcaseTimelineCount.Unlocks, ShowcaseTimelineCount.Completions },
+                ShowcaseTimelineOptions.GetCount(_settings),
+                value => ShowcaseTimelineOptions.SetCount(_settings, value),
+                value => Localize(value == ShowcaseTimelineCount.Completions
+                    ? "LOCPlayAch_Showcase_Stat_CompletedGames"
+                    : "LOCPlayAch_Column_Unlocks"));
         }
 
         private static string TimelineSplitName(ShowcaseTimelineSplit value)
