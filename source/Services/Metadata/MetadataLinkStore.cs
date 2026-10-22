@@ -57,6 +57,10 @@ namespace PlayniteAchievements.Services.Metadata
         [JsonProperty("capstoneDescription")]
         public string CapstoneDescription { get; set; }
 
+        /// <summary>ApiName of the game's own achievement the borrowed capstone matched, or null.</summary>
+        [JsonProperty("capstoneMatch", NullValueHandling = NullValueHandling.Ignore)]
+        public string CapstoneMatchApiName { get; set; }
+
         /// <summary>How many of the game's achievements each source matched, by source key.</summary>
         [JsonProperty("coverage")]
         public Dictionary<string, MetadataCoverage> Coverage { get; set; }
@@ -396,6 +400,15 @@ namespace PlayniteAchievements.Services.Metadata
             }
         }
 
+        /// <summary>ApiName of the game's achievement the last overlay matched to the borrowed capstone, or null.</summary>
+        public string GetCapstoneMatch(Guid gameId)
+        {
+            lock (_sync)
+            {
+                return _applied.TryGetValue(gameId, out var state) ? state?.CapstoneMatchApiName : null;
+            }
+        }
+
         /// <summary>
         /// Records what an overlay applied to the game. Returns true when the game's icons changed
         /// since the last record (another icon source, or other achievements borrowing from it, as
@@ -408,7 +421,8 @@ namespace PlayniteAchievements.Services.Metadata
             IReadOnlyDictionary<string, MetadataCoverage> coverage = null,
             IEnumerable<string> iconApiNames = null,
             string capstoneTitle = null,
-            string capstoneDescription = null)
+            string capstoneDescription = null,
+            string capstoneMatchApiName = null)
         {
             if (gameId == Guid.Empty)
             {
@@ -419,6 +433,7 @@ namespace PlayniteAchievements.Services.Metadata
             var art = string.IsNullOrWhiteSpace(capstoneArtUrl) ? null : capstoneArtUrl.Trim();
             var title = string.IsNullOrWhiteSpace(capstoneTitle) ? null : capstoneTitle.Trim();
             var description = string.IsNullOrWhiteSpace(capstoneDescription) ? null : capstoneDescription.Trim();
+            var match = art == null || string.IsNullOrWhiteSpace(capstoneMatchApiName) ? null : capstoneMatchApiName.Trim();
             var counts = coverage == null || coverage.Count == 0
                 ? null
                 : coverage.ToDictionary(pair => pair.Key, pair => pair.Value, StringComparer.OrdinalIgnoreCase);
@@ -439,6 +454,7 @@ namespace PlayniteAchievements.Services.Metadata
                     string.Equals(previous?.CapstoneArtUrl, art, StringComparison.Ordinal) &&
                     string.Equals(previous?.CapstoneTitle, title, StringComparison.Ordinal) &&
                     string.Equals(previous?.CapstoneDescription, description, StringComparison.Ordinal) &&
+                    string.Equals(previous?.CapstoneMatchApiName, match, StringComparison.OrdinalIgnoreCase) &&
                     SameCoverage(previous?.Coverage, counts))
                 {
                     return false;
@@ -456,6 +472,7 @@ namespace PlayniteAchievements.Services.Metadata
                         CapstoneArtUrl = art,
                         CapstoneTitle = art == null ? null : title,
                         CapstoneDescription = art == null ? null : description,
+                        CapstoneMatchApiName = match,
                         Coverage = counts,
                         IconApiNames = borrowed?.Count > 0 ? borrowed : null,
                         // Still the files' state while the borrowed set is unchanged; a changed set
@@ -486,6 +503,7 @@ namespace PlayniteAchievements.Services.Metadata
                     CapstoneArtUrl = state.CapstoneArtUrl,
                     CapstoneTitle = state.CapstoneTitle,
                     CapstoneDescription = state.CapstoneDescription,
+                    CapstoneMatchApiName = state.CapstoneMatchApiName,
                     Coverage = state.Coverage == null ? null : new Dictionary<string, MetadataCoverage>(state.Coverage, StringComparer.OrdinalIgnoreCase),
                     IconApiNames = state.IconApiNames == null ? null : new List<string>(state.IconApiNames),
                     IconFallbackApiNames = state.IconFallbackApiNames == null ? null : new List<string>(state.IconFallbackApiNames)
