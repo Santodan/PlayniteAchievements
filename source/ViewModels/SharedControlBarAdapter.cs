@@ -139,8 +139,9 @@ namespace PlayniteAchievements.ViewModels
     /// <summary>
     /// A showcase control bar's Game filter. It lists the games last given to
     /// <see cref="UpdateGames"/> by name, limited to <see cref="SetScope"/>'s games when the widget
-    /// has a collection. Selections are game IDs, so a rename keeps them, and a selected game
-    /// stays selected while it is not listed, unless a collection leaves it out.
+    /// has a collection, and to the picked platforms' games when the bar's Platform filter has
+    /// picks. Selections are game IDs, so a rename keeps them, and a selected game stays selected
+    /// while it is not listed, unless a collection or the picked platforms leave it out.
     /// </summary>
     public sealed class ControlBarGameFilter : PlayniteAchievements.Common.ObservableObject
     {
@@ -148,6 +149,7 @@ namespace PlayniteAchievements.ViewModels
         private readonly HashSet<Guid> _selected = new HashSet<Guid>();
         private List<GameSummaryItem> _games;
         private HashSet<Guid> _scope;
+        private IReadOnlyList<ProviderFilterGroup> _platformGroups;
         private Dictionary<Guid, string> _names = new Dictionary<Guid, string>();
         private List<string> _options = new List<string>();
 
@@ -236,6 +238,17 @@ namespace PlayniteAchievements.ViewModels
             }
         }
 
+        /// <summary>
+        /// Limits the listed games to the platforms picked in <paramref name="groups"/>, the bar's
+        /// Platform filter, and unpicks games on other platforms; no picks list every platform.
+        /// The bar calls it as its platform picks change, before raising its own filter change.
+        /// </summary>
+        public void SetPlatforms(IEnumerable<ProviderFilterGroup> groups)
+        {
+            _platformGroups = groups?.Where(group => group != null).ToList();
+            Rebuild();
+        }
+
         public List<string> Capture() =>
             _selected.Count == 0 ? null : _selected.Select(id => id.ToString("D")).ToList();
 
@@ -286,8 +299,17 @@ namespace PlayniteAchievements.ViewModels
 
         private void Rebuild()
         {
+            var games = (IEnumerable<GameSummaryItem>)(_games ?? new List<GameSummaryItem>());
+            var platformPicked = _platformGroups?.Any(group => group.HasAnySelected) == true;
+            if (platformPicked)
+            {
+                games = PlayniteAchievements.Services.Overview.OverviewGameSummaryFilters
+                    .ApplyProviderPlatformFilter(games, _platformGroups)
+                    .ToList();
+            }
+
             var names = new Dictionary<Guid, string>();
-            foreach (var game in _games ?? new List<GameSummaryItem>())
+            foreach (var game in games)
             {
                 if (game.PlayniteGameId is Guid id &&
                     (_scope == null || _scope.Contains(id)) &&
@@ -295,6 +317,15 @@ namespace PlayniteAchievements.ViewModels
                 {
                     names[id] = game.GameName ?? string.Empty;
                 }
+            }
+
+            // Picks on other platforms go once the games are known; before then every pick waits.
+            if (platformPicked && _games?.Count > 0)
+            {
+                var onPlatforms = new HashSet<Guid>(games
+                    .Where(game => game.PlayniteGameId.HasValue)
+                    .Select(game => game.PlayniteGameId.Value));
+                _selected.RemoveWhere(id => !onPlatforms.Contains(id));
             }
 
             _names = names;
