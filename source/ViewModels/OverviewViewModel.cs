@@ -312,6 +312,10 @@ namespace PlayniteAchievements.ViewModels
                     value => LeftSearchText = value,
                     L("LOCPlayAch_Filter_Games"),
                     ClearLeftSearch)
+                {
+                    Id = ShowcaseControlBarItems.Search,
+                    LabelKey = "LOCPlayAch_Filter_Games"
+                }
             };
             GameSummariesControlBar.Items.Add(new GridProviderPlatformFilter(
                 this,
@@ -320,6 +324,8 @@ namespace PlayniteAchievements.ViewModels
                 () => ProviderFilterGroups,
                 CollapseUnselectedProviderFilters)
             {
+                Id = ShowcaseControlBarItems.Platform,
+                LabelKey = "LOCPlatformTitle",
                 Width = 170
             });
             GameSummariesControlBar.Items.Add(new GridMultiSelectFilter(
@@ -330,6 +336,8 @@ namespace PlayniteAchievements.ViewModels
                 IsCompletenessFilterSelected,
                 SetCompletenessFilterSelected)
             {
+                Id = ShowcaseControlBarItems.Progress,
+                LabelKey = "LOCPlayAch_Progress",
                 Width = 170
             });
             GameSummariesControlBar.Items.Add(new GridMultiSelectFilter(
@@ -340,6 +348,8 @@ namespace PlayniteAchievements.ViewModels
                 IsPlayStatusFilterSelected,
                 SetPlayStatusFilterSelected)
             {
+                Id = ShowcaseControlBarItems.Activity,
+                LabelKey = "LOCPlayAch_Filter_ActivitySelectorPlaceholder",
                 Width = 170
             });
 
@@ -352,6 +362,10 @@ namespace PlayniteAchievements.ViewModels
                     value => RightSearchText = value,
                     L("LOCPlayAch_Filter_Achievements"),
                     ClearRightSearch)
+                {
+                    Id = ShowcaseControlBarItems.Search,
+                    LabelKey = "LOCPlayAch_Filter_Achievements"
+                }
             };
             // The unlock date range; a timeline column or calendar day in the mini-showcase sets
             // it too, and the timeline and calendar mark whatever it holds.
@@ -363,6 +377,8 @@ namespace PlayniteAchievements.ViewModels
                 SetUnlockRange,
                 L("LOCPlayAch_Filter_AllTime"))
             {
+                Id = ShowcaseControlBarItems.UnlockDate,
+                LabelKey = "LOCPlayAch_Common_Unlocked",
                 AutoHideWhenUnavailable = false,
                 Width = 190
             });
@@ -376,6 +392,8 @@ namespace PlayniteAchievements.ViewModels
                 IsRarityFilterSelected,
                 SetRarityFilterSelected)
             {
+                Id = ShowcaseControlBarItems.Rarity,
+                LabelKey = "LOCPlayAch_Column_Rarity",
                 Width = 130,
                 IconKeyOf = RarityFilterIconKey
             });
@@ -387,6 +405,8 @@ namespace PlayniteAchievements.ViewModels
                 IsTrophyFilterSelected,
                 SetTrophyFilterSelected)
             {
+                Id = ShowcaseControlBarItems.Trophy,
+                LabelKey = "LOCPlayAch_Column_Trophy",
                 Width = 130,
                 IconKeyOf = TrophyFilterIconKey
             });
@@ -402,6 +422,8 @@ namespace PlayniteAchievements.ViewModels
                 SetTagFilterSelected,
                 key => Services.Achievements.AchievementTagRegistry.GetName(key))
             {
+                Id = ShowcaseControlBarItems.Tag,
+                LabelKey = "LOCTagsLabel",
                 Width = 130,
                 IconKeyOf = key => TagControlBarFilter.IconKey(key, null)
             });
