@@ -378,54 +378,8 @@
                 </Button>
             </DataTemplate>
 
-            <!-- Filter toggle: rests on the same button background and border as the other
-                 control bar buttons (GridActionButtonStyle, GridModeToggleButtonStyle) so it
-                 reads as a button when inactive; the border turns to the accent color (with a
-                 subtle selection fill) to signal the active state, and the glyph keeps its
-                 normal brush. Keys on IsChecked, the ToggleButton analog of the tab style's
-                 IsSelected trigger (PlayAch.TabItem.BaseStyle in CommonResources.xaml). -->
-            <Style x:Key="GridToggleFilterButtonStyle" TargetType="ToggleButton">
-                <Setter Property="Background" Value="{DynamicResource PlayAch.Brush.Button.Background}"/>
-                <Setter Property="BorderBrush" Value="{DynamicResource PlayAch.Brush.Button.Border}"/>
-                <Setter Property="BorderThickness" Value="{StaticResource PlayAch.Thickness.Border}"/>
-                <Setter Property="Foreground" Value="{DynamicResource PlayAch.Brush.Text}"/>
-                <Setter Property="Padding" Value="8,4"/>
-                <Setter Property="Cursor" Value="Hand"/>
-                <Setter Property="Focusable" Value="False"/>
-                <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
-                <Setter Property="Template">
-                    <Setter.Value>
-                        <ControlTemplate TargetType="ToggleButton">
-                            <Border x:Name="Chrome"
-                                    Background="{TemplateBinding Background}"
-                                    BorderBrush="{TemplateBinding BorderBrush}"
-                                    BorderThickness="{TemplateBinding BorderThickness}"
-                                    CornerRadius="{StaticResource PlayAch.Radius.Small}"
-                                    SnapsToDevicePixels="True">
-                                <ContentPresenter Margin="{TemplateBinding Padding}"
-                                                  HorizontalAlignment="Center"
-                                                  VerticalAlignment="Center"/>
-                            </Border>
-                            <ControlTemplate.Triggers>
-                                <Trigger Property="IsMouseOver" Value="True">
-                                    <Setter TargetName="Chrome" Property="Background" Value="{DynamicResource PlayAch.Brush.Button.Background.Hover}"/>
-                                    <Setter TargetName="Chrome" Property="BorderBrush" Value="{DynamicResource PlayAch.Brush.Accent}"/>
-                                </Trigger>
-                                <Trigger Property="IsChecked" Value="True">
-                                    <Setter TargetName="Chrome" Property="Background" Value="{DynamicResource PlayAch.Brush.Button.Background.Selected}"/>
-                                    <Setter TargetName="Chrome" Property="BorderBrush" Value="{DynamicResource PlayAch.Brush.Accent}"/>
-                                </Trigger>
-                                <Trigger Property="IsEnabled" Value="False">
-                                    <Setter TargetName="Chrome" Property="Opacity" Value="{StaticResource PlayAch.Opacity.Disabled}"/>
-                                </Trigger>
-                            </ControlTemplate.Triggers>
-                        </ControlTemplate>
-                    </Setter.Value>
-                </Setter>
-            </Style>
-
             <DataTemplate DataType="{x:Type vm:GridToggleFilter}">
-                <ToggleButton Style="{StaticResource GridToggleFilterButtonStyle}"
+                <ToggleButton Style="{StaticResource PlayAch.ToggleButton.FilterStyle}"
                               IsChecked="{Binding IsChecked, Mode=TwoWay}"
                               Height="{StaticResource PlayAch.Size.Control.Height}"
                               VerticalAlignment="Center"
