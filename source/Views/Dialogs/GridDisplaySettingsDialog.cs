@@ -147,7 +147,10 @@ namespace PlayniteAchievements.Views.Dialogs
 
         private UIElement BuildContent()
         {
+            // The editors' dropdown rows share one control height across both editors, as in the
+            // showcase widget settings.
             var panel = new StackPanel();
+            Grid.SetIsSharedSizeScope(panel, true);
 
             _primaryEditor = new GridOptionsEditor
             {
@@ -170,10 +173,12 @@ namespace PlayniteAchievements.Views.Dialogs
 
                 _hideCategoryRowCheckBox = new CheckBox
                 {
-                    Content = Localize("LOCPlayAch_Settings_HideCategorySummaryRow")
+                    HorizontalAlignment = HorizontalAlignment.Left,
+                    VerticalAlignment = VerticalAlignment.Center
                 };
-                _hideCategoryRowCheckBox.SetResourceReference(MarginProperty, "PlayAch.Thickness.Bottom.Sm");
-                panel.Children.Add(_hideCategoryRowCheckBox);
+                panel.Children.Add(BuildOptionRow(
+                    Localize("LOCPlayAch_Settings_HideCategorySummaryRow"),
+                    _hideCategoryRowCheckBox));
 
                 _categoryEditor = new GridOptionsEditor
                 {
@@ -204,6 +209,31 @@ namespace PlayniteAchievements.Views.Dialogs
             root.Children.Add(buttons);
 
             return root;
+        }
+
+        // Laid out like the editor's option rows: a semibold label in the left two fifths, the
+        // control in the right three.
+        private static UIElement BuildOptionRow(string label, UIElement control)
+        {
+            var row = new Grid();
+            row.SetResourceReference(MarginProperty, "PlayAch.Thickness.Bottom.Md");
+            row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(2, GridUnitType.Star) });
+            row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(3, GridUnitType.Star) });
+
+            var labelBlock = new TextBlock
+            {
+                Text = label,
+                Margin = new Thickness(0, 0, 8, 0),
+                FontWeight = FontWeights.SemiBold,
+                TextWrapping = TextWrapping.Wrap,
+                VerticalAlignment = VerticalAlignment.Center
+            };
+            labelBlock.SetResourceReference(TextBlock.ForegroundProperty, "PlayAch.Brush.Text");
+            row.Children.Add(labelBlock);
+
+            Grid.SetColumn(control, 1);
+            row.Children.Add(control);
+            return row;
         }
 
         private UIElement BuildButtons()
