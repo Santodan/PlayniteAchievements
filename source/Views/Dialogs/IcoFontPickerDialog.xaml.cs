@@ -18,7 +18,10 @@ namespace PlayniteAchievements.Views.Dialogs
     public partial class IcoFontPickerDialog : UserControl
     {
         // A glyph cell's width (GlyphCellStyle), which sets how many fit in a row.
-        private const double CellWidth = 36;
+        private const double CellWidth = 60;
+
+        // The All entry's icon: IcoFont's "layout" glyph.
+        private const string AllIcon = "EF5D";
 
         // Searching every glyph per keystroke is what made typing lag; the search runs once the
         // typing pauses.
@@ -28,7 +31,10 @@ namespace PlayniteAchievements.Views.Dialogs
         private readonly Dictionary<string, IcoFontPickerCell> _cellsByCode;
         private IcoFontPickerCell _selected;
         private List<IcoFontPickerCell> _shown = new List<IcoFontPickerCell>();
-        private int _glyphsPerRow = 12;
+        private int _glyphsPerRow = 9;
+
+        // The chosen category's name; null for All.
+        private string _category;
 
         public IcoFontPickerDialog()
         {
@@ -40,13 +46,27 @@ namespace PlayniteAchievements.Views.Dialogs
             _searchTimer.Tick += (_, __) =>
             {
                 _searchTimer.Stop();
-                ShowGlyphs(IcoFontCatalog.Search(SearchBox.Text));
+                ShowGlyphs(IcoFontCatalog.Search(SearchBox.Text, _category));
             };
-            ShowGlyphs(IcoFontCatalog.All);
+
+            var counts = IcoFontCatalog.All
+                .GroupBy(glyph => glyph.Category ?? string.Empty)
+                .ToDictionary(group => group.Key, group => group.Count());
+            CategoryList.ItemsSource = new[] { new IcoFontPickerCategory(null, ResourceProvider.GetString("LOCAll"), AllIcon, IcoFontCatalog.All.Count) }
+                .Concat(IcoFontCatalog.Categories.Select(category => new IcoFontPickerCategory(
+                    category.Name,
+                    category.Name,
+                    category.Icon,
+                    counts.TryGetValue(category.Name, out var count) ? count : 0)))
+                .ToList();
+            CategoryList.SelectedIndex = 0;
+
             GlyphRows.SizeChanged += GlyphRows_SizeChanged;
-            Loaded += (_, __) => Dispatcher.BeginInvoke(
-                new Action(() => Keyboard.Focus(SearchBox)),
-                DispatcherPriority.Input);
+            Loaded += (_, __) =>
+            {
+                Dispatcher.BeginInvoke(new Action(() => Keyboard.Focus(SearchBox)), DispatcherPriority.Input);
+                Dispatcher.BeginInvoke(new Action(ScrollSelectedIntoView), DispatcherPriority.Background);
+            };
             Unloaded += (_, __) => _searchTimer.Stop();
         }
 
@@ -66,6 +86,7 @@ namespace PlayniteAchievements.Views.Dialogs
             code = currentCode;
             var view = new IcoFontPickerDialog();
             view.Select(currentCode);
+            view.ShowCategoryOf(currentCode);
 
             var window = PlayniteUiProvider.CreateExtensionWindow(
                 ResourceProvider.GetString("LOCPlayAch_Common_ChooseIcon"),
@@ -76,8 +97,8 @@ namespace PlayniteAchievements.Views.Dialogs
                     ShowMaximizeButton = false,
                     ShowCloseButton = true,
                     CanBeResizable = true,
-                    Width = 540,
-                    Height = 520
+                    Width = 760,
+                    Height = 600
                 });
 
             try
@@ -164,6 +185,36 @@ namespace PlayniteAchievements.Views.Dialogs
             SelectedName.Text = _selected?.Name ?? string.Empty;
         }
 
+        /// <summary>Opens on the category of the glyph at <paramref name="code"/>, when it has one.</summary>
+        private void ShowCategoryOf(string code)
+        {
+            var category = code == null ? null : IcoFontCatalog.CategoryOf(code);
+            var item = CategoryList.Items.OfType<IcoFontPickerCategory>().FirstOrDefault(entry => entry.Name == category);
+            if (item != null)
+            {
+                CategoryList.SelectedItem = item;
+            }
+        }
+
+        private void CategoryList_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            _category = (CategoryList.SelectedItem as IcoFontPickerCategory)?.Name;
+            _searchTimer.Stop();
+            ShowGlyphs(IcoFontCatalog.Search(SearchBox.Text, _category));
+            CategoryList.ScrollIntoView(CategoryList.SelectedItem);
+        }
+
+        /// <summary>Scrolls the list to the chosen glyph's row.</summary>
+        private void ScrollSelectedIntoView()
+        {
+            var index = _selected == null ? -1 : _shown.IndexOf(_selected);
+            var scroller = GlyphRows.Template?.FindName("GlyphScroller", GlyphRows) as ScrollViewer;
+            if (index >= 0 && scroller != null)
+            {
+                scroller.ScrollToVerticalOffset(index / _glyphsPerRow);
+            }
+        }
+
         private void SearchBox_TextChanged(object sender, TextChangedEventArgs e)
         {
             _searchTimer.Stop();
@@ -197,6 +248,26 @@ namespace PlayniteAchievements.Views.Dialogs
             SelectedCode = code;
             RequestClose?.Invoke(this, EventArgs.Empty);
         }
+    }
+
+    /// <summary>
+    /// One entry of the picker's category strip: a category, or All when its name is null, shown
+    /// as its icon with its title and glyph count as the tooltip.
+    /// </summary>
+    public sealed class IcoFontPickerCategory
+    {
+        internal IcoFontPickerCategory(string name, string title, string icon, int count)
+        {
+            Name = name;
+            Glyph = Services.Achievements.AchievementTagHelper.IconGlyph(icon);
+            Label = title + " (" + count.ToString(System.Globalization.CultureInfo.CurrentCulture) + ")";
+        }
+
+        public string Name { get; }
+
+        public string Glyph { get; }
+
+        public string Label { get; }
     }
 
     /// <summary>One glyph in the picker, marked while it is the chosen one.</summary>
