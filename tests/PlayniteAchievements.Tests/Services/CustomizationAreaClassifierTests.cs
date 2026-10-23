@@ -120,17 +120,48 @@ namespace PlayniteAchievements.Services.GameCustomData.Tests
         }
 
         [TestMethod]
-        public void TagsFor_PicksOneSideOfEveryPair_AndOneSidedAreasOnlyWhenSet()
+        public void TagsFor_PairedAndSingleAreas()
         {
-            var tags = new HashSet<TagType>(CustomizationTagAreas.TagsFor(CustomizationArea.Icons | CustomizationArea.Goals));
+            var tags = new HashSet<TagType>(CustomizationTagAreas.TagsFor(CustomizationArea.Goals, default(GameDataLayers)));
 
-            Assert.AreEqual(CustomizationTagAreas.All.Count(area => area.DefaultTag.HasValue), tags.Count);
-            Assert.IsFalse(tags.Contains(TagType.CustomSource));
-            Assert.IsTrue(CustomizationTagAreas.TagsFor(CustomizationArea.Source).Contains(TagType.CustomSource));
-            Assert.IsTrue(tags.Contains(TagType.CustomIcons));
             Assert.IsTrue(tags.Contains(TagType.CustomGoals));
-            Assert.IsTrue(tags.Contains(TagType.DefaultPoints));
-            Assert.IsFalse(tags.Contains(TagType.DefaultIcons));
+            Assert.IsTrue(tags.Contains(TagType.DefaultNotes));
+            Assert.IsFalse(tags.Contains(TagType.CustomSource));
+            Assert.IsTrue(CustomizationTagAreas.TagsFor(CustomizationArea.Source, default(GameDataLayers)).Contains(TagType.CustomSource));
+        }
+
+        [TestMethod]
+        public void TagsFor_LayeredAreas_EmitEveryLayerThatApplies()
+        {
+            var layers = new GameDataLayers
+            {
+                Platform = CustomizationArea.TrophyTypes | CustomizationArea.Icons,
+                Metadata = CustomizationArea.TrophyTypes,
+                Present = CustomizationArea.None
+            };
+
+            var tags = new HashSet<TagType>(CustomizationTagAreas.TagsFor(CustomizationArea.TrophyTypes, layers));
+
+            CollectionAssert.IsSubsetOf(
+                new[] { TagType.PlatformTrophyTypes, TagType.MetadataTrophyTypes, TagType.CustomTrophyTypes, TagType.PlatformIcons, TagType.NoPoints },
+                tags.ToList());
+            Assert.IsFalse(tags.Contains(TagType.NoTrophyTypes));
+            Assert.IsFalse(tags.Contains(TagType.MetadataIcons));
+            Assert.IsFalse(tags.Contains(TagType.NoIcons));
+        }
+
+        [TestMethod]
+        public void TagsFor_UnknownLayers_OnlyCustomAndNoneFromCachedValues()
+        {
+            var layers = new GameDataLayers { Present = CustomizationArea.Icons };
+
+            var tags = new HashSet<TagType>(CustomizationTagAreas.TagsFor(CustomizationArea.Points, layers));
+
+            Assert.IsFalse(tags.Contains(TagType.PlatformIcons));
+            Assert.IsFalse(tags.Contains(TagType.NoIcons));
+            Assert.IsTrue(tags.Contains(TagType.CustomPoints));
+            Assert.IsFalse(tags.Contains(TagType.NoPoints));
+            Assert.IsTrue(tags.Contains(TagType.NoCategories));
         }
 
         private static GameCustomDataFile Override(AchievementOverride value)
