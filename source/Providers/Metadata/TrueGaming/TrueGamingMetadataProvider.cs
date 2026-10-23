@@ -129,7 +129,8 @@ namespace PlayniteAchievements.Providers.Metadata.TrueGaming
                 var health = new MetadataLookupHealth();
                 var search = new MetadataPageSearch(
                     (name, token) => CandidatesAsync(name, health, token),
-                    (slug, token) => RowsAsync(request, slug, health, token));
+                    (slug, token) => RowsAsync(request, slug, health, token),
+                    (name, token) => CandidatesAsync(name, health, token, buildSlug: false));
                 var names = request.SearchNames.Distinct(StringComparer.OrdinalIgnoreCase).ToList();
                 var choice = await search.ChooseAsync(names, targets, MetadataSubGame.From(targets), ct, request.CategoryNames, sharedNames: request.AlternateNames).ConfigureAwait(false);
                 if (health.LeavesDoubt(choice))
@@ -174,11 +175,15 @@ namespace PlayniteAchievements.Providers.Metadata.TrueGaming
         private readonly Dictionary<string, IReadOnlyList<(string Slug, string Title)>> _searches =
             new Dictionary<string, IReadOnlyList<(string Slug, string Title)>>(StringComparer.OrdinalIgnoreCase);
 
-        /// <summary>The page names to judge for one name: its own slug, then what TrueAchievements search lists.</summary>
-        private async Task<IReadOnlyList<MetadataPageCandidate>> CandidatesAsync(string name, MetadataLookupHealth health, CancellationToken ct)
+        /// <summary>
+        /// The page names to judge for one name: its own slug, then what TrueAchievements search
+        /// lists. A broader form of a name ("Spyro Year of the") is searched only: a slug built
+        /// from it seldom names a page and costs a load on every site.
+        /// </summary>
+        private async Task<IReadOnlyList<MetadataPageCandidate>> CandidatesAsync(string name, MetadataLookupHealth health, CancellationToken ct, bool buildSlug = true)
         {
             var candidates = new List<MetadataPageCandidate>();
-            var slug = TrueGamingLinks.ToSlug(name);
+            var slug = buildSlug ? TrueGamingLinks.ToSlug(name) : null;
             if (slug != null)
             {
                 candidates.Add(new MetadataPageCandidate(slug, name, "built name"));
