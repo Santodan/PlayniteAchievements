@@ -14,6 +14,48 @@ namespace PlayniteAchievements.Models.Tagging
     /// </summary>
     public class TaggingSettings : ObservableObject
     {
+        /// <summary>
+        /// Reads <see cref="TagConfigs"/> keeping only keys that name a current tag type, so a
+        /// removed kind in saved settings does not stop the settings from loading.
+        /// </summary>
+        internal sealed class KnownTagConfigsConverter : Newtonsoft.Json.JsonConverter
+        {
+            public override bool CanWrite => false;
+
+            public override bool CanConvert(Type objectType) =>
+                objectType == typeof(Dictionary<TagType, TagConfig>);
+
+            public override object ReadJson(
+                Newtonsoft.Json.JsonReader reader,
+                Type objectType,
+                object existingValue,
+                Newtonsoft.Json.JsonSerializer serializer)
+            {
+                if (reader.TokenType == Newtonsoft.Json.JsonToken.Null)
+                {
+                    return null;
+                }
+
+                var configs = new Dictionary<TagType, TagConfig>();
+                foreach (var property in Newtonsoft.Json.Linq.JObject.Load(reader).Properties())
+                {
+                    if (Enum.TryParse(property.Name, out TagType tagType) &&
+                        Enum.IsDefined(typeof(TagType), tagType))
+                    {
+                        configs[tagType] = property.Value.ToObject<TagConfig>(serializer);
+                    }
+                }
+
+                return configs;
+            }
+
+            public override void WriteJson(
+                Newtonsoft.Json.JsonWriter writer,
+                object value,
+                Newtonsoft.Json.JsonSerializer serializer) =>
+                throw new NotSupportedException();
+        }
+
         private bool _enableTagging = false;
         private bool _setCompletionStatus = false;
         private Guid? _completionStatusId;
@@ -51,7 +93,9 @@ namespace PlayniteAchievements.Models.Tagging
         /// <summary>
         /// Configuration for each tag type, keyed by TagType enum.
         /// Contains display name and enabled state for each tag.
+        /// Saved keys that no longer name a tag type are skipped on load.
         /// </summary>
+        [Newtonsoft.Json.JsonConverter(typeof(KnownTagConfigsConverter))]
         public Dictionary<TagType, TagConfig> TagConfigs
         {
             get => _tagConfigs;
