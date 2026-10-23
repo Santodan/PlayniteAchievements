@@ -4,8 +4,10 @@ using Microsoft.VisualStudio.TestTools.UnitTesting;
 using PlayniteAchievements.Models;
 using PlayniteAchievements.Models.Achievements;
 using PlayniteAchievements.Services.Achievements;
+using PlayniteAchievements.Services.Overview;
 using PlayniteAchievements.ViewModels;
 using PlayniteAchievements.ViewModels.Items;
+using PlayniteAchievements.ViewModels.Showcase.Widgets;
 
 namespace PlayniteAchievements.Tests.ViewModels
 {
@@ -13,65 +15,108 @@ namespace PlayniteAchievements.Tests.ViewModels
     public class GameTagFilterTests
     {
         private static readonly Guid MissableGame = Guid.NewGuid();
-        private static readonly Guid CollectableGame = Guid.NewGuid();
-        private static readonly Guid BothGame = Guid.NewGuid();
+        private static readonly Guid PlainGame = Guid.NewGuid();
 
         private static GameSummaryItem[] Games() => new[]
         {
-            // Every Missable achievement still locked: a game matches on its locked ones too.
+            // Two Missable achievements, one Rare and still locked; one Common untagged unlock.
             new GameSummaryItem
             {
                 GameName = "Missable", PlayniteGameId = MissableGame, ProviderKey = "Steam", Platforms = new[] { "PC" },
-                TagTotals = new[] { new AchievementTagTally(AchievementTagHelper.Missable, 0, 2) }
+                TotalAchievements = 3, UnlockedAchievements = 2,
+                TagTotals = new[]
+                {
+                    new AchievementTagTally(AchievementTagHelper.Missable, RarityTier.Common, null, false, 1, 1),
+                    new AchievementTagTally(AchievementTagHelper.Missable, RarityTier.Rare, "gold", true, 0, 1),
+                    new AchievementTagTally(string.Empty, RarityTier.Common, null, false, 1, 1)
+                }
             },
             new GameSummaryItem
             {
-                GameName = "Collectable", PlayniteGameId = CollectableGame, ProviderKey = "Steam", Platforms = new[] { "PC" },
-                TagTotals = new[] { new AchievementTagTally("Collectable", 1, 3) }
-            },
-            new GameSummaryItem
-            {
-                GameName = "Both", PlayniteGameId = BothGame, ProviderKey = "Steam", Platforms = new[] { "PC" },
-                TagTotals = new[] { new AchievementTagTally(AchievementTagHelper.Missable + "|Collectable", 1, 1) }
+                GameName = "Plain", PlayniteGameId = PlainGame, ProviderKey = "Xbox", Platforms = new[] { "PC" },
+                TotalAchievements = 2, UnlockedAchievements = 1,
+                TagTotals = new[] { new AchievementTagTally(string.Empty, RarityTier.Rare, null, false, 1, 2) }
             }
         };
 
-        private static GameSummaryGridControlBarAdapter CreateAdapter()
+        [TestMethod]
+        public void GameBar_HasNoAchievementFilters()
         {
             var adapter = new GameSummaryGridControlBarAdapter();
+            Assert.IsNull(adapter.TagFilter);
+            Assert.IsNull(adapter.TierFilters);
+            var ids = adapter.ControlBar.Items.Select(item => item.Id).ToList();
+            CollectionAssert.DoesNotContain(ids, ShowcaseControlBarItems.Tag);
+            CollectionAssert.DoesNotContain(ids, ShowcaseControlBarItems.Rarity);
+            CollectionAssert.DoesNotContain(ids, ShowcaseControlBarItems.Trophy);
+        }
+
+        [TestMethod]
+        public void ChartBars_OfferAchievementFiltersExceptTheScoreCard()
+        {
+            Assert.IsNull(new ChartControlBarAdapter().TagFilter);
+            Assert.IsNotNull(new TimelineControlBarAdapter().TierFilters);
+            Assert.IsNotNull(new ActivityCalendarControlBarAdapter().TagFilter);
+            Assert.IsNotNull(new PieControlBarAdapter().TagFilter);
+            Assert.IsNotNull(new StatisticsControlBarAdapter().TierFilters);
+        }
+
+        [TestMethod]
+        public void AchievementFilters_NeverDropGames()
+        {
+            var adapter = new PieControlBarAdapter();
             adapter.UpdateOptions(Games());
-            return adapter;
-        }
-
-        [TestMethod]
-        public void GameBar_HasTagsAfterGame()
-        {
-            var ids = CreateAdapter().ControlBar.Items.Select(item => item.Id).ToList();
-            Assert.AreEqual(ids.IndexOf(ShowcaseControlBarItems.Game) + 1, ids.IndexOf(ShowcaseControlBarItems.Tag));
-        }
-
-        [TestMethod]
-        public void PickedTag_KeepsGamesWithATaggedAchievementLockedOrNot()
-        {
-            var adapter = CreateAdapter();
             adapter.TagFilter.Item.SetSelected(AchievementTagHelper.Missable, true);
 
-            CollectionAssert.AreEquivalent(
-                new[] { "Missable", "Both" },
-                adapter.Apply(Games()).Select(game => game.GameName).ToArray());
-
-            var restored = new GameSummaryGridControlBarAdapter();
-            restored.RestoreState(adapter.CaptureState());
-            restored.UpdateOptions(Games());
-            Assert.AreEqual(2, restored.Apply(Games()).Count);
+            Assert.IsTrue(adapter.HasAchievementSelection);
+            Assert.AreEqual(2, adapter.Apply(Games()).Count);
         }
 
         [TestMethod]
-        public void ChartBars_LeaveTagsOutExceptTheTimelineAndCalendar()
+        public void AchievementFilters_SetAsideWhileTheWidgetCountsGames()
         {
-            Assert.IsNull(new PlayniteAchievements.ViewModels.Showcase.Widgets.ChartControlBarAdapter().TagFilter);
-            Assert.IsNotNull(new PlayniteAchievements.ViewModels.Showcase.Widgets.TimelineControlBarAdapter().TagFilter);
-            Assert.IsNotNull(new PlayniteAchievements.ViewModels.Showcase.Widgets.ActivityCalendarControlBarAdapter().TagFilter);
+            var adapter = new PieControlBarAdapter();
+            adapter.UpdateOptions(Games());
+            adapter.TagFilter.Item.SetSelected(AchievementTagHelper.Missable, true);
+            var untagged = new AchievementTagTally(string.Empty, 0, 1);
+            Assert.IsFalse(adapter.MatchesTally(untagged));
+
+            adapter.SetAchievementFiltersApply(false);
+            Assert.IsFalse(adapter.HasAchievementSelection);
+            Assert.IsTrue(adapter.MatchesTally(untagged));
+            Assert.IsFalse(adapter.TagFilter.Item.IsVisible);
+
+            // The pick is kept for when the widget counts achievements again.
+            adapter.SetAchievementFiltersApply(true);
+            Assert.IsTrue(adapter.HasAchievementSelection);
+            var restored = new PieControlBarAdapter();
+            restored.RestoreState(adapter.CaptureState());
+            Assert.IsTrue(restored.TagFilter.SelectedTags.Contains(AchievementTagHelper.Missable));
+        }
+
+        [TestMethod]
+        public void FilterAchievements_KeepsLockedCountsAndGameTotals()
+        {
+            var games = Games().ToList();
+            var source = OverviewDataSnapshot.FromGameSummaries(games);
+            source.Completions = 1;
+
+            var adapter = new PieControlBarAdapter();
+            adapter.UpdateOptions(games);
+            adapter.TierFilters.RarityItem.SetSelected(Playnite.SDK.ResourceProvider.GetString("LOCPlayAch_Rarity_Rare"), true);
+            var rare = OverviewLinkedSnapshots.FilterAchievements(source, adapter.MatchesAchievement, adapter.MatchesTally);
+
+            Assert.AreEqual(3, rare.TotalAchievements);
+            Assert.AreEqual(1, rare.TotalUnlocked);
+            Assert.AreEqual(2, rare.TotalLocked);
+            Assert.AreEqual(3, rare.TotalRarePossible);
+            Assert.AreEqual(0, rare.TotalCommonPossible);
+            Assert.AreEqual(1, rare.TotalGoldPossible);
+            Assert.AreEqual(1, rare.TotalByProvider["Steam"]);
+            Assert.AreEqual(2, rare.TotalByProvider["Xbox"]);
+            // Game counts follow the games alone.
+            Assert.AreEqual(2, rare.TotalGames);
+            Assert.AreEqual(1, rare.Completions);
         }
     }
 }

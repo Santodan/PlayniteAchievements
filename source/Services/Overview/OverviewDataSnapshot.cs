@@ -36,6 +36,13 @@ namespace PlayniteAchievements.Services.Overview
         public bool IsAchievementClip { get; set; }
 
         /// <summary>
+        /// The widget achievement filter this snapshot's achievement totals were counted through
+        /// (see <see cref="OverviewLinkedSnapshots.FilterAchievements"/>); null when every
+        /// achievement counts. A count over the games' tallies applies it too.
+        /// </summary>
+        public Func<Models.Achievements.AchievementTagTally, bool> TallyFilter { get; set; }
+
+        /// <summary>
         /// Every achievement pin (see <see cref="AchievementPinKey"/>) the build considered when it
         /// hydrated locked pinned rows into <see cref="Achievements"/>. A pin added afterwards is
         /// absent here, so its locked row was never hydrated; consumers rebuild off

@@ -29,7 +29,7 @@ namespace PlayniteAchievements.ViewModels
             new ObservableCollection<ProviderFilterGroup>();
 
         public GameSummaryGridControlBarAdapter()
-            : this(chartFilters: false, includeTags: true)
+            : this(chartFilters: false)
         {
         }
 
@@ -39,20 +39,23 @@ namespace PlayniteAchievements.ViewModels
         /// is not restored.
         /// </param>
         /// <param name="includeProgress">False to leave the progress filter out as well.</param>
-        /// <param name="includeTags">
-        /// True to add the Tags filter after Game, which keeps the games with an achievement,
-        /// locked or not, carrying a picked tag.
+        /// <param name="achievementFilters">
+        /// True to add the Tags filter after Game and the Rarity and Trophy filters last. They
+        /// narrow which achievements count, never which games: <see cref="Apply"/> ignores them,
+        /// and the widget counts the kept games' achievements through
+        /// <see cref="MatchesAchievement"/> and <see cref="MatchesTally"/>.
         /// </param>
-        protected GameSummaryGridControlBarAdapter(bool chartFilters, bool includeProgress = true, bool includeTags = false)
+        protected GameSummaryGridControlBarAdapter(bool chartFilters, bool includeProgress = true, bool achievementFilters = false)
         {
             _chartFilters = chartFilters;
             _includeProgress = includeProgress;
-            if (includeTags)
+            if (achievementFilters)
             {
                 TagFilter = new TagControlBarFilter(
                     RaiseFilterChanged,
                     () => GameFilter.SelectedGameIds,
                     GameTagKeys);
+                TierFilters = new RarityTrophyControlBarFilters(RaiseFilterChanged);
             }
 
             ProgressFilterOptions = chartFilters
@@ -68,8 +71,48 @@ namespace PlayniteAchievements.ViewModels
 
         public override GridControlBarViewModel ControlBar { get; }
 
-        /// <summary>The bar's Tags filter; null for a bar without one.</summary>
+        /// <summary>The bar's Tags filter; null for a bar without achievement filters.</summary>
         public TagControlBarFilter TagFilter { get; }
+
+        /// <summary>The bar's Rarity and Trophy filters; null for a bar without achievement filters.</summary>
+        public RarityTrophyControlBarFilters TierFilters { get; }
+
+        /// <summary>
+        /// False while the widget counts games, not achievements: the achievement filters then
+        /// hide and do not apply, while their picks are kept for when it counts achievements again.
+        /// </summary>
+        public bool AchievementFiltersApply { get; private set; } = true;
+
+        /// <summary>True while an achievement filter applies and would drop an achievement.</summary>
+        public bool HasAchievementSelection =>
+            AchievementFiltersApply &&
+            (TagFilter?.HasSelection == true || TierFilters?.HasSelection == true);
+
+        /// <summary>Shows and applies the achievement filters, or hides and sets them aside.</summary>
+        public void SetAchievementFiltersApply(bool apply)
+        {
+            AchievementFiltersApply = apply;
+            if (TagFilter != null)
+            {
+                TagFilter.Item.IsVisible = apply;
+            }
+
+            if (TierFilters != null)
+            {
+                TierFilters.RarityItem.IsVisible = apply;
+                TierFilters.TrophyItem.IsVisible = apply;
+            }
+        }
+
+        /// <summary>True for an achievement row the applying achievement filters keep.</summary>
+        public bool MatchesAchievement(AchievementDisplayItem row) =>
+            !AchievementFiltersApply ||
+            ((TagFilter?.MatchesRow(row) ?? true) && (TierFilters?.Matches(row) ?? true));
+
+        /// <summary>True for a tally whose achievements the applying achievement filters keep.</summary>
+        public bool MatchesTally(PlayniteAchievements.Models.Achievements.AchievementTagTally tally) =>
+            !AchievementFiltersApply ||
+            ((TagFilter?.MatchesTally(tally) ?? true) && (TierFilters?.Matches(tally) ?? true));
 
         // The tag keys a game's achievements carry, locked or not, from the games the options list.
         private IEnumerable<string> GameTagKeys(Guid gameId) =>
@@ -140,11 +183,6 @@ namespace PlayniteAchievements.ViewModels
                 filtered = filtered.Where(item => GameFilter.Matches(item.PlayniteGameId));
             }
 
-            if (TagFilter?.HasSelection == true)
-            {
-                filtered = filtered.Where(TagFilter.MatchesGame);
-            }
-
             filtered = OverviewGameSummaryFilters.ApplyActivityAndProgressFilters(
                 filtered,
                 _selectedActivityFilters,
@@ -164,6 +202,11 @@ namespace PlayniteAchievements.ViewModels
             // from under an open dropdown, so a toggle there would land on a discarded group.
             GameFilter.UpdateGames(source);
             var games = (source ?? Enumerable.Empty<GameSummaryItem>()).ToList();
+            if (TierFilters?.UpdateGames(games) == true)
+            {
+                ControlBar.Refresh();
+            }
+
             if (ProviderFilterGroupBuilder.HasSameGames(_optionGames, games))
             {
                 return;
@@ -204,6 +247,7 @@ namespace PlayniteAchievements.ViewModels
                 Activity = SelectedPositions(ActivityFilterOptions, _selectedActivityFilters)
             };
             TagFilter?.Capture(state);
+            TierFilters?.Capture(state);
             return state;
         }
 
@@ -218,6 +262,7 @@ namespace PlayniteAchievements.ViewModels
             PendingPlatformSelections = state.Platforms;
             GameFilter.Restore(state.Games);
             TagFilter?.Restore(state);
+            TierFilters?.Restore(state);
             RestorePositions(
                 ProgressFilterOptions,
                 _selectedProgressFilters,
@@ -356,6 +401,12 @@ namespace PlayniteAchievements.ViewModels
                     LabelKey = "LOCPlayAch_Progress",
                     Width = 170
                 });
+            }
+
+            if (TierFilters != null)
+            {
+                controlBar.Items.Add(TierFilters.RarityItem);
+                controlBar.Items.Add(TierFilters.TrophyItem);
             }
 
             if (_chartFilters)

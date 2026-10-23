@@ -876,6 +876,35 @@ namespace PlayniteAchievements.Models
         private const string PieCount = "PieCount";
 
         /// <summary>
+        /// Whether the widget, as set, counts achievements, so its Tags, Rarity and Trophy
+        /// filters apply. A widget counting games (a Completions pie, a Provider pie counting
+        /// completed games, a Completions timeline or calendar) hides them: they narrow
+        /// achievements, never games.
+        /// </summary>
+        public static bool CountsAchievements(ShowcaseWidgetInstanceSettings settings)
+        {
+            switch (settings?.Kind)
+            {
+                case ShowcaseWidgetKind.Pie:
+                    switch (GetPieMode(settings))
+                    {
+                        case ShowcasePieMode.CompletedGames:
+                            return false;
+                        case ShowcasePieMode.Provider:
+                            return GetPieCount(settings) == ShowcasePieCount.Achievements;
+                        default:
+                            return true;
+                    }
+
+                case ShowcaseWidgetKind.Timeline:
+                case ShowcaseWidgetKind.ActivityCalendar:
+                    return ShowcaseTimelineOptions.GetCount(settings) == ShowcaseTimelineCount.Unlocks;
+                default:
+                    return true;
+            }
+        }
+
+        /// <summary>
         /// Falls back to the legacy show-percentage toggle for widgets saved before the center
         /// mode existed: on reads as <see cref="PieCenterMode.Percentage"/>, off as
         /// <see cref="PieCenterMode.Empty"/>.

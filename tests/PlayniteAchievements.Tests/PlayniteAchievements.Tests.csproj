@@ -481,6 +481,8 @@
     <Compile Include="..\..\source\ViewModels\Showcase\Widgets\TimelineControlBarAdapter.cs" Link="Source\ViewModels\Showcase\Widgets\TimelineControlBarAdapter.cs" />
     <Compile Include="..\..\source\ViewModels\Showcase\Widgets\ChartControlBarAdapter.cs" Link="Source\ViewModels\Showcase\Widgets\ChartControlBarAdapter.cs" />
     <Compile Include="..\..\source\ViewModels\Showcase\Widgets\ActivityCalendarControlBarAdapter.cs" Link="Source\ViewModels\Showcase\Widgets\ActivityCalendarControlBarAdapter.cs" />
+    <Compile Include="..\..\source\ViewModels\Showcase\Widgets\PieControlBarAdapter.cs" Link="Source\ViewModels\Showcase\Widgets\PieControlBarAdapter.cs" />
+    <Compile Include="..\..\source\ViewModels\Showcase\Widgets\StatisticsControlBarAdapter.cs" Link="Source\ViewModels\Showcase\Widgets\StatisticsControlBarAdapter.cs" />
     <Compile Include="..\..\source\ViewModels\Showcase\Widgets\SlideshowControlBarAdapter.cs" Link="Source\ViewModels\Showcase\Widgets\SlideshowControlBarAdapter.cs" />
     <Compile Include="..\..\source\ViewModels\Showcase\Widgets\ShowcaseControlBarStates.cs" Link="Source\ViewModels\Showcase\Widgets\ShowcaseControlBarStates.cs" />
     <Compile Include="..\..\source\ViewModels\Items\GridControlBarModels.cs" Link="Source\ViewModels\Items\GridControlBarModels.cs" />

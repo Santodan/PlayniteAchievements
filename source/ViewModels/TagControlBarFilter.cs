@@ -12,8 +12,8 @@ namespace PlayniteAchievements.ViewModels
     /// <summary>
     /// A control bar's Tags filter. It offers the global tags with no game picked, a picked game's
     /// tags (global, its own, and the implicit ones it carries), or the tags every picked game
-    /// has. An achievement matches when it has any picked tag; a game, when any of its
-    /// achievements, locked or not, does.
+    /// has. An achievement matches when it has any picked tag. It narrows achievements only, never
+    /// games.
     /// </summary>
     public sealed class TagControlBarFilter : PlayniteAchievements.Common.ObservableObject
     {
@@ -75,13 +75,7 @@ namespace PlayniteAchievements.ViewModels
             _tags.Count == 0 ||
             (row != null && _tags.Any(tag => AchievementTagHelper.Contains(row.Tags, tag)));
 
-        /// <summary>True for a game with any achievement, locked or not, carrying a picked tag.</summary>
-        public bool MatchesGame(GameSummaryItem game) =>
-            _tags.Count == 0 ||
-            (game?.TagTotals != null &&
-             game.TagTotals.Any(tally => _tags.Any(tag => AchievementTagHelper.Contains(tally.Key, tag))));
-
-        /// <summary>True for a tag-set tally carrying any picked tag; every tally while none is picked.</summary>
+        /// <summary>True for a tally whose tag set has any picked tag; every tally while none is picked.</summary>
         public bool MatchesTally(AchievementTagTally tally) =>
             _tags.Count == 0 ||
             _tags.Any(tag => AchievementTagHelper.Contains(tally.Key, tag));
