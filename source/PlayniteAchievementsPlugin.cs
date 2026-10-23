@@ -882,6 +882,12 @@ namespace PlayniteAchievements
                 Instance = this;
                 _logger.Info("PlayniteAchievementsPlugin initializing...");
 
+                // Widgets' control bar choices are saved in their own options across restarts.
+                // Set before any view exists: start page widgets build their bars at startup,
+                // and an adapter created without the store never reads its saved state.
+                ViewModels.Showcase.Widgets.ShowcaseControlBarStates.Store =
+                    Services.Showcase.ShowcaseControlBarStateStore.Instance;
+
                 // Stamps which build produced this log. Diagnostic packages are rebuilt far more
                 // often than the version changes, so several materially different builds share
                 // one file name -- and a capture was read against the wrong one because the only
