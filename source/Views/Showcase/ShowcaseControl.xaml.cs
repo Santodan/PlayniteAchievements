@@ -169,9 +169,6 @@ namespace PlayniteAchievements.Views.Showcase
                 ContextMenuOpening += StripContextMenuOpening;
             }
 
-            // Widgets' control bar choices are saved in their own options across restarts.
-            PlayniteAchievements.ViewModels.Showcase.Widgets.ShowcaseControlBarStates.Store =
-                ShowcaseControlBarStateStore.Instance;
             _snapshotRefreshTimer = new System.Windows.Threading.DispatcherTimer
             {
                 Interval = TimeSpan.FromMilliseconds(1000)
