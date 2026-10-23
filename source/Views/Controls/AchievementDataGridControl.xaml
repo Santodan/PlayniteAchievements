@@ -408,14 +408,20 @@
                 </DataGridTemplateColumn.CellTemplate>
             </DataGridTemplateColumn>
 
-            <DataGridTemplateColumn Width="*" MinWidth="22" CanUserResize="True" Header="{DynamicResource LOCTagsLabel}" SortMemberPath="CategoryType" helpers:ColumnVisibilityHelper.ColumnKey="CategoryType">
+            <DataGridTemplateColumn x:Name="TagsColumn" Width="*" MinWidth="22" CanUserResize="True" Header="{DynamicResource LOCTagsLabel}" SortMemberPath="CategoryType" helpers:ColumnVisibilityHelper.ColumnKey="CategoryType">
                 <DataGridTemplateColumn.CellTemplate>
                     <DataTemplate>
-                        <TextBlock helpers:TagInlines.Chips="{Binding TagChips}"
-                                   helpers:TagInlines.Display="{Binding TagDisplay, RelativeSource={RelativeSource AncestorType=controls:AchievementDataGridControl}}"
-                                   Style="{StaticResource WrappedCenteredDataGridTextStyle}"
-                                   Foreground="{DynamicResource PlayAch.Brush.Text}"
-                                   Opacity="{StaticResource PlayAch.Opacity.Subtle}"/>
+                        <!-- Icons take the one size the grid fits to this column (TagIconSize). -->
+                        <controls:TagChipsPanel Chips="{Binding TagChips}"
+                                                Display="{Binding TagDisplay, RelativeSource={RelativeSource AncestorType=controls:AchievementDataGridControl}}"
+                                                IconSize="{Binding TagIconSize, RelativeSource={RelativeSource AncestorType=controls:AchievementDataGridControl}}"
+                                                TextAlignment="{Binding RelativeSource={RelativeSource AncestorType={x:Type DataGridCell}}, Path=Column.(helpers:DataGridAlignmentBehavior.CellTextAlignment)}"
+                                                HorizontalAlignment="{Binding RelativeSource={RelativeSource AncestorType={x:Type DataGridCell}}, Path=Column.(helpers:DataGridAlignmentBehavior.CellHorizontalAlignment)}"
+                                                VerticalAlignment="{Binding RelativeSource={RelativeSource AncestorType={x:Type DataGridCell}}, Path=Column.(helpers:DataGridAlignmentBehavior.CellVerticalAlignment)}"
+                                                TextElement.FontFamily="{DynamicResource PlayAch.FontFamily.Body}"
+                                                TextElement.FontSize="{DynamicResource PlayAch.FontSize.Body}"
+                                                TextElement.Foreground="{DynamicResource PlayAch.Brush.Text}"
+                                                Opacity="{StaticResource PlayAch.Opacity.Subtle}"/>
                     </DataTemplate>
                 </DataGridTemplateColumn.CellTemplate>
             </DataGridTemplateColumn>
