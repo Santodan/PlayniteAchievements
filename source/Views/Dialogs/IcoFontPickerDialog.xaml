@@ -67,8 +67,7 @@
                      TextChanged="SearchBox_TextChanged"
                      Margin="{StaticResource PlayAch.Thickness.Bottom.Md}"/>
 
-            <!-- IcoFont's categories as icons, All first, each named by its tooltip; the search
-                 looks within the chosen one. -->
+            <!-- The glyph groups as icons, All first; the search looks within the chosen one. -->
             <ListBox x:Name="CategoryList"
                      Grid.Row="1"
                      Margin="{StaticResource PlayAch.Thickness.Bottom.Md}"
@@ -88,8 +87,7 @@
                                             FontFamily="{DynamicResource PlayAch.FontFamily.Icon}"
                                             Size="26"
                                             Margin="4"
-                                            Foreground="{DynamicResource PlayAch.Brush.Text}"
-                                            ToolTip="{Binding Label}"/>
+                                            Foreground="{DynamicResource PlayAch.Brush.Text}"/>
                     </DataTemplate>
                 </ListBox.ItemTemplate>
             </ListBox>
