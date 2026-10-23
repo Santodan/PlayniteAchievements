@@ -1026,7 +1026,6 @@
     <sys:String x:Key="LOCPlayAch_Settings_TabDisplay">Display</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_TaggingDescription">Automatically tags games by achievement status so you can filter your library.</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_TaggingHeader">Tag Sync</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_TaggingSection">Tag Configuration</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_UseSeparateLockedIconsWhenAvailable">Use Separate Locked Icons When Available</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_UseSeparateLockedIconsWhenAvailable_Help">Downloads platform-supplied locked icons when they differ from the unlocked icon. Otherwise the unlocked icon is shown in grayscale.</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Utilities_Title">Utilities</sys:String>
@@ -1196,6 +1195,7 @@
     <sys:String x:Key="LOCPlayAch_Tagging_Area_Capstones">Capstones</sys:String>
     <sys:String x:Key="LOCPlayAch_Tagging_Area_Goals">Goals</sys:String>
     <sys:String x:Key="LOCPlayAch_Tagging_Area_Source">Source</sys:String>
+    <sys:String x:Key="LOCPlayAch_Tagging_SourceOverride">Source Override</sys:String>
     <sys:String x:Key="LOCPlayAch_Tagging_Area_Notifications">Notifications</sys:String>
     <sys:String x:Key="LOCPlayAch_Tagging_RemoveAllConfirm">Remove all Playnite Achievements tags from all games?</sys:String>
     <sys:String x:Key="LOCPlayAch_Tagging_RemovingProgress">Removing tags...</sys:String>
