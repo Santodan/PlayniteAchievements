@@ -122,6 +122,8 @@ namespace PlayniteAchievements.Services.Database
             public string GameName { get; set; }
             public string LibrarySourceName { get; set; }
             public string RaritySource { get; set; }
+            public long? PlatformFields { get; set; }
+            public long? MetadataFields { get; set; }
         }
 
         /// <summary>
@@ -658,7 +660,9 @@ namespace PlayniteAchievements.Services.Database
                         g.PlayniteGameId AS PlayniteGameId,
                         g.GameName AS GameName,
                         g.LibrarySourceName AS LibrarySourceName,
-                        g.RaritySource AS RaritySource
+                        g.RaritySource AS RaritySource,
+                        g.PlatformFields AS PlatformFields,
+                        g.MetadataFields AS MetadataFields
                       FROM UserGameProgress ugp
                       INNER JOIN Users u ON u.Id = ugp.UserId
                       INNER JOIN Games g ON g.Id = ugp.GameId
@@ -722,6 +726,8 @@ namespace PlayniteAchievements.Services.Database
                             g.GameName AS GameName,
                             g.LibrarySourceName AS LibrarySourceName,
                             g.RaritySource AS RaritySource,
+                            g.PlatformFields AS PlatformFields,
+                            g.MetadataFields AS MetadataFields,
                             ROW_NUMBER() OVER (
                                 PARTITION BY ugp.CacheKey
                                 ORDER BY ugp.LastUpdatedUtc DESC, ugp.Id DESC
@@ -746,7 +752,9 @@ namespace PlayniteAchievements.Services.Database
                         PlayniteGameId,
                         GameName,
                         LibrarySourceName,
-                        RaritySource
+                        RaritySource,
+                        PlatformFields,
+                        MetadataFields
                     FROM LatestProgress
                     WHERE RowNum = 1
                     ORDER BY LastUpdatedUtc DESC, UserGameProgressId DESC;").ToList();
@@ -6892,9 +6900,9 @@ namespace PlayniteAchievements.Services.Database
 
                 db.ExecuteNonQuery(
                     @"INSERT INTO Games
-                        (ProviderKey, ProviderPlatformKey, ProviderGameId, ProviderGameKey, PlayniteGameId, GameName, LibrarySourceName, RaritySource, FirstSeenUtc, LastUpdatedUtc)
+                        (ProviderKey, ProviderPlatformKey, ProviderGameId, ProviderGameKey, PlayniteGameId, GameName, LibrarySourceName, RaritySource, PlatformFields, MetadataFields, FirstSeenUtc, LastUpdatedUtc)
                       VALUES
-                        (?, ?, ?, ?, ?, ?, ?, ?, ?, ?);",
+                        (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);",
                     providerKey,
                     DbValue(data.ProviderPlatformKey),
                     DbParam(providerGameId),
@@ -6903,6 +6911,8 @@ namespace PlayniteAchievements.Services.Database
                     DbValue(data.GameName),
                     DbValue(data.LibrarySourceName),
                     DbValue(data.RaritySource?.ToString()),
+                    DbParam(SqlNadoCacheBehavior.FieldMaskToDb(data.PlatformFields)),
+                    DbParam(SqlNadoCacheBehavior.FieldMaskToDb(data.MetadataFields)),
                     nowIso,
                     updatedIso);
                 return db.ExecuteScalar<long>("SELECT last_insert_rowid();");
@@ -6913,6 +6923,8 @@ namespace PlayniteAchievements.Services.Database
                 game.Id);
             var raritySource = SqlNadoCacheBehavior.ResolveRaritySourceToWrite(data.RaritySource, storedRaritySource);
 
+            // A null mask means the payload was not refreshed (a re-save of loaded data), so the
+            // stored masks stay.
             db.ExecuteNonQuery(
                 @"UPDATE Games
                   SET ProviderPlatformKey = ?,
@@ -6922,6 +6934,8 @@ namespace PlayniteAchievements.Services.Database
                       GameName = ?,
                       LibrarySourceName = ?,
                       RaritySource = ?,
+                      PlatformFields = COALESCE(?, PlatformFields),
+                      MetadataFields = COALESCE(?, MetadataFields),
                       LastUpdatedUtc = ?
                   WHERE Id = ?;",
                 DbValue(data.ProviderPlatformKey),
@@ -6931,6 +6945,8 @@ namespace PlayniteAchievements.Services.Database
                 DbValue(data.GameName),
                 DbValue(data.LibrarySourceName),
                 DbValue(raritySource?.ToString()),
+                DbParam(SqlNadoCacheBehavior.FieldMaskToDb(data.PlatformFields)),
+                DbParam(SqlNadoCacheBehavior.FieldMaskToDb(data.MetadataFields)),
                 updatedIso,
                 game.Id);
 
@@ -7572,6 +7588,8 @@ namespace PlayniteAchievements.Services.Database
                 ProviderPlatformKey = progress?.ProviderPlatformKey,
                 LibrarySourceName = progress?.LibrarySourceName,
                 RaritySource = SqlNadoCacheBehavior.ParseRaritySource(progress?.RaritySource),
+                PlatformFields = SqlNadoCacheBehavior.ParseFieldMask(progress?.PlatformFields),
+                MetadataFields = SqlNadoCacheBehavior.ParseFieldMask(progress?.MetadataFields),
                 HasAchievements = progress != null && progress.HasAchievements != 0,
                 // ExcludedByUser is populated by callers from settings
                 GameName = progress?.GameName,
