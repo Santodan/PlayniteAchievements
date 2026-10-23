@@ -411,10 +411,12 @@
             <DataGridTemplateColumn x:Name="TagsColumn" Width="*" MinWidth="22" CanUserResize="True" Header="{DynamicResource LOCTagsLabel}" SortMemberPath="CategoryType" helpers:ColumnVisibilityHelper.ColumnKey="CategoryType">
                 <DataGridTemplateColumn.CellTemplate>
                     <DataTemplate>
-                        <!-- Icons take the one size the grid fits to this column (TagIconSize). -->
+                        <!-- Icons fill the row height, the same in every row; tags past the
+                             cell show as "+N". -->
                         <controls:TagChipsPanel Chips="{Binding TagChips}"
                                                 Display="{Binding TagDisplay, RelativeSource={RelativeSource AncestorType=controls:AchievementDataGridControl}}"
                                                 IconSize="{Binding TagIconSize, RelativeSource={RelativeSource AncestorType=controls:AchievementDataGridControl}}"
+                                                MaxContentHeight="{Binding TagAreaHeight, RelativeSource={RelativeSource AncestorType=controls:AchievementDataGridControl}}"
                                                 TextAlignment="{Binding RelativeSource={RelativeSource AncestorType={x:Type DataGridCell}}, Path=Column.(helpers:DataGridAlignmentBehavior.CellTextAlignment)}"
                                                 HorizontalAlignment="{Binding RelativeSource={RelativeSource AncestorType={x:Type DataGridCell}}, Path=Column.(helpers:DataGridAlignmentBehavior.CellHorizontalAlignment)}"
                                                 VerticalAlignment="{Binding RelativeSource={RelativeSource AncestorType={x:Type DataGridCell}}, Path=Column.(helpers:DataGridAlignmentBehavior.CellVerticalAlignment)}"
