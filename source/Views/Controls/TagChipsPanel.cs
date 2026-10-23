@@ -66,8 +66,8 @@ namespace PlayniteAchievements.Views.Controls
                 new FrameworkPropertyMetadata(double.PositiveInfinity, FrameworkPropertyMetadataOptions.AffectsMeasure));
 
         /// <summary>
-        /// The height the tags may take. An auto-height grid row measures its cells without a
-        /// height limit, so the grid states it.
+        /// The height the tags may take; past it they are clipped, so the panel never grows its row.
+        /// An auto-height grid row measures its cells without a height limit, so the grid states it.
         /// </summary>
         public double MaxContentHeight
         {
@@ -83,6 +83,11 @@ namespace PlayniteAchievements.Views.Controls
         {
             get => (TextAlignment)GetValue(TextAlignmentProperty);
             set => SetValue(TextAlignmentProperty, value);
+        }
+
+        public TagChipsPanel()
+        {
+            ClipToBounds = true;
         }
 
         private static void OnContentChanged(DependencyObject d, DependencyPropertyChangedEventArgs e) =>
@@ -235,7 +240,8 @@ namespace PlayniteAchievements.Views.Controls
                 extentHeight += (l > 0 ? TagChipLayout.LineGap : 0) + LineHeight(lines[l]);
             }
 
-            return new Size(extentWidth, extentHeight);
+            // Tags too many to fit even at the smallest size are clipped rather than growing the row.
+            return new Size(extentWidth, Math.Min(extentHeight, MaxContentHeight));
         }
 
         protected override Size ArrangeOverride(Size finalSize)
