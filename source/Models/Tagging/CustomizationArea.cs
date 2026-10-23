@@ -29,7 +29,7 @@ namespace PlayniteAchievements.Models.Tagging
         /// <summary>Custom achievement order.</summary>
         Order = 1 << 5,
 
-        /// <summary>Capstones chosen or removed by the user.</summary>
+        /// <summary>Capstones chosen or removed by the user, or a generated auto capstone.</summary>
         Capstones = 1 << 6,
 
         /// <summary>Goal achievements.</summary>
