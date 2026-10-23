@@ -534,5 +534,88 @@ namespace PlayniteAchievements.Tests.Services
             Assert.AreEqual(4, byList.Count);
             Assert.AreEqual("b1", byList.Single(match => match.Target == targets[2]).Source.ApiName);
         }
+
+        // The game's achievements in English, by the targets' ApiNames, and how often they were asked for.
+        private readonly List<AchievementDetail> _english = new List<AchievementDetail>();
+        private int _englishAsked;
+
+        private Task<IList<AchievementDetail>> EnglishTitles(CancellationToken ct)
+        {
+            _englishAsked++;
+            return Task.FromResult<IList<AchievementDetail>>(_english);
+        }
+
+        [TestMethod]
+        public async Task EnglishTitles_FindThePage_WhenNoTitleMatchesInTheGamesLanguage()
+        {
+            Page("me", "Saren", "Spectre");
+            Offers("Mass Effect", ("me", "Mass Effect"));
+            var targets = new List<AchievementDetail> { Row("g1", "Saren besiegt", null), Row("g2", "Spectre-Agent", null) };
+            _english.Add(Row("g1", "Saren", null));
+            _english.Add(Row("g2", "Spectre", null));
+
+            var choice = await Search().ChooseAsync(new[] { "Mass Effect" }, targets, null, CancellationToken.None, englishTitles: EnglishTitles);
+
+            CollectionAssert.AreEqual(new[] { "me" }, choice.Ids.ToList());
+            Assert.AreEqual(2, choice.Matched);
+            StringAssert.Contains(choice.Trace, "in English");
+        }
+
+        [TestMethod]
+        public async Task EnglishTitles_AreNotAskedFor_WhenAPageMatchesAsGiven()
+        {
+            Page("me", "Saren", "Spectre");
+            Offers("Mass Effect", ("me", "Mass Effect"));
+            var targets = new List<AchievementDetail> { Row("g1", "Saren", null), Row("g2", "Spectre", null) };
+
+            var choice = await Search().ChooseAsync(new[] { "Mass Effect" }, targets, null, CancellationToken.None, englishTitles: EnglishTitles);
+
+            CollectionAssert.AreEqual(new[] { "me" }, choice.Ids.ToList());
+            Assert.AreEqual(0, _englishAsked);
+        }
+
+        [TestMethod]
+        public async Task EnglishRows_OfAPageInAnotherLanguage_AreComparedWithTheGamesEnglish()
+        {
+            // The source translates the titles differently from the game; both agree in English.
+            Page("me", "Saren besiegt", "Agent der Spectres");
+            Offers("Mass Effect", ("me", "Mass Effect"));
+            var targets = new List<AchievementDetail> { Row("g1", "Saren geschlagen", null), Row("g2", "Spectre-Agent", null) };
+            _english.Add(Row("g1", "Saren", null));
+            _english.Add(Row("g2", "Spectre", null));
+            var englishPage = new List<AchievementDetail> { Row("me0", "Saren", null), Row("me1", "Spectre", null) };
+            var search = new MetadataPageSearch(
+                (name, ct) => Task.FromResult<IReadOnlyList<MetadataPageCandidate>>(_searches.TryGetValue(name, out var found) ? found : new List<MetadataPageCandidate>()),
+                (id, ct) => Task.FromResult<IList<AchievementDetail>>(_pages.TryGetValue(id, out var rows) ? rows : null),
+                (id, ct) => Task.FromResult<IList<AchievementDetail>>(id == "me" ? englishPage : null));
+
+            var choice = await search.ChooseAsync(new[] { "Mass Effect" }, targets, null, CancellationToken.None, englishTitles: EnglishTitles);
+
+            CollectionAssert.AreEqual(new[] { "me" }, choice.Ids.ToList());
+            Assert.AreEqual(2, choice.Matched);
+        }
+
+        [TestMethod]
+        public void EnglishPairing_JoinsByApiName_AndSkipsRowsWithoutEnglish()
+        {
+            var targets = new List<AchievementDetail> { Row("g1", "Drachentöter", null), Row("g2", "Sammler", null) };
+            var rows = new List<AchievementDetail> { Row("s1", "Pourfendeur", null), Row("s2", "Collectionneur", null) };
+            var englishTargets = new List<AchievementDetail> { Row("g1", "Dragon Slayer", null), Row("g2", "Collector", null) };
+            var englishRows = new List<AchievementDetail> { Row("s1", "Dragon Slayer", null) };
+
+            var matches = EnglishTitlePairing.Match(targets, englishTargets, rows, englishRows);
+
+            Assert.AreEqual(1, matches.Count);
+            Assert.AreSame(targets[0], matches[0].Target);
+            Assert.AreSame(rows[0], matches[0].Source);
+        }
+
+        [TestMethod]
+        public void English_IsTheDefaultLanguage()
+        {
+            Assert.IsTrue(EnglishTitlePairing.IsEnglish(null));
+            Assert.IsTrue(EnglishTitlePairing.IsEnglish(" English "));
+            Assert.IsFalse(EnglishTitlePairing.IsEnglish("german"));
+        }
     }
 }
