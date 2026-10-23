@@ -1,18 +1,12 @@
 using System;
-using System.Collections.Generic;
 using System.Collections.Specialized;
-using System.Globalization;
 using System.Linq;
-using System.Text;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Data;
-using System.Windows.Media;
 using System.Windows.Threading;
 using PlayniteAchievements.Models.Settings;
 using PlayniteAchievements.ViewModels.Items;
-using PlayniteAchievements.ViewModels.Tags;
-using PlayniteAchievements.Views.Helpers;
 
 namespace PlayniteAchievements.Views.Controls
 {
@@ -80,65 +74,12 @@ namespace PlayniteAchievements.Views.Controls
                 return;
             }
 
-            var family = TryFindResource("PlayAch.FontFamily.Body") as FontFamily ?? SystemFonts.MessageFontFamily;
-            var fontSize = TryFindResource("PlayAch.FontSize.Body") is double size && size > 0 ? size : SystemFonts.MessageFontSize;
-            var typeface = new Typeface(family, FontStyles.Normal, FontWeights.Normal, FontStretches.Normal);
-            var pixelsPerDip = VisualTreeHelper.GetDpi(this).PixelsPerDip;
-            var textHeight = Math.Ceiling(family.LineSpacing * fontSize);
-
-            // One pixel of slack on each axis absorbs layout rounding.
-            var width = TagsColumn.ActualWidth - TagCellHorizontalPadding - 1;
-            var height = (ResolveFixedRowHeight() ?? AutoRowMinHeight) - TagCellVerticalPadding - 1;
-            var best = Math.Floor(Math.Min(width, height));
-
-            var seen = new HashSet<string>(StringComparer.Ordinal);
-            var signature = new StringBuilder();
-            var boxes = new List<TagChipBox>();
-            foreach (var item in AchievementsDataGrid.Items.OfType<AchievementDisplayItem>())
-            {
-                var chips = item.TagChips;
-                if (chips == null || chips.Count == 0)
-                {
-                    continue;
-                }
-
-                signature.Clear();
-                boxes.Clear();
-                for (var i = 0; i < chips.Count; i++)
-                {
-                    if (TagChipsPanel.IsIcon(chips[i], display))
-                    {
-                        signature.Append("\u0001I");
-                        boxes.Add(TagChipBox.Icon());
-                    }
-                    else
-                    {
-                        var text = TagChipsPanel.TextOf(chips, i, display);
-                        signature.Append("\u0001T").Append(text);
-                        boxes.Add(TagChipBox.Text(MeasureTagText(text, typeface, fontSize, pixelsPerDip)));
-                    }
-                }
-
-                if (!seen.Add(signature.ToString()))
-                {
-                    continue;
-                }
-
-                var fit = TagChipLayout.LargestIconSize(boxes, textHeight, width, height, fontSize);
-                if (fit.HasValue)
-                {
-                    best = Math.Min(best, fit.Value);
-                }
-            }
-
-            SetValue(TagIconSizePropertyKey, Math.Max(Math.Ceiling(fontSize), best));
-        }
-
-        private static double MeasureTagText(string text, Typeface typeface, double fontSize, double pixelsPerDip)
-        {
-            var formatted = new FormattedText(text, CultureInfo.CurrentUICulture, FlowDirection.LeftToRight,
-                typeface, fontSize, Brushes.Black, pixelsPerDip);
-            return Math.Ceiling(formatted.WidthIncludingTrailingWhitespace) + 1;
+            SetValue(TagIconSizePropertyKey, TagChipsPanel.FitIconSize(
+                AchievementsDataGrid.Items.OfType<AchievementDisplayItem>().Select(item => item.TagChips),
+                display,
+                TagsColumn.ActualWidth - TagCellHorizontalPadding,
+                (ResolveFixedRowHeight() ?? AutoRowMinHeight) - TagCellVerticalPadding,
+                this));
         }
     }
 }
