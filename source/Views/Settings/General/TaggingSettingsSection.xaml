@@ -5,6 +5,7 @@
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:sys="clr-namespace:System;assembly=mscorlib"
              xmlns:controls="clr-namespace:PlayniteAchievements.Views.Controls"
+             xmlns:local="clr-namespace:PlayniteAchievements.Views.Settings.General"
              mc:Ignorable="d"
              d:DesignHeight="600"
              d:DesignWidth="700">
@@ -14,39 +15,6 @@
                 <ResourceDictionary Source="pack://application:,,,/PlayniteAchievements;component/Resources/SettingsScopedControlStyles.xaml"/>
                 <ResourceDictionary Source="pack://application:,,,/PlayniteAchievements;component/Resources/CommonResources.xaml"/>
             </ResourceDictionary.MergedDictionaries>
-
-            <!-- One row of related tags (TagPairRow): each tag is an enable toggle plus the name it
-                 writes, and the name boxes split the row's width. A one-sided row leaves the
-                 second half empty so its box lines up with the first column. -->
-            <DataTemplate x:Key="TagPairRowTemplate">
-                <controls:SettingRow Label="{Binding Label}"
-                                     HorizontalContentAlignment="Stretch">
-                    <Grid>
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*"/>
-                            <ColumnDefinition Width="*"/>
-                        </Grid.ColumnDefinitions>
-                        <DockPanel Grid.Column="0"
-                                   Margin="{StaticResource PlayAch.Thickness.Right.Md}">
-                            <CheckBox DockPanel.Dock="Left"
-                                      IsChecked="{Binding First.IsEnabled, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                      VerticalAlignment="Center"
-                                      Margin="{StaticResource PlayAch.Thickness.Right.Sm}"/>
-                            <TextBox Text="{Binding First.DisplayName, Mode=TwoWay, UpdateSourceTrigger=Explicit}"
-                                     MinWidth="120"/>
-                        </DockPanel>
-                        <DockPanel Grid.Column="1"
-                                   Visibility="{Binding HasSecond, Converter={StaticResource BooleanToVisibilityConverter}}">
-                            <CheckBox DockPanel.Dock="Left"
-                                      IsChecked="{Binding Second.IsEnabled, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                      VerticalAlignment="Center"
-                                      Margin="{StaticResource PlayAch.Thickness.Right.Sm}"/>
-                            <TextBox Text="{Binding Second.DisplayName, Mode=TwoWay, UpdateSourceTrigger=Explicit}"
-                                     MinWidth="120"/>
-                        </DockPanel>
-                    </Grid>
-                </controls:SettingRow>
-            </DataTemplate>
         </ResourceDictionary>
     </UserControl.Resources>
     <ScrollViewer VerticalScrollBarVisibility="Auto"
@@ -102,24 +70,24 @@
                                     Padding="{StaticResource PlayAch.Thickness.ButtonPadding}"/>
                         </StackPanel>
 
-                        <!-- Tags: one scope so status and customization rows share a label column. -->
-                        <StackPanel Grid.IsSharedSizeScope="True">
-                            <TextBlock Text="{DynamicResource LOCPlayAch_Column_Status}"
-                                       FontWeight="SemiBold"
-                                       Foreground="{DynamicResource PlayAch.Brush.Text}"
-                                       Margin="{StaticResource PlayAch.Thickness.SubSectionHeading}"/>
-                            <ItemsControl ItemsSource="{Binding Persisted.TaggingSettings.StatusRows}"
-                                          ItemTemplate="{StaticResource TagPairRowTemplate}"
-                                          Focusable="False"/>
+                        <!-- Tags: rows are rebuilt from Persisted, so a Cancel that replaces it
+                             shows the restored configs. The grids scroll sideways when narrower
+                             than their columns. -->
+                        <TextBlock Text="{DynamicResource LOCPlayAch_Column_Status}"
+                                   FontWeight="SemiBold"
+                                   Foreground="{DynamicResource PlayAch.Brush.Text}"
+                                   Margin="{StaticResource PlayAch.Thickness.SubSectionHeading}"/>
+                        <local:TagRowsGrid DataContext="{Binding Persisted.TaggingSettings.StatusRows}"
+                                           ShowHeaders="False"/>
 
-                            <TextBlock Text="{DynamicResource LOCPlayAch_Filter_CustomizationSelectorPlaceholder}"
-                                       FontWeight="SemiBold"
-                                       Foreground="{DynamicResource PlayAch.Brush.Text}"
-                                       Margin="{StaticResource PlayAch.Thickness.SubSectionHeading}"/>
-                            <ItemsControl ItemsSource="{Binding Persisted.TaggingSettings.CustomizationRows}"
-                                          ItemTemplate="{StaticResource TagPairRowTemplate}"
-                                          Focusable="False"/>
-                        </StackPanel>
+                        <TextBlock Text="{DynamicResource LOCPlayAch_Filter_CustomizationSelectorPlaceholder}"
+                                   FontWeight="SemiBold"
+                                   Foreground="{DynamicResource PlayAch.Brush.Text}"
+                                   Margin="{StaticResource PlayAch.Thickness.SubSectionHeading}"/>
+                        <local:TagRowsGrid DataContext="{Binding Persisted.TaggingSettings.CustomizationRows}"
+                                           FirstHeader="{DynamicResource LOCPlatformTitle}"
+                                           SecondHeader="{DynamicResource LOCSettingsMetadataLabel}"
+                                           ThirdHeader="{DynamicResource LOCCustomLabel}"/>
                     </StackPanel>
                 </StackPanel>
             </Border>
