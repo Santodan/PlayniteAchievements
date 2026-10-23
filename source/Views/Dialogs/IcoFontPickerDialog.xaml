@@ -95,7 +95,8 @@
             </ListBox>
 
             <!-- Rows of as many glyphs as the width fits, in a virtualizing list, so only the
-                 rows on screen are built: a wrap panel over every glyph cannot virtualize. -->
+                 rows on screen are built: a wrap panel over every glyph cannot virtualize. The
+                 list sits in its own bordered panel, set apart from the category strip above. -->
             <ItemsControl x:Name="GlyphRows"
                           Grid.Row="2"
                           VirtualizingPanel.IsVirtualizing="True"
@@ -105,9 +106,15 @@
                           ScrollViewer.VerticalScrollBarVisibility="Auto">
                 <ItemsControl.Template>
                     <ControlTemplate TargetType="ItemsControl">
-                        <ScrollViewer x:Name="GlyphScroller" Focusable="False" CanContentScroll="True">
-                            <ItemsPresenter/>
-                        </ScrollViewer>
+                        <Border Background="{DynamicResource PlayAch.Brush.Panel}"
+                                BorderBrush="{DynamicResource PlayAch.Brush.Border}"
+                                BorderThickness="1"
+                                CornerRadius="4"
+                                Padding="4">
+                            <ScrollViewer x:Name="GlyphScroller" Focusable="False" CanContentScroll="True">
+                                <ItemsPresenter/>
+                            </ScrollViewer>
+                        </Border>
                     </ControlTemplate>
                 </ItemsControl.Template>
                 <ItemsControl.ItemsPanel>
