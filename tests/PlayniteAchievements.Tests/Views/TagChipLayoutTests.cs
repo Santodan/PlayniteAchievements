@@ -1,5 +1,4 @@
 using System.Collections.Generic;
-using System.Windows;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using PlayniteAchievements.Views.Helpers;
 
@@ -9,57 +8,61 @@ namespace PlayniteAchievements.Tests.Views
     [TestCategory("Views")]
     public class TagChipLayoutTests
     {
-        // "+N" as the panel draws it: about a digit and a plus wide, one text line tall.
-        private static Size Overflow(int hidden) => new Size(hidden < 10 ? 20 : 28, 19);
+        private const double TextHeight = 19;
 
         [TestMethod]
-        public void ChipsThatFit_AllShow()
+        public void OneIcon_FillsTheCellHeight()
         {
-            var count = TagChipLayout.VisibleCount(Icons(2, 40), Overflow, 100, 40);
+            var size = TagChipLayout.LargestIconSize(new[] { TagChipBox.Icon() }, TextHeight, 200, 60, 14);
 
-            Assert.AreEqual(2, count);
+            Assert.AreEqual(60.0, size);
         }
 
         [TestMethod]
-        public void ChipsPastOneLine_GiveWayToPlusN()
+        public void OneIcon_InANarrowColumn_FillsTheWidth()
         {
-            // Two icons and "+2" need 40 + 4 + 40 + 4 + 20 = 108, so one icon and "+3" show.
-            var count = TagChipLayout.VisibleCount(Icons(4, 40), Overflow, 100, 40);
+            var size = TagChipLayout.LargestIconSize(new[] { TagChipBox.Icon() }, TextHeight, 40, 60, 14);
 
-            Assert.AreEqual(1, count);
+            Assert.AreEqual(40.0, size);
         }
 
         [TestMethod]
-        public void ChipsWrap_WhenTheRowHasRoomForAnotherLine()
+        public void ManyIcons_WrapOrShrinkToFit()
         {
-            var count = TagChipLayout.VisibleCount(Icons(4, 40), Overflow, 100, 82);
+            var chips = Icons(4);
 
-            Assert.AreEqual(4, count);
+            var size = TagChipLayout.LargestIconSize(chips, TextHeight, 100, 100, 14).Value;
+
+            // Two lines of two: 2s + 4 <= 100 and 2s + 2 <= 100.
+            Assert.AreEqual(48.0, size);
+            Assert.IsTrue(TagChipLayout.Fits(chips, size, TextHeight, 100, 100));
+            Assert.IsFalse(TagChipLayout.Fits(chips, size + 1, TextHeight, 100, 100));
         }
 
         [TestMethod]
-        public void SecondLine_TakesPlusN_WhenItCannotTakeEveryChip()
+        public void TextChip_ReservesItsWidth()
         {
-            // Two lines of two hold four slots; with five chips the fourth slot takes "+2".
-            var count = TagChipLayout.VisibleCount(Icons(5, 40), Overflow, 100, 82);
+            var chips = new[] { TagChipBox.Text(60), TagChipBox.Icon() };
 
-            Assert.AreEqual(3, count);
+            var size = TagChipLayout.LargestIconSize(chips, TextHeight, 100, 30, 14);
+
+            // On one line the icon gets 100 - 60 - 4 = 36, capped by the 30 height.
+            Assert.AreEqual(30.0, size);
+            Assert.IsFalse(TagChipLayout.Fits(new[] { TagChipBox.Text(60), TagChipBox.Icon() }, 37, TextHeight, 100, 37));
         }
 
         [TestMethod]
-        public void CellTooShortForAnyChip_ShowsOnlyPlusN()
+        public void TextOnly_SetsNoLimit()
         {
-            var count = TagChipLayout.VisibleCount(Icons(3, 40), Overflow, 100, 20);
-
-            Assert.AreEqual(0, count);
+            Assert.IsNull(TagChipLayout.LargestIconSize(new[] { TagChipBox.Text(50) }, TextHeight, 100, 60, 14));
         }
 
         [TestMethod]
-        public void Extent_TrimsWideTextToTheCellWidth()
+        public void TooManyIcons_StopAtTheFloor()
         {
-            var extent = TagChipLayout.Extent(new[] { new Size(300, 19), new Size(40, 40) }, 100);
+            var size = TagChipLayout.LargestIconSize(Icons(50), TextHeight, 60, 30, 14);
 
-            Assert.AreEqual(new Size(100, 19 + 2 + 40), extent);
+            Assert.AreEqual(14.0, size);
         }
 
         [TestMethod]
@@ -77,12 +80,12 @@ namespace PlayniteAchievements.Tests.Views
             Assert.AreEqual(4, lines[3].Start);
         }
 
-        private static IReadOnlyList<Size> Icons(int count, double size)
+        private static IReadOnlyList<TagChipBox> Icons(int count)
         {
-            var chips = new List<Size>();
+            var chips = new List<TagChipBox>();
             for (var i = 0; i < count; i++)
             {
-                chips.Add(new Size(size, size));
+                chips.Add(TagChipBox.Icon());
             }
 
             return chips;
