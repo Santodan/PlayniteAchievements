@@ -3,6 +3,7 @@ using System.Threading;
 using System.Windows;
 using System.Windows.Controls;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
+using PlayniteAchievements.Tests.TestInfrastructure;
 using PlayniteAchievements.Views.Controls;
 
 namespace PlayniteAchievements.Tests.Views
@@ -13,7 +14,7 @@ namespace PlayniteAchievements.Tests.Views
         [TestMethod]
         public void OneLine_SearchFillsTheRestAndFiltersSitRight()
         {
-            RunOnStaThread(() =>
+            StaTestHost.Run(() =>
             {
                 var (panel, leading, search, items) = Create(wrap: true, withSearch: true);
 
@@ -29,7 +30,7 @@ namespace PlayniteAchievements.Tests.Views
         [TestMethod]
         public void Narrow_WithWrap_MovesFiltersBelowTheSearchBox()
         {
-            RunOnStaThread(() =>
+            StaTestHost.Run(() =>
             {
                 var (panel, _, search, items) = Create(wrap: true, withSearch: true);
 
@@ -44,7 +45,7 @@ namespace PlayniteAchievements.Tests.Views
         [TestMethod]
         public void Narrow_WithoutWrap_StaysOnOneLine()
         {
-            RunOnStaThread(() =>
+            StaTestHost.Run(() =>
             {
                 var (panel, _, search, items) = Create(wrap: false, withSearch: true);
 
@@ -59,7 +60,7 @@ namespace PlayniteAchievements.Tests.Views
         [TestMethod]
         public void NoSearch_Wrapped_FiltersStartAtTheTopWithNoGap()
         {
-            RunOnStaThread(() =>
+            StaTestHost.Run(() =>
             {
                 var (panel, _, _, items) = Create(wrap: true, withSearch: false, leadingWidth: 0);
 
@@ -73,7 +74,7 @@ namespace PlayniteAchievements.Tests.Views
         [TestMethod]
         public void NoSearch_Wrapped_TakesTheFullWidthEvenWhenItFits()
         {
-            RunOnStaThread(() =>
+            StaTestHost.Run(() =>
             {
                 var (panel, _, _, items) = Create(wrap: true, withSearch: false, leadingWidth: 0);
 
@@ -86,7 +87,7 @@ namespace PlayniteAchievements.Tests.Views
         [TestMethod]
         public void NoSearch_OneLine_FiltersFollowTheLeadingItems()
         {
-            RunOnStaThread(() =>
+            StaTestHost.Run(() =>
             {
                 var (panel, _, _, items) = Create(wrap: false, withSearch: false);
                 Layout(panel, 600);
@@ -97,7 +98,7 @@ namespace PlayniteAchievements.Tests.Views
         [TestMethod]
         public void CenteredWrapPanel_CentersEachLine()
         {
-            RunOnStaThread(() =>
+            StaTestHost.Run(() =>
             {
                 var panel = new CenteredWrapPanel();
                 var first = new Border { Width = 100, Height = 20 };
@@ -119,7 +120,7 @@ namespace PlayniteAchievements.Tests.Views
         [TestMethod]
         public void CenteredWrapPanel_UnboundedWidthKeepsOneLine()
         {
-            RunOnStaThread(() =>
+            StaTestHost.Run(() =>
             {
                 var panel = new CenteredWrapPanel();
                 panel.Children.Add(new Border { Width = 100, Height = 20 });
@@ -134,7 +135,7 @@ namespace PlayniteAchievements.Tests.Views
         [TestMethod]
         public void CenteredWrapPanel_ArrangeAFractionShortKeepsOneLine()
         {
-            RunOnStaThread(() =>
+            StaTestHost.Run(() =>
             {
                 var panel = new CenteredWrapPanel();
                 var last = new Border { Width = 60.3, Height = 20 };
@@ -177,29 +178,6 @@ namespace PlayniteAchievements.Tests.Views
         {
             var offset = element.TranslatePoint(new Point(0, 0), (UIElement)element.Parent);
             return new Rect(offset, element.RenderSize);
-        }
-
-        private static void RunOnStaThread(Action action)
-        {
-            Exception failure = null;
-            var thread = new Thread(() =>
-            {
-                try
-                {
-                    action();
-                }
-                catch (Exception ex)
-                {
-                    failure = ex;
-                }
-            });
-            thread.SetApartmentState(ApartmentState.STA);
-            thread.Start();
-            thread.Join();
-            if (failure != null)
-            {
-                throw new AssertFailedException(failure.Message, failure);
-            }
         }
     }
 }

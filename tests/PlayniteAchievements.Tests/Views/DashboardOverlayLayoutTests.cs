@@ -3,6 +3,7 @@ using System.Threading;
 using System.Windows;
 using System.Windows.Controls;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
+using PlayniteAchievements.Tests.TestInfrastructure;
 using PlayniteAchievements.Views.Controls;
 
 namespace PlayniteAchievements.Tests.Views
@@ -13,7 +14,7 @@ namespace PlayniteAchievements.Tests.Views
         [TestMethod]
         public void OverlayHost_ReportsNoSizeMirrorsGridPositionAndArrangesTheChildToTheCell()
         {
-            RunOnStaThread(() =>
+            StaTestHost.Run(() =>
             {
                 var chevron = new Border { Width = 28, Height = 28, VerticalAlignment = VerticalAlignment.Bottom };
                 Grid.SetRow(chevron, 2);
@@ -50,7 +51,7 @@ namespace PlayniteAchievements.Tests.Views
             // FrameworkElement.MeasureCore clamps DesiredSize to the offered size, so a single-cell
             // child never raises a star track's minimum; the clamp below guards the paths that
             // bypass that (raw UIElements, span distribution under layout rounding).
-            RunOnStaThread(() =>
+            StaTestHost.Run(() =>
             {
                 var plain = TwoStarRows();
                 var control = new Border { Height = 80 };
@@ -67,7 +68,7 @@ namespace PlayniteAchievements.Tests.Views
         [TestMethod]
         public void ClampedGrid_NeverAsksForMoreThanItsSlotWhenAChildInflatesATrack()
         {
-            RunOnStaThread(() =>
+            StaTestHost.Run(() =>
             {
                 // An all-star Grid already caps each track's minimum at its share, so the plain
                 // grid reports the slot here too; the clamp is the guarantee for mixed tracks
@@ -85,7 +86,7 @@ namespace PlayniteAchievements.Tests.Views
         [TestMethod]
         public void OverlayHost_KeepsAnInflatingHandleOutOfTheGridMeasure()
         {
-            RunOnStaThread(() =>
+            StaTestHost.Run(() =>
             {
                 var grid = TwoStarRows();
                 var handle = new UnclampedElement(80);
@@ -136,29 +137,6 @@ namespace PlayniteAchievements.Tests.Views
             protected override Size MeasureCore(Size availableSize)
             {
                 return new Size(0, _height);
-            }
-        }
-
-        private static void RunOnStaThread(Action action)
-        {
-            Exception failure = null;
-            var thread = new Thread(() =>
-            {
-                try
-                {
-                    action();
-                }
-                catch (Exception ex)
-                {
-                    failure = ex;
-                }
-            });
-            thread.SetApartmentState(ApartmentState.STA);
-            thread.Start();
-            thread.Join();
-            if (failure != null)
-            {
-                throw new AssertFailedException(failure.Message, failure);
             }
         }
     }
