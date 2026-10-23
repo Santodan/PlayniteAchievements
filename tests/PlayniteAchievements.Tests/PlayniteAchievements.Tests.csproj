@@ -634,6 +634,9 @@
     <Compile Include="..\..\source\Models\Achievements\AchievementIconResolver.cs" Link="Source\Models\Achievements\AchievementIconResolver.cs" />
     <Compile Include="..\..\source\Models\Tagging\TaggingSettings.cs" Link="Source\Models\Tagging\TaggingSettings.cs" />
     <Compile Include="..\..\source\Models\Tagging\TagType.cs" Link="Source\Models\Tagging\TagType.cs" />
+    <Compile Include="..\..\source\Models\Tagging\CustomizationArea.cs" Link="Source\Models\Tagging\CustomizationArea.cs" />
+    <Compile Include="..\..\source\Models\Tagging\CustomizationTagAreas.cs" Link="Source\Models\Tagging\CustomizationTagAreas.cs" />
+    <Compile Include="..\..\source\Services\GameCustomData\CustomizationAreaClassifier.cs" Link="Source\Services\GameCustomData\CustomizationAreaClassifier.cs" />
     <Compile Include="..\..\source\Services\Tagging\DefaultTagNameCatalog.cs" Link="Source\Services\Tagging\DefaultTagNameCatalog.cs" />
     <Compile Include="..\..\source\Services\Localization\LocalizedDefaultStringCatalog.cs" Link="Source\Services\Localization\LocalizedDefaultStringCatalog.cs" />
     <Compile Include="..\..\source\Services\UI\NotificationHeaderTextService.cs" Link="Source\Services\UI\NotificationHeaderTextService.cs" />
