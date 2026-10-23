@@ -68,6 +68,8 @@ namespace PlayniteAchievements.Models.Tagging
         CustomSource,
         CustomManualTracking,
         CustomNotifications,
-        DefaultNotifications
+        DefaultNotifications,
+        CustomTags,
+        DefaultTags
     }
 }
