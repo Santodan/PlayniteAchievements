@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
@@ -78,6 +78,41 @@ namespace PlayniteAchievements.Tests.ViewModels
                 Assert.AreEqual("halo", restored.SearchText);
                 Assert.IsTrue(restored.IsProgressFilterSelected(restored.ProgressFilterOptions[1]));
                 Assert.IsFalse(restored.IsProgressFilterSelected(restored.ProgressFilterOptions[0]));
+            }
+            finally
+            {
+                ShowcaseControlBarStates.Store = null;
+            }
+        }
+
+        [TestMethod]
+        public void Store_SavesRarityAndTrophyPicksAndRestoresThemAfterARestart()
+        {
+            var store = new FakeStore();
+            var id = Guid.NewGuid().ToString();
+            ShowcaseControlBarStates.Store = store;
+            try
+            {
+                var adapter = ShowcaseControlBarStates.Get<CrossGameAchievementControlBarAdapter>(id);
+                adapter.UpdateGames(new[] { new GameSummaryItem { PlayniteGameId = Guid.NewGuid(), GameName = "Bloodborne", TrophyGoldTotal = 1 } });
+                var rarity = (GridMultiSelectFilter)adapter.ControlBar.Items.Single(item => item.Id == ShowcaseControlBarItems.Rarity);
+                var trophy = (GridMultiSelectFilter)adapter.ControlBar.Items.Single(item => item.Id == ShowcaseControlBarItems.Trophy);
+                var rare = rarity.Options.ElementAt(2);
+                var gold = trophy.Options.ElementAt(1);
+                rarity.SetSelected(rare, true);
+                trophy.SetSelected(gold, true);
+                var saved = store.Saved.Values.Single();
+                StringAssert.Contains(saved, "Rarities");
+                StringAssert.Contains(saved, "Trophies");
+
+                ShowcaseControlBarStates.RemoveExcept(new HashSet<string>());
+                var restored = ShowcaseControlBarStates.Get<CrossGameAchievementControlBarAdapter>(id);
+                restored.UpdateGames(new[] { new GameSummaryItem { PlayniteGameId = Guid.NewGuid(), GameName = "Bloodborne", TrophyGoldTotal = 1 } });
+                var restoredRarity = (GridMultiSelectFilter)restored.ControlBar.Items.Single(item => item.Id == ShowcaseControlBarItems.Rarity);
+                var restoredTrophy = (GridMultiSelectFilter)restored.ControlBar.Items.Single(item => item.Id == ShowcaseControlBarItems.Trophy);
+
+                Assert.IsTrue(restoredRarity.IsSelected(rare), saved);
+                Assert.IsTrue(restoredTrophy.IsSelected(gold), saved);
             }
             finally
             {
