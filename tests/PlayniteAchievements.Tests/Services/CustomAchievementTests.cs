@@ -685,6 +685,18 @@ namespace PlayniteAchievements.Services.Tests
         }
 
         [TestMethod]
+        public void CreateSyntheticGameData_RecordsNoPlatformOrMetadataLayer()
+        {
+            var data = CustomAchievementProjectionService.CreateSyntheticGameData(
+                Guid.NewGuid(),
+                null,
+                new List<CustomAchievementDefinition> { new CustomAchievementDefinition { DisplayName = "Solo" } });
+
+            Assert.AreEqual(PlayniteAchievements.Models.Tagging.CustomizationArea.None, data.PlatformFields);
+            Assert.AreEqual(PlayniteAchievements.Models.Tagging.CustomizationArea.None, data.MetadataFields);
+        }
+
+        [TestMethod]
         public void Merge_CustomOnlyGame_CarriesResolvedCustomProviderKeyIntoSummaryAndRecentUnlocks()
         {
             var gameId = Guid.NewGuid();
