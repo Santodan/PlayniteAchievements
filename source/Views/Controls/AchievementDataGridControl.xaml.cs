@@ -581,7 +581,7 @@ namespace PlayniteAchievements.Views.Controls
 
         private static readonly DependencyPropertyKey TagDisplayPropertyKey =
             DependencyProperty.RegisterReadOnly(nameof(TagDisplay), typeof(AchievementTagDisplay),
-                typeof(AchievementDataGridControl), new PropertyMetadata(AchievementTagDisplay.Icons));
+                typeof(AchievementDataGridControl), new PropertyMetadata(AchievementTagDisplay.Icons, OnTagIconLayoutChanged));
 
         /// <summary>Identifies the TagDisplay dependency property: how the Tags column draws each tag.</summary>
         public static readonly DependencyProperty TagDisplayProperty = TagDisplayPropertyKey.DependencyProperty;
@@ -2619,6 +2619,7 @@ namespace PlayniteAchievements.Views.Controls
             RarityAppearanceHelper.BindShowHardcoreBorder(this, ShowHardcoreBorderProperty);
             DataContextChanged += OnDataContextChanged;
             Unloaded += OnUnloaded;
+            ObserveTagIconLayout();
             AddHandler(
                 CategoryTreeGuide.CollapseToggleClickedEvent,
                 new RoutedEventHandler(OnCategoryCollapseToggleClicked));
@@ -2873,6 +2874,7 @@ namespace PlayniteAchievements.Views.Controls
             if (d is AchievementDataGridControl control)
             {
                 control.UpdateRealizedRowHeights();
+                control.RequestTagIconFit();
             }
         }
 
@@ -3172,6 +3174,8 @@ namespace PlayniteAchievements.Views.Controls
                         item.RefreshTagPresentation();
                     }
                 }
+
+                RequestTagIconFit();
             }));
         }
 
