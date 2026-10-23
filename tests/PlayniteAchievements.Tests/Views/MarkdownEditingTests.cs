@@ -2,6 +2,7 @@ using System;
 using System.Threading;
 using System.Windows.Controls;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
+using PlayniteAchievements.Tests.TestInfrastructure;
 using PlayniteAchievements.Views.Helpers;
 
 namespace PlayniteAchievements.Tests.Views
@@ -12,7 +13,7 @@ namespace PlayniteAchievements.Tests.Views
         [TestMethod]
         public void ToggleMarker_WrapsTheSelectionAndKeepsItSelected()
         {
-            RunOnStaThread(() =>
+            StaTestHost.Run(() =>
             {
                 var box = Box("say hello now", 4, 5);
 
@@ -26,7 +27,7 @@ namespace PlayniteAchievements.Tests.Views
         [TestMethod]
         public void ToggleMarker_UnwrapsMarkersAroundOrInsideTheSelection()
         {
-            RunOnStaThread(() =>
+            StaTestHost.Run(() =>
             {
                 var around = Box("say **hello** now", 6, 5);
                 MarkdownEditing.ToggleMarker(around, "**");
@@ -43,7 +44,7 @@ namespace PlayniteAchievements.Tests.Views
         [TestMethod]
         public void ToggleMarker_ItalicNeverTakesHalfOfABoldMarker()
         {
-            RunOnStaThread(() =>
+            StaTestHost.Run(() =>
             {
                 var bold = Box("**hello**", 2, 5);
                 MarkdownEditing.ToggleMarker(bold, "*");
@@ -57,7 +58,7 @@ namespace PlayniteAchievements.Tests.Views
         [TestMethod]
         public void ToggleMarker_RespectsTheMaximumLength()
         {
-            RunOnStaThread(() =>
+            StaTestHost.Run(() =>
             {
                 var box = Box("abc", 0, 3);
 
@@ -70,7 +71,7 @@ namespace PlayniteAchievements.Tests.Views
         [TestMethod]
         public void InsertLink_UsesTheSelectionAsLabelAndSelectsTheAddress()
         {
-            RunOnStaThread(() =>
+            StaTestHost.Run(() =>
             {
                 var box = Box("see docs", 4, 4);
 
@@ -91,29 +92,6 @@ namespace PlayniteAchievements.Tests.Views
             var box = new TextBox { Text = text };
             box.Select(start, length);
             return box;
-        }
-
-        private static void RunOnStaThread(Action action)
-        {
-            Exception failure = null;
-            var thread = new Thread(() =>
-            {
-                try
-                {
-                    action();
-                }
-                catch (Exception ex)
-                {
-                    failure = ex;
-                }
-            });
-            thread.SetApartmentState(ApartmentState.STA);
-            thread.Start();
-            thread.Join();
-            if (failure != null)
-            {
-                throw new AssertFailedException(failure.Message, failure);
-            }
         }
     }
 }
