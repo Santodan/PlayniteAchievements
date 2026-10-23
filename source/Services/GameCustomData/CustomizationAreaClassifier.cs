@@ -67,13 +67,15 @@ namespace PlayniteAchievements.Services.GameCustomData
                 areas |= CustomizationArea.Notes;
             }
 
-            if (AnyUserKey(data.AchievementCategoryOverrides, HasText) ||
+            // Only a named category counts: an achievement filed under Default has none.
+            bool Named(string category) => Metadata.DataLayers.NamedCategory(category) != null;
+            if (AnyUserKey(data.AchievementCategoryOverrides, Named) ||
                 AnyUserKey(data.AchievementCategoryTypeOverrides, HasText) ||
-                data.AchievementCategoryOrder?.Count > 0 ||
-                data.AchievementCategoryImageOverrides?.Count > 0 ||
-                data.AchievementCategoryKinds?.Count > 0 ||
+                data.AchievementCategoryOrder?.Any(Named) == true ||
+                data.AchievementCategoryImageOverrides?.Keys.Any(Named) == true ||
+                data.AchievementCategoryKinds?.Keys.Any(Named) == true ||
                 data.GameSummaryCategory != null ||
-                AnyOverride(o => HasText(o.Category) || HasText(o.LegacyCategoryType)))
+                AnyOverride(o => Named(o.Category) || HasText(o.LegacyCategoryType)))
             {
                 areas |= CustomizationArea.Categories;
             }
