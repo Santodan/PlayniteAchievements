@@ -2653,7 +2653,7 @@ namespace PlayniteAchievements.Services.GameCustomData
             var parts = new List<string>();
             foreach (var pair in data?.AchievementOverrides ?? new Dictionary<string, AchievementOverride>())
             {
-                if (AchievementTagTallyBuilder.HasTagEdit(pair.Value))
+                if (AchievementTallyBuilder.HasTagEdit(pair.Value))
                 {
                     parts.Add(pair.Key + "=" + (pair.Value.ClearTags ? string.Empty : pair.Value.Tags));
                 }

@@ -166,7 +166,6 @@ namespace PlayniteAchievements.Tests.ViewModels
                     ShowcaseControlBarItems.Search,
                     ShowcaseControlBarItems.Platform,
                     ShowcaseControlBarItems.Game,
-                    ShowcaseControlBarItems.Tag,
                     ShowcaseControlBarItems.Progress,
                     ShowcaseControlBarItems.Activity
                 },
@@ -225,7 +224,7 @@ namespace PlayniteAchievements.Tests.ViewModels
             slot.UpdateShownBar(instance, legacyVisible: true);
 
             Assert.IsNotNull(slot.ShownBar.Search);
-            Assert.AreEqual(5, slot.ShownBar.Items.Count);
+            Assert.AreEqual(4, slot.ShownBar.Items.Count);
         }
 
         [TestMethod]

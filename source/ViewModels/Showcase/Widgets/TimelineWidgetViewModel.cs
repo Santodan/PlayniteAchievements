@@ -152,21 +152,18 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
 
         // The projection carries the unfiltered unlock counts, and the per-platform series only
         // when the saved option asked for them; filtered games and unlocks, completions, and a
-        // split the menu picked before a reprojection are counted here from the snapshot. Rarity
-        // and trophy describe unlocks, so completions count without them and split by platform
-        // only; tags then keep the completed games with an achievement carrying a picked tag.
+        // split the menu picked before a reprojection are counted here from the snapshot. Tags,
+        // rarity and trophy describe achievements, so completions count without them and split
+        // by platform only.
         private void FeedCounts()
         {
             var source = Projection?.Snapshot ?? new OverviewDataSnapshot();
             var completions = CountsCompletions;
             var snapshot = ApplyControlBarFilter(source);
-            var tiers = _controlBarSlot.Adapter.TierFilters;
-            var tags = _controlBarSlot.Adapter.TagFilter;
-            if (!completions && (tiers.HasSelection || tags.HasSelection))
+            var adapter = _controlBarSlot.Adapter;
+            if (adapter.HasAchievementSelection)
             {
-                snapshot = OverviewLinkedSnapshots.ClipToAchievements(
-                    snapshot,
-                    row => tiers.Matches(row) && tags.MatchesRow(row));
+                snapshot = OverviewLinkedSnapshots.ClipToAchievements(snapshot, adapter.MatchesAchievement);
             }
 
             var unfiltered = ReferenceEquals(snapshot, source);
@@ -201,14 +198,13 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
             ControlBar = _controlBarSlot.ShownBar;
 
             var adapter = _controlBarSlot.Adapter;
-            // Rarity and trophy describe unlocks, so they hide while the bars count completions.
-            var countsUnlocks = !CountsCompletions;
-            adapter.TierFilters.RarityItem.IsVisible = countsUnlocks;
-            adapter.TierFilters.TrophyItem.IsVisible = countsUnlocks;
+            // Tags, rarity and trophy describe achievements, so they hide while the bars count
+            // completions.
+            adapter.SetAchievementFiltersApply(!CountsCompletions);
             var games = (snapshot.GameSummaries ?? new List<GameSummaryItem>())
                 .Where(game => game != null)
                 .ToList();
-            adapter.UpdateGames(games);
+            adapter.UpdateOptions(games);
             var kept = adapter.Apply(games);
             return kept.Count == games.Count ? snapshot : OverviewLinkedSnapshots.NarrowToGames(snapshot, kept);
         }

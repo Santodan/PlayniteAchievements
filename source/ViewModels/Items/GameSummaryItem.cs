@@ -464,7 +464,7 @@ namespace PlayniteAchievements.ViewModels.Items
         /// </summary>
         [DontSerialize]
         [IgnoreDataMember]
-        public AchievementTagTally[] TagTotals { get; set; }
+        public AchievementTally[] Tallies { get; set; }
 
         private DateTime? _lastPlayed;
         public DateTime? LastPlayed 

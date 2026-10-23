@@ -252,19 +252,17 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
                 return Projection?.ActivityCalendar ?? new ShowcaseActivityCalendar();
             }
 
-            // Rarity and trophy describe unlocks, so they hide while the days count completions.
+            // Tags, rarity and trophy describe achievements, so they hide while the days count
+            // completions.
             var completions = ShowcaseTimelineOptions.GetCount(instance) == PlayniteAchievements.Models.Settings.ShowcaseTimelineCount.Completions;
             var adapter = _controlBarSlot.Adapter;
-            adapter.TierFilters.RarityItem.IsVisible = !completions;
-            adapter.TierFilters.TrophyItem.IsVisible = !completions;
+            adapter.SetAchievementFiltersApply(!completions);
             var games = (source.GameSummaries ?? new List<GameSummaryItem>())
                 .Where(game => game != null)
                 .ToList();
-            adapter.UpdateGames(games);
+            adapter.UpdateOptions(games);
             var kept = adapter.Apply(games);
-            var tags = adapter.TagFilter;
-            var tiers = adapter.TierFilters;
-            var clipsUnlocks = !completions && (tags.HasSelection || tiers.HasSelection);
+            var clipsUnlocks = adapter.HasAchievementSelection;
             if (kept.Count == games.Count && pickedWindow == null && !clipsUnlocks && !completions)
             {
                 return Projection.ActivityCalendar ?? new ShowcaseActivityCalendar();
@@ -274,8 +272,10 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
                 ",",
                 kept.Select(game => game.PlayniteGameId?.ToString("N") ?? string.Empty)) +
                 "|" + (pickedWindow ?? ShowcaseTimelineOptions.GetWindow(instance)).ToKey() +
-                "|" + string.Join(",", tags.SelectedTags.OrderBy(tag => tag, StringComparer.OrdinalIgnoreCase)) +
-                "|" + (completions ? "completions" : tiers.SelectedRarityText + ";" + tiers.SelectedTrophyText) +
+                "|" + (completions
+                    ? "completions"
+                    : string.Join(",", adapter.TagFilter.SelectedTags.OrderBy(tag => tag, StringComparer.OrdinalIgnoreCase)) +
+                      ";" + adapter.TierFilters.SelectedRarityText + ";" + adapter.TierFilters.SelectedTrophyText) +
                 "|" + DateTime.Now.Date.Ticks;
             if (_filteredCalendar != null &&
                 ReferenceEquals(_filteredSource, source) &&
@@ -293,9 +293,7 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
             else if (clipsUnlocks)
             {
                 // Only the unlocks the tag, rarity and trophy filters keep fill the days.
-                snapshot = OverviewLinkedSnapshots.ClipToAchievements(
-                    snapshot,
-                    row => tags.MatchesRow(row) && tiers.Matches(row));
+                snapshot = OverviewLinkedSnapshots.ClipToAchievements(snapshot, adapter.MatchesAchievement);
             }
             var calendar = ShowcaseWidgetProjectionService.BuildActivityCalendar(
                 snapshot,

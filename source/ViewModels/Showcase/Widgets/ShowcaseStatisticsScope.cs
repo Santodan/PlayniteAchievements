@@ -8,9 +8,10 @@ using PlayniteAchievements.ViewModels.Items;
 namespace PlayniteAchievements.ViewModels.Showcase.Widgets
 {
     /// <summary>
-    /// The games a Statistics or Profile widget counts: its collection first, then its control
-    /// bar (which stays in effect while the bar is hidden). Hands back the projection's own
-    /// snapshot and statistics while every game is kept, so the unfiltered widget keeps sharing
+    /// The games a Statistics or Profile widget counts (its collection first, then its control
+    /// bar's game filters) and the achievements of those it counts (the bar's tag, rarity and
+    /// trophy filters); the bar stays in effect while hidden. Hands back the projection's own
+    /// snapshot and statistics while nothing is filtered, so the unfiltered widget keeps sharing
     /// the projection cache.
     /// </summary>
     public sealed class ShowcaseStatisticsScope
@@ -21,6 +22,7 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
         // weakly: it is change-detection state only.
         private WeakReference<OverviewDataSnapshot> _narrowedFrom;
         private HashSet<GameSummaryItem> _narrowedGames;
+        private string _narrowedAchievementKey;
         private OverviewDataSnapshot _narrowed;
         private IReadOnlyList<ShowcaseStatistic> _narrowedStatistics;
         private DateTime _narrowedStatisticsDay;
@@ -60,20 +62,39 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
             var kept = adapter.Apply(collection == null
                 ? games
                 : games.Where(game => collection.ContainsGame(game.PlayniteGameId)));
-            if (kept.Count == games.Count)
+            var filtersAchievements = adapter.HasAchievementSelection;
+            if (kept.Count == games.Count && !filtersAchievements)
             {
                 Snapshot = source;
                 Statistics = projection?.Statistics ?? Array.Empty<ShowcaseStatistic>();
                 return;
             }
 
+            // The achievement filters narrow the achievement statistics and medals only; the
+            // game counts (tracked, played, completed) follow the games alone.
+            var achievementKey = filtersAchievements
+                ? string.Join(",", adapter.TagFilter.SelectedTags.OrderBy(tag => tag, StringComparer.OrdinalIgnoreCase)) +
+                  "|" + adapter.TierFilters.SelectedRarityText + "|" + adapter.TierFilters.SelectedTrophyText
+                : string.Empty;
             OverviewDataSnapshot narrowedFrom = null;
             _narrowedFrom?.TryGetTarget(out narrowedFrom);
-            if (!ReferenceEquals(narrowedFrom, source) || _narrowedGames == null || !_narrowedGames.SetEquals(kept))
+            if (!ReferenceEquals(narrowedFrom, source) ||
+                _narrowedGames == null ||
+                !_narrowedGames.SetEquals(kept) ||
+                !string.Equals(_narrowedAchievementKey, achievementKey, StringComparison.Ordinal))
             {
                 _narrowedFrom = new WeakReference<OverviewDataSnapshot>(source);
                 _narrowedGames = new HashSet<GameSummaryItem>(kept);
-                _narrowed = OverviewLinkedSnapshots.NarrowToGames(source, kept);
+                _narrowedAchievementKey = achievementKey;
+                _narrowed = kept.Count == games.Count ? source : OverviewLinkedSnapshots.NarrowToGames(source, kept);
+                if (filtersAchievements)
+                {
+                    _narrowed = OverviewLinkedSnapshots.FilterAchievements(
+                        _narrowed,
+                        adapter.MatchesAchievement,
+                        adapter.MatchesTally);
+                }
+
                 _narrowedStatistics = null;
             }
 

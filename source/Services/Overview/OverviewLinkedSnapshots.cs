@@ -233,6 +233,154 @@ namespace PlayniteAchievements.Services.Overview
         }
 
         /// <summary>
+        /// <paramref name="snapshot"/> with its achievement counts narrowed to the achievements a
+        /// widget's achievement filters keep. The unlocked rows and per-day counts keep the rows
+        /// <paramref name="keepRow"/> accepts; the achievement totals, locked ones included, and
+        /// the rarity, trophy and per-provider counts are summed from the tallies
+        /// <paramref name="keepTally"/> accepts. Game-level totals (games, completions) are kept as
+        /// they were: achievement filters never narrow games. A view already cut to the unlocks an
+        /// overview filter keeps holds no locked remainder to count, so it is cut again instead.
+        /// </summary>
+        public static OverviewDataSnapshot FilterAchievements(
+            OverviewDataSnapshot snapshot,
+            Func<AchievementDisplayItem, bool> keepRow,
+            Func<Models.Achievements.AchievementTally, bool> keepTally)
+        {
+            if (snapshot == null)
+            {
+                return null;
+            }
+
+            if (snapshot.IsAchievementClip)
+            {
+                return ClipToAchievements(snapshot, keepRow);
+            }
+
+            var rows = (snapshot.Achievements ?? new List<AchievementDisplayItem>())
+                .Where(item => item?.Unlocked == true && keepRow(item))
+                .ToList();
+            var byGame = new Dictionary<Guid, Dictionary<DateTime, int>>();
+            var global = new Dictionary<DateTime, int>();
+            foreach (var row in rows.Where(item => item.UnlockTimeUtc.HasValue))
+            {
+                var day = UnlockDayCounts.DayOf(row.UnlockTimeUtc.Value);
+                global[day] = global.TryGetValue(day, out var total) ? total + 1 : 1;
+                if (row.PlayniteGameId.HasValue)
+                {
+                    if (!byGame.TryGetValue(row.PlayniteGameId.Value, out var counts))
+                    {
+                        counts = new Dictionary<DateTime, int>();
+                        byGame[row.PlayniteGameId.Value] = counts;
+                    }
+
+                    counts[day] = counts.TryGetValue(day, out var count) ? count + 1 : 1;
+                }
+            }
+
+            var filtered = new OverviewDataSnapshot
+            {
+                TallyFilter = keepTally,
+                GameSummaries = snapshot.GameSummaries,
+                Achievements = rows,
+                RecentAchievements = (snapshot.RecentAchievements ?? new List<AchievementDisplayItem>())
+                    .Where(item => item != null && keepRow(item))
+                    .ToList(),
+                CurrentUserIdentities = snapshot.CurrentUserIdentities,
+                UnlockedByProvider = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase),
+                TotalByProvider = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase),
+                TotalGames = snapshot.TotalGames,
+                CompletedGames = snapshot.CompletedGames,
+                Completions = snapshot.Completions,
+                PossibleCompletions = snapshot.PossibleCompletions,
+                GlobalUnlockCountsByDate = global,
+                UnlockCountsByDateByGame = byGame
+            };
+
+            foreach (var game in snapshot.GameSummaries ?? new List<GameSummaryItem>())
+            {
+                if (game == null)
+                {
+                    continue;
+                }
+
+                var provider = string.IsNullOrWhiteSpace(game.ProviderKey) ? "Unknown" : game.ProviderKey;
+                var gameUnlocked = 0;
+                var gameTotal = 0;
+                foreach (var tally in game.Tallies ?? Array.Empty<Models.Achievements.AchievementTally>())
+                {
+                    if (!keepTally(tally))
+                    {
+                        continue;
+                    }
+
+                    gameUnlocked += tally.Unlocked;
+                    gameTotal += tally.Total;
+                    AddTier(filtered, tally);
+                    AddTrophy(filtered, tally);
+                }
+
+                filtered.TotalUnlocked += gameUnlocked;
+                filtered.TotalAchievements += gameTotal;
+                filtered.UnlockedByProvider.TryGetValue(provider, out var providerUnlocked);
+                filtered.UnlockedByProvider[provider] = providerUnlocked + gameUnlocked;
+                filtered.TotalByProvider.TryGetValue(provider, out var providerTotal);
+                filtered.TotalByProvider[provider] = providerTotal + gameTotal;
+            }
+
+            filtered.TotalLocked = Math.Max(0, filtered.TotalAchievements - filtered.TotalUnlocked);
+            filtered.GlobalProgressionPercent = filtered.TotalAchievements > 0
+                ? (double)filtered.TotalUnlocked / filtered.TotalAchievements * 100
+                : 0;
+            return filtered;
+        }
+
+        private static void AddTier(OverviewDataSnapshot snapshot, Models.Achievements.AchievementTally tally)
+        {
+            switch (tally.Rarity)
+            {
+                case Models.Achievements.RarityTier.UltraRare:
+                    snapshot.TotalUltraRare += tally.Unlocked;
+                    snapshot.TotalUltraRarePossible += tally.Total;
+                    break;
+                case Models.Achievements.RarityTier.Rare:
+                    snapshot.TotalRare += tally.Unlocked;
+                    snapshot.TotalRarePossible += tally.Total;
+                    break;
+                case Models.Achievements.RarityTier.Uncommon:
+                    snapshot.TotalUncommon += tally.Unlocked;
+                    snapshot.TotalUncommonPossible += tally.Total;
+                    break;
+                case Models.Achievements.RarityTier.Common:
+                    snapshot.TotalCommon += tally.Unlocked;
+                    snapshot.TotalCommonPossible += tally.Total;
+                    break;
+            }
+        }
+
+        private static void AddTrophy(OverviewDataSnapshot snapshot, Models.Achievements.AchievementTally tally)
+        {
+            switch (tally.Trophy)
+            {
+                case "platinum":
+                    snapshot.TotalPlatinum += tally.Unlocked;
+                    snapshot.TotalPlatinumPossible += tally.Total;
+                    break;
+                case "gold":
+                    snapshot.TotalGold += tally.Unlocked;
+                    snapshot.TotalGoldPossible += tally.Total;
+                    break;
+                case "silver":
+                    snapshot.TotalSilver += tally.Unlocked;
+                    snapshot.TotalSilverPossible += tally.Total;
+                    break;
+                case "bronze":
+                    snapshot.TotalBronze += tally.Unlocked;
+                    snapshot.TotalBronzePossible += tally.Total;
+                    break;
+            }
+        }
+
+        /// <summary>
         /// The part of <paramref name="source"/> that covers <paramref name="kept"/>: its
         /// summary totals, its per-day unlock counts, and its unlocked rows. When every game
         /// is kept the source itself comes back, so widgets share its derived-series cache.

@@ -174,25 +174,19 @@ namespace PlayniteAchievements.Views.Showcase
                     SyncScoreBarRows(ShowcaseWidgetOptions.GetScoreCardType(_settings));
                     break;
                 case ShowcaseWidgetKind.Pie:
-                    // The bar's Tags item picks a Tag pie's slices, and only a Provider pie can
-                    // count games instead of achievements; other modes have neither.
-                    FrameworkElement pieTagRow = null;
+                    // Only a Provider pie can count games instead of achievements, and a pie
+                    // counting games has no achievement filters.
                     FrameworkElement pieCountRow = null;
-                    void ApplyPieTagRow(ShowcasePieMode mode)
+                    void ApplyPieRows(ShowcasePieMode mode)
                     {
-                        if (pieTagRow != null)
-                        {
-                            pieTagRow.Visibility = mode == ShowcasePieMode.Tag
-                                ? Visibility.Visible
-                                : Visibility.Collapsed;
-                        }
-
                         if (pieCountRow != null)
                         {
                             pieCountRow.Visibility = mode == ShowcasePieMode.Provider
                                 ? Visibility.Visible
                                 : Visibility.Collapsed;
                         }
+
+                        ApplyAchievementFilterRows();
                     }
 
                     AddChoice(
@@ -210,7 +204,7 @@ namespace PlayniteAchievements.Views.Showcase
                         value =>
                         {
                             ShowcaseWidgetOptions.SetPieMode(_settings, value);
-                            ApplyPieTagRow(value);
+                            ApplyPieRows(value);
                         },
                         PieModeName);
                     pieCountRow = AddChoice(
@@ -218,11 +212,15 @@ namespace PlayniteAchievements.Views.Showcase
                         Localize("LOCPlayAch_Showcase_Variant"),
                         new[] { ShowcasePieCount.Achievements, ShowcasePieCount.CompletedGames },
                         ShowcaseWidgetOptions.GetPieCount(_settings),
-                        value => ShowcaseWidgetOptions.SetPieCount(_settings, value),
+                        value =>
+                        {
+                            ShowcaseWidgetOptions.SetPieCount(_settings, value);
+                            ApplyAchievementFilterRows();
+                        },
                         value => Localize(value == ShowcasePieCount.CompletedGames
                             ? "LOCPlayAch_Showcase_GameMosaicSource_Completed"
                             : "LOCPlayAch_Achievements"));
-                    ApplyPieTagRow(ShowcaseWidgetOptions.GetPieMode(_settings));
+                    ApplyPieRows(ShowcaseWidgetOptions.GetPieMode(_settings));
                     AddChoice(
                         panel,
                         Localize("LOCPlayAch_Settings_PieCenter"),
@@ -270,9 +268,8 @@ namespace PlayniteAchievements.Views.Showcase
                         value => ShowcaseWidgetOptions.SetPieSmallSliceMode(_settings, value),
                         SmallSliceModeName);
                     AddCollectionChoice(panel, includeAchievementCollections: false);
-                    AddControlBarRows<PieControlBarAdapter>(panel)
-                        .TryGetValue(ShowcaseControlBarItems.Tag, out pieTagRow);
-                    ApplyPieTagRow(ShowcaseWidgetOptions.GetPieMode(_settings));
+                    _achievementFilterRows = AddControlBarRows<PieControlBarAdapter>(panel);
+                    ApplyAchievementFilterRows();
                     break;
                 case ShowcaseWidgetKind.Timeline:
                     AddCountChoice(panel);
@@ -292,7 +289,8 @@ namespace PlayniteAchievements.Views.Showcase
                         value => ShowcaseTimelineOptions.SetSplit(_settings, value),
                         TimelineSplitName);
                     AddTimeControlRows(panel, includeSplit: true);
-                    AddControlBarRows<TimelineControlBarAdapter>(panel, header: false);
+                    _achievementFilterRows = AddControlBarRows<TimelineControlBarAdapter>(panel, header: false);
+                    ApplyAchievementFilterRows();
                     break;
                 case ShowcaseWidgetKind.Statistics:
                     AddStatisticsSlots(panel);
@@ -643,7 +641,8 @@ namespace PlayniteAchievements.Views.Showcase
                     AddCountChoice(panel);
                     AddRangeChoice(panel);
                     AddTimeControlRows(panel, includeSplit: false);
-                    AddControlBarRows<ActivityCalendarControlBarAdapter>(panel, header: false);
+                    _achievementFilterRows = AddControlBarRows<ActivityCalendarControlBarAdapter>(panel, header: false);
+                    ApplyAchievementFilterRows();
                     break;
             }
 
@@ -1484,6 +1483,27 @@ namespace PlayniteAchievements.Views.Showcase
             }
         }
 
+        // The bar rows of the achievement filters, shown only while the widget counts achievements
+        // (ShowcaseWidgetOptions.CountsAchievements); null for a widget without them.
+        private IReadOnlyDictionary<string, FrameworkElement> _achievementFilterRows;
+
+        private void ApplyAchievementFilterRows()
+        {
+            if (_achievementFilterRows == null)
+            {
+                return;
+            }
+
+            var visibility = ShowcaseWidgetOptions.CountsAchievements(_settings) ? Visibility.Visible : Visibility.Collapsed;
+            foreach (var id in new[] { ShowcaseControlBarItems.Tag, ShowcaseControlBarItems.Rarity, ShowcaseControlBarItems.Trophy })
+            {
+                if (_achievementFilterRows.TryGetValue(id, out var row))
+                {
+                    row.Visibility = visibility;
+                }
+            }
+        }
+
         // What a Timeline's bars or an Activity Calendar's days count: unlocks, or completed games.
         private void AddCountChoice(Panel panel)
         {
@@ -1492,7 +1512,11 @@ namespace PlayniteAchievements.Views.Showcase
                 Localize("LOCPlayAch_Showcase_Variant"),
                 new[] { ShowcaseTimelineCount.Unlocks, ShowcaseTimelineCount.Completions },
                 ShowcaseTimelineOptions.GetCount(_settings),
-                value => ShowcaseTimelineOptions.SetCount(_settings, value),
+                value =>
+                {
+                    ShowcaseTimelineOptions.SetCount(_settings, value);
+                    ApplyAchievementFilterRows();
+                },
                 value => Localize(value == ShowcaseTimelineCount.Completions
                     ? "LOCPlayAch_Showcase_Stat_CompletedGames"
                     : "LOCPlayAch_Column_Unlocks"));

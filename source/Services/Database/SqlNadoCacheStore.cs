@@ -882,17 +882,18 @@ namespace PlayniteAchievements.Services.Database
             return _summaryReader.LoadUnlockedApiNames(wanted);
         }
 
-        /// <inheritdoc cref="SummaryCacheReader.LoadAchievementTagStates"/>
-        public Dictionary<Guid, Dictionary<string, (string Tags, bool Unlocked)>> LoadAchievementTagStates(
-            IReadOnlyDictionary<Guid, HashSet<string>> wanted)
+        /// <inheritdoc cref="SummaryCacheReader.LoadAchievementTallyStates"/>
+        public Dictionary<Guid, Dictionary<string, AchievementTallyState>> LoadAchievementTallyStates(
+            IReadOnlyDictionary<Guid, HashSet<string>> wanted,
+            ISet<Guid> providerCapstoneGames = null)
         {
-            return _summaryReader.LoadAchievementTagStates(wanted);
+            return _summaryReader.LoadAchievementTallyStates(wanted, providerCapstoneGames);
         }
 
-        /// <inheritdoc cref="SummaryCacheReader.LoadTagTotalsForGame"/>
-        public AchievementTagTally[] LoadTagTotalsForGame(Guid playniteGameId)
+        /// <inheritdoc cref="SummaryCacheReader.LoadTalliesForGame"/>
+        public AchievementTally[] LoadTalliesForGame(Guid playniteGameId)
         {
-            return _summaryReader.LoadTagTotalsForGame(playniteGameId);
+            return _summaryReader.LoadTalliesForGame(playniteGameId);
         }
 
         internal static Guid? ResolveCachedPlayniteGameId(string cacheKey, string playniteGameId)

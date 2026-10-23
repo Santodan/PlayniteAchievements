@@ -255,7 +255,7 @@ namespace PlayniteAchievements.ViewModels
             }
             if (_achievementDataService != null)
             {
-                _achievementDataService.TagTotalsChanged += OnTagTotalsChanged;
+                _achievementDataService.TalliesChanged += OnTalliesChanged;
             }
             if (_settings != null)
             {
@@ -2788,9 +2788,9 @@ namespace PlayniteAchievements.ViewModels
             QueueOverviewDelta(isFullReset: false, key: e.PlayniteGameId.ToString("D"));
         }
 
-        // A tag edit recounted one game's tag totals and nothing else, so the game's rows take
+        // A tag edit recounted one game's tallies and nothing else, so the game's rows take
         // the new totals in place instead of a delta rebuilding the game.
-        private void OnTagTotalsChanged(object sender, TagTotalsChangedEventArgs e)
+        private void OnTalliesChanged(object sender, TalliesChangedEventArgs e)
         {
             if (e == null || e.PlayniteGameId == Guid.Empty)
             {
@@ -2803,7 +2803,7 @@ namespace PlayniteAchievements.ViewModels
                 {
                     if (game?.PlayniteGameId == e.PlayniteGameId)
                     {
-                        game.TagTotals = e.TagTotals;
+                        game.Tallies = e.Tallies;
                     }
                 }
             });
@@ -4255,7 +4255,7 @@ namespace PlayniteAchievements.ViewModels
             }
             if (_achievementDataService != null)
             {
-                _achievementDataService.TagTotalsChanged -= OnTagTotalsChanged;
+                _achievementDataService.TalliesChanged -= OnTalliesChanged;
             }
             if (_settings != null)
             {
