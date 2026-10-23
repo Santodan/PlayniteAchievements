@@ -24,9 +24,66 @@ namespace PlayniteAchievements.Services.Showcase
             return Math.Max(MinTrackCount, Math.Min(MaxTrackCount, count));
         }
 
-        /// <summary>Track weight bounds: no row or column can collapse or dominate the page.</summary>
+        /// <summary>
+        /// Bounds on stored track weights. Star weights are relative, so the effective limit is
+        /// the ratio between them: no track can be more than MaxTrackWeight / MinTrackWeight
+        /// (60) times another.
+        /// </summary>
         public const double MinTrackWeight = 0.05;
         public const double MaxTrackWeight = 3.0;
+
+        /// <summary>
+        /// Moves <paramref name="deltaStars"/> of weight from the track after
+        /// <paramref name="boundary"/> to the track before it, keeping the pair's total. The pair
+        /// is clamped so every track stays within the 60:1 ratio of every other; if a track then
+        /// exceeds <see cref="MaxTrackWeight"/>, all weights are scaled down together, which keeps
+        /// every track's pixel size.
+        /// </summary>
+        public static double[] TransferTrackWeight(
+            IReadOnlyList<double> weights,
+            int boundary,
+            double deltaStars)
+        {
+            var result = weights.ToArray();
+            if (boundary < 0 || boundary + 1 >= result.Length)
+            {
+                return result;
+            }
+
+            const double ratio = MaxTrackWeight / MinTrackWeight;
+            var pairSum = result[boundary] + result[boundary + 1];
+            var lower = pairSum / (ratio + 1);
+            var upper = ratio * pairSum / (ratio + 1);
+            var others = result.Where((_, index) => index != boundary && index != boundary + 1).ToArray();
+            if (others.Length > 0)
+            {
+                var othersMax = others.Max();
+                var othersMin = others.Min();
+                lower = Math.Max(lower, Math.Max(othersMax / ratio, pairSum - ratio * othersMin));
+                upper = Math.Min(upper, Math.Min(ratio * othersMin, pairSum - othersMax / ratio));
+            }
+
+            if (lower > upper)
+            {
+                return result;
+            }
+
+            var first = Math.Min(upper, Math.Max(lower, result[boundary] + deltaStars));
+            result[boundary] = first;
+            result[boundary + 1] = pairSum - first;
+
+            var max = result.Max();
+            if (max > MaxTrackWeight)
+            {
+                var scale = MaxTrackWeight / max;
+                for (var index = 0; index < result.Length; index++)
+                {
+                    result[index] = Math.Max(MinTrackWeight, result[index] * scale);
+                }
+            }
+
+            return result;
+        }
 
         /// <summary>
         /// Resolves a page's persisted row or column star weights to exactly one value per

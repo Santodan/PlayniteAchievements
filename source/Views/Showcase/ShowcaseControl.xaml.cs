@@ -908,18 +908,9 @@ namespace PlayniteAchievements.Views.Showcase
             }
 
             // Convert the pixel drag into star units and move weight between the two tracks
-            // that meet at this boundary, clamping both while keeping their total unchanged.
+            // that meet at this boundary.
             var deltaStars = pixelDelta / (totalPixels / sum);
-            var pairSum = weights[boundary] + weights[boundary + 1];
-            var lower = Math.Max(
-                ShowcaseLayoutService.MinTrackWeight,
-                pairSum - ShowcaseLayoutService.MaxTrackWeight);
-            var upper = Math.Min(
-                ShowcaseLayoutService.MaxTrackWeight,
-                pairSum - ShowcaseLayoutService.MinTrackWeight);
-            var first = Math.Min(upper, Math.Max(lower, weights[boundary] + deltaStars));
-            weights[boundary] = first;
-            weights[boundary + 1] = pairSum - first;
+            weights = ShowcaseLayoutService.TransferTrackWeight(weights, boundary, deltaStars);
             ApplyTrackWeights(vertical, weights);
             ScheduleTrackRulerUpdate();
         }
