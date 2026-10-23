@@ -3208,7 +3208,7 @@ namespace PlayniteAchievements.Views.Helpers
             };
 
             // Header alignment intentionally shows only the header row's top line.
-            AddAlignmentLine(grid, alignment, 2, 15);
+            AddAlignmentLine(grid, alignment, 2, 16);
             return grid;
         }
 
@@ -3224,9 +3224,9 @@ namespace PlayniteAchievements.Views.Helpers
             };
 
             AddAlignmentLine(grid, alignment, 0, 14);
-            AddAlignmentLine(grid, alignment, 4, 9);
+            AddAlignmentLine(grid, alignment, 4, 10);
             AddAlignmentLine(grid, alignment, 8, 12);
-            AddAlignmentLine(grid, alignment, 12, 7);
+            AddAlignmentLine(grid, alignment, 12, 8);
 
             return grid;
         }
