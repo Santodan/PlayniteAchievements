@@ -1,15 +1,23 @@
 using System;
+using System.Collections.Specialized;
 using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Data;
+using System.Windows.Threading;
+using PlayniteAchievements.Models.Settings;
+using PlayniteAchievements.ViewModels.ManageAchievements;
+using PlayniteAchievements.Views.Controls;
 
 namespace PlayniteAchievements.Views.ManageAchievements
 {
-    // The Tags column's icon size and the height its tags may take: as large as the row height
-    // and column width allow, the same in every row. A row with more tags than fit shows "+N".
+    // The Tags column's icon size: one size for every row, as large as the column width and row
+    // height let the row with the most crowded tags fit.
     public partial class ManageAchievementsEditorTab
     {
+        // The editor draws tag icons in their colors; it has no tag display option of its own.
+        internal const AchievementTagDisplay EditorTagDisplay = AchievementTagDisplay.Icons | AchievementTagDisplay.Colors;
+
         // A row is as tall as its icon cell, which is square to the Icon column's width, and at
         // least the row style's MinHeight. The tags sit in the cell's 10,6 padding, the button's
         // 4,0 margin and the panel's 11,3,21,3 margin, which clears the button's arrow.
@@ -26,35 +34,48 @@ namespace PlayniteAchievements.Views.ManageAchievements
 
         public double TagIconSize => (double)GetValue(TagIconSizeProperty);
 
-        private static readonly DependencyPropertyKey TagAreaHeightPropertyKey =
-            DependencyProperty.RegisterReadOnly(nameof(TagAreaHeight), typeof(double),
-                typeof(ManageAchievementsEditorTab), new PropertyMetadata(double.PositiveInfinity));
-
-        /// <summary>Identifies the TagAreaHeight dependency property: the height a Tags cell's tags may take.</summary>
-        public static readonly DependencyProperty TagAreaHeightProperty = TagAreaHeightPropertyKey.DependencyProperty;
-
-        public double TagAreaHeight => (double)GetValue(TagAreaHeightProperty);
-
-        private static readonly DependencyProperty TagLayoutKeyProperty =
-            DependencyProperty.Register("TagLayoutKey", typeof(object),
+        private static readonly DependencyProperty TagLayoutWidthsProperty =
+            DependencyProperty.Register("TagLayoutWidths", typeof(object),
                 typeof(ManageAchievementsEditorTab), new PropertyMetadata(null, OnTagIconLayoutChanged));
 
+        private bool _tagIconFitQueued;
+
         private static void OnTagIconLayoutChanged(DependencyObject d, DependencyPropertyChangedEventArgs e) =>
-            ((ManageAchievementsEditorTab)d).UpdateTagIconSize();
+            ((ManageAchievementsEditorTab)d).RequestTagIconFit();
 
         private void ObserveTagIconLayout()
         {
-            // A change to either column's width, or to the Icon column's visibility, re-sizes the icons.
-            var layout = new MultiBinding { Converter = TagLayoutKey.Instance };
-            layout.Bindings.Add(new Binding(nameof(DataGridColumn.ActualWidth)) { Source = EditorTagsColumn });
-            layout.Bindings.Add(new Binding(nameof(DataGridColumn.ActualWidth)) { Source = EditorIconColumn });
-            layout.Bindings.Add(new Binding(nameof(DataGridColumn.Visibility)) { Source = EditorIconColumn });
-            SetBinding(TagLayoutKeyProperty, layout);
+            // A change to either column's width or visibility re-runs the fit.
+            var widths = new MultiBinding { Converter = TagLayoutKey.Instance };
+            widths.Bindings.Add(new Binding(nameof(DataGridColumn.ActualWidth)) { Source = EditorTagsColumn });
+            widths.Bindings.Add(new Binding(nameof(DataGridColumn.Visibility)) { Source = EditorTagsColumn });
+            widths.Bindings.Add(new Binding(nameof(DataGridColumn.ActualWidth)) { Source = EditorIconColumn });
+            widths.Bindings.Add(new Binding(nameof(DataGridColumn.Visibility)) { Source = EditorIconColumn });
+            SetBinding(TagLayoutWidthsProperty, widths);
+
+            ((INotifyCollectionChanged)CustomAchievementsGrid.Items).CollectionChanged += (s, e) => RequestTagIconFit();
+            AddHandler(TagChipsPanel.ChipsChangedEvent, new RoutedEventHandler((s, e) => RequestTagIconFit()));
+        }
+
+        // Column resizes and collection batches arrive many at a time; one pass after them all.
+        private void RequestTagIconFit()
+        {
+            if (_tagIconFitQueued)
+            {
+                return;
+            }
+
+            _tagIconFitQueued = true;
+            Dispatcher.BeginInvoke(new Action(() =>
+            {
+                _tagIconFitQueued = false;
+                UpdateTagIconSize();
+            }), DispatcherPriority.Background);
         }
 
         private void UpdateTagIconSize()
         {
-            if (EditorTagsColumn.ActualWidth <= 0)
+            if (EditorTagsColumn.Visibility != Visibility.Visible || EditorTagsColumn.ActualWidth <= 0)
             {
                 return;
             }
@@ -62,15 +83,12 @@ namespace PlayniteAchievements.Views.ManageAchievements
             var rowHeight = EditorIconColumn.Visibility == Visibility.Visible
                 ? Math.Max(RowMinHeight, EditorIconColumn.ActualWidth)
                 : RowMinHeight;
-
-            // One pixel of slack on each axis absorbs layout rounding.
-            var width = EditorTagsColumn.ActualWidth - TagAreaHorizontalInset - 1;
-            var height = rowHeight - TagAreaVerticalInset - 1;
-            var floor = TryFindResource("PlayAch.FontSize.Body") is double fontSize && fontSize > 0
-                ? Math.Ceiling(fontSize)
-                : Math.Ceiling(SystemFonts.MessageFontSize);
-            SetValue(TagIconSizePropertyKey, Math.Max(floor, Math.Floor(Math.Min(width, height))));
-            SetValue(TagAreaHeightPropertyKey, Math.Max(floor, height));
+            SetValue(TagIconSizePropertyKey, TagChipsPanel.FitIconSize(
+                CustomAchievementsGrid.Items.OfType<AchievementEditorRow>().Select(row => row.TagChips),
+                EditorTagDisplay,
+                EditorTagsColumn.ActualWidth - TagAreaHorizontalInset,
+                rowHeight - TagAreaVerticalInset,
+                this));
         }
 
         // A new value for every change of its inputs, so the property callback always runs.
