@@ -2,7 +2,7 @@ using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Globalization;
-using System.Text;
+using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Data;
@@ -21,7 +21,8 @@ namespace PlayniteAchievements.Views.Controls
     /// icons <see cref="IconSize"/> square (a tag without one keeps its name) and tag colors. Commas
     /// separate only neighboring names; icons are spaced apart. An icon's tooltip is its tag's name.
     /// Chips wrap onto lines aligned by <see cref="TextAlignment"/>, each chip centered in its line.
-    /// Text takes its font and color from the inherited <see cref="TextElement"/> properties.
+    /// Chips past the cell's width and <see cref="MaxContentHeight"/> give way to a "+N" chip whose
+    /// tooltip names them. Text takes its font and color from the inherited <see cref="TextElement"/> properties.
     /// </summary>
     public sealed class TagChipsPanel : Panel
     {
@@ -69,33 +70,28 @@ namespace PlayniteAchievements.Views.Controls
             set => SetValue(TextAlignmentProperty, value);
         }
 
+        public static readonly DependencyProperty MaxContentHeightProperty =
+            DependencyProperty.Register(nameof(MaxContentHeight), typeof(double), typeof(TagChipsPanel),
+                new FrameworkPropertyMetadata(double.PositiveInfinity, FrameworkPropertyMetadataOptions.AffectsMeasure));
+
         /// <summary>
-        /// Raised, bubbling, when a panel's tags change, so the grid hosting it can refit its
-        /// column's icon size to a row that gained or lost tags.
+        /// The height the tags may take. An auto-height grid row measures its cells without a
+        /// height limit, so the grid states it; tags past it give way to "+N".
         /// </summary>
-        public static readonly RoutedEvent ChipsChangedEvent =
-            EventManager.RegisterRoutedEvent("ChipsChanged", RoutingStrategy.Bubble, typeof(RoutedEventHandler), typeof(TagChipsPanel));
-
-        private static void OnContentChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
+        public double MaxContentHeight
         {
-            var panel = (TagChipsPanel)d;
-            panel.Rebuild();
-            if (e.Property != ChipsProperty)
-            {
-                return;
-            }
-
-            // Only for the same row's tags changing: a row realized or recycled onto another item
-            // brings that item's tags, which the grid's last fit already counted.
-            if (e.OldValue != null && ReferenceEquals(panel.DataContext, panel._chipsOwner))
-            {
-                panel.RaiseEvent(new RoutedEventArgs(ChipsChangedEvent, panel));
-            }
-
-            panel._chipsOwner = panel.DataContext;
+            get => (double)GetValue(MaxContentHeightProperty);
+            set => SetValue(MaxContentHeightProperty, value);
         }
 
-        private object _chipsOwner;
+        // The "+N" chip, the last child whenever there are chips; shown only when some do not fit.
+        private TextBlock _overflow;
+
+        // How many leading chips the last measure found room for.
+        private int _visibleCount;
+
+        private static void OnContentChanged(DependencyObject d, DependencyPropertyChangedEventArgs e) =>
+            ((TagChipsPanel)d).Rebuild();
 
         private static void OnIconSizeChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
         {
@@ -113,6 +109,7 @@ namespace PlayniteAchievements.Views.Controls
         private void Rebuild()
         {
             InternalChildren.Clear();
+            _overflow = null;
             var chips = Chips;
             if (chips == null || chips.Count == 0)
             {
@@ -143,6 +140,9 @@ namespace PlayniteAchievements.Views.Controls
 
                 InternalChildren.Add(text);
             }
+
+            _overflow = new TextBlock { FontWeight = FontWeights.SemiBold };
+            InternalChildren.Add(_overflow);
         }
 
         /// <summary>True when <paramref name="display"/> draws <paramref name="chip"/> as its icon.</summary>
@@ -156,75 +156,6 @@ namespace PlayniteAchievements.Views.Controls
             index + 1 < chips.Count && !IsIcon(chips[index + 1], display)
                 ? chips[index].Name + ","
                 : chips[index].Name;
-
-        /// <summary>
-        /// The one icon size for a column of tag cells <paramref name="width"/> by
-        /// <paramref name="height"/>: the largest at which every row's chips fit, never below the
-        /// body text size. Rows sharing the same chips are measured once. The body font comes from
-        /// <paramref name="fontSource"/>'s resources.
-        /// </summary>
-        public static double FitIconSize(
-            IEnumerable<IReadOnlyList<AchievementTagChip>> rows,
-            AchievementTagDisplay display,
-            double width,
-            double height,
-            FrameworkElement fontSource)
-        {
-            var family = fontSource.TryFindResource("PlayAch.FontFamily.Body") as FontFamily ?? SystemFonts.MessageFontFamily;
-            var fontSize = fontSource.TryFindResource("PlayAch.FontSize.Body") is double size && size > 0 ? size : SystemFonts.MessageFontSize;
-            var typeface = new Typeface(family, FontStyles.Normal, FontWeights.Normal, FontStretches.Normal);
-            var pixelsPerDip = VisualTreeHelper.GetDpi(fontSource).PixelsPerDip;
-            var textHeight = Math.Ceiling(family.LineSpacing * fontSize);
-            var floor = Math.Ceiling(fontSize);
-
-            // One pixel of slack on each axis absorbs layout rounding.
-            width -= 1;
-            height -= 1;
-            var best = Math.Floor(Math.Min(width, height));
-
-            var seen = new HashSet<string>(StringComparer.Ordinal);
-            var signature = new StringBuilder();
-            var boxes = new List<TagChipBox>();
-            foreach (var chips in rows)
-            {
-                if (chips == null || chips.Count == 0)
-                {
-                    continue;
-                }
-
-                signature.Clear();
-                boxes.Clear();
-                for (var i = 0; i < chips.Count; i++)
-                {
-                    if (IsIcon(chips[i], display))
-                    {
-                        signature.Append("\u0001I");
-                        boxes.Add(TagChipBox.Icon());
-                    }
-                    else
-                    {
-                        var text = TextOf(chips, i, display);
-                        signature.Append("\u0001T").Append(text);
-                        var formatted = new FormattedText(text, CultureInfo.CurrentUICulture, FlowDirection.LeftToRight,
-                            typeface, fontSize, Brushes.Black, pixelsPerDip);
-                        boxes.Add(TagChipBox.Text(Math.Ceiling(formatted.WidthIncludingTrailingWhitespace) + 1));
-                    }
-                }
-
-                if (!seen.Add(signature.ToString()))
-                {
-                    continue;
-                }
-
-                var fit = TagChipLayout.LargestIconSize(boxes, textHeight, width, height, floor);
-                if (fit.HasValue)
-                {
-                    best = Math.Min(best, fit.Value);
-                }
-            }
-
-            return Math.Max(floor, best);
-        }
 
         private static Brush IconMask(AchievementTagChip chip, AchievementTagDisplay display)
         {
@@ -279,45 +210,86 @@ namespace PlayniteAchievements.Views.Controls
 
         protected override Size MeasureOverride(Size availableSize)
         {
-            var widths = new double[InternalChildren.Count];
-            for (var i = 0; i < InternalChildren.Count; i++)
+            if (_overflow == null)
             {
-                var child = InternalChildren[i];
-                child.Measure(new Size(availableSize.Width, double.PositiveInfinity));
-                widths[i] = Math.Min(child.DesiredSize.Width, availableSize.Width);
+                _visibleCount = 0;
+                return default(Size);
             }
 
-            var width = 0.0;
-            var height = 0.0;
-            var lines = TagChipLayout.BreakLines(widths, availableSize.Width);
-            for (var l = 0; l < lines.Count; l++)
+            var width = availableSize.Width;
+            var height = Math.Min(availableSize.Height, MaxContentHeight);
+            var chipCount = InternalChildren.Count - 1;
+            var sizes = new Size[chipCount];
+            for (var i = 0; i < chipCount; i++)
             {
-                width = Math.Max(width, lines[l].Width);
-                height += (l > 0 ? TagChipLayout.LineGap : 0) + LineHeight(lines[l]);
+                InternalChildren[i].Measure(new Size(width, double.PositiveInfinity));
+                sizes[i] = InternalChildren[i].DesiredSize;
             }
 
-            return new Size(width, height);
+            _visibleCount = TagChipLayout.VisibleCount(sizes, hidden => MeasureOverflow(hidden, width), width, height);
+            var hiddenCount = chipCount - _visibleCount;
+            MeasureOverflow(hiddenCount, width);
+            _overflow.ToolTip = hiddenCount > 0
+                ? string.Join(", ", Chips.Skip(_visibleCount).Select(chip => chip.Name))
+                : null;
+
+            return TagChipLayout.Extent(ShownChildren().Select(child => child.DesiredSize).ToList(), width);
+        }
+
+        private Size MeasureOverflow(int hiddenCount, double width)
+        {
+            _overflow.Text = hiddenCount > 0 ? "+" + hiddenCount.ToString(CultureInfo.CurrentCulture) : string.Empty;
+            _overflow.Measure(new Size(width, double.PositiveInfinity));
+            return _overflow.DesiredSize;
+        }
+
+        // The leading chips that fit, then "+N" when some do not.
+        private List<UIElement> ShownChildren()
+        {
+            var shown = new List<UIElement>();
+            for (var i = 0; i < _visibleCount; i++)
+            {
+                shown.Add(InternalChildren[i]);
+            }
+
+            if (_overflow != null && _visibleCount < InternalChildren.Count - 1)
+            {
+                shown.Add(_overflow);
+            }
+
+            return shown;
         }
 
         protected override Size ArrangeOverride(Size finalSize)
         {
-            var widths = new double[InternalChildren.Count];
-            for (var i = 0; i < InternalChildren.Count; i++)
+            var shown = ShownChildren();
+            foreach (UIElement child in InternalChildren)
             {
-                widths[i] = Math.Min(InternalChildren[i].DesiredSize.Width, finalSize.Width);
+                if (!shown.Contains(child))
+                {
+                    child.Opacity = 0;
+                    child.Arrange(default(Rect));
+                }
             }
 
+            var widths = shown.Select(child => Math.Min(child.DesiredSize.Width, finalSize.Width)).ToList();
             var y = 0.0;
             foreach (var line in TagChipLayout.BreakLines(widths, finalSize.Width))
             {
-                var lineHeight = LineHeight(line);
+                var lineHeight = 0.0;
+                for (var i = line.Start; i < line.Start + line.Count; i++)
+                {
+                    lineHeight = Math.Max(lineHeight, shown[i].DesiredSize.Height);
+                }
+
                 var x = TextAlignment == TextAlignment.Center ? (finalSize.Width - line.Width) / 2
                     : TextAlignment == TextAlignment.Right ? finalSize.Width - line.Width
                     : 0;
                 for (var i = line.Start; i < line.Start + line.Count; i++)
                 {
-                    var child = InternalChildren[i];
+                    var child = shown[i];
                     var childHeight = child.DesiredSize.Height;
+                    child.Opacity = 1;
                     child.Arrange(new Rect(x, y + (lineHeight - childHeight) / 2, widths[i], childHeight));
                     x += widths[i] + TagChipLayout.Gap;
                 }
@@ -326,17 +298,6 @@ namespace PlayniteAchievements.Views.Controls
             }
 
             return finalSize;
-        }
-
-        private double LineHeight(TagChipLine line)
-        {
-            var height = 0.0;
-            for (var i = line.Start; i < line.Start + line.Count; i++)
-            {
-                height = Math.Max(height, InternalChildren[i].DesiredSize.Height);
-            }
-
-            return height;
         }
     }
 }
