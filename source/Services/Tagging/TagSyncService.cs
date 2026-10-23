@@ -116,8 +116,14 @@ namespace PlayniteAchievements.Services.Tagging
         /// </summary>
         private static string GetLocalizedDefaultName(TagType tagType)
         {
-            return DefaultTagNameCatalog.StatusResourceKeys.TryGetValue(tagType, out var statusResourceKey)
-                ? FormatTagName(statusResourceKey)
+            if (DefaultTagNameCatalog.StatusResourceKeys.TryGetValue(tagType, out var statusResourceKey))
+            {
+                return FormatTagName(statusResourceKey);
+            }
+
+            var areaKeys = DefaultTagNameCatalog.GetAreaResourceKeys(tagType);
+            return areaKeys != null
+                ? DefaultTagNameCatalog.ComposeAreaName(areaKeys.Select(ResourceProvider.GetString).ToList())
                 : TaggingSettings.GetDefaultDisplayName(tagType);
         }
 
@@ -635,13 +641,13 @@ namespace PlayniteAchievements.Services.Tagging
         }
 
         /// <summary>
-        /// Reconciles only the Customized / Not Customized pair, for a change that cannot have
-        /// moved any other tag.
+        /// Reconciles only the customization kinds (the Customized pair and the area pairs), for a
+        /// change that cannot have moved any other tag.
         /// </summary>
         /// <remarks>
         /// A full sync evaluates every tag, and that means loading the game's hydrated
         /// achievement data -- the whole cost of a sync. Renaming an achievement, writing a note
-        /// or overriding an icon moves this one tag and nothing else, so the load is skipped and
+        /// or overriding an icon moves these tags and nothing else, so the load is skipped and
         /// the other managed tags are left exactly as they are.
         /// </remarks>
         public void SyncCustomizationTagsForGames(List<Guid> gameIds)
@@ -668,15 +674,13 @@ namespace PlayniteAchievements.Services.Tagging
 
                         try
                         {
-                            var applies = GameCustomDataLookup.HasVisibleCustomization(gameId, Settings)
-                                ? TagType.Customized
-                                : TagType.NotCustomized;
-                            var replaced = applies == TagType.Customized
-                                ? TagType.NotCustomized
-                                : TagType.Customized;
+                            var applies = new HashSet<TagType>(DetermineCustomizationTagTypes(gameId));
+                            var changed = false;
+                            foreach (var tagType in CustomizationTagTypes)
+                            {
+                                changed |= SetManagedTag(game, tagConfigs, tagType, applies.Contains(tagType));
+                            }
 
-                            var changed = SetManagedTag(game, tagConfigs, replaced, false);
-                            changed |= SetManagedTag(game, tagConfigs, applies, true);
                             if (changed)
                             {
                                 _api.Database.Games.Update(game);
@@ -693,6 +697,46 @@ namespace PlayniteAchievements.Services.Tagging
             {
                 _logger.Error(ex, "Failed to sync customization tags for games");
             }
+        }
+
+        /// <summary>
+        /// Every kind that tracks customization: the Customized pair and each area pair.
+        /// </summary>
+        private static readonly IReadOnlyList<TagType> CustomizationTagTypes =
+            new[] { TagType.Customized, TagType.NotCustomized }
+                .Concat(CustomizationTagAreas.All.SelectMany(area => new[] { area.CustomTag, area.DefaultTag }))
+                .ToList();
+
+        /// <summary>
+        /// The customization kinds that apply to a game: one side of the Customized pair and one
+        /// side of each area pair. Areas are only classified when one of their kinds is enabled,
+        /// so the default setup pays nothing for them.
+        /// </summary>
+        private IEnumerable<TagType> DetermineCustomizationTagTypes(Guid gameId)
+        {
+            yield return GameCustomDataLookup.HasVisibleCustomization(gameId, Settings)
+                ? TagType.Customized
+                : TagType.NotCustomized;
+
+            if (!AnyAreaTagEnabled())
+            {
+                yield break;
+            }
+
+            foreach (var tagType in CustomizationTagAreas.TagsFor(
+                GameCustomDataLookup.GetCustomizationAreas(gameId, Settings)))
+            {
+                yield return tagType;
+            }
+        }
+
+        private bool AnyAreaTagEnabled()
+        {
+            var tagConfigs = Tagging?.TagConfigs;
+            return tagConfigs != null &&
+                   CustomizationTagAreas.All.Any(area =>
+                       (tagConfigs.TryGetValue(area.CustomTag, out var custom) && custom?.IsEnabled == true) ||
+                       (tagConfigs.TryGetValue(area.DefaultTag, out var standard) && standard?.IsEnabled == true));
         }
 
         /// <summary>
@@ -864,10 +908,7 @@ namespace PlayniteAchievements.Services.Tagging
             }
 
             var gameId = game.Id;
-            types.Add(
-                GameCustomDataLookup.HasVisibleCustomization(gameId, Settings)
-                    ? TagType.Customized
-                    : TagType.NotCustomized);
+            types.AddRange(DetermineCustomizationTagTypes(gameId));
 
             // Full exclusion is exclusive - no other tags
             if (GameCustomDataLookup.IsExcludedFromRefreshes(gameId, Settings))
