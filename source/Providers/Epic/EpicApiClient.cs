@@ -277,6 +277,44 @@ query playerProfileAchievementsByProductId($EpicAccountId: String!, $ProductId: 
                 .ToList();
         }
 
+        /// <summary>
+        /// The game's achievement schema in the en-US locale, resolved through the same asset lookup
+        /// as GetAchievementsAsync. Returns null when the game cannot be resolved to an Epic namespace.
+        /// </summary>
+        public async Task<List<EpicAchievementItem>> GetEnglishSchemaAsync(string gameId, CancellationToken ct)
+        {
+            if (string.IsNullOrWhiteSpace(gameId))
+            {
+                return null;
+            }
+
+            var token = await _sessionManager.GetAccessTokenAsync(ct).ConfigureAwait(false);
+            if (string.IsNullOrWhiteSpace(token))
+            {
+                return null;
+            }
+
+            var assets = await GetCachedAssetsAsync(token, ct).ConfigureAwait(false);
+            var asset = assets.FirstOrDefault(a =>
+                string.Equals(a.AppName, gameId, StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(a.Namespace, gameId, StringComparison.OrdinalIgnoreCase));
+            if (asset == null || string.IsNullOrWhiteSpace(asset.Namespace))
+            {
+                return null;
+            }
+
+            var schema = await GetCachedAchievementSchemaAsync(asset.Namespace, "en-US", token, ct).ConfigureAwait(false);
+            return schema?.Data?.Achievement?.ProductAchievementsRecordBySandbox?.Achievements?
+                .Where(x => x?.Achievement != null && !string.IsNullOrWhiteSpace(x.Achievement.Name))
+                .Select(x => new EpicAchievementItem
+                {
+                    AchievementId = x.Achievement.Name,
+                    Title = x.Achievement.UnlockedDisplayName,
+                    Description = x.Achievement.UnlockedDescription
+                })
+                .ToList();
+        }
+
         private async Task<List<PlayerAchievementDetail>> FetchPlayerAchievementDetailsAsync(
             string accountId,
             string productId,
