@@ -46,23 +46,17 @@ namespace PlayniteAchievements.Models.Tagging
         /// </summary>
         ExcludedFromSummaries,
 
-        // Per-area customization pairs, disabled by default. The custom kind applies when the
-        // game carries that customization, the default kind when it does not. See
-        // CustomizationTagAreas for the area each pair belongs to.
+        // Per-area customization kinds, disabled by default. See CustomizationTagAreas for the area
+        // and layer each kind belongs to.
         CustomIcons,
-        DefaultIcons,
         CustomTrophyTypes,
-        DefaultTrophyTypes,
         CustomPoints,
-        DefaultPoints,
         CustomNotes,
         DefaultNotes,
         CustomCategories,
-        DefaultCategories,
         CustomOrder,
         DefaultOrder,
         CustomCapstones,
-        DefaultCapstones,
         CustomGoals,
         DefaultGoals,
         CustomSource,
@@ -70,6 +64,26 @@ namespace PlayniteAchievements.Models.Tagging
         CustomNotifications,
         DefaultNotifications,
         CustomTags,
-        DefaultTags
+
+        // Where a layered area's data comes from: the game's platform, a metadata source, or
+        // nowhere.
+        PlatformIcons,
+        MetadataIcons,
+        NoIcons,
+        PlatformTrophyTypes,
+        MetadataTrophyTypes,
+        NoTrophyTypes,
+        PlatformPoints,
+        MetadataPoints,
+        NoPoints,
+        PlatformCategories,
+        MetadataCategories,
+        NoCategories,
+        PlatformTags,
+        MetadataTags,
+        NoTags,
+        PlatformCapstones,
+        MetadataCapstones,
+        NoCapstones
     }
 }
