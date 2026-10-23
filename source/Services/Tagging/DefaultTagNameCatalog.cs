@@ -55,7 +55,49 @@ namespace PlayniteAchievements.Services.Tagging
                 });
             }
 
+            foreach (var area in CustomizationTagAreas.All)
+            {
+                definitions.Add(BuildAreaDefinition(area.CustomTag));
+                definitions.Add(BuildAreaDefinition(area.DefaultTag));
+            }
+
             _catalog = new LocalizedDefaultStringCatalog(localizationDirectory, definitions, logger);
+        }
+
+        /// <summary>
+        /// Resource keys of a customization area kind's name, in composition order: the tag
+        /// prefix, the Custom or Default format, and the area noun.
+        /// </summary>
+        public static string[] GetAreaResourceKeys(TagType tagType)
+        {
+            if (!CustomizationTagAreas.TryGetArea(tagType, out var area, out var isCustom))
+            {
+                return null;
+            }
+
+            return new[]
+            {
+                PrefixFormatKey,
+                isCustom ? CustomizationTagAreas.CustomFormatKey : CustomizationTagAreas.DefaultFormatKey,
+                area.NounResourceKey
+            };
+        }
+
+        /// <summary>Composes an area kind's name from the values of <see cref="GetAreaResourceKeys"/>.</summary>
+        public static string ComposeAreaName(IReadOnlyList<string> values)
+        {
+            return string.Format(values[0], string.Format(values[1], values[2]));
+        }
+
+        private static LocalizedDefaultDefinition BuildAreaDefinition(TagType tagType)
+        {
+            return new LocalizedDefaultDefinition
+            {
+                Id = tagType.ToString(),
+                ResourceKeys = GetAreaResourceKeys(tagType),
+                Compose = ComposeAreaName,
+                ExtraHardcodedDefaults = new[] { TaggingSettings.GetDefaultDisplayName(tagType) }
+            };
         }
 
         /// <summary>
