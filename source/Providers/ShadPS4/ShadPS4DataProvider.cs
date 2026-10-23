@@ -21,7 +21,7 @@ using System.Text;
 
 namespace PlayniteAchievements.Providers.ShadPS4
 {
-    internal sealed class ShadPS4DataProvider : DataProviderBase<ShadPS4Settings>, IDataProvider, IProviderOverride, IInGameProgressSource
+    internal sealed class ShadPS4DataProvider : DataProviderBase<ShadPS4Settings>, IDataProvider, IProviderOverride, IInGameProgressSource, IEnglishTitleSource
     {
         public ProviderOverrideDescriptor OverrideDescriptor { get; } = ProviderOverrideDescriptor.Text(
             "LOCPlayAch_ManageAchievements_Overrides_ProviderValueLabel_ShadPS4",
@@ -495,6 +495,12 @@ namespace PlayniteAchievements.Providers.ShadPS4
             CancellationToken cancel)
         {
             return _scanner.RefreshAsync(gamesToRefresh, onGameStarting, onGameCompleted, cancel);
+        }
+
+        /// <summary>The game's trophy XML re-read with text from its English TROP_01.XML.</summary>
+        Task<IList<AchievementDetail>> IEnglishTitleSource.GetEnglishTitlesAsync(Game game, GameAchievementData data, CancellationToken ct)
+        {
+            return Task.FromResult(_scanner.ReadEnglishTitles(game, ct));
         }
 
         InGameProgressRegistration IInGameProgressSource.TryRegister(
