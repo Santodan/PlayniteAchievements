@@ -46,6 +46,7 @@ namespace PlayniteAchievements.Views.Controls
             SetBinding(TagsColumnWidthProperty, new Binding(nameof(DataGridColumn.ActualWidth)) { Source = TagsColumn });
             SetBinding(TagsColumnVisibilityProperty, new Binding(nameof(DataGridColumn.Visibility)) { Source = TagsColumn });
             ((INotifyCollectionChanged)AchievementsDataGrid.Items).CollectionChanged += (s, e) => RequestTagIconFit();
+            AddHandler(TagChipsPanel.ChipsChangedEvent, new RoutedEventHandler((s, e) => RequestTagIconFit()));
         }
 
         // Column resizes and collection batches arrive many at a time; one pass after them all.
