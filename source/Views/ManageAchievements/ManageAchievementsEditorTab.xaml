@@ -1895,8 +1895,7 @@
                         </DataGridTemplateColumn.CellTemplate>
                     </DataGridTemplateColumn>
 
-                    <DataGridTemplateColumn x:Name="EditorTagsColumn"
-                                            Header="{DynamicResource LOCTagsLabel}"
+                    <DataGridTemplateColumn Header="{DynamicResource LOCTagsLabel}"
                                             Width="144"
                                             MinWidth="100"
                                             IsReadOnly="True"
@@ -1908,7 +1907,7 @@
                             <DataTemplate>
                                 <!-- The button fills the cell so tag icons can take the row's
                                      height; they are drawn over it, inside its padding and clear
-                                     of its arrow, at the one size the tab fits to the column. -->
+                                     of its arrow, as large as the row's tags fit up to a ceiling. -->
                                 <Grid Margin="4,0">
                                     <Button Content="{Binding TagsButtonText}"
                                             ToolTip="{Binding TagsDisplayText}"
@@ -1920,7 +1919,7 @@
                                             VerticalAlignment="Stretch" />
                                     <controls:TagChipsPanel Chips="{Binding TagChips}"
                                                             Display="Icons, Colors"
-                                                            IconSize="{Binding TagIconSize, RelativeSource={RelativeSource AncestorType={x:Type local:ManageAchievementsEditorTab}}}"
+                                                            MaxContentHeight="{Binding TagAreaHeight, RelativeSource={RelativeSource AncestorType={x:Type local:ManageAchievementsEditorTab}}}"
                                                             Visibility="{Binding HasTagIcons, Converter={StaticResource BoolToVis}}"
                                                             IsHitTestVisible="False"
                                                             Margin="11,3,21,3"
