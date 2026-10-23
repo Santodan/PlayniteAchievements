@@ -168,8 +168,7 @@
                                 </StackPanel>
                             </controls:SettingRow>
 
-                            <controls:SettingRow Label="{DynamicResource LOCPlayAch_ManageAchievements_Status_ExcludedFromSummaries}"
-                                                 Margin="0">
+                            <controls:SettingRow Label="{DynamicResource LOCPlayAch_ManageAchievements_Status_ExcludedFromSummaries}">
                                 <StackPanel Orientation="Horizontal">
                                     <CheckBox IsChecked="{Binding Persisted.TaggingSettings.ExcludedFromSummariesConfig.IsEnabled, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                               VerticalAlignment="Center"
@@ -179,6 +178,39 @@
                                              Width="220"/>
                                 </StackPanel>
                             </controls:SettingRow>
+
+                            <!-- Per customization area: the custom tag, then the default tag. -->
+                            <TextBlock Text="{DynamicResource LOCPlayAch_Filter_CustomizationSelectorPlaceholder}"
+                                       FontWeight="SemiBold"
+                                       Foreground="{DynamicResource PlayAch.Brush.Text}"
+                                       Margin="{StaticResource PlayAch.Thickness.SubSectionHeading}"/>
+
+                            <ItemsControl ItemsSource="{Binding Persisted.TaggingSettings.CustomizationRows}"
+                                          Focusable="False">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <controls:SettingRow Label="{Binding Label}">
+                                            <WrapPanel Orientation="Horizontal">
+                                                <StackPanel Orientation="Horizontal"
+                                                            Margin="{StaticResource PlayAch.Thickness.Right.Md}">
+                                                    <CheckBox IsChecked="{Binding CustomConfig.IsEnabled, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                              VerticalAlignment="Center"
+                                                              Margin="{StaticResource PlayAch.Thickness.Right.Sm}"/>
+                                                    <TextBox Text="{Binding CustomConfig.DisplayName, Mode=TwoWay, UpdateSourceTrigger=Explicit}"
+                                                             Width="180"/>
+                                                </StackPanel>
+                                                <StackPanel Orientation="Horizontal">
+                                                    <CheckBox IsChecked="{Binding DefaultConfig.IsEnabled, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                              VerticalAlignment="Center"
+                                                              Margin="{StaticResource PlayAch.Thickness.Right.Sm}"/>
+                                                    <TextBox Text="{Binding DefaultConfig.DisplayName, Mode=TwoWay, UpdateSourceTrigger=Explicit}"
+                                                             Width="180"/>
+                                                </StackPanel>
+                                            </WrapPanel>
+                                        </controls:SettingRow>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
                         </StackPanel>
                     </Expander>
                 </StackPanel>

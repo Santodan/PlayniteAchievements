@@ -155,15 +155,52 @@ namespace PlayniteAchievements.Services.Tagging.Tests
         }
 
         [TestMethod]
-        public void StatusResourceKeys_CoverEveryTagType()
+        public void StatusOrAreaResourceKeys_CoverEveryTagTypeExactlyOnce()
         {
             foreach (TagType tagType in Enum.GetValues(typeof(TagType)))
             {
-                Assert.IsTrue(
-                    DefaultTagNameCatalog.StatusResourceKeys.ContainsKey(tagType),
-                    $"StatusResourceKeys is missing an entry for {tagType}.");
+                var isStatus = DefaultTagNameCatalog.StatusResourceKeys.ContainsKey(tagType);
+                var isArea = DefaultTagNameCatalog.GetAreaResourceKeys(tagType) != null;
+                Assert.IsTrue(isStatus ^ isArea, $"{tagType} needs exactly one name source.");
             }
         }
+
+        [TestMethod]
+        public void IsKnownDefault_ComposesAreaNamesFromLocaleFiles()
+        {
+            WriteLocale("en_US.xaml", AreaEnglishXaml);
+            WriteLocale("de_DE.xaml", AreaGermanXaml);
+
+            var catalog = new DefaultTagNameCatalog(_tempDirectory);
+
+            Assert.IsTrue(catalog.IsKnownDefault(TagType.CustomIcons, "[PA] Eigene Symbole"));
+            Assert.IsTrue(catalog.IsKnownDefault(TagType.DefaultIcons, "[PA] Standard Symbole"));
+            Assert.IsTrue(catalog.IsKnownDefault(TagType.CustomIcons, "[PA] Custom Icons"));
+            Assert.IsFalse(catalog.IsKnownDefault(TagType.CustomIcons, "[PA] Standard Symbole"));
+            Assert.AreEqual(
+                "[PA] Eigene Symbole",
+                catalog.GetRelocalizedName(TagType.CustomIcons, "[PA] Custom Icons", "[PA] Eigene Symbole"));
+        }
+
+        private const string AreaEnglishXaml = @"<ResourceDictionary
+    xmlns=""http://schemas.microsoft.com/winfx/2006/xaml/presentation""
+    xmlns:x=""http://schemas.microsoft.com/winfx/2006/xaml""
+    xmlns:sys=""clr-namespace:System;assembly=mscorlib"">
+    <sys:String x:Key=""LOCPlayAch_Tag_PrefixFormat"">[PA] {0}</sys:String>
+    <sys:String x:Key=""LOCPlayAch_Tagging_CustomFormat"">Custom {0}</sys:String>
+    <sys:String x:Key=""LOCPlayAch_Tagging_DefaultFormat"">Default {0}</sys:String>
+    <sys:String x:Key=""LOCPlayAch_ManageAchievements_Tab_CustomIcons"">Icons</sys:String>
+</ResourceDictionary>";
+
+        private const string AreaGermanXaml = @"<ResourceDictionary
+    xmlns=""http://schemas.microsoft.com/winfx/2006/xaml/presentation""
+    xmlns:x=""http://schemas.microsoft.com/winfx/2006/xaml""
+    xmlns:sys=""clr-namespace:System;assembly=mscorlib"">
+    <sys:String x:Key=""LOCPlayAch_Tag_PrefixFormat"">[PA] {0}</sys:String>
+    <sys:String x:Key=""LOCPlayAch_Tagging_CustomFormat"">Eigene {0}</sys:String>
+    <sys:String x:Key=""LOCPlayAch_Tagging_DefaultFormat"">Standard {0}</sys:String>
+    <sys:String x:Key=""LOCPlayAch_ManageAchievements_Tab_CustomIcons"">Symbole</sys:String>
+</ResourceDictionary>";
 
         private void WriteLocale(string fileName, string content)
         {

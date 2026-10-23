@@ -1,5 +1,6 @@
 using PlayniteAchievements.Models.Achievements;
 using PlayniteAchievements.Models.Settings;
+using PlayniteAchievements.Models.Tagging;
 using PlayniteAchievements.Providers;
 using PlayniteAchievements.Providers.Exophase;
 using PlayniteAchievements.Providers.Manual;
@@ -383,6 +384,51 @@ namespace PlayniteAchievements.Services.GameCustomData
                 }
             }
 
+            return GameCustomDataNormalizer.HasVisibleCustomization(
+                BuildLegacyRecord(gameId, fallbackSettings, store));
+        }
+
+        /// <summary>
+        /// The <see cref="CustomizationArea"/>s a game's stored customization falls into, read
+        /// the same way as <see cref="HasVisibleCustomization"/>: from the store without copying
+        /// the record, else from the legacy settings.
+        /// </summary>
+        public static CustomizationArea GetCustomizationAreas(
+            Guid gameId,
+            PersistedSettings fallbackSettings = null,
+            GameCustomDataStore store = null)
+        {
+            if (gameId == Guid.Empty)
+            {
+                return CustomizationArea.None;
+            }
+
+            var resolvedStore = ResolveStore(store);
+            if (resolvedStore != null)
+            {
+                var stored = resolvedStore.QueryGame(
+                    gameId,
+                    customData => customData == null
+                        ? (CustomizationArea?)null
+                        : CustomizationAreaClassifier.Classify(customData));
+                if (stored.HasValue)
+                {
+                    return stored.Value;
+                }
+            }
+
+            return CustomizationAreaClassifier.Classify(BuildLegacyRecord(gameId, fallbackSettings, store));
+        }
+
+        /// <summary>
+        /// A normalized record assembled from the pre-store settings, for games the store has no
+        /// record for.
+        /// </summary>
+        private static GameCustomDataFile BuildLegacyRecord(
+            Guid gameId,
+            PersistedSettings fallbackSettings,
+            GameCustomDataStore store)
+        {
             var legacyData = new GameCustomDataFile
             {
                 PlayniteGameId = gameId,
@@ -445,8 +491,7 @@ namespace PlayniteAchievements.Services.GameCustomData
                 legacyData.ExophaseSlugOverride = exophaseSlugOverride;
             }
 
-            return GameCustomDataNormalizer.HasVisibleCustomization(
-                GameCustomDataNormalizer.NormalizeInternal(legacyData, gameId));
+            return GameCustomDataNormalizer.NormalizeInternal(legacyData, gameId);
         }
 
         public static HashSet<Guid> GetExcludedRefreshGameIds(
