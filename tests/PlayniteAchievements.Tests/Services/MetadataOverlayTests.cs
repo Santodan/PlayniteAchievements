@@ -1296,7 +1296,8 @@ namespace PlayniteAchievements.Tests.Services
             IReadOnlyList<IMetadataProvider> providers,
             PersistedSettings settings,
             CategoryArtDownload downloadCategoryArt = null,
-            Func<Guid, GameAchievementData> loadStored = null)
+            Func<Guid, GameAchievementData> loadStored = null,
+            FakeIconSaver iconSaver = null)
         {
             return new MetadataOverlay(
                 () => providers,
@@ -1304,7 +1305,191 @@ namespace PlayniteAchievements.Tests.Services
                 MetadataTestStores.Links(_directory, new FakeMetadataStateDatabase()),
                 null,
                 downloadCategoryArt,
-                loadStored);
+                loadStored,
+                iconSaver == null ? null : new SourceIconDownload(iconSaver.SaveAsync),
+                iconSaver == null ? null : new Action<Guid, string>(iconSaver.Delete));
+        }
+
+        /// <summary>Saves each row's icon as C:\saved\&lt;source&gt;\&lt;ApiName&gt;.png, except the ones it is told fail.</summary>
+        private sealed class FakeIconSaver
+        {
+            public HashSet<string> Failing { get; } = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+            public List<(string SourceKey, bool Force)> Saves { get; } = new List<(string SourceKey, bool Force)>();
+
+            public List<string> Deleted { get; } = new List<string>();
+
+            public static string PathOf(string sourceKey, string apiName) => $@"C:\saved\{sourceKey}\{apiName}.png";
+
+            public Task<IReadOnlyDictionary<AchievementDetail, (string Unlocked, string Locked)>> SaveAsync(
+                Guid gameId,
+                string sourceKey,
+                IEnumerable<AchievementDetail> rows,
+                bool force,
+                CancellationToken ct)
+            {
+                lock (Saves)
+                {
+                    Saves.Add((sourceKey, force));
+                }
+
+                IReadOnlyDictionary<AchievementDetail, (string Unlocked, string Locked)> saved = rows.ToDictionary(
+                    row => row,
+                    row => Failing.Contains(row.ApiName)
+                        ? (row.UnlockedIconPath, row.LockedIconPath)
+                        : (PathOf(sourceKey, row.ApiName), PathOf(sourceKey, row.ApiName)));
+                return Task.FromResult(saved);
+            }
+
+            public void Delete(Guid gameId, string sourceKey) => Deleted.Add(sourceKey);
+        }
+
+        [TestMethod]
+        public async Task SourceIcons_AreSavedLocally_AndBorrowedFromTheSavedFiles()
+        {
+            var source = Row("p1", "Dragon Slayer", icon: "https://psn/dragon.png", locked: "https://psn/dragon.png");
+            var playstation = new FakeSource("PlayStation", MetadataField.Icons) { Rows = { source } };
+            var data = Game("Steam", Row("ACH_DRAGON", "Dragon Slayer", icon: "steam.png"));
+            var saver = new FakeIconSaver();
+            var overlay = Overlay(new[] { playstation }, Choices(icons: "PlayStation"), iconSaver: saver);
+
+            using (var run = overlay.BeginRun())
+            {
+                await run.ApplyAsync(data.Game, data, CancellationToken.None);
+            }
+
+            var saved = FakeIconSaver.PathOf("PlayStation", "p1");
+            Assert.AreEqual(saved, data.Achievements[0].UnlockedIconPath, "the borrowed icon is the saved file");
+            Assert.AreEqual(saved, data.Achievements[0].LockedIconPath);
+            var snapshot = overlay.Links.Snapshots.Get(data.PlayniteGameId.Value, "PlayStation", "link-PlayStation");
+            Assert.AreEqual(saved, snapshot.Rows.Single().Icon);
+            Assert.AreEqual("https://psn/dragon.png", source.UnlockedIconPath, "the source's own row is left as it was");
+            CollectionAssert.AreEqual(new[] { ("PlayStation", false) }, saver.Saves);
+        }
+
+        [TestMethod]
+        public async Task SourceIconThatWasNotSaved_KeepsItsAddressForTheGame_AndShowsNoneInTheMatchList()
+        {
+            var playstation = new FakeSource("PlayStation", MetadataField.Icons)
+            {
+                Rows = { Row("p1", "Dragon Slayer", icon: "https://psn/dragon.png") }
+            };
+            var data = Game("Steam", Row("ACH_DRAGON", "Dragon Slayer", icon: "steam.png"));
+            var saver = new FakeIconSaver { Failing = { "p1" } };
+            var overlay = Overlay(new[] { playstation }, Choices(icons: "PlayStation"), iconSaver: saver);
+
+            using (var run = overlay.BeginRun())
+            {
+                await run.ApplyAsync(data.Game, data, CancellationToken.None);
+            }
+
+            Assert.AreEqual("https://psn/dragon.png", data.Achievements[0].UnlockedIconPath, "the icon download tries the address again");
+            var snapshot = overlay.Links.Snapshots.Get(data.PlayniteGameId.Value, "PlayStation", "link-PlayStation");
+            Assert.IsNull(snapshot.Rows.Single().Icon);
+        }
+
+        [TestMethod]
+        public async Task MatchList_NeverStoresAnAddress()
+        {
+            var steamHunters = new FakeSource("SteamHunters", MetadataField.Categories)
+            {
+                Rows = { Row("s1", "Dragon Slayer", icon: "https://steam/dragon.png", category: "Main") }
+            };
+            var data = Game("Epic", Row("e1", "Dragon Slayer"));
+            var overlay = Overlay(new[] { steamHunters }, Choices(categories: "SteamHunters"));
+
+            using (var run = overlay.BeginRun())
+            {
+                await run.ApplyAsync(data.Game, data, CancellationToken.None);
+            }
+
+            var snapshot = overlay.Links.Snapshots.Get(data.PlayniteGameId.Value, "SteamHunters", "link-SteamHunters");
+            Assert.AreEqual(1, snapshot.Rows.Count);
+            Assert.IsNull(snapshot.Rows[0].Icon);
+        }
+
+        [TestMethod]
+        public async Task SourceThatFailed_SavesNoIcons_AndKeepsItsMatchList()
+        {
+            var playstation = new FakeSource("PlayStation", MetadataField.Icons)
+            {
+                Rows = { Row("p1", "Dragon Slayer", icon: "https://psn/dragon.png") }
+            };
+            var data = Game("Steam", Row("ACH_DRAGON", "Dragon Slayer", icon: "steam.png"));
+            var saver = new FakeIconSaver();
+            var overlay = Overlay(new[] { playstation }, Choices(icons: "PlayStation"), iconSaver: saver);
+            using (var run = overlay.BeginRun())
+            {
+                await run.ApplyAsync(data.Game, data, CancellationToken.None);
+            }
+
+            playstation.FailFetch = true;
+            var next = Game("Steam", Row("ACH_DRAGON", "Dragon Slayer", icon: "steam.png"));
+            next.Game = data.Game;
+            next.PlayniteGameId = data.PlayniteGameId;
+            using (var run = overlay.BeginRun())
+            {
+                await run.ApplyAsync(next.Game, next, CancellationToken.None);
+            }
+
+            Assert.AreEqual(1, saver.Saves.Count);
+            Assert.AreEqual(0, saver.Deleted.Count);
+            var snapshot = overlay.Links.Snapshots.Get(data.PlayniteGameId.Value, "PlayStation", "link-PlayStation");
+            Assert.AreEqual(FakeIconSaver.PathOf("PlayStation", "p1"), snapshot.Rows.Single().Icon);
+        }
+
+        [TestMethod]
+        public async Task SavedIcons_AreOverwritten_OnARelinkOrAnIconRefresh()
+        {
+            var playstation = new FakeSource("PlayStation", MetadataField.Icons)
+            {
+                Rows = { Row("p1", "Dragon Slayer", icon: "https://psn/dragon.png") }
+            };
+            var data = Game("Steam", Row("ACH_DRAGON", "Dragon Slayer", icon: "steam.png"));
+            var gameId = data.PlayniteGameId.Value;
+            var saver = new FakeIconSaver();
+            var overlay = Overlay(new[] { playstation }, Choices(icons: "PlayStation"), iconSaver: saver);
+
+            async Task Refresh(bool forceIcons = false)
+            {
+                var next = Game("Steam", Row("ACH_DRAGON", "Dragon Slayer", icon: "steam.png"));
+                next.Game = data.Game;
+                next.PlayniteGameId = gameId;
+                using (var run = overlay.BeginRun())
+                {
+                    await run.ApplyAsync(next.Game, next, CancellationToken.None, forceIcons);
+                }
+            }
+
+            await Refresh();
+            await Refresh();
+            overlay.Links.SetUser(gameId, "PlayStation", "other-game");
+            await Refresh();
+            await Refresh(forceIcons: true);
+
+            CollectionAssert.AreEqual(
+                new[] { ("PlayStation", false), ("PlayStation", false), ("PlayStation", true), ("PlayStation", true) },
+                saver.Saves);
+        }
+
+        [TestMethod]
+        public async Task CapstoneOnlySource_DeletesItsSavedIcons()
+        {
+            var playstation = new FakeSource("PlayStation", MetadataField.Icons | MetadataField.CapstoneArt);
+            var platinum = Row("p0", "Master", icon: "https://psn/platinum.png");
+            platinum.TrophyType = "platinum";
+            playstation.Rows.Add(platinum);
+            var data = Game("Steam", Row("ACH_DRAGON", "Dragon Slayer"));
+            var saver = new FakeIconSaver();
+            var overlay = Overlay(new[] { playstation }, Choices(capstoneArt: "PlayStation"), iconSaver: saver);
+
+            using (var run = overlay.BeginRun())
+            {
+                await run.ApplyAsync(data.Game, data, CancellationToken.None);
+            }
+
+            Assert.AreEqual(0, saver.Saves.Count);
+            CollectionAssert.AreEqual(new[] { "PlayStation" }, saver.Deleted);
         }
 
         private static GameAchievementData Game(string providerKey, params AchievementDetail[] rows)
