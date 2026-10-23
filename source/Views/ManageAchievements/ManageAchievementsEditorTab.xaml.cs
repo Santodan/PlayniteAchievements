@@ -121,6 +121,7 @@ namespace PlayniteAchievements.Views.ManageAchievements
             // what this window is for, so it should not depend on which control was clicked last.
             Loaded += AchievementNavigation_Loaded;
             Unloaded += AchievementNavigation_Unloaded;
+            ObserveTagIconLayout();
 
             // Dragging artwork in from outside: hovering a row selects it, so the details pane is
             // showing that achievement's icon slots by the time the pointer reaches them. On the
@@ -1104,7 +1105,8 @@ namespace PlayniteAchievements.Views.ManageAchievements
             SelectorContextMenuHelper.OpenCategoryTypeMenu(
                 TypeSelectionButton,
                 TypeSelectionContextMenu,
-                ViewModel.TagSelectionOptions);
+                ViewModel.TagSelectionOptions,
+                ViewModel.GameId);
         }
 
         public void RefreshData()
@@ -2073,12 +2075,15 @@ namespace PlayniteAchievements.Views.ManageAchievements
             // Kept so a click can read every tick, not just its own: the menu stays open, and the
             // set the user leaves it in is what the whole selection takes.
             var typeItems = new List<MenuItem>();
-            foreach (var tag in AchievementTagRegistry.GetAssignableKeys(viewModel.GameId))
+            var tags = AchievementTagRegistry.GetAssignableKeys(viewModel.GameId);
+            var iconKeys = SelectorContextMenuHelper.TagIconKeys(tags, viewModel.GameId);
+            for (var i = 0; i < tags.Count; i++)
             {
-                var captured = tag;
+                var captured = tags[i];
                 var typeItem = new MenuItem
                 {
-                    Header = ManageAchievementsCategoryViewModel.GetTagDisplayName(captured, viewModel.GameId),
+                    Header = SelectorContextMenuHelper.TagHeader(
+                        iconKeys, i, ManageAchievementsCategoryViewModel.GetTagDisplayName(captured, viewModel.GameId)),
                     IsCheckable = true,
                     StaysOpenOnClick = true,
                     Tag = captured,
