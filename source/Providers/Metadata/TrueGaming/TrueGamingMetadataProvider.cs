@@ -175,7 +175,28 @@ namespace PlayniteAchievements.Providers.Metadata.TrueGaming
                 }
             }
 
-            var text = await _views.GetPageTextAsync(url, ct, PageTimeoutMs).ConfigureAwait(false);
+            string text;
+            try
+            {
+                text = await _views.WithNavigableViewAsync(async view =>
+                {
+                    await view.NavigateAndWaitAsync(url, PageTimeoutMs).ConfigureAwait(false);
+                    var source = await ReadPastChallengeAsync(view.GetPageSourceAsync, ct).ConfigureAwait(false);
+                    return string.IsNullOrWhiteSpace(source) || IsChallenge(source)
+                        ? source
+                        : await view.GetPageTextAsync().ConfigureAwait(false);
+                }, ct).ConfigureAwait(false);
+            }
+            catch (OperationCanceledException) when (ct.IsCancellationRequested)
+            {
+                throw;
+            }
+            catch (Exception ex)
+            {
+                _logger?.Debug($"[TrueGamingMetadata] Loading {url} failed: {ex.GetType().Name}: {ex.Message}");
+                text = null;
+            }
+
             if (string.IsNullOrWhiteSpace(text) || IsChallenge(text))
             {
                 _logger?.Debug($"[TrueGamingMetadata] {url} could not be read{(string.IsNullOrWhiteSpace(text) ? string.Empty : " (challenge page)")}.");
@@ -477,7 +498,7 @@ namespace PlayniteAchievements.Providers.Metadata.TrueGaming
                         late = true;
                     }
 
-                    var source = await view.GetPageSourceAsync().ConfigureAwait(false);
+                    var source = await ReadPastChallengeAsync(view.GetPageSourceAsync, ct).ConfigureAwait(false);
                     return ((source, late), late);
                 }, ct).ConfigureAwait(false);
                 page = TrueGamingPageParser.Parse(html);
@@ -509,7 +530,24 @@ namespace PlayniteAchievements.Providers.Metadata.TrueGaming
             return page;
         }
 
-        private static bool IsChallenge(string html) =>
+        // Cloudflare's browser check clears itself and reloads the page within a few seconds.
+        private const int ChallengeAttempts = 3;
+        private const int ChallengeRetryDelayMs = 3000;
+
+        /// <summary>The page's source, read again while it is a challenge page, up to a few seconds.</summary>
+        internal static async Task<string> ReadPastChallengeAsync(Func<Task<string>> read, CancellationToken ct)
+        {
+            var source = await read().ConfigureAwait(false);
+            for (var attempt = 1; source != null && IsChallenge(source) && attempt < ChallengeAttempts; attempt++)
+            {
+                await Task.Delay(ChallengeRetryDelayMs, ct).ConfigureAwait(false);
+                source = await read().ConfigureAwait(false);
+            }
+
+            return source;
+        }
+
+        internal static bool IsChallenge(string html) =>
             html.IndexOf("Just a moment", StringComparison.OrdinalIgnoreCase) >= 0 ||
             html.IndexOf("cf-chl", StringComparison.OrdinalIgnoreCase) >= 0 ||
             html.IndexOf("Attention Required", StringComparison.OrdinalIgnoreCase) >= 0;
