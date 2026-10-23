@@ -1,5 +1,4 @@
 using System;
-using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
@@ -56,7 +55,7 @@ namespace PlayniteAchievements.Services.Tagging.Tests
         {
             var catalog = new DefaultTagNameCatalog(null);
 
-            foreach (var tagType in LiveTagTypes())
+            foreach (TagType tagType in Enum.GetValues(typeof(TagType)))
             {
                 Assert.IsTrue(
                     catalog.IsKnownDefault(tagType, TaggingSettings.GetDefaultDisplayName(tagType)),
@@ -145,7 +144,7 @@ namespace PlayniteAchievements.Services.Tagging.Tests
 
             var catalog = new DefaultTagNameCatalog(localizationDirectory);
 
-            foreach (var tagType in LiveTagTypes())
+            foreach (TagType tagType in Enum.GetValues(typeof(TagType)))
             {
                 Assert.IsTrue(
                     catalog.IsKnownDefault(tagType, TaggingSettings.GetDefaultDisplayName(tagType)),
@@ -158,7 +157,7 @@ namespace PlayniteAchievements.Services.Tagging.Tests
         [TestMethod]
         public void StatusOrAreaResourceKeys_CoverEveryTagTypeExactlyOnce()
         {
-            foreach (var tagType in LiveTagTypes())
+            foreach (TagType tagType in Enum.GetValues(typeof(TagType)))
             {
                 var isStatus = DefaultTagNameCatalog.StatusResourceKeys.ContainsKey(tagType);
                 var isArea = DefaultTagNameCatalog.GetAreaResourceKeys(tagType) != null;
@@ -204,21 +203,12 @@ namespace PlayniteAchievements.Services.Tagging.Tests
 </ResourceDictionary>";
 
         [TestMethod]
-        public void IsKnownDefault_RecognizesTheComposedNameOfARenamedArea()
+        public void IsKnownDefault_OneSidedAreaUsesItsOwnName()
         {
             var catalog = new DefaultTagNameCatalog(null);
 
             Assert.IsTrue(catalog.IsKnownDefault(TagType.CustomSource, "[PA] Source Override"));
-            Assert.AreEqual(
-                "[PA] Source Override",
-                catalog.GetRelocalizedName(TagType.CustomSource, "[PA] Custom Source", "[PA] Source Override"));
-        }
-
-        /// <summary>Every kind except the retired ones, which are never written and have no name source.</summary>
-        private static IEnumerable<TagType> LiveTagTypes()
-        {
-            return Enum.GetValues(typeof(TagType)).Cast<TagType>()
-                .Where(tagType => !CustomizationTagAreas.Retired.Contains(tagType));
+            Assert.IsFalse(catalog.IsKnownDefault(TagType.CustomSource, "[PA] Custom Source"));
         }
 
         private void WriteLocale(string fileName, string content)
