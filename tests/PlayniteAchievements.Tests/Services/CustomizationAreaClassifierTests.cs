@@ -31,6 +31,7 @@ namespace PlayniteAchievements.Services.GameCustomData.Tests
             AssertOnly(CustomizationArea.Points, Override(new AchievementOverride { Points = 50 }));
             AssertOnly(CustomizationArea.Notes, Override(new AchievementOverride { Note = "later" }));
             AssertOnly(CustomizationArea.Categories, Override(new AchievementOverride { Category = "Story" }));
+            AssertOnly(CustomizationArea.None, Override(new AchievementOverride { Category = "Default" }));
             AssertOnly(CustomizationArea.Tags, Override(new AchievementOverride { ClearTags = true }));
             AssertOnly(CustomizationArea.Tags, Override(new AchievementOverride { Tags = "Missable" }));
             AssertOnly(CustomizationArea.None, Override(new AchievementOverride { DisplayName = "Renamed" }));
@@ -125,9 +126,16 @@ namespace PlayniteAchievements.Services.GameCustomData.Tests
             var tags = new HashSet<TagType>(CustomizationTagAreas.TagsFor(CustomizationArea.Goals, default(GameDataLayers)));
 
             Assert.IsTrue(tags.Contains(TagType.CustomGoals));
-            Assert.IsTrue(tags.Contains(TagType.DefaultNotes));
+            Assert.IsFalse(tags.Contains(TagType.NoGoals));
+            Assert.IsTrue(tags.Contains(TagType.NoNotes));
+            Assert.IsTrue(tags.Contains(TagType.PlatformOrder));
+            Assert.IsFalse(tags.Contains(TagType.CustomNotifications));
             Assert.IsFalse(tags.Contains(TagType.CustomSource));
-            Assert.IsTrue(CustomizationTagAreas.TagsFor(CustomizationArea.Source, default(GameDataLayers)).Contains(TagType.CustomSource));
+
+            var reordered = new HashSet<TagType>(CustomizationTagAreas.TagsFor(CustomizationArea.Order | CustomizationArea.Source, default(GameDataLayers)));
+            Assert.IsTrue(reordered.Contains(TagType.CustomOrder));
+            Assert.IsFalse(reordered.Contains(TagType.PlatformOrder));
+            Assert.IsTrue(reordered.Contains(TagType.CustomSource));
         }
 
         [TestMethod]
@@ -143,22 +151,21 @@ namespace PlayniteAchievements.Services.GameCustomData.Tests
             var tags = new HashSet<TagType>(CustomizationTagAreas.TagsFor(CustomizationArea.TrophyTypes, layers));
 
             CollectionAssert.IsSubsetOf(
-                new[] { TagType.PlatformTrophyTypes, TagType.MetadataTrophyTypes, TagType.CustomTrophyTypes, TagType.PlatformIcons, TagType.NoPoints },
+                new[] { TagType.PlatformTrophyTypes, TagType.MetadataTrophyTypes, TagType.CustomTrophyTypes, TagType.NoPoints },
                 tags.ToList());
             Assert.IsFalse(tags.Contains(TagType.NoTrophyTypes));
             Assert.IsFalse(tags.Contains(TagType.MetadataIcons));
-            Assert.IsFalse(tags.Contains(TagType.NoIcons));
         }
 
         [TestMethod]
         public void TagsFor_UnknownLayers_OnlyCustomAndNoneFromCachedValues()
         {
-            var layers = new GameDataLayers { Present = CustomizationArea.Icons };
+            var layers = new GameDataLayers { Present = CustomizationArea.TrophyTypes };
 
             var tags = new HashSet<TagType>(CustomizationTagAreas.TagsFor(CustomizationArea.Points, layers));
 
-            Assert.IsFalse(tags.Contains(TagType.PlatformIcons));
-            Assert.IsFalse(tags.Contains(TagType.NoIcons));
+            Assert.IsFalse(tags.Contains(TagType.PlatformTrophyTypes));
+            Assert.IsFalse(tags.Contains(TagType.NoTrophyTypes));
             Assert.IsTrue(tags.Contains(TagType.CustomPoints));
             Assert.IsFalse(tags.Contains(TagType.NoPoints));
             Assert.IsTrue(tags.Contains(TagType.NoCategories));
