@@ -12,9 +12,9 @@ namespace PlayniteAchievements.Services.GameCustomData
     /// </summary>
     /// <remarks>
     /// Automatic capstone generation writes a custom achievement, places it first, files it in a
-    /// category and nominates it, none of which the user chose. Entries keyed by an auto
-    /// capstone's ApiName are left out of every area, so generation alone tags a game as default
-    /// throughout.
+    /// category and nominates it. It counts toward Capstones only: entries keyed by an auto
+    /// capstone's ApiName are left out of every other area, so generation alone tags a game
+    /// Custom Capstones and default everywhere else.
     /// </remarks>
     internal static class CustomizationAreaClassifier
     {
@@ -84,7 +84,9 @@ namespace PlayniteAchievements.Services.GameCustomData
                 areas |= CustomizationArea.Order;
             }
 
-            if (HasUserCapstones(data, IsUser))
+            if (HasText(data.ManualCapstoneApiName) ||
+                data.CapstonesMaterialized ||
+                autoCapstoneNames.Count > 0)
             {
                 areas |= CustomizationArea.Capstones;
             }
@@ -123,30 +125,6 @@ namespace PlayniteAchievements.Services.GameCustomData
             }
 
             return areas;
-        }
-
-        /// <summary>
-        /// A legacy manual capstone, or a materialized set the user shaped: one naming an
-        /// achievement other than an auto capstone, or an empty one, which records that the
-        /// provider's capstones were removed.
-        /// </summary>
-        private static bool HasUserCapstones(GameCustomDataFile data, Func<string, bool> isUser)
-        {
-            if (HasText(data.ManualCapstoneApiName))
-            {
-                return true;
-            }
-
-            if (!data.CapstonesMaterialized)
-            {
-                return false;
-            }
-
-            var names = (data.Capstones ?? new List<CapstoneAssignment>())
-                .Where(item => item != null && HasText(item.ApiName))
-                .Select(item => item.ApiName)
-                .ToList();
-            return names.Count == 0 || names.Any(isUser);
         }
 
         private static bool HasText(string value) => !string.IsNullOrWhiteSpace(value);
