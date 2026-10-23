@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
@@ -55,7 +56,9 @@ namespace PlayniteAchievements.Services.Tagging.Tests
         {
             var catalog = new DefaultTagNameCatalog(null);
 
-            foreach (TagType tagType in Enum.GetValues(typeof(TagType)))
+            // Only the status kinds have hardcoded English; customization kinds are named by the
+            // locale files alone.
+            foreach (var tagType in DefaultTagNameCatalog.StatusResourceKeys.Keys)
             {
                 Assert.IsTrue(
                     catalog.IsKnownDefault(tagType, TaggingSettings.GetDefaultDisplayName(tagType)),
@@ -144,7 +147,7 @@ namespace PlayniteAchievements.Services.Tagging.Tests
 
             var catalog = new DefaultTagNameCatalog(localizationDirectory);
 
-            foreach (TagType tagType in Enum.GetValues(typeof(TagType)))
+            foreach (var tagType in DefaultTagNameCatalog.StatusResourceKeys.Keys)
             {
                 Assert.IsTrue(
                     catalog.IsKnownDefault(tagType, TaggingSettings.GetDefaultDisplayName(tagType)),
@@ -174,24 +177,36 @@ namespace PlayniteAchievements.Services.Tagging.Tests
             var catalog = new DefaultTagNameCatalog(_tempDirectory);
 
             Assert.IsTrue(catalog.IsKnownDefault(TagType.CustomIcons, "[PA] Eigene Symbole"));
-            Assert.IsTrue(catalog.IsKnownDefault(TagType.NoIcons, "[PA] Keine Symbole"));
+            Assert.IsTrue(catalog.IsKnownDefault(TagType.MetadataIcons, "[PA] Fremde Symbole"));
             Assert.IsTrue(catalog.IsKnownDefault(TagType.CustomIcons, "[PA] Custom Icons"));
-            Assert.IsFalse(catalog.IsKnownDefault(TagType.CustomIcons, "[PA] Keine Symbole"));
+            Assert.IsFalse(catalog.IsKnownDefault(TagType.CustomIcons, "[PA] Fremde Symbole"));
             Assert.AreEqual(
                 "[PA] Eigene Symbole",
                 catalog.GetRelocalizedName(TagType.CustomIcons, "[PA] Custom Icons", "[PA] Eigene Symbole"));
         }
 
         [TestMethod]
-        public void ShippedEnglish_HasAWholeNameForEveryAreaKind_MatchingTheFallback()
+        public void ShippedEnglish_NamesEveryAreaKind_AndTheCatalogKnowsIt()
         {
-            var english = File.ReadAllText(FindRepoFile("source", "Localization", "en_US.xaml"));
+            var englishPath = FindRepoFile("source", "Localization", "en_US.xaml");
+            var english = File.ReadAllText(englishPath);
+            var catalog = new DefaultTagNameCatalog(Path.GetDirectoryName(englishPath));
 
             foreach (var tagType in CustomizationTagAreas.All.SelectMany(area => area.TagTypes))
             {
-                var fallback = TaggingSettings.GetDefaultDisplayName(tagType).Substring("[PA] ".Length);
-                var entry = $"x:Key=\"{CustomizationTagAreas.NameResourceKey(tagType)}\">{fallback}</sys:String>";
-                StringAssert.Contains(english, entry, $"en_US.xaml needs {entry}");
+                var match = System.Text.RegularExpressions.Regex.Match(
+                    english,
+                    $"x:Key=\"{CustomizationTagAreas.NameResourceKey(tagType)}\">([^<]+)</sys:String>");
+                Assert.IsTrue(match.Success, $"en_US.xaml has no name for {tagType}.");
+                Assert.IsTrue(catalog.IsKnownDefault(tagType, "[PA] " + match.Groups[1].Value), $"{tagType} name not recognized.");
+            }
+
+            // Every name key in the file belongs to a kind, so none is left over.
+            var kindKeys = new HashSet<string>(
+                CustomizationTagAreas.All.SelectMany(area => area.TagTypes).Select(CustomizationTagAreas.NameResourceKey));
+            foreach (System.Text.RegularExpressions.Match key in System.Text.RegularExpressions.Regex.Matches(english, "x:Key=\"(LOCPlayAch_Tagging_Tag_[A-Za-z]+)\""))
+            {
+                Assert.IsTrue(kindKeys.Contains(key.Groups[1].Value), $"{key.Groups[1].Value} names no tag kind.");
             }
         }
 
@@ -201,7 +216,7 @@ namespace PlayniteAchievements.Services.Tagging.Tests
     xmlns:sys=""clr-namespace:System;assembly=mscorlib"">
     <sys:String x:Key=""LOCPlayAch_Tag_PrefixFormat"">[PA] {0}</sys:String>
     <sys:String x:Key=""LOCPlayAch_Tagging_Tag_CustomIcons"">Custom Icons</sys:String>
-    <sys:String x:Key=""LOCPlayAch_Tagging_Tag_NoIcons"">No Icons</sys:String>
+    <sys:String x:Key=""LOCPlayAch_Tagging_Tag_MetadataIcons"">Metadata Icons</sys:String>
 </ResourceDictionary>";
 
         private const string AreaGermanXaml = @"<ResourceDictionary
@@ -210,17 +225,8 @@ namespace PlayniteAchievements.Services.Tagging.Tests
     xmlns:sys=""clr-namespace:System;assembly=mscorlib"">
     <sys:String x:Key=""LOCPlayAch_Tag_PrefixFormat"">[PA] {0}</sys:String>
     <sys:String x:Key=""LOCPlayAch_Tagging_Tag_CustomIcons"">Eigene Symbole</sys:String>
-    <sys:String x:Key=""LOCPlayAch_Tagging_Tag_NoIcons"">Keine Symbole</sys:String>
+    <sys:String x:Key=""LOCPlayAch_Tagging_Tag_MetadataIcons"">Fremde Symbole</sys:String>
 </ResourceDictionary>";
-
-        [TestMethod]
-        public void IsKnownDefault_OneSidedAreaUsesItsOwnName()
-        {
-            var catalog = new DefaultTagNameCatalog(null);
-
-            Assert.IsTrue(catalog.IsKnownDefault(TagType.CustomSource, "[PA] Source Override"));
-            Assert.IsFalse(catalog.IsKnownDefault(TagType.CustomSource, "[PA] Custom Source"));
-        }
 
         private void WriteLocale(string fileName, string content)
         {
