@@ -166,7 +166,7 @@ namespace PlayniteAchievements.Services.Tagging.Tests
         }
 
         [TestMethod]
-        public void IsKnownDefault_ComposesAreaNamesFromLocaleFiles()
+        public void IsKnownDefault_ReadsEachAreaNameWhole()
         {
             WriteLocale("en_US.xaml", AreaEnglishXaml);
             WriteLocale("de_DE.xaml", AreaGermanXaml);
@@ -174,12 +174,25 @@ namespace PlayniteAchievements.Services.Tagging.Tests
             var catalog = new DefaultTagNameCatalog(_tempDirectory);
 
             Assert.IsTrue(catalog.IsKnownDefault(TagType.CustomIcons, "[PA] Eigene Symbole"));
-            Assert.IsTrue(catalog.IsKnownDefault(TagType.DefaultIcons, "[PA] Standard Symbole"));
+            Assert.IsTrue(catalog.IsKnownDefault(TagType.NoIcons, "[PA] Keine Symbole"));
             Assert.IsTrue(catalog.IsKnownDefault(TagType.CustomIcons, "[PA] Custom Icons"));
-            Assert.IsFalse(catalog.IsKnownDefault(TagType.CustomIcons, "[PA] Standard Symbole"));
+            Assert.IsFalse(catalog.IsKnownDefault(TagType.CustomIcons, "[PA] Keine Symbole"));
             Assert.AreEqual(
                 "[PA] Eigene Symbole",
                 catalog.GetRelocalizedName(TagType.CustomIcons, "[PA] Custom Icons", "[PA] Eigene Symbole"));
+        }
+
+        [TestMethod]
+        public void ShippedEnglish_HasAWholeNameForEveryAreaKind_MatchingTheFallback()
+        {
+            var english = File.ReadAllText(FindRepoFile("source", "Localization", "en_US.xaml"));
+
+            foreach (var tagType in CustomizationTagAreas.All.SelectMany(area => area.TagTypes))
+            {
+                var fallback = TaggingSettings.GetDefaultDisplayName(tagType).Substring("[PA] ".Length);
+                var entry = $"x:Key=\"{CustomizationTagAreas.NameResourceKey(tagType)}\">{fallback}</sys:String>";
+                StringAssert.Contains(english, entry, $"en_US.xaml needs {entry}");
+            }
         }
 
         private const string AreaEnglishXaml = @"<ResourceDictionary
@@ -187,9 +200,8 @@ namespace PlayniteAchievements.Services.Tagging.Tests
     xmlns:x=""http://schemas.microsoft.com/winfx/2006/xaml""
     xmlns:sys=""clr-namespace:System;assembly=mscorlib"">
     <sys:String x:Key=""LOCPlayAch_Tag_PrefixFormat"">[PA] {0}</sys:String>
-    <sys:String x:Key=""LOCPlayAch_Tagging_CustomFormat"">Custom {0}</sys:String>
-    <sys:String x:Key=""LOCPlayAch_Tagging_DefaultFormat"">Default {0}</sys:String>
-    <sys:String x:Key=""LOCPlayAch_ManageAchievements_Tab_CustomIcons"">Icons</sys:String>
+    <sys:String x:Key=""LOCPlayAch_Tagging_Tag_CustomIcons"">Custom Icons</sys:String>
+    <sys:String x:Key=""LOCPlayAch_Tagging_Tag_NoIcons"">No Icons</sys:String>
 </ResourceDictionary>";
 
         private const string AreaGermanXaml = @"<ResourceDictionary
@@ -197,9 +209,8 @@ namespace PlayniteAchievements.Services.Tagging.Tests
     xmlns:x=""http://schemas.microsoft.com/winfx/2006/xaml""
     xmlns:sys=""clr-namespace:System;assembly=mscorlib"">
     <sys:String x:Key=""LOCPlayAch_Tag_PrefixFormat"">[PA] {0}</sys:String>
-    <sys:String x:Key=""LOCPlayAch_Tagging_CustomFormat"">Eigene {0}</sys:String>
-    <sys:String x:Key=""LOCPlayAch_Tagging_DefaultFormat"">Standard {0}</sys:String>
-    <sys:String x:Key=""LOCPlayAch_ManageAchievements_Tab_CustomIcons"">Symbole</sys:String>
+    <sys:String x:Key=""LOCPlayAch_Tagging_Tag_CustomIcons"">Eigene Symbole</sys:String>
+    <sys:String x:Key=""LOCPlayAch_Tagging_Tag_NoIcons"">Keine Symbole</sys:String>
 </ResourceDictionary>";
 
         [TestMethod]
