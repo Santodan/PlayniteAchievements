@@ -121,6 +121,33 @@ namespace PlayniteAchievements.Services.GameCustomData.Tests
         }
 
         [TestMethod]
+        public void Classify_CustomAchievementValues_CountAsCustom_ButNotTheDefaultCategory()
+        {
+            var data = new GameCustomDataFile
+            {
+                CustomAchievements = new List<CustomAchievementDefinition>
+                {
+                    new CustomAchievementDefinition
+                    {
+                        Id = "mine",
+                        DisplayName = "Mine",
+                        TrophyType = "gold",
+                        Points = 30,
+                        Category = "Default",
+                        Tags = "Missable",
+                        UnlockedIconPath = "mine.png",
+                        IsCapstone = true
+                    }
+                }
+            };
+
+            Assert.AreEqual(
+                CustomizationArea.ManualTracking | CustomizationArea.TrophyTypes | CustomizationArea.Points |
+                CustomizationArea.Tags | CustomizationArea.Icons | CustomizationArea.Capstones,
+                CustomizationAreaClassifier.Classify(data));
+        }
+
+        [TestMethod]
         public void TagsFor_PairedAndSingleAreas()
         {
             var tags = new HashSet<TagType>(CustomizationTagAreas.TagsFor(CustomizationArea.Goals, default(GameDataLayers)));
