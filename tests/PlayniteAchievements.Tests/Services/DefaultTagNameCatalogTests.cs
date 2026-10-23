@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
@@ -55,7 +56,7 @@ namespace PlayniteAchievements.Services.Tagging.Tests
         {
             var catalog = new DefaultTagNameCatalog(null);
 
-            foreach (TagType tagType in Enum.GetValues(typeof(TagType)))
+            foreach (var tagType in LiveTagTypes())
             {
                 Assert.IsTrue(
                     catalog.IsKnownDefault(tagType, TaggingSettings.GetDefaultDisplayName(tagType)),
@@ -144,7 +145,7 @@ namespace PlayniteAchievements.Services.Tagging.Tests
 
             var catalog = new DefaultTagNameCatalog(localizationDirectory);
 
-            foreach (TagType tagType in Enum.GetValues(typeof(TagType)))
+            foreach (var tagType in LiveTagTypes())
             {
                 Assert.IsTrue(
                     catalog.IsKnownDefault(tagType, TaggingSettings.GetDefaultDisplayName(tagType)),
@@ -157,7 +158,7 @@ namespace PlayniteAchievements.Services.Tagging.Tests
         [TestMethod]
         public void StatusOrAreaResourceKeys_CoverEveryTagTypeExactlyOnce()
         {
-            foreach (TagType tagType in Enum.GetValues(typeof(TagType)))
+            foreach (var tagType in LiveTagTypes())
             {
                 var isStatus = DefaultTagNameCatalog.StatusResourceKeys.ContainsKey(tagType);
                 var isArea = DefaultTagNameCatalog.GetAreaResourceKeys(tagType) != null;
@@ -201,6 +202,24 @@ namespace PlayniteAchievements.Services.Tagging.Tests
     <sys:String x:Key=""LOCPlayAch_Tagging_DefaultFormat"">Standard {0}</sys:String>
     <sys:String x:Key=""LOCPlayAch_ManageAchievements_Tab_CustomIcons"">Symbole</sys:String>
 </ResourceDictionary>";
+
+        [TestMethod]
+        public void IsKnownDefault_RecognizesTheComposedNameOfARenamedArea()
+        {
+            var catalog = new DefaultTagNameCatalog(null);
+
+            Assert.IsTrue(catalog.IsKnownDefault(TagType.CustomSource, "[PA] Source Override"));
+            Assert.AreEqual(
+                "[PA] Source Override",
+                catalog.GetRelocalizedName(TagType.CustomSource, "[PA] Custom Source", "[PA] Source Override"));
+        }
+
+        /// <summary>Every kind except the retired ones, which are never written and have no name source.</summary>
+        private static IEnumerable<TagType> LiveTagTypes()
+        {
+            return Enum.GetValues(typeof(TagType)).Cast<TagType>()
+                .Where(tagType => !CustomizationTagAreas.Retired.Contains(tagType));
+        }
 
         private void WriteLocale(string fileName, string content)
         {
