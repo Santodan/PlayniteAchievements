@@ -444,11 +444,10 @@ namespace PlayniteAchievements.Providers.Metadata.TrueGaming
             string name,
             CancellationToken ct)
         {
+            var own = TrueGamingSite.For(request.ServicingProviderKey);
             var slugs = name != null
-                ? TrueGamingLinks.SlugsFor(site, name)
-                : TrueGamingLinks.CandidateSlugs(
-                    request.SearchNames,
-                    site == TrueGamingSite.For(request.ServicingProviderKey) ? site.Suffixes : Array.Empty<string>());
+                ? TrueGamingLinks.SlugsToTry(site, own, name, request.LinkIsUserSet)
+                : TrueGamingLinks.CandidateSlugs(request.SearchNames, site == own ? site.Suffixes : Array.Empty<string>());
             var checkGame = name == null || !request.LinkIsUserSet;
             var settled = true;
             foreach (var candidate in slugs)
