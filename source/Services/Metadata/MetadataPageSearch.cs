@@ -21,15 +21,21 @@ namespace PlayniteAchievements.Services.Metadata
     {
         private readonly Func<string, CancellationToken, Task<IReadOnlyList<MetadataPageCandidate>>> _candidates;
         private readonly Func<string, CancellationToken, Task<IList<AchievementDetail>>> _rows;
+        private readonly Func<string, CancellationToken, Task<IList<AchievementDetail>>> _englishRows;
 
         /// <param name="candidates">The pages a search for a name offers, the source's likeliest first.</param>
         /// <param name="rows">A page's achievement rows; null or empty when it has none.</param>
+        /// <param name="englishRows">
+        /// A page's rows in English, keyed by the same ApiNames; null when the rows already are.
+        /// </param>
         public MetadataPageSearch(
             Func<string, CancellationToken, Task<IReadOnlyList<MetadataPageCandidate>>> candidates,
-            Func<string, CancellationToken, Task<IList<AchievementDetail>>> rows)
+            Func<string, CancellationToken, Task<IList<AchievementDetail>>> rows,
+            Func<string, CancellationToken, Task<IList<AchievementDetail>>> englishRows = null)
         {
             _candidates = candidates ?? throw new ArgumentNullException(nameof(candidates));
             _rows = rows ?? throw new ArgumentNullException(nameof(rows));
+            _englishRows = englishRows;
         }
 
         /// <summary>
@@ -40,6 +46,10 @@ namespace PlayniteAchievements.Services.Metadata
         /// </summary>
         /// <param name="categoryNames">Names other sources found a category's game under, searched after the category's own.</param>
         /// <param name="seeds">Pages another source pointed to (the same game on this platform), judged before any search.</param>
+        /// <param name="englishTitles">
+        /// The game's achievements in English (<see cref="MetadataLinkRequest.EnglishTitles"/>),
+        /// against which the pages a search judged are judged again when none matched enough.
+        /// </param>
         public async Task<MetadataPageChoice> ChooseAsync(
             IReadOnlyList<string> names,
             IList<AchievementDetail> targets,
@@ -47,8 +57,10 @@ namespace PlayniteAchievements.Services.Metadata
             CancellationToken ct,
             IReadOnlyDictionary<string, IReadOnlyList<string>> categoryNames = null,
             IReadOnlyList<MetadataPageCandidate> seeds = null,
-            IEnumerable<string> sharedNames = null)
+            IEnumerable<string> sharedNames = null,
+            Func<CancellationToken, Task<IList<AchievementDetail>>> englishTitles = null)
         {
+            _englishTitles = englishTitles;
             _categoryNames = categoryNames;
             _seeds = seeds;
             _shared = new HashSet<string>(
@@ -65,6 +77,7 @@ namespace PlayniteAchievements.Services.Metadata
             return chosen;
         }
 
+        private Func<CancellationToken, Task<IList<AchievementDetail>>> _englishTitles;
         private IReadOnlyDictionary<string, IReadOnlyList<string>> _categoryNames;
         private IReadOnlyList<MetadataPageCandidate> _seeds;
         private HashSet<string> _shared = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -242,9 +255,81 @@ namespace PlayniteAchievements.Services.Metadata
         /// <summary>
         /// The page that matches the most of <paramref name="targets"/> among those the names'
         /// searches offer, the first offered winning a tie. When none matches enough, simpler forms
-        /// of the names are searched the same way.
+        /// of the names are searched the same way, and when still none does, the pages judged are
+        /// judged again in English.
         /// </summary>
         private async Task<ScoredPage> BestPageAsync(IReadOnlyList<string> names, IList<AchievementDetail> targets, string step, CancellationToken ct)
+        {
+            var judged = new List<(MetadataPageCandidate Candidate, string Via)>();
+            return await BestNativePageAsync(names, targets, step, judged, ct).ConfigureAwait(false) ??
+                   await BestInEnglishAsync(judged, targets, step, ct).ConfigureAwait(false);
+        }
+
+        /// <summary>
+        /// The page among <paramref name="judged"/> that matches the most of
+        /// <paramref name="targets"/> when the achievements left unmatched are compared in English;
+        /// null when none matches enough, or there is no English to compare.
+        /// </summary>
+        private async Task<ScoredPage> BestInEnglishAsync(
+            IReadOnlyList<(MetadataPageCandidate Candidate, string Via)> judged,
+            IList<AchievementDetail> targets,
+            string step,
+            CancellationToken ct)
+        {
+            if (_englishTitles == null || judged.Count == 0)
+            {
+                return null;
+            }
+
+            var english = await _englishTitles(ct).ConfigureAwait(false);
+            if (english == null || english.Count == 0)
+            {
+                return null;
+            }
+
+            ScoredPage best = null;
+            foreach (var (candidate, via) in judged)
+            {
+                var rows = await _rows(candidate.Id, ct).ConfigureAwait(false);
+                if (rows == null || rows.Count == 0)
+                {
+                    continue;
+                }
+
+                var englishRows = _englishRows == null ? null : await _englishRows(candidate.Id, ct).ConfigureAwait(false);
+                if (_englishRows != null && (englishRows == null || englishRows.Count == 0))
+                {
+                    continue;
+                }
+
+                var native = CrossSourceAchievementMatcher.Match(targets, rows);
+                var pairedTargets = new HashSet<AchievementDetail>(native.Select(match => match.Target));
+                var pairedRows = new HashSet<AchievementDetail>(native.Select(match => match.Source));
+                var matched = native.Count + EnglishTitlePairing.Match(
+                    targets.Where(target => !pairedTargets.Contains(target)).ToList(),
+                    english,
+                    rows.Where(row => !pairedRows.Contains(row)).ToList(),
+                    englishRows).Count;
+                if (IsEnough(matched, targets.Count, rows.Count) && matched > (best?.Matched ?? 0))
+                {
+                    best = new ScoredPage(candidate.Id, candidate.Title, matched, $"{step}: {candidate.Origin ?? "candidate"} via {via}, in English");
+                }
+
+                if (best?.Matched >= targets.Count)
+                {
+                    break;
+                }
+            }
+
+            return best;
+        }
+
+        private async Task<ScoredPage> BestNativePageAsync(
+            IReadOnlyList<string> names,
+            IList<AchievementDetail> targets,
+            string step,
+            List<(MetadataPageCandidate Candidate, string Via)> judged,
+            CancellationToken ct)
         {
             var tried = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             var asked = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -261,6 +346,8 @@ namespace PlayniteAchievements.Services.Metadata
                     {
                         continue;
                     }
+
+                    judged.Add((candidate, via));
 
                     var matched = CrossSourceAchievementMatcher.Match(targets, rows).Count;
                     if (IsEnough(matched, targets.Count, rows.Count) && matched > (best?.Matched ?? 0))
