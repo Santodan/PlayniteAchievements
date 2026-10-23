@@ -14,6 +14,39 @@
                 <ResourceDictionary Source="pack://application:,,,/PlayniteAchievements;component/Resources/SettingsScopedControlStyles.xaml"/>
                 <ResourceDictionary Source="pack://application:,,,/PlayniteAchievements;component/Resources/CommonResources.xaml"/>
             </ResourceDictionary.MergedDictionaries>
+
+            <!-- One row of related tags (TagPairRow): each tag is an enable toggle plus the name it
+                 writes, and the name boxes split the row's width. A one-sided row leaves the
+                 second half empty so its box lines up with the first column. -->
+            <DataTemplate x:Key="TagPairRowTemplate">
+                <controls:SettingRow Label="{Binding Label}"
+                                     HorizontalContentAlignment="Stretch">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+                        <DockPanel Grid.Column="0"
+                                   Margin="{StaticResource PlayAch.Thickness.Right.Md}">
+                            <CheckBox DockPanel.Dock="Left"
+                                      IsChecked="{Binding First.IsEnabled, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                      VerticalAlignment="Center"
+                                      Margin="{StaticResource PlayAch.Thickness.Right.Sm}"/>
+                            <TextBox Text="{Binding First.DisplayName, Mode=TwoWay, UpdateSourceTrigger=Explicit}"
+                                     MinWidth="120"/>
+                        </DockPanel>
+                        <DockPanel Grid.Column="1"
+                                   Visibility="{Binding HasSecond, Converter={StaticResource BooleanToVisibilityConverter}}">
+                            <CheckBox DockPanel.Dock="Left"
+                                      IsChecked="{Binding Second.IsEnabled, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                      VerticalAlignment="Center"
+                                      Margin="{StaticResource PlayAch.Thickness.Right.Sm}"/>
+                            <TextBox Text="{Binding Second.DisplayName, Mode=TwoWay, UpdateSourceTrigger=Explicit}"
+                                     MinWidth="120"/>
+                        </DockPanel>
+                    </Grid>
+                </controls:SettingRow>
+            </DataTemplate>
         </ResourceDictionary>
     </UserControl.Resources>
     <ScrollViewer VerticalScrollBarVisibility="Auto"
@@ -35,7 +68,7 @@
                         <CheckBox IsChecked="{Binding Persisted.TaggingSettings.EnableTagging, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
                     </controls:SettingRow>
 
-                    <!-- Completion status + actions - only visible when tagging is enabled -->
+                    <!-- Completion status, actions and the tag list - only visible when tagging is enabled -->
                     <StackPanel Margin="{StaticResource PlayAch.Thickness.SettingRow.Indent}"
                                 Visibility="{Binding Persisted.TaggingSettings.EnableTagging, Converter={StaticResource BooleanToVisibilityConverter}}"
                                 Grid.IsSharedSizeScope="True">
@@ -68,151 +101,26 @@
                                     Click="RemoveAllTags_Click"
                                     Padding="{StaticResource PlayAch.Thickness.ButtonPadding}"/>
                         </StackPanel>
-                    </StackPanel>
 
-                    <!-- Advanced: per-tag configuration - only visible when tagging is enabled -->
-                    <Expander IsExpanded="False"
-                              Background="{StaticResource PlayAch.Brush.Overlay.Shade.12}"
-                              BorderBrush="{DynamicResource PlayAch.Brush.Border}"
-                              BorderThickness="{StaticResource PlayAch.Thickness.Border}"
-                              Margin="{StaticResource PlayAch.Thickness.Top.Lg}"
-                              Padding="12,10,12,12"
-                              Visibility="{Binding Persisted.TaggingSettings.EnableTagging, Converter={StaticResource BooleanToVisibilityConverter}}">
-                        <Expander.Header>
-                            <TextBlock Text="{DynamicResource LOCSettingsAdvancedLabel}"
-                                       Foreground="{DynamicResource PlayAch.Brush.Text}"
-                                       FontWeight="SemiBold"/>
-                        </Expander.Header>
-
+                        <!-- Tags: one scope so status and customization rows share a label column. -->
                         <StackPanel Grid.IsSharedSizeScope="True">
-                            <TextBlock Text="{DynamicResource LOCPlayAch_Settings_TaggingSection}"
+                            <TextBlock Text="{DynamicResource LOCPlayAch_Column_Status}"
                                        FontWeight="SemiBold"
                                        Foreground="{DynamicResource PlayAch.Brush.Text}"
-                                       Margin="{StaticResource PlayAch.Thickness.Bottom.Md}"/>
+                                       Margin="{StaticResource PlayAch.Thickness.SubSectionHeading}"/>
+                            <ItemsControl ItemsSource="{Binding Persisted.TaggingSettings.StatusRows}"
+                                          ItemTemplate="{StaticResource TagPairRowTemplate}"
+                                          Focusable="False"/>
 
-                            <!-- Per tag: the enable toggle plus the name it writes. -->
-                            <controls:SettingRow Label="{DynamicResource LOCPlayAch_Tagging_HasAchievements}">
-                                <StackPanel Orientation="Horizontal">
-                                    <CheckBox IsChecked="{Binding Persisted.TaggingSettings.HasAchievementsConfig.IsEnabled, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                              VerticalAlignment="Center"
-                                              Margin="{StaticResource PlayAch.Thickness.Right.Sm}"/>
-                                    <TextBox x:Name="HasAchievementsTagTextBox"
-                                             Text="{Binding Persisted.TaggingSettings.HasAchievementsConfig.DisplayName, Mode=TwoWay, UpdateSourceTrigger=Explicit}"
-                                             Width="220"/>
-                                </StackPanel>
-                            </controls:SettingRow>
-
-                            <controls:SettingRow Label="{DynamicResource LOCPlayAch_Filter_InProgress}">
-                                <StackPanel Orientation="Horizontal">
-                                    <CheckBox IsChecked="{Binding Persisted.TaggingSettings.InProgressConfig.IsEnabled, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                              VerticalAlignment="Center"
-                                              Margin="{StaticResource PlayAch.Thickness.Right.Sm}"/>
-                                    <TextBox x:Name="InProgressTagTextBox"
-                                             Text="{Binding Persisted.TaggingSettings.InProgressConfig.DisplayName, Mode=TwoWay, UpdateSourceTrigger=Explicit}"
-                                             Width="220"/>
-                                </StackPanel>
-                            </controls:SettingRow>
-
-                            <controls:SettingRow Label="{DynamicResource LOCPlayAch_Completed}">
-                                <StackPanel Orientation="Horizontal">
-                                    <CheckBox IsChecked="{Binding Persisted.TaggingSettings.CompletedConfig.IsEnabled, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                              VerticalAlignment="Center"
-                                              Margin="{StaticResource PlayAch.Thickness.Right.Sm}"/>
-                                    <TextBox x:Name="CompletedTagTextBox"
-                                             Text="{Binding Persisted.TaggingSettings.CompletedConfig.DisplayName, Mode=TwoWay, UpdateSourceTrigger=Explicit}"
-                                             Width="220"/>
-                                </StackPanel>
-                            </controls:SettingRow>
-
-                            <controls:SettingRow Label="{DynamicResource LOCPlayAch_Tagging_NoAchievements}">
-                                <StackPanel Orientation="Horizontal">
-                                    <CheckBox IsChecked="{Binding Persisted.TaggingSettings.NoAchievementsConfig.IsEnabled, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                              VerticalAlignment="Center"
-                                              Margin="{StaticResource PlayAch.Thickness.Right.Sm}"/>
-                                    <TextBox x:Name="NoAchievementsTagTextBox"
-                                             Text="{Binding Persisted.TaggingSettings.NoAchievementsConfig.DisplayName, Mode=TwoWay, UpdateSourceTrigger=Explicit}"
-                                             Width="220"/>
-                                </StackPanel>
-                            </controls:SettingRow>
-
-                            <controls:SettingRow Label="{DynamicResource LOCPlayAch_Tagging_Customized}">
-                                <StackPanel Orientation="Horizontal">
-                                    <CheckBox IsChecked="{Binding Persisted.TaggingSettings.CustomizedConfig.IsEnabled, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                              VerticalAlignment="Center"
-                                              Margin="{StaticResource PlayAch.Thickness.Right.Sm}"/>
-                                    <TextBox x:Name="CustomizedTagTextBox"
-                                             Text="{Binding Persisted.TaggingSettings.CustomizedConfig.DisplayName, Mode=TwoWay, UpdateSourceTrigger=Explicit}"
-                                             Width="220"/>
-                                </StackPanel>
-                            </controls:SettingRow>
-
-                            <controls:SettingRow Label="{DynamicResource LOCPlayAch_Tagging_NotCustomized}">
-                                <StackPanel Orientation="Horizontal">
-                                    <CheckBox IsChecked="{Binding Persisted.TaggingSettings.NotCustomizedConfig.IsEnabled, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                              VerticalAlignment="Center"
-                                              Margin="{StaticResource PlayAch.Thickness.Right.Sm}"/>
-                                    <TextBox x:Name="NotCustomizedTagTextBox"
-                                             Text="{Binding Persisted.TaggingSettings.NotCustomizedConfig.DisplayName, Mode=TwoWay, UpdateSourceTrigger=Explicit}"
-                                             Width="220"/>
-                                </StackPanel>
-                            </controls:SettingRow>
-
-                            <controls:SettingRow Label="{DynamicResource LOCPlayAch_ManageAchievements_Status_Excluded}">
-                                <StackPanel Orientation="Horizontal">
-                                    <CheckBox IsChecked="{Binding Persisted.TaggingSettings.ExcludedConfig.IsEnabled, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                              VerticalAlignment="Center"
-                                              Margin="{StaticResource PlayAch.Thickness.Right.Sm}"/>
-                                    <TextBox x:Name="ExcludedTagTextBox"
-                                             Text="{Binding Persisted.TaggingSettings.ExcludedConfig.DisplayName, Mode=TwoWay, UpdateSourceTrigger=Explicit}"
-                                             Width="220"/>
-                                </StackPanel>
-                            </controls:SettingRow>
-
-                            <controls:SettingRow Label="{DynamicResource LOCPlayAch_ManageAchievements_Status_ExcludedFromSummaries}">
-                                <StackPanel Orientation="Horizontal">
-                                    <CheckBox IsChecked="{Binding Persisted.TaggingSettings.ExcludedFromSummariesConfig.IsEnabled, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                              VerticalAlignment="Center"
-                                              Margin="{StaticResource PlayAch.Thickness.Right.Sm}"/>
-                                    <TextBox x:Name="ExcludedFromSummariesTagTextBox"
-                                             Text="{Binding Persisted.TaggingSettings.ExcludedFromSummariesConfig.DisplayName, Mode=TwoWay, UpdateSourceTrigger=Explicit}"
-                                             Width="220"/>
-                                </StackPanel>
-                            </controls:SettingRow>
-
-                            <!-- Per customization area: the custom tag, then the default tag. -->
                             <TextBlock Text="{DynamicResource LOCPlayAch_Filter_CustomizationSelectorPlaceholder}"
                                        FontWeight="SemiBold"
                                        Foreground="{DynamicResource PlayAch.Brush.Text}"
                                        Margin="{StaticResource PlayAch.Thickness.SubSectionHeading}"/>
-
                             <ItemsControl ItemsSource="{Binding Persisted.TaggingSettings.CustomizationRows}"
-                                          Focusable="False">
-                                <ItemsControl.ItemTemplate>
-                                    <DataTemplate>
-                                        <controls:SettingRow Label="{Binding Label}">
-                                            <WrapPanel Orientation="Horizontal">
-                                                <StackPanel Orientation="Horizontal"
-                                                            Margin="{StaticResource PlayAch.Thickness.Right.Md}">
-                                                    <CheckBox IsChecked="{Binding CustomConfig.IsEnabled, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                                              VerticalAlignment="Center"
-                                                              Margin="{StaticResource PlayAch.Thickness.Right.Sm}"/>
-                                                    <TextBox Text="{Binding CustomConfig.DisplayName, Mode=TwoWay, UpdateSourceTrigger=Explicit}"
-                                                             Width="180"/>
-                                                </StackPanel>
-                                                <StackPanel Orientation="Horizontal">
-                                                    <CheckBox IsChecked="{Binding DefaultConfig.IsEnabled, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                                              VerticalAlignment="Center"
-                                                              Margin="{StaticResource PlayAch.Thickness.Right.Sm}"/>
-                                                    <TextBox Text="{Binding DefaultConfig.DisplayName, Mode=TwoWay, UpdateSourceTrigger=Explicit}"
-                                                             Width="180"/>
-                                                </StackPanel>
-                                            </WrapPanel>
-                                        </controls:SettingRow>
-                                    </DataTemplate>
-                                </ItemsControl.ItemTemplate>
-                            </ItemsControl>
+                                          ItemTemplate="{StaticResource TagPairRowTemplate}"
+                                          Focusable="False"/>
                         </StackPanel>
-                    </Expander>
+                    </StackPanel>
                 </StackPanel>
             </Border>
 
