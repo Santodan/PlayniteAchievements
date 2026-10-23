@@ -31,7 +31,8 @@ namespace PlayniteAchievements.Services.GameCustomData.Tests
             AssertOnly(CustomizationArea.Points, Override(new AchievementOverride { Points = 50 }));
             AssertOnly(CustomizationArea.Notes, Override(new AchievementOverride { Note = "later" }));
             AssertOnly(CustomizationArea.Categories, Override(new AchievementOverride { Category = "Story" }));
-            AssertOnly(CustomizationArea.Categories, Override(new AchievementOverride { ClearTags = true }));
+            AssertOnly(CustomizationArea.Tags, Override(new AchievementOverride { ClearTags = true }));
+            AssertOnly(CustomizationArea.Tags, Override(new AchievementOverride { Tags = "Missable" }));
             AssertOnly(CustomizationArea.None, Override(new AchievementOverride { DisplayName = "Renamed" }));
         }
 
@@ -48,6 +49,13 @@ namespace PlayniteAchievements.Services.GameCustomData.Tests
             AssertOnly(CustomizationArea.ManualTracking, new GameCustomDataFile { CustomProviderId = "p" });
             AssertOnly(CustomizationArea.Notifications, new GameCustomDataFile { CaptureOverride = new GameCaptureOverride() });
             AssertOnly(CustomizationArea.Categories, new GameCustomDataFile { AchievementCategoryOrder = new List<string> { "Story" } });
+            AssertOnly(CustomizationArea.Tags, new GameCustomDataFile
+            {
+                AchievementTags = new List<PlayniteAchievements.Models.Achievements.AchievementTagDefinition>
+                {
+                    new PlayniteAchievements.Models.Achievements.AchievementTagDefinition()
+                }
+            });
             AssertOnly(CustomizationArea.None, new GameCustomDataFile { FilteredAchievementApiNames = new List<string> { "a" } });
         }
 
