@@ -203,8 +203,9 @@ namespace PlayniteAchievements.Services.Cache
             }
         }
 
-        Dictionary<Guid, Dictionary<string, (string Tags, bool Unlocked)>> ICacheReadOptimizations.LoadAchievementTagStatesFast(
-            IReadOnlyDictionary<Guid, HashSet<string>> wanted)
+        Dictionary<Guid, Dictionary<string, Models.Achievements.AchievementTallyState>> ICacheReadOptimizations.LoadAchievementTagStatesFast(
+            IReadOnlyDictionary<Guid, HashSet<string>> wanted,
+            ISet<Guid> providerCapstoneGames)
         {
             try
             {
@@ -216,8 +217,8 @@ namespace PlayniteAchievements.Services.Cache
                 using (var scope = PerfScope.Start(_logger, "Cache.LoadAchievementTagStatesFast", thresholdMs: 25))
                 {
                     scope?.SetContext("games=" + (wanted?.Count ?? 0));
-                    return _store.LoadAchievementTagStates(wanted) ??
-                        new Dictionary<Guid, Dictionary<string, (string Tags, bool Unlocked)>>();
+                    return _store.LoadAchievementTagStates(wanted, providerCapstoneGames) ??
+                        new Dictionary<Guid, Dictionary<string, Models.Achievements.AchievementTallyState>>();
                 }
             }
             catch (Exception ex)

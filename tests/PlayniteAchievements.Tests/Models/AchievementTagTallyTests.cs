@@ -31,14 +31,67 @@ namespace PlayniteAchievements.Tests.Models
         }
 
         [TestMethod]
-        public void Builder_BuildsNullWhenNothingIsTagged()
+        public void Builder_CountsUntaggedUnderTheEmptySetAndBuildsNullWhenEmpty()
         {
             var builder = new AchievementTagTallyBuilder();
             builder.Add(null, unlocked: true);
+            Assert.AreEqual((1, 1), AsMap(builder.Build())[string.Empty]);
+
+            builder.Remove(null, unlocked: true);
             builder.Add("Collectable", unlocked: false);
             builder.Remove("Collectable", unlocked: false);
-
             Assert.IsNull(builder.Build());
+        }
+
+        [TestMethod]
+        public void Builder_KeepsTierGradeAndCapstoneApart()
+        {
+            var builder = new AchievementTagTallyBuilder();
+            builder.Add("Collectable", RarityTier.Rare, "Gold", isCapstone: false, unlocked: true);
+            builder.Add("Collectable", RarityTier.Rare, "gold", isCapstone: false, unlocked: false);
+            builder.Add("Collectable", RarityTier.Rare, "gold", isCapstone: true, unlocked: false);
+            builder.Add("Collectable", null, "none", isCapstone: false, unlocked: false);
+
+            var tallies = builder.Build();
+            Assert.AreEqual(3, tallies.Length);
+            var rareGold = tallies.Single(tally => tally.Rarity == RarityTier.Rare && tally.Trophy == "gold" && !tally.IsCapstone);
+            Assert.AreEqual(1, rareGold.Unlocked);
+            Assert.AreEqual(2, rareGold.Total);
+            Assert.AreEqual(1, tallies.Single(tally => tally.IsCapstone).Total);
+            var unknown = tallies.Single(tally => !tally.Rarity.HasValue);
+            Assert.IsNull(unknown.Trophy);
+        }
+
+        [TestMethod]
+        public void ApplyEdits_MovesAchievementsIntoAndOutOfAnEditedCapstoneSet()
+        {
+            var provider = new[]
+            {
+                new AchievementTagTally(string.Empty, RarityTier.Rare, "platinum", true, 0, 1),
+                new AchievementTagTally(string.Empty, RarityTier.Common, null, false, 1, 3)
+            };
+            var states = new Dictionary<string, AchievementTallyState>(StringComparer.OrdinalIgnoreCase)
+            {
+                // The provider's capstone, which the user's set leaves out.
+                ["plat"] = new AchievementTallyState(null, RarityTier.Rare, "platinum", isCapstone: true, unlocked: false),
+                // The user's capstone instead.
+                ["final"] = new AchievementTallyState(null, RarityTier.Common, null, isCapstone: false, unlocked: true)
+            };
+
+            var tallies = AchievementTagTallyBuilder.ApplyEdits(
+                provider,
+                states,
+                new Dictionary<string, AchievementOverride>(StringComparer.OrdinalIgnoreCase),
+                new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "final" });
+
+            var capstone = tallies.Single(tally => tally.IsCapstone);
+            Assert.AreEqual(RarityTier.Common, capstone.Rarity);
+            Assert.AreEqual((1, 1), (capstone.Unlocked, capstone.Total));
+            Assert.AreEqual((0, 1), tallies
+                .Where(tally => tally.Trophy == "platinum")
+                .Select(tally => (tally.Unlocked, tally.Total))
+                .Single());
+            Assert.AreEqual(4, tallies.Sum(tally => tally.Total));
         }
 
         [TestMethod]
@@ -47,13 +100,14 @@ namespace PlayniteAchievements.Tests.Models
             var provider = new[]
             {
                 new AchievementTagTally("Collectable", 1, 3),
-                new AchievementTagTally(AchievementTagHelper.Missable, 0, 1)
+                new AchievementTagTally(AchievementTagHelper.Missable, 0, 1),
+                new AchievementTagTally(string.Empty, 0, 1)
             };
-            var states = new Dictionary<string, (string Tags, bool Unlocked)>(StringComparer.OrdinalIgnoreCase)
+            var states = new Dictionary<string, AchievementTallyState>(StringComparer.OrdinalIgnoreCase)
             {
-                ["a"] = ("Collectable", true),
-                ["b"] = (AchievementTagHelper.Missable, false),
-                ["c"] = (null, false)
+                ["a"] = new AchievementTallyState("Collectable", RarityTier.Common, null, false, true),
+                ["b"] = new AchievementTallyState(AchievementTagHelper.Missable, RarityTier.Common, null, false, false),
+                ["c"] = new AchievementTallyState(null, RarityTier.Common, null, false, false)
             };
             var overrides = new Dictionary<string, AchievementOverride>(StringComparer.OrdinalIgnoreCase)
             {
@@ -72,6 +126,8 @@ namespace PlayniteAchievements.Tests.Models
             Assert.AreEqual((0, 3), tallies["Collectable"]);
             Assert.AreEqual((1, 1), tallies["Progression"]);
             Assert.IsFalse(tallies.ContainsKey(AchievementTagHelper.Missable));
+            // The cleared one is untagged now, in place of the one the user tagged.
+            Assert.AreEqual((0, 1), tallies[string.Empty]);
         }
 
         [TestMethod]

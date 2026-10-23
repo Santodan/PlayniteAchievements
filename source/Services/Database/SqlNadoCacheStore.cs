@@ -883,10 +883,11 @@ namespace PlayniteAchievements.Services.Database
         }
 
         /// <inheritdoc cref="SummaryCacheReader.LoadAchievementTagStates"/>
-        public Dictionary<Guid, Dictionary<string, (string Tags, bool Unlocked)>> LoadAchievementTagStates(
-            IReadOnlyDictionary<Guid, HashSet<string>> wanted)
+        public Dictionary<Guid, Dictionary<string, AchievementTallyState>> LoadAchievementTagStates(
+            IReadOnlyDictionary<Guid, HashSet<string>> wanted,
+            ISet<Guid> providerCapstoneGames = null)
         {
-            return _summaryReader.LoadAchievementTagStates(wanted);
+            return _summaryReader.LoadAchievementTagStates(wanted, providerCapstoneGames);
         }
 
         /// <inheritdoc cref="SummaryCacheReader.LoadTagTotalsForGame"/>

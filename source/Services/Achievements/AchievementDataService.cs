@@ -525,8 +525,9 @@ namespace PlayniteAchievements.Services.Achievements
                     excludedSummaryIds);
             }
 
-            // The query counts provider tags; the user's tag edits move their achievements before
-            // the merge adds the custom achievements, whose edits it applies itself.
+            // The query tallies provider tags and capstone flags; the user's tag and capstone edits
+            // move their achievements before the merge adds the custom achievements, whose edits it
+            // applies itself.
             ApplyTagEditsToTagTotals(summaryData.Games, customDataByGameId);
 
             // SQL summaries never see custom achievements, which live only in custom data.
@@ -570,22 +571,32 @@ namespace PlayniteAchievements.Services.Achievements
         }
 
         /// <summary>
-        /// Raised on the writer's thread after a tag edit recounted one game's tag totals, which
-        /// the cached summary now carries. Nothing else about the game changed.
+        /// Raised on the writer's thread after a tag edit recounted one game's tallies, which the
+        /// cached summary now carries. Nothing else about the game changed.
         /// </summary>
         public event EventHandler<TagTotalsChangedEventArgs> TagTotalsChanged;
 
+        // The query counts provider tags and provider capstone flags; the user's tag edits and
+        // edited capstone sets move their achievements to where the user put them.
         private void ApplyTagEditsToTagTotals(
             IEnumerable<CachedGameSummaryData> games,
             IReadOnlyDictionary<Guid, GameCustomDataFile> customDataByGameId)
         {
-            var edits = new Dictionary<Guid, Dictionary<string, AchievementOverride>>();
-            foreach (var pair in customDataByGameId ?? new Dictionary<Guid, GameCustomDataFile>())
+            var edits = new Dictionary<Guid, (Dictionary<string, AchievementOverride> Tags, HashSet<string> Capstones)>();
+            foreach (var game in games ?? Enumerable.Empty<CachedGameSummaryData>())
             {
-                var gameEdits = TagEdits(pair.Value);
-                if (gameEdits.Count > 0)
+                if (!(game?.PlayniteGameId is Guid gameId) || gameId == Guid.Empty || edits.ContainsKey(gameId))
                 {
-                    edits[pair.Key] = gameEdits;
+                    continue;
+                }
+
+                GameCustomDataFile customData = null;
+                customDataByGameId?.TryGetValue(gameId, out customData);
+                var tagEdits = TagEdits(customData);
+                var capstones = EditedCapstones(gameId, customData);
+                if (tagEdits.Count > 0 || capstones != null)
+                {
+                    edits[gameId] = (tagEdits, capstones);
                 }
             }
 
@@ -594,10 +605,7 @@ namespace PlayniteAchievements.Services.Achievements
                 return;
             }
 
-            var states = _cacheReadOptimizations?.LoadAchievementTagStatesFast(
-                edits.ToDictionary(
-                    pair => pair.Key,
-                    pair => new HashSet<string>(pair.Value.Keys, StringComparer.OrdinalIgnoreCase)));
+            var states = LoadTallyStates(edits);
             if (states == null)
             {
                 return;
@@ -609,9 +617,51 @@ namespace PlayniteAchievements.Services.Achievements
                     edits.TryGetValue(gameId, out var gameEdits) &&
                     states.TryGetValue(gameId, out var gameStates))
                 {
-                    game.TagTotals = AchievementTagTallyBuilder.ApplyEdits(game.TagTotals, gameStates, gameEdits);
+                    game.TagTotals = AchievementTagTallyBuilder.ApplyEdits(
+                        game.TagTotals,
+                        gameStates,
+                        gameEdits.Tags,
+                        gameEdits.Capstones);
                 }
             }
+        }
+
+        // The tallied states of the achievements the edits move: each tag-edited one, and for an
+        // edited capstone set both its members and the provider capstones it may have dropped.
+        private Dictionary<Guid, Dictionary<string, AchievementTallyState>> LoadTallyStates(
+            IReadOnlyDictionary<Guid, (Dictionary<string, AchievementOverride> Tags, HashSet<string> Capstones)> edits)
+        {
+            var wanted = edits.ToDictionary(
+                pair => pair.Key,
+                pair =>
+                {
+                    var names = new HashSet<string>(pair.Value.Tags.Keys, StringComparer.OrdinalIgnoreCase);
+                    names.UnionWith(pair.Value.Capstones ?? Enumerable.Empty<string>());
+                    return names;
+                });
+            var capstoneGames = new HashSet<Guid>(edits.Where(pair => pair.Value.Capstones != null).Select(pair => pair.Key));
+            return _cacheReadOptimizations?.LoadAchievementTagStatesFast(wanted, capstoneGames);
+        }
+
+        /// <summary>
+        /// The ApiNames of a game's user-edited capstone set, which replaces the provider's flags;
+        /// null while the game goes by the provider's.
+        /// </summary>
+        private HashSet<string> EditedCapstones(Guid gameId, GameCustomDataFile customData)
+        {
+            var capstones = customData != null
+                ? (customData.CapstonesMaterialized ? customData.Capstones ?? new List<CapstoneAssignment>() : null)
+                : ResolveFallbackCapstones(gameId);
+            if (capstones == null || (customData == null && capstones.Count == 0))
+            {
+                return null;
+            }
+
+            return new HashSet<string>(
+                capstones
+                    .Select(capstone => NormalizeText(capstone?.ApiName))
+                    .Where(apiName => !string.IsNullOrWhiteSpace(apiName)),
+                StringComparer.OrdinalIgnoreCase);
         }
 
         private static Dictionary<string, AchievementOverride> TagEdits(GameCustomDataFile customData)
@@ -629,7 +679,7 @@ namespace PlayniteAchievements.Services.Achievements
         }
 
         /// <summary>
-        /// Recounts one game's tag totals after a tag edit and puts them on the cached summary in
+        /// Recounts one game's tallies after a tag edit and puts them on the cached summary in
         /// place: two small reads for the game, not a summary patch and the whole-library refresh
         /// that follows one.
         /// </summary>
@@ -647,16 +697,17 @@ namespace PlayniteAchievements.Services.Achievements
                 _gameCustomDataStore?.TryLoad(gameId, out customData);
                 totals = _cacheReadOptimizations.LoadTagTotalsForGameFast(gameId);
                 var edits = TagEdits(customData);
-                if (edits.Count > 0)
+                var capstones = EditedCapstones(gameId, customData);
+                if (edits.Count > 0 || capstones != null)
                 {
-                    var states = _cacheReadOptimizations.LoadAchievementTagStatesFast(
-                        new Dictionary<Guid, HashSet<string>>
+                    var states = LoadTallyStates(
+                        new Dictionary<Guid, (Dictionary<string, AchievementOverride> Tags, HashSet<string> Capstones)>
                         {
-                            [gameId] = new HashSet<string>(edits.Keys, StringComparer.OrdinalIgnoreCase)
+                            [gameId] = (edits, capstones)
                         });
                     if (states != null && states.TryGetValue(gameId, out var gameStates))
                     {
-                        totals = AchievementTagTallyBuilder.ApplyEdits(totals, gameStates, edits);
+                        totals = AchievementTagTallyBuilder.ApplyEdits(totals, gameStates, edits, capstones);
                     }
                 }
 

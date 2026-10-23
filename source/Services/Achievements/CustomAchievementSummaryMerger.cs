@@ -161,9 +161,9 @@ namespace PlayniteAchievements.Services.Achievements
         }
 
         /// <summary>
-        /// Counts the tags of the game's custom achievements that summaries show into
-        /// <paramref name="builder"/>, with the user's tag edits applied: their share of the game's
-        /// tag totals, which the summary query never sees.
+        /// Counts the game's custom achievements that summaries show into <paramref name="builder"/>,
+        /// with the user's edits applied: their share of the game's tallies, which the summary
+        /// query never sees.
         /// </summary>
         public static void AddCustomAchievementTags(
             AchievementTagTallyBuilder builder,
@@ -178,7 +178,9 @@ namespace PlayniteAchievements.Services.Achievements
                 return;
             }
 
-            AddTags(builder, ProjectVisible(gameId, customData, managedCustomIconService), customData);
+            var visible = ProjectVisible(gameId, customData, managedCustomIconService);
+            ApplyUserOverrides(visible, customData);
+            AddTags(builder, visible, customData);
         }
 
         // The custom achievements summaries count: every one the user has not filtered out.
@@ -197,7 +199,8 @@ namespace PlayniteAchievements.Services.Achievements
                 .ToList();
         }
 
-        // The override applier leaves tags alone, so the user's tag edits are applied here.
+        // The override applier leaves tags alone, so the user's tag edits are applied here. A game
+        // whose capstones the user edited goes by its stored set, as its capstone counts do.
         private static void AddTags(
             AchievementTagTallyBuilder builder,
             IEnumerable<AchievementDetail> achievements,
@@ -212,16 +215,33 @@ namespace PlayniteAchievements.Services.Achievements
                 }
             }
 
+            var capstones = customData?.CapstonesMaterialized == true
+                ? new HashSet<string>(
+                    (customData.Capstones ?? new List<CapstoneAssignment>())
+                        .Select(capstone => capstone?.ApiName?.Trim())
+                        .Where(apiName => !string.IsNullOrEmpty(apiName)),
+                    StringComparer.OrdinalIgnoreCase)
+                : null;
             foreach (var achievement in achievements)
             {
+                if (achievement == null)
+                {
+                    continue;
+                }
+
                 AchievementOverride entry = null;
-                var apiName = achievement?.ApiName?.Trim();
+                var apiName = achievement.ApiName?.Trim();
                 if (!string.IsNullOrEmpty(apiName))
                 {
                     overrides.TryGetValue(apiName, out entry);
                 }
 
-                builder.Add(AchievementTagTallyBuilder.EffectiveTags(achievement?.Tags, entry), achievement?.Unlocked == true);
+                builder.Add(
+                    AchievementTagTallyBuilder.EffectiveTags(achievement.Tags, entry),
+                    achievement.Rarity,
+                    achievement.TrophyType,
+                    capstones != null ? capstones.Contains(apiName ?? string.Empty) : achievement.IsCapstone,
+                    achievement.Unlocked);
             }
         }
 
