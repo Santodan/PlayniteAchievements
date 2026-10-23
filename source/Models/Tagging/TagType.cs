@@ -49,7 +49,7 @@ namespace PlayniteAchievements.Models.Tagging
         // Per-area customization kinds, disabled by default. See CustomizationTagAreas for the area
         // and layer each kind belongs to.
         CustomIcons,
-        CustomTrophyTypes,
+        CustomTrophies,
         CustomPoints,
         CustomNotes,
         NoNotes,
@@ -67,9 +67,9 @@ namespace PlayniteAchievements.Models.Tagging
         // Where a layered area's data comes from: the game's platform, a metadata source, or
         // nowhere.
         MetadataIcons,
-        PlatformTrophyTypes,
-        MetadataTrophyTypes,
-        NoTrophyTypes,
+        PlatformTrophies,
+        MetadataTrophies,
+        NoTrophies,
         PlatformPoints,
         MetadataPoints,
         NoPoints,
