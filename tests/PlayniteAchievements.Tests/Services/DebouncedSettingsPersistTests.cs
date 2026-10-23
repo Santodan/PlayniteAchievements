@@ -3,6 +3,7 @@ using System.Reflection;
 using System.Threading;
 using System.Windows.Controls;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
+using PlayniteAchievements.Tests.TestInfrastructure;
 using PlayniteAchievements.Services.Settings;
 
 namespace PlayniteAchievements.Tests.Services
@@ -13,7 +14,7 @@ namespace PlayniteAchievements.Tests.Services
         [TestMethod]
         public void Schedule_ThenFlush_PersistsOnce()
         {
-            RunOnStaThread(() =>
+            StaTestHost.Run(() =>
             {
                 var persistCount = 0;
                 using (var persist = new DebouncedSettingsPersist(new Border(), () => persistCount++))
@@ -30,7 +31,7 @@ namespace PlayniteAchievements.Tests.Services
         [TestMethod]
         public void Schedule_ThenCancel_ThenFlush_DoesNotPersist()
         {
-            RunOnStaThread(() =>
+            StaTestHost.Run(() =>
             {
                 var persistCount = 0;
                 using (var persist = new DebouncedSettingsPersist(new Border(), () => persistCount++))
@@ -47,7 +48,7 @@ namespace PlayniteAchievements.Tests.Services
         [TestMethod]
         public void Schedule_ThenFlush_WhileDeferred_DoesNotPersist()
         {
-            RunOnStaThread(() =>
+            StaTestHost.Run(() =>
             {
                 var persistCount = 0;
                 using (var persist = new DebouncedSettingsPersist(new Border(), () => persistCount++, () => true))
@@ -63,7 +64,7 @@ namespace PlayniteAchievements.Tests.Services
         [TestMethod]
         public void Flush_WithoutSchedule_DoesNotPersist()
         {
-            RunOnStaThread(() =>
+            StaTestHost.Run(() =>
             {
                 var persistCount = 0;
                 using (var persist = new DebouncedSettingsPersist(new Border(), () => persistCount++))
@@ -78,7 +79,7 @@ namespace PlayniteAchievements.Tests.Services
         [TestMethod]
         public void Schedule_AfterDispose_DoesNotPersistOnFlush()
         {
-            RunOnStaThread(() =>
+            StaTestHost.Run(() =>
             {
                 var persistCount = 0;
                 var persist = new DebouncedSettingsPersist(new Border(), () => persistCount++);
@@ -89,32 +90,6 @@ namespace PlayniteAchievements.Tests.Services
 
                 Assert.AreEqual(0, persistCount);
             });
-        }
-
-        private static void RunOnStaThread(Action action)
-        {
-            Exception error = null;
-            var thread = new Thread(() =>
-            {
-                try
-                {
-                    action();
-                }
-                catch (Exception ex)
-                {
-                    error = ex is TargetInvocationException invocationException && invocationException.InnerException != null
-                        ? invocationException.InnerException
-                        : ex;
-                }
-            });
-            thread.SetApartmentState(ApartmentState.STA);
-            thread.Start();
-            thread.Join();
-
-            if (error != null)
-            {
-                throw new AssertFailedException(error.ToString());
-            }
         }
     }
 }
