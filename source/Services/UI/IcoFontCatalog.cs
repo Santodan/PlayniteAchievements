@@ -17,50 +17,67 @@ namespace PlayniteAchievements.Services.UI
         private static readonly Lazy<IReadOnlyList<IcoFontGlyph>> Glyphs =
             new Lazy<IReadOnlyList<IcoFontGlyph>>(Load);
 
-        // IcoFont numbers its glyphs category by category, alphabetical within each, so a category
-        // is the run of codepoints from its first one up to the next category's. The names are
-        // IcoFont's own, like the glyph names; each category's icon is one of its own glyphs.
-        private static readonly IcoFontCategory[] CategoryStarts =
+        // The picker's groups, in the order it lists them, each with one of its own glyphs as its
+        // icon. Each folds together related IcoFont categories.
+        private static readonly IcoFontCategory[] Groups =
         {
-            new IcoFontCategory(0xE800, "Abstract", "E814"),
-            new IcoFontCategory(0xE829, "Animal", "E83D"),
-            new IcoFontCategory(0xE896, "Brand", "E8A7"),
-            new IcoFontCategory(0xE961, "Business", "E966"),
-            new IcoFontCategory(0xE978, "Chart", "E983"),
-            new IcoFontCategory(0xE985, "Construction", "E9A0"),
-            new IcoFontCategory(0xE9C5, "Currency", "E9D8"),
-            new IcoFontCategory(0xEA29, "Device", "EA30"),
-            new IcoFontCategory(0xEA5B, "Directional", "EA5D"),
-            new IcoFontCategory(0xEACC, "Education", "EADC"),
-            new IcoFontCategory(0xEAF4, "Emoji", "EB02"),
-            new IcoFontCategory(0xEB08, "File Type", "EB0E"),
-            new IcoFontCategory(0xEB31, "Fitness", "EB3A"),
-            new IcoFontCategory(0xEB3B, "Food", "EB69"),
-            new IcoFontCategory(0xEB9D, "Kids & Baby", "EBA1"),
-            new IcoFontCategory(0xEBB0, "Law", "EBC7"),
-            new IcoFontCategory(0xEBD7, "Math", "EBDF"),
-            new IcoFontCategory(0xEC06, "Medical", "EC1D"),
-            new IcoFontCategory(0xEC3E, "Mobile UI", "EC8A"),
-            new IcoFontCategory(0xEC99, "Multimedia", "ECA3"),
-            new IcoFontCategory(0xECBC, "Payment", "ECC9"),
-            new IcoFontCategory(0xECEB, "Person", "ED05"),
-            new IcoFontCategory(0xED11, "Search", "ED1B"),
-            new IcoFontCategory(0xED1C, "Social", "ED37"),
-            new IcoFontCategory(0xED8D, "Sport", "EDA0"),
-            new IcoFontCategory(0xEDDF, "Text Editor", "EDE3"),
-            new IcoFontCategory(0xEE0C, "Transport", "EE1F"),
-            new IcoFontCategory(0xEE41, "Travel", "EE44"),
-            new IcoFontCategory(0xEE4F, "Weather", "EE81"),
-            new IcoFontCategory(0xEEA0, "Web Application", "EF3E")
+            new IcoFontCategory("Interface", "EC8A"),
+            new IcoFontCategory("Arrows & Shapes", "E814"),
+            new IcoFontCategory("People", "ED05"),
+            new IcoFontCategory("Animals & Nature", "E83D"),
+            new IcoFontCategory("Food", "EB69"),
+            new IcoFontCategory("Sport & Health", "EDA0"),
+            new IcoFontCategory("Travel", "EE1F"),
+            new IcoFontCategory("Devices & Media", "EA30"),
+            new IcoFontCategory("Office & School", "EB0E"),
+            new IcoFontCategory("Work & Money", "E966"),
+            new IcoFontCategory("Logos", "E8A7")
         };
 
-        /// <summary>Every glyph, grouped by category in IcoFont's order and by name within each.</summary>
+        // IcoFont numbers its glyphs category by category, alphabetical within each, so a category
+        // is the run of codepoints from its first one up to the next category's. Each entry is
+        // where one IcoFont category starts (named in the comment) and the group it falls in.
+        private static readonly KeyValuePair<int, string>[] CategoryStarts =
+        {
+            new KeyValuePair<int, string>(0xE800, "Arrows & Shapes"),   // Abstract
+            new KeyValuePair<int, string>(0xE829, "Animals & Nature"),  // Animal
+            new KeyValuePair<int, string>(0xE896, "Logos"),             // Brand
+            new KeyValuePair<int, string>(0xE961, "Work & Money"),      // Business
+            new KeyValuePair<int, string>(0xE978, "Work & Money"),      // Chart
+            new KeyValuePair<int, string>(0xE985, "Work & Money"),      // Construction
+            new KeyValuePair<int, string>(0xE9C5, "Work & Money"),      // Currency
+            new KeyValuePair<int, string>(0xEA29, "Devices & Media"),   // Device
+            new KeyValuePair<int, string>(0xEA5B, "Arrows & Shapes"),   // Directional
+            new KeyValuePair<int, string>(0xEACC, "Office & School"),   // Education
+            new KeyValuePair<int, string>(0xEAF4, "People"),            // Emoji
+            new KeyValuePair<int, string>(0xEB08, "Office & School"),   // File Type
+            new KeyValuePair<int, string>(0xEB31, "Sport & Health"),    // Fitness
+            new KeyValuePair<int, string>(0xEB3B, "Food"),              // Food
+            new KeyValuePair<int, string>(0xEB9D, "People"),            // Kids & Baby
+            new KeyValuePair<int, string>(0xEBB0, "Work & Money"),      // Law
+            new KeyValuePair<int, string>(0xEBD7, "Arrows & Shapes"),   // Math
+            new KeyValuePair<int, string>(0xEC06, "Sport & Health"),    // Medical
+            new KeyValuePair<int, string>(0xEC3E, "Interface"),         // Mobile UI
+            new KeyValuePair<int, string>(0xEC99, "Devices & Media"),   // Multimedia
+            new KeyValuePair<int, string>(0xECBC, "Logos"),             // Payment
+            new KeyValuePair<int, string>(0xECEB, "People"),            // Person
+            new KeyValuePair<int, string>(0xED11, "Interface"),         // Search
+            new KeyValuePair<int, string>(0xED1C, "Logos"),             // Social
+            new KeyValuePair<int, string>(0xED8D, "Sport & Health"),    // Sport
+            new KeyValuePair<int, string>(0xEDDF, "Office & School"),   // Text Editor
+            new KeyValuePair<int, string>(0xEE0C, "Travel"),            // Transport
+            new KeyValuePair<int, string>(0xEE41, "Travel"),            // Travel
+            new KeyValuePair<int, string>(0xEE4F, "Animals & Nature"),  // Weather
+            new KeyValuePair<int, string>(0xEEA0, "Interface")          // Web Application
+        };
+
+        /// <summary>Every glyph, grouped in <see cref="Categories"/>' order and by codepoint within each.</summary>
         public static IReadOnlyList<IcoFontGlyph> All => Glyphs.Value;
 
-        /// <summary>The categories, in IcoFont's order.</summary>
-        public static IReadOnlyList<IcoFontCategory> Categories => CategoryStarts;
+        /// <summary>The picker's groups, in the order it lists them.</summary>
+        public static IReadOnlyList<IcoFontCategory> Categories => Groups;
 
-        /// <summary>The category of the glyph at <paramref name="code"/>; null for a code before the first.</summary>
+        /// <summary>The group of the glyph at <paramref name="code"/>; null for a code before the first.</summary>
         public static string CategoryOf(string code)
         {
             if (!int.TryParse(code, System.Globalization.NumberStyles.HexNumber, null, out var codepoint))
@@ -71,12 +88,12 @@ namespace PlayniteAchievements.Services.UI
             string category = null;
             foreach (var start in CategoryStarts)
             {
-                if (codepoint < start.Start)
+                if (codepoint < start.Key)
                 {
                     break;
                 }
 
-                category = start.Name;
+                category = start.Value;
             }
 
             return category;
@@ -150,9 +167,11 @@ namespace PlayniteAchievements.Services.UI
                 // A missing list only costs the search; the picker still lists nothing rather than failing.
             }
 
-            // The codepoint order is the category order, alphabetical within each category.
+            // By group, then by codepoint, which keeps each IcoFont category together and
+            // alphabetical within it.
             return glyphs
-                .OrderBy(glyph => glyph.Code, StringComparer.OrdinalIgnoreCase)
+                .OrderBy(glyph => Array.FindIndex(Groups, group => group.Name == glyph.Category))
+                .ThenBy(glyph => glyph.Code, StringComparer.OrdinalIgnoreCase)
                 .ToList();
         }
     }
@@ -178,17 +197,14 @@ namespace PlayniteAchievements.Services.UI
         public string Glyph { get; }
     }
 
-    /// <summary>One IcoFont category: where its codepoints start, its name and its icon's codepoint.</summary>
+    /// <summary>One group of the picker: its name and its icon's codepoint.</summary>
     internal sealed class IcoFontCategory
     {
-        public IcoFontCategory(int start, string name, string icon)
+        public IcoFontCategory(string name, string icon)
         {
-            Start = start;
             Name = name;
             Icon = icon;
         }
-
-        public int Start { get; }
 
         public string Name { get; }
 
