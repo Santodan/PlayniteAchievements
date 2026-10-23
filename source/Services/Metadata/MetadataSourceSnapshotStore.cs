@@ -100,14 +100,39 @@ namespace PlayniteAchievements.Services.Metadata
             }
         }
 
-        /// <summary>Records a source's rows and matches for the game; the row is written only when they changed.</summary>
+        /// <summary>The link the source's snapshot for the game was taken from, else null.</summary>
+        internal string GetLinkId(Guid gameId, string sourceKey)
+        {
+            var database = _database?.Invoke();
+            if (database == null || string.IsNullOrWhiteSpace(sourceKey))
+            {
+                return null;
+            }
+
+            try
+            {
+                return database.GetMetadataSourceSnapshot(gameId.ToString(), sourceKey.Trim())?.LinkId;
+            }
+            catch (Exception ex)
+            {
+                _logger?.Warn(ex, $"[Metadata] Failed to read the {sourceKey} snapshot of {gameId}.");
+                return null;
+            }
+        }
+
+        /// <summary>
+        /// Records a source's rows and matches for the game; the row is written only when they
+        /// changed. A row's icon is kept only as a local file: <paramref name="iconOf"/> gives the
+        /// one downloaded for it, and an address is never stored.
+        /// </summary>
         internal void Record(
             Guid gameId,
             string sourceKey,
             string linkId,
             IEnumerable<AchievementDetail> rows,
             IEnumerable<KeyValuePair<string, string>> matches,
-            IReadOnlyList<MetadataSourceList> lists = null)
+            IReadOnlyList<MetadataSourceList> lists = null,
+            Func<AchievementDetail, string> iconOf = null)
         {
             var database = _database?.Invoke();
             if (database == null || gameId == Guid.Empty || string.IsNullOrWhiteSpace(sourceKey) || string.IsNullOrWhiteSpace(linkId))
@@ -137,7 +162,9 @@ namespace PlayniteAchievements.Services.Metadata
                     ApiName = row.ApiName,
                     Name = row.DisplayName,
                     Description = string.IsNullOrWhiteSpace(row.Description) ? null : row.Description,
-                    Icon = string.IsNullOrWhiteSpace(row.UnlockedIconPath) ? row.LockedIconPath : row.UnlockedIconPath,
+                    Icon = LocalIconPath(iconOf != null
+                        ? iconOf(row)
+                        : string.IsNullOrWhiteSpace(row.UnlockedIconPath) ? row.LockedIconPath : row.UnlockedIconPath),
                     List = listOf.TryGetValue(row, out var list) ? list : null
                 })
                 .ToList();
@@ -178,6 +205,24 @@ namespace PlayniteAchievements.Services.Metadata
             catch (Exception ex)
             {
                 _logger?.Warn(ex, $"[Metadata] Failed to save the {sourceKey} snapshot of {gameId}.");
+            }
+        }
+
+        /// <summary>The path when it names a local file, else null: an address or blank shows no icon.</summary>
+        internal static string LocalIconPath(string path)
+        {
+            if (string.IsNullOrWhiteSpace(path) || path.IndexOf("://", StringComparison.Ordinal) >= 0)
+            {
+                return null;
+            }
+
+            try
+            {
+                return System.IO.Path.IsPathRooted(path) ? path : null;
+            }
+            catch (ArgumentException)
+            {
+                return null;
             }
         }
 
