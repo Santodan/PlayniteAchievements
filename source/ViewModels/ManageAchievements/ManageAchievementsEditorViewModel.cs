@@ -4729,7 +4729,10 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 e.PropertyName == nameof(AchievementEditorRow.DisplayIcon) ||
                 e.PropertyName == nameof(AchievementEditorRow.CategoryLabel) ||
                 e.PropertyName == nameof(AchievementEditorRow.TagsValue) ||
-                e.PropertyName == nameof(AchievementEditorRow.TagsDisplayText))
+                e.PropertyName == nameof(AchievementEditorRow.TagsDisplayText) ||
+                e.PropertyName == nameof(AchievementEditorRow.TagChips) ||
+                e.PropertyName == nameof(AchievementEditorRow.TagsButtonText) ||
+                e.PropertyName == nameof(AchievementEditorRow.HasTagIcons))
             {
                 return;
             }
@@ -8048,7 +8051,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 if (SetValueAndReturn(ref _tagsValue, value))
                 {
                     OnPropertyChanged(nameof(EffectiveTagsValue));
-                    OnPropertyChanged(nameof(TagsDisplayText));
+                    NotifyTagPresentation();
                     OnPropertyChanged(nameof(IsMissable));
                     OnPropertyChanged(nameof(IsUnobtainable));
                 }
@@ -8069,7 +8072,15 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         private Guid? _gameId;
 
         /// <summary>Re-reads tag names after the tag lists changed.</summary>
-        public void RefreshTags() => OnPropertyChanged(nameof(TagsDisplayText));
+        public void RefreshTags() => NotifyTagPresentation();
+
+        private void NotifyTagPresentation()
+        {
+            OnPropertyChanged(nameof(TagsDisplayText));
+            OnPropertyChanged(nameof(TagChips));
+            OnPropertyChanged(nameof(TagsButtonText));
+            OnPropertyChanged(nameof(HasTagIcons));
+        }
 
         /// <summary>The game the row belongs to, so its own tags resolve.</summary>
         public Guid? GameId
@@ -8080,7 +8091,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 if (_gameId != value)
                 {
                     _gameId = value;
-                    OnPropertyChanged(nameof(TagsDisplayText));
+                    NotifyTagPresentation();
                 }
             }
         }
@@ -8103,6 +8114,19 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                     : ResourceProvider.GetString("LOCNone");
             }
         }
+
+        /// <summary>The row's tags as the editor grid's Tags cell draws them, hidden ones included.</summary>
+        public IReadOnlyList<Tags.AchievementTagChip> TagChips =>
+            Tags.AchievementTagPresentation.Resolve(EffectiveTagsValue, _gameId, includeHidden: true);
+
+        /// <summary>
+        /// The Tags cell button's label: empty when a tag has an icon, since the cell then draws the
+        /// tags over the button instead.
+        /// </summary>
+        public string TagsButtonText => HasTagIcons ? string.Empty : TagsDisplayText;
+
+        /// <summary>True when one of the row's tags has an icon.</summary>
+        public bool HasTagIcons => TagChips.Any(chip => chip.Icon != null);
 
         public bool IsCapstone
         {
