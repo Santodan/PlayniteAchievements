@@ -44,6 +44,32 @@ namespace PlayniteAchievements.Models.Tagging
         /// <summary>
         /// Game is excluded from overview summaries.
         /// </summary>
-        ExcludedFromSummaries
+        ExcludedFromSummaries,
+
+        // Per-area customization pairs, disabled by default. The custom kind applies when the
+        // game carries that customization, the default kind when it does not. See
+        // CustomizationTagAreas for the area each pair belongs to.
+        CustomIcons,
+        DefaultIcons,
+        CustomTrophyTypes,
+        DefaultTrophyTypes,
+        CustomPoints,
+        DefaultPoints,
+        CustomNotes,
+        DefaultNotes,
+        CustomCategories,
+        DefaultCategories,
+        CustomOrder,
+        DefaultOrder,
+        CustomCapstones,
+        DefaultCapstones,
+        CustomGoals,
+        DefaultGoals,
+        CustomSource,
+        DefaultSource,
+        CustomManualTracking,
+        DefaultManualTracking,
+        CustomNotifications,
+        DefaultNotifications
     }
 }
