@@ -32,7 +32,7 @@ namespace PlayniteAchievements.Views.Controls
         private const double SliceHighlightOffset = 5.0;
         private const double LiveChartsRotationOffset = 45.0;
         private const double RingInnerRadius = 30.0;
-        private static readonly Duration SliceAnimationDuration = new Duration(TimeSpan.FromMilliseconds(150));
+        private const double SliceAnimationMilliseconds = 150.0;
         private static readonly PropertyInfo PiePointViewSliceProperty =
             typeof(PieSlice).Assembly
                 .GetType("LiveCharts.Wpf.Points.PiePointView")?
@@ -48,6 +48,20 @@ namespace PlayniteAchievements.Views.Controls
         private bool calculationScheduled;
         private bool legendSyncScheduled;
         private string hoveredSliceLabel;
+
+        // Slices sliding toward a new growth, stepped once per rendered frame.
+        private readonly Dictionary<PieSlice, SliceTween> sliceTweens = new Dictionary<PieSlice, SliceTween>();
+        private bool renderingHooked;
+        private TimeSpan? lastRenderingTime;
+        private bool steppingTweens;
+
+        private sealed class SliceTween
+        {
+            public double From { get; set; }
+            public double To { get; set; }
+            public double Progress { get; set; }
+            public bool Started { get; set; }
+        }
 
         private sealed class IconCandidate
         {
@@ -501,6 +515,7 @@ namespace PlayniteAchievements.Views.Controls
         {
             DetachCurrentSources();
             DetachTooltip();
+            FinishSliceTweens();
         }
 
         // The hover tooltip, shown in the window's adorner layer in place of LiveCharts' Popup
@@ -1367,7 +1382,7 @@ namespace PlayniteAchievements.Views.Controls
         /// slice's sides stay on its neighbours' edges, so no slice slides and the separators
         /// stay even whatever the slice's angle.
         /// </summary>
-        private static void SetSliceTransform(PieSlice slice, double x, double y)
+        private void SetSliceTransform(PieSlice slice, double x, double y)
         {
             if (slice == null)
             {
@@ -1375,23 +1390,105 @@ namespace PlayniteAchievements.Views.Controls
             }
 
             var target = Math.Sqrt((x * x) + (y * y));
+            if (sliceTweens.TryGetValue(slice, out var running) && Math.Abs(running.To - target) < 0.01)
+            {
+                return;
+            }
+
             var current = (double)slice.GetValue(SliceGrowthProperty);
             if (Math.Abs(current - target) < 0.01)
             {
-                slice.BeginAnimation(SliceGrowthProperty, null);
+                sliceTweens.Remove(slice);
                 slice.SetValue(SliceGrowthProperty, target);
                 return;
             }
 
-            var animation = AnimationFrameRate.Apply(new DoubleAnimation
+            // A retarget mid-slide starts from where the slice is now.
+            sliceTweens[slice] = new SliceTween { From = current, To = target };
+            if (!renderingHooked)
             {
-                To = target,
-                Duration = SliceAnimationDuration,
-                EasingFunction = SliceAnimationEasing,
-                FillBehavior = FillBehavior.HoldEnd
-            });
+                renderingHooked = true;
+                lastRenderingTime = null;
+                CompositionTarget.Rendering += OnSliceTweenRendering;
+            }
+        }
 
-            slice.BeginAnimation(SliceGrowthProperty, animation, HandoffBehavior.SnapshotAndReplace);
+        /// <summary>
+        /// Steps every sliding slice by one frame. A frame advances the slide by at most one
+        /// refresh interval, however long the frame before it took: a selection or filter click
+        /// starts the slide just before the pie, its sibling widgets and the overview grid all
+        /// redo their layout, and a wall-clock animation spent most of its time in that stall
+        /// and drew only its last few positions.
+        /// </summary>
+        private void OnSliceTweenRendering(object sender, EventArgs e)
+        {
+            var now = (e as RenderingEventArgs)?.RenderingTime ?? TimeSpan.Zero;
+            // Rendering can be raised more than once for the same frame.
+            if (lastRenderingTime == now)
+            {
+                return;
+            }
+
+            var elapsedMs = lastRenderingTime.HasValue ? (now - lastRenderingTime.Value).TotalMilliseconds : 0.0;
+            lastRenderingTime = now;
+            var rate = AnimationFrameRate.Current;
+            var maxStepMs = 1000.0 / (rate > 0 ? rate : 60);
+            var step = Math.Max(0, Math.Min(elapsedMs, maxStepMs)) / SliceAnimationMilliseconds;
+
+            steppingTweens = true;
+            try
+            {
+                foreach (var pair in sliceTweens.ToList())
+                {
+                    var tween = pair.Value;
+                    if (tween.Started)
+                    {
+                        tween.Progress = Math.Min(1.0, tween.Progress + step);
+                    }
+                    else
+                    {
+                        // The first frame draws the starting pose.
+                        tween.Started = true;
+                    }
+
+                    var eased = SliceAnimationEasing.Ease(tween.Progress);
+                    pair.Key.SetValue(SliceGrowthProperty, tween.From + ((tween.To - tween.From) * eased));
+                    if (tween.Progress >= 1.0)
+                    {
+                        sliceTweens.Remove(pair.Key);
+                    }
+                }
+            }
+            finally
+            {
+                steppingTweens = false;
+            }
+
+            UpdateSingleSliceOutline();
+            if (sliceTweens.Count == 0)
+            {
+                UnhookSliceTweenRendering();
+            }
+        }
+
+        private void FinishSliceTweens()
+        {
+            foreach (var pair in sliceTweens.ToList())
+            {
+                pair.Key.SetValue(SliceGrowthProperty, pair.Value.To);
+            }
+
+            sliceTweens.Clear();
+            UnhookSliceTweenRendering();
+        }
+
+        private void UnhookSliceTweenRendering()
+        {
+            if (renderingHooked)
+            {
+                renderingHooked = false;
+                CompositionTarget.Rendering -= OnSliceTweenRendering;
+            }
         }
 
         /// <summary>How far a slice's outer edge reaches past the pie's radius; animated.</summary>
@@ -1492,7 +1589,11 @@ namespace PlayniteAchievements.Views.Controls
             var growth = (double)slice.GetValue(SliceGrowthProperty);
             slice.Radius = baseRadius + growth;
             slice.InnerRadius = baseInnerRadius + growth;
-            (slice.GetValue(SliceOwnerProperty) as PieChartWithRadialIcons)?.UpdateSingleSliceOutline();
+            // A frame step updates the outline once after moving every slice.
+            if (slice.GetValue(SliceOwnerProperty) is PieChartWithRadialIcons owner && !owner.steppingTweens)
+            {
+                owner.UpdateSingleSliceOutline();
+            }
         }
 
         // Every LiveCharts draw sets each slice's radius back to the pie's, so the growth goes
