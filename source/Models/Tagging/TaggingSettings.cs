@@ -1,5 +1,7 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
+using Playnite.SDK;
 using Playnite.SDK.Data;
 
 namespace PlayniteAchievements.Models.Tagging
@@ -75,6 +77,18 @@ namespace PlayniteAchievements.Models.Tagging
         [DontSerialize]
         public TagConfig ExcludedFromSummariesConfig => GetOrCreateTagConfig(TagType.ExcludedFromSummaries);
 
+        /// <summary>
+        /// One row per customization area, holding both configs of its pair, for the settings view.
+        /// </summary>
+        [DontSerialize]
+        public IReadOnlyList<CustomizationTagRow> CustomizationRows =>
+            CustomizationTagAreas.All
+                .Select(area => new CustomizationTagRow(
+                    area,
+                    GetOrCreateTagConfig(area.CustomTag),
+                    GetOrCreateTagConfig(area.DefaultTag)))
+                .ToList();
+
         private TagConfig GetOrCreateTagConfig(TagType tagType)
         {
             if (TagConfigs == null)
@@ -87,7 +101,7 @@ namespace PlayniteAchievements.Models.Tagging
                 TagConfigs[tagType] = new TagConfig
                 {
                     DisplayName = GetDefaultDisplayName(tagType),
-                    IsEnabled = true
+                    IsEnabled = IsEnabledByDefault(tagType)
                 };
             }
 
@@ -122,7 +136,7 @@ namespace PlayniteAchievements.Models.Tagging
                     TagConfigs[tagType] = new TagConfig
                     {
                         DisplayName = getDefaultName?.Invoke(tagType) ?? GetDefaultDisplayName(tagType),
-                        IsEnabled = true
+                        IsEnabled = IsEnabledByDefault(tagType)
                     };
                 }
                 else if (string.IsNullOrWhiteSpace(TagConfigs[tagType].DisplayName))
@@ -149,9 +163,26 @@ namespace PlayniteAchievements.Models.Tagging
                 TagType.NotCustomized => "[PA] Not Customized",
                 TagType.Excluded => "[PA] Excluded",
                 TagType.ExcludedFromSummaries => "[PA] Excluded from Summaries",
-                _ => $"[PA] {tagType}"
+                _ => CustomizationTagAreas.TryGetArea(tagType, out var area, out var isCustom)
+                    ? $"[PA] {(isCustom ? "Custom" : "Default")} {area.EnglishNoun}"
+                    : $"[PA] {tagType}"
             };
         }
+
+        /// <summary>
+        /// Whether a tag kind starts enabled. The per-area customization pairs start disabled, for
+        /// new installs and for settings saved before they existed.
+        /// </summary>
+        public static bool IsEnabledByDefault(TagType tagType)
+        {
+            return !CustomizationTagAreas.TryGetArea(tagType, out _, out _);
+        }
+
+        /// <summary>
+        /// The config for a tag kind, created with its defaults when missing. For the per-area
+        /// settings rows, which look kinds up by value rather than through a named property.
+        /// </summary>
+        public TagConfig GetConfig(TagType tagType) => GetOrCreateTagConfig(tagType);
 
         /// <summary>
         /// Creates a deep copy of this TaggingSettings instance.
@@ -173,13 +204,35 @@ namespace PlayniteAchievements.Models.Tagging
                     clone.TagConfigs[kvp.Key] = kvp.Value?.Clone() ?? new TagConfig
                     {
                         DisplayName = GetDefaultDisplayName(kvp.Key),
-                        IsEnabled = true
+                        IsEnabled = IsEnabledByDefault(kvp.Key)
                     };
                 }
             }
 
             return clone;
         }
+    }
+
+    /// <summary>
+    /// A customization area's tag pair as one settings row.
+    /// </summary>
+    public sealed class CustomizationTagRow
+    {
+        public CustomizationTagRow(CustomizationTagArea area, TagConfig customConfig, TagConfig defaultConfig)
+        {
+            Area = area;
+            CustomConfig = customConfig;
+            DefaultConfig = defaultConfig;
+        }
+
+        public CustomizationTagArea Area { get; }
+
+        public TagConfig CustomConfig { get; }
+
+        public TagConfig DefaultConfig { get; }
+
+        /// <summary>The area noun in the current language.</summary>
+        public string Label => ResourceProvider.GetString(Area.NounResourceKey);
     }
 
     /// <summary>
