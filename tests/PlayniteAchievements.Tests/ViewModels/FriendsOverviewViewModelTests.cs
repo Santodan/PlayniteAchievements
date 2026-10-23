@@ -780,6 +780,7 @@ namespace PlayniteAchievements.Tests.ViewModels
 
             // Selecting the ownership-only pair sticks and shows an empty pair grid.
             viewModel.SelectedGame = ownedRow;
+            SettlePairFetch(viewModel);
             Assert.IsNotNull(viewModel.SelectedGame);
             Assert.AreEqual(0, viewModel.DisplayedAchievements.Count);
 
