@@ -1,26 +1,9 @@
 using System;
 using System.Collections.Generic;
+using System.Windows;
 
 namespace PlayniteAchievements.Views.Helpers
 {
-    /// <summary>One tag as the layout sees it: a square icon, or text of a measured width.</summary>
-    public struct TagChipBox
-    {
-        public TagChipBox(bool isIcon, double textWidth)
-        {
-            IsIcon = isIcon;
-            TextWidth = textWidth;
-        }
-
-        public bool IsIcon { get; }
-
-        public double TextWidth { get; }
-
-        public static TagChipBox Icon() => new TagChipBox(true, 0);
-
-        public static TagChipBox Text(double width) => new TagChipBox(false, width);
-    }
-
     /// <summary>A run of consecutive chips laid out on one line.</summary>
     public struct TagChipLine
     {
@@ -39,8 +22,8 @@ namespace PlayniteAchievements.Views.Helpers
     }
 
     /// <summary>
-    /// Wrapping and sizing for a Tags cell, shared by TagChipsPanel, which
-    /// lays the chips out, and the grid, which picks the one icon size every row of the column uses.
+    /// Wrapping and overflow for a Tags cell, used by TagChipsPanel: chips wrap onto lines, and
+    /// the ones that do not fit the cell give way to a "+N" chip.
     /// </summary>
     public static class TagChipLayout
     {
@@ -84,78 +67,65 @@ namespace PlayniteAchievements.Views.Helpers
         }
 
         /// <summary>
-        /// True when <paramref name="chips"/> with icons <paramref name="iconSize"/> square fit in
-        /// <paramref name="width"/> by <paramref name="height"/>. Text wider than the cell is trimmed
-        /// to it, and a line is as tall as its tallest chip.
+        /// The size chips of the given sizes take when wrapped at <paramref name="width"/>, each
+        /// no wider than it, with each line as tall as its tallest chip.
         /// </summary>
-        public static bool Fits(IReadOnlyList<TagChipBox> chips, double iconSize, double textHeight, double width, double height)
+        public static Size Extent(IReadOnlyList<Size> chips, double width)
         {
             var widths = new double[chips.Count];
             for (var i = 0; i < chips.Count; i++)
             {
-                widths[i] = chips[i].IsIcon ? iconSize : Math.Min(chips[i].TextWidth, width);
+                widths[i] = Math.Min(chips[i].Width, width);
             }
 
-            if (iconSize > width)
-            {
-                return false;
-            }
-
-            var total = 0.0;
+            var extentWidth = 0.0;
+            var extentHeight = 0.0;
             var lines = BreakLines(widths, width);
             for (var l = 0; l < lines.Count; l++)
             {
                 var lineHeight = 0.0;
                 for (var i = lines[l].Start; i < lines[l].Start + lines[l].Count; i++)
                 {
-                    lineHeight = Math.Max(lineHeight, chips[i].IsIcon ? iconSize : textHeight);
+                    lineHeight = Math.Max(lineHeight, chips[i].Height);
                 }
 
-                total += (l > 0 ? LineGap : 0) + lineHeight;
+                extentWidth = Math.Max(extentWidth, lines[l].Width);
+                extentHeight += (l > 0 ? LineGap : 0) + lineHeight;
             }
 
-            return total <= height;
+            return new Size(extentWidth, extentHeight);
         }
 
         /// <summary>
-        /// The largest whole-pixel icon size at which <paramref name="chips"/> fit the cell, never
-        /// below <paramref name="floor"/>. Null when the chips have no icon, so they set no limit.
+        /// How many leading chips to show in <paramref name="width"/> by <paramref name="height"/>:
+        /// all of them when they fit, else the most that fit followed by the "+N" chip that
+        /// <paramref name="overflowSize"/> sizes for N hidden chips. None when even "+N" alone
+        /// does not fit, which then shows by itself.
         /// </summary>
-        public static double? LargestIconSize(IReadOnlyList<TagChipBox> chips, double textHeight, double width, double height, double floor)
+        public static int VisibleCount(IReadOnlyList<Size> chips, Func<int, Size> overflowSize, double width, double height)
         {
-            var hasIcon = false;
-            foreach (var chip in chips)
+            if (Extent(chips, width).Height <= height)
             {
-                hasIcon |= chip.IsIcon;
+                return chips.Count;
             }
 
-            if (!hasIcon)
+            var shown = new List<Size>(chips.Count);
+            for (var count = chips.Count - 1; count > 0; count--)
             {
-                return null;
-            }
-
-            // Fits only gets harder as icons grow, so the largest fitting size is a binary search.
-            var low = (int)Math.Ceiling(floor);
-            var high = (int)Math.Floor(Math.Min(width, height));
-            if (high <= low || !Fits(chips, low, textHeight, width, height))
-            {
-                return low;
-            }
-
-            while (low < high)
-            {
-                var mid = (low + high + 1) / 2;
-                if (Fits(chips, mid, textHeight, width, height))
+                shown.Clear();
+                for (var i = 0; i < count; i++)
                 {
-                    low = mid;
+                    shown.Add(chips[i]);
                 }
-                else
+
+                shown.Add(overflowSize(chips.Count - count));
+                if (Extent(shown, width).Height <= height)
                 {
-                    high = mid - 1;
+                    return count;
                 }
             }
 
-            return low;
+            return 0;
         }
     }
 }
