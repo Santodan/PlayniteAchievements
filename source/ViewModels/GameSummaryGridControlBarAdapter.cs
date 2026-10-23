@@ -170,10 +170,10 @@ namespace PlayniteAchievements.ViewModels
             }
 
             // A new snapshot re-feeds new instances of the same games on every edit. When they
-            // would build the same groups, keep the groups and only track the new list. A pending
-            // restore still rebuilds, since it has selections to seed.
-            if (PendingPlatformSelections == null &&
-                ProviderFilterGroupBuilder.HasSameFilterOptions(_optionGames, games))
+            // would build the same groups, keep the groups and only track the new list. Restored
+            // selections still pending name providers the last groups lacked, which the same
+            // options lack too, so they have nothing to seed.
+            if (ProviderFilterGroupBuilder.HasSameFilterOptions(_optionGames, games))
             {
                 _optionGames = games;
                 return;
@@ -185,7 +185,7 @@ namespace PlayniteAchievements.ViewModels
                 ProviderFilterGroups,
                 OnProviderFilterSelectionChanged,
                 PendingPlatformSelections);
-            PendingPlatformSelections = null;
+            SettlePendingPlatformSelections(ProviderFilterGroups);
             OnPropertyChanged(nameof(SelectedProviderFilterText));
             GameFilter.SetPlatforms(ProviderFilterGroups);
             ControlBar.Refresh();
