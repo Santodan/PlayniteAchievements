@@ -2,12 +2,14 @@ using PlayniteAchievements.Common;
 using PlayniteAchievements.Models;
 using PlayniteAchievements.Models.Achievements;
 using PlayniteAchievements.Models.Settings;
+using PlayniteAchievements.Models.Tagging;
 using PlayniteAchievements.Providers.Metadata;
 using PlayniteAchievements.Providers.Steam.Models;
 using PlayniteAchievements.Providers.Steam.Local;
 using PlayniteAchievements.Services;
 using PlayniteAchievements.Services.Cache;
 using PlayniteAchievements.Services.GameCustomData;
+using PlayniteAchievements.Services.Metadata;
 using PlayniteAchievements.Services.Refresh;
 using Playnite.SDK;
 using Playnite.SDK.Models;
@@ -438,7 +440,7 @@ namespace PlayniteAchievements.Providers.Steam
                     gameData.Achievements.Add(detail);
                 }
 
-                await ApplyCategoriesAsync(appId, gameData.GameName, gameData.Achievements, schema, gameData.PlayniteGameId, cancel, preferCachedDefinitions).ConfigureAwait(false);
+                gameData.ProviderMetadataApiNames = await ApplyCategoriesAsync(appId, gameData.GameName, gameData.Achievements, schema, gameData.PlayniteGameId, cancel, preferCachedDefinitions).ConfigureAwait(false);
             }
 
             return gameData;
@@ -449,9 +451,11 @@ namespace PlayniteAchievements.Providers.Steam
         /// kinds when it is Steam's category source, and the tags when it is Steam's tag source.
         /// Archived achievements end up Unobtainable either way. When SteamHunters gives no answer,
         /// or <paramref name="preferCachedDefinitions"/> skips it, the chosen fields keep their
-        /// stored values.
+        /// stored values. Returns, for the categories and tags, the achievements whose value came
+        /// from SteamHunters (or its stored values) rather than Steam; null when SteamHunters is
+        /// not used.
         /// </summary>
-        internal async Task ApplyCategoriesAsync(
+        internal async Task<Dictionary<CustomizationArea, HashSet<string>>> ApplyCategoriesAsync(
             int appId,
             string gameName,
             IList<AchievementDetail> achievements,
@@ -479,7 +483,7 @@ namespace PlayniteAchievements.Providers.Steam
             var tags = string.Equals(choices?.Tags, MetadataChoices.SteamHunters, StringComparison.OrdinalIgnoreCase);
             if (_steamHuntersCategoryEnricher == null || (!categories && !tags))
             {
-                return;
+                return null;
             }
 
             // SteamHunters and the stored rows write all three fields; the unchosen ones go back to Steam's.
@@ -511,8 +515,30 @@ namespace PlayniteAchievements.Providers.Steam
                 }
             }
 
+            // What SteamHunters (or its stored values) wrote counts as metadata for the tag layers.
+            // This goes away once SteamHunters runs through the metadata overlay like other sources.
+            HashSet<string> Borrowed(CustomizationArea area, bool chosen, Func<(AchievementDetail achievement, string Category, string CategoryKind, string Tags), AchievementDetail> ownRow) =>
+                new HashSet<string>(
+                    chosen
+                        ? own
+                            .Where(entry =>
+                            {
+                                var now = DataLayers.ValueOf(entry.achievement, area);
+                                return now != null && !string.Equals(now, DataLayers.ValueOf(ownRow(entry), area), StringComparison.Ordinal);
+                            })
+                            .Select(entry => entry.achievement.ApiName)
+                            .Where(apiName => !string.IsNullOrWhiteSpace(apiName))
+                        : Enumerable.Empty<string>(),
+                    StringComparer.OrdinalIgnoreCase);
+            var borrowed = new Dictionary<CustomizationArea, HashSet<string>>
+            {
+                [CustomizationArea.Categories] = Borrowed(CustomizationArea.Categories, categories, entry => new AchievementDetail { Category = entry.Category }),
+                [CustomizationArea.Tags] = Borrowed(CustomizationArea.Tags, tags, entry => new AchievementDetail { Tags = entry.Tags })
+            };
+
             // SteamHunters grouping resets types, so archived flags are applied again.
             SteamAchievementSetMapper.ApplyArchived(achievements, schema);
+            return borrowed;
         }
 
         // The definition save overwrites stored categories with whatever the payload carries, so
