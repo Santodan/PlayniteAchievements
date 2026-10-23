@@ -113,6 +113,31 @@ namespace PlayniteAchievements.Services.Achievements
 
             var stored = _store.TryLoad(gameId, out var data) ? data : null;
 
+            // A collection whose games each have a platinum gets a capstone per game instead of
+            // one for the whole game, also once the game was handled before: each game's category
+            // is handled once, and an untouched whole-game capstone from before gives way.
+            var categoryCapstones = _authoring.CategoryCapstones(gameId);
+            if (categoryCapstones.Count > 0)
+            {
+                if (!enabled)
+                {
+                    return;
+                }
+
+                if (!categoryCapstones.All(capstone => string.IsNullOrWhiteSpace(capstone?.Category) || _authoring.IsCategoryHandled(gameId, capstone.Category.Trim())))
+                {
+                    await _authoring.GenerateCategoryCapstonesAsync(gameId, categoryCapstones).ConfigureAwait(false);
+                }
+
+                // With the games' own capstones in place, an untouched whole-game one gives way.
+                if (stored?.CustomAchievements?.Any(definition => definition?.IsAutoCapstone == true && definition.IsWholeGameAutoCapstone) == true)
+                {
+                    _authoring.RemoveUntouchedWholeGameCapstone(gameId);
+                }
+
+                return;
+            }
+
             // Checked before hydrating: once the library has been handled, every refresh reaches
             // here for games with the marker, and hydrating each one only to skip it adds up.
             var matchedCapstone = _authoring.MatchedCapstoneApiName(gameId);
