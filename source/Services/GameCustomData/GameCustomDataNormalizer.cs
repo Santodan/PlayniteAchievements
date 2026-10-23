@@ -234,11 +234,6 @@ namespace PlayniteAchievements.Services.GameCustomData
                    !string.IsNullOrWhiteSpace(data.CustomProviderId);
         }
 
-        public static bool HasPortableData(GameCustomDataFile data)
-        {
-            return HasVisibleCustomization(data);
-        }
-
         public static bool HasPortableData(GameCustomDataPortableFile data)
         {
             if (data == null)
@@ -279,7 +274,20 @@ namespace PlayniteAchievements.Services.GameCustomData
                    !string.IsNullOrWhiteSpace(data.CustomProviderId);
         }
 
+        /// <summary>
+        /// Whether a game counts as customized for the Customized tag: anything an export would
+        /// carry, plus the per-game unlock sounds, notification behavior and capture overrides.
+        /// </summary>
         public static bool HasVisibleCustomization(GameCustomDataFile data)
+        {
+            return HasPortableData(data) ||
+                   (data != null &&
+                    (data.UnlockSounds != null ||
+                     data.NotificationBehaviorOverride != null ||
+                     data.CaptureOverride != null));
+        }
+
+        public static bool HasPortableData(GameCustomDataFile data)
         {
             if (data == null)
             {
