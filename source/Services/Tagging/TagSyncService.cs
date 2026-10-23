@@ -700,17 +700,17 @@ namespace PlayniteAchievements.Services.Tagging
         }
 
         /// <summary>
-        /// Every kind that tracks customization: the Customized pair and each area pair.
+        /// Every kind that tracks customization: the Customized pair and each area's kinds.
         /// </summary>
         private static readonly IReadOnlyList<TagType> CustomizationTagTypes =
             new[] { TagType.Customized, TagType.NotCustomized }
-                .Concat(CustomizationTagAreas.All.SelectMany(area => new[] { area.CustomTag, area.DefaultTag }))
+                .Concat(CustomizationTagAreas.All.SelectMany(area => area.TagTypes))
                 .ToList();
 
         /// <summary>
-        /// The customization kinds that apply to a game: one side of the Customized pair and one
-        /// side of each area pair. Areas are only classified when one of their kinds is enabled,
-        /// so the default setup pays nothing for them.
+        /// The customization kinds that apply to a game: one side of the Customized pair and the
+        /// applicable kind of each area. Areas are only classified when one of their kinds is
+        /// enabled, so the default setup pays nothing for them.
         /// </summary>
         private IEnumerable<TagType> DetermineCustomizationTagTypes(Guid gameId)
         {
@@ -734,9 +734,9 @@ namespace PlayniteAchievements.Services.Tagging
         {
             var tagConfigs = Tagging?.TagConfigs;
             return tagConfigs != null &&
-                   CustomizationTagAreas.All.Any(area =>
-                       (tagConfigs.TryGetValue(area.CustomTag, out var custom) && custom?.IsEnabled == true) ||
-                       (tagConfigs.TryGetValue(area.DefaultTag, out var standard) && standard?.IsEnabled == true));
+                   CustomizationTagAreas.All
+                       .SelectMany(area => area.TagTypes)
+                       .Any(tagType => tagConfigs.TryGetValue(tagType, out var config) && config?.IsEnabled == true);
         }
 
         /// <summary>
