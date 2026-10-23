@@ -69,8 +69,33 @@ namespace PlayniteAchievements.Views.Controls
             set => SetValue(TextAlignmentProperty, value);
         }
 
-        private static void OnContentChanged(DependencyObject d, DependencyPropertyChangedEventArgs e) =>
-            ((TagChipsPanel)d).Rebuild();
+        /// <summary>
+        /// Raised, bubbling, when a panel's tags change, so the grid hosting it can refit its
+        /// column's icon size to a row that gained or lost tags.
+        /// </summary>
+        public static readonly RoutedEvent ChipsChangedEvent =
+            EventManager.RegisterRoutedEvent("ChipsChanged", RoutingStrategy.Bubble, typeof(RoutedEventHandler), typeof(TagChipsPanel));
+
+        private static void OnContentChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
+        {
+            var panel = (TagChipsPanel)d;
+            panel.Rebuild();
+            if (e.Property != ChipsProperty)
+            {
+                return;
+            }
+
+            // Only for the same row's tags changing: a row realized or recycled onto another item
+            // brings that item's tags, which the grid's last fit already counted.
+            if (e.OldValue != null && ReferenceEquals(panel.DataContext, panel._chipsOwner))
+            {
+                panel.RaiseEvent(new RoutedEventArgs(ChipsChangedEvent, panel));
+            }
+
+            panel._chipsOwner = panel.DataContext;
+        }
+
+        private object _chipsOwner;
 
         private static void OnIconSizeChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
         {
