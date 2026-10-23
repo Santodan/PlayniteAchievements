@@ -31,15 +31,6 @@ namespace PlayniteAchievements.Services.Metadata
             CustomizationArea.Tags
         };
 
-        /// <summary>Every area that has a Platform and a Metadata layer.</summary>
-        public const CustomizationArea LayeredAreas =
-            CustomizationArea.Icons |
-            CustomizationArea.TrophyTypes |
-            CustomizationArea.Points |
-            CustomizationArea.Categories |
-            CustomizationArea.Tags |
-            CustomizationArea.Capstones;
-
         /// <summary>
         /// Each value area's non-empty values by ApiName, plus whether any row is the platform's
         /// own capstone.
@@ -182,12 +173,25 @@ namespace PlayniteAchievements.Services.Metadata
                 case CustomizationArea.Points:
                     return row.Points?.ToString(CultureInfo.InvariantCulture);
                 case CustomizationArea.Categories:
-                    return Blank(AchievementCategoryHelper.NormalizeCategory(row.Category));
+                    return NamedCategory(row.Category);
                 case CustomizationArea.Tags:
                     return Blank(AchievementTagHelper.StripDerived(row.Tags));
                 default:
                     return null;
             }
+        }
+
+        /// <summary>
+        /// A category other than the Default bucket, or null: an achievement filed under Default
+        /// has no category from any source.
+        /// </summary>
+        internal static string NamedCategory(string category)
+        {
+            var path = CategoryPathHelper.NormalizePath(category);
+            return string.IsNullOrWhiteSpace(path) ||
+                   string.Equals(path, AchievementCategoryHelper.DefaultCategoryLabel, StringComparison.OrdinalIgnoreCase)
+                ? null
+                : path;
         }
 
         private static bool IsPlatformCapstone(AchievementDetail row) => row.IsCapstone || IsPlatinum(row);
