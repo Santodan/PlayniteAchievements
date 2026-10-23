@@ -52,15 +52,8 @@ namespace PlayniteAchievements.Views.Dialogs
                 ShowGlyphs(IcoFontCatalog.Search(SearchBox.Text, _category));
             };
 
-            var counts = IcoFontCatalog.All
-                .GroupBy(glyph => glyph.Category ?? string.Empty)
-                .ToDictionary(group => group.Key, group => group.Count());
-            CategoryList.ItemsSource = new[] { new IcoFontPickerCategory(null, ResourceProvider.GetString("LOCAll"), AllIcon, IcoFontCatalog.All.Count) }
-                .Concat(IcoFontCatalog.Categories.Select(category => new IcoFontPickerCategory(
-                    category.Name,
-                    category.Name,
-                    category.Icon,
-                    counts.TryGetValue(category.Name, out var count) ? count : 0)))
+            CategoryList.ItemsSource = new[] { new IcoFontPickerCategory(null, AllIcon) }
+                .Concat(IcoFontCatalog.Categories.Select(category => new IcoFontPickerCategory(category.Name, category.Icon)))
                 .ToList();
             CategoryList.SelectedIndex = 0;
 
@@ -254,23 +247,20 @@ namespace PlayniteAchievements.Views.Dialogs
     }
 
     /// <summary>
-    /// One entry of the picker's category strip: a category, or All when its name is null, shown
-    /// as its icon with its title and glyph count as the tooltip.
+    /// One entry of the picker's category strip, shown as its icon alone: a category, or All when
+    /// its name is null.
     /// </summary>
     public sealed class IcoFontPickerCategory
     {
-        internal IcoFontPickerCategory(string name, string title, string icon, int count)
+        internal IcoFontPickerCategory(string name, string icon)
         {
             Name = name;
             Glyph = Services.Achievements.AchievementTagHelper.IconGlyph(icon);
-            Label = title + " (" + count.ToString(System.Globalization.CultureInfo.CurrentCulture) + ")";
         }
 
         public string Name { get; }
 
         public string Glyph { get; }
-
-        public string Label { get; }
     }
 
     /// <summary>One glyph in the picker, marked while it is the chosen one.</summary>
