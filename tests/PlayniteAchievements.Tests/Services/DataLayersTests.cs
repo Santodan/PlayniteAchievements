@@ -95,6 +95,20 @@ namespace PlayniteAchievements.Services.Metadata.Tests
         }
 
         [TestMethod]
+        public void DefaultCategory_CountsAsNoCategory()
+        {
+            var rows = new List<AchievementDetail>
+            {
+                new AchievementDetail { ApiName = "A", Category = "Default" },
+                new AchievementDetail { ApiName = "B", Category = " default " }
+            };
+
+            Assert.AreEqual(CustomizationArea.None, DataLayers.Present(rows) & CustomizationArea.Categories);
+            Assert.IsNull(DataLayers.NamedCategory("Default"));
+            Assert.AreEqual("Story", DataLayers.NamedCategory("Story"));
+        }
+
+        [TestMethod]
         public void Present_ReportsAreasWithAnyValue()
         {
             var present = DataLayers.Present(new[]
