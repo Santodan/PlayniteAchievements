@@ -77,6 +77,23 @@ namespace PlayniteAchievements.Services.Metadata
                     .ToList()
             };
 
+            if (fetched.Any(list => list.Set.EnglishRows != null))
+            {
+                // Each list in English where it has an English copy, as given where it is English.
+                combined.EnglishRows = async token =>
+                {
+                    var rows = new List<AchievementDetail>();
+                    foreach (var list in fetched)
+                    {
+                        rows.AddRange(list.Set.EnglishRows == null
+                            ? list.Set.Achievements
+                            : await list.Set.EnglishRows(token).ConfigureAwait(false) ?? new List<AchievementDetail>());
+                    }
+
+                    return rows;
+                };
+            }
+
             foreach (var art in fetched.SelectMany(list => list.Set.CategoryArtUrls))
             {
                 if (!combined.CategoryArtUrls.ContainsKey(art.Key))

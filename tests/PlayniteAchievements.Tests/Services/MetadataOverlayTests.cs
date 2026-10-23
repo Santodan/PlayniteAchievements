@@ -1297,7 +1297,8 @@ namespace PlayniteAchievements.Tests.Services
             PersistedSettings settings,
             CategoryArtDownload downloadCategoryArt = null,
             Func<Guid, GameAchievementData> loadStored = null,
-            FakeIconSaver iconSaver = null)
+            FakeIconSaver iconSaver = null,
+            EnglishTitleFetch englishTitles = null)
         {
             return new MetadataOverlay(
                 () => providers,
@@ -1307,7 +1308,8 @@ namespace PlayniteAchievements.Tests.Services
                 downloadCategoryArt,
                 loadStored,
                 iconSaver == null ? null : new SourceIconDownload(iconSaver.SaveAsync),
-                iconSaver == null ? null : new Action<Guid, string>(iconSaver.Delete));
+                iconSaver == null ? null : new Action<Guid, string>(iconSaver.Delete),
+                englishTitles);
         }
 
         /// <summary>Saves each row's icon as C:\saved\&lt;source&gt;\&lt;ApiName&gt;.png, except the ones it is told fail.</summary>
@@ -1626,7 +1628,14 @@ namespace PlayniteAchievements.Tests.Services
                     ApiNamesMayBeShared = IdsMayBeShared,
                     UnavailableFields = Unavailable,
                     ExtendedLinkId = ExtendedId,
-                    GameArtUrl = GameArtByLink.TryGetValue(linkId, out var gameArt) ? gameArt : null
+                    GameArtUrl = GameArtByLink.TryGetValue(linkId, out var gameArt) ? gameArt : null,
+                    EnglishRows = EnglishRows == null
+                        ? null
+                        : new Func<CancellationToken, Task<IList<AchievementDetail>>>(token =>
+                        {
+                            EnglishRowsLoads++;
+                            return Task.FromResult<IList<AchievementDetail>>(EnglishRows);
+                        })
                 };
                 foreach (var art in CategoryArt)
                 {
@@ -1646,6 +1655,227 @@ namespace PlayniteAchievements.Tests.Services
 
             /// <summary>The ids each fetch was asked for, in order.</summary>
             public List<string> FetchedIds { get; } = new List<string>();
+
+            /// <summary>The rows in English, by the same ApiNames; null when the rows already are.</summary>
+            public List<AchievementDetail> EnglishRows { get; set; }
+
+            public int EnglishRowsLoads { get; private set; }
+        }
+
+        /// <summary>A servicing provider's English titles for every game, counting each load.</summary>
+        private sealed class FakeEnglishTitles
+        {
+            public List<AchievementDetail> Rows { get; } = new List<AchievementDetail>();
+
+            public int Loads { get; private set; }
+
+            public Task<IList<AchievementDetail>> FetchAsync(Game game, GameAchievementData data, CancellationToken ct)
+            {
+                Loads++;
+                return Task.FromResult<IList<AchievementDetail>>(Rows);
+            }
+        }
+
+        private static PersistedSettings German(PersistedSettings settings)
+        {
+            settings.GlobalLanguage = "german";
+            return settings;
+        }
+
+        [TestMethod]
+        public async Task EnglishTitles_PairWhatEveryOtherWayLeft()
+        {
+            // A German game against an English-only site: one title is the same in both, the rest
+            // pair only through the game's English titles.
+            var site = new FakeSource("TrueGaming", MetadataField.Categories);
+            site.Rows.Add(Row("t1", "Dragon Slayer", category: "Story"));
+            site.Rows.Add(Row("t2", "Collector", category: "Collectibles"));
+            site.Rows.Add(Row("t3", "Excalibur", category: "Weapons"));
+            var dragon = Row("g1", "Drachentöter");
+            var coins = Row("g2", "Sammler");
+            var sword = Row("g3", "Excalibur");
+            var data = Game("GOG", dragon, coins, sword);
+            var english = new FakeEnglishTitles();
+            english.Rows.Add(Row("g1", "Dragon Slayer"));
+            english.Rows.Add(Row("g2", "Collector"));
+            english.Rows.Add(Row("g3", "Excalibur"));
+            var overlay = Overlay(new[] { site }, German(Choices(categories: site.Key)), englishTitles: english.FetchAsync);
+
+            using (var run = overlay.BeginRun())
+            {
+                await run.ApplyAsync(data.Game, data, CancellationToken.None);
+            }
+
+            Assert.AreEqual("Story", dragon.Category);
+            Assert.AreEqual("Collectibles", coins.Category);
+            Assert.AreEqual("Weapons", sword.Category);
+            Assert.AreEqual("Drachentöter", dragon.DisplayName, "the English titles are never shown");
+            Assert.AreEqual(3, overlay.Links.GetCoverage(data.PlayniteGameId.Value, site.Key).Matched);
+            Assert.AreEqual(1, english.Loads);
+        }
+
+        [TestMethod]
+        public async Task EnglishTitles_AreNotLoaded_WhenTheTitlesAlreadyPair()
+        {
+            var site = new FakeSource("TrueGaming", MetadataField.Categories) { EnglishRows = new List<AchievementDetail>() };
+            site.Rows.Add(Row("t1", "Excalibur", category: "Weapons"));
+            var data = Game("GOG", Row("g1", "Excalibur"));
+            var english = new FakeEnglishTitles();
+            var overlay = Overlay(new[] { site }, German(Choices(categories: site.Key)), englishTitles: english.FetchAsync);
+
+            using (var run = overlay.BeginRun())
+            {
+                await run.ApplyAsync(data.Game, data, CancellationToken.None);
+            }
+
+            Assert.AreEqual(0, english.Loads);
+            Assert.AreEqual(0, site.EnglishRowsLoads);
+        }
+
+        [TestMethod]
+        public async Task EnglishTitles_AreNotLoaded_WhenTheLanguageIsEnglish()
+        {
+            var site = new FakeSource("TrueGaming", MetadataField.Categories);
+            site.Rows.Add(Row("t1", "Dragon Slayer", category: "Story"));
+            var dragon = Row("g1", "Dragon Killer");
+            var data = Game("GOG", dragon);
+            var english = new FakeEnglishTitles();
+            english.Rows.Add(Row("g1", "Dragon Slayer"));
+            var overlay = Overlay(new[] { site }, Choices(categories: site.Key), englishTitles: english.FetchAsync);
+
+            using (var run = overlay.BeginRun())
+            {
+                await run.ApplyAsync(data.Game, data, CancellationToken.None);
+            }
+
+            Assert.AreEqual(0, english.Loads);
+            Assert.IsNull(dragon.Category);
+        }
+
+        [TestMethod]
+        public async Task EnglishTitles_AreNotLoaded_WhenNoSourceRowIsLeft()
+        {
+            // Every row the site has is paired; the game's extra achievement has nothing to pair with.
+            var site = new FakeSource("TrueGaming", MetadataField.Categories);
+            site.Rows.Add(Row("t1", "Excalibur", category: "Weapons"));
+            var data = Game("GOG", Row("g1", "Excalibur"), Row("g2", "Nur auf GOG"));
+            var english = new FakeEnglishTitles();
+            var overlay = Overlay(new[] { site }, German(Choices(categories: site.Key)), englishTitles: english.FetchAsync);
+
+            using (var run = overlay.BeginRun())
+            {
+                await run.ApplyAsync(data.Game, data, CancellationToken.None);
+            }
+
+            Assert.AreEqual(0, english.Loads);
+        }
+
+        [TestMethod]
+        public async Task EnglishTitles_LeaveOutWhatTheUserKeptOut()
+        {
+            var site = new FakeSource("TrueGaming", MetadataField.Categories);
+            site.Rows.Add(Row("t1", "Dragon Slayer", category: "Story"));
+            var dragon = Row("g1", "Drachentöter");
+            var data = Game("GOG", dragon);
+            var english = new FakeEnglishTitles();
+            english.Rows.Add(Row("g1", "Dragon Slayer"));
+            var overlay = Overlay(new[] { site }, German(Choices(categories: site.Key)), englishTitles: english.FetchAsync);
+            overlay.Links.SetUser(data.PlayniteGameId.Value, site.Key, "link-TrueGaming");
+            overlay.Links.SetPairing(data.PlayniteGameId.Value, site.Key, "g1", string.Empty);
+
+            using (var run = overlay.BeginRun())
+            {
+                await run.ApplyAsync(data.Game, data, CancellationToken.None);
+            }
+
+            Assert.IsNull(dragon.Category);
+        }
+
+        [TestMethod]
+        public async Task EnglishRows_OfASourceInAnotherLanguage_PairWithTheGamesEnglish()
+        {
+            // The site translates differently from the game; both read alike in English.
+            var site = new FakeSource("PlayStation", MetadataField.Categories);
+            site.Rows.Add(Row("p1", "Drachenjäger", category: "Story"));
+            site.EnglishRows = new List<AchievementDetail> { Row("p1", "Dragon Slayer") };
+            var dragon = Row("g1", "Drachentöter");
+            var data = Game("GOG", dragon);
+            var english = new FakeEnglishTitles();
+            english.Rows.Add(Row("g1", "Dragon Slayer"));
+            var overlay = Overlay(new[] { site }, German(Choices(categories: site.Key)), englishTitles: english.FetchAsync);
+
+            using (var run = overlay.BeginRun())
+            {
+                await run.ApplyAsync(data.Game, data, CancellationToken.None);
+            }
+
+            Assert.AreEqual("Story", dragon.Category);
+            Assert.AreEqual(1, site.EnglishRowsLoads);
+        }
+
+        [TestMethod]
+        public async Task NameFoundLink_IsKept_WhenItsAchievementsPairInEnglish()
+        {
+            var site = new FakeSource("TrueGaming", MetadataField.Categories) { FoundByName = true };
+            site.Rows.Add(Row("t1", "Dragon Slayer", category: "Story"));
+            site.Rows.Add(Row("t2", "Collector", category: "Collectibles"));
+            var data = Game("GOG", Row("g1", "Drachentöter"), Row("g2", "Sammler"));
+            var english = new FakeEnglishTitles();
+            english.Rows.Add(Row("g1", "Dragon Slayer"));
+            english.Rows.Add(Row("g2", "Collector"));
+            var overlay = Overlay(new[] { site }, German(Choices(categories: site.Key)), englishTitles: english.FetchAsync);
+
+            using (var run = overlay.BeginRun())
+            {
+                await run.ApplyAsync(data.Game, data, CancellationToken.None);
+            }
+
+            Assert.IsTrue(overlay.Links.TryGet(data.PlayniteGameId.Value, site.Key, out var link));
+            Assert.IsFalse(link.IsNoMatch);
+            Assert.AreEqual("Story", data.Achievements[0].Category);
+            Assert.AreEqual(1, english.Loads);
+        }
+
+        [TestMethod]
+        public async Task NoMatchLink_IsLookedForAgain_WhenTheLanguageChanges_AndAFoundLinkIsKept()
+        {
+            var settings = Choices(categories: "TrueGaming", icons: "PlayStation");
+            var missing = new FakeSource("TrueGaming", MetadataField.Categories)
+            {
+                ResolveWhen = request => false
+            };
+            var found = new FakeSource("PlayStation", MetadataField.Icons);
+            found.Rows.Add(Row("p1", "One", icon: "https://psn/one.png"));
+            var game = new Game("Test game") { Id = Guid.NewGuid() };
+            var overlay = Overlay(new IMetadataProvider[] { missing, found }, settings);
+
+            async Task RefreshAsync()
+            {
+                var data = new GameAchievementData
+                {
+                    ProviderKey = "GOG",
+                    PlayniteGameId = game.Id,
+                    Game = game,
+                    Achievements = new List<AchievementDetail> { Row("g1", "One") }
+                };
+                using (var run = overlay.BeginRun())
+                {
+                    await run.ApplyAsync(game, data, CancellationToken.None);
+                }
+            }
+
+            await RefreshAsync();
+            await RefreshAsync();
+            Assert.AreEqual(1, missing.ResolveCount);
+            Assert.AreEqual(1, found.ResolveCount);
+
+            settings.GlobalLanguage = "german";
+            await RefreshAsync();
+            Assert.AreEqual(2, missing.ResolveCount, "a no-match is looked for again in the new language");
+            Assert.AreEqual(1, found.ResolveCount, "a found link is kept");
+
+            await RefreshAsync();
+            Assert.AreEqual(2, missing.ResolveCount, "and only once");
         }
     }
 }

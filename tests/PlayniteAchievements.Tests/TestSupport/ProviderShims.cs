@@ -47,6 +47,11 @@ namespace PlayniteAchievements.Providers
             bool preferCachedDefinitions,
             CancellationToken cancel);
     }
+
+    internal interface IEnglishTitleSource
+    {
+        Task<IList<AchievementDetail>> GetEnglishTitlesAsync(Game game, GameAchievementData data, CancellationToken ct);
+    }
 }
 
 namespace PlayniteAchievements.Providers.Epic

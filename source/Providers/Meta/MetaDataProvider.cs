@@ -9,6 +9,7 @@ using PlayniteAchievements.Services.Refresh;
 using System;
 using System.Collections.Generic;
 using System.Globalization;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -20,7 +21,7 @@ namespace PlayniteAchievements.Providers.Meta
     /// id override. Each refresh reads the user's unlock feed once, then joins it against every game's
     /// achievement definitions by definition id.
     /// </summary>
-    internal sealed class MetaDataProvider : DataProviderBase<MetaSettings>, IDataProvider, IProviderOverride, IDisposable
+    internal sealed class MetaDataProvider : DataProviderBase<MetaSettings>, IDataProvider, IProviderOverride, IEnglishTitleSource, IDisposable
     {
         // Meta Quest/Oculus Library plugin (Jeshibu). Rift and Quest games both carry the Meta app id
         // as Game.GameId.
@@ -70,6 +71,20 @@ namespace PlayniteAchievements.Providers.Meta
 
             return game.PluginId == MetaLibraryPluginId ||
                    GameCustomDataLookup.TryGetProviderOverrideValue(game.Id, ProviderKey, out _);
+        }
+
+        /// <summary>The refresh's own rows: definitions are requested without a locale, which Meta serves in English.</summary>
+        Task<IList<AchievementDetail>> IEnglishTitleSource.GetEnglishTitlesAsync(Game game, GameAchievementData data, CancellationToken ct)
+        {
+            return Task.FromResult<IList<AchievementDetail>>(data?.Achievements?
+                .Where(achievement => achievement != null)
+                .Select(achievement => new AchievementDetail
+                {
+                    ApiName = achievement.ApiName,
+                    DisplayName = achievement.DisplayName,
+                    Description = achievement.Description
+                })
+                .ToList());
         }
 
         public async Task<RebuildPayload> RefreshAsync(

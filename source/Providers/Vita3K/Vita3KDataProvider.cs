@@ -18,7 +18,7 @@ using System.Threading.Tasks;
 
 namespace PlayniteAchievements.Providers.Vita3K
 {
-    internal sealed class Vita3KDataProvider : DataProviderBase<Vita3KSettings>, IDataProvider, IProviderOverride, IInGameProgressSource
+    internal sealed class Vita3KDataProvider : DataProviderBase<Vita3KSettings>, IDataProvider, IProviderOverride, IInGameProgressSource, IEnglishTitleSource
     {
         internal const string Key = "Vita3K";
         private const string VitaPlatformSpecificationId = "sony_vita";
@@ -296,6 +296,29 @@ namespace PlayniteAchievements.Providers.Vita3K
             CancellationToken cancel)
         {
             return _scanner.RefreshAsync(gamesToRefresh, onGameStarting, onGameCompleted, cancel);
+        }
+
+        /// <summary>
+        /// The game's trophy conf folder re-read with English text only; null when the set has
+        /// not been booted yet or carries no English text.
+        /// </summary>
+        Task<IList<AchievementDetail>> IEnglishTitleSource.GetEnglishTitlesAsync(Game game, GameAchievementData data, CancellationToken ct)
+        {
+            var source = game == null ? null : ResolveTrophySource(game);
+            var trophies = source == null
+                ? null
+                : TrophyConfParser.ParseEnglishTrophyDefinitions(
+                    Path.Combine(source.Installation.GetConfFolder(source.NpCommId), "TROPCONF.SFM"),
+                    _logger);
+
+            return Task.FromResult<IList<AchievementDetail>>(trophies?
+                .Select(trophy => new AchievementDetail
+                {
+                    ApiName = trophy.Id.ToString(),
+                    DisplayName = trophy.Name,
+                    Description = trophy.Description
+                })
+                .ToList());
         }
 
         InGameProgressRegistration IInGameProgressSource.TryRegister(Game game, GameAchievementData cachedSchema)

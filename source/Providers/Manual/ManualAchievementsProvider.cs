@@ -21,7 +21,7 @@ namespace PlayniteAchievements.Providers.Manual
     /// Data provider for manually linked achievements.
     /// Implements IDataProvider to integrate with the achievement refresh system.
     /// </summary>
-    public sealed class ManualAchievementsProvider : DataProviderBase<ManualSettings>, IDataProvider, IRefreshAuthContextReceiver
+    public sealed class ManualAchievementsProvider : DataProviderBase<ManualSettings>, IDataProvider, IRefreshAuthContextReceiver, IEnglishTitleSource
     {
         private readonly ILogger _logger;
         private readonly PlayniteAchievementsSettings _settings;
@@ -191,6 +191,37 @@ namespace PlayniteAchievements.Providers.Manual
                 Game = game,
                 Achievements = achievements
             };
+        }
+
+        /// <summary>
+        /// The linked source's achievements fetched again in English. The refresh keeps the source's
+        /// ApiNames unchanged, so the rows key the same way.
+        /// </summary>
+        async Task<IList<AchievementDetail>> IEnglishTitleSource.GetEnglishTitlesAsync(Game game, GameAchievementData data, CancellationToken ct)
+        {
+            if (game == null ||
+                !TryGetManualLink(game.Id, out var link) ||
+                string.IsNullOrWhiteSpace(link?.SourceGameId))
+            {
+                return null;
+            }
+
+            var source = _manualSourceRegistry.GetSourceByKey(link.SourceKey);
+            if (source == null)
+            {
+                return null;
+            }
+
+            var achievements = await source.GetAchievementsAsync(link.SourceGameId, "english", ct).ConfigureAwait(false);
+            return achievements?
+                .Where(achievement => !string.IsNullOrWhiteSpace(achievement?.ApiName))
+                .Select(achievement => new AchievementDetail
+                {
+                    ApiName = achievement.ApiName,
+                    DisplayName = achievement.DisplayName,
+                    Description = achievement.Description
+                })
+                .ToList();
         }
 
         /// <inheritdoc />

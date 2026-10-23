@@ -234,6 +234,44 @@ namespace PlayniteAchievements.Providers.Xbox
             return data;
         }
 
+        /// <summary>
+        /// The title's achievements read again with the en-US locale from the endpoint the last refresh
+        /// used (the platform slug it recorded), mapped by the refresh's own converters. Null on any miss.
+        /// </summary>
+        public async Task<List<AchievementDetail>> GetEnglishAchievementsAsync(Game game, GameAchievementData data, CancellationToken cancel)
+        {
+            if (game == null)
+            {
+                return null;
+            }
+
+            var authData = await _sessionManager.GetAuthorizationAsync(cancel).ConfigureAwait(false);
+            var xuid = authData?.DisplayClaims?.xui?.FirstOrDefault()?.xid;
+            if (string.IsNullOrWhiteSpace(xuid))
+            {
+                return null;
+            }
+
+            var titleId = data != null && data.AppId > 0
+                ? data.AppId.ToString(System.Globalization.CultureInfo.InvariantCulture)
+                : await ResolveTitleIdAsync(game, authData, cancel).ConfigureAwait(false);
+            if (string.IsNullOrWhiteSpace(titleId))
+            {
+                return null;
+            }
+
+            var platformSlug = data?.MetadataHints?.PlatformSlug;
+            var isXbox360 = string.IsNullOrWhiteSpace(platformSlug)
+                ? IsXbox360Game(game)
+                : string.Equals(platformSlug, "xbox-360", StringComparison.OrdinalIgnoreCase);
+
+            const string englishLocale = "en-US";
+            var achievements = isXbox360
+                ? await TryGetXbox360AchievementsAsync(xuid, titleId, authData, cancel, englishLocale).ConfigureAwait(false)
+                : (await TryGetXboxOneAchievementsAsync(xuid, titleId, game.Name, authData, cancel, englishLocale).ConfigureAwait(false)).Achievements;
+            return achievements != null && achievements.Count > 0 ? achievements : null;
+        }
+
         private async Task<string> ResolveTitleIdAsync(Game game, AuthorizationData authData, CancellationToken cancel)
         {
             // A per-game override supplies the title ID directly, bypassing all detection strategies.
@@ -311,11 +349,12 @@ namespace PlayniteAchievements.Providers.Xbox
             string titleId,
             string gameName,
             AuthorizationData authData,
-            CancellationToken cancel)
+            CancellationToken cancel,
+            string locale = null)
         {
             try
             {
-                var response = await _apiClient.GetXboxOneAchievementsAsync(xuid, titleId, authData, cancel).ConfigureAwait(false);
+                var response = await _apiClient.GetXboxOneAchievementsAsync(xuid, titleId, authData, cancel, locale).ConfigureAwait(false);
 
                 if (response?.achievements == null || response.achievements.Count == 0)
                 {
@@ -362,13 +401,14 @@ namespace PlayniteAchievements.Providers.Xbox
             string xuid,
             string titleId,
             AuthorizationData authData,
-            CancellationToken cancel)
+            CancellationToken cancel,
+            string locale = null)
         {
             try
             {
                 // Get both unlocked and all achievements in parallel
-                var unlockedTask = _apiClient.GetXbox360UnlockedAsync(xuid, titleId, authData, cancel);
-                var allTask = _apiClient.GetXbox360AllAsync(xuid, titleId, authData, cancel);
+                var unlockedTask = _apiClient.GetXbox360UnlockedAsync(xuid, titleId, authData, cancel, locale);
+                var allTask = _apiClient.GetXbox360AllAsync(xuid, titleId, authData, cancel, locale);
 
                 await Task.WhenAll(unlockedTask, allTask).ConfigureAwait(false);
 

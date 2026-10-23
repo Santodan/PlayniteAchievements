@@ -144,7 +144,14 @@ namespace PlayniteAchievements.Providers.Metadata
 
         /// <summary>A copy for one source, which the overlay asks alongside the others.</summary>
         internal MetadataLinkRequest ForSource(MetadataField wantedFields) =>
-            new MetadataLinkRequest(Game, Data) { AlternateNames = AlternateNames, CategoryNames = CategoryNames, OtherLinks = OtherLinks, WantedFields = wantedFields };
+            new MetadataLinkRequest(Game, Data) { AlternateNames = AlternateNames, CategoryNames = CategoryNames, OtherLinks = OtherLinks, EnglishTitles = EnglishTitles, WantedFields = wantedFields };
+
+        /// <summary>
+        /// The game's achievements in English, keyed by the same ApiNames, loaded once on first
+        /// call; null (the accessor or its answer) when the plugin's language is English or the
+        /// servicing provider has no English copy. Only for pairing after every other way failed.
+        /// </summary>
+        public Func<CancellationToken, Task<IList<AchievementDetail>>> EnglishTitles { get; internal set; }
 
         /// <summary>The game's links to the other sources, by source key, so one source can follow another's pages.</summary>
         public IReadOnlyDictionary<string, string> OtherLinks { get; internal set; } =
@@ -253,6 +260,13 @@ namespace PlayniteAchievements.Providers.Metadata
         /// False for generated IDs such as trophy numbers.
         /// </summary>
         public bool ApiNamesMayBeShared { get; set; }
+
+        /// <summary>
+        /// The same rows in English, keyed by the same ApiNames, for a source that gave them in
+        /// another language; loaded only when pairing in English is tried. Null when the rows are
+        /// already English, or the source has only the one language.
+        /// </summary>
+        public Func<CancellationToken, Task<IList<AchievementDetail>>> EnglishRows { get; set; }
 
         /// <summary>
         /// Fields the source could not read this time although it answered (a page whose flags did

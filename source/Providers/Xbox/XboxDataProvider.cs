@@ -18,7 +18,7 @@ namespace PlayniteAchievements.Providers.Xbox
     /// Data provider for Xbox achievement data.
     /// Supports Xbox One/Series X|S, Xbox 360, and PC Game Pass games.
     /// </summary>
-    internal sealed class XboxDataProvider : DataProviderBase<XboxSettings>, IDataProvider, IProfileLinkProvider, IProviderOverride, IDisposable
+    internal sealed class XboxDataProvider : DataProviderBase<XboxSettings>, IDataProvider, IProfileLinkProvider, IProviderOverride, IEnglishTitleSource, IDisposable
     {
         public ProviderOverrideDescriptor OverrideDescriptor { get; } = ProviderOverrideDescriptor.Text(
             "LOCPlayAch_ManageAchievements_Overrides_ProviderValueLabel_Xbox",
@@ -121,6 +121,21 @@ namespace PlayniteAchievements.Providers.Xbox
             CancellationToken cancel)
         {
             return _scanner.RefreshAsync(gamesToRefresh, onGameStarting, onGameCompleted, cancel);
+        }
+
+        /// <summary>The title's achievements read again with the en-US locale.</summary>
+        async Task<IList<AchievementDetail>> IEnglishTitleSource.GetEnglishTitlesAsync(Game game, GameAchievementData data, CancellationToken ct)
+        {
+            var achievements = await _scanner.GetEnglishAchievementsAsync(game, data, ct).ConfigureAwait(false);
+            return achievements?
+                .Where(achievement => !string.IsNullOrWhiteSpace(achievement?.ApiName))
+                .Select(achievement => new AchievementDetail
+                {
+                    ApiName = achievement.ApiName,
+                    DisplayName = achievement.DisplayName,
+                    Description = achievement.Description
+                })
+                .ToList();
         }
 
         public void Dispose()

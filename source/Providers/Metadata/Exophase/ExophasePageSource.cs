@@ -65,11 +65,17 @@ namespace PlayniteAchievements.Providers.Metadata.Exophase
         /// <summary>
         /// An award page in the plugin's language where Exophase translates it, else English; loaded
         /// once per run. <paramref name="platformSlug"/> picks the page's address (trophies for
-        /// PlayStation, challenges for Ubisoft).
+        /// PlayStation, challenges for Ubisoft). <paramref name="english"/> asks for the English
+        /// page whatever the language.
         /// </summary>
-        public async Task<ExophaseApiClient.AchievementFetchResult> GetPageAsync(string slug, string platformSlug, CancellationToken ct)
+        public async Task<ExophaseApiClient.AchievementFetchResult> GetPageAsync(
+            string slug,
+            string platformSlug,
+            CancellationToken ct,
+            bool english = false)
         {
-            var cacheKey = slug + "|" + platformSlug;
+            var language = english ? null : ExophaseGamePageParser.TrophyLanguageCode(_settings?.Persisted?.GlobalLanguage);
+            var cacheKey = PageKey(slug, platformSlug, language);
             lock (_sync)
             {
                 if (_pages.TryGetValue(cacheKey, out var cached))
@@ -78,22 +84,31 @@ namespace PlayniteAchievements.Providers.Metadata.Exophase
                 }
             }
 
-            var language = ExophaseGamePageParser.TrophyLanguageCode(_settings?.Persisted?.GlobalLanguage);
             var url = ExophaseApiClient.BuildUrlFromSlug(slug, platformSlug);
             var page = await _client.FetchAchievementsWithHtmlAsync(
                 ExophaseGamePageParser.LocalizeAwardPageUrl(url, language), null, ct).ConfigureAwait(false);
+            var fellBack = false;
             if (language != null && !(page?.Achievements?.Count > 0))
             {
                 page = await _client.FetchAchievementsWithHtmlAsync(url, null, ct).ConfigureAwait(false);
+                fellBack = true;
             }
 
             lock (_sync)
             {
                 _pages[cacheKey] = page;
+                if (fellBack)
+                {
+                    // What the language fell back to is the English page, asked for again in English.
+                    _pages[PageKey(slug, platformSlug, null)] = page;
+                }
             }
 
             return page;
         }
+
+        private static string PageKey(string slug, string platformSlug, string language) =>
+            slug + "|" + platformSlug + "|" + (language ?? "en");
 
         /// <summary>
         /// True for a page load that says nothing about whether the page exists: a failed load or

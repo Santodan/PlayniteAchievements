@@ -20,11 +20,14 @@ namespace PlayniteAchievements.Services.Metadata
     {
         private readonly MetadataLinkStore _links;
         private readonly ILogger _logger;
+        private readonly string _language;
 
-        public MetadataLinkResolver(MetadataLinkStore links, ILogger logger)
+        /// <param name="language">The plugin's language setting, which the game's titles are in.</param>
+        public MetadataLinkResolver(MetadataLinkStore links, ILogger logger, string language = null)
         {
             _links = links;
             _logger = logger;
+            _language = language;
         }
 
         /// <summary>
@@ -43,15 +46,19 @@ namespace PlayniteAchievements.Services.Metadata
             CancellationToken ct)
         {
             request.LinkIsUserSet = false;
-            var basis = Basis(gameId, provider.Key, request);
+            var basis = Basis(gameId, provider.Key, request, withLanguage: true);
             if (_links != null && _links.TryGet(gameId, provider.Key, out var stored))
             {
                 request.LinkIsUserSet = stored.Origin == MetadataLinkOrigin.User;
                 var recorded = _links.GetLinkBasis(gameId, provider.Key);
-                if (request.LinkIsUserSet || recorded == null || recorded == basis)
+                // A link that found pages keeps them when only the language changed: pairing in
+                // English rescues it at fetch. One that found nothing is looked for again.
+                var sameSearch = recorded == basis ||
+                                 (!stored.IsNoMatch && recorded != null && recorded == Basis(gameId, provider.Key, request, withLanguage: false));
+                if (request.LinkIsUserSet || recorded == null || sameSearch)
                 {
                     // A link found before its basis was kept takes the current one, without a search.
-                    if (!request.LinkIsUserSet && recorded == null)
+                    if (!request.LinkIsUserSet && recorded != basis)
                     {
                         _links.SetLinkBasis(gameId, provider.Key, basis);
                     }
@@ -133,17 +140,24 @@ namespace PlayniteAchievements.Services.Metadata
 
         /// <summary>
         /// What a lookup for the game searches from, as a short fingerprint: the game's name, its
-        /// categories with their kinds, and the links the user set on other sources. Links other
-        /// sources found on their own are left out: they come and go with those sources' lookups,
-        /// and what they found is already shared within the refresh that found it.
+        /// categories with their kinds, the links the user set on other sources, and the language
+        /// its titles are in when that is not English (pairing differs by language, and English
+        /// pairs as it always has). Links other sources found on their own are left out: they come
+        /// and go with those sources' lookups, and what they found is already shared within the
+        /// refresh that found it.
         /// </summary>
-        private string Basis(Guid gameId, string sourceKey, MetadataLinkRequest request)
+        private string Basis(Guid gameId, string sourceKey, MetadataLinkRequest request, bool withLanguage)
         {
             var others = (_links?.GetAll(gameId) ?? new Dictionary<string, MetadataLinkRecord>())
                 .Where(pair => pair.Value?.Origin == MetadataLinkOrigin.User && !pair.Value.IsNoMatch &&
                                !string.Equals(pair.Key, sourceKey, StringComparison.OrdinalIgnoreCase))
                 .OrderBy(pair => pair.Key, StringComparer.OrdinalIgnoreCase);
             var parts = new List<string> { "name:" + request.Game?.Name?.Trim() };
+            if (withLanguage && !EnglishTitlePairing.IsEnglish(_language))
+            {
+                parts.Add("language:" + _language.Trim());
+            }
+
             parts.AddRange((request.Data?.Achievements ?? new List<AchievementDetail>())
                 .Where(row => row != null && !string.IsNullOrWhiteSpace(row.Category))
                 .Select(row => "category:" + row.Category.Trim() + "|" + row.CategoryKind)

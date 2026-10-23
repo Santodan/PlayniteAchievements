@@ -11,6 +11,7 @@ using PlayniteAchievements.Services.Refresh;
 using System;
 using System.Collections.Generic;
 using System.Globalization;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -23,7 +24,7 @@ namespace PlayniteAchievements.Providers.Ubisoft
     /// entitlements once, then reads each game's achievements with the Ubisoft Connect client's own
     /// GraphQL query.
     /// </summary>
-    internal sealed class UbisoftDataProvider : DataProviderBase<UbisoftSettings>, IDataProvider, IProviderOverride, IDisposable
+    internal sealed class UbisoftDataProvider : DataProviderBase<UbisoftSettings>, IDataProvider, IProviderOverride, IEnglishTitleSource, IDisposable
     {
         private const string FallbackLocale = "en-US";
 
@@ -45,6 +46,9 @@ namespace PlayniteAchievements.Providers.Ubisoft
         private readonly string _pluginUserDataPath;
         private readonly UbisoftApiClient _apiClient;
         private readonly UbisoftSessionManager _sessionManager;
+
+        // The last refresh's product id to space id map, reused by English title lookups.
+        private volatile Dictionary<long, string> _lastGameSpaces;
 
         public UbisoftDataProvider(
             ILogger logger,
@@ -105,6 +109,7 @@ namespace PlayniteAchievements.Providers.Ubisoft
                 }
 
                 gameSpaces = await _apiClient.GetGameSpacesAsync(session, cancel).ConfigureAwait(false);
+                _lastGameSpaces = gameSpaces;
             }
             catch (UbisoftAuthException ex)
             {
@@ -182,6 +187,57 @@ namespace PlayniteAchievements.Providers.Ubisoft
                 },
                 rateLimiter,
                 cancel).ConfigureAwait(false);
+        }
+
+        /// <summary>
+        /// The game's achievements read again with the en-US locale. The space id comes from the
+        /// last refresh's entitlements, fetched once here when no refresh has run this session.
+        /// </summary>
+        async Task<IList<AchievementDetail>> IEnglishTitleSource.GetEnglishTitlesAsync(Game game, GameAchievementData data, CancellationToken ct)
+        {
+            if (game == null)
+            {
+                return null;
+            }
+
+            var productId = ResolveProductId(game);
+            if (!productId.HasValue)
+            {
+                return null;
+            }
+
+            var session = await _sessionManager.GetSessionAsync(ct).ConfigureAwait(false);
+            if (session == null)
+            {
+                return null;
+            }
+
+            var gameSpaces = _lastGameSpaces;
+            if (gameSpaces == null)
+            {
+                gameSpaces = await _apiClient.GetGameSpacesAsync(session, ct).ConfigureAwait(false);
+                _lastGameSpaces = gameSpaces;
+            }
+
+            if (gameSpaces == null || !gameSpaces.TryGetValue(productId.Value, out var spaceId))
+            {
+                return null;
+            }
+
+            var graphGame = await _apiClient.GetAchievementsAsync(session, spaceId, productId.Value, FallbackLocale, ct).ConfigureAwait(false);
+            if (graphGame == null)
+            {
+                return null;
+            }
+
+            return UbisoftParsing.MapAchievements(graphGame.Viewer?.Meta?.Achievements)
+                .Select(achievement => new AchievementDetail
+                {
+                    ApiName = achievement.ApiName,
+                    DisplayName = achievement.DisplayName,
+                    Description = achievement.Description
+                })
+                .ToList();
         }
 
         /// <summary>

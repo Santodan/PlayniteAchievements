@@ -149,9 +149,10 @@ namespace PlayniteAchievements.Providers.Metadata.Exophase
                         }
 
                         return page?.Achievements;
-                    });
+                    },
+                    englishRows: async (slug, token) => (await _pages.GetPageAsync(slug, pagePlatform, token, english: true).ConfigureAwait(false))?.Achievements);
                 var seeds = await RelatedSeedsAsync(request, ct).ConfigureAwait(false);
-                var choice = await search.ChooseAsync(names, targets, MetadataSubGame.From(targets), ct, request.CategoryNames, seeds, request.AlternateNames).ConfigureAwait(false);
+                var choice = await search.ChooseAsync(names, targets, MetadataSubGame.From(targets), ct, request.CategoryNames, seeds, request.AlternateNames, request.EnglishTitles).ConfigureAwait(false);
                 if (health.LeavesDoubt(choice))
                 {
                     _logger?.Debug($"[{Key}Metadata] '{request.Game?.Name}': {choice?.Matched ?? 0}/{targets.Count} matched, but some pages could not be read; looking again next refresh.");
@@ -371,7 +372,11 @@ namespace PlayniteAchievements.Providers.Metadata.Exophase
                 return null;
             }
 
-            var set = new AchievementSourceSet(Key, linkId, rows) { GameArtUrl = gameArt };
+            var set = new AchievementSourceSet(Key, linkId, rows)
+            {
+                GameArtUrl = gameArt,
+                EnglishRows = async token => (await _pages.GetPageAsync(slug, platformSlug, token, english: true).ConfigureAwait(false))?.Achievements
+            };
             foreach (var art in categoryArt)
             {
                 set.CategoryArtUrls[art.Key] = art.Value;

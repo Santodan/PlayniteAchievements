@@ -21,7 +21,7 @@ using Playnite.SDK.Models;
 
 namespace PlayniteAchievements.Providers.Steam
 {
-    internal sealed class SteamDataProvider : DataProviderBase<SteamSettings>, IDataProvider, IProfileLinkProvider, IAchievementPageLinkProvider, IProviderOverride, IRefreshAuthContextReceiver, IInGameProgressSource, IOfflineRefreshFallbackProvider, IDefinitionCachePreferenceProvider, IDisposable
+    internal sealed class SteamDataProvider : DataProviderBase<SteamSettings>, IDataProvider, IProfileLinkProvider, IAchievementPageLinkProvider, IProviderOverride, IRefreshAuthContextReceiver, IInGameProgressSource, IOfflineRefreshFallbackProvider, IDefinitionCachePreferenceProvider, IEnglishTitleSource, IDisposable
     {
         /// <summary>
         /// Resolved once at game start so the fast prong never repeats path discovery. Steam's remote
@@ -52,6 +52,7 @@ namespace PlayniteAchievements.Providers.Steam
             });
 
         private readonly SteamHttpClient _steamClient;
+        private readonly SteamApiClient _steamApiClient;
         private readonly SteamScanner _scanner;
         private readonly SteamSessionManager _sessionManager;
         private readonly SteamWebApiTokenResolver _tokenResolver;
@@ -85,6 +86,7 @@ namespace PlayniteAchievements.Providers.Steam
             // Create Steam-specific dependencies
             _steamClient = new SteamHttpClient(api, logger, _sessionManager, pluginUserDataPath);
             var steamApiClient = new SteamApiClient(_steamClient.ApiHttpClient, logger);
+            _steamApiClient = steamApiClient;
             // SteamHunters is fetched through the offscreen webview (the scan's shared leased
             // view): its WAF tarpits the .NET HTTP stack's TLS fingerprint but accepts CEF's.
             var steamHuntersApiClient = new SteamHuntersApiClient(
@@ -101,6 +103,27 @@ namespace PlayniteAchievements.Providers.Steam
             _sessionManager.SetClearInMemoryAuthState(_steamClient.ClearInMemoryAuthState);
             _scanner = new SteamScanner(settings, _steamClient, steamApiClient, _tokenResolver, _steamHuntersCategoryEnricher, api, logger, categoryArtDownloader: categoryArtDownloader);
             _friendsProvider = new SteamFriendsProvider(_steamClient, steamApiClient, _scanner, _tokenResolver, _steamHuntersCategoryEnricher, _sessionManager, logger);
+        }
+
+        /// <summary>The app's schema in English; the schema service answers without an access token.</summary>
+        async Task<IList<AchievementDetail>> IEnglishTitleSource.GetEnglishTitlesAsync(Game game, GameAchievementData data, CancellationToken ct)
+        {
+            var appId = data?.AppId ?? 0;
+            if (appId <= 0)
+            {
+                return null;
+            }
+
+            var schema = await _steamApiClient.GetSchemaForGameDetailedAsync(null, appId, "english", ct).ConfigureAwait(false);
+            return schema?.Achievements?
+                .Where(achievement => !string.IsNullOrWhiteSpace(achievement?.Name))
+                .Select(achievement => new AchievementDetail
+                {
+                    ApiName = achievement.Name,
+                    DisplayName = achievement.DisplayName,
+                    Description = achievement.Description
+                })
+                .ToList();
         }
 
         public string ProviderName => ResourceProvider.GetString("LOCPlayAch_Provider_Steam");
