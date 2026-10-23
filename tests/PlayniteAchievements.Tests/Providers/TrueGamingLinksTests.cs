@@ -61,6 +61,19 @@ namespace PlayniteAchievements.Tests.Providers
                 TrueGamingLinks.SlugsFor(TrueGamingSite.TrueTrophies, "Elden-Ring").ToList());
             CollectionAssert.AreEqual(new[] { "Hades" }, TrueGamingLinks.SlugsFor(TrueGamingSite.TrueSteamAchievements, "Hades").ToList());
         }
+
+        [TestMethod]
+        public void SlugsToTry_AddsEditionsOnlyOnTheOwnSite_OrForAUserLink()
+        {
+            var own = TrueGamingSite.For("Steam");
+            CollectionAssert.AreEqual(new[] { "Spyro" }, TrueGamingLinks.SlugsToTry(TrueGamingSite.TrueAchievements, own, "Spyro", userSet: false).ToList());
+            CollectionAssert.AreEqual(
+                new[] { "Spyro", "Spyro-Xbox-One", "Spyro-Xbox-360" },
+                TrueGamingLinks.SlugsToTry(TrueGamingSite.TrueAchievements, TrueGamingSite.For("Xbox"), "Spyro", userSet: false).ToList());
+            CollectionAssert.AreEqual(
+                new[] { "Spyro", "Spyro-Xbox-One", "Spyro-Xbox-360" },
+                TrueGamingLinks.SlugsToTry(TrueGamingSite.TrueAchievements, own, "Spyro", userSet: true).ToList());
+        }
         [TestMethod]
         public void Flags_MapSynonymsToBuiltInTags_AndKeepTheRestApart()
         {
