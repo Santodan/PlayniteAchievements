@@ -533,6 +533,7 @@
     <Compile Include="..\..\source\Services\Metadata\MetadataOverlay.cs" Link="Source\Services\Metadata\MetadataOverlay.cs" />
     <Compile Include="..\..\source\Services\Metadata\MetadataListFetch.cs" Link="Source\Services\Metadata\MetadataListFetch.cs" />
     <Compile Include="..\..\source\Services\Metadata\MetadataPageSearch.cs" Link="Source\Services\Metadata\MetadataPageSearch.cs" />
+    <Compile Include="..\..\source\Services\Metadata\EnglishTitlePairing.cs" Link="Source\Services\Metadata\EnglishTitlePairing.cs" />
     <Compile Include="..\..\source\Services\Metadata\MetadataPageCandidate.cs" Link="Source\Services\Metadata\MetadataPageCandidate.cs" />
     <Compile Include="..\..\source\Services\Metadata\MetadataPageChoice.cs" Link="Source\Services\Metadata\MetadataPageChoice.cs" />
     <Compile Include="..\..\source\Services\Metadata\MetadataSubGame.cs" Link="Source\Services\Metadata\MetadataSubGame.cs" />
