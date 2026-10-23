@@ -89,7 +89,7 @@ namespace PlayniteAchievements.Services.Tagging
                 Id = tagType.ToString(),
                 ResourceKeys = GetAreaResourceKeys(tagType),
                 Compose = ComposeAreaName,
-                ExtraHardcodedDefaults = new[] { TaggingSettings.GetDefaultDisplayName(tagType) }
+                ExtraHardcodedDefaults = null
             };
         }
 
