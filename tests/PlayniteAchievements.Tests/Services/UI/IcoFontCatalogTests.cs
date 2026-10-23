@@ -1,3 +1,4 @@
+using System.Linq;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using PlayniteAchievements.Services.UI;
 
@@ -8,13 +9,13 @@ namespace PlayniteAchievements.Tests.Services.UI
     public class IcoFontCatalogTests
     {
         [TestMethod]
-        public void CategoryOf_PlacesACodeInTheRunItStartsOrFallsIn()
+        public void CategoryOf_PlacesACodeInTheGroupOfTheIcoFontCategoryItFallsIn()
         {
-            Assert.AreEqual("Abstract", IcoFontCatalog.CategoryOf("E800"));
-            Assert.AreEqual("Abstract", IcoFontCatalog.CategoryOf("E828"));
-            Assert.AreEqual("Animal", IcoFontCatalog.CategoryOf("E829"));
-            Assert.AreEqual("Sport", IcoFontCatalog.CategoryOf("EDDE"));
-            Assert.AreEqual("Web Application", IcoFontCatalog.CategoryOf("F02E"));
+            Assert.AreEqual("Arrows & Shapes", IcoFontCatalog.CategoryOf("E800"));
+            Assert.AreEqual("Arrows & Shapes", IcoFontCatalog.CategoryOf("E828"));
+            Assert.AreEqual("Animals & Nature", IcoFontCatalog.CategoryOf("E829"));
+            Assert.AreEqual("Sport & Health", IcoFontCatalog.CategoryOf("EDDE"));
+            Assert.AreEqual("Interface", IcoFontCatalog.CategoryOf("F02E"));
         }
 
         [TestMethod]
@@ -25,19 +26,21 @@ namespace PlayniteAchievements.Tests.Services.UI
         }
 
         [TestMethod]
-        public void Categories_ListEveryCategoryOnceInFontOrder()
+        public void Categories_ListElevenGroupsOnce()
         {
-            Assert.AreEqual(30, IcoFontCatalog.Categories.Count);
-            Assert.AreEqual("Abstract", IcoFontCatalog.Categories[0].Name);
-            Assert.AreEqual("Web Application", IcoFontCatalog.Categories[29].Name);
+            var names = IcoFontCatalog.Categories.Select(group => group.Name).ToList();
+
+            Assert.AreEqual(11, names.Count);
+            Assert.AreEqual(names.Count, names.Distinct().Count());
+            Assert.AreEqual("Interface", names[0]);
         }
 
         [TestMethod]
-        public void EveryCategoryIcon_IsOneOfItsOwnGlyphs()
+        public void EveryGroupIcon_IsOneOfItsOwnGlyphs()
         {
-            foreach (var category in IcoFontCatalog.Categories)
+            foreach (var group in IcoFontCatalog.Categories)
             {
-                Assert.AreEqual(category.Name, IcoFontCatalog.CategoryOf(category.Icon), category.Icon);
+                Assert.AreEqual(group.Name, IcoFontCatalog.CategoryOf(group.Icon), group.Icon);
             }
         }
     }
