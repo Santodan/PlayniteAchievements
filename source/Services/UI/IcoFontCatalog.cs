@@ -22,7 +22,8 @@ namespace PlayniteAchievements.Services.UI
         private static readonly IcoFontCategory[] Groups =
         {
             new IcoFontCategory("Interface", "EC8A"),
-            new IcoFontCategory("Arrows & Shapes", "E814"),
+            new IcoFontCategory("Arrows", "EA5D"),
+            new IcoFontCategory("Fantasy", "E806"),
             new IcoFontCategory("People", "ED05"),
             new IcoFontCategory("Animals & Nature", "E83D"),
             new IcoFontCategory("Food", "EB69"),
@@ -39,7 +40,7 @@ namespace PlayniteAchievements.Services.UI
         // where one IcoFont category starts (named in the comment) and the group it falls in.
         private static readonly KeyValuePair<int, string>[] CategoryStarts =
         {
-            new KeyValuePair<int, string>(0xE800, "Arrows & Shapes"),   // Abstract
+            new KeyValuePair<int, string>(0xE800, "Fantasy"),           // Abstract
             new KeyValuePair<int, string>(0xE829, "Animals & Nature"),  // Animal
             new KeyValuePair<int, string>(0xE896, "Logos"),             // Brand
             new KeyValuePair<int, string>(0xE961, "Work & Money"),      // Business
@@ -47,7 +48,7 @@ namespace PlayniteAchievements.Services.UI
             new KeyValuePair<int, string>(0xE985, "Work & Money"),      // Construction
             new KeyValuePair<int, string>(0xE9C5, "Work & Money"),      // Currency
             new KeyValuePair<int, string>(0xEA29, "Devices & Media"),   // Device
-            new KeyValuePair<int, string>(0xEA5B, "Arrows & Shapes"),   // Directional
+            new KeyValuePair<int, string>(0xEA5B, "Arrows"),            // Directional
             new KeyValuePair<int, string>(0xEACC, "Office & School"),   // Education
             new KeyValuePair<int, string>(0xEAF4, "People"),            // Emoji
             new KeyValuePair<int, string>(0xEB08, "Office & School"),   // File Type
@@ -55,7 +56,7 @@ namespace PlayniteAchievements.Services.UI
             new KeyValuePair<int, string>(0xEB3B, "Food"),              // Food
             new KeyValuePair<int, string>(0xEB9D, "People"),            // Kids & Baby
             new KeyValuePair<int, string>(0xEBB0, "Work & Money"),      // Law
-            new KeyValuePair<int, string>(0xEBD7, "Arrows & Shapes"),   // Math
+            new KeyValuePair<int, string>(0xEBD7, "Office & School"),   // Math
             new KeyValuePair<int, string>(0xEC06, "Sport & Health"),    // Medical
             new KeyValuePair<int, string>(0xEC3E, "Interface"),         // Mobile UI
             new KeyValuePair<int, string>(0xEC99, "Devices & Media"),   // Multimedia
