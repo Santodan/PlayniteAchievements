@@ -23,7 +23,7 @@ namespace PlayniteAchievements.Models.Tagging
         /// <summary>Achievement notes.</summary>
         Notes = 1 << 3,
 
-        /// <summary>Category assignments, kinds, order and art, achievement tags, summary category.</summary>
+        /// <summary>Category assignments, kinds, order and art, summary category.</summary>
         Categories = 1 << 4,
 
         /// <summary>Custom achievement order.</summary>
@@ -42,6 +42,9 @@ namespace PlayniteAchievements.Models.Tagging
         ManualTracking = 1 << 9,
 
         /// <summary>Per-game notification appearance, sounds, behavior or capture.</summary>
-        Notifications = 1 << 10
+        Notifications = 1 << 10,
+
+        /// <summary>Achievement tag definitions or per-achievement tag assignments.</summary>
+        Tags = 1 << 11
     }
 }
