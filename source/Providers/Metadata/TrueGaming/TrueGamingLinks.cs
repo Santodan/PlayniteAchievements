@@ -87,6 +87,14 @@ namespace PlayniteAchievements.Providers.Metadata.TrueGaming
         /// <summary>The slugs a site's page for <paramref name="slug"/> may have: the name, then with each edition suffix.</summary>
         internal static IEnumerable<string> SlugsFor(TrueGamingSite site, string slug) =>
             new[] { slug }.Concat(site.Suffixes.Select(suffix => slug + suffix));
+
+        /// <summary>
+        /// The slugs to try on a site for a page name: with edition suffixes on the platform's own
+        /// site or for a link the user set, else the name alone.
+        /// </summary>
+        internal static IEnumerable<string> SlugsToTry(TrueGamingSite site, TrueGamingSite ownSite, string slug, bool userSet) =>
+            userSet || site == ownSite ? SlugsFor(site, slug) : new[] { slug };
+
         /// <summary>The site slugs to try for each name: each name's slug, then with each suffix.</summary>
         internal static IEnumerable<string> CandidateSlugs(IEnumerable<string> names, IReadOnlyList<string> suffixes)
         {
