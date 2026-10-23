@@ -20,6 +20,9 @@ namespace PlayniteAchievements.Views.Dialogs
         // A glyph cell's width (GlyphCellStyle), which sets how many fit in a row.
         private const double CellWidth = 60;
 
+        // The glyph panel's border and padding on both sides, which the rows do not get.
+        private const double PanelInset = 2 * (1 + 4);
+
         // The All entry's icon: IcoFont's "layout" glyph.
         private const string AllIcon = "EF5D";
 
@@ -155,7 +158,7 @@ namespace PlayniteAchievements.Views.Dialogs
                 return;
             }
 
-            var available = GlyphRows.ActualWidth - SystemParameters.VerticalScrollBarWidth;
+            var available = GlyphRows.ActualWidth - PanelInset - SystemParameters.VerticalScrollBarWidth;
             var perRow = Math.Max(1, (int)Math.Floor(available / CellWidth));
             if (perRow == _glyphsPerRow)
             {
