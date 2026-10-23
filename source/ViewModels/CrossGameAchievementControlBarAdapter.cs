@@ -163,7 +163,7 @@ namespace PlayniteAchievements.ViewModels
                 ProviderFilterGroups,
                 OnProviderFilterSelectionChanged,
                 PendingPlatformSelections);
-            PendingPlatformSelections = null;
+            SettlePendingPlatformSelections(ProviderFilterGroups);
             OnPropertyChanged(nameof(SelectedProviderFilterText));
             GameFilter.SetPlatforms(ProviderFilterGroups);
             _tierFilters.UpdateGames(_libraryGames);
