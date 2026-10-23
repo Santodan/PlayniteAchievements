@@ -1389,7 +1389,7 @@ namespace PlayniteAchievements.Services.GameCustomData
             return links != null && links.Values.Any(link => link != null);
         }
 
-        private static bool HasUserMetadataLink(Dictionary<string, MetadataLinkData> links)
+        internal static bool HasUserMetadataLink(Dictionary<string, MetadataLinkData> links)
         {
             return links != null && links.Values.Any(link => link?.IsUserSet == true || link?.Pairings?.Count > 0);
         }
