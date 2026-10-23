@@ -54,10 +54,13 @@ namespace PlayniteAchievements.ViewModels.Tags
             });
         }
 
-        /// <summary>The visible tags of <paramref name="tags"/>, in tag list order.</summary>
-        public static IReadOnlyList<AchievementTagChip> Resolve(string tags, Guid? gameId)
+        /// <summary>
+        /// The visible tags of <paramref name="tags"/>, in tag list order; hidden ones too when
+        /// <paramref name="includeHidden"/>, as the editor shows them.
+        /// </summary>
+        public static IReadOnlyList<AchievementTagChip> Resolve(string tags, Guid? gameId, bool includeHidden = false)
         {
-            var definitions = AchievementTagRegistry.ResolveVisible(tags, gameId);
+            var definitions = AchievementTagRegistry.ResolveVisible(tags, gameId, includeHidden);
             if (definitions.Count == 0)
             {
                 return Array.Empty<AchievementTagChip>();
