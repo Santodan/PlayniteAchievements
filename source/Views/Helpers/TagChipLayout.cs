@@ -39,8 +39,8 @@ namespace PlayniteAchievements.Views.Helpers
     }
 
     /// <summary>
-    /// Wrapping and sizing for a Tags cell, shared by TagChipsPanel, which
-    /// lays the chips out, and the grid, which picks the one icon size every row of the column uses.
+    /// Wrapping and icon sizing for a Tags cell, used by TagChipsPanel: each cell's icons are as
+    /// large as its own tags allow, up to a ceiling.
     /// </summary>
     public static class TagChipLayout
     {
@@ -119,9 +119,10 @@ namespace PlayniteAchievements.Views.Helpers
 
         /// <summary>
         /// The largest whole-pixel icon size at which <paramref name="chips"/> fit the cell, never
-        /// below <paramref name="floor"/>. Null when the chips have no icon, so they set no limit.
+        /// above <paramref name="ceiling"/> nor below <paramref name="floor"/>. Null when the chips
+        /// have no icon, so they set no limit.
         /// </summary>
-        public static double? LargestIconSize(IReadOnlyList<TagChipBox> chips, double textHeight, double width, double height, double floor)
+        public static double? LargestIconSize(IReadOnlyList<TagChipBox> chips, double textHeight, double width, double height, double floor, double ceiling = double.PositiveInfinity)
         {
             var hasIcon = false;
             foreach (var chip in chips)
@@ -136,7 +137,7 @@ namespace PlayniteAchievements.Views.Helpers
 
             // Fits only gets harder as icons grow, so the largest fitting size is a binary search.
             var low = (int)Math.Ceiling(floor);
-            var high = (int)Math.Floor(Math.Min(width, height));
+            var high = (int)Math.Floor(Math.Min(ceiling, Math.Min(width, height)));
             if (high <= low || !Fits(chips, low, textHeight, width, height))
             {
                 return low;
