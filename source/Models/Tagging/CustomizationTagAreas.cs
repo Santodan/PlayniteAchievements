@@ -3,55 +3,87 @@ using System.Linq;
 
 namespace PlayniteAchievements.Models.Tagging
 {
+    /// <summary>The role of one tag kind within its customization area.</summary>
+    public enum TagLayer
+    {
+        /// <summary>The game's own platform supplied the data.</summary>
+        Platform,
+
+        /// <summary>A metadata source supplied the data.</summary>
+        Metadata,
+
+        /// <summary>The user customized the data.</summary>
+        Custom,
+
+        /// <summary>A layered area's data comes from nowhere.</summary>
+        None,
+
+        /// <summary>A paired area's data is not customized.</summary>
+        Default
+    }
+
     /// <summary>
-    /// One customization area and the tags it writes: the custom kind when the game carries that
-    /// customization, and for paired areas the default kind when it does not.
+    /// Where a game's data in each layered area came from, for tagging.
+    /// </summary>
+    public struct GameDataLayers
+    {
+        /// <summary>Areas the platform supplied at the last refresh; null when no refresh recorded it.</summary>
+        public CustomizationArea? Platform;
+
+        /// <summary>Areas a metadata source supplied at the last refresh; null when no refresh recorded it.</summary>
+        public CustomizationArea? Metadata;
+
+        /// <summary>Areas the cached data has any value for, used while the masks are unknown.</summary>
+        public CustomizationArea Present;
+
+        public bool IsKnown => Platform.HasValue && Metadata.HasValue;
+    }
+
+    /// <summary>
+    /// One customization area and the tag kinds it writes. A layered area writes Platform,
+    /// Metadata, Custom and None kinds; a paired area Custom and Default; a single area Custom.
     /// </summary>
     public sealed class CustomizationTagArea
     {
         public CustomizationTagArea(
             CustomizationArea area,
-            TagType customTag,
-            TagType? defaultTag,
+            IReadOnlyDictionary<TagLayer, TagType> tags,
             string nounResourceKey,
             string englishNoun,
-            string customNameResourceKey = null,
             string customEnglishName = null)
         {
             Area = area;
-            CustomTag = customTag;
-            DefaultTag = defaultTag;
+            Tags = tags;
             NounResourceKey = nounResourceKey;
             EnglishNoun = englishNoun;
-            CustomNameResourceKey = customNameResourceKey;
             CustomEnglishName = customEnglishName;
         }
 
         public CustomizationArea Area { get; }
 
-        public TagType CustomTag { get; }
+        /// <summary>The area's tag kinds by layer.</summary>
+        public IReadOnlyDictionary<TagLayer, TagType> Tags { get; }
 
-        /// <summary>Null for a one-sided area, which tags only the games that carry it.</summary>
-        public TagType? DefaultTag { get; }
-
-        /// <summary>Resource key of the area noun, used as the settings label and composed into paired tag names.</summary>
+        /// <summary>Resource key of the area noun, the settings row label.</summary>
         public string NounResourceKey { get; }
 
         /// <summary>English noun for the hardcoded fallback names.</summary>
         public string EnglishNoun { get; }
 
         /// <summary>
-        /// Resource key naming the custom tag outright instead of composing "Custom {noun}", for
-        /// one-sided areas whose name reads on its own.
+        /// English fallback for a single area's custom tag, whose name reads on its own instead of
+        /// "Custom {noun}".
         /// </summary>
-        public string CustomNameResourceKey { get; }
-
-        /// <summary>English fallback for <see cref="CustomNameResourceKey"/>.</summary>
         public string CustomEnglishName { get; }
 
-        /// <summary>The tag kinds this area writes, custom first.</summary>
-        public IEnumerable<TagType> TagTypes =>
-            DefaultTag.HasValue ? new[] { CustomTag, DefaultTag.Value } : new[] { CustomTag };
+        public bool IsLayered => Tags.ContainsKey(TagLayer.Platform);
+
+        public TagType CustomTag => Tags[TagLayer.Custom];
+
+        public TagType? Tag(TagLayer layer) => Tags.TryGetValue(layer, out var tagType) ? tagType : (TagType?)null;
+
+        /// <summary>The tag kinds this area writes.</summary>
+        public IEnumerable<TagType> TagTypes => Tags.Values;
     }
 
     /// <summary>
@@ -60,73 +92,148 @@ namespace PlayniteAchievements.Models.Tagging
     /// </summary>
     public static class CustomizationTagAreas
     {
-        public const string CustomFormatKey = "LOCPlayAch_Tagging_CustomFormat";
-        public const string DefaultFormatKey = "LOCPlayAch_Tagging_DefaultFormat";
+        /// <summary>
+        /// Resource key of an area kind's whole name. Each kind is its own string so every language
+        /// can phrase it fully; names are never composed from a shared noun.
+        /// </summary>
+        public static string NameResourceKey(TagType tagType) => "LOCPlayAch_Tagging_Tag_" + tagType;
 
         public static readonly IReadOnlyList<CustomizationTagArea> All = new[]
         {
-            new CustomizationTagArea(CustomizationArea.Icons, TagType.CustomIcons, TagType.DefaultIcons,
+            Layered(CustomizationArea.Icons, TagType.PlatformIcons, TagType.MetadataIcons, TagType.CustomIcons, TagType.NoIcons,
                 "LOCPlayAch_ManageAchievements_Tab_CustomIcons", "Icons"),
-            new CustomizationTagArea(CustomizationArea.TrophyTypes, TagType.CustomTrophyTypes, TagType.DefaultTrophyTypes,
+            Layered(CustomizationArea.TrophyTypes, TagType.PlatformTrophyTypes, TagType.MetadataTrophyTypes, TagType.CustomTrophyTypes, TagType.NoTrophyTypes,
                 "LOCPlayAch_Tagging_Area_TrophyTypes", "Trophy Types"),
-            new CustomizationTagArea(CustomizationArea.Points, TagType.CustomPoints, TagType.DefaultPoints,
+            Layered(CustomizationArea.Points, TagType.PlatformPoints, TagType.MetadataPoints, TagType.CustomPoints, TagType.NoPoints,
                 "LOCPlayAch_Column_Points", "Points"),
-            new CustomizationTagArea(CustomizationArea.Notes, TagType.CustomNotes, TagType.DefaultNotes,
-                "LOCPlayAch_Tagging_Area_Notes", "Notes"),
-            new CustomizationTagArea(CustomizationArea.Categories, TagType.CustomCategories, TagType.DefaultCategories,
+            Layered(CustomizationArea.Categories, TagType.PlatformCategories, TagType.MetadataCategories, TagType.CustomCategories, TagType.NoCategories,
                 "LOCPlayAch_ManageAchievements_Tab_Category", "Categories"),
-            new CustomizationTagArea(CustomizationArea.Tags, TagType.CustomTags, TagType.DefaultTags,
+            Layered(CustomizationArea.Tags, TagType.PlatformTags, TagType.MetadataTags, TagType.CustomTags, TagType.NoTags,
                 "LOCPlayAch_Tagging_Area_Tags", "Tags"),
-            new CustomizationTagArea(CustomizationArea.Order, TagType.CustomOrder, TagType.DefaultOrder,
-                "LOCPlayAch_ManageAchievements_Tab_AchievementOrder", "Order"),
-            new CustomizationTagArea(CustomizationArea.Capstones, TagType.CustomCapstones, TagType.DefaultCapstones,
+            Layered(CustomizationArea.Capstones, TagType.PlatformCapstones, TagType.MetadataCapstones, TagType.CustomCapstones, TagType.NoCapstones,
                 "LOCPlayAch_Tagging_Area_Capstones", "Capstones"),
-            new CustomizationTagArea(CustomizationArea.Goals, TagType.CustomGoals, TagType.DefaultGoals,
+            Paired(CustomizationArea.Notes, TagType.CustomNotes, TagType.DefaultNotes,
+                "LOCPlayAch_Tagging_Area_Notes", "Notes"),
+            Paired(CustomizationArea.Order, TagType.CustomOrder, TagType.DefaultOrder,
+                "LOCPlayAch_ManageAchievements_Tab_AchievementOrder", "Order"),
+            Paired(CustomizationArea.Goals, TagType.CustomGoals, TagType.DefaultGoals,
                 "LOCPlayAch_Tagging_Area_Goals", "Goals"),
-            new CustomizationTagArea(CustomizationArea.Notifications, TagType.CustomNotifications, TagType.DefaultNotifications,
+            Paired(CustomizationArea.Notifications, TagType.CustomNotifications, TagType.DefaultNotifications,
                 "LOCPlayAch_Tagging_Area_Notifications", "Notifications"),
-            new CustomizationTagArea(CustomizationArea.Source, TagType.CustomSource, null,
-                "LOCPlayAch_Tagging_Area_Source", "Source",
-                "LOCPlayAch_Tagging_SourceOverride", "Source Override"),
-            new CustomizationTagArea(CustomizationArea.ManualTracking, TagType.CustomManualTracking, null,
-                "LOCPlayAch_ManageAchievements_Tab_ManualTracking", "Manual Tracking",
-                "LOCPlayAch_ManageAchievements_Tab_ManualTracking", "Manual Tracking")
+            new CustomizationTagArea(CustomizationArea.Source,
+                new Dictionary<TagLayer, TagType> { [TagLayer.Custom] = TagType.CustomSource },
+                "LOCPlayAch_Tagging_Area_Source", "Source", "Source Override"),
+            new CustomizationTagArea(CustomizationArea.ManualTracking,
+                new Dictionary<TagLayer, TagType> { [TagLayer.Custom] = TagType.CustomManualTracking },
+                "LOCPlayAch_ManageAchievements_Tab_ManualTracking", "Manual Tracking", "Manual Tracking")
         };
 
-        private static readonly Dictionary<TagType, CustomizationTagArea> ByTag =
-            All.SelectMany(area => area.TagTypes.Select(tagType => new KeyValuePair<TagType, CustomizationTagArea>(tagType, area)))
-                .ToDictionary(pair => pair.Key, pair => pair.Value);
+        private static readonly Dictionary<TagType, (CustomizationTagArea Area, TagLayer Layer)> ByTag =
+            All.SelectMany(area => area.Tags.Select(pair => (pair.Value, area, pair.Key)))
+                .ToDictionary(entry => entry.Item1, entry => (entry.area, entry.Key));
 
         /// <summary>
-        /// The area a tag kind belongs to, and whether it is the custom side.
-        /// False for the kinds outside the customization areas.
+        /// The area and layer a tag kind belongs to. False for the kinds outside the customization areas.
         /// </summary>
-        public static bool TryGetArea(TagType tagType, out CustomizationTagArea area, out bool isCustom)
+        public static bool TryGetArea(TagType tagType, out CustomizationTagArea area, out TagLayer layer)
         {
-            if (ByTag.TryGetValue(tagType, out area))
+            if (ByTag.TryGetValue(tagType, out var entry))
             {
-                isCustom = area.CustomTag == tagType;
+                area = entry.Area;
+                layer = entry.Layer;
                 return true;
             }
 
-            isCustom = false;
+            area = null;
+            layer = default;
             return false;
         }
 
-        /// <summary>The kinds the areas contribute for a game with the given customizations.</summary>
-        public static IEnumerable<TagType> TagsFor(CustomizationArea areas)
+        /// <summary>
+        /// The kinds the areas contribute for a game. A layered area gets every layer that applies,
+        /// and None when no layer does; while the platform and metadata masks are unknown it gets
+        /// Custom, and None when the cached data has no value for it either.
+        /// </summary>
+        public static IEnumerable<TagType> TagsFor(CustomizationArea custom, GameDataLayers layers)
         {
             foreach (var area in All)
             {
-                if ((areas & area.Area) != 0)
+                var isCustom = (custom & area.Area) != 0;
+                if (!area.IsLayered)
+                {
+                    if (isCustom)
+                    {
+                        yield return area.CustomTag;
+                    }
+                    else if (area.Tag(TagLayer.Default) is TagType standard)
+                    {
+                        yield return standard;
+                    }
+
+                    continue;
+                }
+
+                var fromPlatform = layers.IsKnown && (layers.Platform.Value & area.Area) != 0;
+                var fromMetadata = layers.IsKnown && (layers.Metadata.Value & area.Area) != 0;
+                if (fromPlatform)
+                {
+                    yield return area.Tags[TagLayer.Platform];
+                }
+
+                if (fromMetadata)
+                {
+                    yield return area.Tags[TagLayer.Metadata];
+                }
+
+                if (isCustom)
                 {
                     yield return area.CustomTag;
                 }
-                else if (area.DefaultTag.HasValue)
+
+                var hasAny = layers.IsKnown
+                    ? fromPlatform || fromMetadata || isCustom
+                    : isCustom || (layers.Present & area.Area) != 0;
+                if (!hasAny)
                 {
-                    yield return area.DefaultTag.Value;
+                    yield return area.Tags[TagLayer.None];
                 }
             }
         }
+
+        private static CustomizationTagArea Layered(
+            CustomizationArea area,
+            TagType platform,
+            TagType metadata,
+            TagType custom,
+            TagType none,
+            string nounKey,
+            string englishNoun) =>
+            new CustomizationTagArea(
+                area,
+                new Dictionary<TagLayer, TagType>
+                {
+                    [TagLayer.Platform] = platform,
+                    [TagLayer.Metadata] = metadata,
+                    [TagLayer.Custom] = custom,
+                    [TagLayer.None] = none
+                },
+                nounKey,
+                englishNoun);
+
+        private static CustomizationTagArea Paired(
+            CustomizationArea area,
+            TagType custom,
+            TagType standard,
+            string nounKey,
+            string englishNoun) =>
+            new CustomizationTagArea(
+                area,
+                new Dictionary<TagLayer, TagType>
+                {
+                    [TagLayer.Custom] = custom,
+                    [TagLayer.Default] = standard
+                },
+                nounKey,
+                englishNoun);
     }
 }
