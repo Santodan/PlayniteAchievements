@@ -586,6 +586,7 @@
     <Compile Include="..\..\source\Views\Controls\OverlayLayoutHost.cs" Link="Source\Views\Controls\OverlayLayoutHost.cs" />
     <Compile Include="..\..\source\Views\Controls\ControlBarLayoutPanel.cs" Link="Source\Views\Controls\ControlBarLayoutPanel.cs" />
     <Compile Include="..\..\source\Views\Controls\CenteredWrapPanel.cs" Link="Source\Views\Controls\CenteredWrapPanel.cs" />
+    <Compile Include="..\..\source\Views\Helpers\TagChipLayout.cs" Link="Source\Views\Helpers\TagChipLayout.cs" />
     <Compile Include="..\..\source\Services\Showcase\ShowcasePinService.cs" Link="Source\Services\Showcase\ShowcasePinService.cs" />
     <Compile Include="..\..\source\Services\Showcase\ShowcaseWidgetProjectionService.cs" Link="Source\Services\Showcase\ShowcaseWidgetProjectionService.cs" />
     <Compile Include="..\..\source\Services\Showcase\ShowcaseProfileResolver.cs" Link="Source\Services\Showcase\ShowcaseProfileResolver.cs" />
