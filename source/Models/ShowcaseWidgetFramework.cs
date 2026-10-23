@@ -627,7 +627,7 @@ namespace PlayniteAchievements.Models
             }
         }
 
-        /// <summary>Whether the widget lists games or achievements, so it can take a game collection.</summary>
+        /// <summary>Whether the widget lists or counts games, so it can take a game collection.</summary>
         public static bool OffersCollections(ShowcaseWidgetInstanceSettings settings)
         {
             switch (settings?.Kind)
@@ -637,6 +637,8 @@ namespace PlayniteAchievements.Models
                 case ShowcaseWidgetKind.IconMosaic:
                 case ShowcaseWidgetKind.Pie:
                 case ShowcaseWidgetKind.ScreenshotSlideshow:
+                case ShowcaseWidgetKind.Profile:
+                case ShowcaseWidgetKind.Statistics:
                     return true;
                 default:
                     return false;

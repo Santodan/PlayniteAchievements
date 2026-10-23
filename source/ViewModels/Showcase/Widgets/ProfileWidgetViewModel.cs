@@ -10,6 +10,7 @@ using PlayniteAchievements.Models.Settings;
 using PlayniteAchievements.Providers;
 using PlayniteAchievements.Services.Overview;
 using PlayniteAchievements.Services.Showcase;
+using PlayniteAchievements.ViewModels.Items;
 
 namespace PlayniteAchievements.ViewModels.Showcase.Widgets
 {
@@ -83,10 +84,14 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
     /// Backs the Profile widget: avatar, display name, and background resolved from the
     /// provider identity with manual overrides, plus a medal-count row (rarity tiers and
     /// completions, or trophy grades) and a stat strip filling the instance's configured stat
-    /// slots. Density only scales the avatar; the same content shows at every size.
+    /// slots. Medals and stats count the games its collection and control bar keep; the
+    /// identity does not follow them. Density only scales the avatar; the same content shows at
+    /// every size.
     /// </summary>
     public sealed class ProfileWidgetViewModel : ShowcaseWidgetViewModelBase
     {
+        private readonly ShowcaseStatisticsScope _scope;
+        private GridControlBarViewModel _controlBar;
         private string _backgroundPath;
         private bool _hasBackground;
         private string _avatarPath;
@@ -107,6 +112,26 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
         private int _backgroundDecodePixel = 320;
         private bool _showLinks;
         private string _linksSignature;
+
+        public ProfileWidgetViewModel()
+        {
+            _scope = new ShowcaseStatisticsScope(Refresh);
+        }
+
+        /// <summary>The platform, game, tag and progress filters its settings show; null when none.</summary>
+        public GridControlBarViewModel ControlBar
+        {
+            get => _controlBar;
+            private set
+            {
+                if (SetValueAndReturn(ref _controlBar, value))
+                {
+                    OnPropertyChanged(nameof(ShowControlBar));
+                }
+            }
+        }
+
+        public bool ShowControlBar => ControlBar != null;
 
         public BulkObservableCollection<ProfileMedalViewModel> Medals { get; } =
             new BulkObservableCollection<ProfileMedalViewModel>();
@@ -194,7 +219,9 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
             var resolved = Projection?.ResolvedProfile ?? ShowcaseProfileResolver.Resolve(
                 Projection?.Profile,
                 Projection?.Snapshot?.CurrentUserIdentities);
-            var snapshot = Projection?.Snapshot ?? new OverviewDataSnapshot();
+            _scope.Apply(Projection);
+            ControlBar = _scope.ShownBar;
+            var snapshot = _scope.Snapshot;
             var compact = Density == WidgetViewportDensity.Compact;
 
             BackgroundPath = resolved.BackgroundPath;
@@ -298,7 +325,7 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
 
         private IReadOnlyList<ProfileStatViewModel> BuildStatStrip()
         {
-            var statistics = Projection?.Statistics ?? Array.Empty<ShowcaseStatistic>();
+            var statistics = _scope.Statistics;
             var tiles = new List<ProfileStatViewModel>();
             foreach (var key in ShowcaseWidgetOptions.GetProfileStatKeys(Projection?.Instance))
             {

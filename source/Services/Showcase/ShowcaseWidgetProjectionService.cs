@@ -394,12 +394,16 @@ namespace PlayniteAchievements.Services.Showcase
             switch (instance.Kind)
             {
                 case ShowcaseWidgetKind.Profile:
+                    // The library's statistics; the view model narrows them to its collection and
+                    // control bar.
+                    result.Collection = ShowcaseCollectionScope.Resolve(settings, instance);
                     result.Statistics = GetStatistics(snapshot, now ?? DateTime.Now);
                     result.ResolvedProfile = ShowcaseProfileResolver.Resolve(
                         instance.Profile,
                         snapshot.CurrentUserIdentities);
                     break;
                 case ShowcaseWidgetKind.Statistics:
+                    result.Collection = ShowcaseCollectionScope.Resolve(settings, instance);
                     result.Statistics = GetStatistics(snapshot, now ?? DateTime.Now);
                     break;
                 case ShowcaseWidgetKind.NativePoints:

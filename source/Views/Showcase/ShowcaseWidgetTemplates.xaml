@@ -87,14 +87,21 @@
             </Image>
             <Grid Margin="{Binding ContentPadding}">
                 <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
                     <RowDefinition Height="*"/>
                     <RowDefinition Height="Auto"/>
                 </Grid.RowDefinitions>
+                <!-- Platform, game, tag and progress filters over the games the medals and stats
+                     count; inside the padded foreground so a full-bleed banner still reaches the
+                     card edge. -->
+                <controls:GridControlBarControl Margin="0,0,0,8"
+                                                ControlBar="{Binding ControlBar}"
+                                                ShowControlBar="{Binding ShowControlBar}"/>
                 <!-- Beside (default): avatar left, text right. Centered: avatar stacked over the
                      text, both spanning the width. Layout properties the triggers change live in
                      style setters, since a local attribute would outrank the trigger. -->
                 <!-- Centered layout: the same row, sized to its content and centered. -->
-                <Grid VerticalAlignment="Center">
+                <Grid Grid.Row="1" VerticalAlignment="Center">
                     <Grid.Style>
                         <Style TargetType="Grid">
                             <Style.Triggers>
@@ -284,7 +291,7 @@
                 </Grid>
                 <!-- Open value/label columns under a hairline, instead of the Statistics widget's
                      boxed tiles, so the strip reads as part of the card. -->
-                <StackPanel Grid.Row="1"
+                <StackPanel Grid.Row="2"
                             Margin="0,8,0,0"
                             Visibility="{Binding ShowStatStrip, Converter={StaticResource BoolToVis}}">
                     <StackPanel.Effect>
@@ -625,8 +632,14 @@
         </DockPanel>
     </DataTemplate>
 
-    <!-- Statistics: scrolling grid of value/label tiles. -->
+    <!-- Statistics: scrolling grid of value/label tiles, under platform, game, tag and progress
+         filters over the games they count. -->
     <DataTemplate DataType="{x:Type widgets:StatisticsWidgetViewModel}">
+      <DockPanel>
+        <controls:GridControlBarControl DockPanel.Dock="Top"
+                                        Margin="0,0,0,8"
+                                        ControlBar="{Binding ControlBar}"
+                                        ShowControlBar="{Binding ShowControlBar}"/>
         <ScrollViewer VerticalScrollBarVisibility="Auto"
                       HorizontalScrollBarVisibility="Disabled">
             <ItemsControl ItemsSource="{Binding Tiles}"
@@ -638,6 +651,7 @@
                 </ItemsControl.ItemsPanel>
             </ItemsControl>
         </ScrollViewer>
+      </DockPanel>
     </DataTemplate>
 
     <!-- Image: one stored picture across the whole card (the host drops its inset and clips to
