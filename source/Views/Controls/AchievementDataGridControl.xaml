@@ -409,6 +409,17 @@
             </DataGridTemplateColumn>
 
             <DataGridTemplateColumn Width="*" MinWidth="22" CanUserResize="True" Header="{DynamicResource LOCTagsLabel}" SortMemberPath="CategoryType" helpers:ColumnVisibilityHelper.ColumnKey="CategoryType">
+                <DataGridTemplateColumn.CellStyle>
+                    <Style TargetType="DataGridCell" BasedOn="{StaticResource AchievementCellStyle}">
+                        <!-- Every tag's name, since icons alone do not say which tags they are. -->
+                        <Setter Property="ToolTip" Value="{Binding TagsDisplay}"/>
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding TagsDisplay}" Value="">
+                                <Setter Property="ToolTip" Value="{x:Null}"/>
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </DataGridTemplateColumn.CellStyle>
                 <DataGridTemplateColumn.CellTemplate>
                     <DataTemplate>
                         <!-- Icons take the largest size this row's tags fit, up to a ceiling; see TagChipsPanel. -->
