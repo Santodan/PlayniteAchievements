@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Globalization;
+using System.Text;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Data;
@@ -129,6 +131,75 @@ namespace PlayniteAchievements.Views.Controls
             index + 1 < chips.Count && !IsIcon(chips[index + 1], display)
                 ? chips[index].Name + ","
                 : chips[index].Name;
+
+        /// <summary>
+        /// The one icon size for a column of tag cells <paramref name="width"/> by
+        /// <paramref name="height"/>: the largest at which every row's chips fit, never below the
+        /// body text size. Rows sharing the same chips are measured once. The body font comes from
+        /// <paramref name="fontSource"/>'s resources.
+        /// </summary>
+        public static double FitIconSize(
+            IEnumerable<IReadOnlyList<AchievementTagChip>> rows,
+            AchievementTagDisplay display,
+            double width,
+            double height,
+            FrameworkElement fontSource)
+        {
+            var family = fontSource.TryFindResource("PlayAch.FontFamily.Body") as FontFamily ?? SystemFonts.MessageFontFamily;
+            var fontSize = fontSource.TryFindResource("PlayAch.FontSize.Body") is double size && size > 0 ? size : SystemFonts.MessageFontSize;
+            var typeface = new Typeface(family, FontStyles.Normal, FontWeights.Normal, FontStretches.Normal);
+            var pixelsPerDip = VisualTreeHelper.GetDpi(fontSource).PixelsPerDip;
+            var textHeight = Math.Ceiling(family.LineSpacing * fontSize);
+            var floor = Math.Ceiling(fontSize);
+
+            // One pixel of slack on each axis absorbs layout rounding.
+            width -= 1;
+            height -= 1;
+            var best = Math.Floor(Math.Min(width, height));
+
+            var seen = new HashSet<string>(StringComparer.Ordinal);
+            var signature = new StringBuilder();
+            var boxes = new List<TagChipBox>();
+            foreach (var chips in rows)
+            {
+                if (chips == null || chips.Count == 0)
+                {
+                    continue;
+                }
+
+                signature.Clear();
+                boxes.Clear();
+                for (var i = 0; i < chips.Count; i++)
+                {
+                    if (IsIcon(chips[i], display))
+                    {
+                        signature.Append("\u0001I");
+                        boxes.Add(TagChipBox.Icon());
+                    }
+                    else
+                    {
+                        var text = TextOf(chips, i, display);
+                        signature.Append("\u0001T").Append(text);
+                        var formatted = new FormattedText(text, CultureInfo.CurrentUICulture, FlowDirection.LeftToRight,
+                            typeface, fontSize, Brushes.Black, pixelsPerDip);
+                        boxes.Add(TagChipBox.Text(Math.Ceiling(formatted.WidthIncludingTrailingWhitespace) + 1));
+                    }
+                }
+
+                if (!seen.Add(signature.ToString()))
+                {
+                    continue;
+                }
+
+                var fit = TagChipLayout.LargestIconSize(boxes, textHeight, width, height, floor);
+                if (fit.HasValue)
+                {
+                    best = Math.Min(best, fit.Value);
+                }
+            }
+
+            return Math.Max(floor, best);
+        }
 
         private static Brush IconMask(AchievementTagChip chip, AchievementTagDisplay display)
         {
