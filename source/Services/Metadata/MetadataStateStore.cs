@@ -125,6 +125,17 @@ namespace PlayniteAchievements.Services.Metadata
             }
         }
 
+        /// <summary>Each collection game's borrowed platinum by category, as the last overlay recorded them; empty when none.</summary>
+        public IReadOnlyList<MetadataCategoryCapstone> GetCategoryCapstones(Guid gameId)
+        {
+            lock (_sync)
+            {
+                return _applied.TryGetValue(gameId, out var state) && state?.CategoryCapstones != null
+                    ? state.CategoryCapstones.ToList()
+                    : (IReadOnlyList<MetadataCategoryCapstone>)Array.Empty<MetadataCategoryCapstone>();
+            }
+        }
+
         /// <summary>
         /// Records what an overlay applied to the game. Returns true when the game's icons changed
         /// since the last record (another icon source, or other achievements borrowing from it, as
@@ -138,8 +149,11 @@ namespace PlayniteAchievements.Services.Metadata
             IEnumerable<string> iconApiNames = null,
             string capstoneTitle = null,
             string capstoneDescription = null,
-            string capstoneMatchApiName = null)
+            string capstoneMatchApiName = null,
+            IReadOnlyList<MetadataCategoryCapstone> categoryCapstones = null)
         {
+            var perCategory = categoryCapstones?.Count > 0 ? categoryCapstones.ToList() : null;
+            var perCategoryJson = WriteCategoryCapstones(perCategory);
             if (gameId == Guid.Empty)
             {
                 return false;
@@ -172,12 +186,13 @@ namespace PlayniteAchievements.Services.Metadata
                     string.Equals(previous?.CapstoneTitle, title, StringComparison.Ordinal) &&
                     string.Equals(previous?.CapstoneDescription, description, StringComparison.Ordinal) &&
                     string.Equals(previous?.CapstoneMatchApiName, match, StringComparison.OrdinalIgnoreCase) &&
+                    string.Equals(WriteCategoryCapstones(previous?.CategoryCapstones), perCategoryJson, StringComparison.Ordinal) &&
                     SameCoverage(previous?.Coverage, counts))
                 {
                     return false;
                 }
 
-                if (icon == null && art == null && counts == null)
+                if (icon == null && art == null && counts == null && perCategory == null)
                 {
                     _applied.Remove(gameId);
                     saved = null;
@@ -191,6 +206,7 @@ namespace PlayniteAchievements.Services.Metadata
                         CapstoneTitle = art == null ? null : title,
                         CapstoneDescription = art == null ? null : description,
                         CapstoneMatchApiName = match,
+                        CategoryCapstones = perCategory,
                         Coverage = counts,
                         IconApiNames = borrowed?.Count > 0 ? borrowed : null,
                         // Still the files' state while the borrowed set is unchanged; a changed set
@@ -393,6 +409,7 @@ namespace PlayniteAchievements.Services.Metadata
                             CapstoneTitle = row.CapstoneTitle,
                             CapstoneDescription = row.CapstoneDescription,
                             CapstoneMatchApiName = row.CapstoneMatchApiName,
+                            CategoryCapstones = ReadCategoryCapstones(row.CategoryCapstonesJson),
                             IconApiNames = ReadList(row.IconApiNamesJson),
                             IconFallbackApiNames = ReadList(row.IconFallbackApiNamesJson)
                         };
@@ -462,6 +479,7 @@ namespace PlayniteAchievements.Services.Metadata
                         CapstoneTitle = state.CapstoneTitle,
                         CapstoneDescription = state.CapstoneDescription,
                         CapstoneMatchApiName = state.CapstoneMatchApiName,
+                        CategoryCapstonesJson = WriteCategoryCapstones(state.CategoryCapstones),
                         IconApiNamesJson = WriteList(state.IconApiNames),
                         IconFallbackApiNamesJson = WriteList(state.IconFallbackApiNames),
                         UpdatedUtc = DateTime.UtcNow.ToString("o", CultureInfo.InvariantCulture)
@@ -489,10 +507,32 @@ namespace PlayniteAchievements.Services.Metadata
             CapstoneTitle = state.CapstoneTitle,
             CapstoneDescription = state.CapstoneDescription,
             CapstoneMatchApiName = state.CapstoneMatchApiName,
+            CategoryCapstones = ReadCategoryCapstones(WriteCategoryCapstones(state.CategoryCapstones)),
             Coverage = state.Coverage == null ? null : new Dictionary<string, MetadataCoverage>(state.Coverage, StringComparer.OrdinalIgnoreCase),
             IconApiNames = state.IconApiNames == null ? null : new List<string>(state.IconApiNames),
             IconFallbackApiNames = state.IconFallbackApiNames == null ? null : new List<string>(state.IconFallbackApiNames)
         };
+
+        private static string WriteCategoryCapstones(IReadOnlyList<MetadataCategoryCapstone> capstones) =>
+            capstones == null || capstones.Count == 0 ? null : Newtonsoft.Json.JsonConvert.SerializeObject(capstones, Newtonsoft.Json.Formatting.None);
+
+        private static List<MetadataCategoryCapstone> ReadCategoryCapstones(string json)
+        {
+            if (string.IsNullOrWhiteSpace(json))
+            {
+                return null;
+            }
+
+            try
+            {
+                var capstones = Newtonsoft.Json.JsonConvert.DeserializeObject<List<MetadataCategoryCapstone>>(json);
+                return capstones?.Count > 0 ? capstones : null;
+            }
+            catch (Newtonsoft.Json.JsonException)
+            {
+                return null;
+            }
+        }
 
         private static bool SameCoverage(
             IReadOnlyDictionary<string, MetadataCoverage> previous,

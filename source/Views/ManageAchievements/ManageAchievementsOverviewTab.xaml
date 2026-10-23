@@ -356,7 +356,8 @@
                                                        Visibility="{Binding HasSupplies, Converter={StaticResource BoolToVis}}"
                                                        Margin="0,2,0,0" />
                                             <WrapPanel Grid.Column="1">
-                                                <Grid Width="200" VerticalAlignment="Center">
+                                                <!-- Grows with a link that names several lists. -->
+                                                <Grid MinWidth="200" MaxWidth="480" VerticalAlignment="Center">
                                                     <TextBox x:Name="LinkInput"
                                                              Text="{Binding Input, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                                              Padding="8,4" />
@@ -379,6 +380,7 @@
                                                 <!-- The match count, and the pairings window for the source's match list. -->
                                                 <TextBlock Style="{StaticResource SettingStatusStyle}"
                                                            Text="{Binding StatusText}"
+                                                           ToolTip="{Binding StatusToolTip}"
                                                            Visibility="{Binding HasStatus, Converter={StaticResource BoolToVis}}"
                                                            VerticalAlignment="Center"
                                                            Margin="12,0,0,0" />

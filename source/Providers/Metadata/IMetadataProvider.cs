@@ -144,7 +144,18 @@ namespace PlayniteAchievements.Providers.Metadata
 
         /// <summary>A copy for one source, which the overlay asks alongside the others.</summary>
         internal MetadataLinkRequest ForSource(MetadataField wantedFields) =>
-            new MetadataLinkRequest(Game, Data) { AlternateNames = AlternateNames, WantedFields = wantedFields };
+            new MetadataLinkRequest(Game, Data) { AlternateNames = AlternateNames, CategoryNames = CategoryNames, OtherLinks = OtherLinks, WantedFields = wantedFields };
+
+        /// <summary>The game's links to the other sources, by source key, so one source can follow another's pages.</summary>
+        public IReadOnlyDictionary<string, string> OtherLinks { get; internal set; } =
+            new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+
+        /// <summary>
+        /// The names other sources found each of the game's categories under (a collection's
+        /// games, a DLC listed on its own), by category; searched after the category's own name.
+        /// </summary>
+        public IReadOnlyDictionary<string, IReadOnlyList<string>> CategoryNames { get; internal set; } =
+            new Dictionary<string, IReadOnlyList<string>>(StringComparer.OrdinalIgnoreCase);
 
         /// <summary>
         /// Other names the game is known by: the servicing provider's own, and the labels of its
@@ -192,6 +203,26 @@ namespace PlayniteAchievements.Providers.Metadata
         /// keeps it only when enough of the game's achievements match the source's.
         /// </summary>
         public bool FoundByName { get; }
+
+        /// <summary>How a name search found the link and what it cost, for diagnostics; null otherwise.</summary>
+        public string Trace { get; set; }
+
+        /// <summary>
+        /// How many of the game's achievements the found pages matched, when the lookup judged
+        /// them by their achievements; null otherwise.
+        /// </summary>
+        public int? Matched { get; set; }
+
+        /// <summary>
+        /// True when the source found nothing because pages or searches it needed could not be
+        /// read (a challenge page, a failed load). Not a "no match": the game is looked for again
+        /// on the next refresh, and its previous values are kept meanwhile.
+        /// </summary>
+        public bool IsUnavailable { get; private set; }
+
+        /// <summary>The answer of a lookup that could not read what it needed.</summary>
+        public static MetadataSourceLink Unavailable(string trace = null) =>
+            new MetadataSourceLink(null) { IsUnavailable = true, Trace = trace };
     }
 
     /// <summary>
@@ -238,5 +269,38 @@ namespace PlayniteAchievements.Providers.Metadata
         /// <summary>Category label to image URL, for sources that supply category art.</summary>
         public IDictionary<string, string> CategoryArtUrls { get; } =
             new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+
+        /// <summary>The game's title on the source, when the source gives one.</summary>
+        public string Title { get; set; }
+
+        /// <summary>The game's own image on the source (its cover), when the source gives one.</summary>
+        public string GameArtUrl { get; set; }
+
+        /// <summary>
+        /// Each list of a link that names several (a collection's games), in the link's order;
+        /// empty for a link to one list.
+        /// </summary>
+        public IReadOnlyList<MetadataSourceList> Lists { get; set; } = Array.Empty<MetadataSourceList>();
+    }
+
+    /// <summary>One list of a link that names several, and the rows it gave.</summary>
+    internal sealed class MetadataSourceList
+    {
+        public MetadataSourceList(string id, string title, IReadOnlyList<AchievementDetail> rows)
+        {
+            Id = id;
+            Title = title;
+            Rows = rows ?? Array.Empty<AchievementDetail>();
+        }
+
+        public string Id { get; }
+
+        /// <summary>The list's game title on the source, else its id.</summary>
+        public string Title { get; }
+
+        public IReadOnlyList<AchievementDetail> Rows { get; }
+
+        /// <summary>The list's game image on the source, when it gives one.</summary>
+        public string ArtUrl { get; set; }
     }
 }

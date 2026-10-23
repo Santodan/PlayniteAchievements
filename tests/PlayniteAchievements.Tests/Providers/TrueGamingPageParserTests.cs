@@ -33,6 +33,14 @@ namespace PlayniteAchievements.Tests.Providers
         }
 
         [TestMethod]
+        public void GameArt_IsThePagesShareImage()
+        {
+            Assert.AreEqual("https://img.trueachievements.com/game/14402?v=1819", Parse("ta-clair-obscur.html").GameArt);
+            Assert.AreEqual("https://img.truetrophies.com/game/14950?v=1732", Parse("tt-elden-ring.html").GameArt);
+            Assert.IsNull(TrueGamingPageParser.Parse("<html><body></body></html>").GameArt);
+        }
+
+        [TestMethod]
         public void DlcHeaders_GroupTheRowsAfterThem_WithTheirArt()
         {
             var page = Parse("ta-fallout-4.html");

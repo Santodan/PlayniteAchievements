@@ -72,14 +72,23 @@ namespace PlayniteAchievements.Providers.Metadata.TrueGaming
         /// </summary>
         public static bool IsSameGame(TrueGamingPage page, IReadOnlyCollection<string> targetNames)
         {
-            var targets = new HashSet<string>((targetNames ?? Array.Empty<string>()).Select(NameKey).Where(key => key.Length > 0), StringComparer.Ordinal);
-            var rows = page?.Achievements.Select(row => NameKey(row.Name)).Where(key => key.Length > 0).Distinct().ToList() ?? new List<string>();
+            // Paired the way the overlay pairs them, so a page it would accept is not turned away
+            // here (titles behind a collection's code, "TR2 | Snow March" against "TR Snow March").
+            var targets = (targetNames ?? Array.Empty<string>())
+                .Where(name => !string.IsNullOrWhiteSpace(name))
+                .Select(name => new AchievementDetail { DisplayName = name })
+                .ToList();
+            var rows = (page?.Achievements ?? new List<TrueGamingAchievement>())
+                .Where(row => !string.IsNullOrWhiteSpace(row?.Name))
+                .Select(row => new AchievementDetail { DisplayName = row.Name })
+                .ToList();
             if (targets.Count == 0 || rows.Count == 0)
             {
                 return false;
             }
 
-            return rows.Count(targets.Contains) >= Math.Min(targets.Count, rows.Count) * global::PlayniteAchievements.Services.Metadata.MetadataOverlayRun.MinNameMatchShare;
+            var matched = global::PlayniteAchievements.Services.Metadata.CrossSourceAchievementMatcher.Match(targets, rows).Count;
+            return global::PlayniteAchievements.Services.Metadata.MetadataPageSearch.IsEnough(matched, targets.Count, rows.Count);
         }
 
         /// <summary>The rows <paramref name="pages"/> give together, in page order; <paramref name="baseLabel"/> names the base game's category.</summary>

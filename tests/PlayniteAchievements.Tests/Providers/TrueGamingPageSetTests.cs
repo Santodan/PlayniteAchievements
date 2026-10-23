@@ -76,6 +76,14 @@ namespace PlayniteAchievements.Tests.Providers
             Assert.IsFalse(TrueGamingPageSet.IsSameGame(Page(), Targets));
         }
 
+        [TestMethod]
+        public void SameGame_PairsTitlesBehindACollectionsCodes()
+        {
+            var targets = new[] { "TR2 | These Doors", "TR2 | Snow March", "TR2 | Gold Rush" };
+
+            Assert.IsTrue(TrueGamingPageSet.IsSameGame(Page(Row("a1", "These Doors"), Row("a2", "Snow March"), Row("a3", "Gold Rush")), targets));
+        }
+
         private static TrueGamingPage Page(params TrueGamingAchievement[] rows)
         {
             var page = new TrueGamingPage { FlagsDecoded = true };

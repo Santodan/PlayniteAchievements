@@ -173,7 +173,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 {
                     _search = string.Empty;
                     OnPropertyChanged(nameof(Search));
-                    OnPropertyChanged(nameof(Options));
+                    RefreshOptions();
                 }
 
                 OnPropertyChanged();
@@ -187,32 +187,40 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             {
                 _search = value ?? string.Empty;
                 OnPropertyChanged();
-                OnPropertyChanged(nameof(Options));
+                RefreshOptions();
             }
         }
 
-        /// <summary>Automatic (when the user set a pairing), None, then the source's rows matching the search.</summary>
-        public IEnumerable<MatchOption> Options
-        {
-            get
-            {
-                if (IsUserSet)
-                {
-                    yield return _owner.Automatic;
-                }
+        private IReadOnlyList<MatchOption> _options;
 
-                yield return _owner.None;
-                var search = _search.Trim();
-                foreach (var trophy in _owner.Trophies)
-                {
-                    if (search.Length == 0 ||
-                        (trophy.Name ?? string.Empty).IndexOf(search, StringComparison.CurrentCultureIgnoreCase) >= 0 ||
-                        (trophy.Description ?? string.Empty).IndexOf(search, StringComparison.CurrentCultureIgnoreCase) >= 0)
-                    {
-                        yield return trophy;
-                    }
-                }
+        /// <summary>
+        /// Automatic (when the user set a pairing), None, then the source's rows matching the
+        /// search. Built once per opening and search, so the dropdown keeps one list to scroll.
+        /// </summary>
+        public IReadOnlyList<MatchOption> Options => _options ?? (_options = BuildOptions());
+
+        private void RefreshOptions()
+        {
+            _options = null;
+            OnPropertyChanged(nameof(Options));
+        }
+
+        private IReadOnlyList<MatchOption> BuildOptions()
+        {
+            var options = new List<MatchOption>();
+            if (IsUserSet)
+            {
+                options.Add(_owner.Automatic);
             }
+
+            options.Add(_owner.None);
+            var search = _search.Trim();
+            options.AddRange(_owner.Trophies.Where(trophy =>
+                search.Length == 0 ||
+                (trophy.Name ?? string.Empty).IndexOf(search, StringComparison.CurrentCultureIgnoreCase) >= 0 ||
+                (trophy.Description ?? string.Empty).IndexOf(search, StringComparison.CurrentCultureIgnoreCase) >= 0 ||
+                (trophy.List ?? string.Empty).IndexOf(search, StringComparison.CurrentCultureIgnoreCase) >= 0));
+            return options;
         }
 
         internal void Pick(MatchOption option)
@@ -241,20 +249,26 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
     {
         private string _pairedWith;
 
-        private MatchOption(string key, string name, string description, string icon, bool isSpecial)
+        private MatchOption(string key, string name, string description, string icon, string list, bool isSpecial)
         {
             Key = key;
             Name = name;
             Description = description;
             Icon = icon;
+            List = list;
             IsSpecial = isSpecial;
         }
 
         internal static MatchOption ForRow(MetadataSourceRow row) =>
-            new MatchOption(row.ApiName, row.Name, row.Description, row.Icon, isSpecial: false);
+            new MatchOption(row.ApiName, row.Name, row.Description, row.Icon, row.List, isSpecial: false);
 
         internal static MatchOption Special(string key, string name) =>
-            new MatchOption(key, name, null, null, isSpecial: true);
+            new MatchOption(key, name, null, null, null, isSpecial: true);
+
+        /// <summary>The list it comes from when the link names several (a collection's game), else null.</summary>
+        public string List { get; }
+
+        public bool HasList => !string.IsNullOrEmpty(List);
 
         public string Key { get; }
 

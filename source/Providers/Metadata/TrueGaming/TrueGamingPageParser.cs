@@ -35,6 +35,9 @@ namespace PlayniteAchievements.Providers.Metadata.TrueGaming
     {
         public List<TrueGamingAchievement> Achievements { get; } = new List<TrueGamingAchievement>();
 
+        /// <summary>The game's own image (the page's <c>og:image</c>); null when it has none.</summary>
+        public string GameArt { get; set; }
+
         /// <summary>DLC pack name to its image URL.</summary>
         public Dictionary<string, string> DlcArt { get; } = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 
@@ -75,6 +78,10 @@ namespace PlayniteAchievements.Providers.Metadata.TrueGaming
 
             var document = new HtmlDocument();
             document.LoadHtml(html);
+            var gameArt = document.DocumentNode
+                .SelectSingleNode("//meta[@property='og:image']")
+                ?.GetAttributeValue("content", null);
+            page.GameArt = string.IsNullOrWhiteSpace(gameArt) ? null : WebUtility.HtmlDecode(gameArt).Trim();
 
             var masks = new List<uint>();
             string dlc = null;

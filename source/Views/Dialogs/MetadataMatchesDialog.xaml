@@ -136,6 +136,10 @@
                                                                Visibility="{Binding IsSpecial, Converter={StaticResource InverseBoolToVis}}"/>
                                                         <StackPanel Grid.Column="1" VerticalAlignment="Center">
                                                             <TextBlock Style="{StaticResource MatchNameStyle}" Text="{Binding Name, Mode=OneWay}"/>
+                                                            <!-- Which game of a collection the row is from. -->
+                                                            <TextBlock Style="{StaticResource MatchDetailStyle}"
+                                                                       Text="{Binding List, Mode=OneWay}"
+                                                                       Visibility="{Binding HasList, Converter={StaticResource BoolToVis}}"/>
                                                             <TextBlock Style="{StaticResource MatchDetailStyle}"
                                                                        Text="{Binding PairedWith, Mode=OneWay}"
                                                                        Visibility="{Binding IsPaired, Converter={StaticResource BoolToVis}}"/>

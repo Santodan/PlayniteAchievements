@@ -7,6 +7,7 @@ using PlayniteAchievements.Providers.Exophase;
 using PlayniteAchievements.Providers.Manual;
 using PlayniteAchievements.Providers.Steam;
 using PlayniteAchievements.Services.GameCustomData;
+using PlayniteAchievements.Services.Metadata;
 using System;
 using System.Collections.Generic;
 using System.Globalization;
@@ -56,9 +57,24 @@ namespace PlayniteAchievements.Providers.Metadata
 
         /// <summary>The app's achievement page; the link is the Steam app id.</summary>
         public IReadOnlyList<MetadataPageLink> PageLinks(Guid gameId, string linkId, string servicingProviderKey) =>
-            int.TryParse(linkId?.Trim(), out var appId) && appId > 0
+            AppId(linkId) is int appId
                 ? new[] { new MetadataPageLink("SteamHunters", $"https://steamhunters.com/apps/{appId}/achievements") }
                 : Array.Empty<MetadataPageLink>();
+
+        /// <summary>The Steam app id one list of a link names: the id, or a store or community app address.</summary>
+        internal static int? AppId(string linkId)
+        {
+            var part = linkId?.Trim() ?? string.Empty;
+            var address = SteamAppUrl.Match(part);
+            if (address.Success)
+            {
+                part = address.Groups[1].Value;
+            }
+
+            return int.TryParse(part, NumberStyles.Integer, CultureInfo.InvariantCulture, out var appId) && appId > 0
+                ? appId
+                : (int?)null;
+        }
 
         public MetadataField SupportedFields => MetadataField.Categories | MetadataField.CategoryArt | MetadataField.Tags;
 
@@ -76,6 +92,10 @@ namespace PlayniteAchievements.Providers.Metadata
 
         public void EndRun()
         {
+            lock (_schemaRows)
+            {
+                _schemaRows.Clear();
+            }
         }
 
         public async Task<MetadataSourceLink> ResolveLinkAsync(MetadataLinkRequest request, CancellationToken ct)
@@ -109,17 +129,73 @@ namespace PlayniteAchievements.Providers.Metadata
                 return null;
             }
 
+            // With the game's achievements at hand, each app the store search offers is judged by
+            // how many of them it matches, and a collection is also looked for game by game.
+            var targets = request.Data?.Achievements?.Where(row => row != null).ToList();
+            if (targets?.Count > 0)
+            {
+                var search = new MetadataPageSearch(StoreCandidatesAsync, SchemaRowsAsync);
+                var names = request.SearchNames.Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+                var choice = await search.ChooseAsync(names, targets, MetadataSubGame.From(targets), ct, request.CategoryNames, sharedNames: request.AlternateNames).ConfigureAwait(false);
+                if (choice == null)
+                {
+                    _logger?.Debug($"[SteamHuntersMetadata] '{game.Name}': no Steam app matches its achievements.");
+                    return null;
+                }
+
+                _logger?.Debug($"[SteamHuntersMetadata] '{game.Name}' -> {MetadataLinkIds.Join(choice.Ids)} ({choice.Matched}/{targets.Count} matched; {choice.Trace}).");
+                return new MetadataSourceLink(MetadataLinkIds.Join(choice.Ids), choice.Label ?? game.Name, foundByName: true) { Trace = choice.Trace, Matched = choice.Matched };
+            }
+
             return await SearchByNameAsync(game.Name, ct).ConfigureAwait(false);
+        }
+
+        // Store search results judged per name; each costs a schema request the first time in a run.
+        private const int StoreCandidatesJudged = 6;
+
+        private readonly Dictionary<string, List<AchievementDetail>> _schemaRows =
+            new Dictionary<string, List<AchievementDetail>>(StringComparer.OrdinalIgnoreCase);
+
+        private async Task<IReadOnlyList<MetadataPageCandidate>> StoreCandidatesAsync(string name, CancellationToken ct)
+        {
+            var results = await SteamSchema.SearchGamesAsync(name, Language, ct).ConfigureAwait(false) ?? new List<ManualGameSearchResult>();
+            return results
+                .Where(result => !string.IsNullOrWhiteSpace(result?.SourceGameId))
+                .GroupBy(result => result.SourceGameId)
+                .Take(StoreCandidatesJudged)
+                .Select((group, index) => new MetadataPageCandidate(group.Key, group.First().Name, $"store #{index + 1}"))
+                .ToList();
+        }
+
+        /// <summary>An app's schema rows, loaded once per run.</summary>
+        private async Task<IList<AchievementDetail>> SchemaRowsAsync(string appId, CancellationToken ct)
+        {
+            lock (_schemaRows)
+            {
+                if (_schemaRows.TryGetValue(appId, out var cached))
+                {
+                    return cached;
+                }
+            }
+
+            var rows = await SteamSchema.GetAchievementsAsync(appId, Language, ct).ConfigureAwait(false) ?? new List<AchievementDetail>();
+            lock (_schemaRows)
+            {
+                _schemaRows[appId] = rows;
+            }
+
+            return rows;
         }
 
         public async Task<AchievementSourceSet> FetchAsync(MetadataLinkRequest request, string linkId, CancellationToken ct)
         {
-            if (!int.TryParse(linkId, NumberStyles.Integer, CultureInfo.InvariantCulture, out var appId) || appId <= 0)
+            if (!(AppId(linkId) is int appId))
             {
                 return null;
             }
 
-            var rows = await SteamSchema.GetAchievementsAsync(linkId, Language, ct).ConfigureAwait(false);
+            var appIdText = appId.ToString(CultureInfo.InvariantCulture);
+            var rows = await SteamSchema.GetAchievementsAsync(appIdText, Language, ct).ConfigureAwait(false);
             if (rows == null || rows.Count == 0)
             {
                 return null;
@@ -136,9 +212,11 @@ namespace PlayniteAchievements.Providers.Metadata
 
             return new AchievementSourceSet(Key, linkId, rows)
             {
+                GameArtUrl = SteamImageUrls.Header(appId),
                 ApiNamesMayBeShared = true,
                 SharesApiNames = gameId.HasValue && TryGetManualSteamAppId(gameId.Value, out var manualAppId) &&
-                                 string.Equals(manualAppId, linkId, StringComparison.Ordinal)
+                                 string.Equals(manualAppId, appIdText, StringComparison.Ordinal),
+                ExtendedLinkId = string.Equals(appIdText, linkId?.Trim(), StringComparison.Ordinal) ? null : appIdText
             };
         }
 

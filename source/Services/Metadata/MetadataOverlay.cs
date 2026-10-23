@@ -102,9 +102,11 @@ namespace PlayniteAchievements.Services.Metadata
             _settings = settings;
             _links = links;
             _logger = logger;
+            _resolver = new MetadataLinkResolver(links, logger);
             _downloadCategoryArt = downloadCategoryArt;
         }
 
+        private readonly MetadataLinkResolver _resolver;
         private readonly CategoryArtDownload _downloadCategoryArt;
         private readonly Func<Guid, GameAchievementData> _loadStored;
 
@@ -132,12 +134,30 @@ namespace PlayniteAchievements.Services.Metadata
             // The sources load at the same time, each with its own request; they share no state but
             // the link store, which serializes its writes. Their answers are then applied in order.
             ct.ThrowIfCancellationRequested();
-            var loads = await Task.WhenAll(plan.AllKeys.Select(async key =>
+            var unlinked = plan.AllKeys.Where(key => _links == null || !_links.TryGet(gameId, key, out _)).ToList();
+            var loads = (await LoadSetsAsync(plan.AllKeys, plan, gameId, request, data, ct).ConfigureAwait(false)).ToList();
+
+            // What one source found the game under is searched by the others: a source that looked
+            // for it this refresh and found nothing looks once more, under the names the others
+            // found (their links' labels).
+            var retry = unlinked
+                .Where(key => _links != null && _links.TryGet(gameId, key, out var record) && record.IsNoMatch && record.Origin == MetadataLinkOrigin.Auto)
+                .ToList();
+            if (retry.Count > 0)
             {
-                var (matchedSet, didFail) = await LoadMatchedSetAsync(key, gameId, request.ForSource(plan.FieldsFor(key)), data.Achievements, ct)
-                    .ConfigureAwait(false);
-                return (Key: key, Matched: matchedSet, FetchFailed: didFail);
-            })).ConfigureAwait(false);
+                var shared = CreateRequest(game, data, gameId);
+                if (KnowsMoreNames(shared, request))
+                {
+                    foreach (var key in retry)
+                    {
+                        _links.Clear(gameId, key);
+                    }
+
+                    var again = await LoadSetsAsync(retry, plan, gameId, shared, data, ct).ConfigureAwait(false);
+                    loads = loads.Where(load => !retry.Contains(load.Key, StringComparer.OrdinalIgnoreCase)).Concat(again).ToList();
+                }
+            }
+
             foreach (var (key, matched, fetchFailed) in loads)
             {
                 if (matched != null)
@@ -149,6 +169,8 @@ namespace PlayniteAchievements.Services.Metadata
                     failed.Add(key);
                 }
             }
+
+            BorrowTitles(gameId, sets, data.Achievements);
 
             // A source that could not answer, wholly or for a field, leaves the game as its last
             // refresh saved it there, never blank.
@@ -235,12 +257,21 @@ namespace PlayniteAchievements.Services.Metadata
             var capstoneTitle = capstone?.DisplayName;
             var capstoneDescription = capstone?.Description;
             var capstoneMatch = MatchCapstone(plan.CapstoneArtKeys, sets, capstone, data.Achievements);
+            // A collection linked to several lists gets each list's platinum for its own game, and
+            // no platinum for the whole game.
+            var categoryCapstones = ResolveCategoryCapstones(plan.CapstoneArtKeys, sets, data.Achievements);
+            if (categoryCapstones.Count > 0)
+            {
+                capstoneArt = capstoneTitle = capstoneDescription = capstoneMatch = null;
+            }
+
             if (capstone == null && plan.CapstoneArtKeys.Any(failed.Contains) && previous != null)
             {
                 capstoneArt = previous.CapstoneArtUrl;
                 capstoneTitle = previous.CapstoneTitle;
                 capstoneDescription = previous.CapstoneDescription;
                 capstoneMatch = previous.CapstoneMatchApiName;
+                categoryCapstones = previous.CategoryCapstones ?? new List<MetadataCategoryCapstone>();
             }
             // A source that supplies achievement data is judged, and shown, by how many of the
             // game's achievements it matched; one used only for the auto capstone by its platinum.
@@ -256,7 +287,8 @@ namespace PlayniteAchievements.Services.Metadata
                         pair.Key,
                         pair.Value.LinkId,
                         pair.Value.Set.Achievements,
-                        pair.Value.Matches.Select(match => new KeyValuePair<string, string>(match.Target.ApiName, match.Source.ApiName)));
+                        pair.Value.Matches.Select(match => new KeyValuePair<string, string>(match.Target.ApiName, match.Source.ApiName)),
+                        pair.Value.Set.Lists);
                 }
                 else
                 {
@@ -282,7 +314,8 @@ namespace PlayniteAchievements.Services.Metadata
                 borrowedIconApiNames,
                 capstoneTitle,
                 capstoneDescription,
-                capstoneMatch) ?? false;
+                capstoneMatch,
+                categoryCapstones) ?? false;
         }
 
         /// <summary>
@@ -402,15 +435,145 @@ namespace PlayniteAchievements.Services.Metadata
                 Chosen(choices.Points, MetadataField.Points));
         }
 
-        /// <summary>A link request carrying the labels of the game's saved links as alternate names.</summary>
+        /// <summary>
+        /// What one source matched an achievement to is another title it goes by ("Welcome to
+        /// Rapture" for "Completed Welcome to Rapture"), so each source's unmatched achievements are
+        /// matched again under the titles the other sources matched them to, against the rows still
+        /// free. An achievement the user paired, or kept out, is left as it is.
+        /// </summary>
+        private void BorrowTitles(Guid gameId, IDictionary<string, MatchedSet> sets, IList<AchievementDetail> targets)
+        {
+            if (sets.Count < 2 || targets == null)
+            {
+                return;
+            }
+
+            var matchedElsewhere = sets
+                .SelectMany(pair => pair.Value.Matches.Select(match => (pair.Key, match.Target, match.Source)))
+                .Where(entry => entry.Target != null && entry.Source != null && !string.IsNullOrWhiteSpace(entry.Source.DisplayName))
+                .ToList();
+            foreach (var pair in sets)
+            {
+                var set = pair.Value;
+                var matched = new HashSet<AchievementDetail>(set.Matches.Select(match => match.Target));
+                var pairings = ReadPairings(gameId, pair.Key, set.LinkId) ?? new Dictionary<string, string>();
+                var used = new HashSet<AchievementDetail>(set.Matches.Select(match => match.Source));
+                var open = set.Set.Achievements.Where(row => row != null && !used.Contains(row)).ToList();
+                if (open.Count == 0)
+                {
+                    continue;
+                }
+
+                // One stand-in per title another source matched the achievement to.
+                var standIns = new List<AchievementDetail>();
+                var targetOf = new Dictionary<AchievementDetail, AchievementDetail>();
+                foreach (var entry in matchedElsewhere.Where(entry =>
+                             !string.Equals(entry.Key, pair.Key, StringComparison.OrdinalIgnoreCase) &&
+                             !matched.Contains(entry.Target) &&
+                             !pairings.ContainsKey(entry.Target.ApiName ?? string.Empty)))
+                {
+                    var standIn = new AchievementDetail
+                    {
+                        ApiName = entry.Target.ApiName,
+                        DisplayName = entry.Source.DisplayName,
+                        Description = entry.Source.Description,
+                        TrophyType = entry.Source.TrophyType,
+                        Points = entry.Source.Points
+                    };
+                    standIns.Add(standIn);
+                    targetOf[standIn] = entry.Target;
+                }
+
+                if (standIns.Count == 0)
+                {
+                    continue;
+                }
+
+                var added = 0;
+                foreach (var match in CrossSourceAchievementMatcher.Match(standIns, open))
+                {
+                    if (matched.Add(targetOf[match.Target]))
+                    {
+                        set.Matches.Add(new AchievementMatch(targetOf[match.Target], match.Source));
+                        added++;
+                    }
+                }
+
+                if (added > 0)
+                {
+                    _logger?.Debug($"[Metadata] {pair.Key} matched {added} more achievement(s) by titles other sources matched them to.");
+                }
+            }
+        }
+
+        /// <summary>The sources' rows for the game, loaded at the same time.</summary>
+        private async Task<IReadOnlyList<(string Key, MatchedSet Matched, bool FetchFailed)>> LoadSetsAsync(
+            IEnumerable<string> keys,
+            OverlayPlan plan,
+            Guid gameId,
+            MetadataLinkRequest request,
+            GameAchievementData data,
+            CancellationToken ct)
+        {
+            return await Task.WhenAll(keys.Select(async key =>
+            {
+                var (matchedSet, didFail) = await LoadMatchedSetAsync(key, gameId, request.ForSource(plan.FieldsFor(key)), data.Achievements, ct)
+                    .ConfigureAwait(false);
+                return (Key: key, Matched: matchedSet, FetchFailed: didFail);
+            })).ConfigureAwait(false);
+        }
+
+        /// <summary>True when <paramref name="now"/> has a name to search that <paramref name="before"/> did not.</summary>
+        private static bool KnowsMoreNames(MetadataLinkRequest now, MetadataLinkRequest before)
+        {
+            var known = new HashSet<string>(before.AlternateNames ?? Array.Empty<string>(), StringComparer.OrdinalIgnoreCase);
+            if ((now.AlternateNames ?? Array.Empty<string>()).Any(name => !known.Contains(name)))
+            {
+                return true;
+            }
+
+            foreach (var pair in now.CategoryNames ?? new Dictionary<string, IReadOnlyList<string>>())
+            {
+                IReadOnlyList<string> earlier = null;
+                before.CategoryNames?.TryGetValue(pair.Key, out earlier);
+                if (pair.Value.Any(name => earlier == null || !earlier.Contains(name, StringComparer.OrdinalIgnoreCase)))
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        /// <summary>
+        /// A link request carrying what the game's saved links found it under (their labels) as
+        /// names to search: titles found for the whole game as alternate names, titles found for a
+        /// category as that category's names.
+        /// </summary>
         private MetadataLinkRequest CreateRequest(Game game, GameAchievementData data, Guid gameId)
         {
+            var links = _links?.GetAll(gameId) ?? new Dictionary<string, MetadataLinkRecord>();
+            var found = links.Values
+                .Where(link => link != null && !link.IsNoMatch)
+                .SelectMany(link => MetadataFoundNames.Parse(link.Label))
+                .ToList();
             return new MetadataLinkRequest(game, data)
             {
-                AlternateNames = (_links?.GetAll(gameId)?.Values ?? Enumerable.Empty<MetadataLinkRecord>())
-                    .Select(link => link?.Label)
-                    .Where(label => !string.IsNullOrWhiteSpace(label))
-                    .ToList()
+                OtherLinks = links
+                    .Where(pair => pair.Value != null && !pair.Value.IsNoMatch)
+                    .ToDictionary(pair => pair.Key, pair => pair.Value.Id, StringComparer.OrdinalIgnoreCase),
+                AlternateNames = found
+                    .Where(name => name.Category == null)
+                    .Select(name => name.Title)
+                    .Distinct(StringComparer.OrdinalIgnoreCase)
+                    .ToList(),
+                CategoryNames = found
+                    .Where(name => name.Category != null)
+                    .GroupBy(name => name.Category, StringComparer.OrdinalIgnoreCase)
+                    .ToDictionary(
+                        group => group.Key,
+                        group => (IReadOnlyList<string>)group.Select(name => name.Title).Distinct(StringComparer.OrdinalIgnoreCase).ToList(),
+                        StringComparer.OrdinalIgnoreCase)
             };
         }
 
@@ -434,13 +597,13 @@ namespace PlayniteAchievements.Services.Metadata
                     return (null, true);
                 }
 
-                var (linkId, unconfirmed) = await ResolveLinkIdAsync(provider, gameId, request, ct).ConfigureAwait(false);
+                var (linkId, unconfirmed, unavailable) = await _resolver.ResolveAsync(provider, gameId, request, ct).ConfigureAwait(false);
                 if (string.IsNullOrWhiteSpace(linkId))
                 {
-                    return (null, false);
+                    return (null, unavailable);
                 }
 
-                var set = await provider.FetchAsync(request, linkId, ct).ConfigureAwait(false);
+                var set = await MetadataListFetch.FetchAsync(provider, request, linkId, _logger, ct).ConfigureAwait(false);
                 // The id the game's link holds after this fetch, which the match list is kept under.
                 var storedId = linkId;
                 if (set == null || set.Achievements.Count == 0)
@@ -459,7 +622,7 @@ namespace PlayniteAchievements.Services.Metadata
                     ? CrossSourceAchievementMatcher.ApiNameOverlap(targets, set.Achievements)
                     : 0;
                 var matchApiNames = set.SharesApiNames || overlap >= CrossSourceAchievementMatcher.SharedApiNameThreshold;
-                var matches = MatchWithPairings(targets, set.Achievements, ReadPairings(gameId, key, linkId), matchApiNames);
+                var matches = MatchWithPairings(targets, set.Achievements, ReadPairings(gameId, key, linkId), matchApiNames, set.Lists);
                 _logger?.Debug(
                     $"[Metadata] {key} matched {matches.Count}/{targets.Count} achievements for '{request.Game?.Name}' " +
                     $"({linkId}, idOverlap={overlap:P0}, byId={matchApiNames}).");
@@ -564,17 +727,19 @@ namespace PlayniteAchievements.Services.Metadata
         /// The user's pairings first: each pairs its achievement with the named source row, and an
         /// empty one keeps the achievement out of matching. The rest are matched as usual, against
         /// the source rows no pairing took. A pairing naming a row the source no longer has is
-        /// left to matching.
+        /// left to matching. With several <paramref name="lists"/> (a collection's games), each
+        /// category is matched against its own list first; see <see cref="MatchByList"/>.
         /// </summary>
         internal static List<AchievementMatch> MatchWithPairings(
             IList<AchievementDetail> targets,
             IList<AchievementDetail> sources,
             IReadOnlyDictionary<string, string> pairings,
-            bool matchApiNames)
+            bool matchApiNames,
+            IReadOnlyList<MetadataSourceList> lists = null)
         {
             if (pairings == null || pairings.Count == 0)
             {
-                return CrossSourceAchievementMatcher.Match(targets, sources, matchApiNames: matchApiNames);
+                return MatchByList(targets, sources, lists, matchApiNames);
             }
 
             var sourcesByApiName = sources
@@ -602,11 +767,55 @@ namespace PlayniteAchievements.Services.Metadata
                 }
             }
 
-            paired.AddRange(CrossSourceAchievementMatcher.Match(
+            paired.AddRange(MatchByList(
                 targets.Where(target => target != null && !settled.Contains(target)).ToList(),
                 sources.Where(source => source != null && !taken.Contains(source)).ToList(),
-                matchApiNames: matchApiNames));
+                lists,
+                matchApiNames));
             return paired;
+        }
+
+        /// <summary>
+        /// Matches a collection's achievements list by list: each category against the one list
+        /// that matches most of it, so a title two of its games share ("Undefeated") pairs within
+        /// its own game rather than tying. What that leaves is matched against every list. With one
+        /// list or none this is plain matching.
+        /// </summary>
+        internal static List<AchievementMatch> MatchByList(
+            IList<AchievementDetail> targets,
+            IList<AchievementDetail> sources,
+            IReadOnlyList<MetadataSourceList> lists,
+            bool matchApiNames)
+        {
+            if (lists == null || lists.Count < 2)
+            {
+                return CrossSourceAchievementMatcher.Match(targets, sources, matchApiNames: matchApiNames);
+            }
+
+            var open = new HashSet<AchievementDetail>(sources.Where(source => source != null));
+            var matches = new List<AchievementMatch>();
+            var matched = new HashSet<AchievementDetail>();
+            foreach (var category in targets.Where(target => target != null).GroupBy(target => target.Category?.Trim() ?? string.Empty, StringComparer.OrdinalIgnoreCase))
+            {
+                var rows = category.ToList();
+                var best = lists
+                    .Select(list => list.Rows.Where(open.Contains).ToList())
+                    .Select(listRows => (Rows: listRows, Matches: CrossSourceAchievementMatcher.Match(rows, listRows, matchApiNames: matchApiNames)))
+                    .OrderByDescending(entry => entry.Matches.Count)
+                    .FirstOrDefault();
+                foreach (var match in best.Matches ?? new List<AchievementMatch>())
+                {
+                    matches.Add(match);
+                    matched.Add(match.Target);
+                    open.Remove(match.Source);
+                }
+            }
+
+            matches.AddRange(CrossSourceAchievementMatcher.Match(
+                targets.Where(target => target != null && !matched.Contains(target)).ToList(),
+                sources.Where(open.Contains).ToList(),
+                matchApiNames: matchApiNames));
+            return matches;
         }
 
         private Task<bool> BeginSessionAsync(IMetadataProvider provider, CancellationToken ct)
@@ -621,45 +830,6 @@ namespace PlayniteAchievements.Services.Metadata
 
                 return session;
             }
-        }
-
-        /// <summary>
-        /// The stored link, or a newly resolved one. One resolved from an id the game carries is
-        /// stored at once; one found by name comes back as <c>Unconfirmed</c> and is stored only
-        /// after its achievements match.
-        /// </summary>
-        private async Task<(string Id, MetadataSourceLink Unconfirmed)> ResolveLinkIdAsync(
-            IMetadataProvider provider,
-            Guid gameId,
-            MetadataLinkRequest request,
-            CancellationToken ct)
-        {
-            request.LinkIsUserSet = false;
-            if (_links != null && _links.TryGet(gameId, provider.Key, out var stored))
-            {
-                request.LinkIsUserSet = stored.Origin == MetadataLinkOrigin.User;
-                return (stored.IsNoMatch ? null : stored.Id, null);
-            }
-
-            var resolved = await provider.ResolveLinkAsync(request, ct).ConfigureAwait(false);
-            if (resolved == null || string.IsNullOrWhiteSpace(resolved.Id))
-            {
-                // Looked for and not found: later refreshes skip the search until the link is reset.
-                _links?.SetAutoNoMatch(gameId, provider.Key);
-            }
-
-            if (resolved == null || string.IsNullOrWhiteSpace(resolved.Id))
-            {
-                return (null, null);
-            }
-
-            if (resolved.FoundByName)
-            {
-                return (resolved.Id.Trim(), resolved);
-            }
-
-            _links?.SetAuto(gameId, provider.Key, resolved.Id, resolved.Label);
-            return (resolved.Id.Trim(), null);
         }
 
         /// <summary>
@@ -738,7 +908,8 @@ namespace PlayniteAchievements.Services.Metadata
 
         /// <summary>
         /// The category art of each category source, for the categories it gave the game's
-        /// achievements; the first source wins a label.
+        /// achievements; the first source wins a label. A collection's lists also give their game
+        /// image to the category most of their matched achievements are in.
         /// </summary>
         private static List<(string Label, string ImageUrl)> CollectCategoryArt(
             IReadOnlyList<string> keys,
@@ -748,7 +919,7 @@ namespace PlayniteAchievements.Services.Metadata
             var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             foreach (var key in keys)
             {
-                if (!sets.TryGetValue(key, out var set) || set.Set.CategoryArtUrls.Count == 0)
+                if (!sets.TryGetValue(key, out var set))
                 {
                     continue;
                 }
@@ -766,9 +937,47 @@ namespace PlayniteAchievements.Services.Metadata
                         art.Add((label, pair.Value));
                     }
                 }
+
+                foreach (var (label, imageUrl) in ListArt(set))
+                {
+                    if (seen.Add(label))
+                    {
+                        art.Add((label, imageUrl));
+                    }
+                }
             }
 
             return art;
+        }
+
+        /// <summary>
+        /// For a link to two or more lists, each list's game image with the category most of the
+        /// list's matched achievements are in.
+        /// </summary>
+        private static IEnumerable<(string Label, string ImageUrl)> ListArt(MatchedSet set)
+        {
+            var lists = set.Set.Lists;
+            if (lists == null || lists.Count < 2)
+            {
+                yield break;
+            }
+
+            foreach (var list in lists.Where(list => !string.IsNullOrWhiteSpace(list.ArtUrl)))
+            {
+                var rows = new HashSet<AchievementDetail>(list.Rows);
+                var label = set.Matches
+                    .Where(match => rows.Contains(match.Source))
+                    .Select(match => AchievementCategoryHelper.NormalizeCategory(match.Target.Category))
+                    .Where(category => category != null)
+                    .GroupBy(category => category, StringComparer.OrdinalIgnoreCase)
+                    .OrderByDescending(group => group.Count())
+                    .Select(group => group.Key)
+                    .FirstOrDefault();
+                if (label != null)
+                {
+                    yield return (label, list.ArtUrl);
+                }
+            }
         }
 
         /// <summary>
@@ -873,13 +1082,6 @@ namespace PlayniteAchievements.Services.Metadata
                 return null;
             }
 
-            bool Eligible(AchievementDetail target) =>
-                target != null &&
-                !target.IsCustom &&
-                !string.IsNullOrWhiteSpace(target.ApiName) &&
-                !CategoryKindHelper.IsDlc(target.CategoryKind) &&
-                !CategoryKindHelper.IsSubset(target.CategoryKind);
-
             var set = keys
                 .Select(key => sets.TryGetValue(key, out var found) ? found : null)
                 .FirstOrDefault(found => found != null && found.Set.Achievements.Contains(capstone));
@@ -888,11 +1090,25 @@ namespace PlayniteAchievements.Services.Metadata
                 return null;
             }
 
+            return MatchCapstoneIn(set, capstone, targets, _ => true);
+        }
+
+        /// <summary>
+        /// The game's achievement paired with <paramref name="capstone"/>, else the one unpaired
+        /// achievement among those <paramref name="within"/> keeps whose description is the
+        /// platinum's; DLC, subset and authored achievements never count.
+        /// </summary>
+        private static string MatchCapstoneIn(
+            MatchedSet set,
+            AchievementDetail capstone,
+            IList<AchievementDetail> targets,
+            Func<AchievementDetail, bool> within)
+        {
             foreach (var match in set.Matches)
             {
                 if (ReferenceEquals(match.Source, capstone))
                 {
-                    return Eligible(match.Target) ? match.Target.ApiName.Trim() : null;
+                    return IsCapstoneEligible(match.Target) && within(match.Target) ? match.Target.ApiName.Trim() : null;
                 }
             }
 
@@ -904,7 +1120,7 @@ namespace PlayniteAchievements.Services.Metadata
 
             var paired = new HashSet<AchievementDetail>(set.Matches.Select(match => match.Target));
             var byDescription = targets
-                .Where(target => Eligible(target) && !paired.Contains(target))
+                .Where(target => IsCapstoneEligible(target) && within(target) && !paired.Contains(target))
                 .Where(target => string.Equals(
                     CrossSourceAchievementMatcher.NormalizeText(target.Description),
                     description,
@@ -912,6 +1128,73 @@ namespace PlayniteAchievements.Services.Metadata
                 .Take(2)
                 .ToList();
             return byDescription.Count == 1 ? byDescription[0].ApiName.Trim() : null;
+        }
+
+        private static bool IsCapstoneEligible(AchievementDetail target) =>
+            target != null &&
+            !target.IsCustom &&
+            !string.IsNullOrWhiteSpace(target.ApiName) &&
+            !CategoryKindHelper.IsDlc(target.CategoryKind) &&
+            !CategoryKindHelper.IsSubset(target.CategoryKind);
+
+        private static bool IsPlatinumWithArt(AchievementDetail row) =>
+            row != null &&
+            (row.IsCapstone || string.Equals(row.TrophyType, "platinum", StringComparison.OrdinalIgnoreCase)) &&
+            FirstNonBlank(row.UnlockedIconPath, row.LockedIconPath) != null;
+
+        /// <summary>
+        /// For the first capstone source whose link names several lists, each list's platinum filed
+        /// under the category most of that list's matches fall in, with the achievement in that
+        /// category it matched. Empty unless at least two lists give one, and for a link to one
+        /// list; a category takes the first list that claims it.
+        /// </summary>
+        private static List<MetadataCategoryCapstone> ResolveCategoryCapstones(
+            IReadOnlyList<string> keys,
+            IReadOnlyDictionary<string, MatchedSet> sets,
+            IList<AchievementDetail> targets)
+        {
+            var result = new List<MetadataCategoryCapstone>();
+            var set = keys
+                .Select(key => sets.TryGetValue(key, out var found) ? found : null)
+                .FirstOrDefault(found => found != null && found.Set.Achievements.Any(IsPlatinumWithArt));
+            if (set == null || set.Set.Lists.Count < 2)
+            {
+                return result;
+            }
+
+            var claimed = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var list in set.Set.Lists)
+            {
+                var platinum = list.Rows.FirstOrDefault(IsPlatinumWithArt);
+                if (platinum == null)
+                {
+                    continue;
+                }
+
+                var inList = new HashSet<AchievementDetail>(list.Rows);
+                var category = set.Matches
+                    .Where(match => inList.Contains(match.Source) && IsCapstoneEligible(match.Target) && !string.IsNullOrWhiteSpace(match.Target.Category))
+                    .GroupBy(match => match.Target.Category.Trim(), StringComparer.OrdinalIgnoreCase)
+                    .OrderByDescending(group => group.Count())
+                    .Select(group => group.Key)
+                    .FirstOrDefault();
+                if (category == null || !claimed.Add(category))
+                {
+                    continue;
+                }
+
+                result.Add(new MetadataCategoryCapstone
+                {
+                    Category = category,
+                    ArtUrl = FirstNonBlank(platinum.UnlockedIconPath, platinum.LockedIconPath),
+                    Title = string.IsNullOrWhiteSpace(platinum.DisplayName) ? null : platinum.DisplayName.Trim(),
+                    Description = string.IsNullOrWhiteSpace(platinum.Description) ? null : platinum.Description.Trim(),
+                    MatchApiName = MatchCapstoneIn(set, platinum, targets ?? new List<AchievementDetail>(), target =>
+                        string.Equals(target.Category?.Trim(), category, StringComparison.OrdinalIgnoreCase))
+                });
+            }
+
+            return result.Count >= 2 ? result : new List<MetadataCategoryCapstone>();
         }
 
         private static string FirstNonBlank(params string[] values)

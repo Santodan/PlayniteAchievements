@@ -22,6 +22,9 @@ namespace PlayniteAchievements.Services.Achievements
     {
         private const string BaseId = "auto-capstone";
 
+        // The art record's source once the user replaced an auto capstone's art.
+        private const string UserArtSource = "user";
+
         private readonly GameCustomDataStore _store;
         private readonly AchievementOverridesService _overridesService;
         private readonly Func<Guid, GameAchievementData> _resolveGameData;
@@ -94,10 +97,17 @@ namespace PlayniteAchievements.Services.Achievements
             }
 
             var game = API.Instance?.Database?.Games?.Get(gameId);
-            var source = AutoCapstoneTemplate.ResolveIconSource(game, _logger);
-            var borrowedArt = AutoCapstoneTemplate.MetadataArtAccessor?.Invoke(gameId);
-            var borrowedText = BorrowedText(gameId);
-            var templateText = AutoCapstoneText.Describe(_templates?.Invoke(), ResolveGameName(game), null);
+            var gameSource = AutoCapstoneTemplate.ResolveIconSource(game, _logger);
+            var wholeBorrowedArt = AutoCapstoneTemplate.MetadataArtAccessor?.Invoke(gameId);
+            var wholeBorrowedText = BorrowedText(gameId);
+            var gameName = ResolveGameName(game);
+            var categoryCapstones = links.GetCategoryCapstones(gameId);
+            var categoryOf = categoryCapstones.Count == 0
+                ? new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+                : LoadAchievementsInOrder(gameId)
+                    .Where(achievement => achievement?.ApiName != null)
+                    .GroupBy(achievement => achievement.ApiName, StringComparer.OrdinalIgnoreCase)
+                    .ToDictionary(group => group.Key, group => group.First().Category, StringComparer.OrdinalIgnoreCase);
             var existing = definitions.Where(definition => definition != null).ToList();
             var replacement = existing.Select(definition => definition.Clone()).ToList();
             var changed = false;
@@ -105,6 +115,15 @@ namespace PlayniteAchievements.Services.Achievements
             {
                 var apiName = CustomAchievementProjectionService.BuildApiName(definition.Id);
                 var record = links.GetCapstoneArtRecord(gameId, apiName);
+
+                // A category capstone of a collection takes its own game's platinum; the whole
+                // game's takes the game's platinum.
+                var category = definition.IsWholeGameAutoCapstone ? null : (categoryOf.TryGetValue(apiName, out var filed) ? filed : null);
+                var own = CategoryCapstone(categoryCapstones, category);
+                var borrowedArt = own != null ? own.ArtUrl : definition.IsWholeGameAutoCapstone ? wholeBorrowedArt : null;
+                var source = own?.ArtUrl ?? gameSource;
+                var borrowedText = own != null ? BorrowedText(own) : definition.IsWholeGameAutoCapstone ? wholeBorrowedText : (null, null);
+                var templateText = AutoCapstoneText.Describe(_templates?.Invoke(), gameName, definition.IsWholeGameAutoCapstone ? null : category);
 
                 var artWritten = false;
                 if (!string.IsNullOrWhiteSpace(source) && ShouldReplaceArt(links, gameId, apiName, definition, record, source, borrowedArt))
@@ -118,9 +137,10 @@ namespace PlayniteAchievements.Services.Achievements
                     }
                 }
 
-                // Only the whole-game capstone stands for what a platinum does.
-                var textWritten = definition.IsWholeGameAutoCapstone &&
-                                  ApplyText(definition, record, borrowedText, templateText);
+                // A capstone stands for what a platinum does when it has one: the whole game's,
+                // or its own game's in a collection.
+                var takesText = definition.IsWholeGameAutoCapstone || own != null;
+                var textWritten = takesText && ApplyText(definition, record, borrowedText, templateText);
                 if (textWritten)
                 {
                     _logger?.Debug($"[AutoCapstone] Text for gameId={gameId} {apiName} now from {(borrowedText.Title != null ? "the platinum" : "the templates")}.");
@@ -135,7 +155,7 @@ namespace PlayniteAchievements.Services.Achievements
                         apiName,
                         artWritten ? source : record?.Source,
                         definition.UnlockedIconPath,
-                        definition.IsWholeGameAutoCapstone ? borrowedText : (null, null));
+                        takesText ? borrowedText : (null, null));
 
                     // Counted even when the icon path is unchanged: new art overwrites the managed
                     // file in place, and only the write's change event makes open views read it again.
@@ -164,14 +184,17 @@ namespace PlayniteAchievements.Services.Achievements
         {
             if (record?.Source != null)
             {
-                if (string.Equals(record.Source, source, StringComparison.Ordinal))
+                if (string.Equals(record.Source, source, StringComparison.Ordinal) ||
+                    string.Equals(record.Source, UserArtSource, StringComparison.Ordinal))
                 {
                     return false;
                 }
 
                 if (!IsRecordedFile(definition.UnlockedIconPath, record))
                 {
-                    links.SetCapstoneArtRecord(gameId, apiName, null);
+                    // The user's art from now on, kept as a record so it is told apart from art
+                    // authored before records were kept.
+                    links.SetCapstoneArtRecord(gameId, apiName, new CapstoneArtRecord { Source = UserArtSource, Title = record.Title, Description = record.Description });
                     return false;
                 }
 
@@ -273,6 +296,22 @@ namespace PlayniteAchievements.Services.Achievements
             var borrowed = AutoCapstoneTemplate.MetadataTextAccessor?.Invoke(gameId) ?? (null, null);
             return string.IsNullOrWhiteSpace(borrowed.Title) ? (null, null) : (borrowed.Title, borrowed.Description ?? string.Empty);
         }
+
+        /// <summary>A collection game's platinum text, or nulls.</summary>
+        private static (string Title, string Description) BorrowedText(MetadataCategoryCapstone capstone) =>
+            string.IsNullOrWhiteSpace(capstone?.Title) ? (null, null) : (capstone.Title, capstone.Description ?? string.Empty);
+
+        /// <summary>The borrowed platinum of a collection's game filed under <paramref name="category"/>, or null.</summary>
+        private static MetadataCategoryCapstone CategoryCapstone(IReadOnlyList<MetadataCategoryCapstone> capstones, string category) =>
+            string.IsNullOrWhiteSpace(category)
+                ? null
+                : capstones?.FirstOrDefault(capstone => string.Equals(capstone?.Category?.Trim(), category.Trim(), StringComparison.OrdinalIgnoreCase));
+
+        /// <summary>Each collection game's borrowed platinum by category, as the last overlay recorded them; empty when none.</summary>
+        public IReadOnlyList<MetadataCategoryCapstone> CategoryCapstones(Guid gameId) =>
+            gameId == Guid.Empty
+                ? Array.Empty<MetadataCategoryCapstone>()
+                : _metadataLinks?.Invoke()?.GetCategoryCapstones(gameId) ?? Array.Empty<MetadataCategoryCapstone>();
 
         /// <summary>
         /// The game's hydrated achievements, authored ones included, in the order the game shows
@@ -430,6 +469,125 @@ namespace PlayniteAchievements.Services.Achievements
         }
 
         /// <summary>
+        /// For a collection: each of its games' categories without a capstone gets one, the
+        /// achievement its game's platinum matched, else an authored capstone with that platinum's
+        /// art and text. Marks the game as handled. Returns how many it added.
+        /// </summary>
+        public async Task<int> GenerateCategoryCapstonesAsync(Guid gameId, IReadOnlyList<MetadataCategoryCapstone> capstones)
+        {
+            if (gameId == Guid.Empty || _overridesService == null || capstones == null || capstones.Count == 0)
+            {
+                return 0;
+            }
+
+            var pending = capstones
+                .Where(capstone => !string.IsNullOrWhiteSpace(capstone?.Category) && !IsCategoryHandled(gameId, capstone.Category.Trim()))
+                .ToList();
+            if (pending.Count == 0)
+            {
+                return 0;
+            }
+
+            var achievements = LoadAchievementsInOrder(gameId);
+            var covered = new HashSet<string>(
+                achievements
+                    .Where(achievement => achievement?.IsCapstone == true && !string.IsNullOrWhiteSpace(achievement.Category))
+                    .Select(achievement => achievement.Category.Trim()),
+                StringComparer.OrdinalIgnoreCase);
+            var added = 0;
+            foreach (var capstone in pending)
+            {
+                var category = capstone.Category.Trim();
+
+                // Handled once: a category's capstone the user removes is not put back.
+                MarkCategoryHandled(gameId, category);
+                if (!covered.Add(category))
+                {
+                    continue;
+                }
+
+                var match = string.IsNullOrWhiteSpace(capstone.MatchApiName)
+                    ? null
+                    : achievements.FirstOrDefault(achievement =>
+                        achievement != null &&
+                        !achievement.IsCustom &&
+                        string.Equals(achievement.ApiName, capstone.MatchApiName, StringComparison.OrdinalIgnoreCase));
+                if (match != null && _overridesService.SetCapstone(gameId, match.ApiName, true)?.Success == true)
+                {
+                    LabelPlatinum(gameId, match);
+                    added++;
+                    continue;
+                }
+
+                if (await AuthorAsync(gameId, category).ConfigureAwait(false) != null)
+                {
+                    added++;
+                }
+            }
+
+            _overridesService.MarkAutoCapstoneGenerated(gameId);
+            _logger?.Debug($"[AutoCapstone] gameId={gameId} got {added} capstone(s) for its collection's games.");
+            return added;
+        }
+
+        // A handled collection category is kept beside the capstone art records, under a key no
+        // achievement ApiName takes, so it survives a cache clear and is never exported.
+        private const string HandledCategoryKeyPrefix = "auto-capstone-category:";
+
+        /// <summary>Whether the game's collection category already got its capstone once.</summary>
+        public bool IsCategoryHandled(Guid gameId, string category) =>
+            _metadataLinks?.Invoke()?.GetCapstoneArtRecord(gameId, HandledCategoryKeyPrefix + category) != null;
+
+        private void MarkCategoryHandled(Guid gameId, string category) =>
+            _metadataLinks?.Invoke()?.SetCapstoneArtRecord(gameId, HandledCategoryKeyPrefix + category, new CapstoneArtRecord { Title = category });
+
+        /// <summary>
+        /// Removes the game's whole-game auto capstone while it still holds only what the plugin
+        /// wrote, as when the game turned out to be a collection whose games each get their own.
+        /// Returns whether it was removed.
+        /// </summary>
+        public bool RemoveUntouchedWholeGameCapstone(Guid gameId)
+        {
+            var links = _metadataLinks?.Invoke();
+            if (gameId == Guid.Empty || links == null || _store == null || _overridesService == null)
+            {
+                return false;
+            }
+
+            var definitions = _store.LoadOrDefault(gameId)?.CustomAchievements?
+                .Where(definition => definition != null)
+                .ToList();
+            var authored = definitions?.FirstOrDefault(definition => definition.IsAutoCapstone && definition.IsWholeGameAutoCapstone);
+            if (authored == null)
+            {
+                return false;
+            }
+
+            var apiName = CustomAchievementProjectionService.BuildApiName(authored.Id);
+            var templateText = AutoCapstoneText.Describe(
+                _templates?.Invoke(),
+                ResolveGameName(API.Instance?.Database?.Games?.Get(gameId)),
+                null);
+            var record = links.GetCapstoneArtRecord(gameId, apiName);
+            if (!IsUntouched(authored, record, templateText))
+            {
+                _logger?.Debug(
+                    $"[AutoCapstone] gameId={gameId} keeps its edited whole-game capstone {apiName} " +
+                    $"(record={(record == null ? "none" : "yes")}, icon='{authored.UnlockedIconPath}', recordedIcon='{record?.Path}', " +
+                    $"recordedFile={(record != null && !string.IsNullOrWhiteSpace(authored.UnlockedIconPath) && IsRecordedFile(authored.UnlockedIconPath, record))}, " +
+                    $"lockedIcon={!string.IsNullOrWhiteSpace(authored.LockedIconPath)}, title='{authored.DisplayName}', " +
+                    $"recordedTitle='{record?.Title}', templateTitle='{templateText.Title}', description='{authored.Description}', " +
+                    $"recordedDescription='{record?.Description}', templateDescription='{templateText.Description}').");
+                return false;
+            }
+
+            _overridesService.SetCustomAchievements(gameId, definitions.Where(definition => !ReferenceEquals(definition, authored)).ToList());
+            links.SetCapstoneArtRecord(gameId, apiName, null);
+            _logger?.Debug($"[AutoCapstone] gameId={gameId} {apiName} removed: the game is a collection whose games get their own.");
+            return true;
+        }
+
+        /// <summary>
         /// Whether a whole-game auto capstone holds only what the plugin wrote: its recorded art
         /// (or none) and the templates' or the recorded platinum's text.
         /// </summary>
@@ -443,8 +601,11 @@ namespace PlayniteAchievements.Services.Achievements
                 return false;
             }
 
+            // Without a record (authored before art was recorded) the art cannot be checked, and
+            // the text decides; art the user replaced is recorded as theirs.
             var pluginArt = string.IsNullOrWhiteSpace(definition.UnlockedIconPath) ||
-                            (record != null && IsRecordedFile(definition.UnlockedIconPath, record));
+                            record == null ||
+                            (!string.Equals(record.Source, UserArtSource, StringComparison.Ordinal) && IsRecordedFile(definition.UnlockedIconPath, record));
             return pluginArt &&
                    IsPluginText(definition.DisplayName, record?.Title, template.Title) &&
                    IsPluginText(definition.Description, record?.Description, template.Description);
@@ -493,11 +654,15 @@ namespace PlayniteAchievements.Services.Achievements
                 .ToList() ?? new List<CustomAchievementDefinition>();
             var id = ResolveUniqueId(existing);
             var apiName = CustomAchievementProjectionService.BuildApiName(id);
-            var borrowedText = normalizedCategory == null ? BorrowedText(gameId) : (null, null);
+            // A collection's game takes its own platinum's art and text, as the whole game takes its.
+            var own = CategoryCapstone(CategoryCapstones(gameId), normalizedCategory);
+            var borrowedText = normalizedCategory == null ? BorrowedText(gameId) : BorrowedText(own);
             var (title, description) = normalizedCategory == null
                 ? AutoCapstoneTemplate.ResolveWholeGameText(gameId, _templates?.Invoke(), name)
-                : AutoCapstoneText.Describe(_templates?.Invoke(), name, normalizedCategory);
-            var iconSource = AutoCapstoneTemplate.ResolveIconSource(game, _logger);
+                : borrowedText.Title != null
+                    ? borrowedText
+                    : AutoCapstoneText.Describe(_templates?.Invoke(), name, normalizedCategory);
+            var iconSource = own?.ArtUrl ?? AutoCapstoneTemplate.ResolveIconSource(game, _logger);
             var iconPath = await MaterializeIconAsync(gameId, iconSource, existing, apiName).ConfigureAwait(false);
 
             var definition = new CustomAchievementDefinition

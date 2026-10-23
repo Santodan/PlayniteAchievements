@@ -40,6 +40,16 @@ namespace PlayniteAchievements.Providers.Tests
         }
 
         [TestMethod]
+        public void GameArt_IsThePagesShareImage()
+        {
+            Assert.AreEqual(
+                "https://m.exophase.com/psn/games/l/abc.png?1",
+                ExophaseGamePageParser.GameArt("<html><head><meta property=\"og:image\" content=\"https://m.exophase.com/psn/games/l/abc.png?1\"></head></html>"));
+            Assert.IsNull(ExophaseGamePageParser.GameArt("<html><head></head></html>"));
+            Assert.IsNull(ExophaseGamePageParser.GameArt(null));
+        }
+
+        [TestMethod]
         public void TrophyLanguageCode_MapsPluginLanguagesToExophasePaths()
         {
             Assert.AreEqual("jp", ExophaseGamePageParser.TrophyLanguageCode("japanese"));

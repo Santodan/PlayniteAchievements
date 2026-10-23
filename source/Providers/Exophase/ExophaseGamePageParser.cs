@@ -63,8 +63,12 @@ namespace PlayniteAchievements.Providers.Exophase
         /// DLC's art is kept only when it is not the game's own image, which Exophase also shows
         /// beside DLC lists that have none.
         /// </summary>
-        public static IReadOnlyList<ExophaseAwardSection> ParseAwardSections(string html)
+        public static IReadOnlyList<ExophaseAwardSection> ParseAwardSections(string html) => ParseAwardSections(html, out _);
+
+        /// <summary>The page's award lists, as above, and its own game image from the same parse.</summary>
+        public static IReadOnlyList<ExophaseAwardSection> ParseAwardSections(string html, out string gameArtUrl)
         {
+            gameArtUrl = null;
             if (string.IsNullOrWhiteSpace(html))
             {
                 return Array.Empty<ExophaseAwardSection>();
@@ -72,6 +76,7 @@ namespace PlayniteAchievements.Providers.Exophase
 
             var doc = new HtmlDocument();
             doc.LoadHtml(html);
+            gameArtUrl = GameArt(doc);
             var nodes = doc.DocumentNode.SelectNodes(
                 "//h3[contains(concat(' ', normalize-space(@class), ' '), ' dlc-add-on ')]" +
                 " | //ul[contains(@class,'achievement') or contains(@class,'trophy') or contains(@class,'challenge')]");
@@ -80,9 +85,7 @@ namespace PlayniteAchievements.Providers.Exophase
                 return Array.Empty<ExophaseAwardSection>();
             }
 
-            var gameArt = ImageFileName(doc.DocumentNode
-                .SelectSingleNode("//meta[@property='og:image']")
-                ?.GetAttributeValue("content", null));
+            var gameArt = ImageFileName(gameArtUrl);
             var sections = new List<ExophaseAwardSection>();
             string title = null;
             string art = null;
@@ -117,6 +120,27 @@ namespace PlayniteAchievements.Providers.Exophase
             }
 
             return sections;
+        }
+
+        /// <summary>The page's own game image (its <c>og:image</c>); null when it has none.</summary>
+        public static string GameArt(string html)
+        {
+            if (string.IsNullOrWhiteSpace(html))
+            {
+                return null;
+            }
+
+            var doc = new HtmlDocument();
+            doc.LoadHtml(html);
+            return GameArt(doc);
+        }
+
+        private static string GameArt(HtmlDocument doc)
+        {
+            var url = doc.DocumentNode
+                .SelectSingleNode("//meta[@property='og:image']")
+                ?.GetAttributeValue("content", null);
+            return string.IsNullOrWhiteSpace(url) ? null : WebUtility.HtmlDecode(url).Trim();
         }
 
         /// <summary>The image the style after a DLC heading gives it.</summary>
