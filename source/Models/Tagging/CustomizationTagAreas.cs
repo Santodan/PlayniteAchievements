@@ -91,16 +91,6 @@ namespace PlayniteAchievements.Models.Tagging
                 "LOCPlayAch_ManageAchievements_Tab_ManualTracking", "Manual Tracking")
         };
 
-        /// <summary>
-        /// Kinds that are no longer written, kept in <see cref="TagType"/> so saved settings that
-        /// name them still load. They stay disabled, so the next sync removes any tag they made.
-        /// </summary>
-        public static readonly IReadOnlyCollection<TagType> Retired = new HashSet<TagType>
-        {
-            TagType.DefaultSource,
-            TagType.DefaultManualTracking
-        };
-
         private static readonly Dictionary<TagType, CustomizationTagArea> ByTag =
             All.SelectMany(area => area.TagTypes.Select(tagType => new KeyValuePair<TagType, CustomizationTagArea>(tagType, area)))
                 .ToDictionary(pair => pair.Key, pair => pair.Value);
