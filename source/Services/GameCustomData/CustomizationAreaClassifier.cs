@@ -72,11 +72,16 @@ namespace PlayniteAchievements.Services.GameCustomData
                 data.AchievementCategoryOrder?.Count > 0 ||
                 data.AchievementCategoryImageOverrides?.Count > 0 ||
                 data.AchievementCategoryKinds?.Count > 0 ||
-                data.AchievementTags?.Count > 0 ||
                 data.GameSummaryCategory != null ||
-                AnyOverride(o => HasText(o.Category) || HasText(o.LegacyCategoryType) || o.Tags != null || o.ClearTags))
+                AnyOverride(o => HasText(o.Category) || HasText(o.LegacyCategoryType)))
             {
                 areas |= CustomizationArea.Categories;
+            }
+
+            if (data.AchievementTags?.Count > 0 ||
+                AnyOverride(o => o.Tags != null || o.ClearTags))
+            {
+                areas |= CustomizationArea.Tags;
             }
 
             if (AnyUserName(data.AchievementOrder))
