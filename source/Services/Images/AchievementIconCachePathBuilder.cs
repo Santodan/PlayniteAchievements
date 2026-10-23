@@ -23,6 +23,7 @@ namespace PlayniteAchievements.Services.Images
         internal const string ModeFolderName = "original";
         internal const string LegacyCompressedModeFolderName = "128";
         internal const string DefaultCategoryFolderName = "category_defaults";
+        internal const string MetadataSourceFolderName = "metadata";
         private static readonly HashSet<string> ReservedFileNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
         {
             "CON",
@@ -304,6 +305,24 @@ namespace PlayniteAchievements.Services.Images
                 gameId.Trim(),
                 DefaultCategoryFolderName,
                 fileName);
+        }
+
+        // Folder holding one metadata source's row icons for a game, named by row the way
+        // original/ names the game's own; outside custom/, so cache clears wipe it.
+        public static string BuildMetadataSourceFolderRelativePath(
+            string gameId,
+            string sourceKey)
+        {
+            if (string.IsNullOrWhiteSpace(gameId))
+            {
+                gameId = Guid.Empty.ToString("D");
+            }
+
+            return Path.Combine(
+                IconCacheFolderName,
+                gameId.Trim(),
+                MetadataSourceFolderName,
+                SanitizeSegment(sourceKey));
         }
 
         private static string SanitizeApiName(string apiName)
