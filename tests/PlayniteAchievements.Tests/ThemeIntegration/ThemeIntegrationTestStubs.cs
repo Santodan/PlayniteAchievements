@@ -271,6 +271,12 @@ namespace PlayniteAchievements.Models.Achievements
 
         public bool ShowsRarity => RaritySource != PlayniteAchievements.Models.Achievements.RaritySource.None;
 
+        public PlayniteAchievements.Models.Tagging.CustomizationArea? PlatformFields { get; set; }
+
+        public PlayniteAchievements.Models.Tagging.CustomizationArea? MetadataFields { get; set; }
+
+        public Dictionary<PlayniteAchievements.Models.Tagging.CustomizationArea, HashSet<string>> ProviderMetadataApiNames { get; set; }
+
         public bool HasAchievements { get; set; } = true;
 
         public bool ExcludedFromSummaries { get; set; }
