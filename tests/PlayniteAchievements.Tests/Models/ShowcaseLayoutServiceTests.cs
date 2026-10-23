@@ -208,6 +208,40 @@ namespace PlayniteAchievements.Tests.Models
         }
 
         [TestMethod]
+        public void TransferTrackWeight_ShrinksATrackBesideANeighbourAtTheMaximum()
+        {
+            // Column weights from a reported page: column 4 sits at MaxTrackWeight, which used to
+            // pin column 3 at its size when dragged or typed through the 3|4 boundary.
+            var weights = new[] { 0.211, 1.056, 1.057, 0.312, 3.0, 0.318, 1.054, 1.055, 0.210 };
+
+            var result = ShowcaseLayoutService.TransferTrackWeight(weights, 3, -0.2);
+
+            Assert.IsTrue(result[3] / result.Sum() < weights[3] / weights.Sum(), "column 3 shrinks");
+            Assert.AreEqual(weights[0] / weights[1], result[0] / result[1], 1e-9, "untouched ratios hold");
+            Assert.AreEqual(weights[6] / weights[8], result[6] / result[8], 1e-9, "untouched ratios hold");
+            Assert.IsTrue(result.All(value =>
+                value >= ShowcaseLayoutService.MinTrackWeight - 1e-9 &&
+                value <= ShowcaseLayoutService.MaxTrackWeight + 1e-9));
+        }
+
+        [TestMethod]
+        public void TransferTrackWeight_MovesWeightWithinThePairWhenNothingIsAtTheLimit()
+        {
+            var result = ShowcaseLayoutService.TransferTrackWeight(new[] { 1d, 1d, 1d }, 0, 0.5);
+
+            CollectionAssert.AreEqual(new[] { 1.5, 0.5, 1d }, result);
+        }
+
+        [TestMethod]
+        public void TransferTrackWeight_StopsAtTheSixtyToOneRatio()
+        {
+            var result = ShowcaseLayoutService.TransferTrackWeight(new[] { 1d, 1d, 2d }, 0, -10);
+
+            Assert.AreEqual(result.Max() / 60, result.Min(), 1e-9);
+            Assert.AreEqual(2d, result[0] + result[1], 1e-9, "the pair keeps its total");
+        }
+
+        [TestMethod]
         public void Normalize_RepairsPageTrackWeightsAndKeepsAbsentOnesNull()
         {
             var settings = ShowcaseLayoutService.CreateDefault();
