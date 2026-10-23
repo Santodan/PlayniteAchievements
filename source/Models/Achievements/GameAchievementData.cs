@@ -75,6 +75,26 @@ namespace PlayniteAchievements.Models.Achievements
         public bool ShowsRarity => RaritySource != Models.Achievements.RaritySource.None;
 
         /// <summary>
+        /// The data areas the game's own platform supplied at the last refresh. Null until the
+        /// first refresh that records it.
+        /// </summary>
+        public Tagging.CustomizationArea? PlatformFields { get; set; }
+
+        /// <summary>
+        /// The data areas a metadata source supplied at the last refresh. Null until the first
+        /// refresh that records it.
+        /// </summary>
+        public Tagging.CustomizationArea? MetadataFields { get; set; }
+
+        /// <summary>
+        /// Refresh-only: per area, the achievements whose value a metadata source wrote while the
+        /// provider built the payload (SteamHunters on Steam), so the refresh does not count them
+        /// as the platform's. Never cached.
+        /// </summary>
+        [IgnoreDataMember]
+        public Dictionary<Tagging.CustomizationArea, HashSet<string>> ProviderMetadataApiNames { get; set; }
+
+        /// <summary>
         /// Computed completion status: every achievement unlocked, or every capstone unlocked.
         /// </summary>
         public bool IsCompleted =>
