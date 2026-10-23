@@ -224,6 +224,10 @@ namespace PlayniteAchievements.Services
                 ProviderPlatformKey = NormalizeText(providerPlatformKey),
                 LibrarySourceName = game?.Source?.Name,
                 RaritySource = ResolveRaritySource(definitions) ?? RaritySource.None,
+                // Every achievement here is the user's own, so no platform or metadata source
+                // supplied anything: known, not waiting for a refresh.
+                PlatformFields = Models.Tagging.CustomizationArea.None,
+                MetadataFields = Models.Tagging.CustomizationArea.None,
                 HasAchievements = true,
                 GameName = game?.Name,
                 PlayniteGameId = playniteGameId,
