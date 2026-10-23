@@ -4,36 +4,54 @@ using System.Linq;
 namespace PlayniteAchievements.Models.Tagging
 {
     /// <summary>
-    /// One customization area and the tag pair it writes: the custom kind when the game
-    /// carries that customization, the default kind when it does not.
+    /// One customization area and the tags it writes: the custom kind when the game carries that
+    /// customization, and for paired areas the default kind when it does not.
     /// </summary>
     public sealed class CustomizationTagArea
     {
         public CustomizationTagArea(
             CustomizationArea area,
             TagType customTag,
-            TagType defaultTag,
+            TagType? defaultTag,
             string nounResourceKey,
-            string englishNoun)
+            string englishNoun,
+            string customNameResourceKey = null,
+            string customEnglishName = null)
         {
             Area = area;
             CustomTag = customTag;
             DefaultTag = defaultTag;
             NounResourceKey = nounResourceKey;
             EnglishNoun = englishNoun;
+            CustomNameResourceKey = customNameResourceKey;
+            CustomEnglishName = customEnglishName;
         }
 
         public CustomizationArea Area { get; }
 
         public TagType CustomTag { get; }
 
-        public TagType DefaultTag { get; }
+        /// <summary>Null for a one-sided area, which tags only the games that carry it.</summary>
+        public TagType? DefaultTag { get; }
 
-        /// <summary>Resource key of the area noun, composed into both tag names and used as the settings label.</summary>
+        /// <summary>Resource key of the area noun, used as the settings label and composed into paired tag names.</summary>
         public string NounResourceKey { get; }
 
         /// <summary>English noun for the hardcoded fallback names.</summary>
         public string EnglishNoun { get; }
+
+        /// <summary>
+        /// Resource key naming the custom tag outright instead of composing "Custom {noun}", for
+        /// one-sided areas whose name reads on its own.
+        /// </summary>
+        public string CustomNameResourceKey { get; }
+
+        /// <summary>English fallback for <see cref="CustomNameResourceKey"/>.</summary>
+        public string CustomEnglishName { get; }
+
+        /// <summary>The tag kinds this area writes, custom first.</summary>
+        public IEnumerable<TagType> TagTypes =>
+            DefaultTag.HasValue ? new[] { CustomTag, DefaultTag.Value } : new[] { CustomTag };
     }
 
     /// <summary>
@@ -63,24 +81,32 @@ namespace PlayniteAchievements.Models.Tagging
                 "LOCPlayAch_Tagging_Area_Capstones", "Capstones"),
             new CustomizationTagArea(CustomizationArea.Goals, TagType.CustomGoals, TagType.DefaultGoals,
                 "LOCPlayAch_Tagging_Area_Goals", "Goals"),
-            new CustomizationTagArea(CustomizationArea.Source, TagType.CustomSource, TagType.DefaultSource,
-                "LOCPlayAch_Tagging_Area_Source", "Source"),
-            new CustomizationTagArea(CustomizationArea.ManualTracking, TagType.CustomManualTracking, TagType.DefaultManualTracking,
-                "LOCPlayAch_ManageAchievements_Tab_ManualTracking", "Manual Tracking"),
             new CustomizationTagArea(CustomizationArea.Notifications, TagType.CustomNotifications, TagType.DefaultNotifications,
-                "LOCPlayAch_Tagging_Area_Notifications", "Notifications")
+                "LOCPlayAch_Tagging_Area_Notifications", "Notifications"),
+            new CustomizationTagArea(CustomizationArea.Source, TagType.CustomSource, null,
+                "LOCPlayAch_Tagging_Area_Source", "Source",
+                "LOCPlayAch_Tagging_SourceOverride", "Source Override"),
+            new CustomizationTagArea(CustomizationArea.ManualTracking, TagType.CustomManualTracking, null,
+                "LOCPlayAch_ManageAchievements_Tab_ManualTracking", "Manual Tracking",
+                "LOCPlayAch_ManageAchievements_Tab_ManualTracking", "Manual Tracking")
+        };
+
+        /// <summary>
+        /// Kinds that are no longer written, kept in <see cref="TagType"/> so saved settings that
+        /// name them still load. They stay disabled, so the next sync removes any tag they made.
+        /// </summary>
+        public static readonly IReadOnlyCollection<TagType> Retired = new HashSet<TagType>
+        {
+            TagType.DefaultSource,
+            TagType.DefaultManualTracking
         };
 
         private static readonly Dictionary<TagType, CustomizationTagArea> ByTag =
-            All.SelectMany(area => new[]
-                {
-                    new KeyValuePair<TagType, CustomizationTagArea>(area.CustomTag, area),
-                    new KeyValuePair<TagType, CustomizationTagArea>(area.DefaultTag, area)
-                })
+            All.SelectMany(area => area.TagTypes.Select(tagType => new KeyValuePair<TagType, CustomizationTagArea>(tagType, area)))
                 .ToDictionary(pair => pair.Key, pair => pair.Value);
 
         /// <summary>
-        /// The area a tag kind belongs to, and whether it is the custom side of the pair.
+        /// The area a tag kind belongs to, and whether it is the custom side.
         /// False for the kinds outside the customization areas.
         /// </summary>
         public static bool TryGetArea(TagType tagType, out CustomizationTagArea area, out bool isCustom)
@@ -95,10 +121,20 @@ namespace PlayniteAchievements.Models.Tagging
             return false;
         }
 
-        /// <summary>The kind each area contributes for a game with the given customizations.</summary>
+        /// <summary>The kinds the areas contribute for a game with the given customizations.</summary>
         public static IEnumerable<TagType> TagsFor(CustomizationArea areas)
         {
-            return All.Select(area => (areas & area.Area) != 0 ? area.CustomTag : area.DefaultTag);
+            foreach (var area in All)
+            {
+                if ((areas & area.Area) != 0)
+                {
+                    yield return area.CustomTag;
+                }
+                else if (area.DefaultTag.HasValue)
+                {
+                    yield return area.DefaultTag.Value;
+                }
+            }
         }
     }
 }
