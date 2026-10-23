@@ -1197,6 +1197,7 @@
     <sys:String x:Key="LOCPlayAch_Tagging_Area_Source">Source</sys:String>
     <sys:String x:Key="LOCPlayAch_Tagging_SourceOverride">Source Override</sys:String>
     <sys:String x:Key="LOCPlayAch_Tagging_Area_Notifications">Notifications</sys:String>
+    <sys:String x:Key="LOCPlayAch_Tagging_Area_Tags">Tags</sys:String>
     <sys:String x:Key="LOCPlayAch_Tagging_RemoveAllConfirm">Remove all Playnite Achievements tags from all games?</sys:String>
     <sys:String x:Key="LOCPlayAch_Tagging_RemovingProgress">Removing tags...</sys:String>
     <sys:String x:Key="LOCPlayAch_Tagging_SyncingProgress">Syncing tags...</sys:String>
