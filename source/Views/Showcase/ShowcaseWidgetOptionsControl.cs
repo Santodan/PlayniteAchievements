@@ -160,6 +160,8 @@ namespace PlayniteAchievements.Views.Showcase
                         ShowcaseWidgetOptions.GetProfileShowLinks(_settings),
                         value => ShowcaseWidgetOptions.SetProfileShowLinks(_settings, value));
                     AddProfileStatSlots(panel);
+                    AddCollectionChoice(panel, includeAchievementCollections: false);
+                    AddControlBarRows<StatisticsControlBarAdapter>(panel);
                     break;
                 case ShowcaseWidgetKind.Scores:
                     AddScoreCardOptions(panel);
@@ -294,6 +296,8 @@ namespace PlayniteAchievements.Views.Showcase
                     break;
                 case ShowcaseWidgetKind.Statistics:
                     AddStatisticsSlots(panel);
+                    AddCollectionChoice(panel, includeAchievementCollections: false);
+                    AddControlBarRows<StatisticsControlBarAdapter>(panel);
                     break;
                 case ShowcaseWidgetKind.NativePoints:
                     AddChoice(
