@@ -930,6 +930,82 @@ namespace PlayniteAchievements
                     })
                 };
             }
+
+            // Developer-only, hidden unless the hardcoded MetadataSourceProbe.Enabled flag is on.
+            // Deliberately not localized. Probes a fixed list of games against TrueGaming and SteamHunters.
+            if (global::PlayniteAchievements.Providers.Metadata.MetadataSourceProbe.Enabled)
+            {
+                yield return new MainMenuItem
+                {
+                    Description = "Probe collections (TrueGaming, SteamHunters)",
+                    MenuSection = PluginMainMenuSection,
+                    Action = (a) =>
+                    {
+                        var folder = System.IO.Path.Combine(GetPluginUserDataPath(), "diagnostics", "sources");
+                        _ = Task.Run(async () =>
+                        {
+                            try
+                            {
+                                await global::PlayniteAchievements.Providers.Metadata.MetadataSourceProbe.RunAsync(
+                                    PlayniteApi,
+                                    Settings,
+                                    _providerRegistry?.GetMetadataProviders(),
+                                    _logger,
+                                    folder,
+                                    CancellationToken.None).ConfigureAwait(false);
+                                PlayniteApi.Notifications.Add(
+                                    "PlayAch_SourceProbe",
+                                    $"Source probe finished: {folder}",
+                                    NotificationType.Info);
+                            }
+                            catch (Exception ex)
+                            {
+                                _logger?.Warn(ex, "Source probe failed.");
+                            }
+                        });
+                    }
+                };
+            }
+
+            // Developer-only, hidden unless the hardcoded ExophaseCollectionProbe.Enabled flag is on.
+            // Deliberately not localized. Probes a fixed list of Steam collections, plus the games
+            // selected in the library.
+            if (global::PlayniteAchievements.Providers.Metadata.Exophase.ExophaseCollectionProbe.Enabled)
+            {
+                yield return new MainMenuItem
+                {
+                    Description = "Probe collections (Exophase PlayStation)",
+                    MenuSection = PluginMainMenuSection,
+                    Action = (a) =>
+                    {
+                        var games = PlayniteApi.MainView.SelectedGames?.ToList() ?? new List<Game>();
+                        var folder = System.IO.Path.Combine(GetPluginUserDataPath(), "diagnostics", "collections");
+                        _ = Task.Run(async () =>
+                        {
+                            try
+                            {
+                                await global::PlayniteAchievements.Providers.Metadata.Exophase.ExophaseCollectionProbe.RunAsync(
+                                    PlayniteApi,
+                                    Settings,
+                                    _providerRegistry?.GetMetadataProviders(),
+                                    _achievementDataService,
+                                    games,
+                                    _logger,
+                                    folder,
+                                    CancellationToken.None).ConfigureAwait(false);
+                                PlayniteApi.Notifications.Add(
+                                    "PlayAch_CollectionProbe",
+                                    $"Collection probe finished: {folder}",
+                                    NotificationType.Info);
+                            }
+                            catch (Exception ex)
+                            {
+                                _logger?.Warn(ex, "Collection probe failed.");
+                            }
+                        });
+                    }
+                };
+            }
         }
     }
 }
