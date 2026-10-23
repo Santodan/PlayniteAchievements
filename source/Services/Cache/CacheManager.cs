@@ -1801,6 +1801,8 @@ namespace PlayniteAchievements.Services.Cache
                 ProviderPlatformKey = source.ProviderPlatformKey,
                 LibrarySourceName = source.LibrarySourceName,
                 RaritySource = source.RaritySource,
+                PlatformFields = source.PlatformFields,
+                MetadataFields = source.MetadataFields,
                 HasAchievements = source.HasAchievements,
                 ExcludedByUser = source.ExcludedByUser,
                 GameName = source.GameName,

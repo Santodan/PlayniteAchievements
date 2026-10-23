@@ -674,7 +674,11 @@ namespace PlayniteAchievements.Services.Tagging
 
                         try
                         {
-                            var applies = new HashSet<TagType>(DetermineCustomizationTagTypes(gameId));
+                            // Platform and Metadata only move on a refresh, but an edit can turn a
+                            // layered area's None on or off, which needs the game's data.
+                            var applies = new HashSet<TagType>(DetermineCustomizationTagTypes(
+                                gameId,
+                                () => PlayniteAchievementsPlugin.Instance?.AchievementDataService?.GetGameAchievementData(gameId)));
                             var changed = false;
                             foreach (var tagType in CustomizationTagTypes)
                             {
@@ -709,34 +713,48 @@ namespace PlayniteAchievements.Services.Tagging
 
         /// <summary>
         /// The customization kinds that apply to a game: one side of the Customized pair and the
-        /// applicable kind of each area. Areas are only classified when one of their kinds is
-        /// enabled, so the default setup pays nothing for them.
+        /// applicable kinds of each area. Areas are only classified when one of their kinds is
+        /// enabled, and the game's data is only loaded when a Platform, Metadata or None kind is,
+        /// so the default setup pays nothing for them.
         /// </summary>
-        private IEnumerable<TagType> DetermineCustomizationTagTypes(Guid gameId)
+        private IEnumerable<TagType> DetermineCustomizationTagTypes(Guid gameId, Func<GameAchievementData> loadData)
         {
-            yield return GameCustomDataLookup.HasVisibleCustomization(gameId, Settings)
-                ? TagType.Customized
-                : TagType.NotCustomized;
-
-            if (!AnyAreaTagEnabled())
+            var types = new List<TagType>
             {
-                yield break;
+                GameCustomDataLookup.HasVisibleCustomization(gameId, Settings)
+                    ? TagType.Customized
+                    : TagType.NotCustomized
+            };
+
+            if (!AnyAreaTagEnabled(_ => true))
+            {
+                return types;
             }
 
-            foreach (var tagType in CustomizationTagAreas.TagsFor(
-                GameCustomDataLookup.GetCustomizationAreas(gameId, Settings)))
+            var layers = default(GameDataLayers);
+            if (AnyAreaTagEnabled(layer => layer == TagLayer.Platform || layer == TagLayer.Metadata || layer == TagLayer.None))
             {
-                yield return tagType;
+                var data = loadData?.Invoke();
+                layers = new GameDataLayers
+                {
+                    Platform = data?.PlatformFields,
+                    Metadata = data?.MetadataFields,
+                    Present = Metadata.DataLayers.Present(data?.Achievements)
+                };
             }
+
+            types.AddRange(CustomizationTagAreas.TagsFor(GameCustomDataLookup.GetCustomizationAreas(gameId, Settings), layers));
+            return types;
         }
 
-        private bool AnyAreaTagEnabled()
+        private bool AnyAreaTagEnabled(Func<TagLayer, bool> layerFilter)
         {
             var tagConfigs = Tagging?.TagConfigs;
             return tagConfigs != null &&
                    CustomizationTagAreas.All
-                       .SelectMany(area => area.TagTypes)
-                       .Any(tagType => tagConfigs.TryGetValue(tagType, out var config) && config?.IsEnabled == true);
+                       .SelectMany(area => area.Tags)
+                       .Where(pair => layerFilter(pair.Key))
+                       .Any(pair => tagConfigs.TryGetValue(pair.Value, out var config) && config?.IsEnabled == true);
         }
 
         /// <summary>
@@ -908,7 +926,11 @@ namespace PlayniteAchievements.Services.Tagging
             }
 
             var gameId = game.Id;
-            types.AddRange(DetermineCustomizationTagTypes(gameId));
+            // Loaded once, and only when something needs it: excluded games stop before the
+            // status tags, but the layered customization tags may still read it.
+            var achievementDataService = PlayniteAchievementsPlugin.Instance?.AchievementDataService;
+            var loaded = new Lazy<GameAchievementData>(() => achievementDataService?.GetGameAchievementData(gameId));
+            types.AddRange(DetermineCustomizationTagTypes(gameId, () => loaded.Value));
 
             // Full exclusion is exclusive - no other tags
             if (GameCustomDataLookup.IsExcludedFromRefreshes(gameId, Settings))
@@ -926,8 +948,7 @@ namespace PlayniteAchievements.Services.Tagging
             }
 
             // Load achievement data through the central data service when available.
-            var achievementDataService = PlayniteAchievementsPlugin.Instance?.AchievementDataService;
-            var data = achievementDataService?.GetGameAchievementData(gameId);
+            var data = loaded.Value;
 
             // HasAchievements defaults to true on unscanned stubs (so bulk scans do not skip
             // them) and can survive as true with an empty list on rows written by the legacy

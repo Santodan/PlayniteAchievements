@@ -36,10 +36,8 @@ namespace PlayniteAchievements.Models.Tagging.Tests
 
             Assert.IsTrue(settings.HasAchievementsConfig.IsEnabled);
             Assert.IsTrue(settings.CustomizedConfig.IsEnabled);
-            Assert.AreEqual("[PA] Custom Icons", settings.TagConfigs[TagType.CustomIcons].DisplayName);
-            Assert.AreEqual("[PA] Default Icons", settings.TagConfigs[TagType.DefaultIcons].DisplayName);
-            Assert.AreEqual("[PA] Source Override", settings.TagConfigs[TagType.CustomSource].DisplayName);
-            Assert.AreEqual("[PA] Manual Tracking", settings.TagConfigs[TagType.CustomManualTracking].DisplayName);
+            // Customization kinds carry no English in code; without the locale files the key shows.
+            Assert.AreEqual("[PA] LOCPlayAch_Tagging_Tag_CustomIcons", settings.TagConfigs[TagType.CustomIcons].DisplayName);
         }
 
         [TestMethod]
@@ -68,13 +66,45 @@ namespace PlayniteAchievements.Models.Tagging.Tests
             settings.InitializeDefaults(TaggingSettings.GetDefaultDisplayName);
 
             var rows = settings.CustomizationRows;
-            rows.First(row => row.First == settings.TagConfigs[TagType.CustomPoints]).First.IsEnabled = true;
+            rows.First(row => row.Third == settings.TagConfigs[TagType.CustomPoints]).Third.IsEnabled = true;
 
             // The Customized pair, then one row per area.
             Assert.AreEqual(CustomizationTagAreas.All.Count + 1, rows.Count);
             Assert.IsTrue(settings.TagConfigs[TagType.CustomPoints].IsEnabled);
             Assert.IsTrue(settings.Clone().TagConfigs[TagType.CustomPoints].IsEnabled);
-            Assert.IsFalse(rows.Single(row => row.First == settings.TagConfigs[TagType.CustomSource]).HasSecond);
+        }
+
+        [TestMethod]
+        public void CustomizationRows_KeepEachLayerInItsColumn()
+        {
+            var settings = new TaggingSettings();
+            settings.InitializeDefaults(TaggingSettings.GetDefaultDisplayName);
+            var rows = settings.CustomizationRows;
+
+            var points = rows.Single(row => row.Third == settings.TagConfigs[TagType.CustomPoints]);
+            Assert.AreSame(settings.TagConfigs[TagType.PlatformPoints], points.First);
+            Assert.AreSame(settings.TagConfigs[TagType.MetadataPoints], points.Second);
+            Assert.AreSame(settings.TagConfigs[TagType.NoPoints], points.Fourth);
+
+            var icons = rows.Single(row => row.Third == settings.TagConfigs[TagType.CustomIcons]);
+            Assert.IsNull(icons.First);
+            Assert.AreSame(settings.TagConfigs[TagType.MetadataIcons], icons.Second);
+            Assert.IsNull(icons.Fourth);
+
+            var order = rows.Single(row => row.Third == settings.TagConfigs[TagType.CustomOrder]);
+            Assert.AreSame(settings.TagConfigs[TagType.PlatformOrder], order.First);
+            Assert.IsNull(order.Fourth);
+
+            var notes = rows.Single(row => row.Third == settings.TagConfigs[TagType.CustomNotes]);
+            Assert.IsNull(notes.First);
+            Assert.IsNull(notes.Second);
+            Assert.AreSame(settings.TagConfigs[TagType.NoNotes], notes.Fourth);
+
+            var notifications = rows.Single(row => row.Third == settings.TagConfigs[TagType.CustomNotifications]);
+            Assert.AreEqual(1, notifications.GetConfigs().Count());
+
+            var source = rows.Single(row => row.Third == settings.TagConfigs[TagType.CustomSource]);
+            Assert.AreEqual(1, source.GetConfigs().Count());
         }
 
         [TestMethod]

@@ -278,6 +278,8 @@ namespace PlayniteAchievements.Services.Workshop.Preview
                 ProviderPlatformKey = raw?.ProviderPlatformKey,
                 LibrarySourceName = raw?.LibrarySourceName,
                 RaritySource = raw?.RaritySource,
+                PlatformFields = raw?.PlatformFields,
+                MetadataFields = raw?.MetadataFields,
                 HasAchievements = raw?.HasAchievements ?? true,
                 Achievements = (raw?.Achievements ?? new List<AchievementDetail>())
                     .Where(achievement => achievement != null)

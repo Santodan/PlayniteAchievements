@@ -122,31 +122,35 @@ namespace PlayniteAchievements.Models.Tagging
         public TagConfig ExcludedFromSummariesConfig => GetOrCreateTagConfig(TagType.ExcludedFromSummaries);
 
         /// <summary>
-        /// The status kinds as paired settings rows: achievements, progress and exclusion.
+        /// The status kinds as settings rows: achievements, progress and exclusion, two per row.
         /// </summary>
         [DontSerialize]
-        public IReadOnlyList<TagPairRow> StatusRows => new[]
+        public IReadOnlyList<TagRow> StatusRows => new[]
         {
-            Pair("LOCPlayAch_Achievements", TagType.HasAchievements, TagType.NoAchievements),
-            Pair("LOCPlayAch_Progress", TagType.InProgress, TagType.Completed),
-            Pair("LOCPlayAch_ManageAchievements_Status_Excluded", TagType.Excluded, TagType.ExcludedFromSummaries)
+            Row("LOCPlayAch_Achievements", TagType.HasAchievements, TagType.NoAchievements, null, null),
+            Row("LOCPlayAch_Progress", TagType.InProgress, TagType.Completed, null, null),
+            Row("LOCPlayAch_ManageAchievements_Status_Excluded", TagType.Excluded, TagType.ExcludedFromSummaries, null, null)
         };
 
         /// <summary>
         /// The customization kinds as settings rows: the Customized pair, then one row per area.
+        /// Columns are fixed so each layer lines up across rows: Platform, Metadata, Custom, None.
         /// </summary>
         [DontSerialize]
-        public IReadOnlyList<TagPairRow> CustomizationRows =>
-            new[] { Pair("LOCPlayAch_Tagging_Customized", TagType.Customized, TagType.NotCustomized) }
-                .Concat(CustomizationTagAreas.All.Select(area => Pair(area.NounResourceKey, area.CustomTag, area.DefaultTag)))
+        public IReadOnlyList<TagRow> CustomizationRows =>
+            new[] { Row("LOCPlayAch_Tagging_Customized", null, null, TagType.Customized, TagType.NotCustomized) }
+                .Concat(CustomizationTagAreas.All.Select(area => Row(
+                    area.NounResourceKey,
+                    area.Tag(TagLayer.Platform),
+                    area.Tag(TagLayer.Metadata),
+                    area.CustomTag,
+                    area.Tag(TagLayer.None))))
                 .ToList();
 
-        private TagPairRow Pair(string labelKey, TagType first, TagType? second)
+        private TagRow Row(string labelKey, TagType? first, TagType? second, TagType? third, TagType? fourth)
         {
-            return new TagPairRow(
-                labelKey,
-                GetOrCreateTagConfig(first),
-                second.HasValue ? GetOrCreateTagConfig(second.Value) : null);
+            TagConfig Config(TagType? tagType) => tagType.HasValue ? GetOrCreateTagConfig(tagType.Value) : null;
+            return new TagRow(labelKey, Config(first), Config(second), Config(third), Config(fourth));
         }
 
         private TagConfig GetOrCreateTagConfig(TagType tagType)
@@ -222,11 +226,11 @@ namespace PlayniteAchievements.Models.Tagging
                 TagType.NotCustomized => "[PA] Not Customized",
                 TagType.Excluded => "[PA] Excluded",
                 TagType.ExcludedFromSummaries => "[PA] Excluded from Summaries",
-                _ => !CustomizationTagAreas.TryGetArea(tagType, out var area, out var isCustom)
-                    ? $"[PA] {tagType}"
-                    : isCustom && area.CustomEnglishName != null
-                        ? $"[PA] {area.CustomEnglishName}"
-                        : $"[PA] {(isCustom ? "Custom" : "Default")} {area.EnglishNoun}"
+                // Customization kinds have no English here: their names exist only in the locale
+                // files, so a missing string shows as its key rather than as hidden English.
+                _ => CustomizationTagAreas.TryGetArea(tagType, out _, out _)
+                    ? $"[PA] {CustomizationTagAreas.NameResourceKey(tagType)}"
+                    : $"[PA] {tagType}"
             };
         }
 
@@ -275,25 +279,32 @@ namespace PlayniteAchievements.Models.Tagging
     }
 
     /// <summary>
-    /// One settings row of tag kinds that belong together, such as a custom tag and its default.
+    /// One settings row of tag kinds that belong together, in four fixed columns. An empty
+    /// column is null, so a kind keeps its column whatever the row's other kinds are.
     /// </summary>
-    public sealed class TagPairRow
+    public sealed class TagRow
     {
-        public TagPairRow(string labelResourceKey, TagConfig first, TagConfig second)
+        public TagRow(string labelResourceKey, TagConfig first, TagConfig second, TagConfig third, TagConfig fourth)
         {
             LabelResourceKey = labelResourceKey;
             First = first;
             Second = second;
+            Third = third;
+            Fourth = fourth;
         }
 
         public string LabelResourceKey { get; }
 
         public TagConfig First { get; }
 
-        /// <summary>Null for a one-sided row.</summary>
         public TagConfig Second { get; }
 
-        public bool HasSecond => Second != null;
+        public TagConfig Third { get; }
+
+        public TagConfig Fourth { get; }
+
+        /// <summary>The row's configs, without the empty columns. A method so no serializer writes it.</summary>
+        public IEnumerable<TagConfig> GetConfigs() => new[] { First, Second, Third, Fourth }.Where(config => config != null);
 
         /// <summary>The row label in the current language.</summary>
         public string Label => ResourceProvider.GetString(LabelResourceKey);

@@ -161,6 +161,19 @@ namespace PlayniteAchievements.Services.Metadata
         private readonly Action<Guid, string> _deleteSourceIcons;
 
         /// <summary>
+        /// Whether the game's last overlay borrowed a capstone from a source: its art or text, or a
+        /// collection's per-category platinums.
+        /// </summary>
+        public bool HasBorrowedCapstone(Guid gameId)
+        {
+            var applied = _links?.GetApplied(gameId);
+            return applied != null &&
+                   (!string.IsNullOrWhiteSpace(applied.CapstoneArtUrl) ||
+                    !string.IsNullOrWhiteSpace(applied.CapstoneTitle) ||
+                    applied.CategoryCapstones?.Count > 0);
+        }
+
+        /// <summary>
         /// Applies the enabled metadata fields to the payload. Returns true when the game's icon
         /// source changed since the last overlay, so cached icon files must be overwritten.
         /// <paramref name="forceIcons"/> overwrites the sources' saved row icons as well.

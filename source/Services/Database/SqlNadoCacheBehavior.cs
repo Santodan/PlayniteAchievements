@@ -76,6 +76,13 @@ namespace PlayniteAchievements.Services.Database
                 : (RaritySource?)null;
         }
 
+        /// <summary>A stored data-layer mask; null stays null (not refreshed since the column existed).</summary>
+        public static Models.Tagging.CustomizationArea? ParseFieldMask(long? value) =>
+            value.HasValue ? (Models.Tagging.CustomizationArea)value.Value : (Models.Tagging.CustomizationArea?)null;
+
+        public static long? FieldMaskToDb(Models.Tagging.CustomizationArea? value) =>
+            value.HasValue ? (long)value.Value : (long?)null;
+
         // Computes category backfills for a mapped friend proxy row: a fetched definition's
         // Category, Tags and CategoryKind only fill existing rows still holding the Default
         // placeholder or blank, matched by ApiName. Rows a user scan already categorized are never changed,

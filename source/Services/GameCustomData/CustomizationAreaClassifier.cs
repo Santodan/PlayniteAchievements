@@ -42,22 +42,33 @@ namespace PlayniteAchievements.Services.GameCustomData
             bool AnyOverride(Func<AchievementOverride, bool> predicate) =>
                 AnyUserKey(overrides, o => o != null && predicate(o));
 
+            // A custom achievement's own values are the user's, like an override on a platform
+            // achievement.
+            var customs = (data.CustomAchievements ?? new List<CustomAchievementDefinition>())
+                .Where(item => item != null && !item.IsAutoCapstone)
+                .ToList();
+            bool AnyCustom(Func<CustomAchievementDefinition, bool> predicate) => customs.Any(predicate);
+            bool Named(string category) => Metadata.DataLayers.NamedCategory(category) != null;
+
             var areas = CustomizationArea.None;
 
             if (data.UseSeparateLockedIconsOverride == true ||
                 AnyUserKey(data.AchievementUnlockedIconOverrides, HasText) ||
                 AnyUserKey(data.AchievementLockedIconOverrides, HasText) ||
-                AnyOverride(o => HasText(o.UnlockedIconPath) || HasText(o.LockedIconPath)))
+                AnyOverride(o => HasText(o.UnlockedIconPath) || HasText(o.LockedIconPath)) ||
+                AnyCustom(c => HasText(c.UnlockedIconPath) || HasText(c.LockedIconPath)))
             {
                 areas |= CustomizationArea.Icons;
             }
 
-            if (AnyOverride(o => HasText(o.TrophyType) || o.ClearTrophyType))
+            if (AnyOverride(o => HasText(o.TrophyType) || o.ClearTrophyType) ||
+                AnyCustom(c => HasText(c.TrophyType)))
             {
                 areas |= CustomizationArea.TrophyTypes;
             }
 
-            if (AnyOverride(o => o.Points.HasValue))
+            if (AnyOverride(o => o.Points.HasValue) ||
+                AnyCustom(c => c.Points.HasValue))
             {
                 areas |= CustomizationArea.Points;
             }
@@ -67,19 +78,22 @@ namespace PlayniteAchievements.Services.GameCustomData
                 areas |= CustomizationArea.Notes;
             }
 
-            if (AnyUserKey(data.AchievementCategoryOverrides, HasText) ||
+            // Only a named category counts: an achievement filed under Default has none.
+            if (AnyUserKey(data.AchievementCategoryOverrides, Named) ||
                 AnyUserKey(data.AchievementCategoryTypeOverrides, HasText) ||
-                data.AchievementCategoryOrder?.Count > 0 ||
-                data.AchievementCategoryImageOverrides?.Count > 0 ||
-                data.AchievementCategoryKinds?.Count > 0 ||
+                data.AchievementCategoryOrder?.Any(Named) == true ||
+                data.AchievementCategoryImageOverrides?.Keys.Any(Named) == true ||
+                data.AchievementCategoryKinds?.Keys.Any(Named) == true ||
                 data.GameSummaryCategory != null ||
-                AnyOverride(o => HasText(o.Category) || HasText(o.LegacyCategoryType)))
+                AnyOverride(o => Named(o.Category) || HasText(o.LegacyCategoryType)) ||
+                AnyCustom(c => Named(c.Category)))
             {
                 areas |= CustomizationArea.Categories;
             }
 
             if (data.AchievementTags?.Count > 0 ||
-                AnyOverride(o => o.Tags != null || o.ClearTags))
+                AnyOverride(o => o.Tags != null || o.ClearTags) ||
+                AnyCustom(c => HasText(c.Tags)))
             {
                 areas |= CustomizationArea.Tags;
             }
@@ -91,7 +105,8 @@ namespace PlayniteAchievements.Services.GameCustomData
 
             if (HasText(data.ManualCapstoneApiName) ||
                 data.CapstonesMaterialized ||
-                autoCapstoneNames.Count > 0)
+                autoCapstoneNames.Count > 0 ||
+                AnyCustom(c => c.IsCapstone))
             {
                 areas |= CustomizationArea.Capstones;
             }

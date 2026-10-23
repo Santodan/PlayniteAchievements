@@ -1161,6 +1161,8 @@ namespace PlayniteAchievements.Services.Achievements
                 ProviderPlatformKey = source.ProviderPlatformKey,
                 LibrarySourceName = source.LibrarySourceName,
                 RaritySource = source.RaritySource,
+                PlatformFields = source.PlatformFields,
+                MetadataFields = source.MetadataFields,
                 HasAchievements = source.HasAchievements && visibleAchievements.Count > 0,
                 ExcludedByUser = source.ExcludedByUser,
                 IsAppIdOverridden = source.IsAppIdOverridden,

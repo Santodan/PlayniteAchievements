@@ -66,34 +66,20 @@ namespace PlayniteAchievements.Services.Tagging
 
         /// <summary>
         /// Resource keys of a customization area kind's name, in composition order: the tag
-        /// prefix, then either the area's own name or the Custom/Default format and the noun.
+        /// prefix and the kind's own whole name (never a format around a shared noun, which
+        /// cannot agree in gender or case across languages).
         /// </summary>
         public static string[] GetAreaResourceKeys(TagType tagType)
         {
-            if (!CustomizationTagAreas.TryGetArea(tagType, out var area, out var isCustom))
-            {
-                return null;
-            }
-
-            if (isCustom && area.CustomNameResourceKey != null)
-            {
-                return new[] { PrefixFormatKey, area.CustomNameResourceKey };
-            }
-
-            return new[]
-            {
-                PrefixFormatKey,
-                isCustom ? CustomizationTagAreas.CustomFormatKey : CustomizationTagAreas.DefaultFormatKey,
-                area.NounResourceKey
-            };
+            return CustomizationTagAreas.TryGetArea(tagType, out _, out _)
+                ? new[] { PrefixFormatKey, CustomizationTagAreas.NameResourceKey(tagType) }
+                : null;
         }
 
         /// <summary>Composes an area kind's name from the values of <see cref="GetAreaResourceKeys"/>.</summary>
         public static string ComposeAreaName(IReadOnlyList<string> values)
         {
-            return values.Count == 2
-                ? string.Format(values[0], values[1])
-                : string.Format(values[0], string.Format(values[1], values[2]));
+            return string.Format(values[0], values[1]);
         }
 
         private static LocalizedDefaultDefinition BuildAreaDefinition(TagType tagType)
@@ -103,7 +89,7 @@ namespace PlayniteAchievements.Services.Tagging
                 Id = tagType.ToString(),
                 ResourceKeys = GetAreaResourceKeys(tagType),
                 Compose = ComposeAreaName,
-                ExtraHardcodedDefaults = new[] { TaggingSettings.GetDefaultDisplayName(tagType) }
+                ExtraHardcodedDefaults = null
             };
         }
 

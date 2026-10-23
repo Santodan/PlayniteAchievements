@@ -22,6 +22,7 @@ using PlayniteAchievements.Services.Friends;
 using Playnite.SDK.Models;
 using PlayniteAchievements.Models.Achievements;
 using PlayniteAchievements.Models.Friends;
+using PlayniteAchievements.Models.Tagging;
 
 namespace PlayniteAchievements.Services.Refresh
 {
@@ -1610,11 +1611,33 @@ namespace PlayniteAchievements.Services.Refresh
 
             // Secondary-source metadata lands on the payload before anything reads it, so the
             // cache, the icon cache and the memory cache all see one result.
+            // The platform's values are captured first: the overlay writes over them in place.
+            var platformSnapshot = Metadata.DataLayers.Take(data.Achievements);
             var metadataIconSourceChanged = false;
             if (metadataRun != null && data.HasAchievements)
             {
                 metadataIconSourceChanged = await metadataRun.ApplyAsync(game, data, cancel, forceIcons: forceIconRefresh).ConfigureAwait(false);
             }
+
+            var metadataByArea = Metadata.DataLayers.ChangedSince(platformSnapshot, data.Achievements);
+            if (data.ProviderMetadataApiNames != null)
+            {
+                foreach (var pair in data.ProviderMetadataApiNames)
+                {
+                    if (metadataByArea.TryGetValue(pair.Key, out var names) && pair.Value != null)
+                    {
+                        names.UnionWith(pair.Value);
+                    }
+                }
+            }
+
+            var layers = Metadata.DataLayers.Resolve(
+                platformSnapshot,
+                data.Achievements,
+                metadataByArea,
+                metadataRun?.HasBorrowedCapstone(data.PlayniteGameId.Value) == true);
+            data.PlatformFields = layers.Platform;
+            data.MetadataFields = layers.Metadata;
 
             data.RaritySource = RaritySourceResolver.ResolveRefreshed(data.RaritySource, data.Achievements);
 
@@ -1710,6 +1733,15 @@ namespace PlayniteAchievements.Services.Refresh
                 var restored = metadataRun.RestoreOwnIconsWhereDownloadFailed(data, AchievementIconService.IsHttpIconPath);
                 if (restored.Count > 0)
                 {
+                    // Those achievements show the platform's icon after all.
+                    var borrowedIcons = metadataByArea[CustomizationArea.Icons];
+                    borrowedIcons.ExceptWith(restored);
+                    data.PlatformFields |= CustomizationArea.Icons;
+                    if (borrowedIcons.Count == 0)
+                    {
+                        data.MetadataFields &= ~CustomizationArea.Icons;
+                    }
+
                     _logger?.Info($"[Metadata] {restored.Count} borrowed icon(s) for '{game?.Name}' did not download; using the game's own.");
                     await _achievementIconService.PopulateAchievementIconCacheAsync(
                             data,
