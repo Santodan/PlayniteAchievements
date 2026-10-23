@@ -1,6 +1,7 @@
 using Newtonsoft.Json;
 using Playnite.SDK;
 using PlayniteAchievements.Models.Settings;
+using PlayniteAchievements.Providers.Metadata;
 using PlayniteAchievements.Services.GameCustomData;
 using System;
 using System.Collections.Generic;
@@ -59,6 +60,13 @@ namespace PlayniteAchievements.Services.Metadata
         [JsonProperty("capstoneMatch", NullValueHandling = NullValueHandling.Ignore)]
         public string CapstoneMatchApiName { get; set; }
 
+        /// <summary>
+        /// For a link to several lists (a collection's games), each list's platinum filed under the
+        /// category its list matched; null otherwise. The game then has no whole-game platinum.
+        /// </summary>
+        [JsonProperty("categoryCapstones", NullValueHandling = NullValueHandling.Ignore)]
+        public List<MetadataCategoryCapstone> CategoryCapstones { get; set; }
+
         /// <summary>How many of the game's achievements each source matched, by source key.</summary>
         [JsonProperty("coverage")]
         public Dictionary<string, MetadataCoverage> Coverage { get; set; }
@@ -73,6 +81,27 @@ namespace PlayniteAchievements.Services.Metadata
         /// </summary>
         [JsonProperty("iconFallbackApiNames")]
         public List<string> IconFallbackApiNames { get; set; }
+    }
+
+    /// <summary>One game of a collection's platinum, borrowed for the category its list matched.</summary>
+    public sealed class MetadataCategoryCapstone
+    {
+        [JsonProperty("category")]
+        public string Category { get; set; }
+
+        /// <summary>The platinum's image URL.</summary>
+        [JsonProperty("art")]
+        public string ArtUrl { get; set; }
+
+        [JsonProperty("title", NullValueHandling = NullValueHandling.Ignore)]
+        public string Title { get; set; }
+
+        [JsonProperty("description", NullValueHandling = NullValueHandling.Ignore)]
+        public string Description { get; set; }
+
+        /// <summary>ApiName of the game's own achievement in the category that the platinum matched, or null.</summary>
+        [JsonProperty("match", NullValueHandling = NullValueHandling.Ignore)]
+        public string MatchApiName { get; set; }
     }
 
     /// <summary>One source's match count for a game at its last overlay.</summary>
@@ -365,6 +394,10 @@ namespace PlayniteAchievements.Services.Metadata
         public (string Title, string Description) GetCapstoneText(Guid gameId) =>
             _state?.GetCapstoneText(gameId) ?? (null, null);
 
+        /// <summary>Each collection game's borrowed platinum by category, as the last overlay recorded them; empty when none.</summary>
+        public IReadOnlyList<MetadataCategoryCapstone> GetCategoryCapstones(Guid gameId) =>
+            _state?.GetCategoryCapstones(gameId) ?? Array.Empty<MetadataCategoryCapstone>();
+
         /// <summary>
         /// Records what an overlay applied to the game. Returns true when the game's icons changed
         /// since the last record, so the caller re-downloads icons kept under the same file names.
@@ -377,8 +410,9 @@ namespace PlayniteAchievements.Services.Metadata
             IEnumerable<string> iconApiNames = null,
             string capstoneTitle = null,
             string capstoneDescription = null,
-            string capstoneMatchApiName = null) =>
-            _state?.RecordApplied(gameId, iconSourceKey, capstoneArtUrl, coverage, iconApiNames, capstoneTitle, capstoneDescription, capstoneMatchApiName) ?? false;
+            string capstoneMatchApiName = null,
+            IReadOnlyList<MetadataCategoryCapstone> categoryCapstones = null) =>
+            _state?.RecordApplied(gameId, iconSourceKey, capstoneArtUrl, coverage, iconApiNames, capstoneTitle, capstoneDescription, capstoneMatchApiName, categoryCapstones) ?? false;
 
         /// <summary>A copy of what the last overlay applied to the game, or null.</summary>
         public MetadataAppliedState GetApplied(Guid gameId) => _state?.GetApplied(gameId);
@@ -390,6 +424,30 @@ namespace PlayniteAchievements.Services.Metadata
         /// <summary>Records which borrowed icons fell back to the game's own, returning the ones recorded before.</summary>
         public IReadOnlyCollection<string> ReplaceIconFallbacks(Guid gameId, IEnumerable<string> apiNames) =>
             _state?.ReplaceIconFallbacks(gameId, apiNames) ?? Array.Empty<string>();
+
+        // The search inputs each automatic link was found from, kept beside the sources' page records
+        // in the cache database: one record per game, one "site" per source key.
+        private const string LinkBasisStoreKey = "MetadataLinkBasis";
+        private const string LinkBasisName = "basis";
+
+        /// <summary>
+        /// What the source's last automatic lookup for the game searched from (see
+        /// <see cref="MetadataOverlay"/>), or null when none is recorded.
+        /// </summary>
+        public string GetLinkBasis(Guid gameId, string sourceKey) =>
+            _state != null && !string.IsNullOrWhiteSpace(sourceKey) &&
+            _state.Pages(LinkBasisStoreKey).TryGet(gameId, LinkBasisName, sourceKey.Trim(), out var basis)
+                ? basis
+                : null;
+
+        /// <summary>Records what the source's automatic lookup for the game searched from.</summary>
+        public void SetLinkBasis(Guid gameId, string sourceKey, string basis)
+        {
+            if (_state != null && !string.IsNullOrWhiteSpace(sourceKey) && !string.IsNullOrWhiteSpace(basis))
+            {
+                _state.Pages(LinkBasisStoreKey).Set(gameId, LinkBasisName, sourceKey.Trim(), basis);
+            }
+        }
 
         /// <summary>A source's match count for the game at the last overlay, or null when it did not run.</summary>
         public MetadataCoverage GetCoverage(Guid gameId, string sourceKey) => _state?.GetCoverage(gameId, sourceKey);
@@ -435,9 +493,11 @@ namespace PlayniteAchievements.Services.Metadata
                     return false;
                 }
 
-                // Pairings belong to the link they were made against: kept while it stays the same.
+                // Pairings belong to the lists they were made against: kept while the link still
+                // names every one of them, so adding a collection's list or reordering keeps them.
                 if (next.Pairings == null && existing?.Pairings != null &&
-                    string.Equals(existing.Id, next.Id, StringComparison.Ordinal))
+                    (string.Equals(existing.Id, next.Id, StringComparison.Ordinal) ||
+                     MetadataLinkIds.ContainsAll(next.Id, existing.Id)))
                 {
                     next.Pairings = new Dictionary<string, string>(existing.Pairings, StringComparer.OrdinalIgnoreCase);
                 }

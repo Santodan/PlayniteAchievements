@@ -45,6 +45,31 @@ namespace PlayniteAchievements.Providers.Metadata.TrueGaming
             return BaseSlug(slug);
         }
 
+        private static readonly Regex SearchGame = new Regex(
+            @"<Game>(?<game>.*?)</Game>",
+            RegexOptions.Singleline | RegexOptions.CultureInvariant);
+
+        private static readonly Regex SearchGameTitle = new Regex(@"<Title>(?<title>.*?)</Title>", RegexOptions.Singleline | RegexOptions.CultureInvariant);
+
+        private static readonly Regex SearchGameUrl = new Regex(@"<Url>/game/(?<slug>[^/<]+)/", RegexOptions.CultureInvariant);
+
+        /// <summary>The address of TrueAchievements' site search for game names; the other sites' searches return no games.</summary>
+        internal static string SearchUrl(string name) =>
+            $"https://{TrueGamingSite.TrueAchievements.Host}/true-api/sitesearch/search?q={Uri.EscapeDataString(name ?? string.Empty)}&category=Games";
+
+        /// <summary>The games a site search answered with, as page slugs and titles, in its order.</summary>
+        internal static IReadOnlyList<(string Slug, string Title)> ParseSearch(string text)
+        {
+            return SearchGame.Matches(text ?? string.Empty)
+                .Cast<Match>()
+                .Select(match => match.Groups["game"].Value)
+                .Select(game => (
+                    Slug: Uri.UnescapeDataString(SearchGameUrl.Match(game).Groups["slug"].Value),
+                    Title: System.Net.WebUtility.HtmlDecode(SearchGameTitle.Match(game).Groups["title"].Value)))
+                .Where(game => game.Slug.Length > 0)
+                .ToList();
+        }
+
         /// <summary>A slug without any site's edition suffix ("Elden-Ring-PS5" as "Elden-Ring").</summary>
         internal static string BaseSlug(string slug)
         {

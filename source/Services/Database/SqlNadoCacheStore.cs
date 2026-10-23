@@ -5964,7 +5964,7 @@ namespace PlayniteAchievements.Services.Database
         {
             return WithDb(db => db.Load<MetadataAppliedRow>(
                     @"SELECT PlayniteGameId, IconSourceKey, CapstoneArtUrl, CapstoneTitle,
-                             CapstoneDescription, CapstoneMatchApiName, IconApiNamesJson, IconFallbackApiNamesJson, UpdatedUtc
+                             CapstoneDescription, CapstoneMatchApiName, CategoryCapstonesJson, IconApiNamesJson, IconFallbackApiNamesJson, UpdatedUtc
                       FROM MetadataApplied;")
                 .Where(row => row != null)
                 .ToList());
@@ -6005,14 +6005,15 @@ namespace PlayniteAchievements.Services.Database
                     db.ExecuteNonQuery(
                         @"INSERT OR REPLACE INTO MetadataApplied
                               (PlayniteGameId, IconSourceKey, CapstoneArtUrl, CapstoneTitle,
-                               CapstoneDescription, CapstoneMatchApiName, IconApiNamesJson, IconFallbackApiNamesJson, UpdatedUtc)
-                          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);",
+                               CapstoneDescription, CapstoneMatchApiName, CategoryCapstonesJson, IconApiNamesJson, IconFallbackApiNamesJson, UpdatedUtc)
+                          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?);",
                         gameIdText,
                         applied.IconSourceKey,
                         applied.CapstoneArtUrl,
                         applied.CapstoneTitle,
                         applied.CapstoneDescription,
                         applied.CapstoneMatchApiName,
+                        applied.CategoryCapstonesJson,
                         applied.IconApiNamesJson,
                         applied.IconFallbackApiNamesJson,
                         updatedUtc);

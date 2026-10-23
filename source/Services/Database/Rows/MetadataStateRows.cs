@@ -12,6 +12,9 @@ namespace PlayniteAchievements.Services.Database.Rows
         public string CapstoneDescription { get; set; }
 
         public string CapstoneMatchApiName { get; set; }
+
+        /// <summary>A collection's per-game platinums by category, as JSON; null for none.</summary>
+        public string CategoryCapstonesJson { get; set; }
         public string IconApiNamesJson { get; set; }
         public string IconFallbackApiNamesJson { get; set; }
         public string UpdatedUtc { get; set; }

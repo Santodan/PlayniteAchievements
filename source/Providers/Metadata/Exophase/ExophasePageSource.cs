@@ -23,6 +23,7 @@ namespace PlayniteAchievements.Providers.Metadata.Exophase
         private readonly Dictionary<string, ExophaseApiClient.AchievementFetchResult> _pages =
             new Dictionary<string, ExophaseApiClient.AchievementFetchResult>(StringComparer.OrdinalIgnoreCase);
         private readonly Dictionary<string, string> _searches = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        private readonly Dictionary<string, List<ExophaseGame>> _results = new Dictionary<string, List<ExophaseGame>>(StringComparer.OrdinalIgnoreCase);
         private int _openRuns;
 
         public ExophasePageSource(IPlayniteAPI api, PlayniteAchievementsSettings settings, ILogger logger)
@@ -56,6 +57,7 @@ namespace PlayniteAchievements.Providers.Metadata.Exophase
 
                 _client?.EndCookieSession();
                 _pages.Clear();
+                _results.Clear();
                 _searches.Clear();
             }
         }
@@ -91,6 +93,79 @@ namespace PlayniteAchievements.Providers.Metadata.Exophase
             }
 
             return page;
+        }
+
+        /// <summary>
+        /// True for a page load that says nothing about whether the page exists: a failed load or
+        /// a challenge page, as opposed to a page that loaded and lists no awards.
+        /// </summary>
+        public static bool IsUnreadable(ExophaseApiClient.AchievementFetchResult page) =>
+            page == null ||
+            (!(page.Achievements?.Count > 0) &&
+             (page.Html?.IndexOf("Just a moment", StringComparison.OrdinalIgnoreCase) >= 0 ||
+              page.Html?.IndexOf("cf-chl", StringComparison.OrdinalIgnoreCase) >= 0));
+
+        /// <summary>
+        /// Every page Exophase search offers for <paramref name="name"/> on one of
+        /// <paramref name="platformSlugs"/>, the closest title first and, among equal titles, the
+        /// earlier platform's, at most <paramref name="max"/>. Titles are not filtered by score:
+        /// the caller judges each page by its achievements. Answered is false when the search could
+        /// not be read, which is not kept, so the next search asks again.
+        /// </summary>
+        public async Task<(IReadOnlyList<(string Slug, string Title)> Pages, bool Answered)> SearchCandidatesAsync(
+            string name,
+            IReadOnlyList<string> platformSlugs,
+            int max,
+            CancellationToken ct)
+        {
+            var normalizedName = ExophaseGameNameMatcher.NormalizeGameName(name);
+            if (string.IsNullOrWhiteSpace(normalizedName))
+            {
+                return (Array.Empty<(string, string)>(), true);
+            }
+
+            List<ExophaseGame> games;
+            lock (_sync)
+            {
+                _results.TryGetValue(normalizedName, out games);
+            }
+
+            if (games == null)
+            {
+                var (found, answered) = await _client.TrySearchGamesAsync(normalizedName, null, ct).ConfigureAwait(false);
+                if (!answered)
+                {
+                    return (Array.Empty<(string, string)>(), false);
+                }
+
+                games = found ?? new List<ExophaseGame>();
+                lock (_sync)
+                {
+                    _results[normalizedName] = games;
+                }
+            }
+
+            var platforms = (platformSlugs ?? Array.Empty<string>()).Select(slug => slug.ToLowerInvariant()).ToList();
+            var pages = games
+                .Where(game => game != null && !string.IsNullOrWhiteSpace(game.EndpointAwards))
+                .Select(game => (
+                    Game: game,
+                    Platform: (game.Platforms ?? new List<ExophasePlatform>())
+                        .Select(platform => platforms.IndexOf(platform?.Slug?.Trim().ToLowerInvariant() ?? string.Empty))
+                        .Where(index => index >= 0)
+                        .DefaultIfEmpty(-1)
+                        .Min(),
+                    Score: ExophaseGameNameMatcher.ComputeMatchScore(normalizedName, ExophaseGameNameMatcher.NormalizeGameName(game.Title))))
+                .Where(entry => entry.Platform >= 0)
+                .OrderByDescending(entry => entry.Score)
+                .ThenBy(entry => entry.Platform)
+                .Select(entry => (Slug: ExophaseApiClient.ExtractSlugFromUrl(entry.Game.EndpointAwards), entry.Game.Title))
+                .Where(entry => !string.IsNullOrWhiteSpace(entry.Slug))
+                .GroupBy(entry => entry.Slug, StringComparer.OrdinalIgnoreCase)
+                .Select(group => group.First())
+                .Take(max)
+                .ToList();
+            return (pages, true);
         }
 
         /// <summary>

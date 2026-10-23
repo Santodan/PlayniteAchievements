@@ -455,6 +455,7 @@ namespace PlayniteAchievements.Services.Database
                 CapstoneTitle TEXT NULL,
                 CapstoneDescription TEXT NULL,
                 CapstoneMatchApiName TEXT NULL,
+                CategoryCapstonesJson TEXT NULL,
                 IconApiNamesJson TEXT NULL,
                 IconFallbackApiNamesJson TEXT NULL,
                 UpdatedUtc TEXT NOT NULL
@@ -813,7 +814,7 @@ namespace PlayniteAchievements.Services.Database
             new KeyValuePair<string, string[]>("MetadataApplied", new[]
             {
                 "PlayniteGameId", "IconSourceKey", "CapstoneArtUrl", "CapstoneTitle",
-                "CapstoneDescription", "CapstoneMatchApiName", "IconApiNamesJson", "IconFallbackApiNamesJson", "UpdatedUtc"
+                "CapstoneDescription", "CapstoneMatchApiName", "CategoryCapstonesJson", "IconApiNamesJson", "IconFallbackApiNamesJson", "UpdatedUtc"
             }),
             new KeyValuePair<string, string[]>("MetadataCoverage", new[]
             {

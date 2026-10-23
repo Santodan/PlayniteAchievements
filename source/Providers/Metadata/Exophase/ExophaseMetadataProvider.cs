@@ -4,6 +4,7 @@ using PlayniteAchievements.Models;
 using PlayniteAchievements.Models.Achievements;
 using PlayniteAchievements.Providers.Exophase;
 using PlayniteAchievements.Services.Achievements;
+using PlayniteAchievements.Services.Metadata;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -39,8 +40,8 @@ namespace PlayniteAchievements.Providers.Metadata.Exophase
     /// </summary>
     internal sealed class ExophaseMetadataProvider : IMetadataProvider, IMetadataPageLinks
     {
-        /// <summary>Separates the pages of a link that spans several.</summary>
-        internal const char SetSeparator = ',';
+        // Search results judged per name; each costs a page load the first time in a run.
+        private const int SearchCandidatesJudged = 6;
 
         private static readonly HashSet<string> PlayStationPlatforms =
             new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "psn", "ps3", "ps4", "ps5", "psvita", "vita" };
@@ -122,7 +123,7 @@ namespace PlayniteAchievements.Providers.Metadata.Exophase
 
                 return slugs.Count == 0
                     ? null
-                    : new MetadataSourceLink(string.Join(SetSeparator.ToString(), slugs.Distinct(StringComparer.OrdinalIgnoreCase)), request.Game?.Name, foundByName: true);
+                    : new MetadataSourceLink(MetadataLinkIds.Join(slugs), request.Game?.Name, foundByName: true);
             }
 
             var names = new[] { hints?.SearchName }.Concat(request.SearchNames)
@@ -130,6 +131,50 @@ namespace PlayniteAchievements.Providers.Metadata.Exophase
                 .GroupBy(name => ExophaseGameNameMatcher.NormalizeGameName(name) ?? name, StringComparer.OrdinalIgnoreCase)
                 .Select(group => group.First())
                 .ToList();
+
+            // With the game's achievements at hand, every page the searches offer is judged by
+            // how many of them it matches, and a collection is also looked for game by game.
+            var targets = request.Data?.Achievements?.Where(row => row != null).ToList();
+            if (targets?.Count > 0)
+            {
+                var health = new MetadataLookupHealth();
+                var search = new MetadataPageSearch(
+                    (name, token) => CandidatesAsync(name, suffixes, searchPlatforms, pagePlatform, health, token),
+                    async (slug, token) =>
+                    {
+                        var page = await _pages.GetPageAsync(slug, pagePlatform, token).ConfigureAwait(false);
+                        if (ExophasePageSource.IsUnreadable(page))
+                        {
+                            health.MarkUnreadable();
+                        }
+
+                        return page?.Achievements;
+                    });
+                var seeds = await RelatedSeedsAsync(request, ct).ConfigureAwait(false);
+                var choice = await search.ChooseAsync(names, targets, MetadataSubGame.From(targets), ct, request.CategoryNames, seeds, request.AlternateNames).ConfigureAwait(false);
+                if (health.LeavesDoubt(choice))
+                {
+                    _logger?.Debug($"[{Key}Metadata] '{request.Game?.Name}': {choice?.Matched ?? 0}/{targets.Count} matched, but some pages could not be read; looking again next refresh.");
+                    return MetadataSourceLink.Unavailable(choice?.Trace);
+                }
+
+                if (choice == null)
+                {
+                    _logger?.Debug($"[{Key}Metadata] '{request.Game?.Name}': no {pagePlatform} page matches its achievements.");
+                    return null;
+                }
+
+                var chosen = new List<string>();
+                foreach (var slug in choice.Ids)
+                {
+                    chosen.Add(_branch.OwnPlatform ? slug : await PreferredVersionAsync(slug, ct).ConfigureAwait(false));
+                }
+
+                var linkId = MetadataLinkIds.Join(chosen);
+                _logger?.Debug($"[{Key}Metadata] '{request.Game?.Name}' -> {linkId} ({choice.Matched}/{targets.Count} matched; {choice.Trace}).");
+                return new MetadataSourceLink(linkId, choice.Label ?? request.Game?.Name, foundByName: true) { Trace = choice.Trace, Matched = choice.Matched };
+            }
+
             var found = await FindPageAsync(names, suffixes, searchPlatforms, pagePlatform, hints?.RegionHint, ct).ConfigureAwait(false);
             if (found == null)
             {
@@ -174,6 +219,92 @@ namespace PlayniteAchievements.Providers.Metadata.Exophase
             }
 
             return null;
+        }
+
+        /// <summary>
+        /// This platform's pages for the game that the game's other Exophase links point to: each
+        /// linked page's links to the same game on other platforms ("Also on"). Judged before any
+        /// search, at the cost of the linked pages, which the overlay reads anyway.
+        /// </summary>
+        private async Task<IReadOnlyList<MetadataPageCandidate>> RelatedSeedsAsync(MetadataLinkRequest request, CancellationToken ct)
+        {
+            var family = RelatedPlatformPrefix(_branch);
+            var seeds = new List<MetadataPageCandidate>();
+            if (family == null || request.OtherLinks == null)
+            {
+                return seeds;
+            }
+
+            foreach (var branch in ExophaseMetadataBranch.All.Where(branch => branch != _branch))
+            {
+                if (!request.OtherLinks.TryGetValue(branch.Key, out var linkId))
+                {
+                    continue;
+                }
+
+                var platform = branch.OwnPlatform ? OwnPlatformSlug(request) : branch.PlatformHint;
+                if (platform == null)
+                {
+                    continue;
+                }
+
+                foreach (var slug in MetadataLinkIds.Parse(linkId).Select(PageSlug).Where(slug => slug != null))
+                {
+                    var page = await _pages.GetPageAsync(slug, platform, ct).ConfigureAwait(false);
+                    seeds.AddRange(ExophaseGamePageParser.ParseRelatedPages(page?.Html)
+                        .Where(related => related.Platform.StartsWith(family, StringComparison.OrdinalIgnoreCase))
+                        .Select(related => new MetadataPageCandidate(related.Slug, null, $"{branch.Key}'s Also on")));
+                }
+            }
+
+            return seeds;
+        }
+
+        /// <summary>How "Also on" names the branch's platforms ("PS5", "PS Vita"; "Xbox One"); null for the own-platform branch.</summary>
+        private static string RelatedPlatformPrefix(ExophaseMetadataBranch branch) =>
+            branch == ExophaseMetadataBranch.PlayStation ? "PS"
+            : branch == ExophaseMetadataBranch.Xbox ? "Xbox"
+            : null;
+
+        /// <summary>
+        /// The pages to judge for one name: what Exophase search offers on the branch's platforms,
+        /// else the slugs built from the name. A built slug costs a page load whether or not the
+        /// page exists, while the search names the real pages, so building waits for an empty search.
+        /// </summary>
+        private async Task<IReadOnlyList<MetadataPageCandidate>> CandidatesAsync(
+            string name,
+            IReadOnlyList<string> suffixes,
+            IReadOnlyList<string> searchPlatforms,
+            string pagePlatform,
+            MetadataLookupHealth health,
+            CancellationToken ct)
+        {
+            var (found, answered) = await _pages.SearchCandidatesAsync(name, searchPlatforms, SearchCandidatesJudged, ct).ConfigureAwait(false);
+            if (!answered)
+            {
+                health.MarkUnreadable();
+            }
+
+            if (found.Count > 0)
+            {
+                return found.Select((page, index) => new MetadataPageCandidate(page.Slug, page.Title, $"search #{index + 1}")).ToList();
+            }
+
+            var candidates = new List<MetadataPageCandidate>();
+            foreach (var slug in CandidateSlugs(new[] { name }, suffixes))
+            {
+                var page = await _pages.GetPageAsync(slug, pagePlatform, ct).ConfigureAwait(false);
+                if (page?.Achievements?.Count > 0)
+                {
+                    candidates.Add(new MetadataPageCandidate(slug, name, "built name"));
+                }
+                else if (ExophasePageSource.IsUnreadable(page))
+                {
+                    health.MarkUnreadable();
+                }
+            }
+
+            return candidates;
         }
 
         /// <summary>The preferred platform's version of a borrowed page (the PS5 page of a PS4 game), when the page links one that lists awards.</summary>
@@ -224,24 +355,23 @@ namespace PlayniteAchievements.Providers.Metadata.Exophase
                 return null;
             }
 
-            // One page, or several comma-separated. Rows keep that order, so the first page's
-            // platinum is the capstone art.
-            var rows = new List<AchievementDetail>();
-            var categoryArt = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-            foreach (var slug in SplitSets(linkId))
+            // One page; the overlay fetches each page of a link that names several.
+            var slug = PageSlug(linkId);
+            if (slug == null)
             {
-                var page = await _pages.GetPageAsync(slug, platformSlug, ct).ConfigureAwait(false);
-                var pageRows = page?.Achievements ?? new List<AchievementDetail>();
-                ApplySections(pageRows, ExophaseGamePageParser.ParseAwardSections(page?.Html), categoryArt, request?.BaseCategoryLabel);
-                rows.AddRange(pageRows);
+                return null;
             }
 
+            var page = await _pages.GetPageAsync(slug, platformSlug, ct).ConfigureAwait(false);
+            var rows = page?.Achievements ?? new List<AchievementDetail>();
+            var categoryArt = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            ApplySections(rows, ExophaseGamePageParser.ParseAwardSections(page?.Html, out var gameArt), categoryArt, request?.BaseCategoryLabel);
             if (rows.Count == 0)
             {
                 return null;
             }
 
-            var set = new AchievementSourceSet(Key, linkId, rows);
+            var set = new AchievementSourceSet(Key, linkId, rows) { GameArtUrl = gameArt };
             foreach (var art in categoryArt)
             {
                 set.CategoryArtUrls[art.Key] = art.Value;
@@ -250,19 +380,18 @@ namespace PlayniteAchievements.Providers.Metadata.Exophase
             return set;
         }
 
-        /// <summary>The own platform's Exophase slug: the scan's hint ("xbox-360" for a 360 game), else the servicing platform's.</summary>
-        /// <summary>Each linked set's award page, on the branch's platform.</summary>
+        /// <summary>The linked page's award page, on the branch's platform.</summary>
         public IReadOnlyList<MetadataPageLink> PageLinks(Guid gameId, string linkId, string servicingProviderKey)
         {
             var platformSlug = _branch.OwnPlatform ? ExophaseMetadataBranch.OwnPlatformSlug(servicingProviderKey) : _branch.PlatformHint;
-            return platformSlug == null
+            var slug = PageSlug(linkId);
+            var url = platformSlug == null || slug == null ? null : ExophaseApiClient.BuildUrlFromSlug(slug, platformSlug);
+            return string.IsNullOrWhiteSpace(url)
                 ? Array.Empty<MetadataPageLink>()
-                : SplitSets(linkId)
-                    .Select(slug => new MetadataPageLink(slug, ExophaseApiClient.BuildUrlFromSlug(slug, platformSlug)))
-                    .Where(page => !string.IsNullOrWhiteSpace(page.Url))
-                    .ToList();
+                : new[] { new MetadataPageLink(slug, url) };
         }
 
+        /// <summary>The own platform's Exophase slug: the scan's hint ("xbox-360" for a 360 game), else the servicing platform's.</summary>
         private static string OwnPlatformSlug(MetadataLinkRequest request)
         {
             var hinted = request?.Data?.MetadataHints?.PlatformSlug;
@@ -338,18 +467,16 @@ namespace PlayniteAchievements.Providers.Metadata.Exophase
                 .Distinct(StringComparer.OrdinalIgnoreCase);
         }
 
-        /// <summary>The page slugs in a link: one, or several separated by commas. Full page addresses are accepted.</summary>
-        internal static IReadOnlyList<string> SplitSets(string linkId)
+        /// <summary>The page slug one list of a link names; a full page address is accepted. Null when blank.</summary>
+        internal static string PageSlug(string linkId)
         {
-            return (linkId ?? string.Empty)
-                .Split(new[] { SetSeparator }, StringSplitOptions.RemoveEmptyEntries)
-                .Select(part => part.Trim())
-                .Select(part => part.StartsWith("http", StringComparison.OrdinalIgnoreCase)
-                    ? ExophaseApiClient.ExtractSlugFromUrl(part)
-                    : part)
-                .Where(part => !string.IsNullOrWhiteSpace(part))
-                .Distinct(StringComparer.OrdinalIgnoreCase)
-                .ToList();
+            var part = linkId?.Trim();
+            if (part != null && part.StartsWith("http", StringComparison.OrdinalIgnoreCase))
+            {
+                part = ExophaseApiClient.ExtractSlugFromUrl(part)?.Trim();
+            }
+
+            return string.IsNullOrWhiteSpace(part) ? null : part;
         }
     }
 }

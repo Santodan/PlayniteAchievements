@@ -1,6 +1,7 @@
 using Newtonsoft.Json;
 using Playnite.SDK;
 using PlayniteAchievements.Models.Achievements;
+using PlayniteAchievements.Providers.Metadata;
 using PlayniteAchievements.Services.Cache;
 using PlayniteAchievements.Services.Database.Rows;
 using System;
@@ -23,6 +24,10 @@ namespace PlayniteAchievements.Services.Metadata
 
         [JsonProperty("icon", NullValueHandling = NullValueHandling.Ignore)]
         public string Icon { get; set; }
+
+        /// <summary>The list it came from, for a link that names several (a collection's game); null otherwise.</summary>
+        [JsonProperty("list", NullValueHandling = NullValueHandling.Ignore)]
+        public string List { get; set; }
     }
 
     /// <summary>A source's rows for a game at its last overlay, and which of the game's achievements each matched.</summary>
@@ -96,17 +101,31 @@ namespace PlayniteAchievements.Services.Metadata
         }
 
         /// <summary>Records a source's rows and matches for the game; the row is written only when they changed.</summary>
-        public void Record(
+        internal void Record(
             Guid gameId,
             string sourceKey,
             string linkId,
             IEnumerable<AchievementDetail> rows,
-            IEnumerable<KeyValuePair<string, string>> matches)
+            IEnumerable<KeyValuePair<string, string>> matches,
+            IReadOnlyList<MetadataSourceList> lists = null)
         {
             var database = _database?.Invoke();
             if (database == null || gameId == Guid.Empty || string.IsNullOrWhiteSpace(sourceKey) || string.IsNullOrWhiteSpace(linkId))
             {
                 return;
+            }
+
+            // Each row's list, named in the match list when the link names several.
+            var listOf = new Dictionary<AchievementDetail, string>();
+            if (lists?.Count > 1)
+            {
+                foreach (var list in lists)
+                {
+                    foreach (var row in list.Rows.Where(row => row != null && !listOf.ContainsKey(row)))
+                    {
+                        listOf[row] = list.Title;
+                    }
+                }
             }
 
             var sourceRows = (rows ?? Enumerable.Empty<AchievementDetail>())
@@ -118,7 +137,8 @@ namespace PlayniteAchievements.Services.Metadata
                     ApiName = row.ApiName,
                     Name = row.DisplayName,
                     Description = string.IsNullOrWhiteSpace(row.Description) ? null : row.Description,
-                    Icon = string.IsNullOrWhiteSpace(row.UnlockedIconPath) ? row.LockedIconPath : row.UnlockedIconPath
+                    Icon = string.IsNullOrWhiteSpace(row.UnlockedIconPath) ? row.LockedIconPath : row.UnlockedIconPath,
+                    List = listOf.TryGetValue(row, out var list) ? list : null
                 })
                 .ToList();
             var pairs = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);

@@ -74,19 +74,107 @@ namespace PlayniteAchievements.Services.Metadata
                 }
             }
 
+            // Each side's titles in three forms: as written, without the tag a collection repeats on
+            // its titles after a separator ("Shenmue: Needle In A Haystack", "TR2 | Snow March"),
+            // and without a first word repeated on many of them (a tag without a separator). A
+            // side without a repeated tag reads its titles as written. Tags off both sides first,
+            // then as written, then each form against the other side's others for what is still
+            // unmatched: "TR Miu" meets "TR:UB | Miu", "TR The Cataclysm" meets "TR1 | The Cataclysm".
+            Func<AchievementDetail, string> plain = row => NormalizeText(row.DisplayName);
+            var targetForms = new[] { plain, UnprefixedTitleKey(targets) ?? plain, UnprefixedFirstWordKey(targets) ?? plain };
+            var sourceForms = new[] { plain, UnprefixedTitleKey(eligible) ?? plain, UnprefixedFirstWordKey(eligible) ?? plain };
+            var run = new HashSet<(Func<AchievementDetail, string>, Func<AchievementDetail, string>)>();
+            foreach (var (t, s) in TitleFormOrder)
+            {
+                if (run.Add((targetForms[t], sourceForms[s])))
+                {
+                    MatchTitles(targets, eligible, used, matchedTargets, matches, targetForms[t], sourceForms[s]);
+                }
+            }
+
+            MatchUniqueDescriptions(targets, eligible, used, matchedTargets, matches);
+            return matches;
+        }
+
+        // The title forms paired in order (0 as written, 1 without a separated tag, 2 without a
+        // repeated first word): tags off, as written, then every other pairing.
+        private static readonly (int Target, int Source)[] TitleFormOrder =
+        {
+            (1, 1), (0, 0), (0, 1), (0, 2), (1, 0), (1, 2), (2, 0), (2, 1), (2, 2)
+        };
+
+        // How far the best of several same-titled candidates must lead the next to be taken.
+        private const double ClearLead = 0.5;
+
+        // A description pairs two achievements only when it has at least this many words.
+        private const int DescriptionPairingMinimumWords = 3;
+
+        /// <summary>
+        /// Pairs what is still unmatched by description (a renamed or translated title), only where
+        /// the description is written once among all of each side's rows: descriptions a game
+        /// repeats ("Beat Mom's Heart 11 times" for each character) never pair on their own.
+        /// </summary>
+        private static void MatchUniqueDescriptions(
+            IList<AchievementDetail> targets,
+            IList<AchievementDetail> eligible,
+            ISet<AchievementDetail> used,
+            ISet<AchievementDetail> matchedTargets,
+            List<AchievementMatch> matches)
+        {
+            var sources = UniqueByDescription(eligible);
+            if (sources.Count == 0)
+            {
+                return;
+            }
+
+            foreach (var pair in UniqueByDescription(targets))
+            {
+                if (matchedTargets.Contains(pair.Value) ||
+                    !sources.TryGetValue(pair.Key, out var source) ||
+                    used.Contains(source))
+                {
+                    continue;
+                }
+
+                matches.Add(new AchievementMatch(pair.Value, source));
+                used.Add(source);
+                matchedTargets.Add(pair.Value);
+            }
+        }
+
+        private static Dictionary<string, AchievementDetail> UniqueByDescription(IEnumerable<AchievementDetail> rows)
+        {
+            return rows
+                .Where(row => row != null)
+                .Select(row => (Key: NormalizeText(row.Description), Row: row))
+                .Where(entry => entry.Key != null && entry.Key.Split(' ').Length >= DescriptionPairingMinimumWords)
+                .GroupBy(entry => entry.Key, StringComparer.OrdinalIgnoreCase)
+                .Where(group => group.Count() == 1)
+                .ToDictionary(group => group.Key, group => group.First().Row, StringComparer.OrdinalIgnoreCase);
+        }
+
+        private static void MatchTitles(
+            IList<AchievementDetail> targets,
+            IList<AchievementDetail> eligible,
+            ISet<AchievementDetail> used,
+            ISet<AchievementDetail> matchedTargets,
+            List<AchievementMatch> matches,
+            Func<AchievementDetail, string> targetKey,
+            Func<AchievementDetail, string> sourceKey)
+        {
             var sourcesByTitle = eligible
                 .Where(source => !used.Contains(source))
-                .GroupBy(source => NormalizeText(source.DisplayName), StringComparer.OrdinalIgnoreCase)
+                .GroupBy(sourceKey, StringComparer.OrdinalIgnoreCase)
                 .Where(group => !string.IsNullOrWhiteSpace(group.Key))
                 .ToDictionary(group => group.Key, group => group.ToList(), StringComparer.OrdinalIgnoreCase);
             if (sourcesByTitle.Count == 0)
             {
-                return matches;
+                return;
             }
 
             var targetTitleCounts = targets
                 .Where(target => target != null && !matchedTargets.Contains(target))
-                .GroupBy(target => NormalizeText(target.DisplayName), StringComparer.OrdinalIgnoreCase)
+                .GroupBy(targetKey, StringComparer.OrdinalIgnoreCase)
                 .Where(group => !string.IsNullOrWhiteSpace(group.Key))
                 .ToDictionary(group => group.Key, group => group.Count(), StringComparer.OrdinalIgnoreCase);
 
@@ -97,7 +185,7 @@ namespace PlayniteAchievements.Services.Metadata
                     continue;
                 }
 
-                var title = NormalizeText(target.DisplayName);
+                var title = targetKey(target);
                 if (string.IsNullOrWhiteSpace(title) || !sourcesByTitle.TryGetValue(title, out var candidates))
                 {
                     continue;
@@ -111,9 +199,97 @@ namespace PlayniteAchievements.Services.Metadata
 
                 matches.Add(new AchievementMatch(target, source));
                 used.Add(source);
+                matchedTargets.Add(target);
+            }
+        }
+
+        // A title prefix counts as a collection's tag when this many titles carry it.
+        private const int RepeatedPrefixMinimum = 3;
+
+        /// <summary>
+        /// The title key without a repeated prefix: the part before the last "|" or, without one,
+        /// the first ":", when at least <see cref="RepeatedPrefixMinimum"/> of the rows carry the
+        /// same one. Null when no prefix repeats, so titles are only matched as written.
+        /// </summary>
+        private static Func<AchievementDetail, string> UnprefixedTitleKey(IEnumerable<AchievementDetail> rows)
+        {
+            var repeated = new HashSet<string>(
+                rows.Where(row => row != null)
+                    .Select(row => SplitTitlePrefix(row.DisplayName).Prefix)
+                    .Where(prefix => prefix != null)
+                    .GroupBy(prefix => prefix, StringComparer.OrdinalIgnoreCase)
+                    .Where(group => group.Count() >= RepeatedPrefixMinimum)
+                    .Select(group => group.Key),
+                StringComparer.OrdinalIgnoreCase);
+            if (repeated.Count == 0)
+            {
+                return null;
             }
 
-            return matches;
+            return row =>
+            {
+                var (prefix, remainder) = SplitTitlePrefix(row.DisplayName);
+                return NormalizeText(prefix != null && repeated.Contains(prefix) ? remainder : row.DisplayName);
+            };
+        }
+
+        /// <summary>
+        /// The normalized title without its first word, when at least
+        /// <see cref="RepeatedPrefixMinimum"/> of the rows start with that word and more follows it.
+        /// Null when no first word repeats.
+        /// </summary>
+        private static Func<AchievementDetail, string> UnprefixedFirstWordKey(IEnumerable<AchievementDetail> rows)
+        {
+            var repeated = new HashSet<string>(
+                rows.Where(row => row != null)
+                    .Select(row => SplitFirstWord(NormalizeText(row.DisplayName)).Word)
+                    .Where(word => word != null)
+                    .GroupBy(word => word, StringComparer.OrdinalIgnoreCase)
+                    .Where(group => group.Count() >= RepeatedPrefixMinimum)
+                    .Select(group => group.Key),
+                StringComparer.OrdinalIgnoreCase);
+            if (repeated.Count == 0)
+            {
+                return null;
+            }
+
+            return row =>
+            {
+                var title = NormalizeText(row.DisplayName);
+                var (word, remainder) = SplitFirstWord(title);
+                return word != null && repeated.Contains(word) ? remainder : title;
+            };
+        }
+
+        private static (string Word, string Remainder) SplitFirstWord(string normalizedTitle)
+        {
+            var index = normalizedTitle?.IndexOf(' ') ?? -1;
+            return index <= 0 || index >= normalizedTitle.Length - 1
+                ? (null, null)
+                : (normalizedTitle.Substring(0, index), normalizedTitle.Substring(index + 1));
+        }
+
+        private static (string Prefix, string Remainder) SplitTitlePrefix(string title)
+        {
+            if (string.IsNullOrWhiteSpace(title))
+            {
+                return (null, null);
+            }
+
+            var index = title.LastIndexOf('|');
+            if (index <= 0)
+            {
+                index = title.IndexOf(':');
+            }
+
+            if (index <= 0 || index >= title.Length - 1)
+            {
+                return (null, null);
+            }
+
+            var prefix = title.Substring(0, index).Trim();
+            var remainder = title.Substring(index + 1).Trim();
+            return prefix.Length == 0 || remainder.Length == 0 ? (null, null) : (prefix, remainder);
         }
 
         /// <summary>
@@ -246,7 +422,8 @@ namespace PlayniteAchievements.Services.Metadata
                 return null;
             }
 
-            if (scored.Count > 1 && scored[0].Score == scored[1].Score)
+            // A best candidate that is not clearly ahead (an eighth of the description score) is a tie.
+            if (scored.Count > 1 && scored[0].Score - scored[1].Score < ClearLead)
             {
                 return null;
             }
@@ -254,17 +431,13 @@ namespace PlayniteAchievements.Services.Metadata
             return scored[0].Candidate;
         }
 
-        private static int Score(AchievementDetail target, AchievementDetail source)
+        /// <summary>
+        /// How alike two rows with the same title are: description similarity (up to 4, so a
+        /// reworded description still counts), then trophy type (3) and points (2).
+        /// </summary>
+        private static double Score(AchievementDetail target, AchievementDetail source)
         {
-            var score = 0;
-
-            var targetDescription = NormalizeText(target?.Description);
-            var sourceDescription = NormalizeText(source?.Description);
-            if (!string.IsNullOrWhiteSpace(targetDescription) &&
-                string.Equals(targetDescription, sourceDescription, StringComparison.OrdinalIgnoreCase))
-            {
-                score += 4;
-            }
+            var score = 4 * DescriptionSimilarity(target?.Description, source?.Description);
 
             if (!string.IsNullOrWhiteSpace(target?.TrophyType) &&
                 string.Equals(target.TrophyType, source?.TrophyType, StringComparison.OrdinalIgnoreCase))
@@ -280,6 +453,30 @@ namespace PlayniteAchievements.Services.Metadata
             }
 
             return score;
+        }
+
+        /// <summary>
+        /// The share of words two descriptions have in common (shared words over all their
+        /// distinct words): 1 when they read alike, 0 when either is missing.
+        /// </summary>
+        internal static double DescriptionSimilarity(string first, string second)
+        {
+            var a = NormalizeText(first);
+            var b = NormalizeText(second);
+            if (a == null || b == null)
+            {
+                return 0;
+            }
+
+            if (string.Equals(a, b, StringComparison.OrdinalIgnoreCase))
+            {
+                return 1;
+            }
+
+            var wordsA = new HashSet<string>(a.Split(' '), StringComparer.OrdinalIgnoreCase);
+            var wordsB = new HashSet<string>(b.Split(' '), StringComparer.OrdinalIgnoreCase);
+            var shared = wordsA.Count(wordsB.Contains);
+            return (double)shared / (wordsA.Count + wordsB.Count - shared);
         }
     }
 }

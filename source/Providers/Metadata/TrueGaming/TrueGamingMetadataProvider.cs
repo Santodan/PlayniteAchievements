@@ -72,6 +72,11 @@ namespace PlayniteAchievements.Providers.Metadata.TrueGaming
             {
                 _pages.Clear();
             }
+
+            lock (_searches)
+            {
+                _searches.Clear();
+            }
         }
 
         /// <summary>
@@ -85,12 +90,44 @@ namespace PlayniteAchievements.Providers.Metadata.TrueGaming
                 return null;
             }
 
+            // With the game's achievements at hand, each page name the slug and TrueAchievements
+            // search offer is judged by how many of them its pages match, and a collection is also
+            // looked for game by game.
+            var targets = request.Data?.Achievements?.Where(row => row != null).ToList();
+            if (targets?.Count > 0)
+            {
+                var health = new MetadataLookupHealth();
+                var search = new MetadataPageSearch(
+                    (name, token) => CandidatesAsync(name, health, token),
+                    (slug, token) => RowsAsync(request, slug, health, token));
+                var names = request.SearchNames.Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+                var choice = await search.ChooseAsync(names, targets, MetadataSubGame.From(targets), ct, request.CategoryNames, sharedNames: request.AlternateNames).ConfigureAwait(false);
+                if (health.LeavesDoubt(choice))
+                {
+                    _logger?.Debug($"[TrueGamingMetadata] '{request.Game?.Name}': {choice?.Matched ?? 0}/{targets.Count} matched, but some pages could not be read; looking again next refresh.");
+                    return MetadataSourceLink.Unavailable(choice?.Trace);
+                }
+
+                if (choice == null)
+                {
+                    _logger?.Debug($"[TrueGamingMetadata] '{request.Game?.Name}': no TrueGaming page matches its achievements.");
+                    return null;
+                }
+
+                // A new lookup (a new game, or a reset link) starts the game's pages over.
+                _store.Clear(GameId(request));
+                var chosen = MetadataLinkIds.Join(choice.Ids.Select(TrueGamingLinks.BaseSlug));
+                _logger?.Debug($"[TrueGamingMetadata] '{request.Game?.Name}' -> {chosen} ({choice.Matched}/{targets.Count} matched; {choice.Trace}).");
+                return new MetadataSourceLink(chosen, choice.Label ?? request.Game?.Name, foundByName: true) { Trace = choice.Trace, Matched = choice.Matched };
+            }
+
             var found = new List<TrueGamingFoundPage>();
-            var outcomes = await AddNeededPagesAsync(request, found, new HashSet<TrueGamingSite>(), name: null, ct).ConfigureAwait(false);
+            var unread = new HashSet<TrueGamingSite>();
+            var outcomes = await AddNeededPagesAsync(request, found, unread, name: null, ct).ConfigureAwait(false);
             if (found.Count == 0)
             {
-                _logger?.Debug($"[TrueGamingMetadata] '{request.Game?.Name}': no TrueGaming page.");
-                return null;
+                _logger?.Debug($"[TrueGamingMetadata] '{request.Game?.Name}': no TrueGaming page{(unread.Count > 0 ? ", but some pages could not be read" : string.Empty)}.");
+                return unread.Count > 0 ? MetadataSourceLink.Unavailable() : null;
             }
 
             // A new lookup (a new game, or a reset link) starts the game's pages over.
@@ -99,6 +136,99 @@ namespace PlayniteAchievements.Providers.Metadata.TrueGaming
             Record(request, linkId, outcomes);
             _logger?.Debug($"[TrueGamingMetadata] '{request.Game?.Name}' -> {linkId} ({Describe(found)}).");
             return new MetadataSourceLink(linkId, request.Game?.Name, foundByName: true);
+        }
+
+        // TrueAchievements search results judged per name; each can cost a page load on every site.
+        private const int SearchCandidatesJudged = 3;
+
+        private readonly Dictionary<string, IReadOnlyList<(string Slug, string Title)>> _searches =
+            new Dictionary<string, IReadOnlyList<(string Slug, string Title)>>(StringComparer.OrdinalIgnoreCase);
+
+        /// <summary>The page names to judge for one name: its own slug, then what TrueAchievements search lists.</summary>
+        private async Task<IReadOnlyList<MetadataPageCandidate>> CandidatesAsync(string name, MetadataLookupHealth health, CancellationToken ct)
+        {
+            var candidates = new List<MetadataPageCandidate>();
+            var slug = TrueGamingLinks.ToSlug(name);
+            if (slug != null)
+            {
+                candidates.Add(new MetadataPageCandidate(slug, name, "built name"));
+            }
+
+            var results = await SearchAsync(name, health, ct).ConfigureAwait(false);
+            for (var i = 0; i < results.Count; i++)
+            {
+                candidates.Add(new MetadataPageCandidate(TrueGamingLinks.BaseSlug(results[i].Slug), results[i].Title, $"TrueAchievements search #{i + 1}"));
+            }
+
+            return candidates;
+        }
+
+        /// <summary>TrueAchievements' search results for a name, asked once per run; a search that did not answer is not kept.</summary>
+        private async Task<IReadOnlyList<(string Slug, string Title)>> SearchAsync(string name, MetadataLookupHealth health, CancellationToken ct)
+        {
+            var url = TrueGamingLinks.SearchUrl(name);
+            lock (_searches)
+            {
+                if (_searches.TryGetValue(url, out var cached))
+                {
+                    return cached;
+                }
+            }
+
+            var text = await _views.GetPageTextAsync(url, ct, PageTimeoutMs).ConfigureAwait(false);
+            if (string.IsNullOrWhiteSpace(text) || IsChallenge(text))
+            {
+                _logger?.Debug($"[TrueGamingMetadata] {url} could not be read{(string.IsNullOrWhiteSpace(text) ? string.Empty : " (challenge page)")}.");
+                health.MarkUnreadable();
+                return Array.Empty<(string, string)>();
+            }
+
+            var results = TrueGamingLinks.ParseSearch(text).Take(SearchCandidatesJudged).ToList();
+            lock (_searches)
+            {
+                _searches[url] = results;
+            }
+
+            return results;
+        }
+
+        /// <summary>
+        /// The rows a page name gives, site by site, the platform's own site first: one page when
+        /// it matches every achievement, else the sites' pages together, as a fetch reads them.
+        /// Null when no site has it.
+        /// </summary>
+        private async Task<IList<AchievementDetail>> RowsAsync(MetadataLinkRequest request, string slug, MetadataLookupHealth health, CancellationToken ct)
+        {
+            var achievements = (request.Data?.Achievements ?? new List<AchievementDetail>()).Where(row => row != null).ToList();
+            var targets = achievements
+                .Select(row => row.DisplayName)
+                .Where(title => !string.IsNullOrWhiteSpace(title))
+                .ToList();
+            var own = TrueGamingSite.For(request.ServicingProviderKey);
+            var found = new List<TrueGamingFoundPage>();
+            List<AchievementDetail> rows = null;
+            foreach (var site in new[] { own }.Concat(TrueGamingSite.LookupOrder.Where(site => site != own)))
+            {
+                var (hit, settled) = await FindPageAsync(site, request, targets, slug, ct).ConfigureAwait(false);
+                if (hit == null)
+                {
+                    if (!settled)
+                    {
+                        health.MarkUnreadable();
+                    }
+
+                    continue;
+                }
+
+                found.Add(hit);
+                rows = TrueGamingPageSet.Combine(found.OrderBy(page => TrueGamingSite.LookupOrder.ToList().IndexOf(page.Site)).ToList(), request.BaseCategoryLabel);
+                if (CrossSourceAchievementMatcher.Match(achievements, rows).Count >= achievements.Count)
+                {
+                    break;
+                }
+            }
+
+            return rows;
         }
 
         /// <summary>
@@ -124,7 +254,10 @@ namespace PlayniteAchievements.Providers.Metadata.TrueGaming
             }
 
             found = found.OrderBy(page => TrueGamingSite.LookupOrder.ToList().IndexOf(page.Site)).ToList();
-            var set = new AchievementSourceSet(Key, linkId, TrueGamingPageSet.Combine(found, request.BaseCategoryLabel));
+            var set = new AchievementSourceSet(Key, linkId, TrueGamingPageSet.Combine(found, request.BaseCategoryLabel))
+            {
+                GameArtUrl = found.Select(page => page.Page.GameArt).FirstOrDefault(art => art != null)
+            };
             if (!string.Equals(name, linkId?.Trim(), StringComparison.Ordinal))
             {
                 set.ExtendedLinkId = name;
@@ -349,6 +482,10 @@ namespace PlayniteAchievements.Providers.Metadata.TrueGaming
                 }, ct).ConfigureAwait(false);
                 page = TrueGamingPageParser.Parse(html);
                 page.Loaded = !string.IsNullOrWhiteSpace(html) && !IsChallenge(html);
+                if (!page.Loaded)
+                {
+                    _logger?.Debug($"[TrueGamingMetadata] {url} could not be read{(string.IsNullOrWhiteSpace(html) ? string.Empty : " (challenge page)")}.");
+                }
                 if (timedOut)
                 {
                     _logger?.Debug($"[TrueGamingMetadata] {url} still loading after {PageTimeoutMs} ms; read with {page.Achievements.Count} rows.");

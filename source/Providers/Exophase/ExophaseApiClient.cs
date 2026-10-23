@@ -302,9 +302,18 @@ namespace PlayniteAchievements.Providers.Exophase
         /// <param name="ct">Cancellation token.</param>
         public async Task<List<ExophaseGame>> SearchGamesAsync(string query, string platformSlug, CancellationToken ct)
         {
+            return (await TrySearchGamesAsync(query, platformSlug, ct).ConfigureAwait(false)).Games;
+        }
+
+        /// <summary>
+        /// The search's games, and whether Exophase answered at all: false for a failed request,
+        /// a challenge page or a search still throttled, which say nothing about the game.
+        /// </summary>
+        internal async Task<(List<ExophaseGame> Games, bool Answered)> TrySearchGamesAsync(string query, string platformSlug, CancellationToken ct)
+        {
             if (string.IsNullOrWhiteSpace(query))
             {
-                return new List<ExophaseGame>();
+                return (new List<ExophaseGame>(), true);
             }
 
             try
@@ -328,19 +337,19 @@ namespace PlayniteAchievements.Providers.Exophase
                     ct).ConfigureAwait(false);
                 if (string.IsNullOrWhiteSpace(json))
                 {
-                    return new List<ExophaseGame>();
+                    return (new List<ExophaseGame>(), false);
                 }
 
                 if (Regex.IsMatch(json, "\"games\"\\s*:\\s*false\\b", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant))
                 {
                     _logger?.Debug("[Exophase] Search returned games:false; treating as no matches");
-                    return new List<ExophaseGame>();
+                    return (new List<ExophaseGame>(), true);
                 }
 
                 var result = Serialization.FromJson<ExophaseSearchResult>(json);
                 if (result?.Games?.List == null || result.Games.List.Count == 0)
                 {
-                    return new List<ExophaseGame>();
+                    return (new List<ExophaseGame>(), true);
                 }
 
                 // Filter to only games with achievements (endpoint_awards URL)
@@ -348,7 +357,7 @@ namespace PlayniteAchievements.Providers.Exophase
                     .Where(g => g != null && !string.IsNullOrWhiteSpace(g.EndpointAwards))
                     .ToList();
 
-                return filtered;
+                return (filtered, true);
             }
             catch (OperationCanceledException)
             {
@@ -357,12 +366,12 @@ namespace PlayniteAchievements.Providers.Exophase
             catch (ExophaseThrottledException)
             {
                 _logger?.Warn($"[Exophase] Search for '{query}' still throttled after retries.");
-                return new List<ExophaseGame>();
+                return (new List<ExophaseGame>(), false);
             }
             catch (Exception ex)
             {
                 _logger?.Error(ex, "Exophase search failed");
-                return new List<ExophaseGame>();
+                return (new List<ExophaseGame>(), false);
             }
         }
 
