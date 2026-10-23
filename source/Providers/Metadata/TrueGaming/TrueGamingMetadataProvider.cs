@@ -101,7 +101,7 @@ namespace PlayniteAchievements.Providers.Metadata.TrueGaming
                     (name, token) => CandidatesAsync(name, health, token),
                     (slug, token) => RowsAsync(request, slug, health, token));
                 var names = request.SearchNames.Distinct(StringComparer.OrdinalIgnoreCase).ToList();
-                var choice = await search.ChooseAsync(names, targets, MetadataSubGame.From(targets), ct, request.CategoryNames, sharedNames: request.AlternateNames).ConfigureAwait(false);
+                var choice = await search.ChooseAsync(names, targets, MetadataSubGame.From(targets), ct, request.CategoryNames, sharedNames: request.AlternateNames, englishTitles: request.EnglishTitles).ConfigureAwait(false);
                 if (health.LeavesDoubt(choice))
                 {
                     _logger?.Debug($"[TrueGamingMetadata] '{request.Game?.Name}': {choice?.Matched ?? 0}/{targets.Count} matched, but some pages could not be read; looking again next refresh.");
@@ -392,7 +392,9 @@ namespace PlayniteAchievements.Providers.Metadata.TrueGaming
             foreach (var candidate in slugs)
             {
                 var page = await GetPageAsync(site, candidate, ct).ConfigureAwait(false);
-                if (page.Achievements.Count > 0 && (!checkGame || TrueGamingPageSet.IsSameGame(page, targets)))
+                if (page.Achievements.Count > 0 &&
+                    (!checkGame || TrueGamingPageSet.IsSameGame(page, targets) ||
+                     TrueGamingPageSet.IsSameGame(page, await EnglishTitlesAsync(request, ct).ConfigureAwait(false))))
                 {
                     return (new TrueGamingFoundPage(site, candidate, page), true);
                 }
@@ -401,6 +403,16 @@ namespace PlayniteAchievements.Providers.Metadata.TrueGaming
             }
 
             return (null, settled);
+        }
+
+        /// <summary>The game's achievement titles in English; empty when there are none to compare.</summary>
+        private static async Task<IReadOnlyCollection<string>> EnglishTitlesAsync(MetadataLinkRequest request, CancellationToken ct)
+        {
+            var english = request?.EnglishTitles == null ? null : await request.EnglishTitles(ct).ConfigureAwait(false);
+            return (english ?? new List<AchievementDetail>())
+                .Select(row => row?.DisplayName)
+                .Where(title => !string.IsNullOrWhiteSpace(title))
+                .ToList();
         }
 
         /// <summary>The page each site gave the link ("TrueTrophies: Elden-Ring-PS5"), "None" where it has none.</summary>
