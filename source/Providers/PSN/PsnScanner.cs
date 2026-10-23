@@ -165,6 +165,97 @@ namespace PlayniteAchievements.Providers.PSN
             };
         }
 
+        /// <summary>
+        /// The trophy names and details of the sets the last refresh resolved (its ProviderGameKey),
+        /// read with an en-US Accept-Language and keyed as FetchSetAchievementsAsync keys them.
+        /// No user progress is requested. Null when the sets are unknown or the session is missing.
+        /// </summary>
+        public async Task<List<AchievementDetail>> GetEnglishTrophyTitlesAsync(Game game, GameAchievementData data, CancellationToken cancel)
+        {
+            var npCommIds = ResolveStoredNpCommIds(game, data);
+            if (npCommIds.Count == 0)
+            {
+                return null;
+            }
+
+            string token;
+            try
+            {
+                token = await _sessionManager.GetAccessTokenAsync(cancel).ConfigureAwait(false);
+            }
+            catch (PsnAuthRequiredException)
+            {
+                return null;
+            }
+
+            using (var http = new HttpClient())
+            {
+                http.Timeout = TimeSpan.FromSeconds(45);
+                SetAuthorizationHeader(http, token);
+                http.DefaultRequestHeaders.TryAddWithoutValidation("Accept-Language", "en-US");
+
+                var serviceSuffixCandidates = PsnSuffixRetryHelper.BuildSuffixCandidates(NormalizeGameId(game?.GameId));
+                var isCollection = npCommIds.Count > 1;
+                var achievements = new List<AchievementDetail>();
+                foreach (var npCommId in npCommIds)
+                {
+                    cancel.ThrowIfCancellationRequested();
+                    var detailsJson = await PsnSuffixRetryHelper.GetStringWithSuffixRetryAsync(
+                        suffix => GetStringWithAuthRetryAsync(
+                            http,
+                            string.Format(UrlTrophiesDetailsAll, npCommId) + suffix,
+                            $"English trophy details for '{game?.Name}' ({npCommId})",
+                            cancel),
+                        serviceSuffixCandidates).ConfigureAwait(false);
+
+                    var details = JsonConvert.DeserializeObject<PsnTrophiesDetailResponse>(detailsJson);
+                    achievements.AddRange((details?.Trophies ?? new List<PsnTrophyDetail>())
+                        .GroupBy(PsnTrophyMatchHelper.GetTrophyKey)
+                        .Select(group => group.First())
+                        .Select(detail => new AchievementDetail
+                        {
+                            ApiName = PsnTrophySetResolutionHelper.BuildApiName(
+                                isCollection, npCommId, PsnTrophyMatchHelper.GetTrophyKey(detail)),
+                            DisplayName = detail.TrophyName,
+                            Description = detail.TrophyDetail
+                        }));
+                }
+
+                return achievements.Count > 0 ? achievements : null;
+            }
+        }
+
+        /// <summary>
+        /// The set ids the last refresh stored as the ProviderGameKey; for rows stored without one,
+        /// the ids an override or an NPWR GameId supply directly. No lookup request is made.
+        /// </summary>
+        private static List<string> ResolveStoredNpCommIds(Game game, GameAchievementData data)
+        {
+            if (!string.IsNullOrWhiteSpace(data?.ProviderGameKey))
+            {
+                return data.ProviderGameKey
+                    .Split(new[] { '+' }, StringSplitOptions.RemoveEmptyEntries)
+                    .Select(id => id.Trim())
+                    .Where(id => id.Length > 0)
+                    .ToList();
+            }
+
+            if (game != null &&
+                GameCustomDataLookup.TryGetProviderOverrideValue(game.Id, "PSN", out var overrideValue))
+            {
+                var overrideSets = PsnTrophySetResolutionHelper.ParseOverrideSets(overrideValue);
+                if (overrideSets.Count > 0)
+                {
+                    return overrideSets.Select(set => set.NpCommunicationId).ToList();
+                }
+            }
+
+            var normalized = NormalizeGameId(game?.GameId);
+            return normalized.IndexOf("NPWR", StringComparison.OrdinalIgnoreCase) >= 0
+                ? new List<string> { normalized }
+                : new List<string>();
+        }
+
         private sealed class PsnSetFetchResult
         {
             public List<AchievementDetail> Achievements { get; set; }
