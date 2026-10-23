@@ -56,6 +56,33 @@ namespace PlayniteAchievements.Tests.Services
         }
 
         [TestMethod]
+        public async Task BroaderNames_AskTheVariantOffer_TheFullNameTheUsualOne()
+        {
+            Page("spyro", "Sheep", "Gems");
+            Offers("Spyro", ("spyro", "Spyro"));
+            var variantNames = new List<string>();
+            var search = new MetadataPageSearch(
+                (name, ct) =>
+                {
+                    _searched.Add(name);
+                    return Task.FromResult<IReadOnlyList<MetadataPageCandidate>>(new List<MetadataPageCandidate>());
+                },
+                (id, ct) => Task.FromResult<IList<AchievementDetail>>(_pages.TryGetValue(id, out var rows) ? rows : null),
+                (name, ct) =>
+                {
+                    variantNames.Add(name);
+                    return Task.FromResult<IReadOnlyList<MetadataPageCandidate>>(
+                        _searches.TryGetValue(name, out var found) ? found : new List<MetadataPageCandidate>());
+                });
+
+            var choice = await search.ChooseAsync(new[] { "Spyro the Dragon" }, Game(null, "Sheep", "Gems"), null, CancellationToken.None);
+
+            CollectionAssert.AreEqual(new[] { "Spyro the Dragon" }, _searched);
+            CollectionAssert.AreEqual(new[] { "Spyro the", "Spyro" }, variantNames);
+            CollectionAssert.AreEqual(new[] { "spyro" }, choice.Ids.ToList());
+        }
+
+        [TestMethod]
         public async Task Collection_LinksEachGamesPage_WhenTogetherTheyMatchMore()
         {
             Page("launcher", "Bonus");
