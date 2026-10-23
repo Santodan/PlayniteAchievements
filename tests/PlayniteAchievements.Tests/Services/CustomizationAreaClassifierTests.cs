@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using PlayniteAchievements.Models.Settings;
 using PlayniteAchievements.Models.Tagging;
@@ -111,11 +112,13 @@ namespace PlayniteAchievements.Services.GameCustomData.Tests
         }
 
         [TestMethod]
-        public void TagsFor_PicksOneSideOfEveryPair()
+        public void TagsFor_PicksOneSideOfEveryPair_AndOneSidedAreasOnlyWhenSet()
         {
             var tags = new HashSet<TagType>(CustomizationTagAreas.TagsFor(CustomizationArea.Icons | CustomizationArea.Goals));
 
-            Assert.AreEqual(CustomizationTagAreas.All.Count, tags.Count);
+            Assert.AreEqual(CustomizationTagAreas.All.Count(area => area.DefaultTag.HasValue), tags.Count);
+            Assert.IsFalse(tags.Contains(TagType.CustomSource));
+            Assert.IsTrue(CustomizationTagAreas.TagsFor(CustomizationArea.Source).Contains(TagType.CustomSource));
             Assert.IsTrue(tags.Contains(TagType.CustomIcons));
             Assert.IsTrue(tags.Contains(TagType.CustomGoals));
             Assert.IsTrue(tags.Contains(TagType.DefaultPoints));
