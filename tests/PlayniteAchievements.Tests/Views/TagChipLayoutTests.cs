@@ -52,6 +52,23 @@ namespace PlayniteAchievements.Tests.Views
         }
 
         [TestMethod]
+        public void FewIcons_StopAtTheCeiling()
+        {
+            var size = TagChipLayout.LargestIconSize(Icons(2), TextHeight, 200, 60, 14, 24);
+
+            Assert.AreEqual(24.0, size);
+        }
+
+        [TestMethod]
+        public void CrowdedIcons_ShrinkBelowTheCeiling()
+        {
+            // Eight icons in two lines of four: 4s + 12 <= 100.
+            var size = TagChipLayout.LargestIconSize(Icons(8), TextHeight, 100, 60, 14, 24);
+
+            Assert.AreEqual(22.0, size);
+        }
+
+        [TestMethod]
         public void TextOnly_SetsNoLimit()
         {
             Assert.IsNull(TagChipLayout.LargestIconSize(new[] { TagChipBox.Text(50) }, TextHeight, 100, 60, 14));
