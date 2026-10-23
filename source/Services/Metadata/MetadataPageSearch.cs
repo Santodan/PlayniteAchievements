@@ -21,15 +21,22 @@ namespace PlayniteAchievements.Services.Metadata
     {
         private readonly Func<string, CancellationToken, Task<IReadOnlyList<MetadataPageCandidate>>> _candidates;
         private readonly Func<string, CancellationToken, Task<IList<AchievementDetail>>> _rows;
+        private readonly Func<string, CancellationToken, Task<IReadOnlyList<MetadataPageCandidate>>> _variantCandidates;
 
         /// <param name="candidates">The pages a search for a name offers, the source's likeliest first.</param>
         /// <param name="rows">A page's achievement rows; null or empty when it has none.</param>
+        /// <param name="variantCandidates">
+        /// The pages offered for a broader form of a name (see <see cref="Variants"/>), for a
+        /// source that builds pages from names; <paramref name="candidates"/> when null.
+        /// </param>
         public MetadataPageSearch(
             Func<string, CancellationToken, Task<IReadOnlyList<MetadataPageCandidate>>> candidates,
-            Func<string, CancellationToken, Task<IList<AchievementDetail>>> rows)
+            Func<string, CancellationToken, Task<IList<AchievementDetail>>> rows,
+            Func<string, CancellationToken, Task<IReadOnlyList<MetadataPageCandidate>>> variantCandidates = null)
         {
             _candidates = candidates ?? throw new ArgumentNullException(nameof(candidates));
             _rows = rows ?? throw new ArgumentNullException(nameof(rows));
+            _variantCandidates = variantCandidates ?? candidates;
         }
 
         /// <summary>
@@ -289,7 +296,8 @@ namespace PlayniteAchievements.Services.Metadata
                 foreach (var name in pass.Where(name => !string.IsNullOrWhiteSpace(name) && asked.Add(name.Trim())))
                 {
                     _searches++;
-                    var candidates = await _candidates(name, ct).ConfigureAwait(false) ?? Array.Empty<MetadataPageCandidate>();
+                    var offer = ReferenceEquals(pass, variants) ? _variantCandidates : _candidates;
+                    var candidates = await offer(name, ct).ConfigureAwait(false) ?? Array.Empty<MetadataPageCandidate>();
                     var kind = ReferenceEquals(pass, variants) ? "variant" : _shared.Contains(name) ? "shared name" : "name";
                     // A broader name is only tried while none before it found a page.
                     if (await JudgeAsync(candidates, $"{kind} '{name}'").ConfigureAwait(false) ||
