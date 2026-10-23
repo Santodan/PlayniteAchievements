@@ -159,14 +159,7 @@ namespace PlayniteAchievements.Models.Tagging
                 {
                     // Fill in missing display names
                     TagConfigs[tagType].DisplayName = getDefaultName?.Invoke(tagType) ?? GetDefaultDisplayName(tagType);
-                }
-
-                // A retired kind saved as enabled is turned off, so the next sync removes its tag.
-                if (CustomizationTagAreas.Retired.Contains(tagType) && TagConfigs[tagType] != null)
-                {
-                    TagConfigs[tagType].IsEnabled = false;
-                }
-            }
+                }            }
         }
 
         /// <summary>
@@ -185,8 +178,6 @@ namespace PlayniteAchievements.Models.Tagging
                 TagType.NotCustomized => "[PA] Not Customized",
                 TagType.Excluded => "[PA] Excluded",
                 TagType.ExcludedFromSummaries => "[PA] Excluded from Summaries",
-                TagType.DefaultSource => "[PA] Default Source",
-                TagType.DefaultManualTracking => "[PA] Default Manual Tracking",
                 _ => !CustomizationTagAreas.TryGetArea(tagType, out var area, out var isCustom)
                     ? $"[PA] {tagType}"
                     : isCustom && area.CustomEnglishName != null
@@ -197,12 +188,11 @@ namespace PlayniteAchievements.Models.Tagging
 
         /// <summary>
         /// Whether a tag kind starts enabled. The customization area kinds start disabled, for
-        /// new installs and for settings saved before they existed; retired kinds never enable.
+        /// new installs and for settings saved before they existed.
         /// </summary>
         public static bool IsEnabledByDefault(TagType tagType)
         {
-            return !CustomizationTagAreas.TryGetArea(tagType, out _, out _) &&
-                   !CustomizationTagAreas.Retired.Contains(tagType);
+            return !CustomizationTagAreas.TryGetArea(tagType, out _, out _);
         }
 
         /// <summary>
