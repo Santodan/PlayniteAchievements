@@ -98,6 +98,36 @@ namespace PlayniteAchievements.ViewModels
             return result;
         }
 
+        /// <summary>
+        /// Drops the restored platform selections a rebuild of <paramref name="groups"/> seeded.
+        /// Selections for providers the groups do not cover yet stay pending, so a first pass
+        /// over an empty or partial game list does not lose them.
+        /// </summary>
+        protected void SettlePendingPlatformSelections(IEnumerable<ProviderFilterGroup> groups)
+        {
+            if (PendingPlatformSelections == null)
+            {
+                return;
+            }
+
+            // Saved state deserializes with the default comparer; provider keys match ignoring case.
+            PendingPlatformSelections = new Dictionary<string, List<string>>(
+                PendingPlatformSelections,
+                StringComparer.OrdinalIgnoreCase);
+            foreach (var group in groups ?? Enumerable.Empty<ProviderFilterGroup>())
+            {
+                if (!string.IsNullOrWhiteSpace(group?.ProviderKey))
+                {
+                    PendingPlatformSelections.Remove(group.ProviderKey.Trim());
+                }
+            }
+
+            if (PendingPlatformSelections.Count == 0)
+            {
+                PendingPlatformSelections = null;
+            }
+        }
+
         /// <summary>Adds a filter-change listener. The caller must hold a strong reference to it.</summary>
         public void AddFilterListener(Action listener)
         {
