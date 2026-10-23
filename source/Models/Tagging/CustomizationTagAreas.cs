@@ -75,6 +75,8 @@ namespace PlayniteAchievements.Models.Tagging
                 "LOCPlayAch_Tagging_Area_Notes", "Notes"),
             new CustomizationTagArea(CustomizationArea.Categories, TagType.CustomCategories, TagType.DefaultCategories,
                 "LOCPlayAch_ManageAchievements_Tab_Category", "Categories"),
+            new CustomizationTagArea(CustomizationArea.Tags, TagType.CustomTags, TagType.DefaultTags,
+                "LOCPlayAch_Tagging_Area_Tags", "Tags"),
             new CustomizationTagArea(CustomizationArea.Order, TagType.CustomOrder, TagType.DefaultOrder,
                 "LOCPlayAch_ManageAchievements_Tab_AchievementOrder", "Order"),
             new CustomizationTagArea(CustomizationArea.Capstones, TagType.CustomCapstones, TagType.DefaultCapstones,
