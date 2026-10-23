@@ -16,8 +16,8 @@
             <!-- One glyph cell: the name is the tooltip and what the search matches; the chosen
                  one is outlined in the accent. -->
             <Style x:Key="GlyphCellStyle" TargetType="Button">
-                <Setter Property="Width" Value="36"/>
-                <Setter Property="Height" Value="36"/>
+                <Setter Property="Width" Value="60"/>
+                <Setter Property="Height" Value="60"/>
                 <Setter Property="Cursor" Value="Hand"/>
                 <Setter Property="Template">
                     <Setter.Value>
@@ -30,7 +30,7 @@
                                     Background="Transparent">
                                 <controls:GlyphIcon Glyph="{Binding Glyph}"
                                                     FontFamily="{DynamicResource PlayAch.FontFamily.Icon}"
-                                                    Size="20"
+                                                    Size="38"
                                                     Foreground="{DynamicResource PlayAch.Brush.Text}"
                                                     HorizontalAlignment="Center"
                                                     VerticalAlignment="Center"/>
@@ -54,6 +54,7 @@
         <Grid>
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
                 <RowDefinition Height="*"/>
                 <RowDefinition Height="Auto"/>
             </Grid.RowDefinitions>
@@ -66,10 +67,37 @@
                      TextChanged="SearchBox_TextChanged"
                      Margin="{StaticResource PlayAch.Thickness.Bottom.Md}"/>
 
+            <!-- IcoFont's categories as icons, All first, each named by its tooltip; the search
+                 looks within the chosen one. -->
+            <ListBox x:Name="CategoryList"
+                     Grid.Row="1"
+                     Margin="{StaticResource PlayAch.Thickness.Bottom.Md}"
+                     BorderThickness="0"
+                     Background="Transparent"
+                     ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                     ScrollViewer.VerticalScrollBarVisibility="Disabled"
+                     SelectionChanged="CategoryList_SelectionChanged">
+                <ListBox.ItemsPanel>
+                    <ItemsPanelTemplate>
+                        <WrapPanel/>
+                    </ItemsPanelTemplate>
+                </ListBox.ItemsPanel>
+                <ListBox.ItemTemplate>
+                    <DataTemplate>
+                        <controls:GlyphIcon Glyph="{Binding Glyph}"
+                                            FontFamily="{DynamicResource PlayAch.FontFamily.Icon}"
+                                            Size="26"
+                                            Margin="4"
+                                            Foreground="{DynamicResource PlayAch.Brush.Text}"
+                                            ToolTip="{Binding Label}"/>
+                    </DataTemplate>
+                </ListBox.ItemTemplate>
+            </ListBox>
+
             <!-- Rows of as many glyphs as the width fits, in a virtualizing list, so only the
                  rows on screen are built: a wrap panel over every glyph cannot virtualize. -->
             <ItemsControl x:Name="GlyphRows"
-                          Grid.Row="1"
+                          Grid.Row="2"
                           VirtualizingPanel.IsVirtualizing="True"
                           VirtualizingPanel.VirtualizationMode="Recycling"
                           ScrollViewer.CanContentScroll="True"
@@ -108,7 +136,7 @@
                 </ItemsControl.ItemTemplate>
             </ItemsControl>
 
-            <Grid Grid.Row="2" Margin="{StaticResource PlayAch.Thickness.Top.Md}">
+            <Grid Grid.Row="3" Margin="{StaticResource PlayAch.Thickness.Top.Md}">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="Auto"/>
                     <ColumnDefinition Width="*"/>
