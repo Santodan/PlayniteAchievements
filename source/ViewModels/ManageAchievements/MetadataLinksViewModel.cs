@@ -195,12 +195,12 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                         record,
                         coverage,
                         record == null || record.IsNoMatch ? null : store.Snapshots?.Get(gameId, provider.Key, record.Id),
-                        record?.Id == null ? null : (provider as IMetadataLinkDetails)?.ShownLink(record.Id))
+                        record?.Id == null ? null : MetadataLinkIds.ShownLink(provider as IMetadataLinkDetails, record.Id))
                     {
-                        LinkDetails = record == null || record.IsNoMatch ? null : (provider as IMetadataLinkDetails)?.DescribeLink(gameId, record.Id),
+                        LinkDetails = record == null || record.IsNoMatch ? null : MetadataLinkIds.DescribeLink(provider as IMetadataLinkDetails, gameId, record.Id),
                         PageLinks = record == null || record.IsNoMatch
                             ? Array.Empty<MetadataPageLinkItem>()
-                            : ((provider as IMetadataPageLinks)?.PageLinks(gameId, record.Id, servicingProviderKey) ?? Array.Empty<MetadataPageLink>())
+                            : MetadataLinkIds.PageLinks(provider as IMetadataPageLinks, gameId, record.Id, servicingProviderKey)
                                 .Select(page => new MetadataPageLinkItem(page.Label, page.Url))
                                 .ToList()
                     });
@@ -367,9 +367,11 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             GameId = gameId;
             SourceKey = sourceKey;
             SourceName = string.IsNullOrWhiteSpace(sourceName) ? sourceKey : sourceName;
-            Placeholder = placeholder;
+            // A link can name several lists (a collection's games), separated by commas.
+            Placeholder = string.IsNullOrWhiteSpace(placeholder) ? placeholder : placeholder + MetadataLinkIds.Separator + " …";
             Supplies = supplies ?? string.Empty;
             Snapshot = snapshot;
+            StatusToolTip = BuildListStatus(snapshot);
             // The box shows the link as the source names it, so a stored form the user never typed
             // does not show, and Apply stays off until the shown id changes.
             _input = shownLinkId ?? record?.Id ?? string.Empty;
@@ -428,6 +430,23 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         public string StatusText { get; }
 
         public bool HasStatus => !string.IsNullOrEmpty(StatusText);
+
+        /// <summary>For a link that names several lists, each list's matched rows ("Mass Effect 2: 44/45"); null otherwise.</summary>
+        public string StatusToolTip { get; }
+
+        private static string BuildListStatus(MetadataSourceSnapshot snapshot)
+        {
+            var rows = snapshot?.Rows ?? new List<MetadataSourceRow>();
+            if (!rows.Any(row => !string.IsNullOrEmpty(row.List)))
+            {
+                return null;
+            }
+
+            var matched = new HashSet<string>(snapshot.Matches.Values, StringComparer.OrdinalIgnoreCase);
+            return string.Join(Environment.NewLine, rows
+                .GroupBy(row => row.List ?? string.Empty)
+                .Select(list => $"{list.Key}: {list.Count(row => matched.Contains(row.ApiName))}/{list.Count()}"));
+        }
 
         public bool HasLink { get; }
 
