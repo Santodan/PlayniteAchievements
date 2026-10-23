@@ -103,22 +103,8 @@ namespace PlayniteAchievements.Services.Tagging
                 Id = tagType.ToString(),
                 ResourceKeys = GetAreaResourceKeys(tagType),
                 Compose = ComposeAreaName,
-                ExtraHardcodedDefaults = GetAreaHardcodedDefaults(tagType)
+                ExtraHardcodedDefaults = new[] { TaggingSettings.GetDefaultDisplayName(tagType) }
             };
-        }
-
-        /// <summary>
-        /// The English default, plus the composed "Custom {noun}" name an area with its own name
-        /// once had, so a saved tag under that name follows the current default.
-        /// </summary>
-        private static string[] GetAreaHardcodedDefaults(TagType tagType)
-        {
-            var current = TaggingSettings.GetDefaultDisplayName(tagType);
-            return CustomizationTagAreas.TryGetArea(tagType, out var area, out var isCustom) &&
-                   isCustom &&
-                   area.CustomNameResourceKey != null
-                ? new[] { current, $"[PA] Custom {area.EnglishNoun}" }
-                : new[] { current };
         }
 
         /// <summary>
