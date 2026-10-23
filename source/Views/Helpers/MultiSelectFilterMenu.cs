@@ -238,7 +238,7 @@ namespace PlayniteAchievements.Views.Helpers
 
         // The option's badge before its label; an option without one keeps the badge's width so
         // the labels stay aligned.
-        private static object BuildIconHeader(string iconKey, string label)
+        internal static object BuildIconHeader(string iconKey, string label)
         {
             var panel = new DockPanel { LastChildFill = true };
             var icon = new Image
