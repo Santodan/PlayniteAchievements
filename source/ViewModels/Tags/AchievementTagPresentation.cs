@@ -8,20 +8,20 @@ using PlayniteAchievements.Services.Achievements;
 
 namespace PlayniteAchievements.ViewModels.Tags
 {
-    /// <summary>One visible tag as drawn: its name, its icon glyph and its color brush.</summary>
+    /// <summary>One visible tag as drawn: its name, its icon codepoint and its color brush.</summary>
     public sealed class AchievementTagChip
     {
-        public AchievementTagChip(string name, string glyph, Brush brush)
+        public AchievementTagChip(string name, string icon, Brush brush)
         {
             Name = name;
-            Glyph = glyph;
+            Icon = icon;
             Brush = brush;
         }
 
         public string Name { get; }
 
-        /// <summary>The icon character, or null when the tag has no icon.</summary>
-        public string Glyph { get; }
+        /// <summary>The icon font codepoint ("EF12"), or null when the tag has no icon.</summary>
+        public string Icon { get; }
 
         /// <summary>The tag's color, or null when it has none.</summary>
         public Brush Brush { get; }
@@ -66,7 +66,7 @@ namespace PlayniteAchievements.ViewModels.Tags
             return definitions
                 .Select(definition => new AchievementTagChip(
                     AchievementTagRegistry.GetName(definition),
-                    AchievementTagHelper.IconGlyph(definition.Icon),
+                    AchievementTagHelper.NormalizeIcon(definition.Icon),
                     ToBrush(definition.Color)))
                 .ToList();
         }
