@@ -84,4 +84,19 @@ namespace PlayniteAchievements.Providers
             bool preferCachedDefinitions,
             CancellationToken cancel);
     }
+
+    /// <summary>
+    /// Optional English copy of a game's achievement list, for providers that can fetch their
+    /// text in another language than the plugin's.
+    /// </summary>
+    internal interface IEnglishTitleSource
+    {
+        /// <summary>
+        /// The game's achievements as this provider lists them in English, keyed by the same
+        /// ApiNames as <paramref name="data"/>; null when it has no English copy. Used only to
+        /// pair metadata sources whose text is in another language than the game's; never shown.
+        /// Providers whose text is always English return <paramref name="data"/>'s own rows.
+        /// </summary>
+        Task<IList<AchievementDetail>> GetEnglishTitlesAsync(Game game, GameAchievementData data, CancellationToken ct);
+    }
 }
