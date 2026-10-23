@@ -729,9 +729,7 @@ namespace PlayniteAchievements.Services.Achievements
                 "ProviderKey" => ApplyDirection(
                     (a, b) => CompareText(a?.ProviderKey, b?.ProviderKey),
                     direction),
-                "CategoryType" => ApplyDirection(
-                    (a, b) => CompareByCategoryTypeThenUnlock(a, b, scope),
-                    direction),
+                "CategoryType" => ApplyDirection(CreateTagCountComparison(scope), direction),
                 "CategoryKind" => ApplyDirection(
                     (a, b) => CompareByCategoryKindThenUnlock(a, b, scope),
                     direction),
@@ -999,20 +997,48 @@ namespace PlayniteAchievements.Services.Achievements
                 b?.SortingName ?? b?.GameName);
         }
 
-        private static int CompareByCategoryTypeThenUnlock(
-            AchievementDisplayItem a,
-            AchievementDisplayItem b,
-            AchievementSortScope scope)
+        /// <summary>
+        /// The Tags column's order: by how many tags an achievement shows, then by the tags
+        /// themselves so equal sets sit together, then by unlock time. Each row's tags resolve
+        /// once per sort, since resolving them on every comparison made sorting large lists lag.
+        /// </summary>
+        private static Comparison<AchievementDisplayItem> CreateTagCountComparison(AchievementSortScope scope)
         {
-            var typeComparison = CompareText(
-                a?.CategoryTypeDisplay,
-                b?.CategoryTypeDisplay);
-            if (typeComparison != 0)
+            var keys = new Dictionary<AchievementDisplayItem, KeyValuePair<int, string>>();
+
+            KeyValuePair<int, string> KeyOf(AchievementDisplayItem item)
             {
-                return typeComparison;
+                if (item == null)
+                {
+                    return new KeyValuePair<int, string>(0, string.Empty);
+                }
+
+                if (!keys.TryGetValue(item, out var key))
+                {
+                    var tags = AchievementTagRegistry.ResolveVisible(item.Tags, item.PlayniteGameId);
+                    key = new KeyValuePair<int, string>(
+                        tags.Count,
+                        string.Join(", ", tags.Select(AchievementTagRegistry.GetName)));
+                    keys[item] = key;
+                }
+
+                return key;
             }
 
-            return CompareByUnlockTime(a, b, ListSortDirection.Ascending, scope);
+            return (a, b) =>
+            {
+                var keyA = KeyOf(a);
+                var keyB = KeyOf(b);
+                var comparison = keyA.Key.CompareTo(keyB.Key);
+                if (comparison == 0)
+                {
+                    comparison = CompareText(keyA.Value, keyB.Value);
+                }
+
+                return comparison != 0
+                    ? comparison
+                    : CompareByUnlockTime(a, b, ListSortDirection.Ascending, scope);
+            };
         }
 
         private static int CompareByCategoryKindThenUnlock(
