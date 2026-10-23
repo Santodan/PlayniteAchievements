@@ -23,8 +23,8 @@ namespace PlayniteAchievements.Views.Dialogs
         // The glyph panel's border and padding on both sides, which the rows do not get.
         private const double PanelInset = 2 * (1 + 4);
 
-        // The All entry's icon: IcoFont's "layout" glyph.
-        private const string AllIcon = "EF5D";
+        // The All entry's icon: IcoFont's "layers" glyph.
+        private const string AllIcon = "EF5C";
 
         // Searching every glyph per keystroke is what made typing lag; the search runs once the
         // typing pauses.
