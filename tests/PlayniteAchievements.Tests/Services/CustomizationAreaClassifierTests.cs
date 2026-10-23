@@ -51,7 +51,7 @@ namespace PlayniteAchievements.Services.GameCustomData.Tests
         }
 
         [TestMethod]
-        public void Classify_AutoCapstoneGenerationAlone_IsNone()
+        public void Classify_AutoCapstoneGenerationAlone_IsCapstonesOnly()
         {
             var apiName = CustomAchievementProjectionService.BuildApiName(AutoCapstoneId);
             var data = new GameCustomDataFile
@@ -70,7 +70,21 @@ namespace PlayniteAchievements.Services.GameCustomData.Tests
                 Capstones = new List<CapstoneAssignment> { new CapstoneAssignment { ApiName = apiName } }
             };
 
-            Assert.AreEqual(CustomizationArea.None, CustomizationAreaClassifier.Classify(data));
+            Assert.AreEqual(CustomizationArea.Capstones, CustomizationAreaClassifier.Classify(data));
+        }
+
+        [TestMethod]
+        public void Classify_AutoCapstoneDefinitionBeforeNomination_IsCapstones()
+        {
+            var data = new GameCustomDataFile
+            {
+                CustomAchievements = new List<CustomAchievementDefinition>
+                {
+                    new CustomAchievementDefinition { Id = AutoCapstoneId, DisplayName = "Mastery", IsAutoCapstone = true }
+                }
+            };
+
+            AssertOnly(CustomizationArea.Capstones, data);
         }
 
         [TestMethod]
@@ -85,6 +99,15 @@ namespace PlayniteAchievements.Services.GameCustomData.Tests
             };
 
             AssertOnly(CustomizationArea.ManualTracking, data);
+        }
+
+        [TestMethod]
+        public void HasVisibleCustomization_CountsNotificationOverrides_WithoutWideningTheExportGate()
+        {
+            var data = new GameCustomDataFile { NotificationBehaviorOverride = new GameNotificationBehaviorOverride() };
+
+            Assert.IsTrue(GameCustomDataNormalizer.HasVisibleCustomization(data));
+            Assert.IsFalse(GameCustomDataNormalizer.HasPortableData(data));
         }
 
         [TestMethod]
