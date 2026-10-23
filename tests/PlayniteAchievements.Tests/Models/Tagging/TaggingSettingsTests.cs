@@ -37,7 +37,10 @@ namespace PlayniteAchievements.Models.Tagging.Tests
             Assert.IsTrue(settings.HasAchievementsConfig.IsEnabled);
             Assert.IsTrue(settings.CustomizedConfig.IsEnabled);
             Assert.AreEqual("[PA] Custom Icons", settings.TagConfigs[TagType.CustomIcons].DisplayName);
-            Assert.AreEqual("[PA] Default Icons", settings.TagConfigs[TagType.DefaultIcons].DisplayName);
+            Assert.AreEqual("[PA] Platform Icons", settings.TagConfigs[TagType.PlatformIcons].DisplayName);
+            Assert.AreEqual("[PA] Metadata Icons", settings.TagConfigs[TagType.MetadataIcons].DisplayName);
+            Assert.AreEqual("[PA] No Icons", settings.TagConfigs[TagType.NoIcons].DisplayName);
+            Assert.AreEqual("[PA] Default Notes", settings.TagConfigs[TagType.DefaultNotes].DisplayName);
             Assert.AreEqual("[PA] Source Override", settings.TagConfigs[TagType.CustomSource].DisplayName);
             Assert.AreEqual("[PA] Manual Tracking", settings.TagConfigs[TagType.CustomManualTracking].DisplayName);
         }
@@ -68,13 +71,33 @@ namespace PlayniteAchievements.Models.Tagging.Tests
             settings.InitializeDefaults(TaggingSettings.GetDefaultDisplayName);
 
             var rows = settings.CustomizationRows;
-            rows.First(row => row.First == settings.TagConfigs[TagType.CustomPoints]).First.IsEnabled = true;
+            rows.First(row => row.Third == settings.TagConfigs[TagType.CustomPoints]).Third.IsEnabled = true;
 
             // The Customized pair, then one row per area.
             Assert.AreEqual(CustomizationTagAreas.All.Count + 1, rows.Count);
             Assert.IsTrue(settings.TagConfigs[TagType.CustomPoints].IsEnabled);
             Assert.IsTrue(settings.Clone().TagConfigs[TagType.CustomPoints].IsEnabled);
-            Assert.IsFalse(rows.Single(row => row.First == settings.TagConfigs[TagType.CustomSource]).HasSecond);
+        }
+
+        [TestMethod]
+        public void CustomizationRows_KeepEachLayerInItsColumn()
+        {
+            var settings = new TaggingSettings();
+            settings.InitializeDefaults(TaggingSettings.GetDefaultDisplayName);
+            var rows = settings.CustomizationRows;
+
+            var icons = rows.Single(row => row.Third == settings.TagConfigs[TagType.CustomIcons]);
+            Assert.AreSame(settings.TagConfigs[TagType.PlatformIcons], icons.First);
+            Assert.AreSame(settings.TagConfigs[TagType.MetadataIcons], icons.Second);
+            Assert.AreSame(settings.TagConfigs[TagType.NoIcons], icons.Fourth);
+
+            var notes = rows.Single(row => row.Third == settings.TagConfigs[TagType.CustomNotes]);
+            Assert.IsNull(notes.First);
+            Assert.IsNull(notes.Second);
+            Assert.AreSame(settings.TagConfigs[TagType.DefaultNotes], notes.Fourth);
+
+            var source = rows.Single(row => row.Third == settings.TagConfigs[TagType.CustomSource]);
+            Assert.AreEqual(1, source.GetConfigs().Count());
         }
 
         [TestMethod]
