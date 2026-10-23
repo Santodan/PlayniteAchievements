@@ -97,8 +97,8 @@ namespace PlayniteAchievements.Models.Tagging
         {
             Area(CustomizationArea.Icons, "LOCPlayAch_ManageAchievements_Tab_CustomIcons",
                 metadata: TagType.MetadataIcons, custom: TagType.CustomIcons),
-            Area(CustomizationArea.TrophyTypes, "LOCPlayAch_Tagging_Area_TrophyTypes",
-                TagType.PlatformTrophyTypes, TagType.MetadataTrophyTypes, TagType.CustomTrophyTypes, TagType.NoTrophyTypes),
+            Area(CustomizationArea.TrophyTypes, "LOCPlayAch_Tagging_Area_Trophies",
+                TagType.PlatformTrophies, TagType.MetadataTrophies, TagType.CustomTrophies, TagType.NoTrophies),
             Area(CustomizationArea.Points, "LOCPlayAch_Column_Points",
                 TagType.PlatformPoints, TagType.MetadataPoints, TagType.CustomPoints, TagType.NoPoints),
             Area(CustomizationArea.Categories, "LOCPlayAch_ManageAchievements_Tab_Category",
