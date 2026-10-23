@@ -5,6 +5,7 @@ using Playnite.SDK;
 using PlayniteAchievements.Common;
 using PlayniteAchievements.Models;
 using PlayniteAchievements.Services.Showcase;
+using PlayniteAchievements.ViewModels.Items;
 
 namespace PlayniteAchievements.ViewModels.Showcase.Widgets
 {
@@ -34,11 +35,34 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
 
     /// <summary>
     /// Backs the Statistics widget: a grid of stat tiles, every statistic or the ones chosen in
-    /// its settings. A Tall viewport arranges them in a single column.
+    /// its settings, over the games its collection and control bar keep. A Tall viewport
+    /// arranges them in a single column.
     /// </summary>
     public sealed class StatisticsWidgetViewModel : ShowcaseWidgetViewModelBase
     {
+        private readonly ShowcaseStatisticsScope _scope;
+        private GridControlBarViewModel _controlBar;
         private int _columns = 2;
+
+        public StatisticsWidgetViewModel()
+        {
+            _scope = new ShowcaseStatisticsScope(Refresh);
+        }
+
+        /// <summary>The platform, game, tag and progress filters its settings show; null when none.</summary>
+        public GridControlBarViewModel ControlBar
+        {
+            get => _controlBar;
+            private set
+            {
+                if (SetValueAndReturn(ref _controlBar, value))
+                {
+                    OnPropertyChanged(nameof(ShowControlBar));
+                }
+            }
+        }
+
+        public bool ShowControlBar => ControlBar != null;
 
         public BulkObservableCollection<StatTileViewModel> Tiles { get; } =
             new BulkObservableCollection<StatTileViewModel>();
@@ -51,7 +75,9 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
 
         protected override void Refresh()
         {
-            IEnumerable<ShowcaseStatistic> items = Projection?.Statistics ?? Array.Empty<ShowcaseStatistic>();
+            _scope.Apply(Projection);
+            ControlBar = _scope.ShownBar;
+            IEnumerable<ShowcaseStatistic> items = _scope.Statistics;
             // The widget's chosen statistics, in the chosen order; every one when none were chosen.
             var keys = ShowcaseWidgetOptions.GetStatisticsKeys(Projection?.Instance);
             if (keys != null)
