@@ -123,5 +123,20 @@ namespace PlayniteAchievements.Models.Tagging.Tests
             Assert.AreEqual("Custom", target.TaggingSettings.CustomizedConfig.DisplayName);
             Assert.AreEqual("Not Custom", target.TaggingSettings.NotCustomizedConfig.DisplayName);
         }
+
+        [TestMethod]
+        public void SavedConfigs_ForAKindThatNoLongerExists_AreSkippedOnLoad()
+        {
+            const string json = "{\"EnableTagging\":true,\"TagConfigs\":{" +
+                "\"Completed\":{\"DisplayName\":\"Done\",\"IsEnabled\":true}," +
+                "\"DefaultSource\":{\"DisplayName\":\"Gone\",\"IsEnabled\":true}}}";
+
+            var settings = Newtonsoft.Json.JsonConvert.DeserializeObject<TaggingSettings>(json);
+
+            Assert.IsTrue(settings.EnableTagging);
+            Assert.AreEqual(1, settings.TagConfigs.Count);
+            Assert.AreEqual("Done", settings.TagConfigs[TagType.Completed].DisplayName);
+            StringAssert.Contains(Newtonsoft.Json.JsonConvert.SerializeObject(settings), "\"Completed\":");
+        }
     }
 }
