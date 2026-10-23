@@ -134,8 +134,7 @@ namespace PlayniteAchievements.Models.Tagging
 
         /// <summary>
         /// The customization kinds as settings rows: the Customized pair, then one row per area.
-        /// Columns are fixed so each layer lines up across rows: Platform, Metadata, Custom, then
-        /// None or Default.
+        /// Columns are fixed so each layer lines up across rows: Platform, Metadata, Custom, None.
         /// </summary>
         [DontSerialize]
         public IReadOnlyList<TagRow> CustomizationRows =>
@@ -145,7 +144,7 @@ namespace PlayniteAchievements.Models.Tagging
                     area.Tag(TagLayer.Platform),
                     area.Tag(TagLayer.Metadata),
                     area.CustomTag,
-                    area.Tag(TagLayer.None) ?? area.Tag(TagLayer.Default))))
+                    area.Tag(TagLayer.None))))
                 .ToList();
 
         private TagRow Row(string labelKey, TagType? first, TagType? second, TagType? third, TagType? fourth)
@@ -227,24 +226,12 @@ namespace PlayniteAchievements.Models.Tagging
                 TagType.NotCustomized => "[PA] Not Customized",
                 TagType.Excluded => "[PA] Excluded",
                 TagType.ExcludedFromSummaries => "[PA] Excluded from Summaries",
-                _ => !CustomizationTagAreas.TryGetArea(tagType, out var area, out var layer)
-                    ? $"[PA] {tagType}"
-                    : layer == TagLayer.Custom && area.CustomEnglishName != null
-                        ? $"[PA] {area.CustomEnglishName}"
-                        : $"[PA] {EnglishLayerWord(layer)} {area.EnglishNoun}"
+                // Customization kinds have no English here: their names exist only in the locale
+                // files, so a missing string shows as its key rather than as hidden English.
+                _ => CustomizationTagAreas.TryGetArea(tagType, out _, out _)
+                    ? $"[PA] {CustomizationTagAreas.NameResourceKey(tagType)}"
+                    : $"[PA] {tagType}"
             };
-        }
-
-        private static string EnglishLayerWord(TagLayer layer)
-        {
-            switch (layer)
-            {
-                case TagLayer.Platform: return "Platform";
-                case TagLayer.Metadata: return "Metadata";
-                case TagLayer.Custom: return "Custom";
-                case TagLayer.None: return "No";
-                default: return "Default";
-            }
         }
 
         /// <summary>
