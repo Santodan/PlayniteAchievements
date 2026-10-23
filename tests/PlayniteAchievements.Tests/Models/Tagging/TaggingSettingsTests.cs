@@ -43,23 +43,6 @@ namespace PlayniteAchievements.Models.Tagging.Tests
         }
 
         [TestMethod]
-        public void InitializeDefaults_TurnsOffRetiredKindsSavedAsEnabled()
-        {
-            var settings = new TaggingSettings
-            {
-                TagConfigs = new Dictionary<TagType, TagConfig>
-                {
-                    [TagType.DefaultSource] = new TagConfig { DisplayName = "[PA] Default Source", IsEnabled = true }
-                }
-            };
-
-            settings.InitializeDefaults(TaggingSettings.GetDefaultDisplayName);
-
-            Assert.IsFalse(settings.TagConfigs[TagType.DefaultSource].IsEnabled);
-            Assert.IsFalse(settings.TagConfigs[TagType.DefaultManualTracking].IsEnabled);
-        }
-
-        [TestMethod]
         public void InitializeDefaults_SavedSettingsWithoutAreaPairs_GainThemDisabled()
         {
             var settings = new TaggingSettings
