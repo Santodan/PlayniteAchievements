@@ -299,10 +299,10 @@ namespace PlayniteAchievements.Services.Database
                     scope?.SetContext("games=" + possibleScoreTotalsByCacheKey.Count);
                 }
 
-                Dictionary<string, AchievementTagTally[]> tagTotalsByCacheKey;
-                using (var scope = PerfScope.Start(logger, "Cache.Summary.TagTotals" + tagSuffix, thresholdMs: 25))
+                Dictionary<string, AchievementTally[]> tagTotalsByCacheKey;
+                using (var scope = PerfScope.Start(logger, "Cache.Summary.Tallies" + tagSuffix, thresholdMs: 25))
                 {
-                    tagTotalsByCacheKey = LoadCachedTagTotals(db, scopeGameId);
+                    tagTotalsByCacheKey = LoadCachedTallies(db, scopeGameId);
                     scope?.SetContext("games=" + tagTotalsByCacheKey.Count);
                 }
 
@@ -354,7 +354,7 @@ namespace PlayniteAchievements.Services.Database
                     result.Games.Add(new CachedGameSummaryData
                     {
                         // The provider's tags; the user's tag edits are applied during hydration.
-                        TagTotals = tagTotals,
+                        Tallies = tagTotals,
                         CacheKey = cacheKey,
                         PlayniteGameId = playniteGameId,
                         ProviderKey = row.ProviderKey,
@@ -580,7 +580,7 @@ namespace PlayniteAchievements.Services.Database
                 ORDER BY lp.LastUpdatedUtc DESC, lp.CacheKey;", ScopeArgs(scopeGameId)).ToList();
         }
 
-        private sealed class CachedTagGroupRow
+        private sealed class CachedTallyGroupRow
         {
             public string CacheKey { get; set; }
             public string Tags { get; set; }
@@ -617,11 +617,11 @@ namespace PlayniteAchievements.Services.Database
         /// Untagged achievements count under the empty tag set. Filtered achievements are left
         /// out, like every other summary count.
         /// </summary>
-        private static Dictionary<string, AchievementTagTally[]> LoadCachedTagTotals(
+        private static Dictionary<string, AchievementTally[]> LoadCachedTallies(
             SQLiteDatabase db,
             Guid? scopeGameId = null)
         {
-            var rows = db.Load<CachedTagGroupRow>(
+            var rows = db.Load<CachedTallyGroupRow>(
                 @"WITH LatestProgress AS (
                     SELECT
                         ugp.Id AS UserGameProgressId,
@@ -667,7 +667,7 @@ namespace PlayniteAchievements.Services.Database
                     LOWER(COALESCE(aov.TrophyType, ad.TrophyType, '')),
                     CASE WHEN ad.IsCapstone = 1 THEN 1 ELSE 0 END;", ScopeArgs(scopeGameId)).ToList();
 
-            var builders = new Dictionary<string, AchievementTagTallyBuilder>(StringComparer.OrdinalIgnoreCase);
+            var builders = new Dictionary<string, AchievementTallyBuilder>(StringComparer.OrdinalIgnoreCase);
             for (var i = 0; i < rows.Count; i++)
             {
                 var row = rows[i];
@@ -679,7 +679,7 @@ namespace PlayniteAchievements.Services.Database
 
                 if (!builders.TryGetValue(cacheKey, out var builder))
                 {
-                    builder = new AchievementTagTallyBuilder();
+                    builder = new AchievementTallyBuilder();
                     builders[cacheKey] = builder;
                 }
 
@@ -692,7 +692,7 @@ namespace PlayniteAchievements.Services.Database
                     (int)Math.Max(0, row.Total));
             }
 
-            var totals = new Dictionary<string, AchievementTagTally[]>(StringComparer.OrdinalIgnoreCase);
+            var totals = new Dictionary<string, AchievementTally[]>(StringComparer.OrdinalIgnoreCase);
             foreach (var pair in builders)
             {
                 var built = pair.Value.Build();
@@ -706,17 +706,17 @@ namespace PlayniteAchievements.Services.Database
         }
 
         /// <summary>One game's provider tallies, as the whole-library read gives them; null when it counts none.</summary>
-        public AchievementTagTally[] LoadTagTotalsForGame(Guid playniteGameId)
+        public AchievementTally[] LoadTalliesForGame(Guid playniteGameId)
         {
             if (playniteGameId == Guid.Empty)
             {
                 return null;
             }
 
-            return _store.WithReadDb(db => LoadCachedTagTotals(db, playniteGameId).Values.FirstOrDefault());
+            return _store.WithReadDb(db => LoadCachedTallies(db, playniteGameId).Values.FirstOrDefault());
         }
 
-        private sealed class AchievementTagStateRow
+        private sealed class AchievementTallyStateRow
         {
             public string CacheKey { get; set; }
             public string PlayniteGameId { get; set; }
@@ -735,7 +735,7 @@ namespace PlayniteAchievements.Services.Database
         /// provider-flagged capstones come too, since an edited capstone set can drop them. Filtered
         /// achievements and ones the cache does not hold are left out, since no summary counts them.
         /// </summary>
-        public Dictionary<Guid, Dictionary<string, AchievementTallyState>> LoadAchievementTagStates(
+        public Dictionary<Guid, Dictionary<string, AchievementTallyState>> LoadAchievementTallyStates(
             IReadOnlyDictionary<Guid, HashSet<string>> wanted,
             ISet<Guid> providerCapstoneGames = null)
         {
@@ -753,7 +753,7 @@ namespace PlayniteAchievements.Services.Database
                 return result;
             }
 
-            void Collect(IEnumerable<AchievementTagStateRow> rows, bool providerCapstones)
+            void Collect(IEnumerable<AchievementTallyStateRow> rows, bool providerCapstones)
             {
                 foreach (var row in rows)
                 {
@@ -793,7 +793,7 @@ namespace PlayniteAchievements.Services.Database
                 {
                     // Every provider capstone in the library is a handful of rows, so one read
                     // without a game list is cheaper than chunking the games.
-                    Collect(db.Load<AchievementTagStateRow>(AchievementTagStateSql("ad.IsCapstone = 1")), providerCapstones: true);
+                    Collect(db.Load<AchievementTallyStateRow>(AchievementTallyStateSql("ad.IsCapstone = 1")), providerCapstones: true);
                 }
 
                 for (var offset = 0; offset < apiNames.Count; offset += UnlockedApiNameChunkSize)
@@ -801,8 +801,8 @@ namespace PlayniteAchievements.Services.Database
                     var chunk = apiNames.Skip(offset).Take(UnlockedApiNameChunkSize).ToList();
                     var placeholders = string.Join(", ", chunk.Select(_ => "?"));
                     Collect(
-                        db.Load<AchievementTagStateRow>(
-                            AchievementTagStateSql("ad.ApiName IN (" + placeholders + ")"),
+                        db.Load<AchievementTallyStateRow>(
+                            AchievementTallyStateSql("ad.ApiName IN (" + placeholders + ")"),
                             chunk.Cast<object>().ToArray()),
                         providerCapstones: false);
                 }
@@ -811,7 +811,7 @@ namespace PlayniteAchievements.Services.Database
             });
         }
 
-        private static string AchievementTagStateSql(string condition) =>
+        private static string AchievementTallyStateSql(string condition) =>
                         @"WITH LatestProgress AS (
                             SELECT
                                 ugp.Id AS UserGameProgressId,

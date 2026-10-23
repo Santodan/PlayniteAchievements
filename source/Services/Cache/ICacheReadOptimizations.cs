@@ -51,12 +51,12 @@ namespace PlayniteAchievements.Services.Cache
         /// provider capstones of <paramref name="providerCapstoneGames"/>, for applying the user's
         /// tag and capstone edits to the summary's tallies. Null on failure.
         /// </summary>
-        Dictionary<Guid, Dictionary<string, Models.Achievements.AchievementTallyState>> LoadAchievementTagStatesFast(
+        Dictionary<Guid, Dictionary<string, Models.Achievements.AchievementTallyState>> LoadAchievementTallyStatesFast(
             IReadOnlyDictionary<Guid, HashSet<string>> wanted,
             ISet<Guid> providerCapstoneGames = null);
 
         /// <summary>One game's provider tallies, read on its own; null on failure.</summary>
-        Models.Achievements.AchievementTagTally[] LoadTagTotalsForGameFast(Guid playniteGameId);
+        Models.Achievements.AchievementTally[] LoadTalliesForGameFast(Guid playniteGameId);
 
         /// <summary>Games whose cached achievements carry the tag <paramref name="tagKey"/>; empty on failure.</summary>
         HashSet<Guid> GetGameIdsWithTag(string tagKey);

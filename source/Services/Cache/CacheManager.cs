@@ -203,7 +203,7 @@ namespace PlayniteAchievements.Services.Cache
             }
         }
 
-        Dictionary<Guid, Dictionary<string, Models.Achievements.AchievementTallyState>> ICacheReadOptimizations.LoadAchievementTagStatesFast(
+        Dictionary<Guid, Dictionary<string, Models.Achievements.AchievementTallyState>> ICacheReadOptimizations.LoadAchievementTallyStatesFast(
             IReadOnlyDictionary<Guid, HashSet<string>> wanted,
             ISet<Guid> providerCapstoneGames)
         {
@@ -211,13 +211,13 @@ namespace PlayniteAchievements.Services.Cache
             {
                 lock (_sync)
                 {
-                    EnsureReady_Locked("LoadAchievementTagStatesFast");
+                    EnsureReady_Locked("LoadAchievementTallyStatesFast");
                 }
 
-                using (var scope = PerfScope.Start(_logger, "Cache.LoadAchievementTagStatesFast", thresholdMs: 25))
+                using (var scope = PerfScope.Start(_logger, "Cache.LoadAchievementTallyStatesFast", thresholdMs: 25))
                 {
                     scope?.SetContext("games=" + (wanted?.Count ?? 0));
-                    return _store.LoadAchievementTagStates(wanted, providerCapstoneGames) ??
+                    return _store.LoadAchievementTallyStates(wanted, providerCapstoneGames) ??
                         new Dictionary<Guid, Dictionary<string, Models.Achievements.AchievementTallyState>>();
                 }
             }
@@ -228,23 +228,23 @@ namespace PlayniteAchievements.Services.Cache
             }
         }
 
-        Models.Achievements.AchievementTagTally[] ICacheReadOptimizations.LoadTagTotalsForGameFast(Guid playniteGameId)
+        Models.Achievements.AchievementTally[] ICacheReadOptimizations.LoadTalliesForGameFast(Guid playniteGameId)
         {
             try
             {
                 lock (_sync)
                 {
-                    EnsureReady_Locked("LoadTagTotalsForGameFast");
+                    EnsureReady_Locked("LoadTalliesForGameFast");
                 }
 
-                using (PerfScope.Start(_logger, "Cache.LoadTagTotalsForGameFast", thresholdMs: 25))
+                using (PerfScope.Start(_logger, "Cache.LoadTalliesForGameFast", thresholdMs: 25))
                 {
-                    return _store.LoadTagTotalsForGame(playniteGameId);
+                    return _store.LoadTalliesForGame(playniteGameId);
                 }
             }
             catch (Exception ex)
             {
-                _logger?.Debug(ex, $"Failed reading tag totals for game {playniteGameId}.");
+                _logger?.Debug(ex, $"Failed reading tallies for game {playniteGameId}.");
                 return null;
             }
         }

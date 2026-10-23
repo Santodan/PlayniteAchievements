@@ -31,7 +31,7 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
 
         private readonly AchievementDataService _dataService;
 
-        // Bumped when tag totals or tag definitions change, which a Tag pie cannot see in its
+        // Bumped when tallies or tag definitions change, which a Tag pie cannot see in its
         // snapshot: totals are replaced on the rows in place, and names and colors live elsewhere.
         private int _tagVersion;
 
@@ -42,7 +42,7 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
             _dataService = PlayniteAchievementsPlugin.Instance?.AchievementDataService;
             if (_dataService != null)
             {
-                _dataService.TagTotalsChanged += OnTagTotalsChanged;
+                _dataService.TalliesChanged += OnTalliesChanged;
             }
         }
 
@@ -400,7 +400,7 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
             AchievementTagRegistry.Changed -= OnTagDefinitionsChanged;
             if (_dataService != null)
             {
-                _dataService.TagTotalsChanged -= OnTagTotalsChanged;
+                _dataService.TalliesChanged -= OnTalliesChanged;
             }
         }
 
@@ -444,7 +444,7 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
                 scope,
                 gameId => (snapshot.GameSummaries ?? new List<GameSummaryItem>())
                     .Where(game => game?.PlayniteGameId == gameId)
-                    .SelectMany(game => game.TagTotals ?? Array.Empty<AchievementTagTally>())
+                    .SelectMany(game => game.Tallies ?? Array.Empty<AchievementTally>())
                     .SelectMany(tally => tally.Tags));
 
         /// <summary>
@@ -458,10 +458,10 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
             var options = TagOptions(snapshot, scope);
             var picked = _controlBarSlot.Adapter.TagFilter.SelectedTags;
             var keys = options.Where(key => picked.Count == 0 || picked.Contains(key)).ToList();
-            IEnumerable<AchievementTagTally> tallies;
+            IEnumerable<AchievementTally> tallies;
             if (snapshot.IsAchievementClip)
             {
-                var unlockedRows = new AchievementTagTallyBuilder();
+                var unlockedRows = new AchievementTallyBuilder();
                 foreach (var row in snapshot.Achievements ?? new List<AchievementDisplayItem>())
                 {
                     if (row?.Unlocked == true)
@@ -470,7 +470,7 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
                     }
                 }
 
-                tallies = unlockedRows.Build() ?? Array.Empty<AchievementTagTally>();
+                tallies = unlockedRows.Build() ?? Array.Empty<AchievementTally>();
             }
             else
             {
@@ -478,11 +478,11 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
                 // its tags are the slices themselves.
                 var keep = snapshot.TallyFilter;
                 tallies = (snapshot.GameSummaries ?? new List<GameSummaryItem>())
-                    .SelectMany(game => game?.TagTotals ?? Array.Empty<AchievementTagTally>())
+                    .SelectMany(game => game?.Tallies ?? Array.Empty<AchievementTally>())
                     .Where(tally => keep == null || keep(tally));
             }
 
-            var (counts, unlocked, total) = AchievementTagTallyBuilder.CountShown(tallies, keys);
+            var (counts, unlocked, total) = AchievementTallyBuilder.CountShown(tallies, keys);
             var namingGame = AchievementTagScope.NamingGame(scope);
             var slices = new List<(string Key, string Label, int Unlocked, int Total, string ColorHex, string IconKey)>();
             foreach (var key in keys)
@@ -508,7 +508,7 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
 
         private void OnTagDefinitionsChanged(object sender, AchievementTagsChangedEventArgs e) => RefreshTagPie();
 
-        private void OnTagTotalsChanged(object sender, TagTotalsChangedEventArgs e) => RefreshTagPie();
+        private void OnTalliesChanged(object sender, TalliesChangedEventArgs e) => RefreshTagPie();
 
         private void RefreshTagPie()
         {

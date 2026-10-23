@@ -110,7 +110,7 @@ namespace PlayniteAchievements.ViewModels
             ((TagFilter?.MatchesRow(row) ?? true) && (TierFilters?.Matches(row) ?? true));
 
         /// <summary>True for a tally whose achievements the applying achievement filters keep.</summary>
-        public bool MatchesTally(PlayniteAchievements.Models.Achievements.AchievementTagTally tally) =>
+        public bool MatchesTally(PlayniteAchievements.Models.Achievements.AchievementTally tally) =>
             !AchievementFiltersApply ||
             ((TagFilter?.MatchesTally(tally) ?? true) && (TierFilters?.Matches(tally) ?? true));
 
@@ -118,7 +118,7 @@ namespace PlayniteAchievements.ViewModels
         private IEnumerable<string> GameTagKeys(Guid gameId) =>
             (_optionGames ?? new List<GameSummaryItem>())
                 .Where(game => game?.PlayniteGameId == gameId)
-                .SelectMany(game => game.TagTotals ?? Array.Empty<PlayniteAchievements.Models.Achievements.AchievementTagTally>())
+                .SelectMany(game => game.Tallies ?? Array.Empty<PlayniteAchievements.Models.Achievements.AchievementTally>())
                 .SelectMany(tally => tally.Tags);
 
         public string SearchText

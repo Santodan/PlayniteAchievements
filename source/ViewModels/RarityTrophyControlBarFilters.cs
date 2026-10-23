@@ -132,7 +132,7 @@ namespace PlayniteAchievements.ViewModels
         /// True for a tally whose achievements both filters keep, locked ones included; every tally
         /// while nothing is selected. A tally of unknown tier matches no picked tier.
         /// </summary>
-        public bool Matches(AchievementTagTally tally) =>
+        public bool Matches(AchievementTally tally) =>
             (_rarities.Count == 0 || (tally.Rarity.HasValue && _rarities.Contains(tally.Rarity.Value))) &&
             (!_capstone || tally.IsCapstone) &&
             (_trophies.Count == 0 || (tally.Trophy != null && _trophies.Contains(tally.Trophy)));

@@ -244,7 +244,7 @@ namespace PlayniteAchievements.Services.Overview
         public static OverviewDataSnapshot FilterAchievements(
             OverviewDataSnapshot snapshot,
             Func<AchievementDisplayItem, bool> keepRow,
-            Func<Models.Achievements.AchievementTagTally, bool> keepTally)
+            Func<Models.Achievements.AchievementTally, bool> keepTally)
         {
             if (snapshot == null)
             {
@@ -306,7 +306,7 @@ namespace PlayniteAchievements.Services.Overview
                 var provider = string.IsNullOrWhiteSpace(game.ProviderKey) ? "Unknown" : game.ProviderKey;
                 var gameUnlocked = 0;
                 var gameTotal = 0;
-                foreach (var tally in game.TagTotals ?? Array.Empty<Models.Achievements.AchievementTagTally>())
+                foreach (var tally in game.Tallies ?? Array.Empty<Models.Achievements.AchievementTally>())
                 {
                     if (!keepTally(tally))
                     {
@@ -334,7 +334,7 @@ namespace PlayniteAchievements.Services.Overview
             return filtered;
         }
 
-        private static void AddTier(OverviewDataSnapshot snapshot, Models.Achievements.AchievementTagTally tally)
+        private static void AddTier(OverviewDataSnapshot snapshot, Models.Achievements.AchievementTally tally)
         {
             switch (tally.Rarity)
             {
@@ -357,7 +357,7 @@ namespace PlayniteAchievements.Services.Overview
             }
         }
 
-        private static void AddTrophy(OverviewDataSnapshot snapshot, Models.Achievements.AchievementTagTally tally)
+        private static void AddTrophy(OverviewDataSnapshot snapshot, Models.Achievements.AchievementTally tally)
         {
             switch (tally.Trophy)
             {

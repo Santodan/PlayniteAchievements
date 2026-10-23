@@ -102,7 +102,7 @@ namespace PlayniteAchievements.Services.Cache
         public int TrophyBronzeTotal { get; set; }
 
         /// <summary>Achievements per tag, with the user's tag edits applied; null when none are tagged.</summary>
-        public AchievementTagTally[] TagTotals { get; set; }
+        public AchievementTally[] Tallies { get; set; }
 
         public bool IsCompleted { get; set; }
 

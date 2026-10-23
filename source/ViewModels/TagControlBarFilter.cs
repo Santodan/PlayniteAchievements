@@ -76,7 +76,7 @@ namespace PlayniteAchievements.ViewModels
             (row != null && _tags.Any(tag => AchievementTagHelper.Contains(row.Tags, tag)));
 
         /// <summary>True for a tally whose tag set has any picked tag; every tally while none is picked.</summary>
-        public bool MatchesTally(AchievementTagTally tally) =>
+        public bool MatchesTally(AchievementTally tally) =>
             _tags.Count == 0 ||
             _tags.Any(tag => AchievementTagHelper.Contains(tally.Key, tag));
 

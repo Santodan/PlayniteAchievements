@@ -24,18 +24,18 @@ namespace PlayniteAchievements.Tests.ViewModels
             {
                 GameName = "Missable", PlayniteGameId = MissableGame, ProviderKey = "Steam", Platforms = new[] { "PC" },
                 TotalAchievements = 3, UnlockedAchievements = 2,
-                TagTotals = new[]
+                Tallies = new[]
                 {
-                    new AchievementTagTally(AchievementTagHelper.Missable, RarityTier.Common, null, false, 1, 1),
-                    new AchievementTagTally(AchievementTagHelper.Missable, RarityTier.Rare, "gold", true, 0, 1),
-                    new AchievementTagTally(string.Empty, RarityTier.Common, null, false, 1, 1)
+                    new AchievementTally(AchievementTagHelper.Missable, RarityTier.Common, null, false, 1, 1),
+                    new AchievementTally(AchievementTagHelper.Missable, RarityTier.Rare, "gold", true, 0, 1),
+                    new AchievementTally(string.Empty, RarityTier.Common, null, false, 1, 1)
                 }
             },
             new GameSummaryItem
             {
                 GameName = "Plain", PlayniteGameId = PlainGame, ProviderKey = "Xbox", Platforms = new[] { "PC" },
                 TotalAchievements = 2, UnlockedAchievements = 1,
-                TagTotals = new[] { new AchievementTagTally(string.Empty, RarityTier.Rare, null, false, 1, 2) }
+                Tallies = new[] { new AchievementTally(string.Empty, RarityTier.Rare, null, false, 1, 2) }
             }
         };
 
@@ -78,7 +78,7 @@ namespace PlayniteAchievements.Tests.ViewModels
             var adapter = new PieControlBarAdapter();
             adapter.UpdateOptions(Games());
             adapter.TagFilter.Item.SetSelected(AchievementTagHelper.Missable, true);
-            var untagged = new AchievementTagTally(string.Empty, 0, 1);
+            var untagged = new AchievementTally(string.Empty, 0, 1);
             Assert.IsFalse(adapter.MatchesTally(untagged));
 
             adapter.SetAchievementFiltersApply(false);

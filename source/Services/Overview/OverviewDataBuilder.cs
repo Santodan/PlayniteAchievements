@@ -236,7 +236,7 @@ namespace PlayniteAchievements.Services.Overview
                     TrophyGoldTotal = game.TrophyGoldTotal,
                     TrophySilverTotal = game.TrophySilverTotal,
                     TrophyBronzeTotal = game.TrophyBronzeTotal,
-                    TagTotals = game.TagTotals,
+                    Tallies = game.Tallies,
                     LastPlayed = presentation.LastPlayed,
                     LastUnlockUtc = game.LastUnlockUtc,
                     IsCompleted = game.IsCompleted,

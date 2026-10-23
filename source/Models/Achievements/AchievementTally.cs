@@ -14,14 +14,14 @@ namespace PlayniteAchievements.Models.Achievements
     /// achievement once, locked ones included. Filtered achievements are not counted. Tag keys are
     /// stored raw; display resolves them, so a renamed or deleted tag needs no recount.
     /// </summary>
-    public readonly struct AchievementTagTally
+    public readonly struct AchievementTally
     {
-        public AchievementTagTally(string key, int unlocked, int total)
+        public AchievementTally(string key, int unlocked, int total)
             : this(key, RarityTier.Common, null, false, unlocked, total)
         {
         }
 
-        public AchievementTagTally(
+        public AchievementTally(
             string key,
             RarityTier? rarity,
             string trophy,
@@ -135,12 +135,12 @@ namespace PlayniteAchievements.Models.Achievements
     }
 
     /// <summary>
-    /// Builds a game's <see cref="AchievementTagTally"/> list: one entry per tag set, tier, trophy
+    /// Builds a game's <see cref="AchievementTally"/> list: one entry per tag set, tier, trophy
     /// grade and capstone flag its achievements carry. The derived unlock modes (Softcore,
     /// Hardcore) describe how an achievement was earned, not what it is, and are not part of its
     /// tag set.
     /// </summary>
-    internal sealed class AchievementTagTallyBuilder
+    internal sealed class AchievementTallyBuilder
     {
         private readonly Dictionary<Facet, (int Unlocked, int Total)> _counts =
             new Dictionary<Facet, (int Unlocked, int Total)>();
@@ -161,8 +161,8 @@ namespace PlayniteAchievements.Models.Achievements
         /// <paramref name="tagEdits"/>, and, when <paramref name="capstones"/> is given (a game
         /// whose capstones the user edited), to whether that set holds it.
         /// </summary>
-        public static AchievementTagTally[] ApplyEdits(
-            AchievementTagTally[] providerTotals,
+        public static AchievementTally[] ApplyEdits(
+            AchievementTally[] providerTotals,
             IReadOnlyDictionary<string, AchievementTallyState> states,
             IReadOnlyDictionary<string, AchievementOverride> tagEdits,
             ISet<string> capstones = null)
@@ -194,9 +194,9 @@ namespace PlayniteAchievements.Models.Achievements
             return changed ? builder.Build() : providerTotals;
         }
 
-        public static AchievementTagTallyBuilder From(IEnumerable<AchievementTagTally> tallies)
+        public static AchievementTallyBuilder From(IEnumerable<AchievementTally> tallies)
         {
-            var builder = new AchievementTagTallyBuilder();
+            var builder = new AchievementTallyBuilder();
             builder.AddAll(tallies);
             return builder;
         }
@@ -208,7 +208,7 @@ namespace PlayniteAchievements.Models.Achievements
         /// grade and capstone flag, <paramref name="unlocked"/> of them unlocked.
         /// </summary>
         public void Add(string tags, RarityTier? rarity, string trophy, bool isCapstone, int unlocked, int total) =>
-            Shift(new Facet(SetKey(tags), rarity, AchievementTagTally.NormalizeTrophy(trophy), isCapstone), unlocked, total);
+            Shift(new Facet(SetKey(tags), rarity, AchievementTally.NormalizeTrophy(trophy), isCapstone), unlocked, total);
 
         public void Add(string tags, RarityTier? rarity, string trophy, bool isCapstone, bool unlocked) =>
             Add(tags, rarity, trophy, isCapstone, unlocked ? 1 : 0, 1);
@@ -221,7 +221,7 @@ namespace PlayniteAchievements.Models.Achievements
 
         /// <summary>Takes back one achievement counted under these values.</summary>
         public void Remove(string tags, RarityTier? rarity, string trophy, bool isCapstone, bool unlocked) =>
-            Shift(new Facet(SetKey(tags), rarity, AchievementTagTally.NormalizeTrophy(trophy), isCapstone), unlocked ? -1 : 0, -1);
+            Shift(new Facet(SetKey(tags), rarity, AchievementTally.NormalizeTrophy(trophy), isCapstone), unlocked ? -1 : 0, -1);
 
         public void Remove(string tags, bool unlocked) => Remove(tags, RarityTier.Common, null, false, unlocked);
 
@@ -231,7 +231,7 @@ namespace PlayniteAchievements.Models.Achievements
         /// however many of the shown tags it has.
         /// </summary>
         public static (Dictionary<string, (int Unlocked, int Total)> PerTag, int Unlocked, int Total) CountShown(
-            IEnumerable<AchievementTagTally> tallies,
+            IEnumerable<AchievementTally> tallies,
             IEnumerable<string> shown)
         {
             var perTag = (shown ?? Enumerable.Empty<string>())
@@ -239,7 +239,7 @@ namespace PlayniteAchievements.Models.Achievements
                 .ToDictionary(key => key, _ => (Unlocked: 0, Total: 0), StringComparer.OrdinalIgnoreCase);
             var unlocked = 0;
             var total = 0;
-            foreach (var tally in tallies ?? Enumerable.Empty<AchievementTagTally>())
+            foreach (var tally in tallies ?? Enumerable.Empty<AchievementTally>())
             {
                 var any = false;
                 foreach (var key in tally.Tags)
@@ -261,16 +261,16 @@ namespace PlayniteAchievements.Models.Achievements
             return (perTag, unlocked, total);
         }
 
-        public void AddAll(IEnumerable<AchievementTagTally> tallies)
+        public void AddAll(IEnumerable<AchievementTally> tallies)
         {
-            foreach (var tally in tallies ?? Enumerable.Empty<AchievementTagTally>())
+            foreach (var tally in tallies ?? Enumerable.Empty<AchievementTally>())
             {
                 Shift(new Facet(tally.Key, tally.Rarity, tally.Trophy, tally.IsCapstone), tally.Unlocked, tally.Total);
             }
         }
 
         /// <summary>The tallies in a stable order; null when the game counts no achievement.</summary>
-        public AchievementTagTally[] Build()
+        public AchievementTally[] Build()
         {
             if (_counts.Count == 0)
             {
@@ -282,7 +282,7 @@ namespace PlayniteAchievements.Models.Achievements
                 .ThenBy(pair => pair.Key.Rarity.HasValue ? (int)pair.Key.Rarity.Value : -1)
                 .ThenBy(pair => pair.Key.Trophy ?? string.Empty, StringComparer.Ordinal)
                 .ThenBy(pair => pair.Key.IsCapstone)
-                .Select(pair => new AchievementTagTally(
+                .Select(pair => new AchievementTally(
                     string.Intern(pair.Key.Tags),
                     pair.Key.Rarity,
                     pair.Key.Trophy,

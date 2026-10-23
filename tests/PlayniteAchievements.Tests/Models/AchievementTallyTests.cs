@@ -9,16 +9,16 @@ using PlayniteAchievements.Services.Achievements;
 namespace PlayniteAchievements.Tests.Models
 {
     [TestClass]
-    public class AchievementTagTallyTests
+    public class AchievementTallyTests
     {
-        private static Dictionary<string, (int Unlocked, int Total)> AsMap(IEnumerable<AchievementTagTally> tallies) =>
-            (tallies ?? Enumerable.Empty<AchievementTagTally>())
+        private static Dictionary<string, (int Unlocked, int Total)> AsMap(IEnumerable<AchievementTally> tallies) =>
+            (tallies ?? Enumerable.Empty<AchievementTally>())
                 .ToDictionary(tally => tally.Key, tally => (tally.Unlocked, tally.Total), StringComparer.OrdinalIgnoreCase);
 
         [TestMethod]
         public void Builder_CountsEachTagOnceAndSkipsDerivedModes()
         {
-            var builder = new AchievementTagTallyBuilder();
+            var builder = new AchievementTallyBuilder();
             builder.Add(AchievementTagHelper.Missable + "|" + AchievementTagHelper.Softcore, unlocked: true);
             builder.Add(AchievementTagHelper.Missable, unlocked: false);
             builder.Add("Collectable", 2, 5);
@@ -33,7 +33,7 @@ namespace PlayniteAchievements.Tests.Models
         [TestMethod]
         public void Builder_CountsUntaggedUnderTheEmptySetAndBuildsNullWhenEmpty()
         {
-            var builder = new AchievementTagTallyBuilder();
+            var builder = new AchievementTallyBuilder();
             builder.Add(null, unlocked: true);
             Assert.AreEqual((1, 1), AsMap(builder.Build())[string.Empty]);
 
@@ -46,7 +46,7 @@ namespace PlayniteAchievements.Tests.Models
         [TestMethod]
         public void Builder_KeepsTierGradeAndCapstoneApart()
         {
-            var builder = new AchievementTagTallyBuilder();
+            var builder = new AchievementTallyBuilder();
             builder.Add("Collectable", RarityTier.Rare, "Gold", isCapstone: false, unlocked: true);
             builder.Add("Collectable", RarityTier.Rare, "gold", isCapstone: false, unlocked: false);
             builder.Add("Collectable", RarityTier.Rare, "gold", isCapstone: true, unlocked: false);
@@ -67,8 +67,8 @@ namespace PlayniteAchievements.Tests.Models
         {
             var provider = new[]
             {
-                new AchievementTagTally(string.Empty, RarityTier.Rare, "platinum", true, 0, 1),
-                new AchievementTagTally(string.Empty, RarityTier.Common, null, false, 1, 3)
+                new AchievementTally(string.Empty, RarityTier.Rare, "platinum", true, 0, 1),
+                new AchievementTally(string.Empty, RarityTier.Common, null, false, 1, 3)
             };
             var states = new Dictionary<string, AchievementTallyState>(StringComparer.OrdinalIgnoreCase)
             {
@@ -78,7 +78,7 @@ namespace PlayniteAchievements.Tests.Models
                 ["final"] = new AchievementTallyState(null, RarityTier.Common, null, isCapstone: false, unlocked: true)
             };
 
-            var tallies = AchievementTagTallyBuilder.ApplyEdits(
+            var tallies = AchievementTallyBuilder.ApplyEdits(
                 provider,
                 states,
                 new Dictionary<string, AchievementOverride>(StringComparer.OrdinalIgnoreCase),
@@ -99,9 +99,9 @@ namespace PlayniteAchievements.Tests.Models
         {
             var provider = new[]
             {
-                new AchievementTagTally("Collectable", 1, 3),
-                new AchievementTagTally(AchievementTagHelper.Missable, 0, 1),
-                new AchievementTagTally(string.Empty, 0, 1)
+                new AchievementTally("Collectable", 1, 3),
+                new AchievementTally(AchievementTagHelper.Missable, 0, 1),
+                new AchievementTally(string.Empty, 0, 1)
             };
             var states = new Dictionary<string, AchievementTallyState>(StringComparer.OrdinalIgnoreCase)
             {
@@ -121,7 +121,7 @@ namespace PlayniteAchievements.Tests.Models
                 ["d"] = new AchievementOverride { Points = 5 }
             };
 
-            var tallies = AsMap(AchievementTagTallyBuilder.ApplyEdits(provider, states, overrides));
+            var tallies = AsMap(AchievementTallyBuilder.ApplyEdits(provider, states, overrides));
 
             Assert.AreEqual((0, 3), tallies["Collectable"]);
             Assert.AreEqual((1, 1), tallies["Progression"]);
@@ -162,19 +162,19 @@ namespace PlayniteAchievements.Tests.Models
         public void CountShown_CountsAnAchievementWithSeveralShownTagsOnce()
         {
             // X carries both tags and is unlocked; Y and Z carry one each and are locked.
-            var builder = new AchievementTagTallyBuilder();
+            var builder = new AchievementTallyBuilder();
             builder.Add(AchievementTagHelper.Missable + "|Collectable", unlocked: true);
             builder.Add(AchievementTagHelper.Missable, unlocked: false);
             builder.Add("Collectable", unlocked: false);
             var tallies = builder.Build();
 
-            var both = AchievementTagTallyBuilder.CountShown(tallies, new[] { AchievementTagHelper.Missable, "Collectable" });
+            var both = AchievementTallyBuilder.CountShown(tallies, new[] { AchievementTagHelper.Missable, "Collectable" });
             Assert.AreEqual((1, 2), both.PerTag[AchievementTagHelper.Missable]);
             Assert.AreEqual((1, 2), both.PerTag["Collectable"]);
             Assert.AreEqual(1, both.Unlocked);
             Assert.AreEqual(3, both.Total);
 
-            var one = AchievementTagTallyBuilder.CountShown(tallies, new[] { "Collectable" });
+            var one = AchievementTallyBuilder.CountShown(tallies, new[] { "Collectable" });
             Assert.AreEqual(1, one.Unlocked);
             Assert.AreEqual(2, one.Total);
         }
@@ -182,7 +182,7 @@ namespace PlayniteAchievements.Tests.Models
         [TestMethod]
         public void EffectiveTags_KeepsTheProvidersDerivedModes()
         {
-            var effective = AchievementTagTallyBuilder.EffectiveTags(
+            var effective = AchievementTallyBuilder.EffectiveTags(
                 AchievementTagHelper.Missable + "|" + AchievementTagHelper.Hardcore,
                 new AchievementOverride { Tags = "Progression" });
 

@@ -40,7 +40,7 @@ namespace PlayniteAchievements.Services.Overview
         /// (see <see cref="OverviewLinkedSnapshots.FilterAchievements"/>); null when every
         /// achievement counts. A count over the games' tallies applies it too.
         /// </summary>
-        public Func<Models.Achievements.AchievementTagTally, bool> TallyFilter { get; set; }
+        public Func<Models.Achievements.AchievementTally, bool> TallyFilter { get; set; }
 
         /// <summary>
         /// Every achievement pin (see <see cref="AchievementPinKey"/>) the build considered when it
