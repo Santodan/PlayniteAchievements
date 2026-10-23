@@ -1,17 +1,12 @@
 using System;
-using System.Collections.Specialized;
-using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Data;
-using System.Windows.Threading;
-using PlayniteAchievements.Models.Settings;
-using PlayniteAchievements.ViewModels.Items;
 
 namespace PlayniteAchievements.Views.Controls
 {
-    // The Tags column's icon size: one size for every row, as large as the column width and row
-    // height let the row with the most crowded tags fit.
+    // The Tags column's icon size and the height its tags may take: as large as the row height
+    // and column width allow, the same in every row. A row with more tags than fit shows "+N".
     public partial class AchievementDataGridControl
     {
         // AchievementCellStyle pads cells 10,6; the row style's MinHeight is 88.
@@ -28,59 +23,42 @@ namespace PlayniteAchievements.Views.Controls
 
         public double TagIconSize => (double)GetValue(TagIconSizeProperty);
 
+        private static readonly DependencyPropertyKey TagAreaHeightPropertyKey =
+            DependencyProperty.RegisterReadOnly(nameof(TagAreaHeight), typeof(double),
+                typeof(AchievementDataGridControl), new PropertyMetadata(double.PositiveInfinity));
+
+        /// <summary>Identifies the TagAreaHeight dependency property: the height a Tags cell's tags may take.</summary>
+        public static readonly DependencyProperty TagAreaHeightProperty = TagAreaHeightPropertyKey.DependencyProperty;
+
+        public double TagAreaHeight => (double)GetValue(TagAreaHeightProperty);
+
         private static readonly DependencyProperty TagsColumnWidthProperty =
             DependencyProperty.Register("TagsColumnWidth", typeof(double),
                 typeof(AchievementDataGridControl), new PropertyMetadata(0.0, OnTagIconLayoutChanged));
 
-        private static readonly DependencyProperty TagsColumnVisibilityProperty =
-            DependencyProperty.Register("TagsColumnVisibility", typeof(Visibility),
-                typeof(AchievementDataGridControl), new PropertyMetadata(Visibility.Visible, OnTagIconLayoutChanged));
-
-        private bool _tagIconFitQueued;
-
         private static void OnTagIconLayoutChanged(DependencyObject d, DependencyPropertyChangedEventArgs e) =>
-            ((AchievementDataGridControl)d).RequestTagIconFit();
+            ((AchievementDataGridControl)d).UpdateTagIconSize();
 
         private void ObserveTagIconLayout()
         {
             SetBinding(TagsColumnWidthProperty, new Binding(nameof(DataGridColumn.ActualWidth)) { Source = TagsColumn });
-            SetBinding(TagsColumnVisibilityProperty, new Binding(nameof(DataGridColumn.Visibility)) { Source = TagsColumn });
-            ((INotifyCollectionChanged)AchievementsDataGrid.Items).CollectionChanged += (s, e) => RequestTagIconFit();
-            AddHandler(TagChipsPanel.ChipsChangedEvent, new RoutedEventHandler((s, e) => RequestTagIconFit()));
-        }
-
-        // Column resizes and collection batches arrive many at a time; one pass after them all.
-        private void RequestTagIconFit()
-        {
-            if (_tagIconFitQueued)
-            {
-                return;
-            }
-
-            _tagIconFitQueued = true;
-            Dispatcher.BeginInvoke(new Action(() =>
-            {
-                _tagIconFitQueued = false;
-                UpdateTagIconSize();
-            }), DispatcherPriority.Background);
         }
 
         private void UpdateTagIconSize()
         {
-            var display = TagDisplay;
-            if ((display & AchievementTagDisplay.Icons) == 0 ||
-                TagsColumn.Visibility != Visibility.Visible ||
-                TagsColumn.ActualWidth <= 0)
+            if (TagsColumn == null || TagsColumn.ActualWidth <= 0)
             {
                 return;
             }
 
-            SetValue(TagIconSizePropertyKey, TagChipsPanel.FitIconSize(
-                AchievementsDataGrid.Items.OfType<AchievementDisplayItem>().Select(item => item.TagChips),
-                display,
-                TagsColumn.ActualWidth - TagCellHorizontalPadding,
-                (ResolveFixedRowHeight() ?? AutoRowMinHeight) - TagCellVerticalPadding,
-                this));
+            // One pixel of slack on each axis absorbs layout rounding.
+            var width = TagsColumn.ActualWidth - TagCellHorizontalPadding - 1;
+            var height = (ResolveFixedRowHeight() ?? AutoRowMinHeight) - TagCellVerticalPadding - 1;
+            var floor = TryFindResource("PlayAch.FontSize.Body") is double fontSize && fontSize > 0
+                ? Math.Ceiling(fontSize)
+                : Math.Ceiling(SystemFonts.MessageFontSize);
+            SetValue(TagIconSizePropertyKey, Math.Max(floor, Math.Floor(Math.Min(width, height))));
+            SetValue(TagAreaHeightPropertyKey, Math.Max(floor, height));
         }
     }
 }
