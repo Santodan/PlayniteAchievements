@@ -228,6 +228,124 @@ namespace PlayniteAchievements.Services.Images
                 .ConfigureAwait(false);
         }
 
+        /// <summary>
+        /// Downloads a metadata source's row icons for a game into its metadata/&lt;source&gt; folder,
+        /// through the same pipeline as the game's own icons, and deletes the folder's files no row
+        /// uses any more. Returns each row's icon paths: local where the file resolved, the row's own
+        /// value where it did not. The rows themselves are left as they are, since a source can
+        /// hand the same rows to several games in a run.
+        /// </summary>
+        public async Task<IReadOnlyDictionary<AchievementDetail, (string Unlocked, string Locked)>> PopulateMetadataSourceIconCacheAsync(
+            Guid gameId,
+            string sourceKey,
+            IEnumerable<AchievementDetail> rows,
+            bool forceRefreshExistingTargets,
+            CancellationToken cancel)
+        {
+            var result = new Dictionary<AchievementDetail, (string Unlocked, string Locked)>();
+            if (gameId == Guid.Empty || string.IsNullOrWhiteSpace(sourceKey) || rows == null)
+            {
+                return result;
+            }
+
+            var gameIdText = gameId.ToString("D");
+            var folder = _diskImageService.ResolveCacheRelativePath(
+                AchievementIconCachePathBuilder.BuildMetadataSourceFolderRelativePath(gameIdText, sourceKey));
+            var copies = new Dictionary<AchievementDetail, AchievementDetail>();
+            foreach (var row in rows.Where(row => row != null && !string.IsNullOrWhiteSpace(row.ApiName)))
+            {
+                if (!copies.ContainsKey(row))
+                {
+                    copies[row] = new AchievementDetail
+                    {
+                        ApiName = row.ApiName,
+                        UnlockedIconPath = row.UnlockedIconPath,
+                        LockedIconPath = row.LockedIconPath
+                    };
+                }
+            }
+
+            var achievements = copies.Values.ToList();
+            var distinctLocked = new HashSet<AchievementDetail>(
+                achievements.Where(row => HasDistinctLockedSource(row.UnlockedIconPath, row.LockedIconPath)));
+            var fileStems = AchievementIconCachePathBuilder.BuildFileStems(achievements.Select(row => row.ApiName));
+
+            await PopulateAchievementIconsCoreAsync(
+                    achievements,
+                    fileStems,
+                    gameIdText,
+                    buildLockedRequests: true,
+                    forceRefreshExistingTargets: forceRefreshExistingTargets,
+                    forceSquareIcons: false,
+                    reportInitialProgress: false,
+                    resolveTargetPath: (achievement, fileStem, variant) => Path.Combine(
+                        folder,
+                        Path.GetFileName(AchievementIconCachePathBuilder.BuildRelativePath(gameIdText, fileStem, variant))),
+                    resolveUnlockedFallback: achievement => achievement.UnlockedIconPath,
+                    // A distinct locked icon that did not resolve keeps its address; one that was the
+                    // unlocked icon follows the unlocked file.
+                    resolveLockedPath: (achievement, finalUnlockedPath, resolvedLockedCandidate) =>
+                        resolvedLockedCandidate ??
+                        (distinctLocked.Contains(achievement) || string.IsNullOrWhiteSpace(achievement.LockedIconPath)
+                            ? achievement.LockedIconPath
+                            : finalUnlockedPath),
+                    cancel: cancel,
+                    onIconProgress: null)
+                .ConfigureAwait(false);
+
+            foreach (var pair in copies)
+            {
+                result[pair.Key] = (pair.Value.UnlockedIconPath, pair.Value.LockedIconPath);
+            }
+
+            if (!cancel.IsCancellationRequested)
+            {
+                DeleteUnusedFiles(folder, achievements.SelectMany(row => new[] { row.UnlockedIconPath, row.LockedIconPath }));
+            }
+
+            return result;
+        }
+
+        /// <summary>Deletes a metadata source's row icons for a game, for a source it no longer keeps rows of.</summary>
+        public void DeleteMetadataSourceIconCache(Guid gameId, string sourceKey)
+        {
+            if (gameId == Guid.Empty || string.IsNullOrWhiteSpace(sourceKey))
+            {
+                return;
+            }
+
+            _diskImageService.DeleteCacheRelativeDirectory(
+                AchievementIconCachePathBuilder.BuildMetadataSourceFolderRelativePath(gameId.ToString("D"), sourceKey));
+        }
+
+        private void DeleteUnusedFiles(string folder, IEnumerable<string> usedPaths)
+        {
+            try
+            {
+                if (string.IsNullOrWhiteSpace(folder) || !Directory.Exists(folder))
+                {
+                    return;
+                }
+
+                var used = new HashSet<string>(
+                    usedPaths
+                        .Where(path => !string.IsNullOrWhiteSpace(path) && !IsHttpIconPath(path))
+                        .Select(Path.GetFullPath),
+                    StringComparer.OrdinalIgnoreCase);
+                foreach (var file in Directory.EnumerateFiles(folder).ToList())
+                {
+                    if (!used.Contains(Path.GetFullPath(file)))
+                    {
+                        File.Delete(file);
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger?.Debug(ex, $"Failed to delete unused metadata source icons in '{folder}'.");
+            }
+        }
+
         public async Task<string> PopulateFriendGameIconCacheAsync(
             string providerKey,
             string providerGameKey,
