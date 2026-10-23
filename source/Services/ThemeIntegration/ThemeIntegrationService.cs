@@ -112,6 +112,7 @@ namespace PlayniteAchievements.Services.ThemeIntegration
         private string _dynamicFriendPairKey;
         private string _dynamicFriendPairKeyInFlight;
         private int _dynamicFriendPairFetchVersion;
+        internal Task DynamicFriendPairFetchTask { get; private set; }
 
         // Sticky-true once any theme friend binding is read; consulted by the friends overview
         // coordinator's release path so a friend-consuming theme keeps the snapshot alive.
@@ -1777,6 +1778,17 @@ namespace PlayniteAchievements.Services.ThemeIntegration
         internal void RequestLibraryRefreshForTests(bool includeHeavyAchievementLists)
         {
             RequestLibraryRefresh(includeHeavyAchievementLists);
+        }
+
+        internal Task FriendRefreshTaskForTests
+        {
+            get
+            {
+                lock (_friendRefreshGate)
+                {
+                    return _friendRefreshRunner ?? Task.CompletedTask;
+                }
+            }
         }
 #endif
 
@@ -4367,7 +4379,7 @@ namespace PlayniteAchievements.Services.ThemeIntegration
                 game.ProviderKey,
                 game.AppId,
                 game.ProviderGameKey);
-            _ = FetchDynamicFriendPairRowsAsync(version, key, gameScope);
+            DynamicFriendPairFetchTask = FetchDynamicFriendPairRowsAsync(version, key, gameScope);
         }
 
         private async Task FetchDynamicFriendPairRowsAsync(int version, string key, FriendCacheChange gameScope)
