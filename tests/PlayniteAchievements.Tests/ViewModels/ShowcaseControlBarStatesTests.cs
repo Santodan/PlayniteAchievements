@@ -235,6 +235,63 @@ namespace PlayniteAchievements.Tests.ViewModels
             CollectionAssert.AreEqual(new[] { row }, restored.Apply(new[] { row, other }).ToArray());
         }
 
+        private static ControlBarFilterState XboxPick() => new ControlBarFilterState
+        {
+            Platforms = new Dictionary<string, List<string>> { ["Xbox"] = new List<string> { "Xbox" } }
+        };
+
+        private static GameSummaryItem[] SteamAndXbox() => new[]
+        {
+            new GameSummaryItem { PlayniteGameId = Guid.NewGuid(), GameName = "Portal", ProviderKey = "Steam", Provider = "Steam", Platforms = new[] { "PC" } },
+            new GameSummaryItem { PlayniteGameId = Guid.NewGuid(), GameName = "Halo", ProviderKey = "Xbox", Provider = "Xbox", Platforms = new[] { "Xbox" } }
+        };
+
+        private static bool IsXboxSelected(IEnumerable<ProviderFilterGroup> groups) =>
+            groups.Single(group => group.ProviderKey == "Xbox").SelectedPlatformNames.Contains("Xbox");
+
+        [TestMethod]
+        public void AchievementAdapter_RestoredPlatformSurvivesAnEmptyFirstGameList()
+        {
+            var adapter = new CrossGameAchievementControlBarAdapter();
+            adapter.RestoreState(XboxPick());
+
+            adapter.UpdateGames(Array.Empty<GameSummaryItem>());
+            CollectionAssert.AreEqual(new[] { "Xbox" }, adapter.CaptureState().Platforms["Xbox"]);
+
+            adapter.UpdateGames(SteamAndXbox());
+            Assert.IsTrue(IsXboxSelected(adapter.ProviderFilterGroups));
+        }
+
+        [TestMethod]
+        public void GameAdapter_RestoredPlatformSurvivesAnEmptyFirstGameList()
+        {
+            var adapter = new GameSummaryGridControlBarAdapter();
+            adapter.RestoreState(XboxPick());
+
+            adapter.UpdateOptions(Array.Empty<GameSummaryItem>());
+            CollectionAssert.AreEqual(new[] { "Xbox" }, adapter.CaptureState().Platforms["Xbox"]);
+
+            adapter.UpdateOptions(SteamAndXbox());
+            Assert.IsTrue(IsXboxSelected(adapter.ProviderFilterGroups));
+        }
+
+        [TestMethod]
+        public void GameAdapter_PendingPickOnAnAbsentProviderKeepsTheGroups()
+        {
+            var adapter = new GameSummaryGridControlBarAdapter();
+            adapter.RestoreState(new ControlBarFilterState
+            {
+                Platforms = new Dictionary<string, List<string>> { ["PSN"] = new List<string> { "PS5" } }
+            });
+            adapter.UpdateOptions(SteamAndXbox());
+            var groups = adapter.ProviderFilterGroups;
+
+            adapter.UpdateOptions(SteamAndXbox());
+
+            Assert.AreSame(groups, adapter.ProviderFilterGroups);
+            CollectionAssert.AreEqual(new[] { "PS5" }, adapter.CaptureState().Platforms["PSN"]);
+        }
+
         [TestMethod]
         public void TagFilter_OffersGlobalTagsThenThePickedGamesSharedTags()
         {
