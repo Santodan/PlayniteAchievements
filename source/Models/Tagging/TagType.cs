@@ -66,8 +66,10 @@ namespace PlayniteAchievements.Models.Tagging
         CustomGoals,
         DefaultGoals,
         CustomSource,
+        // Retired: Source and Manual Tracking tag only the games that carry them.
         DefaultSource,
         CustomManualTracking,
+        // Retired, as DefaultSource.
         DefaultManualTracking,
         CustomNotifications,
         DefaultNotifications
