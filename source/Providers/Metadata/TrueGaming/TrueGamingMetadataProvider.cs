@@ -77,6 +77,36 @@ namespace PlayniteAchievements.Providers.Metadata.TrueGaming
             {
                 _searches.Clear();
             }
+
+            lock (_challenged)
+            {
+                _challenged.Clear();
+            }
+        }
+
+        // Sites still answering with a challenge page after the wait; not loaded again this run.
+        private readonly HashSet<TrueGamingSite> _challenged = new HashSet<TrueGamingSite>();
+
+        private bool IsChallenged(TrueGamingSite site)
+        {
+            lock (_challenged)
+            {
+                return _challenged.Contains(site);
+            }
+        }
+
+        private void MarkChallenged(TrueGamingSite site)
+        {
+            bool added;
+            lock (_challenged)
+            {
+                added = _challenged.Add(site);
+            }
+
+            if (added)
+            {
+                _logger?.Debug($"[TrueGamingMetadata] {site.Host} is answering with a challenge page; skipping it for the rest of this refresh.");
+            }
         }
 
         /// <summary>
@@ -175,6 +205,12 @@ namespace PlayniteAchievements.Providers.Metadata.TrueGaming
                 }
             }
 
+            if (IsChallenged(TrueGamingSite.TrueAchievements))
+            {
+                health.MarkUnreadable();
+                return Array.Empty<(string, string)>();
+            }
+
             string text;
             try
             {
@@ -200,6 +236,11 @@ namespace PlayniteAchievements.Providers.Metadata.TrueGaming
             if (string.IsNullOrWhiteSpace(text) || IsChallenge(text))
             {
                 _logger?.Debug($"[TrueGamingMetadata] {url} could not be read{(string.IsNullOrWhiteSpace(text) ? string.Empty : " (challenge page)")}.");
+                if (!string.IsNullOrWhiteSpace(text))
+                {
+                    MarkChallenged(TrueGamingSite.TrueAchievements);
+                }
+
                 health.MarkUnreadable();
                 return Array.Empty<(string, string)>();
             }
@@ -480,6 +521,12 @@ namespace PlayniteAchievements.Providers.Metadata.TrueGaming
                 }
             }
 
+            // Unread, not cached: the next run tries the site again.
+            if (IsChallenged(site))
+            {
+                return new TrueGamingPage();
+            }
+
             TrueGamingPage page;
             try
             {
@@ -506,6 +553,10 @@ namespace PlayniteAchievements.Providers.Metadata.TrueGaming
                 if (!page.Loaded)
                 {
                     _logger?.Debug($"[TrueGamingMetadata] {url} could not be read{(string.IsNullOrWhiteSpace(html) ? string.Empty : " (challenge page)")}.");
+                    if (!string.IsNullOrWhiteSpace(html))
+                    {
+                        MarkChallenged(site);
+                    }
                 }
                 if (timedOut)
                 {
