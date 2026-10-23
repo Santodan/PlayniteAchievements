@@ -10,13 +10,14 @@ using Playnite.SDK;
 using Playnite.SDK.Models;
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Net.Http;
 using System.Threading;
 using System.Threading.Tasks;
 
 namespace PlayniteAchievements.Providers.EA
 {
-    public sealed class EADataProvider : DataProviderBase<EASettings>, IDataProvider, IProviderOverride, IRefreshAuthContextReceiver, IDisposable
+    public sealed class EADataProvider : DataProviderBase<EASettings>, IDataProvider, IProviderOverride, IRefreshAuthContextReceiver, IEnglishTitleSource, IDisposable
     {
         public ProviderOverrideDescriptor OverrideDescriptor { get; } = ProviderOverrideDescriptor.Text(
             "LOCPlayAch_ManageAchievements_Overrides_ProviderValueLabel_EA",
@@ -74,6 +75,20 @@ namespace PlayniteAchievements.Providers.EA
             CancellationToken cancel)
         {
             return _scanner.RefreshAsync(gamesToRefresh, onGameStarting, onGameCompleted, cancel);
+        }
+
+        /// <summary>The refresh's own rows: the achievement query requests the US locale whatever the plugin language.</summary>
+        Task<IList<AchievementDetail>> IEnglishTitleSource.GetEnglishTitlesAsync(Game game, GameAchievementData data, CancellationToken ct)
+        {
+            return Task.FromResult<IList<AchievementDetail>>(data?.Achievements?
+                .Where(achievement => achievement != null)
+                .Select(achievement => new AchievementDetail
+                {
+                    ApiName = achievement.ApiName,
+                    DisplayName = achievement.DisplayName,
+                    Description = achievement.Description
+                })
+                .ToList());
         }
 
         public void Dispose()
