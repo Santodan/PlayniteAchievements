@@ -29,16 +29,34 @@ namespace PlayniteAchievements.Models.Tagging.Tests
 
             settings.InitializeDefaults(TaggingSettings.GetDefaultDisplayName);
 
-            foreach (var area in CustomizationTagAreas.All)
+            foreach (var tagType in CustomizationTagAreas.All.SelectMany(area => area.TagTypes))
             {
-                Assert.IsFalse(settings.TagConfigs[area.CustomTag].IsEnabled, area.CustomTag.ToString());
-                Assert.IsFalse(settings.TagConfigs[area.DefaultTag].IsEnabled, area.DefaultTag.ToString());
+                Assert.IsFalse(settings.TagConfigs[tagType].IsEnabled, tagType.ToString());
             }
 
             Assert.IsTrue(settings.HasAchievementsConfig.IsEnabled);
             Assert.IsTrue(settings.CustomizedConfig.IsEnabled);
             Assert.AreEqual("[PA] Custom Icons", settings.TagConfigs[TagType.CustomIcons].DisplayName);
             Assert.AreEqual("[PA] Default Icons", settings.TagConfigs[TagType.DefaultIcons].DisplayName);
+            Assert.AreEqual("[PA] Source Override", settings.TagConfigs[TagType.CustomSource].DisplayName);
+            Assert.AreEqual("[PA] Manual Tracking", settings.TagConfigs[TagType.CustomManualTracking].DisplayName);
+        }
+
+        [TestMethod]
+        public void InitializeDefaults_TurnsOffRetiredKindsSavedAsEnabled()
+        {
+            var settings = new TaggingSettings
+            {
+                TagConfigs = new Dictionary<TagType, TagConfig>
+                {
+                    [TagType.DefaultSource] = new TagConfig { DisplayName = "[PA] Default Source", IsEnabled = true }
+                }
+            };
+
+            settings.InitializeDefaults(TaggingSettings.GetDefaultDisplayName);
+
+            Assert.IsFalse(settings.TagConfigs[TagType.DefaultSource].IsEnabled);
+            Assert.IsFalse(settings.TagConfigs[TagType.DefaultManualTracking].IsEnabled);
         }
 
         [TestMethod]
@@ -67,11 +85,26 @@ namespace PlayniteAchievements.Models.Tagging.Tests
             settings.InitializeDefaults(TaggingSettings.GetDefaultDisplayName);
 
             var rows = settings.CustomizationRows;
-            rows.First(row => row.Area.Area == CustomizationArea.Points).CustomConfig.IsEnabled = true;
+            rows.First(row => row.First == settings.TagConfigs[TagType.CustomPoints]).First.IsEnabled = true;
 
-            Assert.AreEqual(CustomizationTagAreas.All.Count, rows.Count);
+            // The Customized pair, then one row per area.
+            Assert.AreEqual(CustomizationTagAreas.All.Count + 1, rows.Count);
             Assert.IsTrue(settings.TagConfigs[TagType.CustomPoints].IsEnabled);
             Assert.IsTrue(settings.Clone().TagConfigs[TagType.CustomPoints].IsEnabled);
+            Assert.IsFalse(rows.Single(row => row.First == settings.TagConfigs[TagType.CustomSource]).HasSecond);
+        }
+
+        [TestMethod]
+        public void StatusRows_PairEveryStatusKindOnce()
+        {
+            var settings = new TaggingSettings();
+            settings.InitializeDefaults(TaggingSettings.GetDefaultDisplayName);
+
+            var configs = settings.StatusRows.SelectMany(row => new[] { row.First, row.Second }).ToList();
+
+            CollectionAssert.AllItemsAreUnique(configs);
+            CollectionAssert.Contains(configs, settings.ExcludedFromSummariesConfig);
+            CollectionAssert.Contains(configs, settings.NoAchievementsConfig);
         }
 
         [TestMethod]
