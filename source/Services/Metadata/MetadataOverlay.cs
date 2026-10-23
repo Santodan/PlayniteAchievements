@@ -29,6 +29,7 @@ namespace PlayniteAchievements.Services.Metadata
         private readonly Func<Guid, GameAchievementData> _loadStored;
         private readonly SourceIconDownload _downloadSourceIcons;
         private readonly Action<Guid, string> _deleteSourceIcons;
+        private readonly EnglishTitleFetch _englishTitles;
 
         /// <param name="downloadCategoryArt">
         /// Saves a source's category art for the categories it gave a game; null keeps none.
@@ -40,6 +41,10 @@ namespace PlayniteAchievements.Services.Metadata
         /// Saves a source's row icons for a game as local files; null keeps none.
         /// </param>
         /// <param name="deleteSourceIcons">Deletes a source's row icons for a game; null deletes none.</param>
+        /// <param name="englishTitles">
+        /// The game's achievements in English from its servicing provider, for pairing when every
+        /// other way fails; null pairs only as given.
+        /// </param>
         public MetadataOverlay(
             Func<IReadOnlyList<IMetadataProvider>> providers,
             Func<PersistedSettings> settings,
@@ -48,8 +53,10 @@ namespace PlayniteAchievements.Services.Metadata
             CategoryArtDownload downloadCategoryArt = null,
             Func<Guid, GameAchievementData> loadStored = null,
             SourceIconDownload downloadSourceIcons = null,
-            Action<Guid, string> deleteSourceIcons = null)
+            Action<Guid, string> deleteSourceIcons = null,
+            EnglishTitleFetch englishTitles = null)
         {
+            _englishTitles = englishTitles;
             _providers = providers;
             _settings = settings;
             _links = links;
@@ -73,9 +80,19 @@ namespace PlayniteAchievements.Services.Metadata
                 _downloadCategoryArt,
                 _loadStored,
                 _downloadSourceIcons,
-                _deleteSourceIcons);
+                _deleteSourceIcons,
+                _englishTitles);
         }
     }
+
+    /// <summary>
+    /// The game's achievements in English from its servicing provider, keyed by the same ApiNames;
+    /// null when the provider has no English copy.
+    /// </summary>
+    internal delegate Task<IList<AchievementDetail>> EnglishTitleFetch(
+        Game game,
+        GameAchievementData data,
+        CancellationToken ct);
 
     /// <summary>Saves category art (label, image address) as a game's default category images.</summary>
     internal delegate Task CategoryArtDownload(
@@ -118,8 +135,10 @@ namespace PlayniteAchievements.Services.Metadata
             CategoryArtDownload downloadCategoryArt = null,
             Func<Guid, GameAchievementData> loadStored = null,
             SourceIconDownload downloadSourceIcons = null,
-            Action<Guid, string> deleteSourceIcons = null)
+            Action<Guid, string> deleteSourceIcons = null,
+            EnglishTitleFetch englishTitles = null)
         {
+            _englishTitles = englishTitles;
             _loadStored = loadStored;
             _downloadSourceIcons = downloadSourceIcons;
             _deleteSourceIcons = deleteSourceIcons;
@@ -130,10 +149,11 @@ namespace PlayniteAchievements.Services.Metadata
             _settings = settings;
             _links = links;
             _logger = logger;
-            _resolver = new MetadataLinkResolver(links, logger);
+            _resolver = new MetadataLinkResolver(links, logger, settings?.GlobalLanguage);
             _downloadCategoryArt = downloadCategoryArt;
         }
 
+        private readonly EnglishTitleFetch _englishTitles;
         private readonly MetadataLinkResolver _resolver;
         private readonly CategoryArtDownload _downloadCategoryArt;
         private readonly Func<Guid, GameAchievementData> _loadStored;
@@ -153,7 +173,8 @@ namespace PlayniteAchievements.Services.Metadata
                 return false;
             }
 
-            var request = CreateRequest(game, data, gameId);
+            var englishTitles = EnglishTitlesFor(game, data);
+            var request = CreateRequest(game, data, gameId, englishTitles);
             var plan = BuildPlan(request.ServicingProviderKey, _links?.GetChoices(gameId));
             if (plan.IsEmpty)
             {
@@ -176,7 +197,7 @@ namespace PlayniteAchievements.Services.Metadata
                 .ToList();
             if (retry.Count > 0)
             {
-                var shared = CreateRequest(game, data, gameId);
+                var shared = CreateRequest(game, data, gameId, englishTitles);
                 if (KnowsMoreNames(shared, request))
                 {
                     foreach (var key in retry)
@@ -202,6 +223,12 @@ namespace PlayniteAchievements.Services.Metadata
             }
 
             BorrowTitles(gameId, sets, data.Achievements);
+            foreach (var pair in sets)
+            {
+                await MatchInEnglishAsync(pair.Key, gameId, pair.Value.Set, pair.Value.Matches, pair.Value.LinkId, request, data.Achievements, ct)
+                    .ConfigureAwait(false);
+            }
+
             await DownloadSourceIconsAsync(gameId, plan, sets, forceIcons, ct).ConfigureAwait(false);
 
             // A source that could not answer, wholly or for a field, leaves the game as its last
@@ -544,6 +571,122 @@ namespace PlayniteAchievements.Services.Metadata
             }
         }
 
+        /// <summary>
+        /// The last way to pair a source: the achievements and rows every other way left
+        /// unmatched, compared in English (see <see cref="EnglishTitlePairing"/>). Fetches English
+        /// text only when both sides have something left, and never touches an achievement the
+        /// user kept out. Returns how many it paired; a failure pairs none and never fails the game.
+        /// </summary>
+        private async Task<int> MatchInEnglishAsync(
+            string key,
+            Guid gameId,
+            AchievementSourceSet set,
+            List<AchievementMatch> matches,
+            string linkId,
+            MetadataLinkRequest request,
+            IList<AchievementDetail> targets,
+            CancellationToken ct)
+        {
+            if (request?.EnglishTitles == null || set == null || targets == null)
+            {
+                return 0;
+            }
+
+            var pairings = ReadPairings(gameId, key, linkId);
+            var matched = new HashSet<AchievementDetail>(matches.Select(match => match.Target));
+            var used = new HashSet<AchievementDetail>(matches.Select(match => match.Source));
+            var openTargets = targets
+                .Where(target => target != null && !matched.Contains(target) && !IsKeptOut(pairings, target))
+                .ToList();
+            var openRows = set.Achievements.Where(row => row != null && !used.Contains(row)).ToList();
+            if (openTargets.Count == 0 || openRows.Count == 0)
+            {
+                return 0;
+            }
+
+            try
+            {
+                var english = await request.EnglishTitles(ct).ConfigureAwait(false);
+                if (english == null || english.Count == 0)
+                {
+                    return 0;
+                }
+
+                var englishRows = set.EnglishRows == null ? null : await set.EnglishRows(ct).ConfigureAwait(false);
+                if (set.EnglishRows != null && (englishRows == null || englishRows.Count == 0))
+                {
+                    return 0;
+                }
+
+                var found = EnglishTitlePairing.Match(openTargets, english, openRows, englishRows);
+                matches.AddRange(found);
+                _logger?.Debug(
+                    $"[Metadata] {key} matched {found.Count} more of {openTargets.Count} unmatched achievement(s) " +
+                    $"for '{request.Game?.Name}' in English.");
+                return found.Count;
+            }
+            catch (OperationCanceledException)
+            {
+                throw;
+            }
+            catch (Exception ex)
+            {
+                _logger?.Debug(ex, $"[Metadata] {key} could not pair '{request.Game?.Name}' in English.");
+                return 0;
+            }
+        }
+
+        /// <summary>True when the user's pairings keep <paramref name="target"/> out of matching.</summary>
+        private static bool IsKeptOut(IReadOnlyDictionary<string, string> pairings, AchievementDetail target) =>
+            pairings != null &&
+            !string.IsNullOrWhiteSpace(target?.ApiName) &&
+            pairings.TryGetValue(target.ApiName, out var paired) &&
+            string.IsNullOrEmpty(paired);
+
+        /// <summary>
+        /// The game's English achievements from its servicing provider, loaded at most once for the
+        /// game and only when first asked for; null when the plugin's language is English or there
+        /// is no provider to ask.
+        /// </summary>
+        private Func<CancellationToken, Task<IList<AchievementDetail>>> EnglishTitlesFor(Game game, GameAchievementData data)
+        {
+            if (_englishTitles == null || EnglishTitlePairing.IsEnglish(_settings?.GlobalLanguage))
+            {
+                return null;
+            }
+
+            var gate = new object();
+            Task<IList<AchievementDetail>> loading = null;
+            return ct =>
+            {
+                lock (gate)
+                {
+                    return loading ?? (loading = LoadEnglishTitlesAsync(game, data, ct));
+                }
+            };
+        }
+
+        private async Task<IList<AchievementDetail>> LoadEnglishTitlesAsync(Game game, GameAchievementData data, CancellationToken ct)
+        {
+            try
+            {
+                var english = await _englishTitles(game, data, ct).ConfigureAwait(false);
+                _logger?.Debug(
+                    $"[Metadata] English titles for '{game?.Name}' from {data?.ProviderKey}: " +
+                    $"{(english == null ? "none" : english.Count.ToString(System.Globalization.CultureInfo.InvariantCulture))}.");
+                return english;
+            }
+            catch (OperationCanceledException)
+            {
+                throw;
+            }
+            catch (Exception ex)
+            {
+                _logger?.Debug(ex, $"[Metadata] Loading English titles for '{game?.Name}' from {data?.ProviderKey} failed.");
+                return null;
+            }
+        }
+
         /// <summary>The sources' rows for the game, loaded at the same time.</summary>
         private async Task<IReadOnlyList<(string Key, MatchedSet Matched, bool FetchFailed)>> LoadSetsAsync(
             IEnumerable<string> keys,
@@ -588,7 +731,11 @@ namespace PlayniteAchievements.Services.Metadata
         /// names to search: titles found for the whole game as alternate names, titles found for a
         /// category as that category's names.
         /// </summary>
-        private MetadataLinkRequest CreateRequest(Game game, GameAchievementData data, Guid gameId)
+        private MetadataLinkRequest CreateRequest(
+            Game game,
+            GameAchievementData data,
+            Guid gameId,
+            Func<CancellationToken, Task<IList<AchievementDetail>>> englishTitles)
         {
             var links = _links?.GetAll(gameId) ?? new Dictionary<string, MetadataLinkRecord>();
             var found = links.Values
@@ -597,6 +744,7 @@ namespace PlayniteAchievements.Services.Metadata
                 .ToList();
             return new MetadataLinkRequest(game, data)
             {
+                EnglishTitles = englishTitles,
                 OtherLinks = links
                     .Where(pair => pair.Value != null && !pair.Value.IsNoMatch)
                     .ToDictionary(pair => pair.Key, pair => pair.Value.Id, StringComparer.OrdinalIgnoreCase),
@@ -671,6 +819,12 @@ namespace PlayniteAchievements.Services.Metadata
                 // the PC version's achievements can still match all of its own.
                 if (unconfirmed != null)
                 {
+                    if (matches.Count < Math.Min(targets.Count, set.Achievements.Count) * MinNameMatchShare)
+                    {
+                        // Its last chance before rejection: the titles may only differ in language.
+                        await MatchInEnglishAsync(key, gameId, set, matches, linkId, request, targets, ct).ConfigureAwait(false);
+                    }
+
                     if (matches.Count < Math.Min(targets.Count, set.Achievements.Count) * MinNameMatchShare)
                     {
                         _logger?.Debug(
