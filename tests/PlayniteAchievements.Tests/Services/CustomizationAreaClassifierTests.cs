@@ -151,9 +151,9 @@ namespace PlayniteAchievements.Services.GameCustomData.Tests
             var tags = new HashSet<TagType>(CustomizationTagAreas.TagsFor(CustomizationArea.TrophyTypes, layers));
 
             CollectionAssert.IsSubsetOf(
-                new[] { TagType.PlatformTrophyTypes, TagType.MetadataTrophyTypes, TagType.CustomTrophyTypes, TagType.NoPoints },
+                new[] { TagType.PlatformTrophies, TagType.MetadataTrophies, TagType.CustomTrophies, TagType.NoPoints },
                 tags.ToList());
-            Assert.IsFalse(tags.Contains(TagType.NoTrophyTypes));
+            Assert.IsFalse(tags.Contains(TagType.NoTrophies));
             Assert.IsFalse(tags.Contains(TagType.MetadataIcons));
         }
 
@@ -164,8 +164,8 @@ namespace PlayniteAchievements.Services.GameCustomData.Tests
 
             var tags = new HashSet<TagType>(CustomizationTagAreas.TagsFor(CustomizationArea.Points, layers));
 
-            Assert.IsFalse(tags.Contains(TagType.PlatformTrophyTypes));
-            Assert.IsFalse(tags.Contains(TagType.NoTrophyTypes));
+            Assert.IsFalse(tags.Contains(TagType.PlatformTrophies));
+            Assert.IsFalse(tags.Contains(TagType.NoTrophies));
             Assert.IsTrue(tags.Contains(TagType.CustomPoints));
             Assert.IsFalse(tags.Contains(TagType.NoPoints));
             Assert.IsTrue(tags.Contains(TagType.NoCategories));
