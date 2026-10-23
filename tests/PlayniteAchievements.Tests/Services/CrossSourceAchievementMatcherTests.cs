@@ -118,6 +118,140 @@ namespace PlayniteAchievements.Tests.Services
         }
 
         [TestMethod]
+        public void RepeatedFirstWord_WithoutSeparator_MatchesASeparatedTag()
+        {
+            var targets = new[]
+            {
+                Achievement("1", "TR1 | The Unfound Tomb of Qualopec"),
+                Achievement("2", "TR1 | Look Over Us Kindly, Tihocan"),
+                Achievement("3", "TR1 | The Cataclysm of Atlantis")
+            };
+            var sources = new[]
+            {
+                Achievement("x", "TR The Cataclysm of Atlantis"),
+                Achievement("y", "TR The Unfound Tomb of Qualopec"),
+                Achievement("z", "TR Look Over Us Kindly Tihocan")
+            };
+
+            var matches = CrossSourceAchievementMatcher.Match(targets, sources);
+
+            Assert.AreEqual(3, matches.Count);
+            Assert.AreSame(sources[0], matches.Single(match => match.Target == targets[2]).Source);
+        }
+
+        [TestMethod]
+        public void SeparatedTag_MeetsATitleWithoutItsFirstWord()
+        {
+            // An expansion's tag ("TR:UB |") against the site's bare game tag ("TR").
+            var targets = new[]
+            {
+                Achievement("1", "TR:UB | Miu"),
+                Achievement("2", "TR:UB | Business Is Finished"),
+                Achievement("3", "TR:UB | Codex of Cat")
+            };
+            var sources = new[]
+            {
+                Achievement("x", "TR Codex of Cat"),
+                Achievement("y", "TR Miu"),
+                Achievement("z", "TR Business Is Finished")
+            };
+
+            var matches = CrossSourceAchievementMatcher.Match(targets, sources);
+
+            Assert.AreEqual(3, matches.Count);
+            Assert.AreSame(sources[1], matches.Single(match => match.Target == targets[0]).Source);
+        }
+
+        [TestMethod]
+        public void FirstWordPass_LeavesEarlierMatchesAlone()
+        {
+            // "The" starts three source titles; the plain title pass already pairs "The End".
+            var end = Achievement("1", "The End");
+            var other = Achievement("2", "Beginning");
+            var sources = new[]
+            {
+                Achievement("x", "The End"),
+                Achievement("y", "The Beginning"),
+                Achievement("z", "The Middle")
+            };
+
+            var matches = CrossSourceAchievementMatcher.Match(new[] { end, other }, sources);
+
+            Assert.AreSame(sources[0], matches.Single(match => match.Target == end).Source);
+            Assert.AreSame(sources[1], matches.Single(match => match.Target == other).Source);
+        }
+
+        [TestMethod]
+        public void UnrepeatedFirstWord_IsKept()
+        {
+            var target = Achievement("1", "Collector");
+            var source = Achievement("x", "Gold Collector");
+
+            Assert.AreEqual(0, CrossSourceAchievementMatcher.Match(new[] { target }, new[] { source }).Count);
+        }
+
+        [TestMethod]
+        public void RenamedTitle_PairsByAUniqueDescription()
+        {
+            var target = Achievement("1", "Dark Boy", "Beat The Lamb as Azazel");
+            var source = Achievement("x", "Dark Boy!", "Beat The Lamb as Azazel");
+            var renamed = Achievement("2", "Il Lago", "Defeat the boss of the lake");
+            var renamedSource = Achievement("y", "The Lake", "Defeat the boss of the lake");
+
+            var matches = CrossSourceAchievementMatcher.Match(new[] { target, renamed }, new[] { renamedSource, source });
+
+            Assert.AreSame(renamedSource, matches.Single(match => match.Target == renamed).Source);
+        }
+
+        [TestMethod]
+        public void RepeatedDescription_NeverPairsOnItsOwn()
+        {
+            var targets = new[]
+            {
+                Achievement("1", "Isaac's Head", "Beat Mom's Heart 11 times"),
+                Achievement("2", "Maggy's Faith", "Beat Mom's Heart 11 times")
+            };
+            var sources = new[]
+            {
+                Achievement("x", "Cain's Eye", "Beat Mom's Heart 11 times"),
+                Achievement("y", "Judas' Tongue", "Beat Mom's Heart 11 times")
+            };
+
+            Assert.AreEqual(0, CrossSourceAchievementMatcher.Match(targets, sources).Count);
+        }
+
+        [TestMethod]
+        public void ShortDescription_NeverPairsOnItsOwn()
+        {
+            var target = Achievement("1", "Winner", "Win.");
+            var source = Achievement("x", "Victor", "Win.");
+
+            Assert.AreEqual(0, CrossSourceAchievementMatcher.Match(new[] { target }, new[] { source }).Count);
+        }
+
+        [TestMethod]
+        public void DuplicateTitles_AreSeparatedByASimilarDescription()
+        {
+            var first = Achievement("a", "Collector", "Find all the coins in the first world");
+            var second = Achievement("b", "Collector", "Find all the coins in the second world");
+            var sourceFirst = Achievement("x", "Collector", "Collect every coin in the first world");
+            var sourceSecond = Achievement("y", "Collector", "Collect every coin in the second world");
+
+            var matches = CrossSourceAchievementMatcher.Match(new[] { first, second }, new[] { sourceSecond, sourceFirst });
+
+            Assert.AreSame(sourceFirst, matches.Single(match => match.Target == first).Source);
+            Assert.AreSame(sourceSecond, matches.Single(match => match.Target == second).Source);
+        }
+
+        [TestMethod]
+        public void DescriptionSimilarity_IsSharedWordsOverAllWords()
+        {
+            Assert.AreEqual(1, CrossSourceAchievementMatcher.DescriptionSimilarity("Beat the boss.", "beat the BOSS"));
+            Assert.AreEqual(0.5, CrossSourceAchievementMatcher.DescriptionSimilarity("beat the boss", "beat the lamb"), 1e-9);
+            Assert.AreEqual(0, CrossSourceAchievementMatcher.DescriptionSimilarity(null, "beat the boss"));
+        }
+
+        [TestMethod]
         public void SourceFilter_ExcludesRows()
         {
             var target = Achievement("a", "Collector");

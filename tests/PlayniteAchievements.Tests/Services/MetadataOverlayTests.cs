@@ -141,6 +141,64 @@ namespace PlayniteAchievements.Tests.Services
         }
 
         [TestMethod]
+        public async Task CollectionLists_GiveTheirGameArt_ToTheirCategories()
+        {
+            var source = new FakeSource("PlayStation", MetadataField.Categories);
+            source.RowsByLink["me1"] = new List<AchievementDetail> { Row("a1", "Saren", category: "Mass Effect"), Row("a2", "Spectre", category: "Mass Effect") };
+            source.RowsByLink["me2"] = new List<AchievementDetail> { Row("b1", "Suicide Mission", category: "Mass Effect 2") };
+            source.GameArtByLink["me1"] = "https://art/me1.png";
+            source.GameArtByLink["me2"] = "https://art/me2.png";
+            var data = Game("Steam", Row("A", "Saren"), Row("B", "Spectre"), Row("C", "Suicide Mission"));
+            var saved = new List<(string Label, string ImageUrl)>();
+            var overlay = Overlay(
+                new[] { source },
+                Choices(categories: "PlayStation"),
+                (gameId, art, ct) =>
+                {
+                    saved.AddRange(art);
+                    return Task.CompletedTask;
+                });
+            overlay.Links.SetUser(data.PlayniteGameId.Value, "PlayStation", "me1, me2");
+
+            using (var run = overlay.BeginRun())
+            {
+                await run.ApplyAsync(data.Game, data, CancellationToken.None);
+            }
+
+            CollectionAssert.AreEquivalent(
+                new[] { ("Mass Effect", "https://art/me1.png"), ("Mass Effect 2", "https://art/me2.png") },
+                saved);
+        }
+
+        [TestMethod]
+        public async Task SingleList_GivesNoGameArt()
+        {
+            var source = new FakeSource("PlayStation", MetadataField.Categories)
+            {
+                Rows = { Row("a1", "Saren", category: "Mass Effect") }
+            };
+            source.GameArtByLink["me1"] = "https://art/me1.png";
+            var data = Game("Steam", Row("A", "Saren"));
+            var saved = new List<(string Label, string ImageUrl)>();
+            var overlay = Overlay(
+                new[] { source },
+                Choices(categories: "PlayStation"),
+                (gameId, art, ct) =>
+                {
+                    saved.AddRange(art);
+                    return Task.CompletedTask;
+                });
+            overlay.Links.SetUser(data.PlayniteGameId.Value, "PlayStation", "me1");
+
+            using (var run = overlay.BeginRun())
+            {
+                await run.ApplyAsync(data.Game, data, CancellationToken.None);
+            }
+
+            Assert.AreEqual(0, saved.Count);
+        }
+
+        [TestMethod]
         public async Task TrophyTypesAndPoints_ComeFromTheirChosenSources()
         {
             var playstationPlatinum = Row("p1", "Master");
@@ -372,6 +430,121 @@ namespace PlayniteAchievements.Tests.Services
         }
 
         [TestMethod]
+        public async Task AchievementOneSourceMatched_IsMatchedByAnotherUnderTheFirstSourcesTitle()
+        {
+            // Exophase pairs the achievement by its id and knows it as "Defeat Saren", the title
+            // TrueGaming lists it under; the game's own title matches neither.
+            var exophase = new FakeSource("Exophase", MetadataField.Icons)
+            {
+                IdsMayBeShared = true,
+                Rows = { Row("ACH_SAREN_DOWN", "Defeat Saren", icon: "https://exo/saren.png") }
+            };
+            var trueGaming = new FakeSource("TrueGaming", MetadataField.Categories)
+            {
+                Rows = { Row("t1", "Defeat Saren", category: "Mass Effect") }
+            };
+            var data = Game("Steam", Row("ACH_SAREN_DOWN", "Saren Defeated"));
+            var overlay = Overlay(new IMetadataProvider[] { exophase, trueGaming }, Choices(icons: "Exophase", categories: "TrueGaming"));
+
+            using (var run = overlay.BeginRun())
+            {
+                await run.ApplyAsync(data.Game, data, CancellationToken.None);
+            }
+
+            Assert.AreEqual("https://exo/saren.png", data.Achievements[0].UnlockedIconPath);
+            Assert.AreEqual("Mass Effect", data.Achievements[0].Category);
+        }
+
+        [TestMethod]
+        public async Task SourceThatFindsNothing_SearchesAgainUnderNamesAnotherFound()
+        {
+            var playstation = new FakeSource("PlayStation", MetadataField.Icons)
+            {
+                Rows = { Row("p1", "Dragon Slayer", icon: "https://psn/dragon.png") },
+                ResolvedLabel = "Dragon Game Remastered\nDragon Game\tDragon Game Classic"
+            };
+            var steam = new FakeSource("SteamHunters", MetadataField.Categories)
+            {
+                Rows = { Row("s1", "Dragon Slayer", category: "Dragon Game") },
+                ResolveWhen = request => request.AlternateNames.Contains("Dragon Game Remastered") &&
+                                         request.CategoryNames.TryGetValue("Dragon Game", out var names) && names.Contains("Dragon Game Classic")
+            };
+            var data = Game("Xbox", Row("ACH_DRAGON", "Dragon Slayer"));
+            var overlay = Overlay(new IMetadataProvider[] { playstation, steam }, Choices(icons: "PlayStation", categories: "SteamHunters"));
+
+            using (var run = overlay.BeginRun())
+            {
+                await run.ApplyAsync(data.Game, data, CancellationToken.None);
+            }
+
+            Assert.AreEqual(2, steam.ResolveCount);
+            Assert.IsTrue(overlay.Links.TryGet(data.PlayniteGameId.Value, "SteamHunters", out var link));
+            Assert.AreEqual("link-SteamHunters", link.Id);
+            Assert.AreEqual("Dragon Game", data.Achievements[0].Category);
+        }
+
+        [TestMethod]
+        public async Task SourceThatFindsNothing_DoesNotSearchAgainWithoutNewNames()
+        {
+            var playstation = new FakeSource("PlayStation", MetadataField.Icons)
+            {
+                Rows = { Row("p1", "Dragon Slayer", icon: "https://psn/dragon.png") }
+            };
+            var steam = new FakeSource("SteamHunters", MetadataField.Categories) { ResolveWhen = request => false };
+            var data = Game("Xbox", Row("ACH_DRAGON", "Dragon Slayer"));
+            var overlay = Overlay(new IMetadataProvider[] { playstation, steam }, Choices(icons: "PlayStation", categories: "SteamHunters"));
+
+            using (var run = overlay.BeginRun())
+            {
+                await run.ApplyAsync(data.Game, data, CancellationToken.None);
+            }
+
+            Assert.AreEqual(1, steam.ResolveCount);
+        }
+
+        [TestMethod]
+        public async Task Pairings_StayWhenACollectionListIsAdded()
+        {
+            var playstation = new FakeSource("PlayStation", MetadataField.Icons)
+            {
+                Rows = { Row("p1", "Dragon Slayer", icon: "https://psn/dragon.png") }
+            };
+            var data = Game("Steam", Row("ACH_DRAGON", "Dragon Slayer"));
+            var overlay = Overlay(new[] { playstation }, Choices(icons: "PlayStation"));
+            using (var run = overlay.BeginRun())
+            {
+                await run.ApplyAsync(data.Game, data, CancellationToken.None);
+            }
+
+            var gameId = data.PlayniteGameId.Value;
+            Assert.IsTrue(overlay.Links.SetPairing(gameId, "PlayStation", "ACH_DRAGON", string.Empty));
+            overlay.Links.SetUser(gameId, "PlayStation", "second-game, link-PlayStation");
+
+            Assert.IsTrue(overlay.Links.TryGet(gameId, "PlayStation", out var kept));
+            Assert.AreEqual(string.Empty, kept.Pairings["ACH_DRAGON"]);
+        }
+
+        [TestMethod]
+        public async Task CollectionLink_FetchesEachList_AndMatchesAcrossThem()
+        {
+            var playstation = new FakeSource("PlayStation", MetadataField.Icons);
+            playstation.RowsByLink["mass-effect"] = new List<AchievementDetail> { Row("me1", "Saren", icon: "https://psn/me1.png") };
+            playstation.RowsByLink["mass-effect-2"] = new List<AchievementDetail> { Row("me2", "Suicide Mission", icon: "https://psn/me2.png") };
+            var data = Game("Steam", Row("ACH_SAREN", "Saren"), Row("ACH_SUICIDE", "Suicide Mission"));
+            var overlay = Overlay(new[] { playstation }, Choices(icons: "PlayStation"));
+            overlay.Links.SetUser(data.PlayniteGameId.Value, "PlayStation", "mass-effect,mass-effect-2");
+
+            using (var run = overlay.BeginRun())
+            {
+                await run.ApplyAsync(data.Game, data, CancellationToken.None);
+            }
+
+            CollectionAssert.AreEqual(new[] { "mass-effect", "mass-effect-2" }, playstation.FetchedIds);
+            Assert.AreEqual("https://psn/me1.png", data.Achievements[0].UnlockedIconPath);
+            Assert.AreEqual("https://psn/me2.png", data.Achievements[1].UnlockedIconPath);
+        }
+
+        [TestMethod]
         public async Task NewPairing_ReportsAnIconChange_SoItsFileIsRewritten()
         {
             var playstation = new FakeSource("PlayStation", MetadataField.Icons)
@@ -503,6 +676,46 @@ namespace PlayniteAchievements.Tests.Services
         }
 
         [TestMethod]
+        public async Task CollectionLink_FilesEachListsPlatinumUnderItsGame_AndNoneForTheWholeGame()
+        {
+            AchievementDetail Platinum(string apiName, string icon, string description)
+            {
+                var row = Row(apiName, "N7 Elite", icon: icon);
+                row.TrophyType = "platinum";
+                row.Description = description;
+                return row;
+            }
+
+            var playstation = new FakeSource("PlayStation", MetadataField.CapstoneArt | MetadataField.Icons);
+            playstation.RowsByLink["me1"] = new List<AchievementDetail> { Platinum("p1", "https://psn/me1.png", "All of Mass Effect."), Row("a1", "Saren"), Row("a2", "Spectre") };
+            playstation.RowsByLink["me2"] = new List<AchievementDetail> { Platinum("p2", "https://psn/me2.png", "All of Mass Effect 2."), Row("b1", "Suicide Mission"), Row("b2", "Collector") };
+            var finished = Row("ME2_ALL", "Completionist", category: "Mass Effect 2");
+            finished.Description = "All of Mass Effect 2.";
+            var data = Game(
+                "Steam",
+                Row("ME1_SAREN", "Saren", category: "Mass Effect 1"),
+                Row("ME1_SPECTRE", "Spectre", category: "Mass Effect 1"),
+                Row("ME2_SUICIDE", "Suicide Mission", category: "Mass Effect 2"),
+                Row("ME2_COLLECTOR", "Collector", category: "Mass Effect 2"),
+                finished);
+            var overlay = Overlay(new[] { playstation }, Choices(icons: "PlayStation", capstoneArt: "PlayStation"));
+            overlay.Links.SetUser(data.PlayniteGameId.Value, "PlayStation", "me1, me2");
+
+            using (var run = overlay.BeginRun())
+            {
+                await run.ApplyAsync(data.Game, data, CancellationToken.None);
+            }
+
+            var gameId = data.PlayniteGameId.Value;
+            var capstones = overlay.Links.GetCategoryCapstones(gameId);
+            CollectionAssert.AreEqual(new[] { "Mass Effect 1", "Mass Effect 2" }, capstones.Select(capstone => capstone.Category).ToList());
+            Assert.AreEqual("https://psn/me1.png", capstones[0].ArtUrl);
+            Assert.IsNull(capstones[0].MatchApiName);
+            Assert.AreEqual("ME2_ALL", capstones[1].MatchApiName);
+            Assert.IsNull(overlay.Links.GetCapstoneArtUrl(gameId), "a collection has no whole-game platinum");
+        }
+
+        [TestMethod]
         public async Task CapstoneArt_IsRecordedFromThePlatinumRow()
         {
             var playstation = new FakeSource("PlayStation", MetadataField.CapstoneArt);
@@ -584,6 +797,125 @@ namespace PlayniteAchievements.Tests.Services
             }
 
             return overlay;
+        }
+
+        [TestMethod]
+        public async Task ChangedCategories_LookAgain_AndABetterLinkReplacesTheOld()
+        {
+            var playstation = RelinkSource();
+            var game = new Game("Test game") { Id = Guid.NewGuid() };
+            await Refresh(playstation, game, Row("e1", "One"), Row("e2", "Two"));
+            Assert.IsTrue(_lastOverlay.Links.TryGet(game.Id, "PlayStation", out var first));
+            Assert.AreEqual("old", first.Id);
+
+            playstation.ResolvedId = "new";
+            playstation.ResolvedMatched = 2;
+            await Refresh(playstation, game, Row("e1", "One", category: "Story"), Row("e2", "Two"));
+            Assert.IsTrue(_lastOverlay.Links.TryGet(game.Id, "PlayStation", out var second));
+            Assert.AreEqual("new", second.Id);
+            Assert.AreEqual(2, playstation.ResolveCount);
+
+            // The new inputs are recorded: the next refresh does not look again.
+            await Refresh(playstation, game, Row("e1", "One", category: "Story"), Row("e2", "Two"));
+            Assert.AreEqual(2, playstation.ResolveCount);
+        }
+
+        [TestMethod]
+        public async Task ChangedCategories_KeepTheLink_WhenTheNewLookupIsNoBetter()
+        {
+            var playstation = RelinkSource();
+            var game = new Game("Test game") { Id = Guid.NewGuid() };
+            await Refresh(playstation, game, Row("e1", "One"), Row("e2", "Two"));
+
+            playstation.ResolvedId = "new";
+            playstation.ResolvedMatched = 1;
+            await Refresh(playstation, game, Row("e1", "One", category: "Story"), Row("e2", "Two"));
+            await Refresh(playstation, game, Row("e1", "One", category: "Story"), Row("e2", "Two"));
+
+            Assert.IsTrue(_lastOverlay.Links.TryGet(game.Id, "PlayStation", out var link));
+            Assert.AreEqual("old", link.Id);
+            Assert.AreEqual(2, playstation.ResolveCount, "looked again once, then not");
+        }
+
+        [TestMethod]
+        public async Task StoredNoMatch_IsLookedForAgain_WhenCategoriesChange()
+        {
+            var playstation = RelinkSource();
+            playstation.ResolveWhen = request => request.Data.Achievements.Any(row => row.Category == "Story");
+            var game = new Game("Test game") { Id = Guid.NewGuid() };
+            await Refresh(playstation, game, Row("e1", "One"));
+            Assert.IsTrue(_lastOverlay.Links.TryGet(game.Id, "PlayStation", out var none));
+            Assert.IsTrue(none.IsNoMatch);
+
+            await Refresh(playstation, game, Row("e1", "One", category: "Story"));
+            Assert.IsTrue(_lastOverlay.Links.TryGet(game.Id, "PlayStation", out var found));
+            Assert.AreEqual("old", found.Id);
+        }
+
+        [TestMethod]
+        public async Task UserLink_IsNeverLookedForAgain()
+        {
+            var playstation = RelinkSource();
+            var game = new Game("Test game") { Id = Guid.NewGuid() };
+            _lastOverlay = Overlay(new[] { playstation }, Choices(icons: "PlayStation"));
+            _lastOverlay.Links.SetUser(game.Id, "PlayStation", "old");
+            await Refresh(playstation, game, Row("e1", "One"));
+            await Refresh(playstation, game, Row("e1", "One", category: "Story"));
+
+            Assert.AreEqual(0, playstation.ResolveCount);
+        }
+
+        [TestMethod]
+        public async Task LinkWithoutABasis_TakesTheCurrentOne_WithoutASearch()
+        {
+            var playstation = RelinkSource();
+            var game = new Game("Test game") { Id = Guid.NewGuid() };
+            _lastOverlay = Overlay(new[] { playstation }, Choices(icons: "PlayStation"));
+            _lastOverlay.Links.SetAuto(game.Id, "PlayStation", "old");
+            await Refresh(playstation, game, Row("e1", "One"));
+            Assert.AreEqual(0, playstation.ResolveCount);
+
+            await Refresh(playstation, game, Row("e1", "One", category: "Story"));
+            Assert.AreEqual(1, playstation.ResolveCount);
+        }
+
+        private MetadataOverlay _lastOverlay;
+
+        /// <summary>A PlayStation icon source whose lookup finds "old", a list matching only "One".</summary>
+        private static FakeSource RelinkSource()
+        {
+            var playstation = new FakeSource("PlayStation", MetadataField.Icons) { ResolvedId = "old" };
+            playstation.RowsByLink["old"] = new List<AchievementDetail> { Row("p1", "One", icon: "https://psn/one.png") };
+            playstation.RowsByLink["new"] = new List<AchievementDetail>
+            {
+                Row("p1", "One", icon: "https://psn/one.png"),
+                Row("p2", "Two", icon: "https://psn/two.png")
+            };
+            return playstation;
+        }
+
+        /// <summary>
+        /// One refresh of <paramref name="game"/> with fresh rows, as a provider scan hands them
+        /// over, on the test's one overlay (made on first use).
+        /// </summary>
+        private async Task Refresh(FakeSource source, Game game, params AchievementDetail[] rows)
+        {
+            if (_lastOverlay == null)
+            {
+                _lastOverlay = Overlay(new[] { source }, Choices(icons: "PlayStation"));
+            }
+
+            var data = new GameAchievementData
+            {
+                ProviderKey = "Steam",
+                PlayniteGameId = game.Id,
+                Game = game,
+                Achievements = new List<AchievementDetail>(rows)
+            };
+            using (var run = _lastOverlay.BeginRun())
+            {
+                await run.ApplyAsync(game, data, CancellationToken.None);
+            }
         }
 
         [TestMethod]
@@ -742,6 +1074,31 @@ namespace PlayniteAchievements.Tests.Services
                 PlayniteAchievements.Services.Achievements.AchievementTagHelper.Parse(data.Achievements[0].Tags),
                 "the stored tags, with this refresh's unlock mode");
             Assert.AreEqual("Side", data.Achievements[1].Category);
+        }
+
+        [TestMethod]
+        public async Task UnreadableLookup_KeepsTheStoredValues_AndIsNotRememberedAsNoMatch()
+        {
+            var hunters = new FakeSource("SteamHunters", MetadataField.Categories) { UnreadableLookup = true };
+            var data = Game("Epic", Row("e1", "One"));
+            var stored = Game("Epic", Row("e1", "One", category: "Story"));
+            var overlay = Overlay(new[] { hunters }, Choices(categories: hunters.Key), loadStored: _ => stored);
+
+            using (var run = overlay.BeginRun())
+            {
+                await run.ApplyAsync(data.Game, data, CancellationToken.None);
+            }
+
+            Assert.AreEqual("Story", data.Achievements[0].Category);
+            Assert.IsFalse(overlay.Links.TryGet(data.PlayniteGameId.Value, hunters.Key, out _), "nothing is stored");
+
+            // The next refresh looks again.
+            using (var run = overlay.BeginRun())
+            {
+                await run.ApplyAsync(data.Game, data, CancellationToken.None);
+            }
+
+            Assert.AreEqual(2, hunters.ResolveCount);
         }
 
         [TestMethod]
@@ -1040,8 +1397,33 @@ namespace PlayniteAchievements.Tests.Services
             public Task<MetadataSourceLink> ResolveLinkAsync(MetadataLinkRequest request, CancellationToken ct)
             {
                 ResolveCount++;
-                return Task.FromResult(new MetadataSourceLink("link-" + Key, null, FoundByName));
+                if (UnreadableLookup)
+                {
+                    return Task.FromResult(MetadataSourceLink.Unavailable());
+                }
+
+                if (ResolveWhen != null && !ResolveWhen(request))
+                {
+                    return Task.FromResult<MetadataSourceLink>(null);
+                }
+
+                return Task.FromResult(new MetadataSourceLink(ResolvedId ?? "link-" + Key, ResolvedLabel, FoundByName) { Matched = ResolvedMatched });
             }
+
+            /// <summary>The link the lookup finds; "link-" and the key when unset.</summary>
+            public string ResolvedId { get; set; }
+
+            /// <summary>The match count the lookup reports.</summary>
+            public int? ResolvedMatched { get; set; }
+
+            /// <summary>The lookup hits pages it cannot read, as behind a challenge page.</summary>
+            public bool UnreadableLookup { get; set; }
+
+            /// <summary>When set, the source finds the game only for a request this accepts.</summary>
+            public Func<MetadataLinkRequest, bool> ResolveWhen { get; set; }
+
+            /// <summary>The names the source reports finding the game under.</summary>
+            public string ResolvedLabel { get; set; }
 
             public Task<AchievementSourceSet> FetchAsync(MetadataLinkRequest request, string linkId, CancellationToken ct)
             {
@@ -1052,7 +1434,15 @@ namespace PlayniteAchievements.Tests.Services
                     throw new InvalidOperationException("unreachable");
                 }
 
-                var set = new AchievementSourceSet(Key, linkId, Rows) { ApiNamesMayBeShared = IdsMayBeShared, UnavailableFields = Unavailable, ExtendedLinkId = ExtendedId };
+                FetchedIds.Add(linkId);
+                var rows = RowsByLink.TryGetValue(linkId, out var listed) ? listed : Rows;
+                var set = new AchievementSourceSet(Key, linkId, rows)
+                {
+                    ApiNamesMayBeShared = IdsMayBeShared,
+                    UnavailableFields = Unavailable,
+                    ExtendedLinkId = ExtendedId,
+                    GameArtUrl = GameArtByLink.TryGetValue(linkId, out var gameArt) ? gameArt : null
+                };
                 foreach (var art in CategoryArt)
                 {
                     set.CategoryArtUrls[art.Key] = art.Value;
@@ -1062,6 +1452,15 @@ namespace PlayniteAchievements.Tests.Services
             }
 
             public Dictionary<string, string> CategoryArt { get; } = new Dictionary<string, string>();
+
+            /// <summary>The game image a list id's page gives.</summary>
+            public Dictionary<string, string> GameArtByLink { get; } = new Dictionary<string, string>();
+
+            /// <summary>Rows for one list id; any other id gets <see cref="Rows"/>.</summary>
+            public Dictionary<string, List<AchievementDetail>> RowsByLink { get; } = new Dictionary<string, List<AchievementDetail>>();
+
+            /// <summary>The ids each fetch was asked for, in order.</summary>
+            public List<string> FetchedIds { get; } = new List<string>();
         }
     }
 }

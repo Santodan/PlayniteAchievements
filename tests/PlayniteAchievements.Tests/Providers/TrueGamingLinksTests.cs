@@ -74,5 +74,28 @@ namespace PlayniteAchievements.Tests.Providers
                 new[] { "Singleplayer", "Progression", "Missable", "Cooperative", "Versus", "BuggyPlus", "BuggyMinus", "OnlineOffline", "PartlyDiscontinued", "Unobtainable" },
                 tags.ToList());
         }
+
+        [TestMethod]
+        public void SiteSearch_ListsEachGamesSlugAndTitle()
+        {
+            // TrueAchievements' answer for "Fallout 4", as the browser shows it, shortened.
+            const string text =
+                "<SiteSearchController.SiteSearchResponse><ResultsXML><SearchResults><SearchString>Fallout 4</SearchString><TotalGames>2</TotalGames>" +
+                "<Games><Game><GameID>5757</GameID><Title>Fallout 4</Title><Url>/game/Fallout-4/achievements</Url><MaxAchievements>84</MaxAchievements></Game>" +
+                "<Game><GameID>9305</GameID><Title>Fallout 4 (Windows) &amp; More</Title><Url>/game/Fallout-4-Windows/achievements</Url></Game></Games>" +
+                "</SearchResults></ResultsXML></SiteSearchController.SiteSearchResponse>";
+
+            var games = TrueGamingLinks.ParseSearch(text);
+
+            CollectionAssert.AreEqual(new[] { "Fallout-4", "Fallout-4-Windows" }, games.Select(game => game.Slug).ToList());
+            Assert.AreEqual("Fallout 4 (Windows) & More", games[1].Title);
+        }
+
+        [TestMethod]
+        public void SiteSearch_WithNoGames_ListsNone()
+        {
+            Assert.AreEqual(0, TrueGamingLinks.ParseSearch("<SearchResults><TotalGames>0</TotalGames></SearchResults>").Count);
+            Assert.AreEqual(0, TrueGamingLinks.ParseSearch(null).Count);
+        }
     }
 }

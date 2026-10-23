@@ -5,6 +5,7 @@ using PlayniteAchievements.Services.Metadata;
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 
 namespace PlayniteAchievements.Tests.Services
 {
@@ -113,6 +114,23 @@ namespace PlayniteAchievements.Tests.Services
             var record = Store().GetCapstoneArtRecord(game, "custom:auto-capstone");
             Assert.AreEqual("https://psn/plat.png", record.Source);
             Assert.AreEqual(42, record.Length);
+        }
+
+        [TestMethod]
+        public void CollectionPlatinums_ComeBackFromTheDatabase()
+        {
+            var game = Guid.NewGuid();
+            var capstones = new[]
+            {
+                new MetadataCategoryCapstone { Category = "Mass Effect 1", ArtUrl = "https://psn/me1.png", Title = "N7 Elite", MatchApiName = "ME1_ALL" },
+                new MetadataCategoryCapstone { Category = "Mass Effect 2", ArtUrl = "https://psn/me2.png", Title = "N7 Elite" }
+            };
+            Store().RecordApplied(game, null, null, null, null, null, null, null, capstones);
+
+            var reread = Store().GetCategoryCapstones(game);
+            CollectionAssert.AreEqual(new[] { "Mass Effect 1", "Mass Effect 2" }, reread.Select(capstone => capstone.Category).ToList());
+            Assert.AreEqual("ME1_ALL", reread[0].MatchApiName);
+            Assert.AreEqual("https://psn/me2.png", reread[1].ArtUrl);
         }
 
         [TestMethod]
