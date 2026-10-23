@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using Playnite.SDK;
 using PlayniteAchievements.Models.Tagging;
 using PlayniteAchievements.Services.Localization;
@@ -55,10 +56,9 @@ namespace PlayniteAchievements.Services.Tagging
                 });
             }
 
-            foreach (var area in CustomizationTagAreas.All)
+            foreach (var tagType in CustomizationTagAreas.All.SelectMany(area => area.TagTypes))
             {
-                definitions.Add(BuildAreaDefinition(area.CustomTag));
-                definitions.Add(BuildAreaDefinition(area.DefaultTag));
+                definitions.Add(BuildAreaDefinition(tagType));
             }
 
             _catalog = new LocalizedDefaultStringCatalog(localizationDirectory, definitions, logger);
@@ -66,13 +66,18 @@ namespace PlayniteAchievements.Services.Tagging
 
         /// <summary>
         /// Resource keys of a customization area kind's name, in composition order: the tag
-        /// prefix, the Custom or Default format, and the area noun.
+        /// prefix, then either the area's own name or the Custom/Default format and the noun.
         /// </summary>
         public static string[] GetAreaResourceKeys(TagType tagType)
         {
             if (!CustomizationTagAreas.TryGetArea(tagType, out var area, out var isCustom))
             {
                 return null;
+            }
+
+            if (isCustom && area.CustomNameResourceKey != null)
+            {
+                return new[] { PrefixFormatKey, area.CustomNameResourceKey };
             }
 
             return new[]
@@ -86,7 +91,9 @@ namespace PlayniteAchievements.Services.Tagging
         /// <summary>Composes an area kind's name from the values of <see cref="GetAreaResourceKeys"/>.</summary>
         public static string ComposeAreaName(IReadOnlyList<string> values)
         {
-            return string.Format(values[0], string.Format(values[1], values[2]));
+            return values.Count == 2
+                ? string.Format(values[0], values[1])
+                : string.Format(values[0], string.Format(values[1], values[2]));
         }
 
         private static LocalizedDefaultDefinition BuildAreaDefinition(TagType tagType)
@@ -96,8 +103,22 @@ namespace PlayniteAchievements.Services.Tagging
                 Id = tagType.ToString(),
                 ResourceKeys = GetAreaResourceKeys(tagType),
                 Compose = ComposeAreaName,
-                ExtraHardcodedDefaults = new[] { TaggingSettings.GetDefaultDisplayName(tagType) }
+                ExtraHardcodedDefaults = GetAreaHardcodedDefaults(tagType)
             };
+        }
+
+        /// <summary>
+        /// The English default, plus the composed "Custom {noun}" name an area with its own name
+        /// once had, so a saved tag under that name follows the current default.
+        /// </summary>
+        private static string[] GetAreaHardcodedDefaults(TagType tagType)
+        {
+            var current = TaggingSettings.GetDefaultDisplayName(tagType);
+            return CustomizationTagAreas.TryGetArea(tagType, out var area, out var isCustom) &&
+                   isCustom &&
+                   area.CustomNameResourceKey != null
+                ? new[] { current, $"[PA] Custom {area.EnglishNoun}" }
+                : new[] { current };
         }
 
         /// <summary>
