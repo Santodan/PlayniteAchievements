@@ -78,16 +78,32 @@ namespace PlayniteAchievements.Models.Tagging
         public TagConfig ExcludedFromSummariesConfig => GetOrCreateTagConfig(TagType.ExcludedFromSummaries);
 
         /// <summary>
-        /// One row per customization area, holding both configs of its pair, for the settings view.
+        /// The status kinds as paired settings rows: achievements, progress and exclusion.
         /// </summary>
         [DontSerialize]
-        public IReadOnlyList<CustomizationTagRow> CustomizationRows =>
-            CustomizationTagAreas.All
-                .Select(area => new CustomizationTagRow(
-                    area,
-                    GetOrCreateTagConfig(area.CustomTag),
-                    GetOrCreateTagConfig(area.DefaultTag)))
+        public IReadOnlyList<TagPairRow> StatusRows => new[]
+        {
+            Pair("LOCPlayAch_Achievements", TagType.HasAchievements, TagType.NoAchievements),
+            Pair("LOCPlayAch_Progress", TagType.InProgress, TagType.Completed),
+            Pair("LOCPlayAch_ManageAchievements_Status_Excluded", TagType.Excluded, TagType.ExcludedFromSummaries)
+        };
+
+        /// <summary>
+        /// The customization kinds as settings rows: the Customized pair, then one row per area.
+        /// </summary>
+        [DontSerialize]
+        public IReadOnlyList<TagPairRow> CustomizationRows =>
+            new[] { Pair("LOCPlayAch_Tagging_Customized", TagType.Customized, TagType.NotCustomized) }
+                .Concat(CustomizationTagAreas.All.Select(area => Pair(area.NounResourceKey, area.CustomTag, area.DefaultTag)))
                 .ToList();
+
+        private TagPairRow Pair(string labelKey, TagType first, TagType? second)
+        {
+            return new TagPairRow(
+                labelKey,
+                GetOrCreateTagConfig(first),
+                second.HasValue ? GetOrCreateTagConfig(second.Value) : null);
+        }
 
         private TagConfig GetOrCreateTagConfig(TagType tagType)
         {
@@ -144,6 +160,12 @@ namespace PlayniteAchievements.Models.Tagging
                     // Fill in missing display names
                     TagConfigs[tagType].DisplayName = getDefaultName?.Invoke(tagType) ?? GetDefaultDisplayName(tagType);
                 }
+
+                // A retired kind saved as enabled is turned off, so the next sync removes its tag.
+                if (CustomizationTagAreas.Retired.Contains(tagType) && TagConfigs[tagType] != null)
+                {
+                    TagConfigs[tagType].IsEnabled = false;
+                }
             }
         }
 
@@ -163,19 +185,24 @@ namespace PlayniteAchievements.Models.Tagging
                 TagType.NotCustomized => "[PA] Not Customized",
                 TagType.Excluded => "[PA] Excluded",
                 TagType.ExcludedFromSummaries => "[PA] Excluded from Summaries",
-                _ => CustomizationTagAreas.TryGetArea(tagType, out var area, out var isCustom)
-                    ? $"[PA] {(isCustom ? "Custom" : "Default")} {area.EnglishNoun}"
-                    : $"[PA] {tagType}"
+                TagType.DefaultSource => "[PA] Default Source",
+                TagType.DefaultManualTracking => "[PA] Default Manual Tracking",
+                _ => !CustomizationTagAreas.TryGetArea(tagType, out var area, out var isCustom)
+                    ? $"[PA] {tagType}"
+                    : isCustom && area.CustomEnglishName != null
+                        ? $"[PA] {area.CustomEnglishName}"
+                        : $"[PA] {(isCustom ? "Custom" : "Default")} {area.EnglishNoun}"
             };
         }
 
         /// <summary>
-        /// Whether a tag kind starts enabled. The per-area customization pairs start disabled, for
-        /// new installs and for settings saved before they existed.
+        /// Whether a tag kind starts enabled. The customization area kinds start disabled, for
+        /// new installs and for settings saved before they existed; retired kinds never enable.
         /// </summary>
         public static bool IsEnabledByDefault(TagType tagType)
         {
-            return !CustomizationTagAreas.TryGetArea(tagType, out _, out _);
+            return !CustomizationTagAreas.TryGetArea(tagType, out _, out _) &&
+                   !CustomizationTagAreas.Retired.Contains(tagType);
         }
 
         /// <summary>
@@ -214,25 +241,28 @@ namespace PlayniteAchievements.Models.Tagging
     }
 
     /// <summary>
-    /// A customization area's tag pair as one settings row.
+    /// One settings row of tag kinds that belong together, such as a custom tag and its default.
     /// </summary>
-    public sealed class CustomizationTagRow
+    public sealed class TagPairRow
     {
-        public CustomizationTagRow(CustomizationTagArea area, TagConfig customConfig, TagConfig defaultConfig)
+        public TagPairRow(string labelResourceKey, TagConfig first, TagConfig second)
         {
-            Area = area;
-            CustomConfig = customConfig;
-            DefaultConfig = defaultConfig;
+            LabelResourceKey = labelResourceKey;
+            First = first;
+            Second = second;
         }
 
-        public CustomizationTagArea Area { get; }
+        public string LabelResourceKey { get; }
 
-        public TagConfig CustomConfig { get; }
+        public TagConfig First { get; }
 
-        public TagConfig DefaultConfig { get; }
+        /// <summary>Null for a one-sided row.</summary>
+        public TagConfig Second { get; }
 
-        /// <summary>The area noun in the current language.</summary>
-        public string Label => ResourceProvider.GetString(Area.NounResourceKey);
+        public bool HasSecond => Second != null;
+
+        /// <summary>The row label in the current language.</summary>
+        public string Label => ResourceProvider.GetString(LabelResourceKey);
     }
 
     /// <summary>
