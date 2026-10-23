@@ -95,6 +95,9 @@ namespace PlayniteAchievements.Services.Refresh
 
         public ICacheManager Cache => _cacheService;
 
+        /// <summary>The icon pipeline refreshes download achievement icons through.</summary>
+        internal AchievementIconService IconService => _achievementIconService;
+
         /// <summary>
         /// Gets the provider registry for checking/modifying provider enabled state.
         /// </summary>
@@ -1610,7 +1613,7 @@ namespace PlayniteAchievements.Services.Refresh
             var metadataIconSourceChanged = false;
             if (metadataRun != null && data.HasAchievements)
             {
-                metadataIconSourceChanged = await metadataRun.ApplyAsync(game, data, cancel).ConfigureAwait(false);
+                metadataIconSourceChanged = await metadataRun.ApplyAsync(game, data, cancel, forceIcons: forceIconRefresh).ConfigureAwait(false);
             }
 
             data.RaritySource = RaritySourceResolver.ResolveRefreshed(data.RaritySource, data.Achievements);

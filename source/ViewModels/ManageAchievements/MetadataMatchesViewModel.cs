@@ -260,7 +260,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         }
 
         internal static MatchOption ForRow(MetadataSourceRow row) =>
-            new MatchOption(row.ApiName, row.Name, row.Description, row.Icon, row.List, isSpecial: false);
+            new MatchOption(row.ApiName, row.Name, row.Description, MetadataSourceSnapshotStore.LocalIconPath(row.Icon), row.List, isSpecial: false);
 
         internal static MatchOption Special(string key, string name) =>
             new MatchOption(key, name, null, null, null, isSpecial: true);

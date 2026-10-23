@@ -1013,7 +1013,10 @@ namespace PlayniteAchievements
                         _metadataLinkStore,
                         _logger,
                         (gameId, art, ct) => CategoryDefaultArtDownloader.DownloadAsync(_diskImageService, gameId, art, _logger, ct),
-                        gameId => _cacheManager?.LoadGameData(gameId.ToString()));
+                        gameId => _cacheManager?.LoadGameData(gameId.ToString()),
+                        (gameId, sourceKey, rows, force, ct) =>
+                            _refreshService.IconService.PopulateMetadataSourceIconCacheAsync(gameId, sourceKey, rows, force, ct),
+                        (gameId, sourceKey) => _refreshService.IconService.DeleteMetadataSourceIconCache(gameId, sourceKey));
                     _cacheManager = _refreshService.Cache;
                     _metadataState.AttachDatabase(_cacheManager as Services.Cache.IMetadataStateDatabase);
                     _friendCacheManager = _cacheManager as Services.Friends.IFriendCacheManager;

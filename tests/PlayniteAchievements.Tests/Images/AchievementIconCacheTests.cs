@@ -1132,6 +1132,54 @@ namespace PlayniteAchievements.Services.Images.Tests
         }
 
         [TestMethod]
+        public async Task PopulateMetadataSourceIconCacheAsync_SavesRowsInTheSourceFolder_AndDeletesUnusedFiles()
+        {
+            var tempDir = CreateTempDirectory();
+
+            try
+            {
+                var diskImageService = new DiskImageService(logger: null, cacheRoot: tempDir);
+                var iconService = new AchievementIconService(
+                    diskImageService,
+                    new ManagedCustomIconService(diskImageService, logger: null),
+                    () => new PersistedSettings(),
+                    logger: null);
+                var gameId = Guid.NewGuid();
+                var folder = diskImageService.ResolveCacheRelativePath(
+                    AchievementIconCachePathBuilder.BuildMetadataSourceFolderRelativePath(gameId.ToString("D"), "PlayStation"));
+
+                var localSource = Path.Combine(tempDir, "sources", "dragon.png");
+                WritePlaceholderFile(localSource);
+                var copied = new AchievementDetail { ApiName = "p1", UnlockedIconPath = localSource, LockedIconPath = localSource };
+                // Already saved by an earlier refresh, so nothing is downloaded.
+                var kept = new AchievementDetail { ApiName = "p2", UnlockedIconPath = "https://cdn.example.com/p2.png" };
+                var keptFile = Path.Combine(folder, "p2.png");
+                WritePlaceholderFile(keptFile);
+                var droppedFile = Path.Combine(folder, "dropped.png");
+                WritePlaceholderFile(droppedFile);
+
+                var icons = await iconService.PopulateMetadataSourceIconCacheAsync(
+                    gameId, "PlayStation", new[] { copied, kept }, forceRefreshExistingTargets: false, CancellationToken.None);
+
+                var copiedFile = Path.Combine(folder, "p1.png");
+                Assert.AreEqual((copiedFile, copiedFile), icons[copied], "a locked icon that is the unlocked one follows the unlocked file");
+                Assert.IsTrue(File.Exists(copiedFile));
+                Assert.AreEqual(keptFile, icons[kept].Unlocked);
+                Assert.IsTrue(File.Exists(keptFile));
+                Assert.IsFalse(File.Exists(droppedFile), "a file no row uses is deleted");
+                Assert.AreEqual(localSource, copied.UnlockedIconPath, "the rows are left as they were");
+                Assert.AreEqual("https://cdn.example.com/p2.png", kept.UnlockedIconPath);
+
+                iconService.DeleteMetadataSourceIconCache(gameId, "PlayStation");
+                Assert.IsFalse(Directory.Exists(folder));
+            }
+            finally
+            {
+                DeleteDirectory(tempDir);
+            }
+        }
+
+        [TestMethod]
         public async Task PopulateFriendGameImageCacheAsync_CachesDistinctIconAndCoverPaths()
         {
             var tempDir = CreateTempDirectory();

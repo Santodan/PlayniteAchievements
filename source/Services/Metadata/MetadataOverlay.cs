@@ -27,6 +27,8 @@ namespace PlayniteAchievements.Services.Metadata
         private readonly ILogger _logger;
         private readonly CategoryArtDownload _downloadCategoryArt;
         private readonly Func<Guid, GameAchievementData> _loadStored;
+        private readonly SourceIconDownload _downloadSourceIcons;
+        private readonly Action<Guid, string> _deleteSourceIcons;
 
         /// <param name="downloadCategoryArt">
         /// Saves a source's category art for the categories it gave a game; null keeps none.
@@ -34,13 +36,19 @@ namespace PlayniteAchievements.Services.Metadata
         /// <param name="loadStored">
         /// The game's last saved data, whose values a source that fails keeps; null keeps none.
         /// </param>
+        /// <param name="downloadSourceIcons">
+        /// Saves a source's row icons for a game as local files; null keeps none.
+        /// </param>
+        /// <param name="deleteSourceIcons">Deletes a source's row icons for a game; null deletes none.</param>
         public MetadataOverlay(
             Func<IReadOnlyList<IMetadataProvider>> providers,
             Func<PersistedSettings> settings,
             MetadataLinkStore links,
             ILogger logger,
             CategoryArtDownload downloadCategoryArt = null,
-            Func<Guid, GameAchievementData> loadStored = null)
+            Func<Guid, GameAchievementData> loadStored = null,
+            SourceIconDownload downloadSourceIcons = null,
+            Action<Guid, string> deleteSourceIcons = null)
         {
             _providers = providers;
             _settings = settings;
@@ -48,6 +56,8 @@ namespace PlayniteAchievements.Services.Metadata
             _logger = logger;
             _downloadCategoryArt = downloadCategoryArt;
             _loadStored = loadStored;
+            _downloadSourceIcons = downloadSourceIcons;
+            _deleteSourceIcons = deleteSourceIcons;
         }
 
         public MetadataLinkStore Links => _links;
@@ -61,7 +71,9 @@ namespace PlayniteAchievements.Services.Metadata
                 _links,
                 _logger,
                 _downloadCategoryArt,
-                _loadStored);
+                _loadStored,
+                _downloadSourceIcons,
+                _deleteSourceIcons);
         }
     }
 
@@ -69,6 +81,18 @@ namespace PlayniteAchievements.Services.Metadata
     internal delegate Task CategoryArtDownload(
         Guid gameId,
         IReadOnlyList<(string Label, string ImageUrl)> art,
+        CancellationToken ct);
+
+    /// <summary>
+    /// Saves a source's row icons for a game as local files, overwriting existing ones when
+    /// <paramref name="force"/> is set. Returns each row's icon paths: local where the file was
+    /// saved, the row's own address where it was not.
+    /// </summary>
+    internal delegate Task<IReadOnlyDictionary<AchievementDetail, (string Unlocked, string Locked)>> SourceIconDownload(
+        Guid gameId,
+        string sourceKey,
+        IEnumerable<AchievementDetail> rows,
+        bool force,
         CancellationToken ct);
 
     internal sealed class MetadataOverlayRun : IDisposable
@@ -92,9 +116,13 @@ namespace PlayniteAchievements.Services.Metadata
             MetadataLinkStore links,
             ILogger logger,
             CategoryArtDownload downloadCategoryArt = null,
-            Func<Guid, GameAchievementData> loadStored = null)
+            Func<Guid, GameAchievementData> loadStored = null,
+            SourceIconDownload downloadSourceIcons = null,
+            Action<Guid, string> deleteSourceIcons = null)
         {
             _loadStored = loadStored;
+            _downloadSourceIcons = downloadSourceIcons;
+            _deleteSourceIcons = deleteSourceIcons;
             _providersByKey = (providers ?? Array.Empty<IMetadataProvider>())
                 .Where(provider => provider != null && !string.IsNullOrWhiteSpace(provider.Key))
                 .GroupBy(provider => provider.Key, StringComparer.OrdinalIgnoreCase)
@@ -109,12 +137,15 @@ namespace PlayniteAchievements.Services.Metadata
         private readonly MetadataLinkResolver _resolver;
         private readonly CategoryArtDownload _downloadCategoryArt;
         private readonly Func<Guid, GameAchievementData> _loadStored;
+        private readonly SourceIconDownload _downloadSourceIcons;
+        private readonly Action<Guid, string> _deleteSourceIcons;
 
         /// <summary>
         /// Applies the enabled metadata fields to the payload. Returns true when the game's icon
         /// source changed since the last overlay, so cached icon files must be overwritten.
+        /// <paramref name="forceIcons"/> overwrites the sources' saved row icons as well.
         /// </summary>
-        public async Task<bool> ApplyAsync(Game game, GameAchievementData data, CancellationToken ct)
+        public async Task<bool> ApplyAsync(Game game, GameAchievementData data, CancellationToken ct, bool forceIcons = false)
         {
             var gameId = data?.PlayniteGameId ?? game?.Id ?? Guid.Empty;
             if (gameId == Guid.Empty || data?.Achievements == null || data.Achievements.Count == 0)
@@ -171,6 +202,7 @@ namespace PlayniteAchievements.Services.Metadata
             }
 
             BorrowTitles(gameId, sets, data.Achievements);
+            await DownloadSourceIconsAsync(gameId, plan, sets, forceIcons, ct).ConfigureAwait(false);
 
             // A source that could not answer, wholly or for a field, leaves the game as its last
             // refresh saved it there, never blank.
@@ -288,13 +320,19 @@ namespace PlayniteAchievements.Services.Metadata
                         pair.Value.LinkId,
                         pair.Value.Set.Achievements,
                         pair.Value.Matches.Select(match => new KeyValuePair<string, string>(match.Target.ApiName, match.Source.ApiName)),
-                        pair.Value.Set.Lists);
+                        pair.Value.Set.Lists,
+                        row =>
+                        {
+                            var icons = pair.Value.IconsOf(row);
+                            return string.IsNullOrWhiteSpace(icons.Unlocked) ? icons.Locked : icons.Unlocked;
+                        });
                 }
                 else
                 {
                     var hasPlatinum = ResolveCapstone(new[] { pair.Key }, sets) != null;
                     coverage[pair.Key] = new MetadataCoverage { Matched = hasPlatinum ? 1 : 0, Total = 1 };
                     _links?.Snapshots?.Forget(gameId, pair.Key);
+                    _deleteSourceIcons?.Invoke(gameId, pair.Key);
                 }
             }
 
@@ -833,6 +871,50 @@ namespace PlayniteAchievements.Services.Metadata
         }
 
         /// <summary>
+        /// Saves each per-achievement source's row icons in the game's icon cache, all sources at
+        /// once, so borrowed icons copy those files and the matches window shows them. A relinked
+        /// source overwrites its files, which are named by row. A failure keeps the rows' addresses
+        /// and never fails the refresh.
+        /// </summary>
+        private async Task DownloadSourceIconsAsync(
+            Guid gameId,
+            OverlayPlan plan,
+            IReadOnlyDictionary<string, MatchedSet> sets,
+            bool forceIcons,
+            CancellationToken ct)
+        {
+            if (_downloadSourceIcons == null)
+            {
+                return;
+            }
+
+            var downloads = sets
+                .Where(pair => plan.PerAchievementKeys.Contains(pair.Key, StringComparer.OrdinalIgnoreCase))
+                .Select(async pair =>
+                {
+                    var savedLinkId = _links?.Snapshots?.GetLinkId(gameId, pair.Key);
+                    var relinked = savedLinkId != null &&
+                        !string.Equals(savedLinkId, pair.Value.LinkId?.Trim(), StringComparison.OrdinalIgnoreCase);
+                    try
+                    {
+                        pair.Value.Icons = await _downloadSourceIcons(
+                                gameId,
+                                pair.Key,
+                                pair.Value.Set.Achievements,
+                                forceIcons || relinked,
+                                ct)
+                            .ConfigureAwait(false);
+                    }
+                    catch (Exception ex) when (!(ex is OperationCanceledException))
+                    {
+                        _logger?.Debug(ex, $"[Metadata] Saving the {pair.Key} icons of {gameId} failed.");
+                    }
+                })
+                .ToList();
+            await Task.WhenAll(downloads).ConfigureAwait(false);
+        }
+
+        /// <summary>
         /// Replaces each achievement's icons with the first preferred source that matched it,
         /// keeping each replaced achievement's own icons in <paramref name="ownIcons"/> by ApiName.
         /// </summary>
@@ -852,7 +934,8 @@ namespace PlayniteAchievements.Services.Metadata
 
                 foreach (var match in set.Matches)
                 {
-                    var unlocked = FirstNonBlank(match.Source.UnlockedIconPath, match.Source.LockedIconPath);
+                    var icons = set.IconsOf(match.Source);
+                    var unlocked = FirstNonBlank(icons.Unlocked, icons.Locked);
                     if (unlocked == null || !done.Add(match.Target))
                     {
                         continue;
@@ -864,9 +947,9 @@ namespace PlayniteAchievements.Services.Metadata
                         Locked = match.Target.LockedIconPath
                     };
                     match.Target.UnlockedIconPath = unlocked;
-                    match.Target.LockedIconPath = string.IsNullOrWhiteSpace(match.Source.LockedIconPath)
+                    match.Target.LockedIconPath = string.IsNullOrWhiteSpace(icons.Locked)
                         ? null
-                        : match.Source.LockedIconPath;
+                        : icons.Locked;
                     own.BorrowedUnlocked = match.Target.UnlockedIconPath;
                     own.BorrowedLocked = match.Target.LockedIconPath;
                     ownIcons[match.Target.ApiName] = own;
@@ -1217,6 +1300,15 @@ namespace PlayniteAchievements.Services.Metadata
             public string LinkId { get; }
 
             public List<AchievementMatch> Matches { get; }
+
+            /// <summary>The rows' icons as saved in the game's icon cache; null before they are.</summary>
+            public IReadOnlyDictionary<AchievementDetail, (string Unlocked, string Locked)> Icons { get; set; }
+
+            /// <summary>A row's saved icons, else its own.</summary>
+            public (string Unlocked, string Locked) IconsOf(AchievementDetail row) =>
+                Icons != null && row != null && Icons.TryGetValue(row, out var icons)
+                    ? icons
+                    : (row?.UnlockedIconPath, row?.LockedIconPath);
         }
 
         /// <summary>An achievement's icons as its own provider gave them, and the source's that replaced them.</summary>
