@@ -191,6 +191,7 @@ namespace PlayniteAchievements
 
         public PlayniteAchievementsSettings Settings => _settingsViewModel.Settings;
         public ProviderRegistry ProviderRegistry => _providerRegistry;
+        internal ManualSourceRegistry ManualSources => _manualSourceRegistry;
 
         /// <summary>Per-game links to metadata sources, edited on the Manage Achievements Overview.</summary>
         public Services.Metadata.MetadataLinkStore MetadataLinks => _metadataLinkStore;

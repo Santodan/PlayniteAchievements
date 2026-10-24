@@ -231,6 +231,22 @@
                                              Width="200"
                                              Padding="8,4"
                                              Margin="{StaticResource PlayAch.Thickness.Left.Sm}" />
+                                    <!-- A provider whose games can be searched: the overridden game's name, and Select to pick another. -->
+                                    <StackPanel Orientation="Horizontal"
+                                                Visibility="{Binding IsProviderOverrideSearchVisible, Converter={StaticResource BoolToVis}}">
+                                        <TextBlock Text="{Binding ProviderOverrideGameName}"
+                                                   ToolTip="{Binding ProviderOverrideGameName}"
+                                                   Foreground="{DynamicResource PlayAch.Brush.Text}"
+                                                   TextTrimming="CharacterEllipsis"
+                                                   MaxWidth="320"
+                                                   VerticalAlignment="Center"
+                                                   Margin="{StaticResource PlayAch.Thickness.Left.Sm}" />
+                                        <Button Content="{DynamicResource LOCPlayAch_Button_Pick}"
+                                                Command="{Binding ChooseProviderOverrideGameCommand}"
+                                                Padding="{StaticResource PlayAch.Thickness.ButtonPadding}"
+                                                VerticalAlignment="Center"
+                                                Margin="{StaticResource PlayAch.Thickness.Left.Sm}" />
+                                    </StackPanel>
                                     <ComboBox ItemsSource="{Binding ProviderOverrideChoices}"
                                               DisplayMemberPath="DisplayName"
                                               SelectedValuePath="Value"
@@ -243,6 +259,7 @@
                                 </StackPanel>
                                 <Button Content="{DynamicResource LOCPlayAch_Button_Apply}"
                                         Command="{Binding ApplyProviderOverrideCommand}"
+                                        Visibility="{Binding IsProviderOverrideApplyVisible, Converter={StaticResource BoolToVis}}"
                                         Padding="{StaticResource PlayAch.Thickness.ButtonPadding}"
                                         VerticalAlignment="Center"
                                         Margin="{StaticResource PlayAch.Thickness.Left.Sm}" />

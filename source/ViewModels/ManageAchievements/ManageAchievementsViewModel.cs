@@ -63,6 +63,8 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             public string DisplayName { get; set; }
 
             public ProviderOverrideDescriptor Descriptor { get; set; }
+
+            internal IDataProvider Provider { get; set; }
         }
 
         private readonly Guid _gameId;
@@ -361,7 +363,8 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
 
         public bool IsProviderOverrideTextVisible =>
             IsProviderOverrideProviderSelected &&
-            SelectedProviderOverrideValueKind == ProviderOverrideValueKind.Text;
+            SelectedProviderOverrideValueKind == ProviderOverrideValueKind.Text &&
+            !IsProviderOverrideSearchVisible;
 
         public bool IsProviderOverrideChoiceVisible =>
             IsProviderOverrideProviderSelected &&
@@ -1676,6 +1679,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             OpenAchievementPageCommand?.RaiseCanExecuteChanged();
             ApplyProviderOverrideCommand?.RaiseCanExecuteChanged();
             ClearProviderOverrideCommand?.RaiseCanExecuteChanged();
+            _chooseProviderOverrideGameCommand?.RaiseCanExecuteChanged();
             FollowSavedFiltersCommand?.RaiseCanExecuteChanged();
             UnlinkManualTrackingCommand?.RaiseCanExecuteChanged();
             RefreshStateCommand?.RaiseCanExecuteChanged();
@@ -1964,8 +1968,15 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             OnPropertyChanged(nameof(IsProviderOverrideValueVisible));
             OnPropertyChanged(nameof(IsProviderOverrideTextVisible));
             OnPropertyChanged(nameof(IsProviderOverrideChoiceVisible));
+            OnPropertyChanged(nameof(IsProviderOverrideSearchVisible));
+            OnPropertyChanged(nameof(IsProviderOverrideApplyVisible));
             OnPropertyChanged(nameof(ProviderOverrideChoices));
             OnPropertyChanged(nameof(ProviderOverrideInputLabel));
+            if (!_isLoadingProviderOverride)
+            {
+                ReloadProviderOverrideGameName();
+            }
+
             RaiseCommandStates();
         }
 
@@ -2025,7 +2036,8 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                     {
                         ProviderKey = provider.ProviderKey,
                         DisplayName = ProviderRegistry.GetLocalizedName(provider.ProviderKey),
-                        Descriptor = overrideProvider.OverrideDescriptor
+                        Descriptor = overrideProvider.OverrideDescriptor,
+                        Provider = provider
                     });
                 }
             }
