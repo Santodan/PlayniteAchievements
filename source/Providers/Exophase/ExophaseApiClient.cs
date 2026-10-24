@@ -538,6 +538,58 @@ namespace PlayniteAchievements.Providers.Exophase
         }
 
         /// <summary>
+        /// An award page read once into what the metadata lookups use, without the page source:
+        /// its awards, its award lists by section, its own game image, the same game's pages on
+        /// other platforms, and whether Exophase answered with its human check instead. Returns
+        /// null on hard failure, like <see cref="FetchAchievementsWithHtmlAsync"/>.
+        /// </summary>
+        internal async Task<ExophaseAwardPage> FetchAwardPageAsync(string achievementUrl, CancellationToken ct)
+        {
+            if (string.IsNullOrWhiteSpace(achievementUrl))
+            {
+                return null;
+            }
+
+            try
+            {
+                var html = await FetchHtmlViaWebViewAsync(achievementUrl, ct).ConfigureAwait(false);
+                if (string.IsNullOrWhiteSpace(html))
+                {
+                    _logger?.Warn($"[Exophase] No HTML fetched for achievement URL: {achievementUrl}");
+                    return null;
+                }
+
+                var isChallenge = html.IndexOf("Just a moment", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                                  html.IndexOf("cf-chl", StringComparison.OrdinalIgnoreCase) >= 0;
+                var doc = new HtmlDocument();
+                doc.LoadHtml(html);
+
+                var achievements = ParseAchievementsDocument(doc);
+                if (achievements == null)
+                {
+                    _logger?.Debug($"[Exophase] ParseAchievementsHtml returned null for {achievementUrl}");
+                }
+
+                var sections = ExophaseGamePageParser.ParseAwardSections(doc, out var gameArt);
+                return new ExophaseAwardPage(
+                    achievements,
+                    sections,
+                    gameArt,
+                    ExophaseGamePageParser.ParseRelatedPages(doc),
+                    isChallenge);
+            }
+            catch (OperationCanceledException)
+            {
+                throw;
+            }
+            catch (Exception ex)
+            {
+                _logger?.Error(ex, $"[Exophase] Failed to fetch achievements from {achievementUrl}");
+                return null;
+            }
+        }
+
+        /// <summary>
         /// Fetches HTML from a URL using offscreen WebView to bypass Cloudflare.
         /// Restores cookies from snapshot before fetching to ensure authenticated session.
         /// </summary>
@@ -1066,11 +1118,16 @@ namespace PlayniteAchievements.Providers.Exophase
                 return null;
             }
 
+            var doc = new HtmlDocument();
+            doc.LoadHtml(html);
+            return ParseAchievementsDocument(doc);
+        }
+
+        /// <summary>Achievement details from an already loaded page.</summary>
+        private List<AchievementDetail> ParseAchievementsDocument(HtmlDocument doc)
+        {
             try
             {
-                var doc = new HtmlDocument();
-                doc.LoadHtml(html);
-
                 // XPath: //ul[contains(@class,'achievement') or contains(@class,'trophy') or contains(@class,'challenge')]/li
                 var achievementNodes = doc.DocumentNode.SelectNodes(
                     "//ul[contains(@class,'achievement') or contains(@class,'trophy') or contains(@class,'challenge')]/li");
