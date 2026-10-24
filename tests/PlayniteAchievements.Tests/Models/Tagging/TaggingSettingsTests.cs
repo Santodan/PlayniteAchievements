@@ -87,9 +87,9 @@ namespace PlayniteAchievements.Models.Tagging.Tests
             Assert.AreSame(settings.TagConfigs[TagType.NoPoints], points.Fourth);
 
             var icons = rows.Single(row => row.Third == settings.TagConfigs[TagType.CustomIcons]);
-            Assert.IsNull(icons.First);
+            Assert.AreSame(settings.TagConfigs[TagType.PlatformIcons], icons.First);
             Assert.AreSame(settings.TagConfigs[TagType.MetadataIcons], icons.Second);
-            Assert.IsNull(icons.Fourth);
+            Assert.AreSame(settings.TagConfigs[TagType.NoIcons], icons.Fourth);
 
             var order = rows.Single(row => row.Third == settings.TagConfigs[TagType.CustomOrder]);
             Assert.AreSame(settings.TagConfigs[TagType.PlatformOrder], order.First);
