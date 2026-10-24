@@ -153,16 +153,17 @@
                     </DataGridTemplateColumn.CellTemplate>
                 </DataGridTemplateColumn>
 
-                <DataGridTemplateColumn Header="{DynamicResource LOCGameIconTitle}" Width="80" IsReadOnly="True"
+                <!-- Bound straight to the address: store art comes in any shape, and the plugin's
+                     image cache decodes small and squares what it caches. -->
+                <DataGridTemplateColumn Header="{DynamicResource LOCGameIconTitle}" Width="108" IsReadOnly="True"
                                         CellStyle="{StaticResource ManageAchievementsIconCellStyle}">
                     <DataGridTemplateColumn.CellTemplate>
                         <DataTemplate>
                             <Grid HorizontalAlignment="Center"
                                   VerticalAlignment="Center"
-                                  Width="72"
-                                  Height="44">
-                                <Image helpers:AsyncImage.Uri="{Binding IconUrl}"
-                                       helpers:AsyncImage.DecodePixel="96"
+                                  Width="96"
+                                  Height="54">
+                                <Image Source="{Binding IconUrl, Mode=OneWay}"
                                        Stretch="Uniform"
                                        RenderOptions.BitmapScalingMode="HighQuality"/>
                             </Grid>
