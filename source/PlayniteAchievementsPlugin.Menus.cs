@@ -977,7 +977,7 @@ namespace PlayniteAchievements
                     MenuSection = PluginMainMenuSection,
                     Action = (a) =>
                     {
-                        var folder = System.IO.Path.Combine(GetPluginUserDataPath(), "diagnostics", "exophase-missing");
+                        var folder = System.IO.Path.Combine(GetPluginUserDataPath(), "diagnostics", "exophase-missing-2");
                         _ = Task.Run(async () =>
                         {
                             try
