@@ -478,6 +478,7 @@ namespace PlayniteAchievements.Tests.Views
                 new[] { "source", "Views", "Controls", "ScoreCardControl.xaml" },
                 new[] { "source", "Views", "Controls", "PieChartWithRadialIcons.xaml" },
                 new[] { "source", "Views", "Controls", "UnlockTimelineChart.xaml" },
+                new[] { "source", "Views", "Controls", "GameSearchPanel.xaml" },
                 new[] { "source", "Views", "Showcase", "ScreenshotInfoPanel.xaml" },
                 new[] { "source", "Views", "OverviewControl.xaml" },
                 new[] { "source", "Views", "StartPage", "StartPageShowcaseWidgetView.xaml" },
