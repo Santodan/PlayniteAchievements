@@ -272,14 +272,22 @@ namespace PlayniteAchievements.Services.Achievements
         }
 
         /// <summary>
-        /// Every cached game as stored, without hydration: enough for identity lookups (provider
-        /// key, app id, Playnite id, name) at a fraction of <see cref="GetAllGameAchievementData"/>.
+        /// Every cached game without its achievements (custom-only games keep theirs): enough for
+        /// identity lookups (provider key, app id, Playnite id, name) at a fraction of
+        /// <see cref="GetAllGameAchievementData"/>.
         /// </summary>
         public List<GameAchievementData> GetAllCachedGameDataForLookup()
         {
             try
             {
-                return LoadAllCachedGameData();
+                if (_cacheReadOptimizations == null)
+                {
+                    return LoadAllCachedGameData();
+                }
+
+                var result = _cacheReadOptimizations.LoadAllGameHeadersFast() ?? new List<GameAchievementData>();
+                AppendSyntheticCustomOnlyGameData(result);
+                return result;
             }
             catch (Exception ex)
             {
