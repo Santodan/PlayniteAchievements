@@ -1184,7 +1184,10 @@
     <!-- 15 Tagging -->
     <!-- ================================================================= -->
     <sys:String x:Key="LOCPlayAch_Tag_PrefixFormat">[PA] {0}</sys:String>
+    <!-- Former name of the Platform Achievements tag; read only to rename tags still called by it. -->
     <sys:String x:Key="LOCPlayAch_Tagging_HasAchievements">Has Achievements</sys:String>
+    <sys:String x:Key="LOCPlayAch_Tagging_PlatformAchievements">Platform Achievements</sys:String>
+    <sys:String x:Key="LOCPlayAch_Tagging_CustomAchievements">Custom Achievements</sys:String>
     <sys:String x:Key="LOCPlayAch_Tagging_NoAchievements">No Achievements</sys:String>
     <sys:String x:Key="LOCPlayAch_Tagging_Customized">Customized</sys:String>
     <sys:String x:Key="LOCPlayAch_Tagging_NotCustomized">Not Customized</sys:String>
