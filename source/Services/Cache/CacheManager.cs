@@ -981,8 +981,10 @@ namespace PlayniteAchievements.Services.Cache
                                 }
                             }
 
+                            // The memory cache keeps its own copy; the freshly read record is
+                            // otherwise unshared, so it goes to the caller as is.
                             SetMemoryGameData_Locked(cacheKey, dbData);
-                            result.Add(CloneGameData(dbData));
+                            result.Add(dbData);
                         }
 
                         if (pruneStaleEntries)
