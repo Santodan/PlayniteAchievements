@@ -114,6 +114,28 @@ namespace PlayniteAchievements.Providers.Metadata
             return true;
         }
 
+        /// <summary>
+        /// Copies of a Steam game's achievements for SteamHunters to group: identity and the
+        /// category fields only, never the icons, and never the payload's own instances, which the
+        /// overlay then updates from these copies.
+        /// </summary>
+        internal static List<AchievementDetail> OwnRowsFor(IEnumerable<AchievementDetail> achievements)
+        {
+            return (achievements ?? Enumerable.Empty<AchievementDetail>())
+                .Where(achievement => !string.IsNullOrWhiteSpace(achievement?.ApiName))
+                .Select(achievement => new AchievementDetail
+                {
+                    ApiName = achievement.ApiName,
+                    DisplayName = achievement.DisplayName,
+                    Description = achievement.Description,
+                    Hidden = achievement.Hidden,
+                    Category = achievement.Category,
+                    CategoryKind = achievement.CategoryKind,
+                    Tags = achievement.Tags
+                })
+                .ToList();
+        }
+
         // Plans one default art file per category: (normalized category label -> Steam appId).
         // Any group carrying a DlcAppId (a DLC launch or a DLC update) maps to that dlcAppId;
         // every other labeled group (the base category, base-game update groups, collection
