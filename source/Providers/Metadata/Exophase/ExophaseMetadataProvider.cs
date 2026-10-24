@@ -4,6 +4,7 @@ using PlayniteAchievements.Models;
 using PlayniteAchievements.Models.Achievements;
 using PlayniteAchievements.Providers.Exophase;
 using PlayniteAchievements.Services.Achievements;
+using PlayniteAchievements.Services.GameSearch;
 using PlayniteAchievements.Services.Metadata;
 using System;
 using System.Collections.Generic;
@@ -38,7 +39,7 @@ namespace PlayniteAchievements.Providers.Metadata.Exophase
     /// Exophase search, with the scan's hints (the platform's title for the game, a collection's
     /// trophy set titles, a region).
     /// </summary>
-    internal sealed class ExophaseMetadataProvider : IMetadataProvider, IMetadataPageLinks
+    internal sealed class ExophaseMetadataProvider : IMetadataProvider, IMetadataPageLinks, IMetadataLinkSearch
     {
         // Search results judged per name; each costs a page load the first time in a run.
         private const int SearchCandidatesJudged = 6;
@@ -61,9 +62,25 @@ namespace PlayniteAchievements.Providers.Metadata.Exophase
 
         public string DisplayNameKey => _branch.DisplayNameKey;
 
-        public string LinkPlaceholder => "exophase-game-id";
-
         public MetadataField SupportedFields => _branch.Fields;
+
+        /// <summary>
+        /// Exophase search on the branch's platforms: the borrowed platform's, or the game's own
+        /// (any platform when the servicing provider's has no Exophase slug).
+        /// </summary>
+        public IGameSearchSource CreateLinkSearch(Guid gameId, string servicingProviderKey)
+        {
+            if (_pages?.IsAvailable != true)
+            {
+                return null;
+            }
+
+            var ownPlatform = ExophaseMetadataBranch.OwnPlatformSlug(servicingProviderKey);
+            var platforms = !_branch.OwnPlatform
+                ? _branch.SearchPlatforms
+                : ownPlatform == null ? Array.Empty<string>() : PlatformCandidates(ownPlatform);
+            return new ExophaseLinkSearch(_pages, platforms, ResourceProvider.GetString(DisplayNameKey));
+        }
 
         public bool IsNativeFor(string servicingProviderKey) =>
             !string.IsNullOrWhiteSpace(servicingProviderKey) && _branch.NativeProviders.Contains(servicingProviderKey);

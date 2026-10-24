@@ -7,6 +7,7 @@ using PlayniteAchievements.Providers.Exophase;
 using PlayniteAchievements.Providers.Manual;
 using PlayniteAchievements.Providers.Steam;
 using PlayniteAchievements.Services.GameCustomData;
+using PlayniteAchievements.Services.GameSearch;
 using PlayniteAchievements.Services.Metadata;
 using System;
 using System.Collections.Generic;
@@ -25,7 +26,7 @@ namespace PlayniteAchievements.Providers.Metadata
     /// linked by its own appId without storing the link, and SteamHunters groups its own
     /// achievements, so they join by ApiName.
     /// </summary>
-    internal sealed class SteamHuntersMetadataProvider : IMetadataProvider, IMetadataPageLinks, IMetadataImplicitLink
+    internal sealed class SteamHuntersMetadataProvider : IMetadataProvider, IMetadataPageLinks, IMetadataImplicitLink, IMetadataLinkSearch
     {
         public const string MetadataKey = "SteamHunters";
 
@@ -50,7 +51,11 @@ namespace PlayniteAchievements.Providers.Metadata
 
         public string DisplayNameKey => "LOCPlayAch_Metadata_Source_SteamHunters";
 
-        public string LinkPlaceholder => "123456";
+        /// <summary>The Steam store's search; a link names one app per game, several for a collection.</summary>
+        public IGameSearchSource CreateLinkSearch(Guid gameId, string servicingProviderKey) =>
+            SteamSchema == null
+                ? null
+                : new ManualSourceGameSearch(SteamSchema, Language, allowsMultiple: true, displayName: ResourceProvider.GetString(DisplayNameKey));
 
         /// <summary>The app's achievement page; the link is the Steam app id.</summary>
         public IReadOnlyList<MetadataPageLink> PageLinks(Guid gameId, string linkId, string servicingProviderKey) =>

@@ -250,8 +250,6 @@ namespace PlayniteAchievements.Tests.Services
 
             public string DisplayNameKey => "Source";
 
-            public string LinkPlaceholder => string.Empty;
-
             public MetadataField SupportedFields => MetadataField.Icons;
 
             public bool IsNativeFor(string servicingProviderKey) => false;

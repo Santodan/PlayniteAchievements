@@ -2,6 +2,7 @@ using Playnite.SDK;
 using PlayniteAchievements.Common;
 using PlayniteAchievements.Models.Achievements;
 using PlayniteAchievements.Services.Achievements;
+using PlayniteAchievements.Services.GameSearch;
 using PlayniteAchievements.Services.Metadata;
 using System;
 using System.Collections.Generic;
@@ -21,7 +22,7 @@ namespace PlayniteAchievements.Providers.Metadata.TrueGaming
     /// <see cref="TrueGamingPageSet"/>. The sites are English only, so rows pair with the game's
     /// achievements by English title.
     /// </summary>
-    internal sealed class TrueGamingMetadataProvider : IMetadataProvider, IMetadataLinkDetails, IMetadataPageLinks
+    internal sealed class TrueGamingMetadataProvider : IMetadataProvider, IMetadataLinkDetails, IMetadataPageLinks, IMetadataLinkSearch
     {
         public const string MetadataKey = "TrueGaming";
 
@@ -47,7 +48,8 @@ namespace PlayniteAchievements.Providers.Metadata.TrueGaming
 
         public string DisplayNameKey => "LOCPlayAch_Metadata_Source_TrueGaming";
 
-        public string LinkPlaceholder => "Game-Name";
+        public IGameSearchSource CreateLinkSearch(Guid gameId, string servicingProviderKey) =>
+            _views == null ? null : new TrueGamingLinkSearch(this, ResourceProvider.GetString(DisplayNameKey));
 
         public MetadataField SupportedFields =>
             MetadataField.Tags | MetadataField.Categories | MetadataField.CategoryArt | MetadataField.Points | MetadataField.TrophyTypes;
@@ -216,6 +218,47 @@ namespace PlayniteAchievements.Providers.Metadata.TrueGaming
                 return Array.Empty<(string, string)>();
             }
 
+            var text = await ReadSearchPageAsync(url, ct).ConfigureAwait(false);
+            if (text == null)
+            {
+                health.MarkUnreadable();
+                return Array.Empty<(string, string)>();
+            }
+
+            var results = TrueGamingLinks.ParseSearch(text).Take(SearchCandidatesJudged).ToList();
+            lock (_searches)
+            {
+                _searches[url] = results;
+            }
+
+            return results;
+        }
+
+        /// <summary>
+        /// Every game TrueAchievements' search answers for a name typed into the link picker, in
+        /// its order, as page names without an edition suffix. Not kept. Null when the search could
+        /// not be read.
+        /// </summary>
+        internal async Task<IReadOnlyList<(string Slug, string Title)>> SearchPagesAsync(string name, CancellationToken ct)
+        {
+            if (_views == null || string.IsNullOrWhiteSpace(name))
+            {
+                return _views == null ? null : Array.Empty<(string, string)>();
+            }
+
+            var text = await ReadSearchPageAsync(TrueGamingLinks.SearchUrl(name.Trim()), ct).ConfigureAwait(false);
+            return text == null
+                ? null
+                : TrueGamingLinks.ParseSearch(text)
+                    .Select(game => (Slug: TrueGamingLinks.BaseSlug(game.Slug), game.Title))
+                    .GroupBy(game => game.Slug, StringComparer.OrdinalIgnoreCase)
+                    .Select(group => group.First())
+                    .ToList();
+        }
+
+        /// <summary>A search page's text, or null when it could not be read or was a challenge page.</summary>
+        private async Task<string> ReadSearchPageAsync(string url, CancellationToken ct)
+        {
             string text;
             try
             {
@@ -246,17 +289,10 @@ namespace PlayniteAchievements.Providers.Metadata.TrueGaming
                     MarkChallenged(TrueGamingSite.TrueAchievements);
                 }
 
-                health.MarkUnreadable();
-                return Array.Empty<(string, string)>();
+                return null;
             }
 
-            var results = TrueGamingLinks.ParseSearch(text).Take(SearchCandidatesJudged).ToList();
-            lock (_searches)
-            {
-                _searches[url] = results;
-            }
-
-            return results;
+            return text;
         }
 
         /// <summary>

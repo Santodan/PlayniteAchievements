@@ -1,6 +1,7 @@
 using Playnite.SDK.Models;
 using PlayniteAchievements.Models;
 using PlayniteAchievements.Models.Achievements;
+using PlayniteAchievements.Services.GameSearch;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -37,12 +38,6 @@ namespace PlayniteAchievements.Providers.Metadata
 
         /// <summary>Localization key of the name shown in settings and on the per-game link row.</summary>
         string DisplayNameKey { get; }
-
-        /// <summary>
-        /// An example of the id a link holds ("exophase-game-id", "123456"), shown in the empty
-        /// link box on Manage Achievements. Not localized: it is the id's shape, not a word.
-        /// </summary>
-        string LinkPlaceholder { get; }
 
         MetadataField SupportedFields { get; }
 
@@ -97,6 +92,13 @@ namespace PlayniteAchievements.Providers.Metadata
 
         /// <summary>The same link for the game's link row, read from what is cached; null when it implies none.</summary>
         string ImplicitLinkId(Guid gameId);
+    }
+
+    /// <summary>A source whose games can be looked up by name, so the user picks a link rather than typing one.</summary>
+    internal interface IMetadataLinkSearch
+    {
+        /// <summary>The search for one game's link, or null when the source cannot search for it.</summary>
+        IGameSearchSource CreateLinkSearch(Guid gameId, string servicingProviderKey);
     }
 
     /// <summary>A source whose link leads to pages a browser can open, from the game's link row.</summary>

@@ -347,7 +347,7 @@
                                                        Style="{StaticResource SettingLabelStyle}"
                                                        Text="{Binding SourceName}"
                                                        ToolTip="{Binding LinkDetails}" />
-                                            <!-- What the source adds to this game, under the box; the tooltip names the pages it read. -->
+                                            <!-- What the source adds to this game, under the title; the tooltip names the pages it read. -->
                                             <TextBlock Grid.Row="1"
                                                        Grid.Column="1"
                                                        Style="{StaticResource SettingStatusStyle}"
@@ -356,17 +356,16 @@
                                                        Visibility="{Binding HasSupplies, Converter={StaticResource BoolToVis}}"
                                                        Margin="0,2,0,0" />
                                             <WrapPanel Grid.Column="1">
-                                                <!-- Grows with a link that names several lists. -->
-                                                <Grid MinWidth="200" MaxWidth="480" VerticalAlignment="Center">
-                                                    <TextBox x:Name="LinkInput"
-                                                             Text="{Binding Input, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                                             Padding="8,4" />
-                                                    <TextBlock Text="{Binding Placeholder}"
-                                                               Tag="{Binding Text, ElementName=LinkInput}"
-                                                               Style="{StaticResource ManageAchievementsSearchPlaceholderTextStyle}" />
-                                                </Grid>
-                                                <Button Content="{DynamicResource LOCPlayAch_Button_Apply}"
-                                                        Command="{Binding ApplyCommand}"
+                                                <!-- The linked game's title, or each game's for a collection; Select searches for another. -->
+                                                <TextBlock Text="{Binding LinkTitle}"
+                                                           ToolTip="{Binding LinkTitle}"
+                                                           Foreground="{DynamicResource PlayAch.Brush.Text}"
+                                                           TextTrimming="CharacterEllipsis"
+                                                           MinWidth="200"
+                                                           MaxWidth="480"
+                                                           VerticalAlignment="Center" />
+                                                <Button Content="{DynamicResource LOCPlayAch_Button_Pick}"
+                                                        Command="{Binding ChangeCommand}"
                                                         Padding="{StaticResource PlayAch.Thickness.ButtonPadding}"
                                                         VerticalAlignment="Center"
                                                         Margin="{StaticResource PlayAch.Thickness.Left.Sm}" />
