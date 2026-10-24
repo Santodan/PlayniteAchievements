@@ -1579,6 +1579,14 @@
     <sys:String x:Key="LOCPlayAch_Workshop_Share_Cover">Cover image</sys:String>
     <sys:String x:Key="LOCPlayAch_Workshop_Share_CoverHint">Optional, for example the game's banner art</sys:String>
     <sys:String x:Key="LOCPlayAch_Workshop_Share_CoverTooLarge">The cover image must be 5 MB or smaller.</sys:String>
+    <!-- Labels of a Workshop item's contents summary, each followed by its count. -->
+    <sys:String x:Key="LOCPlayAch_Workshop_Contents_CustomAchievements">Custom achievements</sys:String>
+    <sys:String x:Key="LOCPlayAch_Workshop_Contents_Overrides">Overrides</sys:String>
+    <sys:String x:Key="LOCPlayAch_Workshop_Contents_Widgets">Widgets</sys:String>
+    <sys:String x:Key="LOCPlayAch_Workshop_Contents_Images">Images</sys:String>
+    <sys:String x:Key="LOCPlayAch_Workshop_Contents_CustomTemplate">Custom template</sys:String>
+    <sys:String x:Key="LOCPlayAch_Workshop_Contents_CustomFrameTemplate">Custom frame template</sys:String>
+    <sys:String x:Key="LOCPlayAch_Workshop_Contents_KindStyles">Per-kind styles</sys:String>
 
     <!-- ================================================================= -->
     <!-- 99 Legacy SuccessStory Compatibility -->
