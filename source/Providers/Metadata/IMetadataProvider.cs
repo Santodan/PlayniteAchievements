@@ -22,7 +22,10 @@ namespace PlayniteAchievements.Providers.Metadata
         CapstoneArt = 16,
         TrophyTypes = 32,
         Points = 64,
-        Tags = 128
+        Tags = 128,
+
+        /// <summary>The achievement's name and description.</summary>
+        Text = 256
     }
 
     /// <summary>
@@ -289,6 +292,13 @@ namespace PlayniteAchievements.Providers.Metadata
         /// already English, or the source has only the one language.
         /// </summary>
         public Func<CancellationToken, Task<IList<AchievementDetail>>> EnglishRows { get; set; }
+
+        /// <summary>
+        /// True when the rows' names and descriptions are in the plugin's language, so the overlay
+        /// may give them to the game's achievements; a page that fell back to another language
+        /// leaves the game's own text.
+        /// </summary>
+        public bool TextInPluginLanguage { get; set; }
 
         /// <summary>
         /// Fields the source could not read this time although it answered (a page whose flags did
