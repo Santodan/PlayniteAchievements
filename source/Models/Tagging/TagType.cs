@@ -81,6 +81,8 @@ namespace PlayniteAchievements.Models.Tagging
         NoTags,
         PlatformCapstones,
         MetadataCapstones,
-        NoCapstones
+        NoCapstones,
+        PlatformIcons,
+        NoIcons
     }
 }
