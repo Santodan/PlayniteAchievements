@@ -83,6 +83,7 @@ namespace PlayniteAchievements.Models.Tagging
             CustomizationArea.Icons |
             CustomizationArea.TrophyTypes |
             CustomizationArea.Points |
+            CustomizationArea.Text |
             CustomizationArea.Categories |
             CustomizationArea.Tags |
             CustomizationArea.Capstones;
@@ -101,6 +102,9 @@ namespace PlayniteAchievements.Models.Tagging
                 TagType.PlatformTrophies, TagType.MetadataTrophies, TagType.CustomTrophies, TagType.NoTrophies),
             Area(CustomizationArea.Points, "LOCPlayAch_Column_Points",
                 TagType.PlatformPoints, TagType.MetadataPoints, TagType.CustomPoints, TagType.NoPoints),
+            // Every achievement has a name, so text has no None kind.
+            Area(CustomizationArea.Text, "LOCPlayAch_Tagging_Area_Text",
+                platform: TagType.PlatformText, metadata: TagType.MetadataText, custom: TagType.CustomText),
             Area(CustomizationArea.Categories, "LOCPlayAch_ManageAchievements_Tab_Category",
                 TagType.PlatformCategories, TagType.MetadataCategories, TagType.CustomCategories, TagType.NoCategories),
             Area(CustomizationArea.Tags, "LOCPlayAch_Tagging_Area_Tags",
@@ -157,7 +161,8 @@ namespace PlayniteAchievements.Models.Tagging
                 bool fromPlatform, fromMetadata, hasAny;
                 if (area.IsSourced)
                 {
-                    fromPlatform = layers.IsKnown && (layers.Platform.Value & area.Area) != 0;
+                    fromPlatform = layers.IsKnown && (layers.Platform.Value & area.Area) != 0 ||
+                                   area.Area == CustomizationArea.Text && TextPredatesMasks(layers);
                     fromMetadata = layers.IsKnown && (layers.Metadata.Value & area.Area) != 0;
                     hasAny = layers.IsKnown
                         ? fromPlatform || fromMetadata || isCustom
@@ -191,6 +196,15 @@ namespace PlayniteAchievements.Models.Tagging
                 }
             }
         }
+
+        /// <summary>
+        /// True for masks recorded before text had layers: they name neither layer for text although
+        /// the game has some, and no source supplied text then, so it is the platform's.
+        /// </summary>
+        private static bool TextPredatesMasks(GameDataLayers layers) =>
+            layers.IsKnown &&
+            ((layers.Platform.Value | layers.Metadata.Value) & CustomizationArea.Text) == 0 &&
+            (layers.Present & CustomizationArea.Text) != 0;
 
         private static CustomizationTagArea Area(
             CustomizationArea area,
