@@ -20,7 +20,7 @@ namespace PlayniteAchievements.Providers.Metadata.Exophase
     internal static class ExophaseMissingPageProbe
     {
         /// <summary>Hardcoded gate for the hidden probe menu item. Off in shipped builds.</summary>
-        internal static readonly bool Enabled = true;
+        internal static readonly bool Enabled = false;
 
         private const string Language = "de";
 
