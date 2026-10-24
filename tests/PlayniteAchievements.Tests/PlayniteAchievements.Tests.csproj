@@ -392,6 +392,7 @@
     <Compile Include="..\..\source\Providers\Exophase\ExophaseGameNameMatcher.cs" Link="Source\Providers\Exophase\ExophaseGameNameMatcher.cs" />
     <Compile Include="..\..\source\Common\StringSimilarity.cs" Link="Source\Common\StringSimilarity.cs" />
     <Compile Include="..\..\source\Common\KeySequenceMatcher.cs" Link="Source\Common\KeySequenceMatcher.cs" />
+    <Compile Include="..\..\source\Common\LruCache.cs" Link="Source\Common\LruCache.cs" />
     <Compile Include="..\..\source\Common\GameNameNormalizer.cs" Link="Source\Common\GameNameNormalizer.cs" />
     <Compile Include="..\..\source\Providers\Xbox\XboxTitleIdResolver.cs" Link="Source\Providers\Xbox\XboxTitleIdResolver.cs" />
     <Compile Include="..\..\source\Providers\Xenia\XeniaSettings.cs" Link="Source\Providers\Xenia\XeniaSettings.cs" />
