@@ -397,6 +397,17 @@ namespace PlayniteAchievements.Services.Metadata
                 capstoneMatch = previous.CapstoneMatchApiName;
                 categoryCapstones = previous.CategoryCapstones ?? new List<MetadataCategoryCapstone>();
             }
+
+            // Text goes last, after everything above has matched and read the game's own titles.
+            // A source whose page is in another language leaves the game's own text.
+            var textSets = sets
+                .Where(pair => pair.Value.Set.TextInPluginLanguage)
+                .ToDictionary(pair => pair.Key, pair => pair.Value, StringComparer.OrdinalIgnoreCase);
+            Replace(plan.TextKeys, textSets, ApplyText, MetadataField.Text);
+            if (Failed(plan.TextKeys, MetadataField.Text))
+            {
+                KeepStored(data.Achievements, stored, _ => true, ApplyText);
+            }
             // A source that supplies achievement data is judged, and shown, by how many of the
             // game's achievements it matched; one used only for the auto capstone by its platinum.
             var coverage = new Dictionary<string, MetadataCoverage>(StringComparer.OrdinalIgnoreCase);
@@ -568,7 +579,8 @@ namespace PlayniteAchievements.Services.Metadata
                 Chosen(choices.Rarity, MetadataField.Rarity),
                 Chosen(choices.CapstoneArt, MetadataField.CapstoneArt),
                 Chosen(choices.TrophyTypes, MetadataField.TrophyTypes),
-                Chosen(choices.Points, MetadataField.Points));
+                Chosen(choices.Points, MetadataField.Points),
+                Chosen(choices.Text, MetadataField.Text));
         }
 
         /// <summary>
@@ -1331,6 +1343,23 @@ namespace PlayniteAchievements.Services.Metadata
             target.Rarity = PercentRarityHelper.GetRarityTier(percent);
         }
 
+        /// <summary>
+        /// The source's name and description, each where the source has one: a source that hides a
+        /// description (as Steam does for hidden achievements) leaves the game's own.
+        /// </summary>
+        internal static void ApplyText(AchievementDetail target, AchievementDetail source)
+        {
+            if (!string.IsNullOrWhiteSpace(source.DisplayName))
+            {
+                target.DisplayName = source.DisplayName.Trim();
+            }
+
+            if (!string.IsNullOrWhiteSpace(source.Description))
+            {
+                target.Description = source.Description.Trim();
+            }
+        }
+
         /// <summary>Replaces an achievement's category and kind with the source's.</summary>
         internal static void ApplyCategory(AchievementDetail target, AchievementDetail source)
         {
@@ -1563,7 +1592,8 @@ namespace PlayniteAchievements.Services.Metadata
                 List<string> rarityKeys,
                 List<string> capstoneArtKeys,
                 List<string> trophyTypeKeys,
-                List<string> pointsKeys)
+                List<string> pointsKeys,
+                List<string> textKeys)
             {
                 IconKeys = iconKeys;
                 CategoryKeys = categoryKeys;
@@ -1572,7 +1602,8 @@ namespace PlayniteAchievements.Services.Metadata
                 CapstoneArtKeys = capstoneArtKeys;
                 TrophyTypeKeys = trophyTypeKeys;
                 PointsKeys = pointsKeys;
-                PerAchievementKeys = iconKeys.Concat(categoryKeys).Concat(tagKeys).Concat(rarityKeys).Concat(trophyTypeKeys).Concat(pointsKeys)
+                TextKeys = textKeys;
+                PerAchievementKeys = iconKeys.Concat(categoryKeys).Concat(tagKeys).Concat(rarityKeys).Concat(trophyTypeKeys).Concat(pointsKeys).Concat(textKeys)
                     .Distinct(StringComparer.OrdinalIgnoreCase)
                     .ToList();
                 AllKeys = PerAchievementKeys.Concat(capstoneArtKeys)
@@ -1583,6 +1614,8 @@ namespace PlayniteAchievements.Services.Metadata
             public List<string> TrophyTypeKeys { get; }
 
             public List<string> PointsKeys { get; }
+
+            public List<string> TextKeys { get; }
 
             /// <summary>Sources supplying achievement fields, judged by how many achievements they match.</summary>
             public List<string> PerAchievementKeys { get; }
@@ -1611,7 +1644,8 @@ namespace PlayniteAchievements.Services.Metadata
                        (Has(RarityKeys) ? MetadataField.Rarity : MetadataField.None) |
                        (Has(CapstoneArtKeys) ? MetadataField.CapstoneArt : MetadataField.None) |
                        (Has(TrophyTypeKeys) ? MetadataField.TrophyTypes : MetadataField.None) |
-                       (Has(PointsKeys) ? MetadataField.Points : MetadataField.None);
+                       (Has(PointsKeys) ? MetadataField.Points : MetadataField.None) |
+                       (Has(TextKeys) ? MetadataField.Text : MetadataField.None);
             }
         }
     }

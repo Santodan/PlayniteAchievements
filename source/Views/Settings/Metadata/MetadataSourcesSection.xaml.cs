@@ -75,6 +75,7 @@ namespace PlayniteAchievements.Views.Settings.Metadata
         private string _capstoneArt;
         private string _trophyTypes;
         private string _points;
+        private string _text;
 
         /// <summary>The defaults row (null <paramref name="providerKey"/>) or a platform's row, saved to settings.</summary>
         internal MetadataChoiceRow(
@@ -135,6 +136,7 @@ namespace PlayniteAchievements.Views.Settings.Metadata
             CapstoneArtOptions = BuildOptions(providers, MetadataField.CapstoneArt);
             TrophyTypeOptions = BuildOptions(providers, MetadataField.TrophyTypes);
             PointsOptions = BuildOptions(providers, MetadataField.Points);
+            TextOptions = BuildOptions(providers, MetadataField.Text);
             CategoryOptions = BuildOptions(providers, MetadataField.Categories);
             TagOptions = BuildOptions(providers, MetadataField.Tags);
             RarityOptions = WithDefault(new[]
@@ -150,6 +152,7 @@ namespace PlayniteAchievements.Views.Settings.Metadata
             _capstoneArt = ToKey(stored?.CapstoneArt);
             _trophyTypes = SupportsTrophyTypes ? ToKey(stored?.TrophyTypes) : DefaultKey;
             _points = SupportsPoints ? ToKey(stored?.Points) : DefaultKey;
+            _text = ToKey(stored?.Text);
         }
 
         public string ProviderKey { get; }
@@ -189,6 +192,8 @@ namespace PlayniteAchievements.Views.Settings.Metadata
 
         public IReadOnlyList<ChoiceOption> PointsOptions { get; }
 
+        public IReadOnlyList<ChoiceOption> TextOptions { get; }
+
         /// <summary>Raised after a choice is saved.</summary>
         internal event Action Saved;
 
@@ -207,6 +212,8 @@ namespace PlayniteAchievements.Views.Settings.Metadata
 
         public string InheritedPoints => InheritedLabel(PointsOptions, choices => choices.Points);
 
+        public string InheritedText => InheritedLabel(TextOptions, choices => choices.Text);
+
         /// <summary>Updates what "Default" stands for after the choices it follows changed.</summary>
         internal void RefreshInherited()
         {
@@ -217,6 +224,7 @@ namespace PlayniteAchievements.Views.Settings.Metadata
             OnPropertyChanged(nameof(InheritedCapstoneArt));
             OnPropertyChanged(nameof(InheritedTrophyTypes));
             OnPropertyChanged(nameof(InheritedPoints));
+            OnPropertyChanged(nameof(InheritedText));
         }
 
         /// <summary>
@@ -277,6 +285,12 @@ namespace PlayniteAchievements.Views.Settings.Metadata
             set { _points = value; Save(); OnPropertyChanged(); }
         }
 
+        public string Text
+        {
+            get => _text;
+            set { _text = value; Save(); OnPropertyChanged(); }
+        }
+
         private void Save()
         {
             var choices = new MetadataChoices
@@ -286,6 +300,7 @@ namespace PlayniteAchievements.Views.Settings.Metadata
                 CapstoneArt = SupportsSources ? FromKey(_capstoneArt) : null,
                 TrophyTypes = SupportsTrophyTypes ? FromKey(_trophyTypes) : null,
                 Points = SupportsPoints ? FromKey(_points) : null,
+                Text = SupportsSources ? FromKey(_text) : null,
                 Categories = SupportsSources ? FromKey(_categories) : null,
                 Tags = SupportsSources ? FromKey(_tags) : null
             };

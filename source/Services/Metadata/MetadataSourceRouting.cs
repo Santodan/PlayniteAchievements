@@ -66,7 +66,7 @@ namespace PlayniteAchievements.Services.Metadata
             }
 
             // The fields other than points and ranks decide which pages the game loads anyway.
-            var loaded = new[] { choices.Icons, choices.Categories, choices.Tags, choices.CapstoneArt };
+            var loaded = new[] { choices.Icons, choices.Categories, choices.Tags, choices.CapstoneArt, choices.Text };
             return loaded.Any(key => string.Equals(key?.Trim(), frontend, StringComparison.OrdinalIgnoreCase))
                 ? chosen
                 : MetadataChoices.TrueGaming;

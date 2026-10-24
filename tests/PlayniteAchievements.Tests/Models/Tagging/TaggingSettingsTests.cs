@@ -113,11 +113,17 @@ namespace PlayniteAchievements.Models.Tagging.Tests
             var settings = new TaggingSettings();
             settings.InitializeDefaults(TaggingSettings.GetDefaultDisplayName);
 
-            var configs = settings.StatusRows.SelectMany(row => new[] { row.First, row.Second }).ToList();
+            var configs = settings.StatusRows.SelectMany(row => new[] { row.First, row.Second, row.Third }).Where(config => config != null).ToList();
 
             CollectionAssert.AllItemsAreUnique(configs);
             CollectionAssert.Contains(configs, settings.ExcludedFromSummariesConfig);
             CollectionAssert.Contains(configs, settings.NoAchievementsConfig);
+
+            var achievements = settings.StatusRows[0];
+            Assert.AreSame(settings.HasAchievementsConfig, achievements.First);
+            Assert.AreSame(settings.TagConfigs[TagType.CustomAchievements], achievements.Second);
+            Assert.AreSame(settings.NoAchievementsConfig, achievements.Third);
+            Assert.AreEqual("[PA] Platform Achievements", TaggingSettings.GetDefaultDisplayName(TagType.HasAchievements));
         }
 
         [TestMethod]

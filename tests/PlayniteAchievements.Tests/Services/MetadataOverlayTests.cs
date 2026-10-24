@@ -238,6 +238,108 @@ namespace PlayniteAchievements.Tests.Services
         }
 
         [TestMethod]
+        public async Task Text_ReplacesMatchedNamesAndDescriptions_AfterMatching()
+        {
+            var playstation = new FakeSource("PlayStation", MetadataField.Text | MetadataField.TrophyTypes);
+            var slayer = Row("p1", "Dragon Slayer");
+            slayer.Description = "Defeat the dragon.";
+            slayer.TrophyType = "gold";
+            var hidden = Row("p2", "Secret Ending");
+            playstation.Rows.Add(slayer);
+            playstation.Rows.Add(hidden);
+            var dragon = Row("ACH_DRAGON", "DRAGON SLAYER");
+            dragon.Description = "kill dragon";
+            var secret = Row("ACH_SECRET", "Secret ending");
+            secret.Description = "Own description";
+            var unmatched = Row("ACH_OTHER", "Something Else");
+            var data = Game("Steam", dragon, secret, unmatched);
+            var overlay = Overlay(new IMetadataProvider[] { playstation }, Choices(trophyTypes: "PlayStation", text: "PlayStation"));
+
+            using (var run = overlay.BeginRun())
+            {
+                await run.ApplyAsync(data.Game, data, CancellationToken.None);
+            }
+
+            Assert.AreEqual("Dragon Slayer", dragon.DisplayName);
+            Assert.AreEqual("Defeat the dragon.", dragon.Description);
+            Assert.AreEqual("gold", dragon.TrophyType, "other fields still match on the platform's own title");
+            Assert.AreEqual("Secret Ending", secret.DisplayName);
+            Assert.AreEqual("Own description", secret.Description, "a source without a description leaves the game's own");
+            Assert.AreEqual("Something Else", unmatched.DisplayName);
+        }
+
+        [TestMethod]
+        public async Task Text_InAnotherLanguage_LeavesTheGamesOwnText()
+        {
+            var playstation = new FakeSource("PlayStation", MetadataField.Text | MetadataField.TrophyTypes) { TextInPluginLanguage = false };
+            var slayer = Row("p1", "Dragon Slayer");
+            slayer.TrophyType = "gold";
+            playstation.Rows.Add(slayer);
+            var dragon = Row("ACH_DRAGON", "DRAGON SLAYER");
+            var data = Game("Steam", dragon);
+            var overlay = Overlay(new IMetadataProvider[] { playstation }, Choices(trophyTypes: "PlayStation", text: "PlayStation"));
+
+            using (var run = overlay.BeginRun())
+            {
+                await run.ApplyAsync(data.Game, data, CancellationToken.None);
+            }
+
+            Assert.AreEqual("DRAGON SLAYER", dragon.DisplayName);
+            Assert.AreEqual("gold", dragon.TrophyType, "the source's other fields still apply");
+        }
+
+        [TestMethod]
+        public async Task Text_FromAFailedSource_KeepsTheStoredText()
+        {
+            var playstation = new FakeSource("PlayStation", MetadataField.Text) { FailFetch = true };
+            var data = Game("Steam", Row("ACH_DRAGON", "DRAGON SLAYER"));
+            var storedRow = Row("ACH_DRAGON", "Dragon Slayer");
+            storedRow.Description = "Defeat the dragon.";
+            var stored = Game("Steam", storedRow);
+            var overlay = Overlay(new IMetadataProvider[] { playstation }, Choices(text: "PlayStation"), loadStored: _ => stored);
+            overlay.Links.SetUser(data.PlayniteGameId.Value, playstation.Key, "link-PlayStation");
+
+            using (var run = overlay.BeginRun())
+            {
+                await run.ApplyAsync(data.Game, data, CancellationToken.None);
+            }
+
+            Assert.AreEqual("Dragon Slayer", data.Achievements[0].DisplayName);
+            Assert.AreEqual("Defeat the dragon.", data.Achievements[0].Description);
+        }
+
+        [TestMethod]
+        public void Text_IsOffByDefault_AndForPlatformsNoSourceHas()
+        {
+            var settings = new PersistedSettings
+            {
+                MetadataDefaults = new MetadataChoices { Icons = string.Empty }
+            };
+
+            Assert.AreEqual(string.Empty, settings.MetadataDefaults.Text, "a configuration saved before Text existed completes to Off");
+            Assert.AreEqual(string.Empty, settings.ResolveMetadataChoices("Steam").Text);
+            Assert.AreEqual("PlayStation", settings.ResolveMetadataChoices("Steam", new MetadataChoices { Text = "PlayStation" }).Text);
+            Assert.AreEqual(string.Empty, settings.ResolveMetadataChoices("Riot", new MetadataChoices { Text = "PlayStation" }).Text);
+            Assert.IsFalse(new MetadataChoices { Text = string.Empty }.IsEmpty());
+            Assert.IsFalse(new MetadataChoices { Text = "Xbox" }.SameAs(new MetadataChoices()));
+            Assert.AreEqual("Xbox", new MetadataChoices { Text = "Xbox" }.Clone().Text);
+        }
+
+        [TestMethod]
+        public void PointsServedByTheExophasePage_WhenTextLoadsIt()
+        {
+            var providers = new IMetadataProvider[]
+            {
+                new FakeSource("Xbox", MetadataField.Points | MetadataField.Text),
+                new FakeSource("TrueGaming", MetadataField.Tags | MetadataField.Points | MetadataField.TrophyTypes)
+            };
+
+            var routed = MetadataSourceRouting.Route(new MetadataChoices { Points = "Xbox", Text = "Xbox" }, providers, "Steam");
+
+            Assert.AreEqual("Xbox", routed.Points);
+        }
+
+        [TestMethod]
         public void PlatformsWithTheirOwnPointsOrTrophyTypes_TakeNone()
         {
             var settings = new PersistedSettings();
@@ -284,7 +386,8 @@ namespace PlayniteAchievements.Tests.Services
                 Rarity = string.Empty,
                 CapstoneArt = string.Empty,
                 TrophyTypes = string.Empty,
-                Points = string.Empty
+                Points = string.Empty,
+                Text = string.Empty
             }));
             Assert.AreEqual(MetadataChoices.TrueGaming, steam.Tags);
             Assert.AreEqual(MetadataChoices.PlayStation, steam.CapstoneArt);
@@ -1276,7 +1379,8 @@ namespace PlayniteAchievements.Tests.Services
             string tags = null,
             string capstoneArt = null,
             string trophyTypes = null,
-            string points = null)
+            string points = null,
+            string text = null)
         {
             var settings = new PersistedSettings();
             settings.MetadataDefaults = new MetadataChoices
@@ -1287,7 +1391,8 @@ namespace PlayniteAchievements.Tests.Services
                 Rarity = string.Empty,
                 CapstoneArt = capstoneArt ?? string.Empty,
                 TrophyTypes = trophyTypes ?? string.Empty,
-                Points = points ?? string.Empty
+                Points = points ?? string.Empty,
+                Text = text ?? string.Empty
             };
             return settings;
         }
@@ -1700,6 +1805,9 @@ namespace PlayniteAchievements.Tests.Services
             /// <summary>The fuller link the fetched set reports.</summary>
             public string ExtendedId { get; set; }
 
+            /// <summary>Whether the fetched rows' text is in the plugin's language.</summary>
+            public bool TextInPluginLanguage { get; set; } = true;
+
             /// <summary>The fields the last fetch was asked for.</summary>
             public MetadataField LastWanted { get; private set; }
 
@@ -1773,6 +1881,7 @@ namespace PlayniteAchievements.Tests.Services
                     ApiNamesMayBeShared = IdsMayBeShared,
                     UnavailableFields = Unavailable,
                     ExtendedLinkId = ExtendedId,
+                    TextInPluginLanguage = TextInPluginLanguage,
                     GameArtUrl = GameArtByLink.TryGetValue(linkId, out var gameArt) ? gameArt : null,
                     EnglishRows = EnglishRows == null
                         ? null

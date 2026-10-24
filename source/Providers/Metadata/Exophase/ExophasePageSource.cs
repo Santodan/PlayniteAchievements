@@ -2,6 +2,7 @@ using Playnite.SDK;
 using PlayniteAchievements.Common;
 using PlayniteAchievements.Models;
 using PlayniteAchievements.Providers.Exophase;
+using PlayniteAchievements.Services.Metadata;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -101,6 +102,11 @@ namespace PlayniteAchievements.Providers.Metadata.Exophase
                 fellBack = true;
             }
 
+            if (page != null && !page.IsMissing && !fellBack)
+            {
+                page.LanguageCode = language;
+            }
+
             lock (_sync)
             {
                 _pages.Set(cacheKey, page);
@@ -114,6 +120,13 @@ namespace PlayniteAchievements.Providers.Metadata.Exophase
 
             return page;
         }
+
+        /// <summary>
+        /// True when <paramref name="page"/> is in the plugin's language: its localized copy, or the
+        /// English page when the plugin is in English.
+        /// </summary>
+        public bool IsInPluginLanguage(ExophaseAwardPage page) =>
+            page?.LanguageCode != null || EnglishTitlePairing.IsEnglish(_settings?.Persisted?.GlobalLanguage);
 
         private static string PageKey(string slug, string platformSlug, string language) =>
             slug + "|" + platformSlug + "|" + (language ?? "en");

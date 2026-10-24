@@ -34,7 +34,10 @@ namespace PlayniteAchievements.Services.GameCustomData.Tests
             AssertOnly(CustomizationArea.None, Override(new AchievementOverride { Category = "Default" }));
             AssertOnly(CustomizationArea.Tags, Override(new AchievementOverride { ClearTags = true }));
             AssertOnly(CustomizationArea.Tags, Override(new AchievementOverride { Tags = "Missable" }));
-            AssertOnly(CustomizationArea.None, Override(new AchievementOverride { DisplayName = "Renamed" }));
+            AssertOnly(CustomizationArea.Text, Override(new AchievementOverride { DisplayName = "Renamed" }));
+            AssertOnly(CustomizationArea.Text, Override(new AchievementOverride { Description = "Reworded" }));
+            AssertOnly(CustomizationArea.Text, Override(new AchievementOverride { ClearDescription = true }));
+            AssertOnly(CustomizationArea.None, Override(new AchievementOverride { DisplayName = " " }));
         }
 
         [TestMethod]
@@ -108,7 +111,7 @@ namespace PlayniteAchievements.Services.GameCustomData.Tests
                 }
             };
 
-            AssertOnly(CustomizationArea.ManualTracking, data);
+            AssertOnly(CustomizationArea.ManualTracking | CustomizationArea.Text, data);
         }
 
         [TestMethod]
@@ -143,8 +146,46 @@ namespace PlayniteAchievements.Services.GameCustomData.Tests
 
             Assert.AreEqual(
                 CustomizationArea.ManualTracking | CustomizationArea.TrophyTypes | CustomizationArea.Points |
-                CustomizationArea.Tags | CustomizationArea.Icons | CustomizationArea.Capstones,
+                CustomizationArea.Tags | CustomizationArea.Icons | CustomizationArea.Capstones | CustomizationArea.Text,
                 CustomizationAreaClassifier.Classify(data));
+        }
+
+        [TestMethod]
+        public void TagsFor_Text_PlatformMetadataAndCustom_WithNoNoneKind()
+        {
+            var layers = new GameDataLayers
+            {
+                Platform = CustomizationArea.Text,
+                Metadata = CustomizationArea.Text,
+                Present = CustomizationArea.Text
+            };
+
+            var tags = new HashSet<TagType>(CustomizationTagAreas.TagsFor(CustomizationArea.Text, layers));
+            CollectionAssert.IsSubsetOf(new[] { TagType.PlatformText, TagType.MetadataText, TagType.CustomText }, tags.ToList());
+
+            var none = new HashSet<TagType>(CustomizationTagAreas.TagsFor(
+                CustomizationArea.None,
+                new GameDataLayers { Platform = CustomizationArea.None, Metadata = CustomizationArea.None, Present = CustomizationArea.None }));
+            Assert.IsFalse(none.Any(tag => tag == TagType.PlatformText || tag == TagType.MetadataText || tag == TagType.CustomText));
+        }
+
+        [TestMethod]
+        public void TagsFor_MasksRecordedBeforeText_ReadTheCachedTextAsThePlatforms()
+        {
+            var layers = new GameDataLayers
+            {
+                Platform = CustomizationArea.Icons,
+                Metadata = CustomizationArea.Points,
+                Present = CustomizationArea.Icons | CustomizationArea.Points | CustomizationArea.Text
+            };
+
+            var tags = new HashSet<TagType>(CustomizationTagAreas.TagsFor(CustomizationArea.None, layers));
+
+            Assert.IsTrue(tags.Contains(TagType.PlatformText));
+            Assert.IsFalse(tags.Contains(TagType.MetadataText));
+
+            var unknown = new HashSet<TagType>(CustomizationTagAreas.TagsFor(CustomizationArea.None, new GameDataLayers { Present = CustomizationArea.Text }));
+            Assert.IsFalse(unknown.Contains(TagType.PlatformText), "unknown masks still give no platform layer");
         }
 
         [TestMethod]

@@ -45,6 +45,9 @@ namespace PlayniteAchievements.Models.Tagging
         Notifications = 1 << 10,
 
         /// <summary>Achievement tag definitions or per-achievement tag assignments.</summary>
-        Tags = 1 << 11
+        Tags = 1 << 11,
+
+        /// <summary>Achievement name or description overrides.</summary>
+        Text = 1 << 12
     }
 }

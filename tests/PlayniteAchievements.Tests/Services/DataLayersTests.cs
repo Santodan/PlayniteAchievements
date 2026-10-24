@@ -79,6 +79,36 @@ namespace PlayniteAchievements.Services.Metadata.Tests
         }
 
         [TestMethod]
+        public void Resolve_SourceChangingOnlyADescription_IsMetadataText()
+        {
+            var rows = new List<AchievementDetail>
+            {
+                new AchievementDetail { ApiName = "A", DisplayName = "Dragon Slayer", Description = "kill dragon" },
+                new AchievementDetail { ApiName = "B", DisplayName = "Untouched" }
+            };
+            var before = DataLayers.Take(rows);
+            rows[0].Description = "Defeat the dragon.";
+
+            var layers = Resolve(before, rows);
+
+            Assert.AreEqual(CustomizationArea.Text, layers.Metadata & CustomizationArea.Text);
+            Assert.AreEqual(CustomizationArea.Text, layers.Platform & CustomizationArea.Text, "B keeps the platform's text");
+        }
+
+        [TestMethod]
+        public void Resolve_SourceTextEqualToThePlatforms_StaysPlatform()
+        {
+            var rows = new List<AchievementDetail> { new AchievementDetail { ApiName = "A", DisplayName = "Dragon Slayer " } };
+            var before = DataLayers.Take(rows);
+            rows[0].DisplayName = "Dragon Slayer";
+
+            var layers = Resolve(before, rows);
+
+            Assert.AreEqual(CustomizationArea.None, layers.Metadata & CustomizationArea.Text);
+            Assert.AreEqual(CustomizationArea.Text, layers.Platform & CustomizationArea.Text);
+        }
+
+        [TestMethod]
         public void Take_IgnoresDerivedTags_AndCountsPlatinumAsCapstone()
         {
             var rows = new List<AchievementDetail>

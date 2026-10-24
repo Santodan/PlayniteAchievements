@@ -7,7 +7,9 @@ namespace PlayniteAchievements.Models.Tagging
     public enum TagType
     {
         /// <summary>
-        /// Game has achievement data tracked by the plugin.
+        /// Game has achievements from its platform, a manually tracked list included (shown as
+        /// Platform Achievements). The key is kept from when the kind meant any achievements, so
+        /// stored configs and their Playnite tags carry over.
         /// </summary>
         HasAchievements,
 
@@ -83,6 +85,12 @@ namespace PlayniteAchievements.Models.Tagging
         MetadataCapstones,
         NoCapstones,
         PlatformIcons,
-        NoIcons
+        NoIcons,
+        PlatformText,
+        MetadataText,
+        CustomText,
+
+        /// <summary>Game has achievements the user authored, an auto capstone aside.</summary>
+        CustomAchievements
     }
 }

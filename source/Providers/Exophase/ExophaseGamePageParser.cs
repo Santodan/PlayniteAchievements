@@ -79,6 +79,12 @@ namespace PlayniteAchievements.Providers.Exophase
 
         /// <summary>True when Exophase answered with its human check rather than the page.</summary>
         public bool IsChallenge { get; }
+
+        /// <summary>
+        /// The language code of the address the page was read from ("de"); null for the English
+        /// page, including one a localized request fell back to.
+        /// </summary>
+        public string LanguageCode { get; internal set; }
     }
 
     /// <summary>

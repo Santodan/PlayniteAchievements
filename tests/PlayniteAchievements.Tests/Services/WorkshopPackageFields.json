@@ -261,6 +261,7 @@
       "Points": "value",
       "Rarity": "value",
       "Tags": "value",
+      "Text": "value",
       "TrophyTypes": "value"
     },
     "MetadataLinkData": {
