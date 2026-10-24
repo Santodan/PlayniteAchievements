@@ -121,6 +121,9 @@ namespace PlayniteAchievements.Providers.Metadata
             {
                 _schemaRows.Clear();
             }
+
+            // The enricher's per-app responses are not needed between runs.
+            _steam?.SteamHuntersEnricher?.ClearCache();
         }
 
         public async Task<MetadataSourceLink> ResolveLinkAsync(MetadataLinkRequest request, CancellationToken ct)
@@ -178,8 +181,9 @@ namespace PlayniteAchievements.Providers.Metadata
         // Store search results judged per name; each costs a schema request the first time in a run.
         private const int StoreCandidatesJudged = 6;
 
-        private readonly Dictionary<string, List<AchievementDetail>> _schemaRows =
-            new Dictionary<string, List<AchievementDetail>>(StringComparer.OrdinalIgnoreCase);
+        // Schemas are shared while a game is looked up and fetched, so only the recent ones are kept.
+        private readonly LruCache<string, List<AchievementDetail>> _schemaRows =
+            new LruCache<string, List<AchievementDetail>>(64, StringComparer.OrdinalIgnoreCase);
 
         private async Task<IReadOnlyList<MetadataPageCandidate>> StoreCandidatesAsync(string name, CancellationToken ct)
         {
@@ -211,7 +215,7 @@ namespace PlayniteAchievements.Providers.Metadata
             var rows = await SteamSchema.GetAchievementsAsync(appId, language, ct).ConfigureAwait(false) ?? new List<AchievementDetail>();
             lock (_schemaRows)
             {
-                _schemaRows[cacheKey] = rows;
+                _schemaRows.Set(cacheKey, rows);
             }
 
             return rows;
