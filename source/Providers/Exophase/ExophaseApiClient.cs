@@ -589,6 +589,62 @@ namespace PlayniteAchievements.Providers.Exophase
             }
         }
 
+        // Developer probe: what the browser shows for an award page address, as JSON.
+        private const string AwardPageProbeScript = @"(function () {
+  var nav = (performance.getEntriesByType && performance.getEntriesByType('navigation')[0]) || {};
+  var meta = function (sel, attr) { var el = document.querySelector(sel); return el ? el.getAttribute(attr) : null; };
+  var text = function (sel) { var el = document.querySelector(sel); return el ? (el.innerText || '').trim().substring(0, 200) : null; };
+  return JSON.stringify({
+    href: location.href,
+    title: document.title,
+    status: nav.responseStatus === undefined ? null : nav.responseStatus,
+    navType: nav.type || null,
+    awardRows: document.querySelectorAll('ul.achievement > li, ul.trophy > li, ul.challenge > li, ul[class*=achievement] > li, ul[class*=trophy] > li, ul[class*=challenge] > li').length,
+    h1: text('h1'),
+    canonical: meta('link[rel=canonical]', 'href'),
+    ogUrl: meta('meta[property=""og:url""]', 'content'),
+    ogTitle: meta('meta[property=""og:title""]', 'content'),
+    robots: meta('meta[name=robots]', 'content'),
+    languageLinks: Array.prototype.map.call(document.querySelectorAll('a[href*=""/trophies/""], a[href*=""/achievements/""]'), function (a) { return a.getAttribute('href'); })
+      .filter(function (h) { return /\/(trophies|achievements)\/[a-z]{2}(-[A-Z]{2})?\/?$/.test(h); }).slice(0, 30),
+    htmlLength: document.documentElement.outerHTML.length,
+    bodyText: (document.body ? document.body.innerText : '').replace(/\s+/g, ' ').trim().substring(0, 600)
+  });
+})()";
+
+        /// <summary>
+        /// Developer probe: loads <paramref name="url"/> the way award pages load and returns what
+        /// the page shows (address after redirects, title, HTTP status, award rows, headings) as
+        /// JSON, with the page source in <paramref name="html"/>.
+        /// </summary>
+        internal async Task<(string Json, string Html, long Ms)> ProbeAwardPageAsync(string url, CancellationToken ct)
+        {
+            var timer = System.Diagnostics.Stopwatch.StartNew();
+            return await _offscreenViews.WithNavigableViewAsync(async view =>
+            {
+                string json;
+                string html = null;
+                try
+                {
+                    await view.NavigateAndWaitAsync(url, timeoutMs: 20000).ConfigureAwait(false);
+                    await WaitForAwardRowsAsync(view, url, ct).ConfigureAwait(false);
+                    var eval = await view.EvaluateScriptAsync(AwardPageProbeScript).ConfigureAwait(false);
+                    json = eval?.Success == true ? Convert.ToString(eval.Result) : "{\"error\":\"script failed: " + eval?.Message + "\"}";
+                    html = await view.GetPageSourceAsync().ConfigureAwait(false);
+                }
+                catch (OperationCanceledException)
+                {
+                    throw;
+                }
+                catch (Exception ex)
+                {
+                    json = "{\"error\":\"" + ex.GetType().Name + ": " + ex.Message.Replace("\"", "'") + "\"}";
+                }
+
+                return (json, html, timer.ElapsedMilliseconds);
+            }, ct).ConfigureAwait(false);
+        }
+
         /// <summary>
         /// Fetches HTML from a URL using offscreen WebView to bypass Cloudflare.
         /// Restores cookies from snapshot before fetching to ensure authenticated session.
