@@ -967,6 +967,40 @@ namespace PlayniteAchievements
                 };
             }
 
+            // Developer-only, hidden unless the hardcoded ExophaseMissingPageProbe.Enabled flag is on.
+            // Deliberately not localized. Loads a fixed list of Exophase award pages, localized and English.
+            if (global::PlayniteAchievements.Providers.Metadata.Exophase.ExophaseMissingPageProbe.Enabled)
+            {
+                yield return new MainMenuItem
+                {
+                    Description = "Probe missing pages (Exophase)",
+                    MenuSection = PluginMainMenuSection,
+                    Action = (a) =>
+                    {
+                        var folder = System.IO.Path.Combine(GetPluginUserDataPath(), "diagnostics", "exophase-missing");
+                        _ = Task.Run(async () =>
+                        {
+                            try
+                            {
+                                await global::PlayniteAchievements.Providers.Metadata.Exophase.ExophaseMissingPageProbe.RunAsync(
+                                    PlayniteApi,
+                                    _logger,
+                                    folder,
+                                    CancellationToken.None).ConfigureAwait(false);
+                                PlayniteApi.Notifications.Add(
+                                    "PlayAch_MissingPageProbe",
+                                    $"Missing-page probe finished: {folder}",
+                                    NotificationType.Info);
+                            }
+                            catch (Exception ex)
+                            {
+                                _logger?.Warn(ex, "Missing-page probe failed.");
+                            }
+                        });
+                    }
+                };
+            }
+
             // Developer-only, hidden unless the hardcoded ExophaseCollectionProbe.Enabled flag is on.
             // Deliberately not localized. Probes a fixed list of Steam collections, plus the games
             // selected in the library.
