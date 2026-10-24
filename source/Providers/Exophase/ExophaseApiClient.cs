@@ -570,12 +570,12 @@ namespace PlayniteAchievements.Providers.Exophase
                     _logger?.Debug($"[Exophase] ParseAchievementsHtml returned null for {achievementUrl}");
                 }
 
-                var sections = ExophaseGamePageParser.ParseAwardSections(doc, out var gameArt);
+                var sections = ExophaseGamePageParser.ParseAwardSectionsFrom(doc, out var gameArt);
                 return new ExophaseAwardPage(
                     achievements,
                     sections,
                     gameArt,
-                    ExophaseGamePageParser.ParseRelatedPages(doc),
+                    ExophaseGamePageParser.ParseRelatedPagesFrom(doc),
                     isChallenge);
             }
             catch (OperationCanceledException)
