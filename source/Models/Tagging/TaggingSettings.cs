@@ -122,12 +122,13 @@ namespace PlayniteAchievements.Models.Tagging
         public TagConfig ExcludedFromSummariesConfig => GetOrCreateTagConfig(TagType.ExcludedFromSummaries);
 
         /// <summary>
-        /// The status kinds as settings rows: achievements, progress and exclusion, two per row.
+        /// The status kinds as settings rows: achievements (platform, custom, none), progress and
+        /// exclusion.
         /// </summary>
         [DontSerialize]
         public IReadOnlyList<TagRow> StatusRows => new[]
         {
-            Row("LOCPlayAch_Achievements", TagType.HasAchievements, TagType.NoAchievements, null, null),
+            Row("LOCPlayAch_Achievements", TagType.HasAchievements, TagType.CustomAchievements, TagType.NoAchievements, null),
             Row("LOCPlayAch_Progress", TagType.InProgress, TagType.Completed, null, null),
             Row("LOCPlayAch_ManageAchievements_Status_Excluded", TagType.Excluded, TagType.ExcludedFromSummaries, null, null)
         };
@@ -218,7 +219,8 @@ namespace PlayniteAchievements.Models.Tagging
         {
             return tagType switch
             {
-                TagType.HasAchievements => "[PA] Has Achievements",
+                TagType.HasAchievements => "[PA] Platform Achievements",
+                TagType.CustomAchievements => "[PA] Custom Achievements",
                 TagType.InProgress => "[PA] In Progress",
                 TagType.Completed => "[PA] Completed",
                 TagType.NoAchievements => "[PA] No Achievements",
