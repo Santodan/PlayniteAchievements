@@ -60,6 +60,14 @@ namespace PlayniteAchievements.Providers.Exophase
             IsChallenge = isChallenge;
         }
 
+        /// <summary>
+        /// An address Exophase answers with 404: no page there, in any language (its localized
+        /// and English addresses answer alike).
+        /// </summary>
+        public static ExophaseAwardPage Missing { get; } = new ExophaseAwardPage(null, null, null, null, false) { IsMissing = true };
+
+        public bool IsMissing { get; private set; }
+
         /// <summary>The page's awards; null when it lists none.</summary>
         public List<AchievementDetail> Achievements { get; }
 
