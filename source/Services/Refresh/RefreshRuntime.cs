@@ -1057,12 +1057,12 @@ namespace PlayniteAchievements.Services.Refresh
             _logger?.Debug(
                 $"[RefreshPerf] phase=current.start mode={mode} providers={plans.Count} games={totalGames} parallel={runProvidersInParallel}");
             IReadOnlyList<ProviderRefreshExecutor.ProviderExecutionResult> providerResults;
-            using (var metadataRun = MetadataOverlay?.BeginRun())
+            using (var metadataRun = MetadataOverlay?.BeginRun(keepStored: preferCachedDefinitions))
             {
                 providerResults = await ProviderRefreshExecutor.ExecuteProvidersAsync(
                     plans,
                     runProvidersInParallel,
-                    plan => ExecuteCurrentProviderPlanAsync(plan, progressScope, forceIconRefresh, preferCachedDefinitions, metadataRun, cancel),
+                    plan => ExecuteCurrentProviderPlanAsync(plan, progressScope, forceIconRefresh, metadataRun, cancel),
                     cancel).ConfigureAwait(false);
             }
 
@@ -1077,7 +1077,6 @@ namespace PlayniteAchievements.Services.Refresh
             ProviderRefreshExecutor.ProviderExecutionPlan plan,
             RefreshProgressScope progressScope,
             bool forceIconRefresh,
-            bool preferCachedDefinitions,
             Metadata.MetadataOverlayRun metadataRun,
             CancellationToken cancel)
         {
@@ -1101,9 +1100,7 @@ namespace PlayniteAchievements.Services.Refresh
                     cancel,
                     (provider, refreshedGame, refreshedData, scope, token) =>
                         OnGameRefreshed(provider, refreshedGame, refreshedData, scope, forceIconRefresh, metadataRun, token));
-                return await (plan.Provider is IDefinitionCachePreferenceProvider cachePreferring
-                    ? cachePreferring.RefreshAsync(plan.Games, onGameStarting, onGameCompleted, preferCachedDefinitions, cancel)
-                    : plan.Provider.RefreshAsync(plan.Games, onGameStarting, onGameCompleted, cancel)).ConfigureAwait(false);
+                return await plan.Provider.RefreshAsync(plan.Games, onGameStarting, onGameCompleted, cancel).ConfigureAwait(false);
             }
             finally
             {
@@ -1450,7 +1447,7 @@ namespace PlayniteAchievements.Services.Refresh
             var friendPerf = new FriendRefreshCoordinator.FriendRefreshPerfSession(_logger, friendOptions, friendProviders.Count, "combined");
             var friendPrepareTimer = Stopwatch.StartNew();
 
-            using (var metadataRun = MetadataOverlay?.BeginRun())
+            using (var metadataRun = MetadataOverlay?.BeginRun(keepStored: preferCachedDefinitions))
             using (var friendInvalidationBatch = hasFriendWork ? _friendCache?.BeginFriendCacheInvalidationBatch() : null)
             {
                 try
@@ -1481,7 +1478,6 @@ namespace PlayniteAchievements.Services.Refresh
                                     currentPlan,
                                     progressScope,
                                     forceIconRefresh,
-                                    preferCachedDefinitions,
                                     metadataRun,
                                     cancel).ConfigureAwait(false);
                                 FriendRefreshCoordinator.Merge(providerPayload, currentPayload);
@@ -1613,24 +1609,18 @@ namespace PlayniteAchievements.Services.Refresh
             // cache, the icon cache and the memory cache all see one result.
             // The platform's values are captured first: the overlay writes over them in place.
             var platformSnapshot = Metadata.DataLayers.Take(data.Achievements);
+            // A refresh while the game is played, or one rebuilt without the network, asks no
+            // source: the game keeps its saved metadata, and the layers recorded with it.
+            var keepsStoredMetadata = metadataRun?.KeepsStored == true || data.KeepStoredMetadata;
             var metadataIconSourceChanged = false;
             if (metadataRun != null && data.HasAchievements)
             {
-                metadataIconSourceChanged = await metadataRun.ApplyAsync(game, data, cancel, forceIcons: forceIconRefresh).ConfigureAwait(false);
+                metadataIconSourceChanged = await metadataRun
+                    .ApplyAsync(game, data, cancel, forceIcons: forceIconRefresh, keepStored: data.KeepStoredMetadata)
+                    .ConfigureAwait(false);
             }
 
             var metadataByArea = Metadata.DataLayers.ChangedSince(platformSnapshot, data.Achievements);
-            if (data.ProviderMetadataApiNames != null)
-            {
-                foreach (var pair in data.ProviderMetadataApiNames)
-                {
-                    if (metadataByArea.TryGetValue(pair.Key, out var names) && pair.Value != null)
-                    {
-                        names.UnionWith(pair.Value);
-                    }
-                }
-            }
-
             var layers = Metadata.DataLayers.Resolve(
                 platformSnapshot,
                 data.Achievements,
@@ -1651,6 +1641,14 @@ namespace PlayniteAchievements.Services.Refresh
             catch (Exception ex)
             {
                 _logger?.Debug(ex, $"Failed to load cached achievement data for '{game?.Name}' before persisting a refresh.");
+            }
+
+            // Saved metadata re-applied without asking a source would read as the platform's own, so
+            // such a refresh keeps the layers the last full one recorded (unknown when none did).
+            if (keepsStoredMetadata)
+            {
+                data.PlatformFields = previous?.PlatformFields;
+                data.MetadataFields = previous?.MetadataFields;
             }
 
             // The cache write is destructive: rows absent from the payload are deleted and a locked
