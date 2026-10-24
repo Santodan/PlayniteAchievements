@@ -37,6 +37,24 @@ namespace PlayniteAchievements.Tests.ViewModels
         }
 
         [TestMethod]
+        public async Task Search_ListsTheLinkedGameFirstOnOpenAndMarksIt()
+        {
+            var source = new FakeSource(results: new[] { R("1", "Hades") });
+            var viewModel = new GameSearchViewModel(source, "Hades", new[] { R("9", "Hades (2018 Edition)") });
+
+            await viewModel.SearchAsync();
+
+            CollectionAssert.AreEqual(new[] { "9", "1" }, viewModel.Results.Select(item => item.Result.Id).ToArray());
+            Assert.IsTrue(viewModel.Results[0].IsCurrent);
+            Assert.IsFalse(viewModel.Results[1].IsCurrent);
+
+            viewModel.SearchText = "Other";
+            await viewModel.SearchAsync();
+
+            Assert.IsFalse(viewModel.Results.Any(item => item.Result.Id == "9"));
+        }
+
+        [TestMethod]
         public async Task Search_PutsATypedIdFirstAndDropsItsDuplicate()
         {
             var source = new FakeSource(

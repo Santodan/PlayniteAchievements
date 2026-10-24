@@ -171,16 +171,26 @@
                     </DataGridTemplateColumn.CellTemplate>
                 </DataGridTemplateColumn>
 
-                <DataGridTextColumn Header="{DynamicResource LOCNameLabel}"
-                                    Binding="{Binding Name, Mode=OneWay}"
-                                    Width="*">
-                    <DataGridTextColumn.ElementStyle>
-                        <Style TargetType="TextBlock" BasedOn="{StaticResource EllipsisWrappedDataGridTextStyle}">
-                            <Setter Property="Foreground" Value="{DynamicResource PlayAch.Brush.Text}"/>
-                            <Setter Property="ToolTip" Value="{Binding Name, Mode=OneWay}"/>
-                        </Style>
-                    </DataGridTextColumn.ElementStyle>
-                </DataGridTextColumn>
+                <!-- The name, with a Linked chip on the game the link or override names now. -->
+                <DataGridTemplateColumn Header="{DynamicResource LOCNameLabel}" Width="*" IsReadOnly="True">
+                    <DataGridTemplateColumn.CellTemplate>
+                        <DataTemplate>
+                            <DockPanel VerticalAlignment="Center" LastChildFill="True">
+                                <Border DockPanel.Dock="Right"
+                                        Style="{StaticResource MetaChipStyle}"
+                                        VerticalAlignment="Center"
+                                        Visibility="{Binding IsCurrent, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                    <TextBlock Text="{DynamicResource LOCPlayAch_Common_Status_Linked}"
+                                               Style="{StaticResource ChipTextStyle}"/>
+                                </Border>
+                                <TextBlock Text="{Binding Name, Mode=OneWay}"
+                                           ToolTip="{Binding Name, Mode=OneWay}"
+                                           Style="{StaticResource EllipsisWrappedDataGridTextStyle}"
+                                           Foreground="{DynamicResource PlayAch.Brush.Text}"/>
+                            </DockPanel>
+                        </DataTemplate>
+                    </DataGridTemplateColumn.CellTemplate>
+                </DataGridTemplateColumn>
 
                 <DataGridTextColumn x:Name="PlatformColumn"
                                     Header="{DynamicResource LOCPlatformTitle}"

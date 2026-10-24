@@ -21,6 +21,8 @@ namespace PlayniteAchievements.ViewModels
     public sealed class GameSearchViewModel : ObservableObject
     {
         private readonly HashSet<string> _currentIds;
+        private readonly IReadOnlyList<GameSearchResult> _current;
+        private readonly string _initialQuery;
         private readonly ILogger _logger;
         private IGameSearchSource _source;
         private CancellationTokenSource _searchCts;
@@ -38,6 +40,8 @@ namespace PlayniteAchievements.ViewModels
             var currentList = (current ?? Enumerable.Empty<GameSearchResult>())
                 .Where(result => !string.IsNullOrWhiteSpace(result?.Id))
                 .ToList();
+            _current = currentList;
+            _initialQuery = (query ?? string.Empty).Trim();
             _currentIds = new HashSet<string>(currentList.Select(result => result.Id), StringComparer.OrdinalIgnoreCase);
 
             // A link to several games opens with them picked, so a search keeps them; one game is
@@ -214,6 +218,17 @@ namespace PlayniteAchievements.ViewModels
                 var ranked = GameSearchRanking.Rank(text, found)
                     .Where(result => direct == null || !string.Equals(result.Id, direct.Id, StringComparison.OrdinalIgnoreCase))
                     .ToList();
+                // The search the window opens with lists the linked games first, found or not, so
+                // the current choice is always in view; a typed id goes ahead of them.
+                if (string.Equals(text, _initialQuery, StringComparison.OrdinalIgnoreCase))
+                {
+                    var linked = _current
+                        .Where(current => direct == null || !string.Equals(current.Id, direct.Id, StringComparison.OrdinalIgnoreCase))
+                        .Select(current => ranked.FirstOrDefault(result => string.Equals(result.Id, current.Id, StringComparison.OrdinalIgnoreCase)) ?? current)
+                        .ToList();
+                    ranked = linked.Concat(ranked.Where(result => !linked.Contains(result))).ToList();
+                }
+
                 if (direct != null)
                 {
                     ranked.Insert(0, direct);
@@ -221,7 +236,7 @@ namespace PlayniteAchievements.ViewModels
 
                 foreach (var result in ranked)
                 {
-                    Results.Add(new GameSearchResultItem(this, result));
+                    Results.Add(new GameSearchResultItem(this, result, _currentIds.Contains(result.Id)));
                 }
 
                 OnPropertyChanged(nameof(ShowPlatformColumn));
@@ -346,16 +361,20 @@ namespace PlayniteAchievements.ViewModels
     {
         private readonly GameSearchViewModel _owner;
 
-        internal GameSearchResultItem(GameSearchViewModel owner, GameSearchResult result)
+        internal GameSearchResultItem(GameSearchViewModel owner, GameSearchResult result, bool isCurrent = false)
         {
             _owner = owner;
             Result = result;
+            IsCurrent = isCurrent;
             // The row's checkbox reads IsChecked one way and toggles through this command, so a
             // DataGrid cell edit can never revert it.
             ToggleCommand = new RelayCommand(_ => IsChecked = !IsChecked);
         }
 
         public GameSearchResult Result { get; }
+
+        /// <summary>True for a game the link or override names now, marked in the list.</summary>
+        public bool IsCurrent { get; }
 
         public RelayCommand ToggleCommand { get; }
 
