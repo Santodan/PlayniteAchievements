@@ -93,7 +93,9 @@ namespace PlayniteAchievements.Providers.Metadata.Exophase
             var page = await _client.FetchAwardPageAsync(
                 ExophaseGamePageParser.LocalizeAwardPageUrl(url, language), ct).ConfigureAwait(false);
             var fellBack = false;
-            if (language != null && !(page?.Achievements?.Count > 0))
+            // A localized address that is missing means the English one is too, so only a page
+            // that loaded without awards, or failed to load, is asked for again in English.
+            if (language != null && !(page?.Achievements?.Count > 0) && page?.IsMissing != true)
             {
                 page = await _client.FetchAwardPageAsync(url, ct).ConfigureAwait(false);
                 fellBack = true;
@@ -102,9 +104,10 @@ namespace PlayniteAchievements.Providers.Metadata.Exophase
             lock (_sync)
             {
                 _pages.Set(cacheKey, page);
-                if (fellBack)
+                if (fellBack || page?.IsMissing == true)
                 {
-                    // What the language fell back to is the English page, asked for again in English.
+                    // What the language fell back to is the English page, asked for again in
+                    // English; a missing page is missing in English as well.
                     _pages.Set(PageKey(slug, platformSlug, null), page);
                 }
             }
