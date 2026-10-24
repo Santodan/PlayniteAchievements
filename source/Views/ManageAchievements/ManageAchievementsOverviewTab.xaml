@@ -410,9 +410,9 @@
                                                        Visibility="{Binding HasStatus, Converter={StaticResource BoolToVis}}"
                                                        VerticalAlignment="Center"
                                                        Margin="12,0,0,0" />
-                                            <!-- The achievement pairings window (IcoFont pencil). -->
+                                            <!-- The achievement pairings window (IcoFont pencil-alt-2: solid, holds its shape at 16px). -->
                                             <Button Grid.Column="5"
-                                                    Content="&#xEBF9;"
+                                                    Content="&#xEBF6;"
                                                     Style="{StaticResource OverviewIconButtonStyle}"
                                                     ToolTip="{DynamicResource LOCPlayAch_Common_Edit}"
                                                     AutomationProperties.Name="{DynamicResource LOCPlayAch_Common_Edit}"
