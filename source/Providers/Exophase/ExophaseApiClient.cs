@@ -540,8 +540,9 @@ namespace PlayniteAchievements.Providers.Exophase
         /// <summary>
         /// An award page read once into what the metadata lookups use, without the page source:
         /// its awards, its award lists by section, its own game image, the same game's pages on
-        /// other platforms, and whether Exophase answered with its human check instead. Returns
-        /// null on hard failure, like <see cref="FetchAchievementsWithHtmlAsync"/>.
+        /// other platforms, and whether Exophase answered with its human check instead. An address
+        /// Exophase answers with 404 gives <see cref="ExophaseAwardPage.Missing"/>. Returns null on
+        /// hard failure, like <see cref="FetchAchievementsWithHtmlAsync"/>.
         /// </summary>
         internal async Task<ExophaseAwardPage> FetchAwardPageAsync(string achievementUrl, CancellationToken ct)
         {
@@ -552,11 +553,18 @@ namespace PlayniteAchievements.Providers.Exophase
 
             try
             {
-                var html = await FetchHtmlViaWebViewAsync(achievementUrl, ct).ConfigureAwait(false);
+                var status = new System.Runtime.CompilerServices.StrongBox<int?>();
+                var html = await FetchHtmlViaWebViewAsync(achievementUrl, ct, httpStatus: status).ConfigureAwait(false);
                 if (string.IsNullOrWhiteSpace(html))
                 {
                     _logger?.Warn($"[Exophase] No HTML fetched for achievement URL: {achievementUrl}");
                     return null;
+                }
+
+                if (status.Value == 404)
+                {
+                    _logger?.Debug($"[Exophase] No award page at {achievementUrl} (HTTP 404).");
+                    return ExophaseAwardPage.Missing;
                 }
 
                 var isChallenge = html.IndexOf("Just a moment", StringComparison.OrdinalIgnoreCase) >= 0 ||
@@ -587,6 +595,19 @@ namespace PlayniteAchievements.Providers.Exophase
                 _logger?.Error(ex, $"[Exophase] Failed to fetch achievements from {achievementUrl}");
                 return null;
             }
+        }
+
+        private const string HttpStatusScript =
+            "(function () { var nav = performance.getEntriesByType && performance.getEntriesByType('navigation')[0]; " +
+            "return nav && nav.responseStatus ? String(nav.responseStatus) : ''; })()";
+
+        /// <summary>The loaded page's HTTP status; null when the browser does not report it.</summary>
+        private static async Task<int?> GetHttpStatusAsync(IWebView view)
+        {
+            var eval = await view.EvaluateScriptAsync(HttpStatusScript).ConfigureAwait(false);
+            return eval?.Success == true && int.TryParse(Convert.ToString(eval.Result), out var status) && status > 0
+                ? status
+                : (int?)null;
         }
 
         // Developer probe: what the browser shows for an award page address, as JSON.
@@ -649,7 +670,13 @@ namespace PlayniteAchievements.Providers.Exophase
         /// Fetches HTML from a URL using offscreen WebView to bypass Cloudflare.
         /// Restores cookies from snapshot before fetching to ensure authenticated session.
         /// </summary>
-        private async Task<string> FetchHtmlViaWebViewAsync(string url, CancellationToken ct, bool waitForImages = false)
+        /// <param name="httpStatus">When given, receives the page's HTTP status, or null when the
+        /// browser does not report it.</param>
+        private async Task<string> FetchHtmlViaWebViewAsync(
+            string url,
+            CancellationToken ct,
+            bool waitForImages = false,
+            System.Runtime.CompilerServices.StrongBox<int?> httpStatus = null)
         {
             // Load cookies before creating the WebView. Reuses the per-refresh cache when a cookie
             // session is active; otherwise loads the snapshot for this call.
@@ -670,6 +697,10 @@ namespace PlayniteAchievements.Providers.Exophase
                     }
 
                     await view.NavigateAndWaitAsync(url, timeoutMs: 20000).ConfigureAwait(false);
+                    if (httpStatus != null)
+                    {
+                        httpStatus.Value = await GetHttpStatusAsync(view).ConfigureAwait(false);
+                    }
 
                     // A client without a cookie store reads public pages, which never carry unlock
                     // data, so it takes the page as loaded instead of waiting for unlocks to appear.
@@ -693,8 +724,9 @@ namespace PlayniteAchievements.Providers.Exophase
                             AchievementDomReadyPollDelayMs,
                             ct).ConfigureAwait(false);
                     }
-                    else
+                    else if (httpStatus?.Value != 404)
                     {
+                        // A missing page has no rows to wait for.
                         await WaitForAwardRowsAsync(view, url, ct).ConfigureAwait(false);
                     }
 
