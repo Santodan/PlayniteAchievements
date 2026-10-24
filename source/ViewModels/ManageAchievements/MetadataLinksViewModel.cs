@@ -173,6 +173,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 foreach (var provider in providers.Where(provider => !provider.IsNativeFor(servicingProviderKey)))
                 {
                     store.TryGet(gameId, provider.Key, out var record);
+                    var stored = record != null;
                     // A link the game implies (a Steam game's own appId on SteamHunters) is shown in
                     // place of any automatic record; only a link the user set replaces it.
                     var implicitId = record?.Origin == MetadataLinkOrigin.User
@@ -220,7 +221,8 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                         snapshot,
                         linkedGames,
                         titles.Count > 0 ? string.Join(", ", titles) : string.Join(", ", linkedGames.Select(game => game.Name)),
-                        provider is IMetadataLinkSearch)
+                        provider is IMetadataLinkSearch,
+                        stored)
                     {
                         LinkDetails = record == null || record.IsNoMatch ? null : MetadataLinkIds.DescribeLink(provider as IMetadataLinkDetails, gameId, record.Id),
                         LinkIdsText = record == null || record.IsNoMatch
@@ -499,7 +501,8 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             MetadataSourceSnapshot snapshot,
             IReadOnlyList<GameSearchResult> linkedGames,
             string linkTitle,
-            bool canSearch)
+            bool canSearch,
+            bool stored)
         {
             GameId = gameId;
             ServicingProviderKey = servicingProviderKey;
@@ -520,7 +523,9 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             ShowFixMatches = HasMatches;
             // Select pins the games picked; turning a source off is the game's "Own" choice for its fields.
             ChangeCommand = new RelayCommand(_ => owner.Change(this), _ => canSearch);
-            CanReset = IsUserSet || record?.IsNoMatch == true;
+            // Any stored link can be dropped: one the user set, a stored no-match, or one matching
+            // found, which the next refresh then looks for again. A link the game implies is not stored.
+            CanReset = stored;
             ClearCommand = new RelayCommand(_ => owner.Clear(this), _ => CanReset);
             OpenMatchesCommand = new RelayCommand(_ => owner.OpenMatches(this), _ => HasMatches);
         }
@@ -595,8 +600,8 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         public bool IsUserSet { get; }
 
         /// <summary>
-        /// Reset hands the link back to matching: one the user entered, or a "no match" the
-        /// source's matching stored, so it looks again on the next refresh.
+        /// Reset drops the stored link, so matching looks again on the next refresh: one the user
+        /// entered, a stored "no match", or one matching found.
         /// </summary>
         public bool CanReset { get; }
 

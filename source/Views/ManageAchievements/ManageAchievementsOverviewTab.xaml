@@ -351,9 +351,17 @@
                             <ItemsControl ItemsSource="{Binding Rows}" Focusable="False" Grid.IsSharedSizeScope="True">
                                 <ItemsControl.ItemTemplate>
                                     <DataTemplate>
-                                        <Grid Margin="0,2">
+                                        <!-- One column per part, sized across all rows, so every row's
+                                             title, buttons and count line up whichever parts it shows. -->
+                                        <Grid Margin="0,4">
                                             <Grid.ColumnDefinitions>
                                                 <ColumnDefinition Width="Auto" SharedSizeGroup="MetadataLinkSource" />
+                                                <ColumnDefinition Width="260" />
+                                                <ColumnDefinition Width="Auto" SharedSizeGroup="MetadataLinkSelect" />
+                                                <ColumnDefinition Width="Auto" SharedSizeGroup="MetadataLinkReset" />
+                                                <ColumnDefinition Width="Auto" SharedSizeGroup="MetadataLinkCount" />
+                                                <ColumnDefinition Width="Auto" SharedSizeGroup="MetadataLinkEdit" />
+                                                <ColumnDefinition Width="Auto" SharedSizeGroup="MetadataLinkPage" />
                                                 <ColumnDefinition Width="*" />
                                             </Grid.ColumnDefinitions>
                                             <Grid.RowDefinitions>
@@ -363,60 +371,64 @@
                                             <TextBlock Grid.Column="0"
                                                        Style="{StaticResource SettingLabelStyle}"
                                                        Text="{Binding SourceName}"
-                                                       ToolTip="{Binding LinkDetails}" />
+                                                       ToolTip="{Binding LinkDetails}"
+                                                       VerticalAlignment="Center" />
+                                            <!-- The linked game's title, or each game's for a collection; its ids on hover. -->
+                                            <TextBlock Grid.Column="1"
+                                                       Text="{Binding LinkTitle}"
+                                                       ToolTip="{Binding LinkIdsText}"
+                                                       Foreground="{DynamicResource PlayAch.Brush.Text}"
+                                                       TextTrimming="CharacterEllipsis"
+                                                       VerticalAlignment="Center" />
+                                            <Button Grid.Column="2"
+                                                    Content="{DynamicResource LOCPlayAch_Button_Pick}"
+                                                    Command="{Binding ChangeCommand}"
+                                                    Visibility="{Binding IsEditable, Converter={StaticResource BoolToVis}}"
+                                                    Padding="{StaticResource PlayAch.Thickness.ButtonPadding}"
+                                                    VerticalAlignment="Center"
+                                                    Margin="{StaticResource PlayAch.Thickness.Left.Sm}" />
+                                            <!-- Back to automatic matching; off while there is no stored link to drop. -->
+                                            <Button Grid.Column="3"
+                                                    Content="{DynamicResource LOCResetLabel}"
+                                                    Command="{Binding ClearCommand}"
+                                                    Visibility="{Binding IsEditable, Converter={StaticResource BoolToVis}}"
+                                                    Padding="{StaticResource PlayAch.Thickness.ButtonPadding}"
+                                                    VerticalAlignment="Center"
+                                                    Margin="{StaticResource PlayAch.Thickness.Left.Sm}" />
+                                            <!-- The match count, and the pairings window for the source's match list. -->
+                                            <TextBlock Grid.Column="4"
+                                                       Style="{StaticResource SettingStatusStyle}"
+                                                       Text="{Binding StatusText}"
+                                                       ToolTip="{Binding StatusToolTip}"
+                                                       Visibility="{Binding HasStatus, Converter={StaticResource BoolToVis}}"
+                                                       VerticalAlignment="Center"
+                                                       Margin="12,0,0,0" />
+                                            <Button Grid.Column="5"
+                                                    Content="{DynamicResource LOCPlayAch_Common_Edit}"
+                                                    Command="{Binding OpenMatchesCommand}"
+                                                    Visibility="{Binding ShowFixMatches, Converter={StaticResource BoolToVis}}"
+                                                    Padding="{StaticResource PlayAch.Thickness.ButtonPadding}"
+                                                    VerticalAlignment="Center"
+                                                    Margin="{StaticResource PlayAch.Thickness.Left.Sm}" />
+                                            <!-- Opens the page the link uses, or a menu of them when there are several (TrueGaming: one per site). -->
+                                            <Button Grid.Column="6"
+                                                    Content="&#xEF1F;"
+                                                    Style="{StaticResource OverviewIconButtonStyle}"
+                                                    ToolTip="{Binding PageLinksToolTip}"
+                                                    AutomationProperties.Name="{Binding PageLinksToolTip}"
+                                                    Visibility="{Binding HasPageLinks, Converter={StaticResource BoolToVis}}"
+                                                    Click="PageLinks_Click"
+                                                    VerticalAlignment="Center"
+                                                    Margin="{StaticResource PlayAch.Thickness.Left.Sm}" />
                                             <!-- What the source adds to this game, under the title; the tooltip names the pages it read. -->
                                             <TextBlock Grid.Row="1"
                                                        Grid.Column="1"
+                                                       Grid.ColumnSpan="7"
                                                        Style="{StaticResource SettingStatusStyle}"
                                                        Text="{Binding Supplies}"
                                                        ToolTip="{Binding LinkDetails}"
                                                        Visibility="{Binding HasSupplies, Converter={StaticResource BoolToVis}}"
                                                        Margin="0,2,0,0" />
-                                            <WrapPanel Grid.Column="1">
-                                                <!-- The linked game's title, or each game's for a collection; Select searches for another. -->
-                                                <TextBlock Text="{Binding LinkTitle}"
-                                                           ToolTip="{Binding LinkIdsText}"
-                                                           Foreground="{DynamicResource PlayAch.Brush.Text}"
-                                                           TextTrimming="CharacterEllipsis"
-                                                           MinWidth="200"
-                                                           MaxWidth="480"
-                                                           VerticalAlignment="Center" />
-                                                <Button Content="{DynamicResource LOCPlayAch_Button_Pick}"
-                                                        Command="{Binding ChangeCommand}"
-                                                        Visibility="{Binding IsEditable, Converter={StaticResource BoolToVis}}"
-                                                        Padding="{StaticResource PlayAch.Thickness.ButtonPadding}"
-                                                        VerticalAlignment="Center"
-                                                        Margin="{StaticResource PlayAch.Thickness.Left.Sm}" />
-                                                <!-- For a link the user set, or a stored no-match: back to automatic matching. -->
-                                                <Button Content="{DynamicResource LOCResetLabel}"
-                                                        Command="{Binding ClearCommand}"
-                                                        Visibility="{Binding CanReset, Converter={StaticResource BoolToVis}}"
-                                                        Padding="{StaticResource PlayAch.Thickness.ButtonPadding}"
-                                                        VerticalAlignment="Center"
-                                                        Margin="{StaticResource PlayAch.Thickness.Left.Sm}" />
-                                                <!-- The match count, and the pairings window for the source's match list. -->
-                                                <TextBlock Style="{StaticResource SettingStatusStyle}"
-                                                           Text="{Binding StatusText}"
-                                                           ToolTip="{Binding StatusToolTip}"
-                                                           Visibility="{Binding HasStatus, Converter={StaticResource BoolToVis}}"
-                                                           VerticalAlignment="Center"
-                                                           Margin="12,0,0,0" />
-                                                <Button Content="{DynamicResource LOCPlayAch_Common_Edit}"
-                                                        Command="{Binding OpenMatchesCommand}"
-                                                        Visibility="{Binding ShowFixMatches, Converter={StaticResource BoolToVis}}"
-                                                        Padding="{StaticResource PlayAch.Thickness.ButtonPadding}"
-                                                        VerticalAlignment="Center"
-                                                        Margin="{StaticResource PlayAch.Thickness.Left.Sm}" />
-                                                <!-- Opens the page the link uses, or a menu of them when there are several (TrueGaming: one per site). -->
-                                                <Button Content="&#xEF1F;"
-                                                        Style="{StaticResource OverviewIconButtonStyle}"
-                                                        ToolTip="{Binding PageLinksToolTip}"
-                                                        AutomationProperties.Name="{Binding PageLinksToolTip}"
-                                                        Visibility="{Binding HasPageLinks, Converter={StaticResource BoolToVis}}"
-                                                        Click="PageLinks_Click"
-                                                        VerticalAlignment="Center"
-                                                        Margin="{StaticResource PlayAch.Thickness.Left.Sm}" />
-                                            </WrapPanel>
                                         </Grid>
                                     </DataTemplate>
                                 </ItemsControl.ItemTemplate>
