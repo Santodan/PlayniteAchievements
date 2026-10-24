@@ -66,7 +66,7 @@ namespace PlayniteAchievements.Providers.Metadata
         /// <summary>The Steam app id one list of a link names: the id, or a store or community app address.</summary>
         internal static int? AppId(string linkId) => SteamAppIds.TryParse(linkId);
 
-        public MetadataField SupportedFields => MetadataField.Categories | MetadataField.CategoryArt | MetadataField.Tags;
+        public MetadataField SupportedFields => MetadataField.Categories | MetadataField.CategoryArt | MetadataField.Tags | MetadataField.Text;
 
         private IManualSource SteamSchema => _manualSources?.GetSourceByKey("Steam");
 
@@ -253,7 +253,9 @@ namespace PlayniteAchievements.Providers.Metadata
             {
                 GameArtUrl = SteamImageUrls.Header(appId),
                 ApiNamesMayBeShared = true,
-                EnglishRows = EnglishTitlePairing.IsEnglish(Language) ? null : (Func<CancellationToken, Task<IList<AchievementDetail>>>)(token => EnglishRowsFor(appIdText, token)),
+                // Steam's schema is read in the plugin's language.
+                TextInPluginLanguage = true,
+                EnglishRows =EnglishTitlePairing.IsEnglish(Language) ? null : (Func<CancellationToken, Task<IList<AchievementDetail>>>)(token => EnglishRowsFor(appIdText, token)),
                 SharesApiNames = gameId.HasValue && TryGetManualSteamAppId(gameId.Value, out var manualAppId) &&
                                  string.Equals(manualAppId, appIdText, StringComparison.Ordinal),
                 ExtendedLinkId = string.Equals(appIdText, linkId?.Trim(), StringComparison.Ordinal) ? null : appIdText
