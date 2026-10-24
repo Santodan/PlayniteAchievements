@@ -1,4 +1,5 @@
 using HtmlAgilityPack;
+using PlayniteAchievements.Models.Achievements;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -42,6 +43,36 @@ namespace PlayniteAchievements.Providers.Exophase
         public IReadOnlyList<string> ApiNames { get; }
     }
 
+    /// <summary>What the metadata lookups read from one award page, kept instead of its source.</summary>
+    internal sealed class ExophaseAwardPage
+    {
+        public ExophaseAwardPage(
+            List<AchievementDetail> achievements,
+            IReadOnlyList<ExophaseAwardSection> sections,
+            string gameArtUrl,
+            IReadOnlyList<ExophaseRelatedPage> relatedPages,
+            bool isChallenge)
+        {
+            Achievements = achievements;
+            Sections = sections ?? Array.Empty<ExophaseAwardSection>();
+            GameArtUrl = gameArtUrl;
+            RelatedPages = relatedPages ?? Array.Empty<ExophaseRelatedPage>();
+            IsChallenge = isChallenge;
+        }
+
+        /// <summary>The page's awards; null when it lists none.</summary>
+        public List<AchievementDetail> Achievements { get; }
+
+        public IReadOnlyList<ExophaseAwardSection> Sections { get; }
+
+        public string GameArtUrl { get; }
+
+        public IReadOnlyList<ExophaseRelatedPage> RelatedPages { get; }
+
+        /// <summary>True when Exophase answered with its human check rather than the page.</summary>
+        public bool IsChallenge { get; }
+    }
+
     /// <summary>
     /// Reads the game details of an Exophase award page (the "Game Info" list and the DLC award
     /// lists) and builds the localized award page addresses that list's "Languages" links follow.
@@ -76,6 +107,12 @@ namespace PlayniteAchievements.Providers.Exophase
 
             var doc = new HtmlDocument();
             doc.LoadHtml(html);
+            return ParseAwardSections(doc, out gameArtUrl);
+        }
+
+        /// <summary>The award lists and game image of an already loaded page.</summary>
+        public static IReadOnlyList<ExophaseAwardSection> ParseAwardSections(HtmlDocument doc, out string gameArtUrl)
+        {
             gameArtUrl = GameArt(doc);
             var nodes = doc.DocumentNode.SelectNodes(
                 "//h3[contains(concat(' ', normalize-space(@class), ' '), ' dlc-add-on ')]" +
@@ -220,6 +257,12 @@ namespace PlayniteAchievements.Providers.Exophase
 
             var doc = new HtmlDocument();
             doc.LoadHtml(html);
+            return ParseRelatedPages(doc);
+        }
+
+        /// <summary>The other platforms' pages named by an already loaded page.</summary>
+        public static IReadOnlyList<ExophaseRelatedPage> ParseRelatedPages(HtmlDocument doc)
+        {
             var links = doc.DocumentNode.SelectNodes("//dl[contains(concat(' ', normalize-space(@class), ' '), ' details ')]//dd//a[@href]");
             if (links == null)
             {
