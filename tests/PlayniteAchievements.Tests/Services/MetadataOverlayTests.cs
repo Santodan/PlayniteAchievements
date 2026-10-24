@@ -1526,6 +1526,155 @@ namespace PlayniteAchievements.Tests.Services
             };
         }
 
+        [TestMethod]
+        public async Task ImplicitLink_JoinsTheGamesOwnRowsByApiName_AndStoresNoLink()
+        {
+            var hunters = new ImplicitSource("SteamHunters", MetadataField.Categories | MetadataField.Tags);
+            hunters.Inner.Rows.Add(Row("ACH_A", "Different title", category: "Story", type: "DLC"));
+            var data = Game("Steam", Row("ACH_A", "Own title", category: "Base set", type: "Missable"));
+            data.AppId = 620;
+            var overlay = Overlay(new IMetadataProvider[] { hunters }, Choices(categories: hunters.Key));
+
+            using (var run = overlay.BeginRun())
+            {
+                await run.ApplyAsync(data.Game, data, CancellationToken.None);
+            }
+
+            Assert.AreEqual("Story", data.Achievements[0].Category);
+            Assert.AreEqual("Missable", data.Achievements[0].Tags, "tags were not chosen, so the platform's stay");
+            CollectionAssert.AreEqual(new[] { "620" }, hunters.Inner.FetchedIds);
+            Assert.IsFalse(overlay.Links.TryGet(data.PlayniteGameId.Value, hunters.Key, out _), "an implied link is never stored");
+            Assert.AreEqual(0, hunters.Inner.ResolveCount);
+        }
+
+        [TestMethod]
+        public async Task ImplicitLink_AUserLinkReplacesIt_AndABlankOneTurnsTheSourceOff()
+        {
+            var hunters = new ImplicitSource("SteamHunters", MetadataField.Categories);
+            hunters.Inner.Rows.Add(Row("ACH_A", "One", category: "Story"));
+            var data = Game("Steam", Row("ACH_A", "One"));
+            data.AppId = 620;
+            var overlay = Overlay(new IMetadataProvider[] { hunters }, Choices(categories: hunters.Key));
+            overlay.Links.SetUser(data.PlayniteGameId.Value, hunters.Key, "999");
+
+            using (var run = overlay.BeginRun())
+            {
+                await run.ApplyAsync(data.Game, data, CancellationToken.None);
+            }
+
+            CollectionAssert.AreEqual(new[] { "999" }, hunters.Inner.FetchedIds);
+
+            overlay.Links.SetUser(data.PlayniteGameId.Value, hunters.Key, null);
+            using (var run = overlay.BeginRun())
+            {
+                await run.ApplyAsync(data.Game, data, CancellationToken.None);
+            }
+
+            Assert.AreEqual(1, hunters.Inner.FetchCount, "a user's blank link fetches nothing");
+        }
+
+        [TestMethod]
+        public async Task KeepStoredRun_AsksNoSource_AndKeepsTheStoredValues()
+        {
+            var hunters = new FakeSource("SteamHunters", MetadataField.Categories | MetadataField.Tags);
+            hunters.Rows.Add(Row("A", "One", category: "Fresh"));
+            var data = Game("Epic", Row("e1", "One", category: "Own"));
+            var stored = Game("Epic", Row("e1", "One", category: "Story", type: "Missable"));
+            var overlay = Overlay(new[] { hunters }, Choices(categories: hunters.Key, tags: hunters.Key), loadStored: _ => stored);
+            overlay.Links.SetUser(data.PlayniteGameId.Value, hunters.Key, "link-SteamHunters");
+
+            using (var run = overlay.BeginRun(keepStored: true))
+            {
+                Assert.IsTrue(run.KeepsStored);
+                await run.ApplyAsync(data.Game, data, CancellationToken.None);
+            }
+
+            Assert.AreEqual(0, hunters.FetchCount);
+            Assert.AreEqual(0, hunters.ResolveCount);
+            Assert.AreEqual("Story", data.Achievements[0].Category);
+            Assert.AreEqual("Missable", data.Achievements[0].Tags);
+        }
+
+        [TestMethod]
+        public async Task KeepStoredGame_AsksNoSource_InAnOrdinaryRun()
+        {
+            var hunters = new FakeSource("SteamHunters", MetadataField.Categories);
+            hunters.Rows.Add(Row("A", "One", category: "Fresh"));
+            var data = Game("Epic", Row("e1", "One", category: "Own"));
+            var stored = Game("Epic", Row("e1", "One", category: "Story"));
+            var overlay = Overlay(new[] { hunters }, Choices(categories: hunters.Key), loadStored: _ => stored);
+            overlay.Links.SetUser(data.PlayniteGameId.Value, hunters.Key, "link-SteamHunters");
+
+            using (var run = overlay.BeginRun())
+            {
+                await run.ApplyAsync(data.Game, data, CancellationToken.None, keepStored: true);
+            }
+
+            Assert.AreEqual(0, hunters.FetchCount);
+            Assert.AreEqual("Story", data.Achievements[0].Category);
+        }
+
+        [TestMethod]
+        public async Task Tags_FromASource_KeepThePlatformsUnobtainable()
+        {
+            var truegaming = new FakeSource("TrueGaming", MetadataField.Tags);
+            truegaming.Rows.Add(Row("A", "One", type: "Missable"));
+            var archived = Row("s1", "One", type: "Unobtainable");
+            var data = Game("Steam", archived);
+
+            using (var run = Overlay(new[] { truegaming }, Choices(tags: truegaming.Key)).BeginRun())
+            {
+                await run.ApplyAsync(data.Game, data, CancellationToken.None);
+            }
+
+            CollectionAssert.AreEquivalent(
+                new[] { "Missable", "Unobtainable" },
+                PlayniteAchievements.Services.Achievements.AchievementTagHelper.Parse(archived.Tags));
+        }
+
+        /// <summary>A source that links a Steam game by its own appId, joining its rows by ApiName.</summary>
+        private sealed class ImplicitSource : IMetadataProvider, IMetadataImplicitLink
+        {
+            public ImplicitSource(string key, MetadataField fields)
+            {
+                Inner = new FakeSource(key, fields);
+            }
+
+            public FakeSource Inner { get; }
+
+            public string Key => Inner.Key;
+
+            public string DisplayNameKey => Inner.DisplayNameKey;
+
+            public string LinkPlaceholder => Inner.LinkPlaceholder;
+
+            public MetadataField SupportedFields => Inner.SupportedFields;
+
+            public bool IsNativeFor(string servicingProviderKey) => false;
+
+            public Task<bool> BeginRunAsync(CancellationToken ct) => Inner.BeginRunAsync(ct);
+
+            public void EndRun() => Inner.EndRun();
+
+            public Task<MetadataSourceLink> ResolveLinkAsync(MetadataLinkRequest request, CancellationToken ct) =>
+                Inner.ResolveLinkAsync(request, ct);
+
+            public async Task<AchievementSourceSet> FetchAsync(MetadataLinkRequest request, string linkId, CancellationToken ct)
+            {
+                var set = await Inner.FetchAsync(request, linkId, ct);
+                set.SharesApiNames = true;
+                set.KeepsNoMatchList = true;
+                return set;
+            }
+
+            public string ImplicitLinkId(MetadataLinkRequest request) =>
+                string.Equals(request?.ServicingProviderKey, "Steam", StringComparison.OrdinalIgnoreCase) && request.Data?.AppId > 0
+                    ? request.Data.AppId.ToString()
+                    : null;
+
+            public string ImplicitLinkId(Guid gameId) => null;
+        }
+
         private sealed class FakeSource : IMetadataProvider
         {
             public FakeSource(string key, MetadataField fields)

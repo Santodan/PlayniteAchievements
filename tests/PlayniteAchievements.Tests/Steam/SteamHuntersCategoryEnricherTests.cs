@@ -13,6 +13,40 @@ namespace PlayniteAchievements.Steam.Tests
     public class SteamHuntersCategoryEnricherTests
     {
         [TestMethod]
+        public void OwnRowsFor_CopiesIdentityAndCategories_WithoutIcons_OrTheSameInstances()
+        {
+            var own = new AchievementDetail
+            {
+                ApiName = "ACH_A",
+                DisplayName = "One",
+                Description = "Do it",
+                Hidden = true,
+                Category = "DREDGE",
+                CategoryKind = "Base",
+                Tags = "Unobtainable",
+                UnlockedIconPath = "https://cdn/a.jpg",
+                LockedIconPath = "https://cdn/a_gray.jpg"
+            };
+
+            var rows = SteamHuntersCategoryEnricher.OwnRowsFor(new[] { own, new AchievementDetail(), null });
+
+            Assert.AreEqual(1, rows.Count, "rows without an ApiName cannot join and are left out");
+            Assert.AreNotSame(own, rows[0]);
+            Assert.AreEqual("ACH_A", rows[0].ApiName);
+            Assert.AreEqual("One", rows[0].DisplayName);
+            Assert.AreEqual("Do it", rows[0].Description);
+            Assert.IsTrue(rows[0].Hidden);
+            Assert.AreEqual("DREDGE", rows[0].Category);
+            Assert.AreEqual("Base", rows[0].CategoryKind);
+            Assert.AreEqual("Unobtainable", rows[0].Tags);
+            Assert.IsNull(rows[0].UnlockedIconPath);
+            Assert.IsNull(rows[0].LockedIconPath);
+
+            rows[0].Category = "Changed";
+            Assert.AreEqual("DREDGE", own.Category);
+        }
+
+        [TestMethod]
         public void ApplyGroups_DlcAndUpdate_TypesByDlcAppIdPresence()
         {
             // Mirrors Starfield/Atomic Heart ordering: the DLC group (has DlcAppId) comes

@@ -101,8 +101,7 @@ namespace PlayniteAchievements.Services.Metadata
         /// <param name="before">The payload as the provider built it, before the overlay.</param>
         /// <param name="after">The payload after the overlay.</param>
         /// <param name="metadataByArea">
-        /// ApiNames a metadata source supplied per value area: the overlay's changes plus any the
-        /// provider declared (<see cref="GameAchievementData.ProviderMetadataApiNames"/>).
+        /// ApiNames a metadata source supplied per value area: the overlay's changes.
         /// </param>
         /// <param name="metadataCapstone">Whether the overlay borrowed a capstone for the game.</param>
         public static (CustomizationArea Platform, CustomizationArea Metadata) Resolve(

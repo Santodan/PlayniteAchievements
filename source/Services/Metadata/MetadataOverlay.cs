@@ -70,7 +70,11 @@ namespace PlayniteAchievements.Services.Metadata
         public MetadataLinkStore Links => _links;
 
         /// <summary>Starts one refresh run's overlay; dispose it when the run ends to close provider sessions.</summary>
-        public MetadataOverlayRun BeginRun()
+        /// <param name="keepStored">
+        /// True for a refresh made while a game is played: no source is asked, and every game keeps
+        /// the metadata its last full refresh saved.
+        /// </param>
+        public MetadataOverlayRun BeginRun(bool keepStored = false)
         {
             return new MetadataOverlayRun(
                 _providers?.Invoke() ?? Array.Empty<IMetadataProvider>(),
@@ -81,7 +85,8 @@ namespace PlayniteAchievements.Services.Metadata
                 _loadStored,
                 _downloadSourceIcons,
                 _deleteSourceIcons,
-                _englishTitles);
+                _englishTitles,
+                keepStored);
         }
     }
 
@@ -136,8 +141,10 @@ namespace PlayniteAchievements.Services.Metadata
             Func<Guid, GameAchievementData> loadStored = null,
             SourceIconDownload downloadSourceIcons = null,
             Action<Guid, string> deleteSourceIcons = null,
-            EnglishTitleFetch englishTitles = null)
+            EnglishTitleFetch englishTitles = null,
+            bool keepStored = false)
         {
+            KeepsStored = keepStored;
             _englishTitles = englishTitles;
             _loadStored = loadStored;
             _downloadSourceIcons = downloadSourceIcons;
@@ -152,6 +159,9 @@ namespace PlayniteAchievements.Services.Metadata
             _resolver = new MetadataLinkResolver(links, logger, settings?.GlobalLanguage);
             _downloadCategoryArt = downloadCategoryArt;
         }
+
+        /// <summary>True when this run asks no source and every game keeps its stored metadata.</summary>
+        public bool KeepsStored { get; }
 
         private readonly EnglishTitleFetch _englishTitles;
         private readonly MetadataLinkResolver _resolver;
@@ -177,8 +187,10 @@ namespace PlayniteAchievements.Services.Metadata
         /// Applies the enabled metadata fields to the payload. Returns true when the game's icon
         /// source changed since the last overlay, so cached icon files must be overwritten.
         /// <paramref name="forceIcons"/> overwrites the sources' saved row icons as well.
+        /// <paramref name="keepStored"/>, or a run that <see cref="KeepsStored"/>, asks no source:
+        /// every planned source is treated as failed, so the game keeps what was last saved.
         /// </summary>
-        public async Task<bool> ApplyAsync(Game game, GameAchievementData data, CancellationToken ct, bool forceIcons = false)
+        public async Task<bool> ApplyAsync(Game game, GameAchievementData data, CancellationToken ct, bool forceIcons = false, bool keepStored = false)
         {
             var gameId = data?.PlayniteGameId ?? game?.Id ?? Guid.Empty;
             if (gameId == Guid.Empty || data?.Achievements == null || data.Achievements.Count == 0)
@@ -196,9 +208,45 @@ namespace PlayniteAchievements.Services.Metadata
 
             var sets = new Dictionary<string, MatchedSet>(StringComparer.OrdinalIgnoreCase);
             var failed = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            ct.ThrowIfCancellationRequested();
+            if (KeepsStored || keepStored)
+            {
+                failed.UnionWith(plan.AllKeys);
+            }
+            else
+            {
+                await LoadAllAsync(game, data, gameId, request, englishTitles, plan, sets, failed, ct).ConfigureAwait(false);
+            }
+
+            BorrowTitles(gameId, sets, data.Achievements);
+            foreach (var pair in sets)
+            {
+                await MatchInEnglishAsync(pair.Key, gameId, pair.Value.Set, pair.Value.Matches, pair.Value.LinkId, request, data.Achievements, ct)
+                    .ConfigureAwait(false);
+            }
+
+            await DownloadSourceIconsAsync(gameId, plan, sets, forceIcons, ct).ConfigureAwait(false);
+
+            return await ApplySetsAsync(gameId, data, plan, sets, failed, ct).ConfigureAwait(false);
+        }
+
+        /// <summary>
+        /// Loads every planned source's rows for the game, matched to its achievements; a source
+        /// that failed lands in <paramref name="failed"/>.
+        /// </summary>
+        private async Task LoadAllAsync(
+            Game game,
+            GameAchievementData data,
+            Guid gameId,
+            MetadataLinkRequest request,
+            Func<CancellationToken, Task<IList<AchievementDetail>>> englishTitles,
+            OverlayPlan plan,
+            Dictionary<string, MatchedSet> sets,
+            HashSet<string> failed,
+            CancellationToken ct)
+        {
             // The sources load at the same time, each with its own request; they share no state but
             // the link store, which serializes its writes. Their answers are then applied in order.
-            ct.ThrowIfCancellationRequested();
             var unlinked = plan.AllKeys.Where(key => _links == null || !_links.TryGet(gameId, key, out _)).ToList();
             var loads = (await LoadSetsAsync(plan.AllKeys, plan, gameId, request, data, ct).ConfigureAwait(false)).ToList();
 
@@ -234,16 +282,20 @@ namespace PlayniteAchievements.Services.Metadata
                     failed.Add(key);
                 }
             }
+        }
 
-            BorrowTitles(gameId, sets, data.Achievements);
-            foreach (var pair in sets)
-            {
-                await MatchInEnglishAsync(pair.Key, gameId, pair.Value.Set, pair.Value.Matches, pair.Value.LinkId, request, data.Achievements, ct)
-                    .ConfigureAwait(false);
-            }
-
-            await DownloadSourceIconsAsync(gameId, plan, sets, forceIcons, ct).ConfigureAwait(false);
-
+        /// <summary>
+        /// Applies the loaded sources' fields to the payload and records what was applied. A failed
+        /// source's fields keep the values last saved. Returns whether the icon source changed.
+        /// </summary>
+        private async Task<bool> ApplySetsAsync(
+            Guid gameId,
+            GameAchievementData data,
+            OverlayPlan plan,
+            Dictionary<string, MatchedSet> sets,
+            HashSet<string> failed,
+            CancellationToken ct)
+        {
             // A source that could not answer, wholly or for a field, leaves the game as its last
             // refresh saved it there, never blank.
             bool Failed(IEnumerable<string> keys, MetadataField field) => keys.Any(key =>
@@ -354,6 +406,12 @@ namespace PlayniteAchievements.Services.Metadata
                 if (perAchievement)
                 {
                     coverage[pair.Key] = new MetadataCoverage { Matched = pair.Value.Matches.Count, Total = data.Achievements.Count };
+                    if (pair.Value.Set.KeepsNoMatchList)
+                    {
+                        _links?.Snapshots?.Forget(gameId, pair.Key);
+                        continue;
+                    }
+
                     _links?.Snapshots?.Record(
                         gameId,
                         pair.Key,
@@ -1055,8 +1113,10 @@ namespace PlayniteAchievements.Services.Metadata
                 return;
             }
 
+            // A set of the game's own rows has no icons of its own and no match list to show.
             var downloads = sets
-                .Where(pair => plan.PerAchievementKeys.Contains(pair.Key, StringComparer.OrdinalIgnoreCase))
+                .Where(pair => plan.PerAchievementKeys.Contains(pair.Key, StringComparer.OrdinalIgnoreCase) &&
+                               !pair.Value.Set.KeepsNoMatchList)
                 .Select(async pair =>
                 {
                     var savedLinkId = _links?.Snapshots?.GetLinkId(gameId, pair.Key);
@@ -1278,14 +1338,18 @@ namespace PlayniteAchievements.Services.Metadata
             target.CategoryKind = CategoryKindHelper.Normalize(source.CategoryKind);
         }
 
-        /// <summary>Replaces an achievement's tags with the source's.</summary>
+        /// <summary>
+        /// Replaces an achievement's tags with the source's, keeping what only the game's own
+        /// provider can know: the unlock mode (how this user earned it) and Unobtainable (the
+        /// platform retired it, as Steam does with archived achievements).
+        /// </summary>
         internal static void ApplyTags(AchievementDetail target, AchievementDetail source)
         {
-            // The unlock mode says how this user earned it, which only the game's own provider knows.
             target.Tags = AchievementTagHelper.Combine(new[]
             {
                 AchievementTagHelper.StripDerived(source.Tags),
-                AchievementTagHelper.DerivedOnly(target.Tags)
+                AchievementTagHelper.DerivedOnly(target.Tags),
+                AchievementTagHelper.IsUnobtainable(target.Tags) ? AchievementTagHelper.Unobtainable : null
             });
         }
 

@@ -87,12 +87,12 @@ namespace PlayniteAchievements.Models.Achievements
         public Tagging.CustomizationArea? MetadataFields { get; set; }
 
         /// <summary>
-        /// Refresh-only: per area, the achievements whose value a metadata source wrote while the
-        /// provider built the payload (SteamHunters on Steam), so the refresh does not count them
-        /// as the platform's. Never cached.
+        /// Refresh-only: the provider rebuilt the payload without the network (Steam's local stats
+        /// after a failed web refresh), so no metadata source is asked and the game keeps the
+        /// metadata its last full refresh saved. Never cached.
         /// </summary>
         [IgnoreDataMember]
-        public Dictionary<Tagging.CustomizationArea, HashSet<string>> ProviderMetadataApiNames { get; set; }
+        public bool KeepStoredMetadata { get; set; }
 
         /// <summary>
         /// Computed completion status: every achievement unlocked, or every capstone unlocked.

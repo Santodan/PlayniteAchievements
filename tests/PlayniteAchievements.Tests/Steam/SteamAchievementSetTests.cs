@@ -405,53 +405,6 @@ namespace PlayniteAchievements.Steam.Tests
                 Schema(new SchemaAchievement { Name = "A" }), "Game", 1).Count);
         }
 
-        [TestMethod]
-        public void CarryForwardCategories_CopiesStoredValues_LeavesUnstoredRows()
-        {
-            var achievements = new List<AchievementDetail>
-            {
-                new AchievementDetail { ApiName = "Base_1" },
-                new AchievementDetail { ApiName = "Set_1", Category = "The Pale Reach", CategoryKind = "DLC" },
-                new AchievementDetail { ApiName = "New_1" }
-            };
-            var stored = new List<AchievementDetail>
-            {
-                new AchievementDetail { ApiName = " base_1 ", Category = "DREDGE|1.1", CategoryKind = "Base|Update", Tags = "Unobtainable" },
-                new AchievementDetail { ApiName = "Set_1", Category = "Stale", CategoryKind = "Base" }
-            };
-
-            SteamAchievementSetMapper.CarryForwardCategories(achievements, stored);
-
-            Assert.AreEqual("DREDGE|1.1", achievements[0].Category);
-            Assert.AreEqual("Base|Update", achievements[0].CategoryKind);
-            Assert.AreEqual("Unobtainable", achievements[0].Tags);
-            Assert.AreEqual("Stale", achievements[1].Category);
-            Assert.AreEqual("Base", achievements[1].CategoryKind);
-            Assert.IsNull(achievements[1].Tags);
-            Assert.IsNull(achievements[2].Category);
-            Assert.IsNull(achievements[2].CategoryKind);
-            Assert.IsNull(achievements[2].Tags);
-        }
-
-        [TestMethod]
-        public void CarryForwardCategories_WithoutPreserveSet_CopiesEveryStoredRow()
-        {
-            var achievements = new List<AchievementDetail>
-            {
-                new AchievementDetail { ApiName = "Set_1", Category = "The Pale Reach", CategoryKind = "DLC" }
-            };
-            var stored = new List<AchievementDetail>
-            {
-                new AchievementDetail { ApiName = "Set_1", Category = "Pale Reach", CategoryKind = "DLC|Update" }
-            };
-
-            SteamAchievementSetMapper.CarryForwardCategories(achievements, stored);
-
-            Assert.AreEqual("Pale Reach", achievements[0].Category);
-            Assert.AreEqual("DLC|Update", achievements[0].CategoryKind);
-            Assert.IsNull(achievements[0].Tags);
-        }
-
         // ------------------------------------------------------------------
         // API client outcomes
         // ------------------------------------------------------------------

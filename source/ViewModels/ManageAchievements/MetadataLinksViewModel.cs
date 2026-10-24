@@ -171,6 +171,16 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 foreach (var provider in providers.Where(provider => !provider.IsNativeFor(servicingProviderKey)))
                 {
                     store.TryGet(gameId, provider.Key, out var record);
+                    // A link the game implies (a Steam game's own appId on SteamHunters) is shown in
+                    // place of any automatic record; only a link the user set replaces it.
+                    var implicitId = record?.Origin == MetadataLinkOrigin.User
+                        ? null
+                        : (provider as IMetadataImplicitLink)?.ImplicitLinkId(gameId);
+                    if (implicitId != null)
+                    {
+                        record = new MetadataLinkRecord { Id = implicitId, Origin = MetadataLinkOrigin.Auto };
+                    }
+
                     var supplies = DescribeSupplies(choices, chosen, provider, providers);
                     if (string.IsNullOrEmpty(supplies) && record?.Origin != MetadataLinkOrigin.User)
                     {
