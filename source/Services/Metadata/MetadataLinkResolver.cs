@@ -46,6 +46,22 @@ namespace PlayniteAchievements.Services.Metadata
             CancellationToken ct)
         {
             request.LinkIsUserSet = false;
+
+            // A link the game implies is used as is and never stored; only a link the user set
+            // (or cleared, which turns the source off for the game) takes its place.
+            if (provider is IMetadataImplicitLink implicitLink &&
+                implicitLink.ImplicitLinkId(request) is string implicitId &&
+                !string.IsNullOrWhiteSpace(implicitId))
+            {
+                if (_links != null && _links.TryGet(gameId, provider.Key, out var own) && own.Origin == MetadataLinkOrigin.User)
+                {
+                    request.LinkIsUserSet = true;
+                    return (own.IsNoMatch ? null : own.Id, null, false);
+                }
+
+                return (implicitId.Trim(), null, false);
+            }
+
             var basis = Basis(gameId, provider.Key, request, withLanguage: true);
             if (_links != null && _links.TryGet(gameId, provider.Key, out var stored))
             {
