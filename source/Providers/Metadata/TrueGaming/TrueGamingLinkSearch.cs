@@ -46,6 +46,8 @@ namespace PlayniteAchievements.Providers.Metadata.TrueGaming
             return trimmed.IndexOf('/') >= 0 ? TrueGamingLinks.Normalize(trimmed) : null;
         }
 
+        public string IdExample => "https://www.trueachievements.com/game/Hades";
+
         /// <summary>The page's title from a search for its name; the page name itself when the search does not list it.</summary>
         public async Task<GameSearchResult> DescribeAsync(string id, CancellationToken ct)
         {

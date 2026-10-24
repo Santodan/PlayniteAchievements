@@ -16,8 +16,9 @@ namespace PlayniteAchievements.Providers.Metadata.Exophase
         private readonly ExophasePageSource _pages;
         private readonly IReadOnlyList<string> _platforms;
 
-        public ExophaseLinkSearch(ExophasePageSource pages, IReadOnlyList<string> platforms, string displayName)
+        public ExophaseLinkSearch(ExophasePageSource pages, IReadOnlyList<string> platforms, string displayName, string idExample)
         {
+            IdExample = idExample;
             _pages = pages;
             _platforms = platforms ?? new string[0];
             DisplayName = displayName;
@@ -47,6 +48,8 @@ namespace PlayniteAchievements.Providers.Metadata.Exophase
         }
 
         public string TryParseId(string text) => ExophaseApiClient.TryParseGameSlug(text);
+
+        public string IdExample { get; }
 
         /// <summary>Not looked up: reading a page costs a browser load, so the slug stands for the game.</summary>
         public Task<GameSearchResult> DescribeAsync(string id, CancellationToken ct) =>

@@ -24,6 +24,7 @@
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
             <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
 
         <!-- Search bar: a name, or an id or address the source recognizes. -->
@@ -206,6 +207,37 @@
                 </DataGridTextColumn>
             </DataGrid.Columns>
         </DataGrid>
+
+        <!-- A game the search cannot find: its page link or id, added once the source reads it. -->
+        <Grid Grid.Row="4" Margin="{StaticResource PlayAch.Thickness.Top.Sm}">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+            <TextBlock Grid.Column="0"
+                       Text="{DynamicResource LOCPlayAch_GameSearch_LinkOrId}"
+                       Foreground="{DynamicResource PlayAch.Brush.Text}"
+                       VerticalAlignment="Center"
+                       Margin="{StaticResource PlayAch.Thickness.Right.Sm}"/>
+            <Grid Grid.Column="1">
+                <TextBox x:Name="LinkTextBox"
+                         Text="{Binding LinkText, UpdateSourceTrigger=PropertyChanged, Mode=TwoWay}"
+                         Padding="8,4"
+                         VerticalContentAlignment="Center"
+                         PreviewKeyDown="LinkTextBox_PreviewKeyDown"/>
+                <TextBlock Text="{Binding IdExample}"
+                           Tag="{Binding Text, ElementName=LinkTextBox}"
+                           Style="{StaticResource ManageAchievementsSearchPlaceholderTextStyle}"/>
+            </Grid>
+            <Button x:Name="AddLinkButton"
+                    Grid.Column="2"
+                    Content="{DynamicResource LOCAddTitle}"
+                    Command="{Binding AddLinkCommand}"
+                    Padding="{StaticResource PlayAch.Thickness.ButtonPadding}"
+                    MinWidth="80"
+                    Margin="{StaticResource PlayAch.Thickness.Left.Sm}"/>
+        </Grid>
 
         <TextBlock Grid.Row="3"
                    Text="{Binding StatusMessage}"

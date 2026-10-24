@@ -140,6 +140,24 @@ namespace PlayniteAchievements.Views.Controls
             }
         }
 
+        private void LinkTextBox_PreviewKeyDown(object sender, KeyEventArgs e)
+        {
+            if (e.Key == Key.Enter)
+            {
+                if (_viewModel?.AddLinkCommand.CanExecute(null) == true)
+                {
+                    _viewModel.AddLinkCommand.Execute(null);
+                }
+
+                e.Handled = true;
+            }
+            else if (e.Key == Key.Escape)
+            {
+                Cancelled?.Invoke(this, EventArgs.Empty);
+                e.Handled = true;
+            }
+        }
+
         private void ResultsDataGrid_PreviewKeyDown(object sender, KeyEventArgs e)
         {
             switch (e.Key)
@@ -230,6 +248,8 @@ namespace PlayniteAchievements.Views.Controls
             yield return ClearSearchTextButton;
             yield return SearchButton;
             yield return ResultsDataGrid;
+            yield return LinkTextBox;
+            yield return AddLinkButton;
         }
     }
 }

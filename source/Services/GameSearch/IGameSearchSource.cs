@@ -51,6 +51,12 @@ namespace PlayniteAchievements.Services.GameSearch
         /// <summary>The id an address or id typed into the search box names; null when it names none.</summary>
         string TryParseId(string text);
 
+        /// <summary>
+        /// An address of the kind <see cref="TryParseId"/> reads, shown in the empty link box. Not
+        /// localized: it is the address's shape, not a word.
+        /// </summary>
+        string IdExample { get; }
+
         /// <summary>The game an id names, with its title when the source can tell; the id as its name otherwise.</summary>
         Task<GameSearchResult> DescribeAsync(string id, CancellationToken ct);
     }

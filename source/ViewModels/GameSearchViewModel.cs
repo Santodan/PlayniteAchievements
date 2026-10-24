@@ -28,6 +28,7 @@ namespace PlayniteAchievements.ViewModels
         private CancellationTokenSource _searchCts;
         private int _searchVersion;
         private string _searchText;
+        private string _linkText = string.Empty;
         private bool _isSearching;
         private string _statusMessage = string.Empty;
         private GameSearchResultItem _selectedItem;
@@ -55,6 +56,7 @@ namespace PlayniteAchievements.ViewModels
             }
 
             SearchCommand = new RelayCommand(_ => _ = SearchAsync(), _ => !string.IsNullOrWhiteSpace(SearchText));
+            AddLinkCommand = new RelayCommand(_ => _ = AddLinkAsync(), _ => _source?.TryParseId(LinkText ?? string.Empty) != null);
             RemovePickCommand = new RelayCommand(parameter => Unpick(parameter as GameSearchResult));
         }
 
@@ -112,6 +114,25 @@ namespace PlayniteAchievements.ViewModels
 
         public RelayCommand SearchCommand { get; }
 
+        /// <summary>A page address or id typed into the link box, added as a result once the source reads it.</summary>
+        public string LinkText
+        {
+            get => _linkText;
+            set
+            {
+                if (SetValueAndReturn(ref _linkText, value ?? string.Empty))
+                {
+                    AddLinkCommand.RaiseCanExecuteChanged();
+                }
+            }
+        }
+
+        /// <summary>An address of the kind the link box takes, shown while it is empty.</summary>
+        public string IdExample => _source?.IdExample;
+
+        /// <summary>Adds the game the link box names; enabled only while the source reads the text.</summary>
+        public RelayCommand AddLinkCommand { get; }
+
         public RelayCommand RemovePickCommand { get; }
 
         /// <summary>Searches another source with the same text; anything picked on the previous one is dropped.</summary>
@@ -127,6 +148,8 @@ namespace PlayniteAchievements.ViewModels
             ClearResults();
             OnPropertyChanged(nameof(Source));
             OnPropertyChanged(nameof(AllowsMultiple));
+            OnPropertyChanged(nameof(IdExample));
+            AddLinkCommand.RaiseCanExecuteChanged();
             OnPropertyChanged(nameof(HasPicked));
             OnPropertyChanged(nameof(CanAccept));
             if (!string.IsNullOrWhiteSpace(SearchText))
@@ -259,6 +282,53 @@ namespace PlayniteAchievements.ViewModels
                     IsSearching = false;
                 }
             }
+        }
+
+        /// <summary>
+        /// Puts the game the link box names at the top of the results and selects it (picks it,
+        /// for a source that takes several), named as the source tells. The box is emptied.
+        /// </summary>
+        public async Task AddLinkAsync()
+        {
+            var source = _source;
+            var id = source?.TryParseId(LinkText ?? string.Empty);
+            if (id == null)
+            {
+                return;
+            }
+
+            var version = _searchVersion;
+            GameSearchResult result;
+            try
+            {
+                result = await DescribeAsync(source, id, CancellationToken.None);
+            }
+            catch (OperationCanceledException)
+            {
+                return;
+            }
+
+            if (version != _searchVersion || !ReferenceEquals(source, _source))
+            {
+                return;
+            }
+
+            foreach (var existing in Results.Where(item => string.Equals(item.Result.Id, result.Id, StringComparison.OrdinalIgnoreCase)).ToList())
+            {
+                Results.Remove(existing);
+            }
+
+            var added = new GameSearchResultItem(this, result, _currentIds.Contains(result.Id));
+            Results.Insert(0, added);
+            SelectedItem = added;
+            if (AllowsMultiple)
+            {
+                SetPicked(result, true);
+                added.RaiseCheckedChanged();
+            }
+
+            LinkText = string.Empty;
+            OnPropertyChanged(nameof(ShowPlatformColumn));
         }
 
         public void CancelSearch()

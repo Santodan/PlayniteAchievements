@@ -55,6 +55,29 @@ namespace PlayniteAchievements.Tests.ViewModels
         }
 
         [TestMethod]
+        public async Task AddLink_EnablesOnlyForAReadableLinkAndAddsItFirst()
+        {
+            var source = new FakeSource(
+                results: new[] { R("1", "Hades"), R("42", "Hades II") },
+                parse: text => text.Contains("/game/") ? "42" : null,
+                describe: id => R(id, "Hades II")) { Multiple = true };
+            var viewModel = new GameSearchViewModel(source, "Hades");
+            await viewModel.SearchAsync();
+
+            viewModel.LinkText = "Hades";
+            Assert.IsFalse(viewModel.AddLinkCommand.CanExecute(null));
+
+            viewModel.LinkText = "https://example.org/game/42";
+            Assert.IsTrue(viewModel.AddLinkCommand.CanExecute(null));
+            await viewModel.AddLinkAsync();
+
+            CollectionAssert.AreEqual(new[] { "42", "1" }, viewModel.Results.Select(item => item.Result.Id).ToArray());
+            Assert.AreEqual("42", viewModel.SelectedItem.Result.Id);
+            Assert.IsTrue(viewModel.Results[0].IsChecked);
+            Assert.AreEqual(string.Empty, viewModel.LinkText);
+        }
+
+        [TestMethod]
         public async Task Search_PutsATypedIdFirstAndDropsItsDuplicate()
         {
             var source = new FakeSource(
@@ -189,6 +212,8 @@ namespace PlayniteAchievements.Tests.ViewModels
             }
 
             public string TryParseId(string text) => _parse(text);
+
+            public string IdExample => "https://example.org/game/1";
 
             public Task<GameSearchResult> DescribeAsync(string id, CancellationToken ct) => Task.FromResult(_describe(id));
         }
