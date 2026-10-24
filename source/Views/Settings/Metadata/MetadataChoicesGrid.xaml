@@ -238,6 +238,25 @@
                     </DataTemplate>
                 </DataGridTemplateColumn.CellTemplate>
             </DataGridTemplateColumn>
+
+            <DataGridTemplateColumn Header="{DynamicResource LOCPlayAch_Tagging_Area_Text}" Width="Auto" IsReadOnly="True">
+                <DataGridTemplateColumn.CellTemplate>
+                    <DataTemplate>
+                        <Grid>
+                            <ComboBox Style="{StaticResource MetadataChoiceComboStyle}"
+                                      ItemsSource="{Binding TextOptions}"
+                                      Tag="{Binding InheritedText}"
+                                      SelectedValue="{Binding Text, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                      Visibility="{Binding SupportsSources, Converter={StaticResource BoolToVis}}"/>
+                            <TextBlock Text="—"
+                                       Style="{StaticResource MutedTextStyle}"
+                                       Margin="12,0"
+                                       VerticalAlignment="Center"
+                                       Visibility="{Binding SupportsSources, Converter={StaticResource InverseBoolToVis}}"/>
+                        </Grid>
+                    </DataTemplate>
+                </DataGridTemplateColumn.CellTemplate>
+            </DataGridTemplateColumn>
         </DataGrid.Columns>
     </DataGrid>
 </UserControl>
