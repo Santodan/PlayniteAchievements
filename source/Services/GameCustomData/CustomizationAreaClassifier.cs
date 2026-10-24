@@ -73,6 +73,13 @@ namespace PlayniteAchievements.Services.GameCustomData
                 areas |= CustomizationArea.Points;
             }
 
+            // A custom achievement's name and description are always the user's.
+            if (AnyOverride(o => HasText(o.DisplayName) || o.Description != null || o.ClearDescription) ||
+                customs.Count > 0)
+            {
+                areas |= CustomizationArea.Text;
+            }
+
             if (AnyUserKey(data.AchievementNotes, HasText) || AnyOverride(o => HasText(o.Note)))
             {
                 areas |= CustomizationArea.Notes;
