@@ -47,8 +47,8 @@ namespace PlayniteAchievements.Providers.Metadata
         MetadataField SupportedFields { get; }
 
         /// <summary>
-        /// True when this source's data is already the servicing provider's own (SteamHunters for
-        /// Steam, PlayStation for PSN and the PlayStation emulators), so the overlay skips it.
+        /// True when this source's data is already the servicing provider's own (PlayStation for
+        /// PSN and the PlayStation emulators), so the overlay skips it.
         /// </summary>
         bool IsNativeFor(string servicingProviderKey);
 
@@ -83,6 +83,20 @@ namespace PlayniteAchievements.Providers.Metadata
 
         /// <summary>The link as the user sees and enters it, whatever form it is stored in.</summary>
         string ShownLink(string linkId);
+    }
+
+    /// <summary>
+    /// A source that some games are linked to by what they already are, such as SteamHunters for a
+    /// Steam game by its own appId. That link is never stored, so it adds no custom data to the
+    /// game; a link the user sets still replaces it.
+    /// </summary>
+    internal interface IMetadataImplicitLink
+    {
+        /// <summary>The link the game implies for this source, or null when it implies none.</summary>
+        string ImplicitLinkId(MetadataLinkRequest request);
+
+        /// <summary>The same link for the game's link row, read from what is cached; null when it implies none.</summary>
+        string ImplicitLinkId(Guid gameId);
     }
 
     /// <summary>A source whose link leads to pages a browser can open, from the game's link row.</summary>
@@ -253,6 +267,12 @@ namespace PlayniteAchievements.Providers.Metadata
 
         /// <summary>True when the rows carry the servicing provider's ApiNames, so an exact join runs first.</summary>
         public bool SharesApiNames { get; set; }
+
+        /// <summary>
+        /// True when the rows are the game's own achievements, so the match list would only pair
+        /// each achievement with itself and is not kept.
+        /// </summary>
+        public bool KeepsNoMatchList { get; set; }
 
         /// <summary>
         /// True when the rows use developer-chosen achievement IDs that a port to another platform
