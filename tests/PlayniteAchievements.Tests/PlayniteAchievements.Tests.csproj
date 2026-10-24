@@ -342,6 +342,7 @@
     <Compile Include="..\..\source\Providers\RetroAchievements\RetroAchievementsCategoryImagePlanner.cs" Link="Source\Providers\RetroAchievements\RetroAchievementsCategoryImagePlanner.cs" />
     <Compile Include="..\..\source\Providers\RetroAchievements\RetroAchievementsSubsetTitleResolver.cs" Link="Source\Providers\RetroAchievements\RetroAchievementsSubsetTitleResolver.cs" />
     <Compile Include="..\..\source\Providers\RetroAchievements\RaConsoleIdResolver.cs" Link="Source\Providers\RetroAchievements\RaConsoleIdResolver.cs" />
+    <Compile Include="..\..\source\Providers\RetroAchievements\RetroAchievementsGameSearch.cs" Link="Source\Providers\RetroAchievements\RetroAchievementsGameSearch.cs" />
     <Compile Include="..\..\source\Providers\RetroAchievements\EmulatorLog\RaEmulatorLogParseProfile.cs" Link="Source\Providers\RetroAchievements\EmulatorLog\RaEmulatorLogParseProfile.cs" />
     <Compile Include="..\..\source\Providers\RetroAchievements\EmulatorLog\RaEmulatorLogSession.cs" Link="Source\Providers\RetroAchievements\EmulatorLog\RaEmulatorLogSession.cs" />
     <Compile Include="..\..\source\Providers\RetroAchievements\EmulatorLog\RaEmulatorLogReader.cs" Link="Source\Providers\RetroAchievements\EmulatorLog\RaEmulatorLogReader.cs" />

@@ -840,11 +840,18 @@ namespace PlayniteAchievements.Providers.RetroAchievements
             return RetroAchievementsSubsetTitleResolver.IsSubsetLikeTitle(title);
         }
 
-        private async Task<List<Models.RaGameListWithTitle>> GetOrFetchGameListAsync(int consoleId, CancellationToken cancel)
+        /// <summary>
+        /// The console's game list, fetched once and kept for the scanner's life. Shared with the
+        /// override search, which can run during a refresh, so the cache is locked.
+        /// </summary>
+        internal async Task<List<Models.RaGameListWithTitle>> GetOrFetchGameListAsync(int consoleId, CancellationToken cancel)
         {
-            if (_gameListCache.TryGetValue(consoleId, out var cached))
+            lock (_gameListCache)
             {
-                return cached;
+                if (_gameListCache.TryGetValue(consoleId, out var cached))
+                {
+                    return cached;
+                }
             }
 
             try
@@ -900,7 +907,10 @@ namespace PlayniteAchievements.Providers.RetroAchievements
                     return new List<Models.RaGameListWithTitle>();
                 }
 
-                _gameListCache[consoleId] = games;
+                lock (_gameListCache)
+                {
+                    _gameListCache[consoleId] = games;
+                }
                 if (games.Count > 0)
                 {
                     _logger?.Info($"[RA] Cached {games.Count} games for consoleId={consoleId}");
