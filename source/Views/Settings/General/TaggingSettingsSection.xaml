@@ -79,7 +79,7 @@
                                    Margin="{StaticResource PlayAch.Thickness.SubSectionHeading}"/>
                         <local:TagRowsGrid DataContext="{Binding Persisted.TaggingSettings.StatusRows}"
                                            ShowHeaders="False"
-                                           TagColumns="2"/>
+                                           TagColumns="3"/>
 
                         <TextBlock Text="{DynamicResource LOCPlayAch_Filter_CustomizationSelectorPlaceholder}"
                                    FontWeight="SemiBold"
