@@ -51,9 +51,6 @@ namespace PlayniteAchievements.Providers.RetroAchievements
         }
 
         public string TryParseId(string text) => ParseGameId(text)?.ToString(CultureInfo.InvariantCulture);
-
-        public string IdExample => "https://retroachievements.org/game/1446";
-
         /// <summary>The game from the console's list when it is there, else from RetroAchievements; the id alone when neither answers.</summary>
         public async Task<GameSearchResult> DescribeAsync(string id, CancellationToken ct)
         {

@@ -127,9 +127,6 @@ namespace PlayniteAchievements.ViewModels
             }
         }
 
-        /// <summary>An address of the kind the link box takes, shown while it is empty.</summary>
-        public string IdExample => _source?.IdExample;
-
         /// <summary>Adds the game the link box names; enabled only while the source reads the text.</summary>
         public RelayCommand AddLinkCommand { get; }
 
@@ -148,7 +145,6 @@ namespace PlayniteAchievements.ViewModels
             ClearResults();
             OnPropertyChanged(nameof(Source));
             OnPropertyChanged(nameof(AllowsMultiple));
-            OnPropertyChanged(nameof(IdExample));
             AddLinkCommand.RaiseCanExecuteChanged();
             OnPropertyChanged(nameof(HasPicked));
             OnPropertyChanged(nameof(CanAccept));
@@ -259,7 +255,7 @@ namespace PlayniteAchievements.ViewModels
 
                 foreach (var result in ranked)
                 {
-                    Results.Add(new GameSearchResultItem(this, result, _currentIds.Contains(result.Id)));
+                    Results.Add(new GameSearchResultItem(this, result));
                 }
 
                 OnPropertyChanged(nameof(ShowPlatformColumn));
@@ -318,7 +314,7 @@ namespace PlayniteAchievements.ViewModels
                 Results.Remove(existing);
             }
 
-            var added = new GameSearchResultItem(this, result, _currentIds.Contains(result.Id));
+            var added = new GameSearchResultItem(this, result);
             Results.Insert(0, added);
             SelectedItem = added;
             if (AllowsMultiple)
@@ -431,20 +427,16 @@ namespace PlayniteAchievements.ViewModels
     {
         private readonly GameSearchViewModel _owner;
 
-        internal GameSearchResultItem(GameSearchViewModel owner, GameSearchResult result, bool isCurrent = false)
+        internal GameSearchResultItem(GameSearchViewModel owner, GameSearchResult result)
         {
             _owner = owner;
             Result = result;
-            IsCurrent = isCurrent;
             // The row's checkbox reads IsChecked one way and toggles through this command, so a
             // DataGrid cell edit can never revert it.
             ToggleCommand = new RelayCommand(_ => IsChecked = !IsChecked);
         }
 
         public GameSearchResult Result { get; }
-
-        /// <summary>True for a game the link or override names now, marked in the list.</summary>
-        public bool IsCurrent { get; }
 
         public RelayCommand ToggleCommand { get; }
 

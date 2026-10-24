@@ -37,7 +37,7 @@ namespace PlayniteAchievements.Tests.ViewModels
         }
 
         [TestMethod]
-        public async Task Search_ListsTheLinkedGameFirstOnOpenAndMarksIt()
+        public async Task Search_ListsTheLinkedGameFirstOnOpenAndSelectsIt()
         {
             var source = new FakeSource(results: new[] { R("1", "Hades") });
             var viewModel = new GameSearchViewModel(source, "Hades", new[] { R("9", "Hades (2018 Edition)") });
@@ -45,8 +45,7 @@ namespace PlayniteAchievements.Tests.ViewModels
             await viewModel.SearchAsync();
 
             CollectionAssert.AreEqual(new[] { "9", "1" }, viewModel.Results.Select(item => item.Result.Id).ToArray());
-            Assert.IsTrue(viewModel.Results[0].IsCurrent);
-            Assert.IsFalse(viewModel.Results[1].IsCurrent);
+            Assert.AreSame(viewModel.Results[0], viewModel.SelectedItem);
 
             viewModel.SearchText = "Other";
             await viewModel.SearchAsync();
@@ -212,9 +211,6 @@ namespace PlayniteAchievements.Tests.ViewModels
             }
 
             public string TryParseId(string text) => _parse(text);
-
-            public string IdExample => "https://example.org/game/1";
-
             public Task<GameSearchResult> DescribeAsync(string id, CancellationToken ct) => Task.FromResult(_describe(id));
         }
     }

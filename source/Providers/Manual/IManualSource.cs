@@ -46,9 +46,6 @@ namespace PlayniteAchievements.Providers.Manual
         /// <summary>The source game id <paramref name="text"/> names; null when it names none.</summary>
         string TryParseGameId(string text);
 
-        /// <summary>An address <see cref="TryParseGameId"/> reads, shown as an example.</summary>
-        string GameIdExample { get; }
-
         /// <summary>The game an id names, with its name when the source can tell; null otherwise.</summary>
         Task<ManualGameSearchResult> DescribeGameAsync(string sourceGameId, string language, CancellationToken ct);
     }

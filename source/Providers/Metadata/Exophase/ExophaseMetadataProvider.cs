@@ -79,10 +79,7 @@ namespace PlayniteAchievements.Providers.Metadata.Exophase
             var platforms = !_branch.OwnPlatform
                 ? _branch.SearchPlatforms
                 : ownPlatform == null ? Array.Empty<string>() : PlatformCandidates(ownPlatform);
-            var example = _branch.PlatformHint == "psn"
-                ? "https://www.exophase.com/game/hades-psn/trophies/"
-                : $"https://www.exophase.com/game/hades-{_branch.PlatformHint ?? ownPlatform ?? "steam"}/achievements/";
-            return new ExophaseLinkSearch(_pages, platforms, ResourceProvider.GetString(DisplayNameKey), example);
+            return new ExophaseLinkSearch(_pages, platforms, ResourceProvider.GetString(DisplayNameKey));
         }
 
         public bool IsNativeFor(string servicingProviderKey) =>

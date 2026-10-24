@@ -148,9 +148,6 @@ namespace PlayniteAchievements.Providers.Manual
 
         public string TryParseGameId(string text) =>
             SteamAppIds.TryParse(text)?.ToString(System.Globalization.CultureInfo.InvariantCulture);
-
-        public string GameIdExample => "https://store.steampowered.com/app/620/";
-
         /// <summary>The app's store name and header art; null when the store does not answer for it.</summary>
         public async Task<ManualGameSearchResult> DescribeGameAsync(string sourceGameId, string language, CancellationToken ct)
         {

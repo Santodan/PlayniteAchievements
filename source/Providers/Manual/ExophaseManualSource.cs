@@ -101,9 +101,6 @@ namespace PlayniteAchievements.Providers.Manual
         }
 
         public string TryParseGameId(string text) => ExophaseApiClient.TryParseGameSlug(text);
-
-        public string GameIdExample => "https://www.exophase.com/game/hades-steam/achievements/";
-
         /// <summary>Not looked up: reading a game page costs a browser load, so the slug stands for the game.</summary>
         public Task<ManualGameSearchResult> DescribeGameAsync(string sourceGameId, string language, CancellationToken ct) =>
             Task.FromResult<ManualGameSearchResult>(null);

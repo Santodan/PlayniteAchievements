@@ -39,9 +39,6 @@ namespace PlayniteAchievements.Providers.Manual
         }
 
         public string TryParseId(string text) => (_source as IManualSourceGameLookup)?.TryParseGameId(text);
-
-        public string IdExample => (_source as IManualSourceGameLookup)?.GameIdExample;
-
         public async Task<GameSearchResult> DescribeAsync(string id, CancellationToken ct)
         {
             var described = _source is IManualSourceGameLookup lookup
