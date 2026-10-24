@@ -89,6 +89,27 @@ namespace PlayniteAchievements.Providers.Tests
         }
 
         [TestMethod]
+        public void DocumentOverloads_ReadTheSameAsTheStringParsers()
+        {
+            var html = "<html><head><meta property=\"og:image\" content=\"https://m.exophase.com/psn/games/o/abc.png\" /></head><body>" +
+                       GameInfoHtml +
+                       "<ul class=\"list-unordered-base psn trophy\"><li data-master=\"11\"></li></ul></body></html>";
+            var doc = new HtmlAgilityPack.HtmlDocument();
+            doc.LoadHtml(html);
+
+            var fromDoc = ExophaseGamePageParser.ParseAwardSectionsFrom(doc, out var docArt);
+            var fromString = ExophaseGamePageParser.ParseAwardSections(html, out var stringArt);
+
+            Assert.AreEqual(stringArt, docArt);
+            CollectionAssert.AreEqual(
+                fromString.SelectMany(section => section.ApiNames).ToList(),
+                fromDoc.SelectMany(section => section.ApiNames).ToList());
+            CollectionAssert.AreEqual(
+                ExophaseGamePageParser.ParseRelatedPages(html).Select(page => page.Slug).ToList(),
+                ExophaseGamePageParser.ParseRelatedPagesFrom(doc).Select(page => page.Slug).ToList());
+        }
+
+        [TestMethod]
         public void LocalizeAwardPageUrl_AppendsTheLanguagePathToEitherList()
         {
             Assert.AreEqual(
