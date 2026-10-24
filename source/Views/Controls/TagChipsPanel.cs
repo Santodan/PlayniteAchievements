@@ -52,7 +52,7 @@ namespace PlayniteAchievements.Views.Controls
 
         public static readonly DependencyProperty MaxIconScaleProperty =
             DependencyProperty.Register(nameof(MaxIconScale), typeof(double), typeof(TagChipsPanel),
-                new FrameworkPropertyMetadata(1.75, FrameworkPropertyMetadataOptions.AffectsMeasure));
+                new FrameworkPropertyMetadata(1.5, FrameworkPropertyMetadataOptions.AffectsMeasure));
 
         /// <summary>The largest icon size, as a multiple of the font size.</summary>
         public double MaxIconScale
