@@ -119,6 +119,11 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 fields.Add(Served(ResourceProvider.GetString("LOCPlayAch_Column_Points"), chosen?.Points));
             }
 
+            if (Uses(choices.Text, MetadataField.Text))
+            {
+                fields.Add(ResourceProvider.GetString("LOCPlayAch_Tagging_Area_Text"));
+            }
+
             return string.Join(", ", fields.Where(field => field != null));
         }
 
