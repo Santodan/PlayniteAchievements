@@ -1357,6 +1357,7 @@ namespace PlayniteAchievements.ViewModels.Workshop
             _library.Changed -= Source_Changed;
             _gameData.Links.Changed -= Source_Changed;
             _stats.StatsChanged -= Stats_Changed;
+            _matcher.Reset();
             DeleteCachedDownload();
             _lifetime.Cancel();
             _lifetime.Dispose();
