@@ -38,7 +38,7 @@ namespace PlayniteAchievements.Models.Tagging
 
     /// <summary>
     /// One customization area and the tag kinds it writes, by layer. An area writes only the
-    /// layers that can apply to it: Icons have no None (every platform supplies icons), Goals no
+    /// layers that can apply to it: Order has no Metadata (no source supplies an order), Goals no
     /// Platform (no platform supplies goals), Notifications only Custom.
     /// </summary>
     public sealed class CustomizationTagArea
@@ -96,7 +96,7 @@ namespace PlayniteAchievements.Models.Tagging
         public static readonly IReadOnlyList<CustomizationTagArea> All = new[]
         {
             Area(CustomizationArea.Icons, "LOCPlayAch_ManageAchievements_Tab_CustomIcons",
-                metadata: TagType.MetadataIcons, custom: TagType.CustomIcons),
+                platform: TagType.PlatformIcons, metadata: TagType.MetadataIcons, custom: TagType.CustomIcons, none: TagType.NoIcons),
             Area(CustomizationArea.TrophyTypes, "LOCPlayAch_Tagging_Area_Trophies",
                 TagType.PlatformTrophies, TagType.MetadataTrophies, TagType.CustomTrophies, TagType.NoTrophies),
             Area(CustomizationArea.Points, "LOCPlayAch_Column_Points",
