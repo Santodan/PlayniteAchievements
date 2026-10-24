@@ -30,9 +30,33 @@ namespace PlayniteAchievements.Views.Settings.General
                 }
             }));
 
+        public static readonly DependencyProperty TagColumnsProperty = DependencyProperty.Register(
+            nameof(TagColumns),
+            typeof(int),
+            typeof(TagRowsGrid),
+            new PropertyMetadata(4, (d, e) =>
+            {
+                if (d is TagRowsGrid grid)
+                {
+                    var count = (int)e.NewValue;
+                    grid.ThirdColumn.Visibility = count >= 3 ? Visibility.Visible : Visibility.Collapsed;
+                    grid.FourthColumn.Visibility = count >= 4 ? Visibility.Visible : Visibility.Collapsed;
+                }
+            }));
+
         public TagRowsGrid()
         {
             InitializeComponent();
+        }
+
+        /// <summary>
+        /// How many tag columns the rows use; the rest are hidden rather than shown as dashes, for
+        /// lists whose rows never fill them, such as the status pairs.
+        /// </summary>
+        public int TagColumns
+        {
+            get => (int)GetValue(TagColumnsProperty);
+            set => SetValue(TagColumnsProperty, value);
         }
 
         /// <summary>False for rows whose tags name themselves, such as the status pairs.</summary>
