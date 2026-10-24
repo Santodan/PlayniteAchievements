@@ -969,8 +969,18 @@ namespace PlayniteAchievements.Services.Tagging
                 return result;
             }
 
-            // Game has achievements - add HasAchievements tag
-            types.Add(TagType.HasAchievements);
+            // Platform achievements are every row but the projected custom ones; a manually
+            // tracked list counts. Custom ones are the user's own, an auto capstone aside.
+            if (data.Achievements.Any(a => a != null && !CustomAchievementProjectionService.IsCustomApiName(a.ApiName)))
+            {
+                types.Add(TagType.HasAchievements);
+            }
+
+            if (GameCustomDataLookup.GetCustomAchievements(gameId, Settings)?.Any(definition =>
+                    definition != null && !definition.IsAutoCapstone && !string.IsNullOrWhiteSpace(definition.DisplayName)) == true)
+            {
+                types.Add(TagType.CustomAchievements);
+            }
 
             // Completed means every achievement unlocked, or every capstone earned. Raw cached data
             // has not been through hydration, so its IsCapstone flags are the provider seed and the
