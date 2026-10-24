@@ -22,7 +22,7 @@
 
             <!-- One tag. IsChecked is one-way and the click sets the value, and the name commits on
                  LostFocus: a two-way toggle inside a grid cell can be reverted by the grid's
-                 close-time CancelEdit. A null config renders nothing. -->
+                 close-time CancelEdit. -->
             <DataTemplate x:Key="TagCellTemplate">
                 <StackPanel Orientation="Horizontal"
                             VerticalAlignment="Center"
@@ -36,6 +36,25 @@
                              VerticalAlignment="Center"/>
                 </StackPanel>
             </DataTemplate>
+
+            <!-- A layer the area cannot have shows a dash, as in the Metadata sources grid. -->
+            <DataTemplate x:Key="NoTagCellTemplate">
+                <TextBlock Text="—"
+                           Style="{StaticResource MutedTextStyle}"
+                           Margin="12,0"
+                           VerticalAlignment="Center"/>
+            </DataTemplate>
+
+            <!-- Chooses the template by the cell's config, so a null one never gets an empty toggle. -->
+            <Style x:Key="TagCellStyle" TargetType="ContentControl">
+                <Setter Property="Focusable" Value="False"/>
+                <Setter Property="ContentTemplate" Value="{StaticResource TagCellTemplate}"/>
+                <Style.Triggers>
+                    <Trigger Property="Content" Value="{x:Null}">
+                        <Setter Property="ContentTemplate" Value="{StaticResource NoTagCellTemplate}"/>
+                    </Trigger>
+                </Style.Triggers>
+            </Style>
         </ResourceDictionary>
     </UserControl.Resources>
     <!-- Read-only columns keep the grid out of row edit mode; their controls stay editable. -->
@@ -75,28 +94,28 @@
             <DataGridTemplateColumn x:Name="FirstColumn" Width="Auto" IsReadOnly="True">
                 <DataGridTemplateColumn.CellTemplate>
                     <DataTemplate>
-                        <ContentControl Focusable="False" Content="{Binding First}" ContentTemplate="{StaticResource TagCellTemplate}"/>
+                        <ContentControl Style="{StaticResource TagCellStyle}" Content="{Binding First}"/>
                     </DataTemplate>
                 </DataGridTemplateColumn.CellTemplate>
             </DataGridTemplateColumn>
             <DataGridTemplateColumn x:Name="SecondColumn" Width="Auto" IsReadOnly="True">
                 <DataGridTemplateColumn.CellTemplate>
                     <DataTemplate>
-                        <ContentControl Focusable="False" Content="{Binding Second}" ContentTemplate="{StaticResource TagCellTemplate}"/>
+                        <ContentControl Style="{StaticResource TagCellStyle}" Content="{Binding Second}"/>
                     </DataTemplate>
                 </DataGridTemplateColumn.CellTemplate>
             </DataGridTemplateColumn>
             <DataGridTemplateColumn x:Name="ThirdColumn" Width="Auto" IsReadOnly="True">
                 <DataGridTemplateColumn.CellTemplate>
                     <DataTemplate>
-                        <ContentControl Focusable="False" Content="{Binding Third}" ContentTemplate="{StaticResource TagCellTemplate}"/>
+                        <ContentControl Style="{StaticResource TagCellStyle}" Content="{Binding Third}"/>
                     </DataTemplate>
                 </DataGridTemplateColumn.CellTemplate>
             </DataGridTemplateColumn>
             <DataGridTemplateColumn x:Name="FourthColumn" Width="Auto" IsReadOnly="True">
                 <DataGridTemplateColumn.CellTemplate>
                     <DataTemplate>
-                        <ContentControl Focusable="False" Content="{Binding Fourth}" ContentTemplate="{StaticResource TagCellTemplate}"/>
+                        <ContentControl Style="{StaticResource TagCellStyle}" Content="{Binding Fourth}"/>
                     </DataTemplate>
                 </DataGridTemplateColumn.CellTemplate>
             </DataGridTemplateColumn>
