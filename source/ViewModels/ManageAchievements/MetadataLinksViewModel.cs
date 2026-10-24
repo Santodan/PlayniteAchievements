@@ -192,6 +192,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                     var supplies = DescribeSupplies(choices, chosen, provider, providers);
                     if (string.IsNullOrEmpty(supplies) && record?.Origin != MetadataLinkOrigin.User)
                     {
+                        AddRoutedRow(chosen, choices, provider, providers);
                         continue;
                     }
 
@@ -200,6 +201,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                     var coverage = store.GetCoverage(gameId, provider.Key);
                     if (record == null && coverage == null)
                     {
+                        AddRoutedRow(chosen, choices, provider, providers);
                         continue;
                     }
 
@@ -232,6 +234,49 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
 
             OnPropertyChanged(nameof(HasRows));
         }
+
+        /// <summary>
+        /// A row for a choice whose fields another source serves (Xbox points read from
+        /// TrueAchievements), so every choice in the grid has a row: it names the source that
+        /// serves it and edits nothing; that source's own row holds the link.
+        /// </summary>
+        private void AddRoutedRow(
+            MetadataChoices chosen,
+            MetadataChoices routed,
+            IMetadataProvider provider,
+            IReadOnlyList<IMetadataProvider> providers)
+        {
+            if (chosen == null || routed == null)
+            {
+                return;
+            }
+
+            var away = RoutableFields
+                .Where(entry => string.Equals(entry.Get(chosen)?.Trim(), provider.Key, StringComparison.OrdinalIgnoreCase))
+                .Select(entry => (entry.LabelKey, ServedBy: entry.Get(routed)?.Trim()))
+                .Where(entry => !string.IsNullOrEmpty(entry.ServedBy) &&
+                                !string.Equals(entry.ServedBy, provider.Key, StringComparison.OrdinalIgnoreCase))
+                .ToList();
+            var servedBy = away.Count == 0
+                ? null
+                : providers.FirstOrDefault(candidate => string.Equals(candidate?.Key, away[0].ServedBy, StringComparison.OrdinalIgnoreCase));
+            if (servedBy == null)
+            {
+                return;
+            }
+
+            Rows.Add(MetadataLinkRow.Routed(
+                ResourceProvider.GetString(provider.DisplayNameKey),
+                string.Format(ResourceProvider.GetString("LOCPlayAch_Settings_ProviderServicedByFormat"), ResourceProvider.GetString(servedBy.DisplayNameKey)),
+                string.Join(", ", away.Select(entry => ResourceProvider.GetString(entry.LabelKey)))));
+        }
+
+        /// <summary>The fields routing can move to another source: points and trophy ranks.</summary>
+        private static readonly (Func<MetadataChoices, string> Get, string LabelKey)[] RoutableFields =
+        {
+            (choices => choices.TrophyTypes, "LOCPlayAch_Column_Trophy"),
+            (choices => choices.Points, "LOCPlayAch_Column_Points")
+        };
 
         private void SetChoiceRows(Guid gameId, string servicingProviderKey, IReadOnlyList<MetadataChoiceRow> rows)
         {
@@ -418,6 +463,25 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
     public sealed class MetadataLinkRow : ObservableObject
     {
         private string _supplies = string.Empty;
+
+        private MetadataLinkRow(string sourceName, string linkTitle, string supplies)
+        {
+            SourceName = sourceName;
+            LinkTitle = linkTitle;
+            Supplies = supplies;
+            LinkedGames = Array.Empty<GameSearchResult>();
+            StatusText = string.Empty;
+            ChangeCommand = new RelayCommand(_ => { }, _ => false);
+            ClearCommand = new RelayCommand(_ => { }, _ => false);
+            OpenMatchesCommand = new RelayCommand(_ => { }, _ => false);
+        }
+
+        /// <summary>A read-only row for a choice another source serves: its name, "Uses TrueGaming" and the fields.</summary>
+        internal static MetadataLinkRow Routed(string sourceName, string servedByText, string supplies) =>
+            new MetadataLinkRow(sourceName, servedByText, supplies) { IsEditable = false };
+
+        /// <summary>False for a row that only names the source serving the choice; that source's row holds the link.</summary>
+        public bool IsEditable { get; private set; } = true;
 
         internal MetadataLinkRow(
             MetadataLinksViewModel owner,
