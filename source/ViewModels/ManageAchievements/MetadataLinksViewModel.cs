@@ -51,9 +51,10 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         }
 
         /// <summary>
-        /// What a source supplies to this game, as the Sources grid names the fields ("Icons,
-        /// Auto Capstone"); empty when nothing. <paramref name="choices"/> are the routed ones, so
-        /// a field one source serves for another's choice names that choice ("Points (Xbox)").
+        /// What a source supplies to this game as its own choice, as the Sources grid names the
+        /// fields ("Icons, Auto Capstone"); empty when nothing. <paramref name="choices"/> are the
+        /// routed ones; a field the source serves for another choice (Xbox points) is listed on that
+        /// choice's row instead, not here.
         /// </summary>
         private static string DescribeSupplies(
             MetadataChoices choices,
@@ -70,6 +71,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 (provider.SupportedFields & field) == field &&
                 string.Equals(routed, provider.Key, StringComparison.OrdinalIgnoreCase);
 
+            // Null for a field picked as another source that this one serves; that choice's row lists it.
             string Served(string label, string picked)
             {
                 if (string.IsNullOrWhiteSpace(picked) || string.Equals(picked, provider.Key, StringComparison.OrdinalIgnoreCase))
@@ -78,7 +80,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 }
 
                 var source = providers?.FirstOrDefault(candidate => string.Equals(candidate?.Key, picked, StringComparison.OrdinalIgnoreCase));
-                return source == null ? label : $"{label} ({ResourceProvider.GetString(source.DisplayNameKey)})";
+                return source == null ? label : null;
             }
 
             var fields = new List<string>();
@@ -117,8 +119,19 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 fields.Add(Served(ResourceProvider.GetString("LOCPlayAch_Column_Points"), chosen?.Points));
             }
 
-            return string.Join(", ", fields);
+            return string.Join(", ", fields.Where(field => field != null));
         }
+
+        /// <summary>
+        /// True when the source serves a field picked as another choice (Xbox points read from
+        /// TrueAchievements), so its row shows to hold the link that choice's row points to.
+        /// </summary>
+        private static bool ServesOtherChoice(MetadataChoices routed, MetadataChoices chosen, IMetadataProvider provider) =>
+            routed != null && chosen != null &&
+            RoutableFields.Any(entry =>
+                string.Equals(entry.Get(routed)?.Trim(), provider.Key, StringComparison.OrdinalIgnoreCase) &&
+                !string.IsNullOrWhiteSpace(entry.Get(chosen)) &&
+                !string.Equals(entry.Get(chosen).Trim(), provider.Key, StringComparison.OrdinalIgnoreCase));
 
         public ObservableCollection<MetadataLinkRow> Rows { get; } = new ObservableCollection<MetadataLinkRow>();
 
@@ -191,7 +204,9 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                     }
 
                     var supplies = DescribeSupplies(choices, chosen, provider, providers);
-                    if (string.IsNullOrEmpty(supplies) && record?.Origin != MetadataLinkOrigin.User)
+                    if (string.IsNullOrEmpty(supplies) &&
+                        record?.Origin != MetadataLinkOrigin.User &&
+                        !ServesOtherChoice(choices, chosen, provider))
                     {
                         AddRoutedRow(chosen, choices, provider, providers);
                         continue;
