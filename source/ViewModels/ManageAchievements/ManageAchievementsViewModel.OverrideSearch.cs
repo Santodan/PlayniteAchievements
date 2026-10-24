@@ -53,6 +53,14 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             private set => SetValue(ref _providerOverrideGameName, value ?? string.Empty);
         }
 
+        /// <summary>The override's stored id, for the name's tooltip; null when the name is not the stored override's.</summary>
+        public string ProviderOverrideIdToolTip =>
+            HasProviderOverride &&
+            !string.IsNullOrWhiteSpace(ProviderOverrideValue) &&
+            string.Equals(NormalizeProviderOverrideSelection(SelectedProviderOverrideKey), _providerOverrideKey, StringComparison.OrdinalIgnoreCase)
+                ? ProviderOverrideValue
+                : null;
+
         private IGameSearchSource GetProviderOverrideSearch(string providerKey)
         {
             var key = NormalizeProviderOverrideSelection(providerKey);
@@ -148,6 +156,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         {
             _overrideDescribeCts?.Cancel();
             _overrideDescribeCts = null;
+            OnPropertyChanged(nameof(ProviderOverrideIdToolTip));
 
             var providerKey = _providerOverrideKey;
             var value = ProviderOverrideValue;

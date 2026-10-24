@@ -223,6 +223,10 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                         provider is IMetadataLinkSearch)
                     {
                         LinkDetails = record == null || record.IsNoMatch ? null : MetadataLinkIds.DescribeLink(provider as IMetadataLinkDetails, gameId, record.Id),
+                        LinkIdsText = record == null || record.IsNoMatch
+                            ? null
+                            : string.Join(Environment.NewLine, MetadataLinkIds.Parse(record.Id)
+                                .Select(id => (provider as IMetadataLinkDetails)?.ShownLink(id) ?? id)),
                         PageLinks = record == null || record.IsNoMatch
                             ? Array.Empty<MetadataPageLinkItem>()
                             : MetadataLinkIds.PageLinks(provider as IMetadataPageLinks, gameId, record.Id, servicingProviderKey)
@@ -531,6 +535,9 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
 
         /// <summary>The linked games' titles ("Mass Effect, Mass Effect 2"), or "Not linked".</summary>
         public string LinkTitle { get; }
+
+        /// <summary>The link's ids as the source shows them, one per line, for the title's tooltip; null with no link.</summary>
+        public string LinkIdsText { get; internal set; }
 
         /// <summary>The games the link names, offered as the search's current pick.</summary>
         internal IReadOnlyList<GameSearchResult> LinkedGames { get; }

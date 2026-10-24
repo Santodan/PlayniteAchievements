@@ -235,7 +235,7 @@
                                     <StackPanel Orientation="Horizontal"
                                                 Visibility="{Binding IsProviderOverrideSearchVisible, Converter={StaticResource BoolToVis}}">
                                         <TextBlock Text="{Binding ProviderOverrideGameName}"
-                                                   ToolTip="{Binding ProviderOverrideGameName}"
+                                                   ToolTip="{Binding ProviderOverrideIdToolTip}"
                                                    Foreground="{DynamicResource PlayAch.Brush.Text}"
                                                    TextTrimming="CharacterEllipsis"
                                                    MaxWidth="320"
@@ -375,7 +375,7 @@
                                             <WrapPanel Grid.Column="1">
                                                 <!-- The linked game's title, or each game's for a collection; Select searches for another. -->
                                                 <TextBlock Text="{Binding LinkTitle}"
-                                                           ToolTip="{Binding LinkTitle}"
+                                                           ToolTip="{Binding LinkIdsText}"
                                                            Foreground="{DynamicResource PlayAch.Brush.Text}"
                                                            TextTrimming="CharacterEllipsis"
                                                            MinWidth="200"
