@@ -213,6 +213,31 @@ namespace PlayniteAchievements.Providers.Exophase
         }
 
         /// <summary>
+        /// The game slug typed into a search box: one an exophase.com game address names, or a bare
+        /// slug that ends in a platform ("hades-steam"), so a plain game name is never read as one.
+        /// Null otherwise.
+        /// </summary>
+        public static string TryParseGameSlug(string text)
+        {
+            var trimmed = (text ?? string.Empty).Trim();
+            if (trimmed.Length == 0)
+            {
+                return null;
+            }
+
+            if (trimmed.IndexOf('/') >= 0 || trimmed.IndexOf("exophase.com", StringComparison.OrdinalIgnoreCase) >= 0)
+            {
+                var slug = ExtractSlugFromUrl(trimmed);
+                return string.IsNullOrWhiteSpace(slug) ? null : slug.ToLowerInvariant();
+            }
+
+            return System.Text.RegularExpressions.Regex.IsMatch(trimmed, @"^[A-Za-z0-9]+(?:-[A-Za-z0-9]+)+$") &&
+                   ExophaseFriendPlatformMatcher.ExtractPlatformSlugFromGameSlug(trimmed) != null
+                ? trimmed.ToLowerInvariant()
+                : null;
+        }
+
+        /// <summary>
         /// Normalizes user input for a game slug: a full exophase.com game URL is reduced to its
         /// slug, and a bare slug is accepted as-is when it contains no whitespace.
         /// </summary>

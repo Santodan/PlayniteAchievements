@@ -38,6 +38,19 @@ namespace PlayniteAchievements.Providers.Manual
     }
 
     /// <summary>
+    /// A manual source that reads a game id or address typed into a search box, and can tell the
+    /// game an id names.
+    /// </summary>
+    public interface IManualSourceGameLookup
+    {
+        /// <summary>The source game id <paramref name="text"/> names; null when it names none.</summary>
+        string TryParseGameId(string text);
+
+        /// <summary>The game an id names, with its name when the source can tell; null otherwise.</summary>
+        Task<ManualGameSearchResult> DescribeGameAsync(string sourceGameId, string language, CancellationToken ct);
+    }
+
+    /// <summary>
     /// Abstraction interface for manual achievement sources.
     /// Implementations provide search and achievement fetch capabilities for different platforms.
     /// </summary>

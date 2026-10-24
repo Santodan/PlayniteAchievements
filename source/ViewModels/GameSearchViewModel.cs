@@ -350,9 +350,14 @@ namespace PlayniteAchievements.ViewModels
         {
             _owner = owner;
             Result = result;
+            // The row's checkbox reads IsChecked one way and toggles through this command, so a
+            // DataGrid cell edit can never revert it.
+            ToggleCommand = new RelayCommand(_ => IsChecked = !IsChecked);
         }
 
         public GameSearchResult Result { get; }
+
+        public RelayCommand ToggleCommand { get; }
 
         public string Name => Result.Name;
 
