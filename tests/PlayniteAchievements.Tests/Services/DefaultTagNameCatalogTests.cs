@@ -110,6 +110,28 @@ namespace PlayniteAchievements.Services.Tagging.Tests
         }
 
         [TestMethod]
+        public void GetRelocalizedName_RenamesTheFormerHasAchievementsName_InAnyLanguage()
+        {
+            WriteLocale("en_US.xaml", EnglishXaml.Replace(
+                "</ResourceDictionary>",
+                "    <sys:String x:Key=\"LOCPlayAch_Tagging_PlatformAchievements\">Platform Achievements</sys:String>\n</ResourceDictionary>"));
+            WriteLocale("de_DE.xaml", GermanXaml);
+
+            var catalog = new DefaultTagNameCatalog(_tempDirectory);
+
+            Assert.AreEqual(
+                "[PA] Platform Achievements",
+                catalog.GetRelocalizedName(TagType.HasAchievements, "[PA] Has Achievements", "[PA] Platform Achievements"));
+            Assert.AreEqual(
+                "[PA] Platform Achievements",
+                catalog.GetRelocalizedName(TagType.HasAchievements, "[PA] Hat Erfolge", "[PA] Platform Achievements"));
+            Assert.IsTrue(catalog.IsKnownDefault(TagType.HasAchievements, "[PA] Platform Achievements"));
+            Assert.IsNull(catalog.GetRelocalizedName(TagType.HasAchievements, "My Achievements", "[PA] Platform Achievements"));
+            Assert.IsNull(catalog.GetRelocalizedName(TagType.NoAchievements, "[PA] Has Achievements", "[PA] No Achievements"),
+                "a former name belongs to its own kind only");
+        }
+
+        [TestMethod]
         public void GetRelocalizedName_HealsKnownDefaultToCurrentDefault()
         {
             WriteLocale("en_US.xaml", EnglishXaml);
