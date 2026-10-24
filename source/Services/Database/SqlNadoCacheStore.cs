@@ -6922,6 +6922,8 @@ namespace PlayniteAchievements.Services.Database
                 "SELECT RaritySource FROM Games WHERE Id = ?;",
                 game.Id);
             var raritySource = SqlNadoCacheBehavior.ResolveRaritySourceToWrite(data.RaritySource, storedRaritySource);
+            // Carried back like the per-achievement rarity, so the in-memory copy keeps showing it.
+            data.RaritySource = raritySource;
 
             // A null mask means the payload was not refreshed (a re-save of loaded data), so the
             // stored masks stay.
@@ -7275,6 +7277,8 @@ namespace PlayniteAchievements.Services.Database
                 var incomingProgressMax = achievement.ProgressDenom;
 
                 // A payload that does not know the rarity must not blank what is already stored.
+                // The payload carries the stored values back, so the caller's in-memory copy reads
+                // the rarity the table holds.
                 if (SqlNadoCacheBehavior.ShouldKeepStoredRarity(
                         incomingGlobalPercent,
                         achievement.Rarity,
@@ -7283,6 +7287,8 @@ namespace PlayniteAchievements.Services.Database
                 {
                     incomingGlobalPercent = existing.GlobalPercentUnlocked;
                     incomingStoredRarity = existing.Rarity;
+                    achievement.GlobalPercentUnlocked = existing.GlobalPercentUnlocked;
+                    achievement.Rarity = ParseStoredRarity(existing.Rarity);
                 }
 
                 var changed = !NullableEquals(NormalizeDbText(existing.DisplayName), incomingDisplayName) ||
