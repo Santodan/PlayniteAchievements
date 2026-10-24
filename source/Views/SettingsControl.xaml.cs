@@ -25,6 +25,8 @@ namespace PlayniteAchievements.Views
     {
         private readonly PlayniteAchievementsPlugin _plugin;
         private bool _windowPlacementAttached;
+        private Window _hostWindow;
+        private bool _disposed;
         private readonly PlayniteAchievementsSettingsViewModel _settingsViewModel;
         private readonly ILogger _logger;
         private readonly ProviderRegistry _providerRegistry;
@@ -215,8 +217,37 @@ namespace PlayniteAchievements.Views
                 }
 
                 AttachSettingsWindowPlacement();
+                DisposeWithHostWindow();
                 _live = new WeakReference<SettingsControl>(this);
             };
+        }
+
+        // Playnite builds a new view for every settings open and does not dispose the old one, so
+        // the view releases its subscriptions to the plugin's settings when its window closes.
+        // Not on Unloaded: the shared add-ons window unloads the view when another add-on is
+        // picked and loads it again on return.
+        private void DisposeWithHostWindow()
+        {
+            if (_hostWindow != null)
+            {
+                return;
+            }
+
+            _hostWindow = Window.GetWindow(this);
+            if (_hostWindow != null)
+            {
+                _hostWindow.Closed += HostWindow_Closed;
+            }
+        }
+
+        private void HostWindow_Closed(object sender, EventArgs e)
+        {
+            if (_hostWindow != null)
+            {
+                _hostWindow.Closed -= HostWindow_Closed;
+            }
+
+            Dispose();
         }
 
         /// <summary>
@@ -532,6 +563,18 @@ namespace PlayniteAchievements.Views
 
         public void Dispose()
         {
+            if (_disposed)
+            {
+                return;
+            }
+
+            _disposed = true;
+            if (_hostWindow != null)
+            {
+                _hostWindow.Closed -= HostWindow_Closed;
+                _hostWindow = null;
+            }
+
             _autoAuthDebounceCts?.Cancel();
             _autoAuthDebounceCts?.Dispose();
             _autoAuthDebounceCts = null;
