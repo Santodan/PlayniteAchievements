@@ -393,6 +393,9 @@
     <Compile Include="..\..\source\Common\StringSimilarity.cs" Link="Source\Common\StringSimilarity.cs" />
     <Compile Include="..\..\source\Common\KeySequenceMatcher.cs" Link="Source\Common\KeySequenceMatcher.cs" />
     <Compile Include="..\..\source\Common\GameNameNormalizer.cs" Link="Source\Common\GameNameNormalizer.cs" />
+    <Compile Include="..\..\source\Services\GameSearch\IGameSearchSource.cs" Link="Source\Services\GameSearch\IGameSearchSource.cs" />
+    <Compile Include="..\..\source\Services\GameSearch\GameSearchRanking.cs" Link="Source\Services\GameSearch\GameSearchRanking.cs" />
+    <Compile Include="..\..\source\ViewModels\GameSearchViewModel.cs" Link="Source\ViewModels\GameSearchViewModel.cs" />
     <Compile Include="..\..\source\Providers\Xbox\XboxTitleIdResolver.cs" Link="Source\Providers\Xbox\XboxTitleIdResolver.cs" />
     <Compile Include="..\..\source\Providers\Xenia\XeniaSettings.cs" Link="Source\Providers\Xenia\XeniaSettings.cs" />
     <Compile Include="..\..\source\Providers\Xenia\XeniaTitleIdHelper.cs" Link="Source\Providers\Xenia\XeniaTitleIdHelper.cs" />
