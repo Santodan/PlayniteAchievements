@@ -27,6 +27,7 @@ namespace PlayniteAchievements.Services.Metadata
             CustomizationArea.Icons,
             CustomizationArea.TrophyTypes,
             CustomizationArea.Points,
+            CustomizationArea.Text,
             CustomizationArea.Categories,
             CustomizationArea.Tags
         };
@@ -171,6 +172,12 @@ namespace PlayniteAchievements.Services.Metadata
                     return Blank(row.TrophyType);
                 case CustomizationArea.Points:
                     return row.Points?.ToString(CultureInfo.InvariantCulture);
+                case CustomizationArea.Text:
+                    // Name and description as one value, so a source that changed only the
+                    // description supplied the text.
+                    var name = Blank(row.DisplayName);
+                    var description = Blank(row.Description);
+                    return name == null && description == null ? null : name + "\u001F" + description;
                 case CustomizationArea.Categories:
                     return NamedCategory(row.Category);
                 case CustomizationArea.Tags:
