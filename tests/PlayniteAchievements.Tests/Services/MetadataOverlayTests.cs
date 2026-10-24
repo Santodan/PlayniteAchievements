@@ -1646,8 +1646,6 @@ namespace PlayniteAchievements.Tests.Services
 
             public string DisplayNameKey => Inner.DisplayNameKey;
 
-            public string LinkPlaceholder => Inner.LinkPlaceholder;
-
             public MetadataField SupportedFields => Inner.SupportedFields;
 
             public bool IsNativeFor(string servicingProviderKey) => false;
@@ -1686,8 +1684,6 @@ namespace PlayniteAchievements.Tests.Services
             public string Key { get; }
 
             public string DisplayNameKey => Key;
-
-            public string LinkPlaceholder => string.Empty;
 
             public MetadataField SupportedFields { get; }
 

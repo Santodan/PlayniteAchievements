@@ -184,6 +184,41 @@ namespace PlayniteAchievements.Providers.Metadata.Exophase
         }
 
         /// <summary>
+        /// Exophase search's games for a user's query, on one of <paramref name="platformSlugs"/>
+        /// (any platform when empty), in Exophase's order. Not cached: each search asks again.
+        /// Null when Exophase did not answer.
+        /// </summary>
+        public async Task<IReadOnlyList<(string Slug, ExophaseGame Game)>> SearchGamesAsync(
+            string query,
+            IReadOnlyList<string> platformSlugs,
+            CancellationToken ct)
+        {
+            if (_client == null)
+            {
+                return null;
+            }
+
+            var (found, answered) = await _client.TrySearchGamesAsync(query?.Trim(), null, ct).ConfigureAwait(false);
+            if (!answered)
+            {
+                return null;
+            }
+
+            var platforms = new HashSet<string>(
+                (platformSlugs ?? Array.Empty<string>()).Select(slug => slug.ToLowerInvariant()),
+                StringComparer.OrdinalIgnoreCase);
+            return (found ?? new List<ExophaseGame>())
+                .Where(game => game != null && !string.IsNullOrWhiteSpace(game.EndpointAwards))
+                .Where(game => platforms.Count == 0 ||
+                               (game.Platforms ?? new List<ExophasePlatform>()).Any(platform => platforms.Contains(platform?.Slug?.Trim() ?? string.Empty)))
+                .Select(game => (Slug: ExophaseApiClient.ExtractSlugFromUrl(game.EndpointAwards), Game: game))
+                .Where(entry => !string.IsNullOrWhiteSpace(entry.Slug))
+                .GroupBy(entry => entry.Slug, StringComparer.OrdinalIgnoreCase)
+                .Select(group => group.First())
+                .ToList();
+        }
+
+        /// <summary>
         /// The slug of Exophase's best search match for <paramref name="name"/> on one of
         /// <paramref name="platformSlugs"/>, preferring <paramref name="regionHint"/>'s release; null
         /// when none matches.

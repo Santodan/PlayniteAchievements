@@ -14,7 +14,7 @@ namespace PlayniteAchievements.Providers.Manual
     /// achievement list and text, not the user's unlocks, so no Exophase sign-in is involved.
     /// Uses WebView for all requests to bypass Cloudflare protection.
     /// </summary>
-    internal sealed class ExophaseManualSource : IManualSource
+    internal sealed class ExophaseManualSource : IManualSource, IManualSourceGameLookup
     {
         private readonly ExophaseApiClient _apiClient;
         private readonly ILogger _logger;
@@ -99,6 +99,11 @@ namespace PlayniteAchievements.Providers.Manual
                 return new List<ManualGameSearchResult>();
             }
         }
+
+        public string TryParseGameId(string text) => ExophaseApiClient.TryParseGameSlug(text);
+        /// <summary>Not looked up: reading a game page costs a browser load, so the slug stands for the game.</summary>
+        public Task<ManualGameSearchResult> DescribeGameAsync(string sourceGameId, string language, CancellationToken ct) =>
+            Task.FromResult<ManualGameSearchResult>(null);
 
         public async Task<List<AchievementDetail>> GetAchievementsAsync(string sourceGameId, string language, CancellationToken ct)
         {

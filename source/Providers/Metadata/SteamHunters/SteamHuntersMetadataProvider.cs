@@ -7,6 +7,7 @@ using PlayniteAchievements.Providers.Exophase;
 using PlayniteAchievements.Providers.Manual;
 using PlayniteAchievements.Providers.Steam;
 using PlayniteAchievements.Services.GameCustomData;
+using PlayniteAchievements.Services.GameSearch;
 using PlayniteAchievements.Services.Metadata;
 using System;
 using System.Collections.Generic;
@@ -25,13 +26,9 @@ namespace PlayniteAchievements.Providers.Metadata
     /// linked by its own appId without storing the link, and SteamHunters groups its own
     /// achievements, so they join by ApiName.
     /// </summary>
-    internal sealed class SteamHuntersMetadataProvider : IMetadataProvider, IMetadataPageLinks, IMetadataImplicitLink
+    internal sealed class SteamHuntersMetadataProvider : IMetadataProvider, IMetadataPageLinks, IMetadataImplicitLink, IMetadataLinkSearch
     {
         public const string MetadataKey = "SteamHunters";
-
-        private static readonly Regex SteamAppUrl = new Regex(
-            @"(?:store\.steampowered\.com|steamcommunity\.com)/app/(\d+)",
-            RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
 
         private readonly ManualSourceRegistry _manualSources;
         private readonly SteamDataProvider _steam;
@@ -54,7 +51,11 @@ namespace PlayniteAchievements.Providers.Metadata
 
         public string DisplayNameKey => "LOCPlayAch_Metadata_Source_SteamHunters";
 
-        public string LinkPlaceholder => "123456";
+        /// <summary>The Steam store's search; a link names one app per game, several for a collection.</summary>
+        public IGameSearchSource CreateLinkSearch(Guid gameId, string servicingProviderKey) =>
+            SteamSchema == null
+                ? null
+                : new ManualSourceGameSearch(SteamSchema, Language, allowsMultiple: true, displayName: ResourceProvider.GetString(DisplayNameKey));
 
         /// <summary>The app's achievement page; the link is the Steam app id.</summary>
         public IReadOnlyList<MetadataPageLink> PageLinks(Guid gameId, string linkId, string servicingProviderKey) =>
@@ -63,19 +64,7 @@ namespace PlayniteAchievements.Providers.Metadata
                 : Array.Empty<MetadataPageLink>();
 
         /// <summary>The Steam app id one list of a link names: the id, or a store or community app address.</summary>
-        internal static int? AppId(string linkId)
-        {
-            var part = linkId?.Trim() ?? string.Empty;
-            var address = SteamAppUrl.Match(part);
-            if (address.Success)
-            {
-                part = address.Groups[1].Value;
-            }
-
-            return int.TryParse(part, NumberStyles.Integer, CultureInfo.InvariantCulture, out var appId) && appId > 0
-                ? appId
-                : (int?)null;
-        }
+        internal static int? AppId(string linkId) => SteamAppIds.TryParse(linkId);
 
         public MetadataField SupportedFields => MetadataField.Categories | MetadataField.CategoryArt | MetadataField.Tags;
 
@@ -142,11 +131,11 @@ namespace PlayniteAchievements.Providers.Metadata
             }
 
             var linked = game.Links?
-                .Select(link => SteamAppUrl.Match(link?.Url ?? string.Empty))
-                .FirstOrDefault(match => match.Success);
+                .Select(link => SteamAppIds.TryParse(link?.Url))
+                .FirstOrDefault(appId => appId != null);
             if (linked != null)
             {
-                return new MetadataSourceLink(linked.Groups[1].Value);
+                return new MetadataSourceLink(linked.Value.ToString(CultureInfo.InvariantCulture));
             }
 
             if (string.IsNullOrWhiteSpace(game.Name))

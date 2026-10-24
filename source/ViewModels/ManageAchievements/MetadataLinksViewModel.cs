@@ -8,6 +8,7 @@ using PlayniteAchievements.Models.Achievements;
 using PlayniteAchievements.Models.Settings;
 using PlayniteAchievements.Providers.Metadata;
 using PlayniteAchievements.Services;
+using PlayniteAchievements.Services.GameSearch;
 using PlayniteAchievements.Services.Metadata;
 using PlayniteAchievements.Views.Helpers;
 using PlayniteAchievements.Views.Settings.Metadata;
@@ -18,10 +19,11 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
 {
     /// <summary>
     /// Manage Achievements Overview: the game's own source choices (one row of the Metadata tab's
-    /// grid), then one row per metadata source the game can use, showing the linked id with an
-    /// editable box and a window for fixing the achievement pairings from the last refresh.
-    /// Applying an id pins it; Reset lets matching run again; choosing "Own" for a source's fields
-    /// stops it for this game. Each change refreshes the game once, so it takes effect at once.
+    /// grid), then one row per metadata source the game can use, showing the linked game's title,
+    /// a search to pick another and a window for fixing the achievement pairings from the last
+    /// refresh. Picking a game pins it; Reset lets matching run again; choosing "Own" for a
+    /// source's fields stops it for this game. Each change refreshes the game once, so it takes
+    /// effect at once.
     /// </summary>
     public sealed class MetadataLinksViewModel : ObservableObject
     {
@@ -49,9 +51,10 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         }
 
         /// <summary>
-        /// What a source supplies to this game, as the Sources grid names the fields ("Icons,
-        /// Auto Capstone"); empty when nothing. <paramref name="choices"/> are the routed ones, so
-        /// a field one source serves for another's choice names that choice ("Points (Xbox)").
+        /// What a source supplies to this game as its own choice, as the Sources grid names the
+        /// fields ("Icons, Auto Capstone"); empty when nothing. <paramref name="choices"/> are the
+        /// routed ones; a field the source serves for another choice (Xbox points) is listed on that
+        /// choice's row instead, not here.
         /// </summary>
         private static string DescribeSupplies(
             MetadataChoices choices,
@@ -68,6 +71,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 (provider.SupportedFields & field) == field &&
                 string.Equals(routed, provider.Key, StringComparison.OrdinalIgnoreCase);
 
+            // Null for a field picked as another source that this one serves; that choice's row lists it.
             string Served(string label, string picked)
             {
                 if (string.IsNullOrWhiteSpace(picked) || string.Equals(picked, provider.Key, StringComparison.OrdinalIgnoreCase))
@@ -76,7 +80,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 }
 
                 var source = providers?.FirstOrDefault(candidate => string.Equals(candidate?.Key, picked, StringComparison.OrdinalIgnoreCase));
-                return source == null ? label : $"{label} ({ResourceProvider.GetString(source.DisplayNameKey)})";
+                return source == null ? label : null;
             }
 
             var fields = new List<string>();
@@ -115,8 +119,19 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 fields.Add(Served(ResourceProvider.GetString("LOCPlayAch_Column_Points"), chosen?.Points));
             }
 
-            return string.Join(", ", fields);
+            return string.Join(", ", fields.Where(field => field != null));
         }
+
+        /// <summary>
+        /// True when the source serves a field picked as another choice (Xbox points read from
+        /// TrueAchievements), so its row shows to hold the link that choice's row points to.
+        /// </summary>
+        private static bool ServesOtherChoice(MetadataChoices routed, MetadataChoices chosen, IMetadataProvider provider) =>
+            routed != null && chosen != null &&
+            RoutableFields.Any(entry =>
+                string.Equals(entry.Get(routed)?.Trim(), provider.Key, StringComparison.OrdinalIgnoreCase) &&
+                !string.IsNullOrWhiteSpace(entry.Get(chosen)) &&
+                !string.Equals(entry.Get(chosen).Trim(), provider.Key, StringComparison.OrdinalIgnoreCase));
 
         public ObservableCollection<MetadataLinkRow> Rows { get; } = new ObservableCollection<MetadataLinkRow>();
 
@@ -171,6 +186,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 foreach (var provider in providers.Where(provider => !provider.IsNativeFor(servicingProviderKey)))
                 {
                     store.TryGet(gameId, provider.Key, out var record);
+                    var stored = record != null;
                     // A link the game implies (a Steam game's own appId on SteamHunters) is shown in
                     // place of any automatic record; only a link the user set replaces it.
                     var implicitId = record?.Origin == MetadataLinkOrigin.User
@@ -178,12 +194,21 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                         : (provider as IMetadataImplicitLink)?.ImplicitLinkId(gameId);
                     if (implicitId != null)
                     {
-                        record = new MetadataLinkRecord { Id = implicitId, Origin = MetadataLinkOrigin.Auto };
+                        // The game's own entry on the source, so it goes by the game's name.
+                        record = new MetadataLinkRecord
+                        {
+                            Id = implicitId,
+                            Label = MetadataFoundNames.Format(new[] { ((string)null, _gameName?.Invoke()) }),
+                            Origin = MetadataLinkOrigin.Auto
+                        };
                     }
 
                     var supplies = DescribeSupplies(choices, chosen, provider, providers);
-                    if (string.IsNullOrEmpty(supplies) && record?.Origin != MetadataLinkOrigin.User)
+                    if (string.IsNullOrEmpty(supplies) &&
+                        record?.Origin != MetadataLinkOrigin.User &&
+                        !ServesOtherChoice(choices, chosen, provider))
                     {
+                        AddRoutedRow(chosen, choices, provider, providers);
                         continue;
                     }
 
@@ -192,22 +217,33 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                     var coverage = store.GetCoverage(gameId, provider.Key);
                     if (record == null && coverage == null)
                     {
+                        AddRoutedRow(chosen, choices, provider, providers);
                         continue;
                     }
 
+                    var snapshot = record == null || record.IsNoMatch ? null : store.Snapshots?.Get(gameId, provider.Key, record.Id);
+                    var titles = LinkTitles(record, snapshot);
+                    var linkedGames = LinkedGames(record, titles, provider as IMetadataLinkDetails);
                     Rows.Add(new MetadataLinkRow(
                         this,
                         gameId,
+                        servicingProviderKey,
                         provider.Key,
                         ResourceProvider.GetString(provider.DisplayNameKey),
-                        provider.LinkPlaceholder,
                         supplies,
                         record,
                         coverage,
-                        record == null || record.IsNoMatch ? null : store.Snapshots?.Get(gameId, provider.Key, record.Id),
-                        record?.Id == null ? null : MetadataLinkIds.ShownLink(provider as IMetadataLinkDetails, record.Id))
+                        snapshot,
+                        linkedGames,
+                        titles.Count > 0 ? string.Join(", ", titles) : string.Join(", ", linkedGames.Select(game => game.Name)),
+                        provider is IMetadataLinkSearch,
+                        stored)
                     {
                         LinkDetails = record == null || record.IsNoMatch ? null : MetadataLinkIds.DescribeLink(provider as IMetadataLinkDetails, gameId, record.Id),
+                        LinkIdsText = record == null || record.IsNoMatch
+                            ? null
+                            : string.Join(Environment.NewLine, MetadataLinkIds.Parse(record.Id)
+                                .Select(id => (provider as IMetadataLinkDetails)?.ShownLink(id) ?? id)),
                         PageLinks = record == null || record.IsNoMatch
                             ? Array.Empty<MetadataPageLinkItem>()
                             : MetadataLinkIds.PageLinks(provider as IMetadataPageLinks, gameId, record.Id, servicingProviderKey)
@@ -219,6 +255,49 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
 
             OnPropertyChanged(nameof(HasRows));
         }
+
+        /// <summary>
+        /// A row for a choice whose fields another source serves (Xbox points read from
+        /// TrueAchievements), so every choice in the grid has a row: it names the source that
+        /// serves it and edits nothing; that source's own row holds the link.
+        /// </summary>
+        private void AddRoutedRow(
+            MetadataChoices chosen,
+            MetadataChoices routed,
+            IMetadataProvider provider,
+            IReadOnlyList<IMetadataProvider> providers)
+        {
+            if (chosen == null || routed == null)
+            {
+                return;
+            }
+
+            var away = RoutableFields
+                .Where(entry => string.Equals(entry.Get(chosen)?.Trim(), provider.Key, StringComparison.OrdinalIgnoreCase))
+                .Select(entry => (entry.LabelKey, ServedBy: entry.Get(routed)?.Trim()))
+                .Where(entry => !string.IsNullOrEmpty(entry.ServedBy) &&
+                                !string.Equals(entry.ServedBy, provider.Key, StringComparison.OrdinalIgnoreCase))
+                .ToList();
+            var servedBy = away.Count == 0
+                ? null
+                : providers.FirstOrDefault(candidate => string.Equals(candidate?.Key, away[0].ServedBy, StringComparison.OrdinalIgnoreCase));
+            if (servedBy == null)
+            {
+                return;
+            }
+
+            Rows.Add(MetadataLinkRow.Routed(
+                ResourceProvider.GetString(provider.DisplayNameKey),
+                string.Format(ResourceProvider.GetString("LOCPlayAch_Settings_ProviderServicedByFormat"), ResourceProvider.GetString(servedBy.DisplayNameKey)),
+                string.Join(", ", away.Select(entry => ResourceProvider.GetString(entry.LabelKey)))));
+        }
+
+        /// <summary>The fields routing can move to another source: points and trophy ranks.</summary>
+        private static readonly (Func<MetadataChoices, string> Get, string LabelKey)[] RoutableFields =
+        {
+            (choices => choices.TrophyTypes, "LOCPlayAch_Column_Trophy"),
+            (choices => choices.Points, "LOCPlayAch_Column_Points")
+        };
 
         private void SetChoiceRows(Guid gameId, string servicingProviderKey, IReadOnlyList<MetadataChoiceRow> rows)
         {
@@ -245,21 +324,95 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             Load(gameId, servicingProviderKey);
         }
 
-        /// <summary>Adds a row for a link stored elsewhere, after the metadata sources.</summary>
-        internal void AddRow(MetadataLinkRow row)
+        /// <summary>
+        /// The titles the source found a link's games by: the link's label, else the list titles
+        /// from the last refresh. Empty when neither has any.
+        /// </summary>
+        internal static IReadOnlyList<string> LinkTitles(MetadataLinkRecord record, MetadataSourceSnapshot snapshot)
         {
-            if (row == null)
+            if (record == null || record.IsNoMatch)
+            {
+                return Array.Empty<string>();
+            }
+
+            var titles = MetadataFoundNames.Parse(record.Label)
+                .Select(name => name.Title)
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
+            return titles.Count > 0
+                ? titles
+                : (snapshot?.Rows ?? new List<MetadataSourceRow>())
+                    .Select(row => row.List)
+                    .Where(list => !string.IsNullOrWhiteSpace(list))
+                    .Distinct(StringComparer.OrdinalIgnoreCase)
+                    .ToList();
+        }
+
+        /// <summary>
+        /// The games a link names, in its order, each under its title when there is one title per
+        /// game and under the link as the source shows it otherwise. Empty for no link or a stored
+        /// "no match".
+        /// </summary>
+        internal static IReadOnlyList<GameSearchResult> LinkedGames(
+            MetadataLinkRecord record,
+            IReadOnlyList<string> titles,
+            IMetadataLinkDetails details)
+        {
+            if (record == null || record.IsNoMatch)
+            {
+                return Array.Empty<GameSearchResult>();
+            }
+
+            var ids = MetadataLinkIds.Parse(record.Id);
+            return ids
+                .Select((id, index) => new GameSearchResult(
+                    id,
+                    titles?.Count == ids.Count ? titles[index] : details?.ShownLink(id) ?? id))
+                .ToList();
+        }
+
+        /// <summary>
+        /// Opens the source's game search; the games picked become the link, pinned as the user's,
+        /// under the titles they were picked by.
+        /// </summary>
+        internal void Change(MetadataLinkRow row)
+        {
+            var store = _store?.Invoke();
+            var provider = (_providers?.Invoke() ?? Array.Empty<IMetadataProvider>())
+                .FirstOrDefault(candidate => string.Equals(candidate?.Key, row.SourceKey, StringComparison.OrdinalIgnoreCase));
+            var search = (provider as IMetadataLinkSearch)?.CreateLinkSearch(row.GameId, row.ServicingProviderKey);
+            if (store == null || search == null)
             {
                 return;
             }
 
-            Rows.Add(row);
-            OnPropertyChanged(nameof(HasRows));
-        }
+            var gameName = _gameName?.Invoke();
+            var title = string.Join(
+                " · ",
+                new[] { row.SourceName, gameName }
+                    .Where(part => !string.IsNullOrWhiteSpace(part)));
+            var picked = GameSearchWindow.Show(null, search, title, gameName, row.LinkedGames);
+            if (picked == null || picked.Count == 0)
+            {
+                return;
+            }
 
-        internal void Apply(MetadataLinkRow row)
-        {
-            _store?.Invoke()?.SetUser(row.GameId, row.SourceKey, row.Input);
+            var id = MetadataLinkIds.Join(picked.Select(result => result.Id));
+            if (row.IsUserSet && MetadataLinkIds.SameIds(id, MetadataLinkIds.Join(row.LinkedGames.Select(game => game.Id))))
+            {
+                return;
+            }
+
+            // A game picked by a typed id has only the id for a name, which is not stored as one.
+            string Named(GameSearchResult result) =>
+                string.Equals(result.Name, result.Id, StringComparison.OrdinalIgnoreCase) ? null : result.Name;
+
+            // Several games are each filed under their own title, so another source never searches
+            // one collection game's name for the whole game.
+            var label = MetadataFoundNames.Format(picked.Count == 1
+                ? new[] { ((string)null, Named(picked[0])) }
+                : picked.Select(result => (Named(result), Named(result))));
+            store.SetUser(row.GameId, row.SourceKey, id, label);
             _onChanged?.Invoke();
         }
 
@@ -330,86 +483,84 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
 
     public sealed class MetadataLinkRow : ObservableObject
     {
-        private readonly string _linkedId;
-        private string _input;
         private string _supplies = string.Empty;
 
-        /// <summary>
-        /// A row for a link kept outside the metadata link store (the Exophase rarity page): the
-        /// same box, Apply and Reset, with no count or matches.
-        /// </summary>
-        internal MetadataLinkRow(
-            string sourceName,
-            string linkedId,
-            string placeholder,
-            string supplies,
-            Action<string> apply,
-            Action reset)
+        private MetadataLinkRow(string sourceName, string linkTitle, string supplies)
         {
             SourceName = sourceName;
-            Placeholder = placeholder;
-            Supplies = supplies ?? string.Empty;
-            _linkedId = (linkedId ?? string.Empty).Trim();
-            _input = _linkedId;
-            HasLink = _linkedId.Length > 0;
-            IsUserSet = HasLink;
+            LinkTitle = linkTitle;
+            Supplies = supplies;
+            LinkedGames = Array.Empty<GameSearchResult>();
             StatusText = string.Empty;
-            ApplyCommand = new RelayCommand(
-                _ => apply?.Invoke(Input),
-                _ => !string.IsNullOrWhiteSpace(Input) &&
-                     !string.Equals(Input.Trim(), _linkedId, StringComparison.OrdinalIgnoreCase));
-            ClearCommand = new RelayCommand(_ => reset?.Invoke(), _ => IsUserSet);
+            ChangeCommand = new RelayCommand(_ => { }, _ => false);
+            ClearCommand = new RelayCommand(_ => { }, _ => false);
             OpenMatchesCommand = new RelayCommand(_ => { }, _ => false);
         }
+
+        /// <summary>A read-only row for a choice another source serves: its name, "Uses TrueGaming" and the fields.</summary>
+        internal static MetadataLinkRow Routed(string sourceName, string servedByText, string supplies) =>
+            new MetadataLinkRow(sourceName, servedByText, supplies) { IsEditable = false };
+
+        /// <summary>False for a row that only names the source serving the choice; that source's row holds the link.</summary>
+        public bool IsEditable { get; private set; } = true;
 
         internal MetadataLinkRow(
             MetadataLinksViewModel owner,
             Guid gameId,
+            string servicingProviderKey,
             string sourceKey,
             string sourceName,
-            string placeholder,
             string supplies,
             MetadataLinkRecord record,
             MetadataCoverage coverage,
             MetadataSourceSnapshot snapshot,
-            string shownLinkId = null)
+            IReadOnlyList<GameSearchResult> linkedGames,
+            string linkTitle,
+            bool canSearch,
+            bool stored)
         {
             GameId = gameId;
+            ServicingProviderKey = servicingProviderKey;
             SourceKey = sourceKey;
             SourceName = string.IsNullOrWhiteSpace(sourceName) ? sourceKey : sourceName;
-            // A link can name several lists (a collection's games), separated by commas.
-            Placeholder = string.IsNullOrWhiteSpace(placeholder) ? placeholder : placeholder + MetadataLinkIds.Separator + " …";
             Supplies = supplies ?? string.Empty;
             Snapshot = snapshot;
             StatusToolTip = BuildListStatus(snapshot);
-            // The box shows the link as the source names it, so a stored form the user never typed
-            // does not show, and Apply stays off until the shown id changes.
-            _input = shownLinkId ?? record?.Id ?? string.Empty;
             StatusText = BuildStatus(record, coverage);
             HasLink = record != null && !record.IsNoMatch;
+            LinkedGames = linkedGames ?? Array.Empty<GameSearchResult>();
+            LinkTitle = HasLink && !string.IsNullOrWhiteSpace(linkTitle)
+                ? linkTitle
+                : ResourceProvider.GetString("LOCPlayAch_Common_Status_NotLinked");
             // A stored "no match" (the retired Enabled switch's off) is the user's too, so Reset
             // hands it back to matching.
             IsUserSet = record?.Origin == MetadataLinkOrigin.User;
-            _linkedId = _input;
             ShowFixMatches = HasMatches;
-            // Apply pins a new id; turning a source off is the game's "Own" choice for its fields.
-            ApplyCommand = new RelayCommand(
-                _ => owner.Apply(this),
-                _ => !string.IsNullOrWhiteSpace(Input) &&
-                     !string.Equals(Input.Trim(), _linkedId, StringComparison.OrdinalIgnoreCase));
-            CanReset = IsUserSet || record?.IsNoMatch == true;
+            // Select pins the games picked; turning a source off is the game's "Own" choice for its fields.
+            ChangeCommand = new RelayCommand(_ => owner.Change(this), _ => canSearch);
+            // Any stored link can be dropped: one the user set, a stored no-match, or one matching
+            // found, which the next refresh then looks for again. A link the game implies is not stored.
+            CanReset = stored;
             ClearCommand = new RelayCommand(_ => owner.Clear(this), _ => CanReset);
             OpenMatchesCommand = new RelayCommand(_ => owner.OpenMatches(this), _ => HasMatches);
         }
 
         public Guid GameId { get; }
 
+        internal string ServicingProviderKey { get; }
+
         public string SourceKey { get; }
 
         public string SourceName { get; }
 
-        /// <summary>The shape of the id the box takes, shown while it is empty.</summary>
-        public string Placeholder { get; }
+        /// <summary>The linked games' titles ("Mass Effect, Mass Effect 2"), or "Not linked".</summary>
+        public string LinkTitle { get; }
+
+        /// <summary>The link's ids as the source shows them, one per line, for the title's tooltip; null with no link.</summary>
+        public string LinkIdsText { get; internal set; }
+
+        /// <summary>The games the link names, offered as the search's current pick.</summary>
+        internal IReadOnlyList<GameSearchResult> LinkedGames { get; }
 
         /// <summary>What the source adds to this game ("Icons, Auto Capstone"); empty when nothing.</summary>
         public string Supplies
@@ -464,8 +615,8 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         public bool IsUserSet { get; }
 
         /// <summary>
-        /// Reset hands the link back to matching: one the user entered, or a "no match" the
-        /// source's matching stored, so it looks again on the next refresh.
+        /// Reset drops the stored link, so matching looks again on the next refresh: one the user
+        /// entered, a stored "no match", or one matching found.
         /// </summary>
         public bool CanReset { get; }
 
@@ -477,18 +628,8 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         /// <summary>Offered whenever the source has a match list from the last refresh, to change any pairing.</summary>
         public bool ShowFixMatches { get; }
 
-        public string Input
-        {
-            get => _input;
-            set
-            {
-                SetValue(ref _input, value);
-                // Apply waits for a new id, so the button follows the box as it is typed in.
-                (ApplyCommand as RelayCommand)?.RaiseCanExecuteChanged();
-            }
-        }
-
-        public ICommand ApplyCommand { get; }
+        /// <summary>Opens the source's game search to pick the linked game, or games.</summary>
+        public ICommand ChangeCommand { get; }
 
         public ICommand ClearCommand { get; }
 
