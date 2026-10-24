@@ -319,7 +319,7 @@ namespace PlayniteAchievements.Views.Settings.Metadata
         /// <summary>
         /// Off, or each source that supplies <paramref name="field"/>. Every row offers the same
         /// sources: one native to the platform (PlayStation on PSN) is the platform's own data, so
-        /// choosing it changes nothing, and SteamHunters on Steam is applied by the Steam scan.
+        /// choosing it changes nothing.
         /// Sources that are never picked by themselves are not offered; see
         /// <see cref="MetadataSourceRouting.IsChoice"/>.
         /// </summary>
