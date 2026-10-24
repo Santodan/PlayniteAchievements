@@ -393,7 +393,8 @@ namespace PlayniteAchievements.Providers.Metadata.Exophase
             var set = new AchievementSourceSet(Key, linkId, rows)
             {
                 GameArtUrl = gameArt,
-                EnglishRows = async token => (await _pages.GetPageAsync(slug, platformSlug, token, english: true).ConfigureAwait(false))?.Achievements
+                EnglishRows = async token => (await _pages.GetPageAsync(slug, platformSlug, token, english: true).ConfigureAwait(false))?.Achievements,
+                TextInPluginLanguage = _pages.IsInPluginLanguage(page)
             };
             foreach (var art in categoryArt)
             {
