@@ -107,11 +107,11 @@ namespace PlayniteAchievements.Providers.Exophase
 
             var doc = new HtmlDocument();
             doc.LoadHtml(html);
-            return ParseAwardSections(doc, out gameArtUrl);
+            return ParseAwardSectionsFrom(doc, out gameArtUrl);
         }
 
         /// <summary>The award lists and game image of an already loaded page.</summary>
-        public static IReadOnlyList<ExophaseAwardSection> ParseAwardSections(HtmlDocument doc, out string gameArtUrl)
+        public static IReadOnlyList<ExophaseAwardSection> ParseAwardSectionsFrom(HtmlDocument doc, out string gameArtUrl)
         {
             gameArtUrl = GameArt(doc);
             var nodes = doc.DocumentNode.SelectNodes(
@@ -257,11 +257,11 @@ namespace PlayniteAchievements.Providers.Exophase
 
             var doc = new HtmlDocument();
             doc.LoadHtml(html);
-            return ParseRelatedPages(doc);
+            return ParseRelatedPagesFrom(doc);
         }
 
         /// <summary>The other platforms' pages named by an already loaded page.</summary>
-        public static IReadOnlyList<ExophaseRelatedPage> ParseRelatedPages(HtmlDocument doc)
+        public static IReadOnlyList<ExophaseRelatedPage> ParseRelatedPagesFrom(HtmlDocument doc)
         {
             var links = doc.DocumentNode.SelectNodes("//dl[contains(concat(' ', normalize-space(@class), ' '), ' details ')]//dd//a[@href]");
             if (links == null)
