@@ -1198,8 +1198,10 @@
     <!-- Whole tag names, one per tag, written after the [PA] prefix. Platform = from the game's
          own platform, Metadata = from a metadata source, Custom = edited by the user,
          No = from no source. -->
+    <sys:String x:Key="LOCPlayAch_Tagging_Tag_PlatformIcons">Platform Icons</sys:String>
     <sys:String x:Key="LOCPlayAch_Tagging_Tag_MetadataIcons">Metadata Icons</sys:String>
     <sys:String x:Key="LOCPlayAch_Tagging_Tag_CustomIcons">Custom Icons</sys:String>
+    <sys:String x:Key="LOCPlayAch_Tagging_Tag_NoIcons">No Icons</sys:String>
     <sys:String x:Key="LOCPlayAch_Tagging_Tag_PlatformTrophies">Platform Trophies</sys:String>
     <sys:String x:Key="LOCPlayAch_Tagging_Tag_MetadataTrophies">Metadata Trophies</sys:String>
     <sys:String x:Key="LOCPlayAch_Tagging_Tag_CustomTrophies">Custom Trophies</sys:String>
