@@ -19,12 +19,13 @@ using System.Threading.Tasks;
 namespace PlayniteAchievements.Providers.Metadata
 {
     /// <summary>
-    /// SteamHunters categories, types and category art for games another provider services. The
-    /// game is linked to a Steam appId, the Steam schema supplies the titles the shared matcher
-    /// pairs with the provider's achievements, and SteamHunters groups those schema rows the same
-    /// way the Steam provider groups its own. Steam games get this from the Steam scan itself.
+    /// SteamHunters categories, types and category art. A game another provider services is
+    /// linked to a Steam appId, the Steam schema supplies the titles the shared matcher pairs with
+    /// the provider's achievements, and SteamHunters groups those schema rows. A Steam game is
+    /// linked by its own appId without storing the link, and SteamHunters groups its own
+    /// achievements, so they join by ApiName.
     /// </summary>
-    internal sealed class SteamHuntersMetadataProvider : IMetadataProvider, IMetadataPageLinks
+    internal sealed class SteamHuntersMetadataProvider : IMetadataProvider, IMetadataPageLinks, IMetadataImplicitLink
     {
         public const string MetadataKey = "SteamHunters";
 
@@ -82,12 +83,36 @@ namespace PlayniteAchievements.Providers.Metadata
 
         private string Language => _settings?.Persisted?.GlobalLanguage;
 
-        public bool IsNativeFor(string servicingProviderKey) =>
-            string.Equals(servicingProviderKey, "Steam", StringComparison.OrdinalIgnoreCase);
+        public bool IsNativeFor(string servicingProviderKey) => false;
 
         public Task<bool> BeginRunAsync(CancellationToken ct)
         {
-            return Task.FromResult(_steam?.SteamHuntersEnricher != null && SteamSchema != null);
+            var enricher = _steam?.SteamHuntersEnricher;
+            // Each run starts with an empty per-app cache and a fresh failure backoff.
+            enricher?.ClearCache();
+            return Task.FromResult(enricher != null);
+        }
+
+        private static bool IsSteamServiced(MetadataLinkRequest request) =>
+            string.Equals(request?.ServicingProviderKey, "Steam", StringComparison.OrdinalIgnoreCase) &&
+            request.Data?.AppId > 0;
+
+        /// <summary>A Steam game's own appId.</summary>
+        public string ImplicitLinkId(MetadataLinkRequest request) =>
+            IsSteamServiced(request) ? request.Data.AppId.ToString(CultureInfo.InvariantCulture) : null;
+
+        /// <summary>A Steam game's own appId, from its cached data.</summary>
+        public string ImplicitLinkId(Guid gameId)
+        {
+            if (gameId == Guid.Empty)
+            {
+                return null;
+            }
+
+            var cached = PlayniteAchievementsPlugin.Instance?.CacheManager?.LoadGameData(gameId.ToString());
+            return string.Equals(cached?.ProviderKey, "Steam", StringComparison.OrdinalIgnoreCase) && cached.AppId > 0
+                ? cached.AppId.ToString(CultureInfo.InvariantCulture)
+                : null;
         }
 
         public void EndRun()
@@ -101,7 +126,7 @@ namespace PlayniteAchievements.Providers.Metadata
         public async Task<MetadataSourceLink> ResolveLinkAsync(MetadataLinkRequest request, CancellationToken ct)
         {
             var game = request?.Game;
-            if (game == null)
+            if (game == null || SteamSchema == null)
             {
                 return null;
             }
@@ -205,6 +230,16 @@ namespace PlayniteAchievements.Providers.Metadata
                 return null;
             }
 
+            if (IsSteamServiced(request) && appId == request.Data.AppId)
+            {
+                return await FetchOwnAsync(request, appId, ct).ConfigureAwait(false);
+            }
+
+            if (SteamSchema == null)
+            {
+                return null;
+            }
+
             var appIdText = appId.ToString(CultureInfo.InvariantCulture);
             var rows = await SteamSchema.GetAchievementsAsync(appIdText, Language, ct).ConfigureAwait(false);
             if (rows == null || rows.Count == 0)
@@ -229,6 +264,34 @@ namespace PlayniteAchievements.Providers.Metadata
                 SharesApiNames = gameId.HasValue && TryGetManualSteamAppId(gameId.Value, out var manualAppId) &&
                                  string.Equals(manualAppId, appIdText, StringComparison.Ordinal),
                 ExtendedLinkId = string.Equals(appIdText, linkId?.Trim(), StringComparison.Ordinal) ? null : appIdText
+            };
+        }
+
+        /// <summary>
+        /// SteamHunters' grouping of a Steam game's own achievements. The rows are copies of the
+        /// refreshed payload, so no schema is fetched (and no Steam sign-in is needed), the titles
+        /// are already in the plugin's language, and every row joins its achievement by ApiName.
+        /// </summary>
+        private async Task<AchievementSourceSet> FetchOwnAsync(MetadataLinkRequest request, int appId, CancellationToken ct)
+        {
+            var rows = SteamHuntersCategoryEnricher.OwnRowsFor(request.Data.Achievements);
+            if (rows.Count == 0)
+            {
+                return null;
+            }
+
+            var applied = await _steam.SteamHuntersEnricher
+                .EnrichAsync(appId, request.Data.GameName ?? request.Game?.Name, rows, request.Game?.Id, ct)
+                .ConfigureAwait(false);
+            if (!applied)
+            {
+                return null;
+            }
+
+            return new AchievementSourceSet(Key, appId.ToString(CultureInfo.InvariantCulture), rows)
+            {
+                SharesApiNames = true,
+                KeepsNoMatchList = true
             };
         }
 
