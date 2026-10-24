@@ -275,7 +275,7 @@ namespace PlayniteAchievements.Models.Achievements
 
         public PlayniteAchievements.Models.Tagging.CustomizationArea? MetadataFields { get; set; }
 
-        public Dictionary<PlayniteAchievements.Models.Tagging.CustomizationArea, HashSet<string>> ProviderMetadataApiNames { get; set; }
+        public bool KeepStoredMetadata { get; set; }
 
         public bool HasAchievements { get; set; } = true;
 
