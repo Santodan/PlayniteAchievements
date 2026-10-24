@@ -269,7 +269,7 @@ namespace PlayniteAchievements.Providers.Metadata.Exophase
                 foreach (var slug in MetadataLinkIds.Parse(linkId).Select(PageSlug).Where(slug => slug != null))
                 {
                     var page = await _pages.GetPageAsync(slug, platform, ct).ConfigureAwait(false);
-                    seeds.AddRange(ExophaseGamePageParser.ParseRelatedPages(page?.Html)
+                    seeds.AddRange((page?.RelatedPages ?? Array.Empty<ExophaseRelatedPage>())
                         .Where(related => related.Platform.StartsWith(family, StringComparison.OrdinalIgnoreCase))
                         .Select(related => new MetadataPageCandidate(related.Slug, null, $"{branch.Key}'s Also on")));
                 }
@@ -334,7 +334,7 @@ namespace PlayniteAchievements.Providers.Metadata.Exophase
             }
 
             var page = await _pages.GetPageAsync(slug, _branch.PlatformHint, ct).ConfigureAwait(false);
-            var preferred = ExophaseGamePageParser.ParseRelatedPages(page?.Html)
+            var preferred = (page?.RelatedPages ?? Array.Empty<ExophaseRelatedPage>())
                 .FirstOrDefault(related => string.Equals(related.Platform, _branch.PreferredPlatform, StringComparison.OrdinalIgnoreCase))
                 ?.Slug;
             if (string.IsNullOrWhiteSpace(preferred) || string.Equals(preferred, slug, StringComparison.OrdinalIgnoreCase))
@@ -383,7 +383,8 @@ namespace PlayniteAchievements.Providers.Metadata.Exophase
             var page = await _pages.GetPageAsync(slug, platformSlug, ct).ConfigureAwait(false);
             var rows = page?.Achievements ?? new List<AchievementDetail>();
             var categoryArt = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-            ApplySections(rows, ExophaseGamePageParser.ParseAwardSections(page?.Html, out var gameArt), categoryArt, request?.BaseCategoryLabel);
+            var gameArt = page?.GameArtUrl;
+            ApplySections(rows, page?.Sections ?? Array.Empty<ExophaseAwardSection>(), categoryArt, request?.BaseCategoryLabel);
             if (rows.Count == 0)
             {
                 return null;

@@ -17,6 +17,12 @@ namespace PlayniteAchievements.Services.Cache
     {
         List<GameAchievementData> LoadAllGameDataFast();
 
+        /// <summary>
+        /// Every cached game with its identity (name, provider, ids) and no achievements, for
+        /// lookups that would otherwise read every achievement in the library.
+        /// </summary>
+        List<GameAchievementData> LoadAllGameHeadersFast();
+
         CachedSummaryData LoadCachedSummaryDataFast(int recentAchievementDetailLimit = 0);
 
         /// <summary>

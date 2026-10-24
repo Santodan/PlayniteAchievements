@@ -32,8 +32,9 @@ namespace PlayniteAchievements.Providers.Metadata.TrueGaming
         private readonly OffscreenViewLeaseSource _views;
         private readonly ILogger _logger;
         private readonly TrueGamingPageStore _store;
-        private readonly Dictionary<string, TrueGamingPage> _pages =
-            new Dictionary<string, TrueGamingPage>(StringComparer.OrdinalIgnoreCase);
+        // Pages are shared while a game is looked up and fetched, so only the recent ones are kept.
+        private readonly LruCache<string, TrueGamingPage> _pages =
+            new LruCache<string, TrueGamingPage>(64, StringComparer.OrdinalIgnoreCase);
 
         private IDisposable _lease;
 
@@ -627,7 +628,7 @@ namespace PlayniteAchievements.Providers.Metadata.TrueGaming
 
             lock (_pages)
             {
-                _pages[url] = page;
+                _pages.Set(url, page);
             }
 
             return page;

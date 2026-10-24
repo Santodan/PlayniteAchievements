@@ -708,133 +708,145 @@ namespace PlayniteAchievements.Services.Database
 
         public List<KeyValuePair<string, GameAchievementData>> LoadAllCurrentUserGameDataByCacheKey()
         {
-            return WithReadDb(db =>
+            return WithReadDb(db => LoadAllCurrentUserGames(db, withAchievements: true));
+        }
+
+        /// <summary>
+        /// Every current-user game as <see cref="LoadAllCurrentUserGameDataByCacheKey"/> returns it,
+        /// but with no achievements: one query over the games, for callers that only need a game's
+        /// identity (name, provider, ids).
+        /// </summary>
+        public List<KeyValuePair<string, GameAchievementData>> LoadAllCurrentUserGameHeadersByCacheKey()
+        {
+            return WithReadDb(db => LoadAllCurrentUserGames(db, withAchievements: false));
+        }
+
+        private List<KeyValuePair<string, GameAchievementData>> LoadAllCurrentUserGames(SQLiteDatabase db, bool withAchievements)
+        {
+            var progressRows = db.Load<ProgressGameJoinRow>(
+                @"WITH LatestProgress AS (
+                    SELECT
+                        ugp.Id AS UserGameProgressId,
+                        ugp.GameId AS GameId,
+                        TRIM(ugp.CacheKey) AS CacheKey,
+                        ugp.HasAchievements AS HasAchievements,
+                        ugp.LastUpdatedUtc AS LastUpdatedUtc,
+                        g.ProviderKey AS ProviderKey,
+                        g.ProviderPlatformKey AS ProviderPlatformKey,
+                        g.ProviderGameId AS ProviderGameId,
+                        g.ProviderGameKey AS ProviderGameKey,
+                        g.PlayniteGameId AS PlayniteGameId,
+                        g.GameName AS GameName,
+                        g.LibrarySourceName AS LibrarySourceName,
+                        g.RaritySource AS RaritySource,
+                        g.PlatformFields AS PlatformFields,
+                        g.MetadataFields AS MetadataFields,
+                        ROW_NUMBER() OVER (
+                            PARTITION BY ugp.CacheKey
+                            ORDER BY ugp.LastUpdatedUtc DESC, ugp.Id DESC
+                        ) AS RowNum
+                    FROM UserGameProgress ugp
+                    INNER JOIN Users u ON u.Id = ugp.UserId
+                    INNER JOIN Games g ON g.Id = ugp.GameId
+                    WHERE u.IsCurrentUser = 1
+                      AND ugp.CacheKey IS NOT NULL
+                      AND TRIM(ugp.CacheKey) <> ''
+                )
+                SELECT
+                    UserGameProgressId,
+                    GameId,
+                    CacheKey,
+                    HasAchievements,
+                    LastUpdatedUtc,
+                    ProviderKey,
+                    ProviderPlatformKey,
+                    ProviderGameId,
+                    ProviderGameKey,
+                    PlayniteGameId,
+                    GameName,
+                    LibrarySourceName,
+                    RaritySource,
+                    PlatformFields,
+                    MetadataFields
+                FROM LatestProgress
+                WHERE RowNum = 1
+                ORDER BY LastUpdatedUtc DESC, UserGameProgressId DESC;").ToList();
+
+            if (progressRows.Count == 0)
             {
-                var progressRows = db.Load<ProgressGameJoinRow>(
-                    @"WITH LatestProgress AS (
-                        SELECT
-                            ugp.Id AS UserGameProgressId,
-                            ugp.GameId AS GameId,
-                            TRIM(ugp.CacheKey) AS CacheKey,
-                            ugp.HasAchievements AS HasAchievements,
-                            ugp.LastUpdatedUtc AS LastUpdatedUtc,
-                            g.ProviderKey AS ProviderKey,
-                            g.ProviderPlatformKey AS ProviderPlatformKey,
-                            g.ProviderGameId AS ProviderGameId,
-                            g.ProviderGameKey AS ProviderGameKey,
-                            g.PlayniteGameId AS PlayniteGameId,
-                            g.GameName AS GameName,
-                            g.LibrarySourceName AS LibrarySourceName,
-                            g.RaritySource AS RaritySource,
-                            g.PlatformFields AS PlatformFields,
-                            g.MetadataFields AS MetadataFields,
-                            ROW_NUMBER() OVER (
-                                PARTITION BY ugp.CacheKey
-                                ORDER BY ugp.LastUpdatedUtc DESC, ugp.Id DESC
-                            ) AS RowNum
-                        FROM UserGameProgress ugp
-                        INNER JOIN Users u ON u.Id = ugp.UserId
-                        INNER JOIN Games g ON g.Id = ugp.GameId
-                        WHERE u.IsCurrentUser = 1
-                          AND ugp.CacheKey IS NOT NULL
-                          AND TRIM(ugp.CacheKey) <> ''
-                    )
+                return new List<KeyValuePair<string, GameAchievementData>>();
+            }
+
+            var selectedByProgressId = new Dictionary<long, ProgressGameJoinRow>(progressRows.Count);
+            var selectedByCacheKey = new Dictionary<string, ProgressGameJoinRow>(StringComparer.OrdinalIgnoreCase);
+            var modelsByProgressId = new Dictionary<long, GameAchievementData>(progressRows.Count);
+            for (int i = 0; i < progressRows.Count; i++)
+            {
+                var row = progressRows[i];
+                var cacheKey = row?.CacheKey?.Trim();
+                if (string.IsNullOrWhiteSpace(cacheKey) || row == null)
+                {
+                    continue;
+                }
+
+                row.CacheKey = cacheKey;
+                selectedByCacheKey[cacheKey] = row;
+                selectedByProgressId[row.UserGameProgressId] = row;
+
+                var model = CreateModel(row);
+                BackfillPlayniteGameIdFromCacheKey(model, row.CacheKey);
+                modelsByProgressId[row.UserGameProgressId] = model;
+            }
+
+            var detailRows = !withAchievements ? new List<ProgressAchievementJoinRow>() : db.Load<ProgressAchievementJoinRow>(
+                @"WITH LatestProgress AS (
                     SELECT
-                        UserGameProgressId,
-                        GameId,
-                        CacheKey,
-                        HasAchievements,
-                        LastUpdatedUtc,
-                        ProviderKey,
-                        ProviderPlatformKey,
-                        ProviderGameId,
-                        ProviderGameKey,
-                        PlayniteGameId,
-                        GameName,
-                        LibrarySourceName,
-                        RaritySource,
-                        PlatformFields,
-                        MetadataFields
-                    FROM LatestProgress
-                    WHERE RowNum = 1
-                    ORDER BY LastUpdatedUtc DESC, UserGameProgressId DESC;").ToList();
+                        ugp.Id AS UserGameProgressId,
+                        ugp.GameId AS GameId,
+                        ROW_NUMBER() OVER (
+                            PARTITION BY ugp.CacheKey
+                            ORDER BY ugp.LastUpdatedUtc DESC, ugp.Id DESC
+                        ) AS RowNum
+                    FROM UserGameProgress ugp
+                    INNER JOIN Users u ON u.Id = ugp.UserId
+                    WHERE u.IsCurrentUser = 1
+                      AND ugp.CacheKey IS NOT NULL
+                      AND TRIM(ugp.CacheKey) <> ''
+                )
+                SELECT
+                    lp.UserGameProgressId AS UserGameProgressId,
+                    " + AchievementDetailColumnsSql + @"
+                  FROM LatestProgress lp
+                  INNER JOIN AchievementDefinitions ad ON ad.GameId = lp.GameId
+                  LEFT JOIN UserAchievements ua
+                    ON ua.AchievementDefinitionId = ad.Id
+                   AND ua.UserGameProgressId = lp.UserGameProgressId
+                  WHERE lp.RowNum = 1
+                  ORDER BY lp.UserGameProgressId, ad.Id;").ToList();
 
-                if (progressRows.Count == 0)
+            for (int i = 0; i < detailRows.Count; i++)
+            {
+                var row = detailRows[i];
+                if (row == null ||
+                    string.IsNullOrWhiteSpace(row.ApiName) ||
+                    !modelsByProgressId.TryGetValue(row.UserGameProgressId, out var model))
                 {
-                    return new List<KeyValuePair<string, GameAchievementData>>();
+                    continue;
                 }
 
-                var selectedByProgressId = new Dictionary<long, ProgressGameJoinRow>(progressRows.Count);
-                var selectedByCacheKey = new Dictionary<string, ProgressGameJoinRow>(StringComparer.OrdinalIgnoreCase);
-                var modelsByProgressId = new Dictionary<long, GameAchievementData>(progressRows.Count);
-                for (int i = 0; i < progressRows.Count; i++)
+                model.Achievements.Add(MapAchievementDetail(row));
+            }
+
+            return selectedByCacheKey
+                .OrderBy(a => a.Key, StringComparer.OrdinalIgnoreCase)
+                .Select(a =>
                 {
-                    var row = progressRows[i];
-                    var cacheKey = row?.CacheKey?.Trim();
-                    if (string.IsNullOrWhiteSpace(cacheKey) || row == null)
-                    {
-                        continue;
-                    }
-
-                    row.CacheKey = cacheKey;
-                    selectedByCacheKey[cacheKey] = row;
-                    selectedByProgressId[row.UserGameProgressId] = row;
-
-                    var model = CreateModel(row);
-                    BackfillPlayniteGameIdFromCacheKey(model, row.CacheKey);
-                    modelsByProgressId[row.UserGameProgressId] = model;
-                }
-
-                var detailRows = db.Load<ProgressAchievementJoinRow>(
-                    @"WITH LatestProgress AS (
-                        SELECT
-                            ugp.Id AS UserGameProgressId,
-                            ugp.GameId AS GameId,
-                            ROW_NUMBER() OVER (
-                                PARTITION BY ugp.CacheKey
-                                ORDER BY ugp.LastUpdatedUtc DESC, ugp.Id DESC
-                            ) AS RowNum
-                        FROM UserGameProgress ugp
-                        INNER JOIN Users u ON u.Id = ugp.UserId
-                        WHERE u.IsCurrentUser = 1
-                          AND ugp.CacheKey IS NOT NULL
-                          AND TRIM(ugp.CacheKey) <> ''
-                    )
-                    SELECT
-                        lp.UserGameProgressId AS UserGameProgressId,
-                        " + AchievementDetailColumnsSql + @"
-                      FROM LatestProgress lp
-                      INNER JOIN AchievementDefinitions ad ON ad.GameId = lp.GameId
-                      LEFT JOIN UserAchievements ua
-                        ON ua.AchievementDefinitionId = ad.Id
-                       AND ua.UserGameProgressId = lp.UserGameProgressId
-                      WHERE lp.RowNum = 1
-                      ORDER BY lp.UserGameProgressId, ad.Id;").ToList();
-
-                for (int i = 0; i < detailRows.Count; i++)
-                {
-                    var row = detailRows[i];
-                    if (row == null ||
-                        string.IsNullOrWhiteSpace(row.ApiName) ||
-                        !modelsByProgressId.TryGetValue(row.UserGameProgressId, out var model))
-                    {
-                        continue;
-                    }
-
-                    model.Achievements.Add(MapAchievementDetail(row));
-                }
-
-                return selectedByCacheKey
-                    .OrderBy(a => a.Key, StringComparer.OrdinalIgnoreCase)
-                    .Select(a =>
-                    {
-                        return modelsByProgressId.TryGetValue(a.Value.UserGameProgressId, out var model)
-                            ? new KeyValuePair<string, GameAchievementData>(a.Key, model)
-                            : default(KeyValuePair<string, GameAchievementData>);
-                    })
-                    .Where(a => !string.IsNullOrWhiteSpace(a.Key) && a.Value != null)
-                    .ToList();
-            });
+                    return modelsByProgressId.TryGetValue(a.Value.UserGameProgressId, out var model)
+                        ? new KeyValuePair<string, GameAchievementData>(a.Key, model)
+                        : default(KeyValuePair<string, GameAchievementData>);
+                })
+                .Where(a => !string.IsNullOrWhiteSpace(a.Key) && a.Value != null)
+                .ToList();
         }
 
         private AchievementDetail MapAchievementDetail(IAchievementDetailJoinRow row)

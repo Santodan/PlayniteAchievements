@@ -1073,8 +1073,12 @@ namespace PlayniteAchievements.Services.Images
                                 resp.EnsureSuccessStatusCode();
                             }
 
+                            // Sized from Content-Length when the server sends it, so the buffer is
+                            // allocated once instead of doubling, and handed back without a copy.
+                            var declared = resp.Content.Headers.ContentLength;
+                            var capacity = declared > 0 && declared <= MaxBytes ? (int)declared.Value : 0;
                             using (var stream = await resp.Content.ReadAsStreamAsync().ConfigureAwait(false))
-                            using (var ms = new MemoryStream())
+                            using (var ms = new MemoryStream(capacity))
                             {
                                 var buffer = new byte[64 * 1024]; // 64KB buffer for faster downloads
                                 int read;
@@ -1090,7 +1094,7 @@ namespace PlayniteAchievements.Services.Images
                                     ms.Write(buffer, 0, read);
                                 }
 
-                                return ms.ToArray();
+                                return capacity > 0 && ms.Length == capacity ? ms.GetBuffer() : ms.ToArray();
                             }
                         }
                     }

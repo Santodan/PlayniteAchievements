@@ -1,4 +1,5 @@
 using Playnite.SDK;
+using PlayniteAchievements.Common;
 using PlayniteAchievements.Models;
 using PlayniteAchievements.Providers.Exophase;
 using System;
@@ -12,7 +13,8 @@ namespace PlayniteAchievements.Providers.Metadata.Exophase
     /// <summary>
     /// Exophase award pages and searches shared by the Exophase metadata branches. Public pages
     /// only, so no Exophase sign-in is involved. One browser view and one page cache span a refresh
-    /// run while any branch has it open; a page two branches read is loaded once.
+    /// run while any branch has it open; a page two branches read for a game is loaded once. The
+    /// cache keeps each page's parsed contents, not its source, and only the most recent pages.
     /// </summary>
     internal sealed class ExophasePageSource
     {
@@ -20,8 +22,11 @@ namespace PlayniteAchievements.Providers.Metadata.Exophase
         private readonly PlayniteAchievementsSettings _settings;
         private readonly ILogger _logger;
         private readonly object _sync = new object();
-        private readonly Dictionary<string, ExophaseApiClient.AchievementFetchResult> _pages =
-            new Dictionary<string, ExophaseApiClient.AchievementFetchResult>(StringComparer.OrdinalIgnoreCase);
+        // The branches share a game's pages while it is being looked up, so the cache needs to
+        // span only the games in flight, not the whole run.
+        private const int PageCacheCapacity = 64;
+        private readonly LruCache<string, ExophaseAwardPage> _pages =
+            new LruCache<string, ExophaseAwardPage>(PageCacheCapacity, StringComparer.OrdinalIgnoreCase);
         private readonly Dictionary<string, string> _searches = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         private readonly Dictionary<string, List<ExophaseGame>> _results = new Dictionary<string, List<ExophaseGame>>(StringComparer.OrdinalIgnoreCase);
         private int _openRuns;
@@ -68,7 +73,7 @@ namespace PlayniteAchievements.Providers.Metadata.Exophase
         /// PlayStation, challenges for Ubisoft). <paramref name="english"/> asks for the English
         /// page whatever the language.
         /// </summary>
-        public async Task<ExophaseApiClient.AchievementFetchResult> GetPageAsync(
+        public async Task<ExophaseAwardPage> GetPageAsync(
             string slug,
             string platformSlug,
             CancellationToken ct,
@@ -85,22 +90,25 @@ namespace PlayniteAchievements.Providers.Metadata.Exophase
             }
 
             var url = ExophaseApiClient.BuildUrlFromSlug(slug, platformSlug);
-            var page = await _client.FetchAchievementsWithHtmlAsync(
-                ExophaseGamePageParser.LocalizeAwardPageUrl(url, language), null, ct).ConfigureAwait(false);
+            var page = await _client.FetchAwardPageAsync(
+                ExophaseGamePageParser.LocalizeAwardPageUrl(url, language), ct).ConfigureAwait(false);
             var fellBack = false;
-            if (language != null && !(page?.Achievements?.Count > 0))
+            // A localized address that is missing means the English one is too, so only a page
+            // that loaded without awards, or failed to load, is asked for again in English.
+            if (language != null && !(page?.Achievements?.Count > 0) && page?.IsMissing != true)
             {
-                page = await _client.FetchAchievementsWithHtmlAsync(url, null, ct).ConfigureAwait(false);
+                page = await _client.FetchAwardPageAsync(url, ct).ConfigureAwait(false);
                 fellBack = true;
             }
 
             lock (_sync)
             {
-                _pages[cacheKey] = page;
-                if (fellBack)
+                _pages.Set(cacheKey, page);
+                if (fellBack || page?.IsMissing == true)
                 {
-                    // What the language fell back to is the English page, asked for again in English.
-                    _pages[PageKey(slug, platformSlug, null)] = page;
+                    // What the language fell back to is the English page, asked for again in
+                    // English; a missing page is missing in English as well.
+                    _pages.Set(PageKey(slug, platformSlug, null), page);
                 }
             }
 
@@ -114,11 +122,8 @@ namespace PlayniteAchievements.Providers.Metadata.Exophase
         /// True for a page load that says nothing about whether the page exists: a failed load or
         /// a challenge page, as opposed to a page that loaded and lists no awards.
         /// </summary>
-        public static bool IsUnreadable(ExophaseApiClient.AchievementFetchResult page) =>
-            page == null ||
-            (!(page.Achievements?.Count > 0) &&
-             (page.Html?.IndexOf("Just a moment", StringComparison.OrdinalIgnoreCase) >= 0 ||
-              page.Html?.IndexOf("cf-chl", StringComparison.OrdinalIgnoreCase) >= 0));
+        public static bool IsUnreadable(ExophaseAwardPage page) =>
+            page == null || (!(page.Achievements?.Count > 0) && page.IsChallenge);
 
         /// <summary>
         /// Every page Exophase search offers for <paramref name="name"/> on one of

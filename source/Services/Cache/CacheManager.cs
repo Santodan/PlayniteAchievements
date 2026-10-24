@@ -168,6 +168,36 @@ namespace PlayniteAchievements.Services.Cache
             return LoadAllGameDataFast();
         }
 
+        List<GameAchievementData> ICacheReadOptimizations.LoadAllGameHeadersFast()
+        {
+            return LoadAllGameHeaders().ConvertAll(record => record.Value);
+        }
+
+        /// <summary>
+        /// Every current-user game without its achievements, read off <c>_sync</c>; the memory
+        /// cache is neither read nor filled, since it holds whole games.
+        /// </summary>
+        private List<KeyValuePair<string, GameAchievementData>> LoadAllGameHeaders()
+        {
+            EnsureReadyForRead("LoadAllGameHeaders");
+            var records = _store.LoadAllCurrentUserGameHeadersByCacheKey() ??
+                          new List<KeyValuePair<string, GameAchievementData>>();
+            var result = new List<KeyValuePair<string, GameAchievementData>>(records.Count);
+            foreach (var record in records)
+            {
+                var cacheKey = UserKey(record.Key);
+                if (string.IsNullOrWhiteSpace(cacheKey) || record.Value == null)
+                {
+                    continue;
+                }
+
+                NormalizeLoadedData(cacheKey, record.Value);
+                result.Add(new KeyValuePair<string, GameAchievementData>(cacheKey, record.Value));
+            }
+
+            return result;
+        }
+
         CachedSummaryData ICacheReadOptimizations.LoadCachedSummaryDataFast(int recentAchievementDetailLimit)
         {
             return LoadCachedSummaryDataFast(recentAchievementDetailLimit);
@@ -951,8 +981,10 @@ namespace PlayniteAchievements.Services.Cache
                                 }
                             }
 
+                            // The memory cache keeps its own copy; the freshly read record is
+                            // otherwise unshared, so it goes to the caller as is.
                             SetMemoryGameData_Locked(cacheKey, dbData);
-                            result.Add(CloneGameData(dbData));
+                            result.Add(dbData);
                         }
 
                         if (pruneStaleEntries)
@@ -1733,9 +1765,7 @@ namespace PlayniteAchievements.Services.Cache
 
         IReadOnlyList<CurrentUserGameLabel> IFriendCacheManager.LoadCurrentUserGameLabels()
         {
-            EnsureReadyForRead("LoadCurrentUserGameLabels");
-            var records = _store.LoadAllCurrentUserGameDataByCacheKey() ??
-                          new List<KeyValuePair<string, GameAchievementData>>();
+            var records = LoadAllGameHeaders();
 
             var labels = new List<CurrentUserGameLabel>(records.Count);
             for (var i = 0; i < records.Count; i++)

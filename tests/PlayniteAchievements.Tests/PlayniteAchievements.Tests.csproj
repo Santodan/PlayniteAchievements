@@ -395,6 +395,7 @@
     <Compile Include="..\..\source\Providers\Exophase\ExophaseGameNameMatcher.cs" Link="Source\Providers\Exophase\ExophaseGameNameMatcher.cs" />
     <Compile Include="..\..\source\Common\StringSimilarity.cs" Link="Source\Common\StringSimilarity.cs" />
     <Compile Include="..\..\source\Common\KeySequenceMatcher.cs" Link="Source\Common\KeySequenceMatcher.cs" />
+    <Compile Include="..\..\source\Common\LruCache.cs" Link="Source\Common\LruCache.cs" />
     <Compile Include="..\..\source\Common\GameNameNormalizer.cs" Link="Source\Common\GameNameNormalizer.cs" />
     <Compile Include="..\..\source\Services\GameSearch\IGameSearchSource.cs" Link="Source\Services\GameSearch\IGameSearchSource.cs" />
     <Compile Include="..\..\source\Services\GameSearch\GameSearchRanking.cs" Link="Source\Services\GameSearch\GameSearchRanking.cs" />
