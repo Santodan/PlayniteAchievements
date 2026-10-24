@@ -66,6 +66,7 @@ namespace PlayniteAchievements.Services.Metadata
                 SharesApiNames = fetched.All(list => list.Set.SharesApiNames),
                 ApiNamesMayBeShared = fetched.Any(list => list.Set.ApiNamesMayBeShared),
                 UnavailableFields = fetched.Aggregate(MetadataField.None, (fields, list) => fields | list.Set.UnavailableFields),
+                TextInPluginLanguage = fetched.All(list => list.Set.TextInPluginLanguage),
                 Lists = fetched
                     .Select(list => new MetadataSourceList(
                         list.Id,
