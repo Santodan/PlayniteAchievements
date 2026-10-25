@@ -218,8 +218,8 @@
                              from here: layout rounding resolves an element's rect in its parent's
                              coordinate space, so it cannot repair a fractional offset an ancestor
                              already introduced. See the root Grid. -->
-                        <!-- A blurred-background style fills this frame with a game image and gives
-                             the card a blurred copy of it (ToastPreviewBackdrop). -->
+                        <!-- Filled with a game image behind the card, and a blurred copy of it for a
+                             blurred-background card (ToastPreviewBackdrop). -->
                         <Border x:Name="ToastMockupFrame"
                                 Grid.Column="0"
                                 Background="{DynamicResource PlayAch.Brush.Surface}"
