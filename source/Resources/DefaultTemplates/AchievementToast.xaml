@@ -98,6 +98,12 @@
                                     <Setter Property="Background" Value="Transparent"/>
                                     <Setter Property="BorderThickness" Value="0"/>
                                 </DataTrigger>
+                                <!-- Fully opaque even when the theme's surface is not, and without
+                                     its border: the tint layer above draws the card's one edge. -->
+                                <DataTrigger Binding="{Binding HasToastBlur}" Value="True">
+                                    <Setter Property="Background" Value="{Binding ToastBlurSurfaceBrush}"/>
+                                    <Setter Property="BorderThickness" Value="0"/>
+                                </DataTrigger>
                             </Style.Triggers>
                         </Style>
                     </Border.Style>
@@ -139,6 +145,8 @@
                     </Border>
                     <Border CornerRadius="8"
                             Background="{Binding ToastBlurTintBrush}"
+                            BorderBrush="{DynamicResource PlayAch.Brush.PopupBorder}"
+                            BorderThickness="1"
                             Visibility="{Binding HasToastBlur, Converter={StaticResource BooleanToVisibilityConverter}}"/>
 
                     <!-- Crisp user background image (what is actually seen), full-bleed behind the
