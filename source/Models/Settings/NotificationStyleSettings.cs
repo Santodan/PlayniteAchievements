@@ -217,6 +217,9 @@ namespace PlayniteAchievements.Models.Settings
         private ToastScreenCorner? _position;
         private FrameVignetteStyle _frameVignette = FrameVignetteStyle.Full;
         private double? _frameVignetteStrength;
+        private bool _blurBackground;
+        private double? _blurStrength;
+        private double? _blurTintOpacity;
         private int? _imageKeyframeMs;
         private List<string> _lineOrder;
         private string _fontFamily;
@@ -526,6 +529,38 @@ namespace PlayniteAchievements.Models.Settings
         {
             get => _frameVignetteStrength;
             set => SetValue(ref _frameVignetteStrength, value);
+        }
+
+        /// <summary>
+        /// When true, the toast card shows a live blur of the game behind it, under a tint of the
+        /// theme surface color, in place of the surface brush or background image. Toast surface
+        /// only; the frame ignores this.
+        /// </summary>
+        public bool BlurBackground
+        {
+            get => _blurBackground;
+            set => SetValue(ref _blurBackground, value);
+        }
+
+        /// <summary>
+        /// How far the blurred background spreads (0-100; 0 leaves it sharp), or null for the
+        /// default (50). Applies only while <see cref="BlurBackground"/> is on.
+        /// </summary>
+        public double? BlurStrength
+        {
+            get => _blurStrength;
+            set => SetValue(ref _blurStrength, value);
+        }
+
+        /// <summary>
+        /// Opacity (0-100) of the tint drawn over the blurred background, or null for the default
+        /// (50). 0 leaves the blur untinted; 100 hides it behind the solid surface color. Applies
+        /// only while <see cref="BlurBackground"/> is on.
+        /// </summary>
+        public double? BlurTintOpacity
+        {
+            get => _blurTintOpacity;
+            set => SetValue(ref _blurTintOpacity, value);
         }
 
         /// <summary>
@@ -957,6 +992,9 @@ namespace PlayniteAchievements.Models.Settings
                 Position = Position,
                 FrameVignette = FrameVignette,
                 FrameVignetteStrength = FrameVignetteStrength,
+                BlurBackground = BlurBackground,
+                BlurStrength = BlurStrength,
+                BlurTintOpacity = BlurTintOpacity,
                 ImageKeyframeMs = ImageKeyframeMs,
                 LineOrder = LineOrder != null ? new List<string>(LineOrder) : null,
                 FontFamily = FontFamily,

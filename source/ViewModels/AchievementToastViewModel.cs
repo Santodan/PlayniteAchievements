@@ -12,6 +12,7 @@ using Playnite.SDK;
 using PlayniteAchievements.Models;
 using PlayniteAchievements.Models.Achievements;
 using PlayniteAchievements.Models.Settings;
+using PlayniteAchievements.Services.Capture;
 using PlayniteAchievements.Services.GameCustomData;
 using PlayniteAchievements.Services.Images;
 using PlayniteAchievements.Services.Images.Webm;
@@ -62,6 +63,8 @@ namespace PlayniteAchievements.ViewModels
         private readonly NotificationStyleSettings _style;
         private ImageSource _toastBackgroundRenderSourceOverride;
         private readonly bool _useToastBackgroundRenderSourceOverride;
+        private ImageSource _liveBackdrop;
+        private Rect _liveBackdropViewbox = new Rect(0, 0, 1, 1);
         private readonly RarityTier _rarity;
         private string _iconDisplaySource;
         private ImageSource _iconImage;
@@ -1379,8 +1382,63 @@ namespace PlayniteAchievements.ViewModels
         {
             get
             {
+                if (HasToastBlur)
+                {
+                    return false;
+                }
+
                 var path = _style.ToastBackgroundImagePath;
                 return !string.IsNullOrWhiteSpace(path) && File.Exists(path);
+            }
+        }
+
+        /// <summary>
+        /// True when the card shows a live blur of the game behind it (<see cref="LiveBackdrop"/>)
+        /// under <see cref="ToastBlurTintBrush"/>.
+        /// </summary>
+        public bool HasToastBlur => _style.Toast.BlurBackground;
+
+        /// <summary>How far the blurred background spreads, in physical screen pixels.</summary>
+        public double BlurReachPhys => ToastBlurPatch.ReachForStrength(_style.Toast.BlurStrength);
+
+        /// <summary>
+        /// The live blurred capture behind the card, or null until the first frame arrives (and
+        /// always in the settings preview, which has no game behind it). Shared by every card of a
+        /// wave; <see cref="LiveBackdropViewbox"/> picks this card's part of it.
+        /// </summary>
+        public ImageSource LiveBackdrop => _liveBackdrop;
+
+        /// <summary>This card's part of <see cref="LiveBackdrop"/>, as fractions of the image.</summary>
+        public Rect LiveBackdropViewbox => _liveBackdropViewbox;
+
+        /// <summary>Updates the live background. UI thread only, called once per rendered frame.</summary>
+        internal void SetLiveBackdrop(ImageSource source, Rect viewbox)
+        {
+            if (!ReferenceEquals(_liveBackdrop, source))
+            {
+                _liveBackdrop = source;
+                PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(LiveBackdrop)));
+            }
+
+            if (_liveBackdropViewbox != viewbox)
+            {
+                _liveBackdropViewbox = viewbox;
+                PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(LiveBackdropViewbox)));
+            }
+        }
+
+        /// <summary>
+        /// The theme surface brush at the style's tint opacity, drawn over the blurred backdrop.
+        /// </summary>
+        public Brush ToastBlurTintBrush
+        {
+            get
+            {
+                var surface = Application.Current?.TryFindResource("PlayAch.Brush.PopupSurface") as Brush;
+                var tint = surface != null ? surface.Clone() : new SolidColorBrush(Colors.Black);
+                tint.Opacity = NormalizePercent(_style.Toast.BlurTintOpacity, DefaultBlurTintOpacity);
+                tint.Freeze();
+                return tint;
             }
         }
 
@@ -1440,6 +1498,10 @@ namespace PlayniteAchievements.ViewModels
 
         // The percent value that maps to the built-in frame vignette; shared with the editor.
         public const double DefaultFrameVignetteStrength = 50;
+
+        // The blur strength and tint opacity of a blurred toast background; shared with the editor.
+        public const double DefaultBlurStrength = ToastBlurPatch.DefaultStrength;
+        public const double DefaultBlurTintOpacity = 50;
 
         // Image shadows are single-layer (artwork has no thin glyph edges to solidify), so
         // 100 is both the default and the darkest the layer can go.
