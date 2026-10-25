@@ -10,14 +10,14 @@ using PlayniteAchievements.ViewModels;
 namespace PlayniteAchievements.Views.Settings.Notifications
 {
     /// <summary>
-    /// Gives the settings preview of a blurred-background toast something to sit on: a game image
-    /// fills the preview frame, and the card is handed a blurred copy of the part behind it through
-    /// the same <see cref="AchievementToastViewModel.SetLiveBackdrop"/> the in-game capture feeds,
-    /// blurred by the same <see cref="BoxBlur"/> at the same reach. The card's own template then
-    /// draws it with its tint, border and glow, so both sliders read as they will in game.
+    /// Gives the settings toast preview a game to sit on, as the notification will in game: a game
+    /// image fills the preview frame behind the card. A card with a blurred background is also
+    /// handed a blurred copy of the part behind it through the same
+    /// <see cref="AchievementToastViewModel.SetLiveBackdrop"/> the in-game capture feeds, blurred by
+    /// the same <see cref="BoxBlur"/> at the same reach, so its template draws it with its tint,
+    /// border and glow and both sliders read as they will in game.
     ///
     /// The preview cannot capture what is behind it: anything it captured would contain the card.
-    /// Off while the style has no blurred background, when the frame shows its plain surface.
     /// UI thread only.
     /// </summary>
     internal sealed class ToastPreviewBackdrop
@@ -30,7 +30,11 @@ namespace PlayniteAchievements.Views.Settings.Notifications
         private readonly Func<string> _resolveImagePath;
         private readonly Dictionary<string, BitmapSource> _decoded = new Dictionary<string, BitmapSource>(StringComparer.OrdinalIgnoreCase);
         private BitmapSource _fallback;
-        private bool _showingBackdrop;
+
+        // The frame's current backdrop and what it was cut from, so a rebuild that changes neither
+        // the image nor the frame size (every style edit) reuses it.
+        private BitmapSource _backdrop;
+        private BitmapSource _backdropSource;
 
         /// <param name="frame">The bordered frame around the toast preview.</param>
         /// <param name="resolveImagePath">The image to sit the card on, or null for a generated one.</param>
@@ -41,9 +45,9 @@ namespace PlayniteAchievements.Views.Settings.Notifications
         }
 
         /// <summary>
-        /// Fills the frame and the card's blurred background for <paramref name="vm"/>, whose card
-        /// is the first item of <paramref name="surface"/>, once it is laid out; restores the plain
-        /// frame when the card has no blurred background.
+        /// Fills the frame behind <paramref name="vm"/>'s card (the first item of
+        /// <paramref name="surface"/>), and its blurred background when it has one, once it is laid
+        /// out.
         /// </summary>
         public void Apply(ItemsControl surface, AchievementToastViewModel vm)
         {
@@ -52,13 +56,7 @@ namespace PlayniteAchievements.Views.Settings.Notifications
                 return;
             }
 
-            if (!vm.HasToastBlur)
-            {
-                RestorePlainFrame();
-                return;
-            }
-
-            // The card's place in the frame is a laid-out quantity.
+            // The frame's size and the card's place in it are laid-out quantities.
             _frame.Dispatcher.BeginInvoke(
                 new Action(() => ApplyLaidOut(surface, vm)),
                 System.Windows.Threading.DispatcherPriority.Loaded);
@@ -68,40 +66,41 @@ namespace PlayniteAchievements.Views.Settings.Notifications
         {
             try
             {
-                if (!vm.HasToastBlur || !TryMeasureCard(surface, out var card, out var pxPerDip))
+                if (!TryMeasureCard(surface, out var card, out var pxPerDip))
                 {
                     return;
                 }
 
                 var frameWidth = Math.Max(1, (int)Math.Round(_frame.ActualWidth * pxPerDip));
                 var frameHeight = Math.Max(1, (int)Math.Round(_frame.ActualHeight * pxPerDip));
-                var backdrop = CropToFill(LoadSource(), frameWidth, frameHeight);
-                if (backdrop == null)
+                var source = LoadSource();
+                if (_backdrop == null || !ReferenceEquals(_backdropSource, source) ||
+                    _backdrop.PixelWidth != frameWidth || _backdrop.PixelHeight != frameHeight)
                 {
-                    return;
+                    _backdrop = CropToFill(source, frameWidth, frameHeight);
+                    _backdropSource = source;
+                    if (_backdrop == null)
+                    {
+                        return;
+                    }
+
+                    var brush = new ImageBrush(_backdrop) { Stretch = Stretch.Fill };
+                    brush.Freeze();
+                    _frame.Background = brush;
                 }
 
-                _showingBackdrop = true;
-                _frame.Background = new ImageBrush(backdrop) { Stretch = Stretch.Fill };
-
-                var blurred = BlurredCopy(backdrop, vm.BlurReachPhys);
-                var viewbox = new Rect(
-                    card.X / _frame.ActualWidth, card.Y / _frame.ActualHeight,
-                    card.Width / _frame.ActualWidth, card.Height / _frame.ActualHeight);
-                vm.SetLiveBackdrop(blurred, viewbox);
+                if (vm.HasToastBlur)
+                {
+                    var viewbox = new Rect(
+                        card.X / _frame.ActualWidth, card.Y / _frame.ActualHeight,
+                        card.Width / _frame.ActualWidth, card.Height / _frame.ActualHeight);
+                    vm.SetLiveBackdrop(BlurredCopy(_backdrop, vm.BlurReachPhys), viewbox);
+                }
             }
             catch
             {
-                // The preview keeps the card's tint over its opaque surface.
-            }
-        }
-
-        private void RestorePlainFrame()
-        {
-            if (_showingBackdrop)
-            {
-                _frame.SetResourceReference(Border.BackgroundProperty, "PlayAch.Brush.Surface");
-                _showingBackdrop = false;
+                // The frame keeps its previous backdrop; a blurred card keeps its tint over its
+                // opaque surface.
             }
         }
 
