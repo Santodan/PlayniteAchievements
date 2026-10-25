@@ -28,7 +28,7 @@ namespace PlayniteAchievements.Services.UI
         private const uint WdaNone = 0;
         private const uint WdaExcludeFromCapture = 0x11;
 
-        [DllImport("user32.dll")]
+        [DllImport("user32.dll", SetLastError = true)]
         [return: MarshalAs(UnmanagedType.Bool)]
         private static extern bool SetWindowDisplayAffinity(IntPtr hwnd, uint affinity);
 
@@ -43,6 +43,7 @@ namespace PlayniteAchievements.Services.UI
         private WriteableBitmap _bitmap;
         private System.Drawing.Rectangle _frameRect;
         private TimeSpan _lastRenderingTime = TimeSpan.MinValue;
+        private int _framesApplied;
         private bool _disposed;
 
         private ToastLiveBackdrop(
@@ -59,11 +60,13 @@ namespace PlayniteAchievements.Services.UI
         /// <summary>
         /// Starts the live background for the blurred cards of <paramref name="surface"/>, capturing
         /// <paramref name="gameHwnd"/>, or the toast's monitor when it is zero. Null when no card is
-        /// blurred or capture is unavailable; the cards then show their tint over the opaque surface.
-        /// UI thread; needs the toast window's handle.
+        /// blurred or capture is unavailable, with <paramref name="skipped"/> saying why (null when
+        /// no card asked for it); the cards then show their tint over the opaque surface. UI thread;
+        /// needs the toast window's handle.
         /// </summary>
-        public static ToastLiveBackdrop TryStart(Window window, ItemsControl surface, IntPtr gameHwnd)
+        public static ToastLiveBackdrop TryStart(Window window, ItemsControl surface, IntPtr gameHwnd, out string skipped)
         {
+            skipped = null;
             try
             {
                 var reach = 0d;
@@ -77,15 +80,23 @@ namespace PlayniteAchievements.Services.UI
                     }
                 }
 
-                var toastHwnd = window == null ? IntPtr.Zero : new WindowInteropHelper(window).Handle;
-                if (!anyBlurred || toastHwnd == IntPtr.Zero)
+                if (!anyBlurred)
                 {
+                    return null;
+                }
+
+                var toastHwnd = window == null ? IntPtr.Zero : new WindowInteropHelper(window).Handle;
+                if (toastHwnd == IntPtr.Zero)
+                {
+                    skipped = "no toast window handle";
                     return null;
                 }
 
                 var wholeMonitor = gameHwnd == IntPtr.Zero;
                 if (wholeMonitor && !SetWindowDisplayAffinity(toastHwnd, WdaExcludeFromCapture))
                 {
+                    skipped = "the toast could not be excluded from the monitor capture (error " +
+                              Marshal.GetLastWin32Error() + ")";
                     return null;
                 }
 
@@ -97,15 +108,26 @@ namespace PlayniteAchievements.Services.UI
                         SetWindowDisplayAffinity(toastHwnd, WdaNone);
                     }
 
+                    skipped = "window capture is not supported";
                     return null;
                 }
 
                 return new ToastLiveBackdrop(window, surface, capture, reach, wholeMonitor ? toastHwnd : IntPtr.Zero);
             }
-            catch
+            catch (Exception ex)
             {
+                skipped = ex.GetType().Name + " " + ex.Message;
                 return null;
             }
+        }
+
+        /// <summary>
+        /// One line for the wave's diagnostics: the capture's state plus how many frames reached the
+        /// cards. Read after <see cref="Dispose"/> for the whole wave.
+        /// </summary>
+        public string Describe()
+        {
+            return $"{_capture.Describe()} applied={_framesApplied} reach={_reachPhys:0.#}";
         }
 
         private void OnRendering(object sender, EventArgs e)
@@ -137,6 +159,7 @@ namespace PlayniteAchievements.Services.UI
                 if (frame != null)
                 {
                     WriteFrame(frame);
+                    _framesApplied++;
                 }
 
                 if (_bitmap == null)
