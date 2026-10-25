@@ -115,7 +115,7 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
 
         public ProfileWidgetViewModel()
         {
-            _scope = new ShowcaseStatisticsScope(Refresh);
+            _scope = new ShowcaseStatisticsScope(Refresh, capstoneJoinsTiers: true);
         }
 
         /// <summary>The platform, game, tag and progress filters its settings show; null when none.</summary>
