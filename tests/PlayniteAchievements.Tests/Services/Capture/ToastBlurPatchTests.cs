@@ -9,8 +9,8 @@ namespace PlayniteAchievements.Services.Tests.Capture
     public class ToastBlurPatchTests
     {
         // A card inset 10% on every side of its container, with corners of 5% of its width.
-        private static ToastBlurPatch InsetPatch() =>
-            new ToastBlurPatch(new RectangleF(0.1f, 0.1f, 0.8f, 0.8f), 0.05f);
+        private static ToastBlurPatch InsetPatch(double reachPhys = 24) =>
+            new ToastBlurPatch(new RectangleF(0.1f, 0.1f, 0.8f, 0.8f), 0.05f, reachPhys);
 
         [TestMethod]
         public void MapCard_ScalesTheFractionsOntoTheOverlayRect()
@@ -22,6 +22,15 @@ namespace PlayniteAchievements.Services.Tests.Capture
             Assert.AreEqual(320f, card.Width, 0.01f);
             Assert.AreEqual(160f, card.Height, 0.01f);
             Assert.AreEqual(20f, InsetPatch().MapCornerRadius(new RectangleF(100, 50, 400, 200)), 0.01f);
+        }
+
+        [TestMethod]
+        public void ReachForStrength_IsLinearFromSharpToFull_WithTheDefaultInTheMiddle()
+        {
+            Assert.AreEqual(0, ToastBlurPatch.ReachForStrength(0));
+            Assert.AreEqual(ToastBlurPatch.MaxReachPhys, ToastBlurPatch.ReachForStrength(100));
+            Assert.AreEqual(ToastBlurPatch.MaxReachPhys / 2, ToastBlurPatch.ReachForStrength(null));
+            Assert.AreEqual(ToastBlurPatch.MaxReachPhys, ToastBlurPatch.ReachForStrength(250));
         }
 
         [TestMethod]
@@ -40,6 +49,18 @@ namespace PlayniteAchievements.Services.Tests.Capture
                 Assert.AreEqual(Stripe(10), shot.GetPixel(10, 10).R);
                 Assert.AreEqual(Stripe(110), shot.GetPixel(110, 150).R);
                 Assert.AreEqual(Stripe(300), shot.GetPixel(300, 60).R);
+            }
+        }
+
+        [TestMethod]
+        public void Apply_AtZeroStrength_LeavesTheShotSharp()
+        {
+            using (var shot = Stripes(600, 300))
+            {
+                InsetPatch(reachPhys: 0).Apply(shot, new Rectangle(100, 50, 400, 200), 1.0);
+
+                Assert.AreEqual(Stripe(300), shot.GetPixel(300, 150).R);
+                Assert.AreEqual(Stripe(301), shot.GetPixel(301, 150).R);
             }
         }
 
