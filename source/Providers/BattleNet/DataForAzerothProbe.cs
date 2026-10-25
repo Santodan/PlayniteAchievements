@@ -117,6 +117,20 @@ namespace PlayniteAchievements.Providers.BattleNet
                 }
             }
 
+            // Round 3: the production client end to end, from the retail index to the rarity map.
+            report.AppendLine($"== client {DataForAzerothClient.IndexUrl}");
+            using (var client = new DataForAzerothClient(api, logger))
+            {
+                var result = await client.LoadRarityAsync(ct).ConfigureAwait(false);
+                report.AppendLine($"status={result.Status}, entries={result.Rarity.Count}");
+                foreach (var id in new[] { "6", "157", "2144" })
+                {
+                    report.AppendLine($"  {id}: {(result.Rarity.TryGetValue(id, out var percent) ? percent.ToString("0.####") : "<absent>")}");
+                }
+            }
+
+            report.AppendLine();
+
             report.AppendLine("Done.");
             var path = Path.Combine(folder, "report.txt");
             File.WriteAllText(path, report.ToString(), Encoding.UTF8);
