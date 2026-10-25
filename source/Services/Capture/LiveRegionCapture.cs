@@ -55,11 +55,19 @@ namespace PlayniteAchievements.Services.Capture
         private D3D11.Texture2D _staging;
         private int _mipLevel;
 
+        // The UI thread's request has its own lock: _gate is held through session setup, which can
+        // block on the first border-suppression request, and the UI thread must never wait on that.
+        private readonly object _requestGate = new object();
         private Rectangle _request;
         private long _lastFrameTicks;
         private byte[] _line;
         private Frame _latest;
         private bool _disposed;
+
+        private readonly long _createdTicks = Stopwatch.GetTimestamp();
+        private long _firstFrameTicks;
+        private int _framesDelivered;
+        private string _failure;
 
         /// <summary>A blurred, shrunk BGRA copy of a screen region.</summary>
         public sealed class Frame
@@ -110,10 +118,29 @@ namespace PlayniteAchievements.Services.Capture
         /// <summary>The screen rect (physical pixels) the next frames should cover.</summary>
         public void Request(Rectangle screenRect)
         {
-            lock (_gate)
+            lock (_requestGate)
             {
                 _request = screenRect;
             }
+        }
+
+        /// <summary>
+        /// One line for the wave's diagnostics: the capture mode, frames delivered, how long the
+        /// first one took, and the first failure.
+        /// </summary>
+        public string Describe()
+        {
+            var first = Interlocked.Read(ref _firstFrameTicks);
+            var firstMs = first == 0
+                ? "none"
+                : ((first - _createdTicks) * 1000.0 / Stopwatch.Frequency).ToString("0", System.Globalization.CultureInfo.InvariantCulture);
+            return $"mode={(_isMonitor ? "monitor" : "window")} hdr={_hdr} frames={Volatile.Read(ref _framesDelivered)} " +
+                   $"firstFrameMs={firstMs} failure={Volatile.Read(ref _failure) ?? "none"}";
+        }
+
+        private void RecordFailure(string stage, Exception ex)
+        {
+            Interlocked.CompareExchange(ref _failure, stage + ": " + ex.GetType().Name + " " + ex.Message, null);
         }
 
         /// <summary>The newest frame since the last call, or null when none has arrived.</summary>
@@ -137,6 +164,7 @@ namespace PlayniteAchievements.Services.Capture
                     var item = _isMonitor ? CreateItemForMonitor() : CreateItem(i => i.CreateForWindow(_hwnd, ref IidItem));
                     if (item == null || item.Size.Width <= 0 || item.Size.Height <= 0)
                     {
+                        Interlocked.CompareExchange(ref _failure, "start: no capture item", null);
                         return;
                     }
 
@@ -152,8 +180,9 @@ namespace PlayniteAchievements.Services.Capture
                     _pool.FrameArrived += OnFrameArrived;
                     _session.StartCapture();
                 }
-                catch
+                catch (Exception ex)
                 {
+                    RecordFailure("start", ex);
                     ReleaseCapture();
                 }
             }
@@ -180,22 +209,31 @@ namespace PlayniteAchievements.Services.Capture
                         return;
                     }
 
+                    Rectangle request;
+                    lock (_requestGate)
+                    {
+                        request = _request;
+                    }
+
                     var now = Stopwatch.GetTimestamp();
-                    if (now - _lastFrameTicks < MinFrameTicks || _request.IsEmpty)
+                    if (now - _lastFrameTicks < MinFrameTicks || request.IsEmpty)
                     {
                         return;
                     }
 
                     _lastFrameTicks = now;
-                    var processed = Process(frame, _request);
+                    var processed = Process(frame, request);
                     if (processed != null)
                     {
                         Interlocked.Exchange(ref _latest, processed);
+                        Interlocked.CompareExchange(ref _firstFrameTicks, now, 0);
+                        Interlocked.Increment(ref _framesDelivered);
                     }
                 }
-                catch
+                catch (Exception ex)
                 {
                     // A dropped frame leaves the previous background showing.
+                    RecordFailure("frame", ex);
                 }
                 finally
                 {
@@ -217,12 +255,14 @@ namespace PlayniteAchievements.Services.Capture
                 var desc = texture.Description;
                 if (!TryResolveMapping(desc.Width, desc.Height, out var origin, out var scale))
                 {
+                    Interlocked.CompareExchange(ref _failure, $"frame: no mapping for {desc.Width}x{desc.Height}", null);
                     return null;
                 }
 
                 var source = LiveBackdropMath.Project(origin, scale, request, desc.Width, desc.Height, out var covered);
                 if (source.IsEmpty)
                 {
+                    Interlocked.CompareExchange(ref _failure, $"frame: {request} is off the capture", null);
                     return null;
                 }
 
