@@ -182,30 +182,52 @@ namespace PlayniteAchievements.Views.Showcase
                 : null;
             var addBackground = TryFindResource("PlayAch.Brush.Overlay.Tint.08") as Brush;
             var glyphs = new Dictionary<double, FormattedText>();
-            foreach (var (row, column) in _cells)
-            {
-                var rect = SurfaceRect(grid, row, column);
-                if (rect.IsEmpty)
-                {
-                    continue;
-                }
 
-                drawingContext.DrawRoundedRectangle(surface, null, rect, radius, radius);
-                if (outline != null)
+            // All surfaces go into one geometry and all outlines into another, so a large grid
+            // is two draw calls rather than two per cell; cells never overlap, so the result is
+            // the same as drawing each one.
+            var surfaces = new StreamGeometry();
+            var outlines = new StreamGeometry();
+            var addButtons = new List<Rect>();
+            using (var surfaceContext = surfaces.Open())
+            using (var outlineContext = outlines.Open())
+            {
+                foreach (var (row, column) in _cells)
                 {
-                    var stroke = Rect.Inflate(rect, -OutlineThickness / 2, -OutlineThickness / 2);
-                    if (stroke.Width > 0 && stroke.Height > 0)
+                    var rect = SurfaceRect(grid, row, column);
+                    if (rect.IsEmpty)
                     {
-                        drawingContext.DrawRoundedRectangle(null, outline, stroke, radius, radius);
+                        continue;
+                    }
+
+                    AddRoundedRect(surfaceContext, rect, radius);
+                    if (outline != null)
+                    {
+                        var stroke = Rect.Inflate(rect, -OutlineThickness / 2, -OutlineThickness / 2);
+                        if (stroke.Width > 0 && stroke.Height > 0)
+                        {
+                            AddRoundedRect(outlineContext, stroke, radius);
+                        }
+                    }
+
+                    var add = _editing ? AddButtonRect(rect) : Rect.Empty;
+                    if (!add.IsEmpty)
+                    {
+                        addButtons.Add(add);
                     }
                 }
+            }
 
-                var add = _editing ? AddButtonRect(rect) : Rect.Empty;
-                if (add.IsEmpty)
-                {
-                    continue;
-                }
+            surfaces.Freeze();
+            outlines.Freeze();
+            drawingContext.DrawGeometry(surface, null, surfaces);
+            if (outline != null)
+            {
+                drawingContext.DrawGeometry(null, outline, outlines);
+            }
 
+            foreach (var add in addButtons)
+            {
                 if (!glyphs.TryGetValue(add.Width, out var glyph))
                 {
                     glyph = CreateAddGlyph(AddGlyphSize * add.Width / AddButtonSize);
@@ -224,6 +246,32 @@ namespace PlayniteAchievements.Views.Showcase
                     drawingContext.Pop();
                 }
             }
+        }
+
+        // A rounded rectangle as DrawRoundedRectangle draws it: the radius is capped at half the
+        // shorter side.
+        private static void AddRoundedRect(StreamGeometryContext context, Rect rect, double radius)
+        {
+            radius = Math.Max(0, Math.Min(radius, Math.Min(rect.Width, rect.Height) / 2));
+            if (radius <= 0)
+            {
+                context.BeginFigure(rect.TopLeft, isFilled: true, isClosed: true);
+                context.LineTo(rect.TopRight, isStroked: true, isSmoothJoin: false);
+                context.LineTo(rect.BottomRight, isStroked: true, isSmoothJoin: false);
+                context.LineTo(rect.BottomLeft, isStroked: true, isSmoothJoin: false);
+                return;
+            }
+
+            var corner = new Size(radius, radius);
+            context.BeginFigure(new Point(rect.Left + radius, rect.Top), isFilled: true, isClosed: true);
+            context.LineTo(new Point(rect.Right - radius, rect.Top), true, false);
+            context.ArcTo(new Point(rect.Right, rect.Top + radius), corner, 0, false, SweepDirection.Clockwise, true, false);
+            context.LineTo(new Point(rect.Right, rect.Bottom - radius), true, false);
+            context.ArcTo(new Point(rect.Right - radius, rect.Bottom), corner, 0, false, SweepDirection.Clockwise, true, false);
+            context.LineTo(new Point(rect.Left + radius, rect.Bottom), true, false);
+            context.ArcTo(new Point(rect.Left, rect.Bottom - radius), corner, 0, false, SweepDirection.Clockwise, true, false);
+            context.LineTo(new Point(rect.Left, rect.Top + radius), true, false);
+            context.ArcTo(new Point(rect.Left + radius, rect.Top), corner, 0, false, SweepDirection.Clockwise, true, false);
         }
 
         private FormattedText CreateAddGlyph(double emSize)
