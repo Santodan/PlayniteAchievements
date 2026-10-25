@@ -69,16 +69,44 @@ namespace PlayniteAchievements.Tests.Models
         }
 
         [TestMethod]
-        public void InsertTrack_IsRefusedAtTheMaximum()
+        public void InsertTrack_IsRefusedOnceATrackWouldFallBelowTheMinimumSize()
         {
+            // 100 px of equal rows: 8 rows are 12.5 px each, a 9th would make them 11.1 px.
             var (settings, page) = BlankPage();
-            while (page.RowCount < ShowcaseLayoutService.MaxTrackCount)
+            while (ShowcaseLayoutService.TryInsertTrack(settings, page.PageId, vertical: false, 0, extentPixels: 100))
             {
-                Assert.IsTrue(ShowcaseLayoutService.TryInsertTrack(settings, page.PageId, vertical: false, 0));
             }
 
-            Assert.IsFalse(ShowcaseLayoutService.TryInsertTrack(settings, page.PageId, vertical: false, 0));
-            Assert.AreEqual(ShowcaseLayoutService.MaxTrackCount, page.RowCount);
+            Assert.AreEqual(8, page.RowCount);
+            Assert.IsFalse(ShowcaseLayoutService.CanInsertTrack(page, vertical: false, 8, 100));
+            Assert.IsTrue(ShowcaseLayoutService.CanInsertTrack(page, vertical: false, 8, 0));
+            AssertValid(page);
+        }
+
+        [TestMethod]
+        public void InsertTrack_MeasuresTheMinimumAgainstTheNarrowestTrack()
+        {
+            var (settings, page) = BlankPage();
+            page.ColumnWeights = new List<double> { 0.5, 1, 1, 1, 1 };
+
+            // 4.5 stars over 120 px: the half-weight column is 13.3 px, and one more full
+            // column would leave it 10.9 px.
+            Assert.IsFalse(ShowcaseLayoutService.CanInsertTrack(page, vertical: true, 5, 120));
+            Assert.IsTrue(ShowcaseLayoutService.CanInsertTrack(page, vertical: true, 5, 160));
+        }
+
+        [TestMethod]
+        public void Normalize_BoundsAStoredTrackCount()
+        {
+            var settings = new ShowcaseSettings
+            {
+                Pages = { new ShowcasePageSettings { RowCount = 100000, ColumnCount = 1 } }
+            };
+
+            ShowcaseLayoutService.Normalize(settings);
+
+            Assert.AreEqual(ShowcaseLayoutService.MaxStoredTrackCount, settings.Pages[0].RowCount);
+            Assert.AreEqual(ShowcaseLayoutService.MaxStoredTrackCount, settings.Pages[0].Blocks.Count);
         }
 
         [TestMethod]
