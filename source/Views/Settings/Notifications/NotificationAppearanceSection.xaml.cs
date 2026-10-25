@@ -1481,7 +1481,7 @@ namespace PlayniteAchievements.Views.Settings.Notifications
         }
 
         /// <summary>
-        /// The image a blurred-background preview sits on: the edited game's background art, or
+        /// The image the toast preview sits on: the edited game's background art, or
         /// outside game mode the most recently played game's; null (a generated stand-in) when there
         /// is none. Resolved once per scope.
         /// </summary>
