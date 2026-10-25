@@ -312,6 +312,13 @@ namespace PlayniteAchievements.Providers.Metadata
         /// </summary>
         public string ExtendedLinkId { get; set; }
 
+        /// <summary>
+        /// Other ids a row went by, to the row: a row joined from several pages goes by its first
+        /// page's id, and a pairing made to another page's id still finds it. Empty when none.
+        /// </summary>
+        public IReadOnlyDictionary<string, AchievementDetail> ApiNameAliases { get; set; } =
+            new Dictionary<string, AchievementDetail>(StringComparer.OrdinalIgnoreCase);
+
         /// <summary>Category label to image URL, for sources that supply category art.</summary>
         public IDictionary<string, string> CategoryArtUrls { get; } =
             new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
