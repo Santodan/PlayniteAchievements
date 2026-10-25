@@ -358,10 +358,17 @@ namespace PlayniteAchievements.Providers.Metadata.TrueGaming
             }
 
             found = found.OrderBy(page => TrueGamingSite.LookupOrder.ToList().IndexOf(page.Site)).ToList();
-            var set = new AchievementSourceSet(Key, linkId, TrueGamingPageSet.Combine(found, request.BaseCategoryLabel))
+            var combined = TrueGamingPageSet.CombineAll(found, request.BaseCategoryLabel);
+            var set = new AchievementSourceSet(Key, linkId, combined.Rows)
             {
-                GameArtUrl = found.Select(page => page.Page.GameArt).FirstOrDefault(art => art != null)
+                GameArtUrl = found.Select(page => page.Page.GameArt).FirstOrDefault(art => art != null),
+                ApiNameAliases = combined.Aliases
             };
+            _logger?.Debug(
+                $"[TrueGamingMetadata] '{request.Game?.Name}' ({name}): " +
+                $"{string.Join(", ", found.Select(page => $"{page.Site.Host}/game/{page.Slug} {page.Page.Achievements.Count} rows"))}; " +
+                $"{combined.Rows.Count} combined, {combined.MergedByDescription} joined by description" +
+                $"{(failed.Count > 0 ? $"; not loaded: {string.Join(", ", failed.Select(site => site.Host))}" : string.Empty)}.");
             if (!string.Equals(name, linkId?.Trim(), StringComparison.Ordinal))
             {
                 set.ExtendedLinkId = name;
