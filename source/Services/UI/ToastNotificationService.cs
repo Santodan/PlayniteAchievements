@@ -2697,6 +2697,7 @@ namespace PlayniteAchievements.Services.UI
             EventHandler onRendering = null;
             EventHandler onTrackSample = null;
             SizeChangedEventHandler onHoldSurfaceSized = null;
+            ToastBackdropWindow backdrop = null;
             ToastOverlayTrackRecorder trackRecorder = null;
             // Overlay-track sampling stats for the wave's diagnostic line: the composed frames the
             // sampler saw against the samples it actually took is what shows the cadence landing where
@@ -3026,9 +3027,20 @@ namespace PlayniteAchievements.Services.UI
                 // to the game. Re-applied if the cards resize during the hold.
                 if (_activeDwmComposed && _activeCardSurface != null)
                 {
+                    // A blurred card shows the blur only at rest: the backdrop is shaped to the
+                    // settled cards and does not follow the slide.
+                    if (cardItems.Any(vm => vm.HasToastBlur))
+                    {
+                        backdrop = ToastBackdropWindow.TryCreate();
+                        backdrop?.ShowUnder(window, ResolveCardRoots(_activeCardSurface), ToastCardCornerRadiusDip);
+                    }
+
                     ToastWindowSurface.SetHitRegion(window, _activeCardSurface, HitRegionAllowanceDip);
                     onHoldSurfaceSized = (s, e) =>
+                    {
                         ToastWindowSurface.SetHitRegion(window, _activeCardSurface, HitRegionAllowanceDip);
+                        backdrop?.Reshape(window, ResolveCardRoots(_activeCardSurface), ToastCardCornerRadiusDip);
+                    };
                     _activeCardSurface.SizeChanged += onHoldSurfaceSized;
                 }
 
@@ -3048,6 +3060,7 @@ namespace PlayniteAchievements.Services.UI
                             if (followTicks.TryAdvance(e, out _))
                             {
                                 PlaceWindowToHandle(window);
+                                backdrop?.Follow(window);
                             }
                         }
                         catch
@@ -3099,6 +3112,9 @@ namespace PlayniteAchievements.Services.UI
                     onHoldSurfaceSized = null;
                     ToastWindowSurface.SetHitRegion(window, null, 0d);
                 }
+
+                // The backdrop is shaped to the resting cards, so it leaves before they move.
+                backdrop?.Hide();
 
                 // Track sampling keeps running through the slide-out so the exit motion (and any
                 // still-animating GIF/countdown pixels) land in the tracks; an endedHidden wave
@@ -3175,6 +3191,8 @@ namespace PlayniteAchievements.Services.UI
                 {
                     _activeCardSurface.SizeChanged -= onHoldSurfaceSized;
                 }
+
+                backdrop?.Dispose();
 
                 // Unconditional: waves are sequential, so this only ever clears this wave's rate.
                 RayAnimationDriver.ClearSamplingFps();
@@ -4192,6 +4210,33 @@ namespace PlayniteAchievements.Services.UI
         // How far past the card surface's bounds the hold's hit region reaches, for theme effects
         // drawn outside them. The bundled template keeps its glow inside the surface.
         private const double HitRegionAllowanceDip = 16d;
+        // The bundled toast template's card CornerRadius, which the blurred backdrop's region follows.
+        private const double ToastCardCornerRadiusDip = 8d;
+
+        /// <summary>
+        /// Each realized card's template root, whose bounds are the visible card without the room the
+        /// container reserves around it for the glow (see <see cref="ToastSurfaceFactory.MeasureCardInset"/>).
+        /// </summary>
+        private static List<FrameworkElement> ResolveCardRoots(ItemsControl surface)
+        {
+            var roots = new List<FrameworkElement>();
+            if (surface == null)
+            {
+                return roots;
+            }
+
+            for (var i = 0; i < surface.Items.Count; i++)
+            {
+                if (surface.ItemContainerGenerator.ContainerFromIndex(i) is FrameworkElement container &&
+                    VisualTreeHelper.GetChildrenCount(container) > 0 &&
+                    VisualTreeHelper.GetChild(container, 0) is FrameworkElement root)
+                {
+                    roots.Add(root);
+                }
+            }
+
+            return roots;
+        }
 
         /// <summary>
         /// What the slide animates: the translate in the slide host's transform group. Everything is
