@@ -1142,12 +1142,24 @@ namespace PlayniteAchievements.Views.Showcase
                 Grid.SetColumnSpan(layer, PageColumnCount);
             }
 
-            _cellLayer.Update(
-                CurrentPage.Blocks
-                    .Where(block => block.IsImplicit && !_blockVisuals.ContainsKey(block.BlockId))
-                    .Select(block => (block.Row, block.Column))
-                    .ToList(),
-                editing);
+            var coverage = ShowcaseLayoutService.CoverageOf(CurrentPage);
+            var cells = new List<(int Row, int Column)>();
+            for (var row = 0; row < coverage.GetLength(0); row++)
+            {
+                for (var column = 0; column < coverage.GetLength(1); column++)
+                {
+                    var stored = coverage[row, column];
+                    var id = stored == null || stored.IsImplicit
+                        ? stored?.BlockId ?? ShowcaseLayoutService.CellBlockId(CurrentPage.PageId, row, column)
+                        : null;
+                    if (id != null && !_blockVisuals.ContainsKey(id))
+                    {
+                        cells.Add((row, column));
+                    }
+                }
+            }
+
+            _cellLayer.Update(cells, editing);
             _latticeLayer.Visibility = editing ? Visibility.Visible : Visibility.Collapsed;
             _latticeLayer.InvalidateVisual();
         }
@@ -3215,7 +3227,7 @@ namespace PlayniteAchievements.Views.Showcase
             }
 
             _redoHistory.Clear();
-            _historyBaseline = Layout.Clone(includeImplicit: false);
+            _historyBaseline = Layout.Clone();
         }
 
         private void Undo()
@@ -3227,7 +3239,7 @@ namespace PlayniteAchievements.Views.Showcase
 
             var restore = _undoHistory.Last.Value;
             _undoHistory.RemoveLast();
-            _redoHistory.Push(Layout.Clone(includeImplicit: false));
+            _redoHistory.Push(Layout.Clone());
             RestoreLayout(restore);
         }
 
@@ -3239,7 +3251,7 @@ namespace PlayniteAchievements.Views.Showcase
             }
 
             var restore = _redoHistory.Pop();
-            _undoHistory.AddLast(Layout.Clone(includeImplicit: false));
+            _undoHistory.AddLast(Layout.Clone());
             RestoreLayout(restore);
         }
 
@@ -3266,8 +3278,6 @@ namespace PlayniteAchievements.Views.Showcase
                 live.WidgetInstances = (snapshot.WidgetInstances ?? new List<ShowcaseWidgetInstanceSettings>())
                     .Select(widget => widget.Clone())
                     .ToList();
-                // Snapshots leave out implicit cells; restore them before the selection is checked.
-                EnsureLayout();
 
                 // The cut target may no longer exist in the restored layout.
                 if (FindWidget(_cutInstanceId) == null)
@@ -3275,16 +3285,12 @@ namespace PlayniteAchievements.Views.Showcase
                     _cutInstanceId = null;
                 }
 
-                if (FindWidget(SelectedBlock?.WidgetInstanceId) == null &&
-                    CurrentPage.Blocks.All(block => !string.Equals(
-                        block.BlockId,
-                        _selectedBlockId,
-                        StringComparison.OrdinalIgnoreCase)))
+                if (SelectedBlock == null)
                 {
-                    SetSelection(CurrentPage.Blocks.FirstOrDefault());
+                    SetSelection(FirstBlock());
                 }
 
-                _historyBaseline = Layout.Clone(includeImplicit: false);
+                _historyBaseline = Layout.Clone();
                 SaveAndPublish();
                 Rebuild();
             }
@@ -3323,7 +3329,7 @@ namespace PlayniteAchievements.Views.Showcase
             // pushes what it finds here as the state to undo back to.
             if (_historyBaseline == null)
             {
-                _historyBaseline = Layout.Clone(includeImplicit: false);
+                _historyBaseline = Layout.Clone();
             }
         }
 
@@ -3608,7 +3614,7 @@ namespace PlayniteAchievements.Views.Showcase
                 : "LOCPlayAch_Common_View");
             if (EditLayoutButton.IsChecked == true && string.IsNullOrWhiteSpace(_selectedBlockId))
             {
-                SetSelection(CurrentPage.Blocks.FirstOrDefault());
+                SetSelection(FirstBlock());
             }
 
             if (!IsDashboardBuilt)
@@ -3649,8 +3655,12 @@ namespace PlayniteAchievements.Views.Showcase
             EditingChanged?.Invoke(this, EventArgs.Empty);
         }
 
-        private ShowcaseBlockSettings SelectedBlock => CurrentPage.Blocks.FirstOrDefault(block =>
-            string.Equals(block.BlockId, _selectedBlockId, StringComparison.OrdinalIgnoreCase));
+        // Implicit cells are made on request, so these return a new object for one each call;
+        // compare blocks by id, never by reference.
+        private ShowcaseBlockSettings SelectedBlock =>
+            ShowcaseLayoutService.ResolveBlock(CurrentPage, _selectedBlockId);
+
+        private ShowcaseBlockSettings FirstBlock() => BlockAt(0, 0);
 
         private bool IsDashboardBuilt => _builtPageId != null;
 
@@ -3682,28 +3692,35 @@ namespace PlayniteAchievements.Views.Showcase
             }
 
             var selected = SelectedBlock;
-            SetSelection(selected ?? BlockAt(_selectedRow, _selectedColumn) ?? CurrentPage.Blocks.FirstOrDefault());
+            SetSelection(selected ?? BlockAt(_selectedRow, _selectedColumn) ?? FirstBlock());
         }
 
-        private ShowcaseBlockSettings BlockAt(int row, int column)
-        {
-            return CurrentPage.Blocks.FirstOrDefault(block =>
-                row >= block.Row && row < block.Row + block.RowSpan &&
-                column >= block.Column && column < block.Column + block.ColumnSpan);
-        }
+        private ShowcaseBlockSettings BlockAt(int row, int column) =>
+            ShowcaseLayoutService.ResolveCell(CurrentPage, row, column);
 
-        // The blocks that get a container. Implicit empty cells are drawn by the cell layer, except
-        // while editing for the selected one (it carries the +, chevrons and keyboard focus) and
-        // the one a widget drag is over (it shows the drop status).
+        // The blocks that get a container: every stored block, and while editing the selected
+        // implicit cell (it carries the +, chevrons and keyboard focus) and the one a widget drag
+        // is over (it shows the drop status). Other implicit cells are drawn by the cell layer.
         private List<ShowcaseBlockSettings> ContainerBlocks()
         {
-            var editing = EditLayoutButton.IsChecked == true;
-            return CurrentPage.Blocks
-                .Where(block => !block.IsImplicit ||
-                    (editing &&
-                     (string.Equals(block.BlockId, _selectedBlockId, StringComparison.OrdinalIgnoreCase) ||
-                      string.Equals(block.BlockId, _dropCellBlockId, StringComparison.OrdinalIgnoreCase))))
-                .ToList();
+            var blocks = CurrentPage.Blocks.Where(block => !block.IsImplicit).ToList();
+            if (EditLayoutButton.IsChecked != true)
+            {
+                return blocks;
+            }
+
+            foreach (var id in new[] { _selectedBlockId, _dropCellBlockId })
+            {
+                var block = ShowcaseLayoutService.ResolveBlock(CurrentPage, id);
+                if (block != null &&
+                    block.IsImplicit &&
+                    !blocks.Any(other => string.Equals(other.BlockId, block.BlockId, StringComparison.OrdinalIgnoreCase)))
+                {
+                    blocks.Add(block);
+                }
+            }
+
+            return blocks;
         }
 
         // Brings the containers in line with ContainerBlocks after the selection or drop cell moved.
@@ -3862,8 +3879,27 @@ namespace PlayniteAchievements.Views.Showcase
                 return new List<ShowcaseBlockSettings>();
             }
 
-            return CurrentPage.Blocks
-                .Where(candidate => candidate != null && !ReferenceEquals(candidate, block))
+            // The blocks covering the strip of cells just past the edge, implicit cells included.
+            var rowStart = rowDirection < 0 ? block.Row - 1 : rowDirection > 0 ? block.Row + block.RowSpan : block.Row;
+            var rowEnd = rowDirection == 0 ? block.Row + block.RowSpan : rowStart + 1;
+            var columnStart = columnDirection < 0 ? block.Column - 1 : columnDirection > 0 ? block.Column + block.ColumnSpan : block.Column;
+            var columnEnd = columnDirection == 0 ? block.Column + block.ColumnSpan : columnStart + 1;
+            var candidates = new Dictionary<string, ShowcaseBlockSettings>(StringComparer.OrdinalIgnoreCase);
+            for (var row = rowStart; row < rowEnd; row++)
+            {
+                for (var column = columnStart; column < columnEnd; column++)
+                {
+                    var candidate = BlockAt(row, column);
+                    if (candidate != null && !candidates.ContainsKey(candidate.BlockId))
+                    {
+                        candidates[candidate.BlockId] = candidate;
+                    }
+                }
+            }
+
+            return candidates.Values
+                .Where(candidate => candidate != null &&
+                    !string.Equals(candidate.BlockId, block.BlockId, StringComparison.OrdinalIgnoreCase))
                 .Where(candidate =>
                     rowDirection < 0
                         ? candidate.Row + candidate.RowSpan == block.Row &&
