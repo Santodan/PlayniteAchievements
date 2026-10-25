@@ -1428,19 +1428,62 @@ namespace PlayniteAchievements.ViewModels
         }
 
         /// <summary>
-        /// The theme surface brush at the style's tint opacity, drawn over the blurred backdrop.
+        /// The theme surface at the style's tint opacity, drawn over the blurred backdrop. Built
+        /// from <see cref="ToastBlurSurfaceBrush"/>, so the opacity is exactly the slider's value
+        /// whatever alpha the theme's own surface carries.
         /// </summary>
         public Brush ToastBlurTintBrush
         {
             get
             {
-                var surface = Application.Current?.TryFindResource("PlayAch.Brush.PopupSurface") as Brush;
-                var tint = surface != null ? surface.Clone() : new SolidColorBrush(Colors.Black);
+                var tint = OpaqueSurfaceBrush();
                 tint.Opacity = NormalizePercent(_style.Toast.BlurTintOpacity, DefaultBlurTintOpacity);
                 tint.Freeze();
                 return tint;
             }
         }
+
+        /// <summary>
+        /// The theme surface made fully opaque: a blurred card's glow caster. A theme may give its
+        /// popup surface some transparency, which would let the glow and rays behind the card show
+        /// through the translucent tint; the live blur covers this surface once its first frame lands.
+        /// </summary>
+        public Brush ToastBlurSurfaceBrush
+        {
+            get
+            {
+                var surface = OpaqueSurfaceBrush();
+                surface.Freeze();
+                return surface;
+            }
+        }
+
+        private static Brush OpaqueSurfaceBrush()
+        {
+            var surface = Application.Current?.TryFindResource("PlayAch.Brush.PopupSurface") as Brush;
+            switch (surface)
+            {
+                case SolidColorBrush solid:
+                    return new SolidColorBrush(Opaque(solid.Color));
+                case GradientBrush gradient:
+                    var copy = gradient.Clone();
+                    copy.Opacity = 1;
+                    foreach (var stop in copy.GradientStops)
+                    {
+                        stop.Color = Opaque(stop.Color);
+                    }
+
+                    return copy;
+                case null:
+                    return new SolidColorBrush(Colors.Black);
+                default:
+                    var other = surface.Clone();
+                    other.Opacity = 1;
+                    return other;
+            }
+        }
+
+        private static Color Opaque(Color color) => Color.FromRgb(color.R, color.G, color.B);
 
         // Effective font family per surface: the style's family when set, otherwise the
         // theme-derived body family.
