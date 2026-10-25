@@ -10,12 +10,13 @@ using PlayniteAchievements.ViewModels;
 namespace PlayniteAchievements.Views.Settings.Notifications
 {
     /// <summary>
-    /// Gives the settings toast preview a game to sit on, as the notification will in game: a game
-    /// image fills the preview frame behind the card. A card with a blurred background is also
-    /// handed a blurred copy of the part behind it through the same
+    /// Lets the settings toast preview sit on a game, as the notification will in game: when shown,
+    /// a game image fills the preview frame behind the card, and a card with a blurred background
+    /// is handed a blurred copy of the part behind it through the same
     /// <see cref="AchievementToastViewModel.SetLiveBackdrop"/> the in-game capture feeds, blurred by
     /// the same <see cref="BoxBlur"/> at the same reach, so its template draws it with its tint,
-    /// border and glow and both sliders read as they will in game.
+    /// border and glow and both sliders read as they will in game. When hidden, the frame shows its
+    /// plain surface and a blurred card its tint over its opaque surface.
     ///
     /// The preview cannot capture what is behind it: anything it captured would contain the card.
     /// UI thread only.
@@ -45,14 +46,20 @@ namespace PlayniteAchievements.Views.Settings.Notifications
         }
 
         /// <summary>
-        /// Fills the frame behind <paramref name="vm"/>'s card (the first item of
-        /// <paramref name="surface"/>), and its blurred background when it has one, once it is laid
-        /// out.
+        /// Shows or hides the game behind <paramref name="vm"/>'s card (the first item of
+        /// <paramref name="surface"/>). Showing fills the frame, and the card's blurred background
+        /// when it has one, once the card is laid out.
         /// </summary>
-        public void Apply(ItemsControl surface, AchievementToastViewModel vm)
+        public void Apply(ItemsControl surface, AchievementToastViewModel vm, bool show)
         {
             if (_frame == null || vm == null)
             {
+                return;
+            }
+
+            if (!show)
+            {
+                Hide(vm);
                 return;
             }
 
@@ -60,6 +67,18 @@ namespace PlayniteAchievements.Views.Settings.Notifications
             _frame.Dispatcher.BeginInvoke(
                 new Action(() => ApplyLaidOut(surface, vm)),
                 System.Windows.Threading.DispatcherPriority.Loaded);
+        }
+
+        private void Hide(AchievementToastViewModel vm)
+        {
+            if (_backdrop != null)
+            {
+                _frame.SetResourceReference(Border.BackgroundProperty, "PlayAch.Brush.Surface");
+                _backdrop = null;
+                _backdropSource = null;
+            }
+
+            vm.SetLiveBackdrop(null, new Rect(0, 0, 1, 1));
         }
 
         private void ApplyLaidOut(ItemsControl surface, AchievementToastViewModel vm)
