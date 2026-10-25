@@ -12,7 +12,8 @@ namespace PlayniteAchievements.ViewModels
     /// <summary>
     /// A control bar's Rarity and Trophy filters over achievement rows. Picked rarity tiers keep
     /// a row of any of them; Capstone, in the same dropdown, keeps only capstones among those (or
-    /// every capstone with no tier picked). Trophy offers nothing, which hides it, while no
+    /// every capstone with no tier picked), unless <see cref="CapstoneJoinsTiers"/> makes it one
+    /// more option of the set. Trophy offers nothing, which hides it, while no
     /// library game has trophies. Both dropdowns show each option's badge, and the bar shows the
     /// picked options' badges.
     /// </summary>
@@ -121,11 +122,23 @@ namespace PlayniteAchievements.ViewModels
             return true;
         }
 
+        /// <summary>
+        /// False by default: Capstone narrows the picked tiers to capstones. True makes the Rarity
+        /// options one OR set (a picked tier, or Capstone for a capstone) and gates completions on
+        /// Capstone; the Profile widget sets it so its medals follow the picked options.
+        /// </summary>
+        public bool CapstoneJoinsTiers { get; set; }
+
+        /// <summary>
+        /// True while completions count. Always, unless <see cref="CapstoneJoinsTiers"/> and tiers
+        /// are picked without Capstone.
+        /// </summary>
+        public bool KeepsCompletions => !CapstoneJoinsTiers || _capstone || _rarities.Count == 0;
+
         /// <summary>True for a row both filters keep; every row while nothing is selected.</summary>
         public bool Matches(AchievementDisplayItem row) =>
             row != null &&
-            (_rarities.Count == 0 || _rarities.Contains(row.Rarity)) &&
-            (!_capstone || row.IsCapstone) &&
+            MatchesRarity(row.Rarity, row.IsCapstone) &&
             (_trophies.Count == 0 || _trophies.Contains((row.TrophyType ?? string.Empty).Trim()));
 
         /// <summary>
@@ -133,9 +146,19 @@ namespace PlayniteAchievements.ViewModels
         /// while nothing is selected. A tally of unknown tier matches no picked tier.
         /// </summary>
         public bool Matches(AchievementTally tally) =>
-            (_rarities.Count == 0 || (tally.Rarity.HasValue && _rarities.Contains(tally.Rarity.Value))) &&
-            (!_capstone || tally.IsCapstone) &&
+            MatchesRarity(tally.Rarity, tally.IsCapstone) &&
             (_trophies.Count == 0 || (tally.Trophy != null && _trophies.Contains(tally.Trophy)));
+
+        private bool MatchesRarity(RarityTier? tier, bool isCapstone)
+        {
+            var tierPicked = tier.HasValue && _rarities.Contains(tier.Value);
+            if (CapstoneJoinsTiers)
+            {
+                return (_rarities.Count == 0 && !_capstone) || tierPicked || (_capstone && isCapstone);
+            }
+
+            return (_rarities.Count == 0 || tierPicked) && (!_capstone || isCapstone);
+        }
 
         public void Capture(ControlBarFilterState state)
         {
