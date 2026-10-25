@@ -12,16 +12,65 @@ namespace PlayniteAchievements.Services.Showcase
         /// <summary>The fewest rows or columns a page can have.</summary>
         public const int MinTrackCount = 1;
 
-        /// <summary>The most rows or columns a page can have.</summary>
-        public const int MaxTrackCount = 10;
+        /// <summary>
+        /// The most rows or columns a stored page can have. Editing is limited by
+        /// <see cref="MinTrackPixels"/> instead, which stops well short of this on any screen;
+        /// this only bounds what a settings file or an imported page can ask for.
+        /// </summary>
+        public const int MaxStoredTrackCount = 384;
+
+        /// <summary>
+        /// The narrowest a row or column can be made by inserting tracks or resizing them. A
+        /// smaller window can still show tracks below it.
+        /// </summary>
+        public const double MinTrackPixels = 12;
 
         /// <summary>Rows and columns of a new page, and of a persisted page that records neither.</summary>
         public const int DefaultTrackCount = 5;
 
-        /// <summary>Clamps a persisted row or column count into [MinTrackCount, MaxTrackCount].</summary>
+        /// <summary>Clamps a persisted row or column count into [MinTrackCount, MaxStoredTrackCount].</summary>
         public static int NormalizeTrackCount(int count)
         {
-            return Math.Max(MinTrackCount, Math.Min(MaxTrackCount, count));
+            return Math.Max(MinTrackCount, Math.Min(MaxStoredTrackCount, count));
+        }
+
+        /// <summary>
+        /// The id an implicit empty cell gets, so the same cell keeps its id across Normalize
+        /// calls although it is never stored.
+        /// </summary>
+        public static string CellBlockId(string pageId, int row, int column) =>
+            $"{pageId}-{row}-{column}";
+
+        /// <summary>
+        /// Whether inserting a track at <paramref name="index"/> keeps every track on that axis
+        /// at least <see cref="MinTrackPixels"/> across <paramref name="extentPixels"/>, the
+        /// grid's current width (columns) or height (rows). An unknown extent (0) allows it.
+        /// </summary>
+        public static bool CanInsertTrack(
+            ShowcasePageSettings page,
+            bool vertical,
+            int index,
+            double extentPixels)
+        {
+            if (page == null)
+            {
+                return false;
+            }
+
+            var count = NormalizeTrackCount(vertical ? page.ColumnCount : page.RowCount);
+            if (index < 0 || index > count || count >= MaxStoredTrackCount)
+            {
+                return false;
+            }
+
+            if (extentPixels <= 0 || double.IsNaN(extentPixels))
+            {
+                return true;
+            }
+
+            var weights = NormalizeTrackWeights(vertical ? page.ColumnWeights : page.RowWeights, count).ToList();
+            weights.Insert(index, weights[index > 0 ? index - 1 : 0]);
+            return extentPixels * weights.Min() / weights.Sum() >= MinTrackPixels;
         }
 
         /// <summary>
@@ -37,12 +86,15 @@ namespace PlayniteAchievements.Services.Showcase
         /// <paramref name="boundary"/> to the track before it, keeping the pair's total. The pair
         /// is clamped so every track stays within the 60:1 ratio of every other; if a track then
         /// exceeds <see cref="MaxTrackWeight"/>, all weights are scaled down together, which keeps
-        /// every track's pixel size.
+        /// every track's pixel size. With <paramref name="minWeight"/>, neither track of the pair
+        /// can shrink below it (one already smaller only cannot shrink further), which is how
+        /// <see cref="MinTrackPixels"/> reaches a drag.
         /// </summary>
         public static double[] TransferTrackWeight(
             IReadOnlyList<double> weights,
             int boundary,
-            double deltaStars)
+            double deltaStars,
+            double minWeight = 0)
         {
             var result = weights.ToArray();
             if (boundary < 0 || boundary + 1 >= result.Length)
@@ -52,8 +104,10 @@ namespace PlayniteAchievements.Services.Showcase
 
             const double ratio = MaxTrackWeight / MinTrackWeight;
             var pairSum = result[boundary] + result[boundary + 1];
-            var lower = pairSum / (ratio + 1);
-            var upper = ratio * pairSum / (ratio + 1);
+            var lower = Math.Max(pairSum / (ratio + 1), Math.Min(minWeight, result[boundary]));
+            var upper = Math.Min(
+                ratio * pairSum / (ratio + 1),
+                pairSum - Math.Min(minWeight, result[boundary + 1]));
             var others = result.Where((_, index) => index != boundary && index != boundary + 1).ToArray();
             if (others.Length > 0)
             {
@@ -269,7 +323,7 @@ namespace PlayniteAchievements.Services.Showcase
             }
 
             var anchor = FindPage(settings, insertAfterPageId);
-            return InsertPageCopy(
+            var imported = InsertPageCopy(
                 settings,
                 page,
                 page.Name,
@@ -283,6 +337,9 @@ namespace PlayniteAchievements.Services.Showcase
                     SeedPinCollectionSelection(settings, copy);
                     onWidgetImported?.Invoke(sourceWidget, copy);
                 });
+            // A file leaves out empty cells; fill them in before anyone reads the page.
+            Normalize(settings);
+            return imported;
         }
 
         // Clones the page and every widget its blocks reference under fresh ids. A widget that
@@ -831,7 +888,7 @@ namespace PlayniteAchievements.Services.Showcase
                     ? $"Page {pageIndex + 1}"
                     : page.Name.Trim();
                 NormalizeTrackCounts(page);
-                page.Blocks = NormalizeBlocks(page.Blocks, blockIds, page.RowCount, page.ColumnCount);
+                page.Blocks = NormalizeBlocks(page.Blocks, blockIds, page.PageId, page.RowCount, page.ColumnCount);
                 page.RowWeights = NormalizeTrackWeightList(page.RowWeights, page.RowCount);
                 page.ColumnWeights = NormalizeTrackWeightList(page.ColumnWeights, page.ColumnCount);
 
@@ -1154,7 +1211,9 @@ namespace PlayniteAchievements.Services.Showcase
                     {
                         for (var column = 0; column < page.ColumnCount; column++)
                         {
-                            page.Blocks.Add(NewBlock(row, column, 1, 1, null));
+                            var cell = NewBlock(row, column, 1, 1, null);
+                            cell.BlockId = CellBlockId(page.PageId, row, column);
+                            page.Blocks.Add(cell);
                         }
                     }
 
@@ -1418,44 +1477,78 @@ namespace PlayniteAchievements.Services.Showcase
             return result;
         }
 
+        // Stored blocks (widgets and merged empties) keep their ids; every cell none of them covers
+        // becomes an implicit empty 1x1 block under its CellBlockId, in row-major order. An
+        // implicit block passed in for an uncovered cell is kept as that cell's object (callers
+        // hold block references across calls) but takes the cell's id, so a cell's id never
+        // depends on what the page held before.
         private static List<ShowcaseBlockSettings> NormalizeBlocks(
             IEnumerable<ShowcaseBlockSettings> blocks,
             HashSet<string> blockIds,
+            string pageId,
             int rows,
             int columns)
         {
             rows = NormalizeTrackCount(rows);
             columns = NormalizeTrackCount(columns);
-            var result = new List<ShowcaseBlockSettings>();
+            var stored = new List<ShowcaseBlockSettings>();
+            var implicitCells = new Dictionary<(int Row, int Column), ShowcaseBlockSettings>();
             var occupied = new bool[rows, columns];
             foreach (var block in blocks ?? Array.Empty<ShowcaseBlockSettings>())
             {
-                if (!IsValidBlock(block, rows, columns) || Overlaps(occupied, block))
+                if (block != null && block.IsImplicit)
+                {
+                    if (IsValidBlock(block, rows, columns) && !implicitCells.ContainsKey((block.Row, block.Column)))
+                    {
+                        implicitCells[(block.Row, block.Column)] = block;
+                    }
+
+                    continue;
+                }
+
+                if (block == null ||
+                    !IsValidBlock(block, rows, columns) ||
+                    Overlaps(occupied, block))
                 {
                     continue;
                 }
 
                 block.BlockId = NormalizeUniqueId(block.BlockId, blockIds);
                 Mark(occupied, block);
-                result.Add(block);
+                stored.Add(block);
             }
 
+            stored.Sort((left, right) => left.Row != right.Row
+                ? left.Row.CompareTo(right.Row)
+                : left.Column.CompareTo(right.Column));
+            var result = new List<ShowcaseBlockSettings>(rows * columns);
+            var next = 0;
             for (var row = 0; row < rows; row++)
             {
                 for (var column = 0; column < columns; column++)
                 {
+                    while (next < stored.Count &&
+                           stored[next].Row == row &&
+                           stored[next].Column == column)
+                    {
+                        result.Add(stored[next++]);
+                    }
+
                     if (occupied[row, column])
                     {
                         continue;
                     }
 
-                    var block = NewBlock(row, column, 1, 1, null);
-                    block.BlockId = NormalizeUniqueId(block.BlockId, blockIds);
+                    if (!implicitCells.TryGetValue((row, column), out var block))
+                    {
+                        block = NewBlock(row, column, 1, 1, null);
+                    }
+
+                    block.BlockId = NormalizeUniqueId(CellBlockId(pageId, row, column), blockIds);
                     result.Add(block);
                 }
             }
 
-            result = result.OrderBy(block => block.Row).ThenBy(block => block.Column).ToList();
             return result;
         }
 
