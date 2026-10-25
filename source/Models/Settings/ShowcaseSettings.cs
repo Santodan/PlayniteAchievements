@@ -518,6 +518,15 @@ namespace PlayniteAchievements.Models.Settings
 
         public string WidgetInstanceId { get; set; }
 
+        /// <summary>
+        /// An empty 1x1 block. Pages do not store these: every cell no stored block covers is one,
+        /// made on request (ShowcaseLayoutService.ResolveCell), and Normalize drops any left in
+        /// a page's list.
+        /// </summary>
+        [JsonIgnore]
+        public bool IsImplicit =>
+            RowSpan == 1 && ColumnSpan == 1 && string.IsNullOrWhiteSpace(WidgetInstanceId);
+
         public ShowcaseBlockSettings Clone()
         {
             return new ShowcaseBlockSettings
@@ -538,6 +547,11 @@ namespace PlayniteAchievements.Models.Settings
 
         public string Name { get; set; } = "Showcase";
 
+        /// <summary>
+        /// The blocks the page stores: those holding a widget or spanning more than one cell.
+        /// Every other cell is an implicit empty block, so a page's size in memory and on disk
+        /// follows its widgets and merged blocks, not its row and column counts.
+        /// </summary>
         public List<ShowcaseBlockSettings> Blocks { get; set; } =
             new List<ShowcaseBlockSettings>();
 

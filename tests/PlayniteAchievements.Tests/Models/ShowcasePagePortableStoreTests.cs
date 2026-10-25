@@ -57,12 +57,13 @@ namespace PlayniteAchievements.Tests.Models
             CollectionAssert.AreEqual(page.RowWeights, imported.RowWeights);
             Assert.AreEqual(page.Blocks.Count, imported.Blocks.Count);
 
-            var originalBlockIds = new HashSet<string>(page.Blocks.Select(block => block.BlockId));
+            var sourceBlocks = ShowcaseLayoutService.DenseBlocks(page);
+            var copyBlocks = ShowcaseLayoutService.DenseBlocks(imported);
+            Assert.AreEqual(sourceBlocks.Count, copyBlocks.Count);
+            var originalBlockIds = new HashSet<string>(sourceBlocks.Select(block => block.BlockId));
             var originalWidgetIds = new HashSet<string>(page.Blocks
                 .Select(block => block.WidgetInstanceId)
                 .Where(id => id != null));
-            var sourceBlocks = page.Blocks.OrderBy(block => block.Row).ThenBy(block => block.Column).ToList();
-            var copyBlocks = imported.Blocks.OrderBy(block => block.Row).ThenBy(block => block.Column).ToList();
             for (var i = 0; i < sourceBlocks.Count; i++)
             {
                 var source = sourceBlocks[i];
@@ -345,11 +346,11 @@ namespace PlayniteAchievements.Tests.Models
             var portable = ShowcasePagePortableStore.BuildPortable(settings, grids, page.PageId);
             portable.Widgets[0].Kind = (ShowcaseWidgetKind)6;
             var retiredId = portable.Widgets[0].InstanceId;
-            var blockIndex = portable.Page.Blocks.FindIndex(block => block.WidgetInstanceId == retiredId);
+            var retired = portable.Page.Blocks.Single(block => block.WidgetInstanceId == retiredId);
 
             var imported = ShowcasePagePortableStore.ApplyPortable(settings, grids, portable, page.PageId);
 
-            Assert.IsNull(imported.Blocks[blockIndex].WidgetInstanceId);
+            Assert.IsNull(ShowcaseLayoutService.ResolveCell(imported, retired.Row, retired.Column).WidgetInstanceId);
             Assert.AreEqual(
                 page.Blocks.Count(block => block.WidgetInstanceId != null) - 1,
                 imported.Blocks.Count(block => block.WidgetInstanceId != null));
@@ -425,7 +426,7 @@ namespace PlayniteAchievements.Tests.Models
             var games = ShowcaseLayoutService.CreateWidget(settings, ShowcaseWidgetKind.GameSummaries);
             var pie = ShowcaseLayoutService.CreateWidget(settings, ShowcaseWidgetKind.Pie);
 
-            var blocks = page.Blocks.OrderBy(block => block.Row).ThenBy(block => block.Column).ToList();
+            var blocks = ShowcaseLayoutService.DenseBlocks(page);
             Assert.IsTrue(ShowcaseLayoutService.PlaceWidget(settings, page.PageId, blocks[0].BlockId, recent.InstanceId));
             Assert.IsTrue(ShowcaseLayoutService.PlaceWidget(settings, page.PageId, blocks[1].BlockId, games.InstanceId));
             Assert.IsTrue(ShowcaseLayoutService.PlaceWidget(settings, page.PageId, blocks[2].BlockId, pie.InstanceId));
@@ -449,9 +450,7 @@ namespace PlayniteAchievements.Tests.Models
         {
             var widget = ShowcaseLayoutService.CreateWidget(settings, ShowcaseWidgetKind.Profile);
             widget.Profile = profile;
-            var block = page.Blocks
-                .OrderBy(candidate => candidate.Row)
-                .ThenBy(candidate => candidate.Column)
+            var block = ShowcaseLayoutService.DenseBlocks(page)
                 .First(candidate => candidate.WidgetInstanceId == null);
             Assert.IsTrue(ShowcaseLayoutService.PlaceWidget(settings, page.PageId, block.BlockId, widget.InstanceId));
             return widget;
@@ -463,9 +462,7 @@ namespace PlayniteAchievements.Tests.Models
             ShowcaseWidgetKind kind)
         {
             var widget = ShowcaseLayoutService.CreateWidget(settings, kind);
-            var block = page.Blocks
-                .OrderBy(candidate => candidate.Row)
-                .ThenBy(candidate => candidate.Column)
+            var block = ShowcaseLayoutService.DenseBlocks(page)
                 .First(candidate => candidate.WidgetInstanceId == null);
             Assert.IsTrue(ShowcaseLayoutService.PlaceWidget(settings, page.PageId, block.BlockId, widget.InstanceId));
             return widget;

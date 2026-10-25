@@ -113,6 +113,9 @@ namespace PlayniteAchievements.Views.Showcase
         // shows it is under the pointer; a null axis puts every strip out.
         private void SetTrackStripsLit(bool? vertical, int index)
         {
+            // The lit track's size label and grippers show even when it is too narrow for them.
+            _litTrack = vertical.HasValue ? (vertical.Value, index) : ((bool, int)?)null;
+            ScheduleTrackRulerUpdate();
             foreach (var strip in _trackStrips.OfType<Border>())
             {
                 var lit = vertical.HasValue &&
@@ -148,7 +151,7 @@ namespace PlayniteAchievements.Views.Showcase
                 return;
             }
 
-            var canInsert = PageTrackCount(vertical) < ShowcaseLayoutService.MaxTrackCount;
+            var extent = TrackExtent(vertical);
             var deletion = ShowcaseLayoutService.PreviewDeleteTrack(
                 Layout,
                 CurrentPage.PageId,
@@ -162,11 +165,11 @@ namespace PlayniteAchievements.Views.Showcase
             var insertBefore = MenuItem(
                 Localize(vertical ? "LOCPlayAch_Showcase_InsertColumnLeft" : "LOCPlayAch_Showcase_InsertRowAbove"),
                 () => InsertTrack(vertical, index));
-            insertBefore.IsEnabled = canInsert;
+            insertBefore.IsEnabled = ShowcaseLayoutService.CanInsertTrack(CurrentPage, vertical, index, extent);
             var insertAfter = MenuItem(
                 Localize(vertical ? "LOCPlayAch_Showcase_InsertColumnRight" : "LOCPlayAch_Showcase_InsertRowBelow"),
                 () => InsertTrack(vertical, index + 1));
-            insertAfter.IsEnabled = canInsert;
+            insertAfter.IsEnabled = ShowcaseLayoutService.CanInsertTrack(CurrentPage, vertical, index + 1, extent);
             var delete = MenuItem(
                 Localize(vertical ? "LOCPlayAch_Showcase_DeleteColumn" : "LOCPlayAch_Showcase_DeleteRow"),
                 () => DeleteTrack(vertical, index));
@@ -254,11 +257,15 @@ namespace PlayniteAchievements.Views.Showcase
 
         private void InsertTrack(bool vertical, int index)
         {
-            if (ShowcaseLayoutService.TryInsertTrack(Layout, CurrentPage.PageId, vertical, index))
+            if (ShowcaseLayoutService.TryInsertTrack(Layout, CurrentPage.PageId, vertical, index, TrackExtent(vertical)))
             {
                 SaveAndApplyBlocks();
             }
         }
+
+        // The grid's width (columns) or height (rows), against which MinTrackPixels is checked.
+        private double TrackExtent(bool vertical) =>
+            vertical ? DashboardGrid.ActualWidth : DashboardGrid.ActualHeight;
 
         // Asks first only when a widget would be deleted; widgets that can step aside just move.
         private void DeleteTrack(bool vertical, int index)

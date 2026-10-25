@@ -589,11 +589,9 @@ namespace PlayniteAchievements.Services.Library
                 ["ColumnWeights"] = page.ColumnWeights == null ? null : new JArray(page.ColumnWeights)
             };
 
-            var blocks = (page.Blocks ?? new List<ShowcaseBlockSettings>())
-                .Where(block => block != null)
-                .OrderBy(block => block.Row)
-                .ThenBy(block => block.Column)
-                .ToList();
+            // Every cell, implicit empty ones included, so a projection matches the ones saved as
+            // merge baselines whatever the page stores.
+            var blocks = ShowcaseLayoutService.DenseBlocks(page);
             var layout = new JArray();
             foreach (var block in blocks)
             {

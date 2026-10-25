@@ -27,7 +27,7 @@ namespace PlayniteAchievements.Tests.Models
             Assert.AreEqual(3, legacy.RowCount);
             Assert.AreEqual(3, legacy.ColumnCount);
             Assert.IsNull(legacy.GridSize);
-            Assert.AreEqual(9, legacy.Blocks.Count);
+            Assert.AreEqual(9, CellBlockCount(legacy));
             Assert.AreEqual(ShowcaseLayoutService.DefaultTrackCount, settings.Pages[1].RowCount);
             Assert.AreEqual(ShowcaseLayoutService.DefaultTrackCount, settings.Pages[1].ColumnCount);
         }
@@ -39,7 +39,7 @@ namespace PlayniteAchievements.Tests.Models
             var widget = Place(settings, page, 0, 1);
             Assert.IsTrue(ShowcaseLayoutService.TryMerge(
                 settings, page.PageId, Block(page, 0, 1).BlockId, Block(page, 0, 2).BlockId));
-            var before = page.Blocks.Count;
+            var before = CellBlockCount(page);
 
             Assert.IsTrue(ShowcaseLayoutService.TryInsertTrack(settings, page.PageId, vertical: true, 2));
 
@@ -47,7 +47,7 @@ namespace PlayniteAchievements.Tests.Models
             Assert.AreEqual(1, stretched.Column);
             Assert.AreEqual(3, stretched.ColumnSpan);
             Assert.AreEqual(6, page.ColumnCount);
-            Assert.AreEqual(before + 4, page.Blocks.Count);
+            Assert.AreEqual(before + 4, CellBlockCount(page));
             AssertValid(page);
         }
 
@@ -69,16 +69,44 @@ namespace PlayniteAchievements.Tests.Models
         }
 
         [TestMethod]
-        public void InsertTrack_IsRefusedAtTheMaximum()
+        public void InsertTrack_IsRefusedOnceATrackWouldFallBelowTheMinimumSize()
         {
+            // 100 px of equal rows: 8 rows are 12.5 px each, a 9th would make them 11.1 px.
             var (settings, page) = BlankPage();
-            while (page.RowCount < ShowcaseLayoutService.MaxTrackCount)
+            while (ShowcaseLayoutService.TryInsertTrack(settings, page.PageId, vertical: false, 0, extentPixels: 100))
             {
-                Assert.IsTrue(ShowcaseLayoutService.TryInsertTrack(settings, page.PageId, vertical: false, 0));
             }
 
-            Assert.IsFalse(ShowcaseLayoutService.TryInsertTrack(settings, page.PageId, vertical: false, 0));
-            Assert.AreEqual(ShowcaseLayoutService.MaxTrackCount, page.RowCount);
+            Assert.AreEqual(8, page.RowCount);
+            Assert.IsFalse(ShowcaseLayoutService.CanInsertTrack(page, vertical: false, 8, 100));
+            Assert.IsTrue(ShowcaseLayoutService.CanInsertTrack(page, vertical: false, 8, 0));
+            AssertValid(page);
+        }
+
+        [TestMethod]
+        public void InsertTrack_MeasuresTheMinimumAgainstTheNarrowestTrack()
+        {
+            var (settings, page) = BlankPage();
+            page.ColumnWeights = new List<double> { 0.5, 1, 1, 1, 1 };
+
+            // 4.5 stars over 120 px: the half-weight column is 13.3 px, and one more full
+            // column would leave it 10.9 px.
+            Assert.IsFalse(ShowcaseLayoutService.CanInsertTrack(page, vertical: true, 5, 120));
+            Assert.IsTrue(ShowcaseLayoutService.CanInsertTrack(page, vertical: true, 5, 160));
+        }
+
+        [TestMethod]
+        public void Normalize_BoundsAStoredTrackCount()
+        {
+            var settings = new ShowcaseSettings
+            {
+                Pages = { new ShowcasePageSettings { RowCount = 100000, ColumnCount = 1 } }
+            };
+
+            ShowcaseLayoutService.Normalize(settings);
+
+            Assert.AreEqual(ShowcaseLayoutService.MaxStoredTrackCount, settings.Pages[0].RowCount);
+            Assert.AreEqual(ShowcaseLayoutService.MaxStoredTrackCount, CellBlockCount(settings.Pages[0]));
         }
 
         [TestMethod]
@@ -94,7 +122,7 @@ namespace PlayniteAchievements.Tests.Models
 
             Assert.AreEqual(4, page.RowCount);
             CollectionAssert.AreEqual(new[] { 1d, 2, 1, 1 }, page.RowWeights);
-            Assert.AreEqual(20, page.Blocks.Count);
+            Assert.AreEqual(20, CellBlockCount(page));
             AssertValid(page);
         }
 
@@ -234,7 +262,10 @@ namespace PlayniteAchievements.Tests.Models
         }
 
         private static ShowcaseBlockSettings Block(ShowcasePageSettings page, int row, int column) =>
-            page.Blocks.Single(block => block.Row == row && block.Column == column);
+            ShowcaseLayoutService.ResolveCell(page, row, column);
+
+        private static int CellBlockCount(ShowcasePageSettings page) =>
+            ShowcaseLayoutService.DenseBlocks(page).Count;
 
         private static ShowcaseBlockSettings BlockOf(
             ShowcasePageSettings page,
