@@ -114,6 +114,10 @@ namespace PlayniteAchievements.ViewModels
             !AchievementFiltersApply ||
             ((TagFilter?.MatchesTally(tally) ?? true) && (TierFilters?.Matches(tally) ?? true));
 
+        /// <summary>True while the applying achievement filters keep the completions count.</summary>
+        public bool KeepsCompletions =>
+            !AchievementFiltersApply || (TierFilters?.KeepsCompletions ?? true);
+
         // The tag keys a game's achievements carry, locked or not, from the games the options list.
         private IEnumerable<string> GameTagKeys(Guid gameId) =>
             (_optionGames ?? new List<GameSummaryItem>())
