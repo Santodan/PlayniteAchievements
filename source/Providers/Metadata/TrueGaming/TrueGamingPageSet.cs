@@ -24,12 +24,33 @@ namespace PlayniteAchievements.Providers.Metadata.TrueGaming
         public TrueGamingPage Page { get; }
     }
 
+    /// <summary>The rows a game's TrueGaming pages give together.</summary>
+    internal sealed class TrueGamingCombinedRows
+    {
+        public TrueGamingCombinedRows(List<AchievementDetail> rows, Dictionary<string, AchievementDetail> aliases, int mergedByDescription)
+        {
+            Rows = rows;
+            Aliases = aliases;
+            MergedByDescription = mergedByDescription;
+        }
+
+        public List<AchievementDetail> Rows { get; }
+
+        /// <summary>Each listing's id on a later page to the row it joined, which goes by its first listing's id.</summary>
+        public Dictionary<string, AchievementDetail> Aliases { get; }
+
+        /// <summary>How many listings joined a row by description, their names differing between sites.</summary>
+        public int MergedByDescription { get; }
+    }
+
     /// <summary>
     /// Which of a game's TrueGaming pages the wanted fields need, and the rows they give together.
     /// Points come only from TrueAchievements and trophy ranks only from TrueTrophies. Tags and
     /// categories come from the pages in lookup order: each achievement takes its category from
     /// the first page that lists it, and its tags from the first page that lists it with flags.
-    /// Achievements of different pages are paired by name.
+    /// Achievements of different pages are paired by name, then by description where the sites
+    /// name one differently ("Grilled Tasty" on TrueSteamAchievements, "Grilled Tastes Better" on
+    /// the others, both "Defeat Miltos").
     /// </summary>
     internal static class TrueGamingPageSet
     {
@@ -92,12 +113,24 @@ namespace PlayniteAchievements.Providers.Metadata.TrueGaming
         }
 
         /// <summary>The rows <paramref name="pages"/> give together, in page order; <paramref name="baseLabel"/> names the base game's category.</summary>
-        public static List<AchievementDetail> Combine(IReadOnlyList<TrueGamingFoundPage> pages, string baseLabel)
+        public static List<AchievementDetail> Combine(IReadOnlyList<TrueGamingFoundPage> pages, string baseLabel) =>
+            CombineAll(pages, baseLabel).Rows;
+
+        /// <summary>
+        /// <see cref="Combine"/>'s rows with the ids of the listings they joined. A page's row whose
+        /// name no earlier page lists joins an earlier row by description when the description is
+        /// one of a kind on both sides, the earlier row has no listing from this site yet, and both
+        /// are in the same DLC pack; otherwise it is a row of its own.
+        /// </summary>
+        public static TrueGamingCombinedRows CombineAll(IReadOnlyList<TrueGamingFoundPage> pages, string baseLabel)
         {
-            var order = new List<string>();
+            var entries = new List<List<(TrueGamingSite Site, TrueGamingAchievement Row)>>();
             var byName = new Dictionary<string, List<(TrueGamingSite Site, TrueGamingAchievement Row)>>(StringComparer.Ordinal);
+            var mergedByDescription = 0;
             foreach (var found in pages ?? Array.Empty<TrueGamingFoundPage>())
             {
+                var earlier = entries.ToList();
+                var unnamed = new List<TrueGamingAchievement>();
                 foreach (var row in found.Page.Achievements)
                 {
                     var key = NameKey(row.Name);
@@ -106,23 +139,110 @@ namespace PlayniteAchievements.Providers.Metadata.TrueGaming
                         continue;
                     }
 
-                    if (!byName.TryGetValue(key, out var listings))
+                    if (byName.TryGetValue(key, out var listings))
                     {
-                        listings = new List<(TrueGamingSite Site, TrueGamingAchievement Row)>();
-                        byName[key] = listings;
-                        order.Add(key);
+                        // One listing per site: a page naming two rows alike keeps its first.
+                        if (listings.All(listing => listing.Site != found.Site))
+                        {
+                            listings.Add((found.Site, row));
+                        }
+                    }
+                    else if (earlier.Count > 0)
+                    {
+                        unnamed.Add(row);
+                    }
+                    else
+                    {
+                        AddEntry(entries, byName, key, found.Site, row);
+                    }
+                }
+
+                var pageDescriptions = DescriptionCounts(found.Page.Achievements.Select(row => row.Description));
+                var earlierDescriptions = DescriptionCounts(earlier.Select(listings => listings[0].Row.Description));
+                foreach (var row in unnamed)
+                {
+                    var key = NameKey(row.Name);
+                    if (byName.TryGetValue(key, out var named))
+                    {
+                        // Another row of this page by the same name came first.
+                        if (named.All(listing => listing.Site != found.Site))
+                        {
+                            named.Add((found.Site, row));
+                        }
+
+                        continue;
                     }
 
-                    // One listing per site: a page naming two rows alike keeps its first.
-                    if (listings.All(listing => listing.Site != found.Site))
+                    var description = NameKey(row.Description);
+                    var joined = description.Length > 0 &&
+                                 pageDescriptions.TryGetValue(description, out var onPage) && onPage == 1 &&
+                                 earlierDescriptions.TryGetValue(description, out var before) && before == 1
+                        ? earlier.FirstOrDefault(listings =>
+                            NameKey(listings[0].Row.Description) == description &&
+                            listings.All(listing => listing.Site != found.Site) &&
+                            SameDlc(listings[0].Row.Dlc, row.Dlc))
+                        : null;
+                    if (joined != null)
                     {
-                        listings.Add((found.Site, row));
+                        joined.Add((found.Site, row));
+                        byName[key] = joined;
+                        mergedByDescription++;
+                    }
+                    else
+                    {
+                        AddEntry(entries, byName, key, found.Site, row);
                     }
                 }
             }
 
-            return order.Select(key => ToRow(byName[key], baseLabel)).ToList();
+            var rows = new List<AchievementDetail>();
+            var aliases = new Dictionary<string, AchievementDetail>(StringComparer.OrdinalIgnoreCase);
+            foreach (var listings in entries)
+            {
+                var row = ToRow(listings, baseLabel);
+                rows.Add(row);
+                foreach (var listing in listings.Skip(1))
+                {
+                    if (!string.IsNullOrWhiteSpace(listing.Row.Id) &&
+                        !string.Equals(listing.Row.Id, row.ApiName, StringComparison.OrdinalIgnoreCase) &&
+                        !aliases.ContainsKey(listing.Row.Id))
+                    {
+                        aliases[listing.Row.Id] = row;
+                    }
+                }
+            }
+
+            return new TrueGamingCombinedRows(rows, aliases, mergedByDescription);
         }
+
+        private static void AddEntry(
+            List<List<(TrueGamingSite Site, TrueGamingAchievement Row)>> entries,
+            Dictionary<string, List<(TrueGamingSite Site, TrueGamingAchievement Row)>> byName,
+            string key,
+            TrueGamingSite site,
+            TrueGamingAchievement row)
+        {
+            var listings = new List<(TrueGamingSite Site, TrueGamingAchievement Row)> { (site, row) };
+            byName[key] = listings;
+            entries.Add(listings);
+        }
+
+        private static Dictionary<string, int> DescriptionCounts(IEnumerable<string> descriptions)
+        {
+            var counts = new Dictionary<string, int>(StringComparer.Ordinal);
+            foreach (var key in descriptions.Select(NameKey).Where(key => key.Length > 0))
+            {
+                counts[key] = counts.TryGetValue(key, out var count) ? count + 1 : 1;
+            }
+
+            return counts;
+        }
+
+        private static bool SameDlc(string left, string right) =>
+            string.Equals(
+                CategoryPathHelper.SanitizeSegment(left) ?? string.Empty,
+                CategoryPathHelper.SanitizeSegment(right) ?? string.Empty,
+                StringComparison.OrdinalIgnoreCase);
 
         private static AchievementDetail ToRow(List<(TrueGamingSite Site, TrueGamingAchievement Row)> listings, string baseLabel)
         {
