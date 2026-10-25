@@ -112,6 +112,26 @@ namespace PlayniteAchievements.Tests.Views
             Assert.IsFalse(element.HasAnimatedProperties);
         });
 
+        [TestMethod]
+        public void EffectTargetSetAfterActivationLeavesTheElementOpaque() => Sta(() =>
+        {
+            // The toast template's style trigger can turn the pulse on before the element's own
+            // Target and PhaseLock attributes apply, so the activation pre-set sees the defaults:
+            // an Element target, phase-locked, which pre-sets the pulse's current opacity.
+            var element = new Border();
+            RarityGlowPulse.SetIsActive(element, true);
+            element.Effect = new DropShadowEffect();
+            RarityGlowPulse.SetTarget(element, RarityGlowPulseTarget.Effect);
+            RarityGlowPulse.SetPhaseLock(element, false);
+            _root.Children.Add(element);
+            Pump(60);
+
+            Assert.AreEqual(1.0, element.Opacity, "an Effect target's own opacity must not keep the pre-set");
+            Assert.AreEqual(DependencyPropertyHelper.GetValueSource(element, UIElement.OpacityProperty).BaseValueSource,
+                BaseValueSource.Default);
+            RarityGlowPulse.SetIsActive(element, false);
+        });
+
         private static void Pump(int milliseconds)
         {
             var frame = new DispatcherFrame();
