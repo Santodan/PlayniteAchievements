@@ -3,9 +3,11 @@ using Playnite.SDK;
 using PlayniteAchievements.Common;
 using System;
 using System.IO;
+using System.Linq;
 using System.Net;
 using System.Net.Http;
 using System.Text;
+using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -78,40 +80,41 @@ namespace PlayniteAchievements.Providers.BattleNet
             using (var http = new HttpClient(handler))
             {
                 http.DefaultRequestHeaders.Add("User-Agent", UserAgent);
-                foreach (var url in IndexUrls)
-                {
-                    foreach (var withCookie in new[] { true, false })
-                    {
-                        report.AppendLine($"== http GET {url} cookie={withCookie}");
-                        var body = await GetAsync(http, url, withCookie ? header : null, report, ct).ConfigureAwait(false);
-                        if (withCookie)
-                        {
-                            await ReportRarityAsync(http, url, body, header, report, ct).ConfigureAwait(false);
-                        }
 
-                        report.AppendLine();
-                    }
-                }
-            }
-
-            foreach (var url in IndexUrls)
-            {
-                report.AppendLine($"== browser {url}");
-                try
-                {
-                    var text = await api.WithOffscreenViewAsync(async view =>
-                    {
-                        await view.NavigateAndWaitAsync(url);
-                        return await view.GetPageTextAsync();
-                    }).ConfigureAwait(false);
-                    DescribeBody(text, report);
-                }
-                catch (Exception ex)
-                {
-                    report.AppendLine($"failed: {ex.GetType().Name}: {ex.Message}");
-                }
-
+                // Round 2: both hosts answer the old index path with the app shell, so save the
+                // shell and every script it loads, and list the data paths the scripts name.
+                report.AppendLine($"== shell {CheckUrl}");
+                var shell = await GetAsync(http, CheckUrl, header, report, ct).ConfigureAwait(false) ?? string.Empty;
+                File.WriteAllText(Path.Combine(folder, "shell.html"), shell, Encoding.UTF8);
+                report.AppendLine("shell: " + shell.Replace("\r", " ").Replace("\n", " "));
                 report.AppendLine();
+
+                var scripts = Regex.Matches(shell, "src=\"([^\"]+\\.js)\"")
+                    .Cast<Match>()
+                    .Select(m => m.Groups[1].Value)
+                    .Distinct(StringComparer.Ordinal)
+                    .ToList();
+                foreach (var src in scripts)
+                {
+                    var scriptUrl = new Uri(new Uri(CheckUrl), src).ToString();
+                    report.AppendLine($"== script {scriptUrl}");
+                    var js = await GetAsync(http, scriptUrl, header, report, ct).ConfigureAwait(false) ?? string.Empty;
+                    var file = Regex.Replace(Path.GetFileName(new Uri(scriptUrl).AbsolutePath), @"[^A-Za-z0-9_.\-]", "_");
+                    File.WriteAllText(Path.Combine(folder, file), js, Encoding.UTF8);
+                    report.AppendLine($"saved: {file}");
+
+                    var paths = Regex.Matches(js, "[\"'`]([^\"'`\\s]{0,120}(?:\\.json|/api/|/dynamic|rarity)[^\"'`\\s]{0,120})[\"'`]", RegexOptions.IgnoreCase)
+                        .Cast<Match>()
+                        .Select(m => m.Groups[1].Value)
+                        .Distinct(StringComparer.Ordinal)
+                        .Take(80);
+                    foreach (var found in paths)
+                    {
+                        report.AppendLine("  path: " + found);
+                    }
+
+                    report.AppendLine();
+                }
             }
 
             report.AppendLine("Done.");
