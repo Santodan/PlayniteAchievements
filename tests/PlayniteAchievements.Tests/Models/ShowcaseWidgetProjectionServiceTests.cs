@@ -1507,7 +1507,7 @@ namespace PlayniteAchievements.Tests.Models
                     Profile = new ShowcaseProfileSettings { Subtitle = "Completionist" }
                 });
 
-            Assert.AreEqual("SteamName", built.ResolvedProfile.DisplayName);
+            Assert.IsNull(built.ResolvedProfile.DisplayName);
             Assert.AreEqual(@"C:\avatar.png", built.ResolvedProfile.AvatarPath);
             Assert.AreEqual("Completionist", built.ResolvedProfile.Subtitle);
             Assert.IsTrue(built.ResolvedProfile.FromProviderIdentity);
