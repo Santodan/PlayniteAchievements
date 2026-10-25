@@ -81,8 +81,8 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
     }
 
     /// <summary>
-    /// Backs the Profile widget: avatar, display name, and background resolved from the
-    /// provider identity with manual overrides, plus a medal-count row (rarity tiers and
+    /// Backs the Profile widget: avatar resolved from the provider identity with a manual
+    /// override, the manual display name (none while blank) and background, plus a medal-count row (rarity tiers and
     /// completions, or trophy grades) and a stat strip filling the instance's configured stat
     /// slots. Medals and stats count the games its collection and control bar keep; the
     /// identity does not follow them. Density only scales the avatar; the same content shows at
@@ -100,6 +100,7 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
         private CornerRadius _avatarCornerRadius = new CornerRadius(12);
         private int _avatarDecodePixel = 144;
         private string _displayName;
+        private bool _showDisplayName;
         private string _subtitle;
         private bool _showSubtitle;
         private bool _showMedals;
@@ -159,6 +160,8 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
         public int AvatarDecodePixel { get => _avatarDecodePixel; private set => SetValue(ref _avatarDecodePixel, value); }
 
         public string DisplayName { get => _displayName; private set => SetValue(ref _displayName, value); }
+
+        public bool ShowDisplayName { get => _showDisplayName; private set => SetValue(ref _showDisplayName, value); }
 
         public string Subtitle { get => _subtitle; private set => SetValue(ref _subtitle, value); }
 
@@ -242,9 +245,8 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
             AvatarCornerRadius = new CornerRadius(Math.Round(AvatarSize * 0.17));
             AvatarDecodePixel = Math.Max(64, (int)Math.Ceiling(AvatarSize * 2));
 
-            DisplayName = string.IsNullOrWhiteSpace(resolved.DisplayName)
-                ? ResourceProvider.GetString("LOCPlayAch_Showcase_Profile_DefaultName")
-                : resolved.DisplayName;
+            DisplayName = resolved.DisplayName;
+            ShowDisplayName = !string.IsNullOrWhiteSpace(resolved.DisplayName);
 
             Subtitle = resolved.Subtitle;
             ShowSubtitle = !string.IsNullOrWhiteSpace(resolved.Subtitle);
