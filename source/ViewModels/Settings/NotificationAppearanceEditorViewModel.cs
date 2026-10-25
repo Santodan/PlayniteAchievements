@@ -56,6 +56,7 @@ namespace PlayniteAchievements.ViewModels.Settings
         private string _textShadowText;
         private string _textShadowOffsetText;
         private string _frameVignetteStrengthText;
+        private string _blurTintOpacityText;
         private string _imageShadowText;
         private string _imageShadowOffsetText;
         private string _cardWidthText = string.Empty;
@@ -760,6 +761,45 @@ namespace PlayniteAchievements.ViewModels.Settings
 
         #endregion
 
+        #region Blurred background (toast surface only)
+
+        /// <summary>The image picker gives way while the card shows the blurred background.</summary>
+        public bool ShowBackgroundImagePicker => Surface?.BlurBackground != true;
+
+        /// <summary>
+        /// Tint opacity text mirror (0-100) for the blurred background. Blank clears the
+        /// override back to the default. Zero (an untinted blur) is meaningful, so this commits
+        /// through the same parser as the shadow and vignette strengths.
+        /// </summary>
+        public string BlurTintOpacityText
+        {
+            get => _blurTintOpacityText;
+            set
+            {
+                if (!SetValueAndReturn(ref _blurTintOpacityText, value))
+                {
+                    return;
+                }
+
+                var surface = Surface;
+                if (surface != null && _isEditable)
+                {
+                    surface.BlurTintOpacity = ParseShadowStrength(value);
+                }
+
+                OnPropertyChanged(nameof(BlurTintOpacitySlider));
+            }
+        }
+
+        public double BlurTintOpacitySlider
+        {
+            get => Surface?.BlurTintOpacity ?? AchievementToastViewModel.DefaultBlurTintOpacity;
+            set => BlurTintOpacityText = Math.Round(Math.Max(0, Math.Min(100, value)))
+                .ToString(CultureInfo.CurrentCulture);
+        }
+
+        #endregion
+
         #region Image keyframe (animated slot images in screenshots)
 
         private static readonly string PlayGlyph = char.ConvertFromUtf32(0xEC74);
@@ -1180,6 +1220,9 @@ namespace PlayniteAchievements.ViewModels.Settings
             SetValue(ref _frameVignetteStrengthText,
                 surface?.FrameVignetteStrength?.ToString(CultureInfo.CurrentCulture) ?? string.Empty,
                 nameof(FrameVignetteStrengthText));
+            SetValue(ref _blurTintOpacityText,
+                surface?.BlurTintOpacity?.ToString(CultureInfo.CurrentCulture) ?? string.Empty,
+                nameof(BlurTintOpacityText));
             SetValue(ref _imageKeyframeText,
                 surface?.ImageKeyframeMs?.ToString(CultureInfo.CurrentCulture) ?? string.Empty,
                 nameof(ImageKeyframeText));
@@ -1201,6 +1244,8 @@ namespace PlayniteAchievements.ViewModels.Settings
             OnPropertyChanged(nameof(ImageShadowSlider));
             OnPropertyChanged(nameof(ImageShadowOffsetSlider));
             OnPropertyChanged(nameof(FrameVignetteStrengthSlider));
+            OnPropertyChanged(nameof(BlurTintOpacitySlider));
+            OnPropertyChanged(nameof(ShowBackgroundImagePicker));
 
             // The rarity percent's font controls read straight from the surface too.
             OnPropertyChanged(nameof(SelectedRarityFontFamilyOption));
@@ -2432,6 +2477,10 @@ namespace PlayniteAchievements.ViewModels.Settings
                 OnPropertyChanged(nameof(SelectedFrameVignette));
                 OnPropertyChanged(nameof(ShowFrameVignetteStrength));
                 OnPropertyChanged(nameof(ShowFrameBackgroundPicker));
+            }
+            else if (e.PropertyName == nameof(NotificationSurfaceStyle.BlurBackground))
+            {
+                OnPropertyChanged(nameof(ShowBackgroundImagePicker));
             }
             else if (e.PropertyName == nameof(NotificationSurfaceStyle.EntranceMotion) ||
                      e.PropertyName == nameof(NotificationSurfaceStyle.ExitMotion) ||
