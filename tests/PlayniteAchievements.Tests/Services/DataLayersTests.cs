@@ -12,14 +12,67 @@ namespace PlayniteAchievements.Services.Metadata.Tests
         [TestMethod]
         public void Resolve_PlatformValueOverwrittenByMetadata_IsMetadataOnly()
         {
-            var rows = new List<AchievementDetail> { new AchievementDetail { ApiName = "A", Category = "Steam" } };
+            var rows = new List<AchievementDetail>
+            {
+                new AchievementDetail { ApiName = "A", Category = "Steam" },
+                new AchievementDetail { ApiName = "B", Category = "Steam" }
+            };
             var before = DataLayers.Take(rows);
             rows[0].Category = "Story";
+            rows[1].Category = "Side";
 
             var layers = Resolve(before, rows);
 
             Assert.AreEqual(CustomizationArea.Categories, layers.Metadata & CustomizationArea.Categories);
             Assert.AreEqual(CustomizationArea.None, layers.Platform & CustomizationArea.Categories);
+        }
+
+        [TestMethod]
+        public void Resolve_EveryAchievementInOneCategory_IsNoCategories()
+        {
+            var rows = new List<AchievementDetail>
+            {
+                new AchievementDetail { ApiName = "A" },
+                new AchievementDetail { ApiName = "B" }
+            };
+            var before = DataLayers.Take(rows);
+            rows[0].Category = "Librarian: Tidy Up The Arcane Library";
+            rows[1].Category = "Librarian: Tidy Up The Arcane Library";
+
+            var layers = Resolve(before, rows);
+
+            Assert.AreEqual(CustomizationArea.None, (layers.Platform | layers.Metadata) & CustomizationArea.Categories);
+            Assert.AreEqual(CustomizationArea.None, DataLayers.Present(rows) & CustomizationArea.Categories);
+        }
+
+        [TestMethod]
+        public void Resolve_GameNameAndDlcCategories_IsMetadata()
+        {
+            var rows = new List<AchievementDetail>
+            {
+                new AchievementDetail { ApiName = "A" },
+                new AchievementDetail { ApiName = "B" }
+            };
+            var before = DataLayers.Take(rows);
+            rows[0].Category = "Game";
+            rows[1].Category = "Game|Expansion";
+
+            var layers = Resolve(before, rows);
+
+            Assert.AreEqual(CustomizationArea.Categories, layers.Metadata & CustomizationArea.Categories);
+            Assert.AreEqual(CustomizationArea.Categories, DataLayers.Present(rows) & CustomizationArea.Categories);
+        }
+
+        [TestMethod]
+        public void OneCategoryBesideDefault_IsCategorized()
+        {
+            var rows = new List<AchievementDetail>
+            {
+                new AchievementDetail { ApiName = "A", Category = "Story" },
+                new AchievementDetail { ApiName = "B", Category = "Default" }
+            };
+
+            Assert.AreEqual(CustomizationArea.Categories, DataLayers.Present(rows) & CustomizationArea.Categories);
         }
 
         [TestMethod]
