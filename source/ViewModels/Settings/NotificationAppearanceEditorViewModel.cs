@@ -56,6 +56,7 @@ namespace PlayniteAchievements.ViewModels.Settings
         private string _textShadowText;
         private string _textShadowOffsetText;
         private string _frameVignetteStrengthText;
+        private string _blurStrengthText;
         private string _blurTintOpacityText;
         private string _imageShadowText;
         private string _imageShadowOffsetText;
@@ -767,6 +768,37 @@ namespace PlayniteAchievements.ViewModels.Settings
         public bool ShowBackgroundImagePicker => Surface?.BlurBackground != true;
 
         /// <summary>
+        /// Blur strength text mirror (0-100; 0 leaves the background sharp). Blank clears the
+        /// override back to the default.
+        /// </summary>
+        public string BlurStrengthText
+        {
+            get => _blurStrengthText;
+            set
+            {
+                if (!SetValueAndReturn(ref _blurStrengthText, value))
+                {
+                    return;
+                }
+
+                var surface = Surface;
+                if (surface != null && _isEditable)
+                {
+                    surface.BlurStrength = ParseShadowStrength(value);
+                }
+
+                OnPropertyChanged(nameof(BlurStrengthSlider));
+            }
+        }
+
+        public double BlurStrengthSlider
+        {
+            get => Surface?.BlurStrength ?? AchievementToastViewModel.DefaultBlurStrength;
+            set => BlurStrengthText = Math.Round(Math.Max(0, Math.Min(100, value)))
+                .ToString(CultureInfo.CurrentCulture);
+        }
+
+        /// <summary>
         /// Tint opacity text mirror (0-100) for the blurred background. Blank clears the
         /// override back to the default. Zero (an untinted blur) is meaningful, so this commits
         /// through the same parser as the shadow and vignette strengths.
@@ -1220,6 +1252,9 @@ namespace PlayniteAchievements.ViewModels.Settings
             SetValue(ref _frameVignetteStrengthText,
                 surface?.FrameVignetteStrength?.ToString(CultureInfo.CurrentCulture) ?? string.Empty,
                 nameof(FrameVignetteStrengthText));
+            SetValue(ref _blurStrengthText,
+                surface?.BlurStrength?.ToString(CultureInfo.CurrentCulture) ?? string.Empty,
+                nameof(BlurStrengthText));
             SetValue(ref _blurTintOpacityText,
                 surface?.BlurTintOpacity?.ToString(CultureInfo.CurrentCulture) ?? string.Empty,
                 nameof(BlurTintOpacityText));
@@ -1244,6 +1279,7 @@ namespace PlayniteAchievements.ViewModels.Settings
             OnPropertyChanged(nameof(ImageShadowSlider));
             OnPropertyChanged(nameof(ImageShadowOffsetSlider));
             OnPropertyChanged(nameof(FrameVignetteStrengthSlider));
+            OnPropertyChanged(nameof(BlurStrengthSlider));
             OnPropertyChanged(nameof(BlurTintOpacitySlider));
             OnPropertyChanged(nameof(ShowBackgroundImagePicker));
 
