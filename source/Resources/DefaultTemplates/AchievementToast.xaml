@@ -94,6 +94,11 @@
                                     <Setter Property="Background" Value="Transparent"/>
                                     <Setter Property="BorderThickness" Value="0"/>
                                 </DataTrigger>
+                                <!-- Blurred background: a DWM window under the toast blurs what is
+                                     behind the card, and the card draws only a translucent tint. -->
+                                <DataTrigger Binding="{Binding HasToastBlur}" Value="True">
+                                    <Setter Property="Background" Value="{Binding ToastBlurTintBrush}"/>
+                                </DataTrigger>
                             </Style.Triggers>
                         </Style>
                     </Border.Style>
