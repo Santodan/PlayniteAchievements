@@ -179,7 +179,8 @@
                                    FontWeight="Bold"
                                    FontSize="{DynamicResource PlayAch.FontSize.SectionHeader}"
                                    TextAlignment="{Binding TextAlignment}"
-                                   TextWrapping="Wrap"/>
+                                   TextWrapping="Wrap"
+                                   Visibility="{Binding ShowDisplayName, Converter={StaticResource BoolToVis}}"/>
                         <TextBlock Text="{Binding Subtitle}"
                                    TextAlignment="{Binding TextAlignment}"
                                    Foreground="{DynamicResource PlayAch.Brush.Text}"
