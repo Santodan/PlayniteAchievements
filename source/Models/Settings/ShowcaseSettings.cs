@@ -519,8 +519,9 @@ namespace PlayniteAchievements.Models.Settings
         public string WidgetInstanceId { get; set; }
 
         /// <summary>
-        /// An empty 1x1 block. Normalize recreates one for every cell no other block covers, so
-        /// these are never written to settings or files and never get a block container.
+        /// An empty 1x1 block. Pages do not store these: every cell no stored block covers is one,
+        /// made on request (ShowcaseLayoutService.ResolveCell), and Normalize drops any left in
+        /// a page's list.
         /// </summary>
         [JsonIgnore]
         public bool IsImplicit =>
@@ -547,24 +548,12 @@ namespace PlayniteAchievements.Models.Settings
         public string Name { get; set; } = "Showcase";
 
         /// <summary>
-        /// Every block of the page once normalized, implicit empty cells included. Serialized
-        /// through <see cref="StoredBlocks"/>.
+        /// The blocks the page stores: those holding a widget or spanning more than one cell.
+        /// Every other cell is an implicit empty block, so a page's size in memory and on disk
+        /// follows its widgets and merged blocks, not its row and column counts.
         /// </summary>
-        [JsonIgnore]
         public List<ShowcaseBlockSettings> Blocks { get; set; } =
             new List<ShowcaseBlockSettings>();
-
-        /// <summary>
-        /// The blocks as written to settings and files: implicit empty cells are left out, so a
-        /// page's size on disk follows its widgets and merged blocks, not its row and column
-        /// counts. Normalize fills the gaps back in on load.
-        /// </summary>
-        [JsonProperty("Blocks", ObjectCreationHandling = ObjectCreationHandling.Replace)]
-        public List<ShowcaseBlockSettings> StoredBlocks
-        {
-            get => Blocks?.Where(block => block != null && !block.IsImplicit).ToList();
-            set => Blocks = value ?? new List<ShowcaseBlockSettings>();
-        }
 
         /// <summary>
         /// The page's row count (normalized by ShowcaseLayoutService into its track-count
@@ -589,14 +578,7 @@ namespace PlayniteAchievements.Models.Settings
         /// <summary>Star weights for the grid's columns; null means equal shares.</summary>
         public List<double> ColumnWeights { get; set; }
 
-        public ShowcasePageSettings Clone() => Clone(includeImplicit: true);
-
-        /// <summary>
-        /// A copy that leaves out implicit empty cells when <paramref name="includeImplicit"/> is
-        /// false, for copies that are held rather than shown (undo history); Normalize restores
-        /// the cells.
-        /// </summary>
-        public ShowcasePageSettings Clone(bool includeImplicit)
+        public ShowcasePageSettings Clone()
         {
             return new ShowcasePageSettings
             {
@@ -606,7 +588,7 @@ namespace PlayniteAchievements.Models.Settings
                 ColumnCount = ColumnCount,
                 GridSize = GridSize,
                 Blocks = (Blocks ?? new List<ShowcaseBlockSettings>())
-                    .Where(block => block != null && (includeImplicit || !block.IsImplicit))
+                    .Where(block => block != null)
                     .Select(block => block.Clone())
                     .ToList(),
                 RowWeights = RowWeights?.ToList(),
@@ -681,10 +663,7 @@ namespace PlayniteAchievements.Models.Settings
         public Dictionary<string, ShowcaseWidgetInstanceSettings> StartPageInstances { get; set; } =
             new Dictionary<string, ShowcaseWidgetInstanceSettings>(StringComparer.OrdinalIgnoreCase);
 
-        public ShowcaseSettings Clone() => Clone(includeImplicit: true);
-
-        /// <inheritdoc cref="ShowcasePageSettings.Clone(bool)"/>
-        public ShowcaseSettings Clone(bool includeImplicit)
+        public ShowcaseSettings Clone()
         {
             return new ShowcaseSettings
             {
@@ -692,7 +671,7 @@ namespace PlayniteAchievements.Models.Settings
                 LastSelectedPageId = LastSelectedPageId,
                 Pages = (Pages ?? new List<ShowcasePageSettings>())
                     .Where(page => page != null)
-                    .Select(page => page.Clone(includeImplicit))
+                    .Select(page => page.Clone())
                     .ToList(),
                 WidgetInstances = (WidgetInstances ?? new List<ShowcaseWidgetInstanceSettings>())
                     .Where(widget => widget != null)
