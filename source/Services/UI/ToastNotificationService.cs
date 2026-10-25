@@ -2900,7 +2900,11 @@ namespace PlayniteAchievements.Services.UI
                 if (visible)
                 {
                     liveBackdrop = ToastLiveBackdrop.TryStart(
-                        window, items, _activeIsGame ? _activeReferenceHwnd : IntPtr.Zero);
+                        window, items, _activeIsGame ? _activeReferenceHwnd : IntPtr.Zero, out var blurSkipped);
+                    if (blurSkipped != null)
+                    {
+                        _logger?.Info($"[Toast] Blur: not started ({blurSkipped}).");
+                    }
                 }
 
                 // Let the card actually reach the screen before the slide starts timing itself.
@@ -3281,7 +3285,11 @@ namespace PlayniteAchievements.Services.UI
                     _activeCardSurface.SizeChanged -= onHoldSurfaceSized;
                 }
 
-                liveBackdrop?.Dispose();
+                if (liveBackdrop != null)
+                {
+                    liveBackdrop.Dispose();
+                    _logger?.Info($"[Toast] Blur: {liveBackdrop.Describe()}");
+                }
 
                 // Unconditional: waves are sequential, so this only ever clears this wave's rate.
                 RayAnimationDriver.ClearSamplingFps();
