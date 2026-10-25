@@ -16,8 +16,6 @@ namespace PlayniteAchievements.Services.Capture
     {
         public static Bitmap BuildBitmap(IntPtr src, int rowPitch, int width, int height, float refWhite)
         {
-            var inv = 1f / Math.Max(0.001f, refWhite);
-
             var bmp = new Bitmap(width, height, PixelFormat.Format32bppArgb);
             var data = bmp.LockBits(new Rectangle(0, 0, width, height), ImageLockMode.WriteOnly, PixelFormat.Format32bppArgb);
             try
@@ -25,21 +23,7 @@ namespace PlayniteAchievements.Services.Capture
                 var outRow = new byte[width * 4];
                 for (var y = 0; y < height; y++)
                 {
-                    var rowPtr = src + y * rowPitch;
-                    for (var x = 0; x < width; x++)
-                    {
-                        var px = rowPtr + x * 8;
-                        var r = HalfToFloat((ushort)Marshal.ReadInt16(px)) * inv;
-                        var g = HalfToFloat((ushort)Marshal.ReadInt16(px + 2)) * inv;
-                        var b = HalfToFloat((ushort)Marshal.ReadInt16(px + 4)) * inv;
-
-                        var o = x * 4;
-                        outRow[o + 0] = ToSrgbByte(Shoulder(b)); // B
-                        outRow[o + 1] = ToSrgbByte(Shoulder(g)); // G
-                        outRow[o + 2] = ToSrgbByte(Shoulder(r)); // R
-                        outRow[o + 3] = 255;                      // A
-                    }
-
+                    ToBgraRow(src + y * rowPitch, width, refWhite, outRow, 0);
                     Marshal.Copy(outRow, 0, data.Scan0 + y * data.Stride, outRow.Length);
                 }
             }
@@ -49,6 +33,28 @@ namespace PlayniteAchievements.Services.Capture
             }
 
             return bmp;
+        }
+
+        /// <summary>
+        /// Tone-maps one row of <paramref name="width"/> scRGB pixels at <paramref name="src"/> into
+        /// opaque BGRA bytes at <paramref name="destOffset"/> in <paramref name="dest"/>.
+        /// </summary>
+        public static void ToBgraRow(IntPtr src, int width, float refWhite, byte[] dest, int destOffset)
+        {
+            var inv = 1f / Math.Max(0.001f, refWhite);
+            for (var x = 0; x < width; x++)
+            {
+                var px = src + x * 8;
+                var r = HalfToFloat((ushort)Marshal.ReadInt16(px)) * inv;
+                var g = HalfToFloat((ushort)Marshal.ReadInt16(px + 2)) * inv;
+                var b = HalfToFloat((ushort)Marshal.ReadInt16(px + 4)) * inv;
+
+                var o = destOffset + x * 4;
+                dest[o + 0] = ToSrgbByte(Shoulder(b)); // B
+                dest[o + 1] = ToSrgbByte(Shoulder(g)); // G
+                dest[o + 2] = ToSrgbByte(Shoulder(r)); // R
+                dest[o + 3] = 255;                      // A
+            }
         }
 
         /// <summary>
