@@ -756,6 +756,7 @@
     <Compile Include="..\..\source\Common\MonotonicUtcClock.cs" Link="Source\Common\MonotonicUtcClock.cs" />
     <Compile Include="..\..\source\Common\ServerClockOffset.cs" Link="Source\Common\ServerClockOffset.cs" />
     <Compile Include="..\..\source\Services\Capture\ToastOverlayTrack.cs" Link="Source\Services\Capture\ToastOverlayTrack.cs" />
+    <Compile Include="..\..\source\Services\Capture\ToastBlurPatch.cs" Link="Source\Services\Capture\ToastBlurPatch.cs" />
     <Compile Include="..\..\source\Services\Capture\OverlayBlitMath.cs" Link="Source\Services\Capture\OverlayBlitMath.cs" />
     <Compile Include="..\..\source\Services\Capture\FrameChromeImage.cs" Link="Source\Services\Capture\FrameChromeImage.cs" />
     <Compile Include="..\..\source\Services\Capture\FrameChromeAnimation.cs" Link="Source\Services\Capture\FrameChromeAnimation.cs" />
