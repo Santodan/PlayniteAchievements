@@ -118,5 +118,61 @@ namespace PlayniteAchievements.Tests.ViewModels
             Assert.AreEqual(2, rare.TotalGames);
             Assert.AreEqual(1, rare.Completions);
         }
+
+        [TestMethod]
+        public void ProfileRarityFilter_TiersAndCapstoneAreOneOrSet()
+        {
+            var games = Games().ToList();
+            var source = OverviewDataSnapshot.FromGameSummaries(games);
+            source.Completions = 1;
+            source.PossibleCompletions = 1;
+
+            OverviewDataSnapshot Filter(params string[] keys)
+            {
+                var adapter = new StatisticsControlBarAdapter();
+                adapter.TierFilters.CapstoneJoinsTiers = true;
+                adapter.UpdateOptions(games);
+                foreach (var key in keys)
+                {
+                    adapter.TierFilters.RarityItem.SetSelected(Playnite.SDK.ResourceProvider.GetString(key), true);
+                }
+
+                return OverviewLinkedSnapshots.FilterAchievements(
+                    source, adapter.MatchesAchievement, adapter.MatchesTally, adapter.KeepsCompletions);
+            }
+
+            // Every tier without Capstone keeps every achievement, the capstone among them by its
+            // tier, and sets completions aside.
+            var tiers = Filter("LOCPlayAch_Rarity_Common", "LOCPlayAch_Rarity_Uncommon",
+                "LOCPlayAch_Rarity_Rare", "LOCPlayAch_Rarity_UltraRare");
+            Assert.AreEqual(5, tiers.TotalAchievements);
+            Assert.AreEqual(0, tiers.Completions);
+            Assert.AreEqual(0, tiers.PossibleCompletions);
+
+            // Capstone alone keeps the capstone and the completions.
+            var capstone = Filter("LOCPlayAch_Dynamic_Capstone");
+            Assert.AreEqual(1, capstone.TotalAchievements);
+            Assert.AreEqual(1, capstone.Completions);
+
+            // A tier and Capstone keep either: the two Common achievements and the Rare capstone.
+            var union = Filter("LOCPlayAch_Rarity_Common", "LOCPlayAch_Dynamic_Capstone");
+            Assert.AreEqual(3, union.TotalAchievements);
+            Assert.AreEqual(1, union.TotalRarePossible);
+            Assert.AreEqual(1, union.Completions);
+        }
+
+        [TestMethod]
+        public void RarityFilter_OutsideTheProfileKeepsCapstoneAsAnAndAndKeepsCompletions()
+        {
+            var adapter = new StatisticsControlBarAdapter();
+            adapter.UpdateOptions(Games());
+            adapter.TierFilters.RarityItem.SetSelected(Playnite.SDK.ResourceProvider.GetString("LOCPlayAch_Rarity_Common"), true);
+            Assert.IsTrue(adapter.KeepsCompletions);
+
+            adapter.TierFilters.RarityItem.SetSelected(Playnite.SDK.ResourceProvider.GetString("LOCPlayAch_Dynamic_Capstone"), true);
+            Assert.IsFalse(adapter.MatchesTally(new AchievementTally(string.Empty, RarityTier.Common, null, false, 1, 1)));
+            Assert.IsFalse(adapter.MatchesTally(new AchievementTally(string.Empty, RarityTier.Rare, null, true, 1, 1)));
+            Assert.IsTrue(adapter.MatchesTally(new AchievementTally(string.Empty, RarityTier.Common, null, true, 1, 1)));
+        }
     }
 }
