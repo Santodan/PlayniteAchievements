@@ -54,17 +54,6 @@ namespace PlayniteAchievements.Views.Showcase
         private UIElement BuildContent()
         {
             var panel = new StackPanel();
-            var providerHint = new TextBlock
-            {
-                Text = Localize("LOCPlayAch_Showcase_ProfileProviderHint"),
-                FontStyle = FontStyles.Italic,
-                Opacity = 0.7,
-                TextWrapping = TextWrapping.Wrap
-            };
-            providerHint.SetResourceReference(MarginProperty, "PlayAch.Thickness.Bottom.Sm");
-            providerHint.SetResourceReference(TextBlock.ForegroundProperty, "PlayAch.Brush.Text");
-            panel.Children.Add(providerHint);
-
             AddTextBox(
                 panel,
                 Localize("LOCPlayAch_Showcase_ProfileName"),
