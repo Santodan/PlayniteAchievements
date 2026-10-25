@@ -857,11 +857,12 @@ namespace PlayniteAchievements.Services.UI
             // each variant carries its own rarity policy; an item with no realized card degrades
             // to the plain base clone.
             var itemsControl = _activeCardSurface;
-            var overlays = new List<(AchievementToastViewModel Vm, System.Drawing.Bitmap Overlay, System.Drawing.Rectangle Rect)>();
+            var overlays = new List<(AchievementToastViewModel Vm, System.Drawing.Bitmap Overlay, System.Drawing.Rectangle Rect, ToastBlurPatch Blur)>();
             foreach (var vm in withToastVms)
             {
                 System.Drawing.Bitmap overlay = null;
                 var rect = System.Drawing.Rectangle.Empty;
+                ToastBlurPatch blur = null;
                 if (haveGeometry && itemsControl != null)
                 {
                     var container = itemsControl.ItemContainerGenerator.ContainerFromItem(vm) as FrameworkElement;
@@ -875,11 +876,15 @@ namespace PlayniteAchievements.Services.UI
                                 Horizontal(), AlignBottom(), EffectiveGapDipX(), EffectiveGapDipY(),
                                 out var ix, out var iy);
                             rect = new System.Drawing.Rectangle(ix, iy, physSize.Width, physSize.Height);
+                            if (vm.HasToastBlur)
+                            {
+                                blur = CreateBlurPatch(container);
+                            }
                         }
                     }
                 }
 
-                overlays.Add((vm, overlay, rect));
+                overlays.Add((vm, overlay, rect, blur));
             }
 
             // Now the base frame is needed. With a capture delay this is where the wait actually
@@ -930,7 +935,7 @@ namespace PlayniteAchievements.Services.UI
                         {
                             try
                             {
-                                CompositeToastOverlay(clone, entry.Overlay, entry.Rect, capturePhys);
+                                CompositeToastOverlay(clone, entry.Overlay, entry.Rect, capturePhys, entry.Blur);
                             }
                             catch (Exception ex)
                             {
@@ -1507,6 +1512,13 @@ namespace PlayniteAchievements.Services.UI
                 var scratch = GetCardScratch(vm);
                 var glowScale = ComputeGlowScale(scratch, hostOpacity);
 
+                // The clip draws its own blur under a blurred card; the card's place in its frame
+                // does not change across the wave, so it is measured once.
+                if (vm.HasToastBlur && !recorder.HasBlur(vm))
+                {
+                    recorder.SetBlur(vm, CreateBlurPatch(container));
+                }
+
                 // A frame primed before the slide substitutes for the first tick's rasterization:
                 // submitting it is only an enqueue, so the slide-in's early frames carry no render
                 // cost. Deliberately ahead of the stagger — no rasterization happens either way.
@@ -2042,14 +2054,16 @@ namespace PlayniteAchievements.Services.UI
         /// Draws the toast overlay onto the base capture at the given physical rect relative to
         /// the rect the capture covers (game client rect, or monitor bounds for the out-of-game
         /// test fire). Physical-pixel coordinates map 1:1 into the capture when it equals that
-        /// rect; the width/height ratio absorbs any rounding or DPI difference. Mutates
-        /// <paramref name="game"/> in place.
+        /// rect; the width/height ratio absorbs any rounding or DPI difference. A non-null
+        /// <paramref name="blur"/> first blurs the shot under the card, standing in for the DWM blur
+        /// the live toast shows. Mutates <paramref name="game"/> in place.
         /// </summary>
         private static void CompositeToastOverlay(
             System.Drawing.Bitmap game,
             System.Drawing.Bitmap overlay,
             System.Drawing.Rectangle toastPhys,
-            System.Drawing.Rectangle clientPhys)
+            System.Drawing.Rectangle clientPhys,
+            ToastBlurPatch blur = null)
         {
             var sx = (double)game.Width / clientPhys.Width;
             var sy = (double)game.Height / clientPhys.Height;
@@ -2057,6 +2071,8 @@ namespace PlayniteAchievements.Services.UI
             var y = (int)Math.Round((toastPhys.Y - clientPhys.Y) * sy);
             var w = Math.Max(1, (int)Math.Round(overlay.Width * sx));
             var h = Math.Max(1, (int)Math.Round(overlay.Height * sy));
+
+            blur?.Apply(game, new System.Drawing.Rectangle(x, y, w, h), sx);
 
             using (var g = System.Drawing.Graphics.FromImage(game))
             {
@@ -4212,6 +4228,33 @@ namespace PlayniteAchievements.Services.UI
         private const double HitRegionAllowanceDip = 16d;
         // The bundled toast template's card CornerRadius, which the blurred backdrop's region follows.
         private const double ToastCardCornerRadiusDip = 8d;
+
+        /// <summary>
+        /// Where a blurred card sits inside its item container (the element the screenshot and the
+        /// clip render), for the blur those outputs draw under it; null when the container has no size.
+        /// </summary>
+        private static ToastBlurPatch CreateBlurPatch(FrameworkElement container)
+        {
+            if (container == null || container.RenderSize.Width <= 0 || container.RenderSize.Height <= 0)
+            {
+                return null;
+            }
+
+            var size = container.RenderSize;
+            var inset = ToastSurfaceFactory.MeasureCardInset(container);
+            var width = size.Width - inset.Left - inset.Right;
+            var height = size.Height - inset.Top - inset.Bottom;
+            if (width <= 0 || height <= 0)
+            {
+                return null;
+            }
+
+            return new ToastBlurPatch(
+                new System.Drawing.RectangleF(
+                    (float)(inset.Left / size.Width), (float)(inset.Top / size.Height),
+                    (float)(width / size.Width), (float)(height / size.Height)),
+                (float)(ToastCardCornerRadiusDip / size.Width));
+        }
 
         /// <summary>
         /// Each realized card's template root, whose bounds are the visible card without the room the
