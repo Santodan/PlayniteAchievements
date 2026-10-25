@@ -1001,6 +1001,41 @@ namespace PlayniteAchievements
                 };
             }
 
+            // Developer-only, hidden unless the hardcoded DataForAzerothProbe.Enabled flag is on.
+            // Deliberately not localized. Opens the site for its human check, then compares hosts.
+            if (global::PlayniteAchievements.Providers.BattleNet.DataForAzerothProbe.Enabled)
+            {
+                yield return new MainMenuItem
+                {
+                    Description = "Probe Data for Azeroth hosts",
+                    MenuSection = PluginMainMenuSection,
+                    Action = (a) =>
+                    {
+                        global::PlayniteAchievements.Providers.BattleNet.DataForAzerothProbe.ShowCheckWindow(PlayniteApi);
+                        var folder = System.IO.Path.Combine(GetPluginUserDataPath(), "diagnostics", "dfa-probe");
+                        _ = Task.Run(async () =>
+                        {
+                            try
+                            {
+                                await global::PlayniteAchievements.Providers.BattleNet.DataForAzerothProbe.RunAsync(
+                                    PlayniteApi,
+                                    _logger,
+                                    folder,
+                                    CancellationToken.None).ConfigureAwait(false);
+                                PlayniteApi.Notifications.Add(
+                                    "PlayAch_DfaProbe",
+                                    $"Data for Azeroth probe finished: {folder}",
+                                    NotificationType.Info);
+                            }
+                            catch (Exception ex)
+                            {
+                                _logger?.Warn(ex, "Data for Azeroth probe failed.");
+                            }
+                        });
+                    }
+                };
+            }
+
             // Developer-only, hidden unless the hardcoded ExophaseCollectionProbe.Enabled flag is on.
             // Deliberately not localized. Probes a fixed list of Steam collections, plus the games
             // selected in the library.
