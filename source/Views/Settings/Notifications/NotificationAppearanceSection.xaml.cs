@@ -67,6 +67,14 @@ namespace PlayniteAchievements.Views.Settings.Notifications
         private bool _suppressSurfaceTabEvents;
         private AchievementToastViewModel _toastPreviewViewModel;
         private ToastPreviewBackdrop _toastPreviewBackdrop;
+        private ItemsControl _toastPreviewSurface;
+
+        // Whether the toast preview sits on game art: a view option of this editor, never saved.
+        // Null follows the style (on while it has a blurred background); the toggle sets it until
+        // the blurred background is switched, which hands it back to the style.
+        private bool? _previewBackdropChoice;
+        private bool? _previewBackdropBlurSeen;
+        private bool _suppressPreviewBackdropToggle;
         private string _previewBackdropScope;
         private string _previewBackdropPath;
         private ImageSource _lastToastBackgroundRenderSource;
@@ -1133,8 +1141,8 @@ namespace PlayniteAchievements.Views.Settings.Notifications
             var toastSurface = ToastSurfaceFactory.BuildToastSurface(toastItems, toastTemplate);
             ToastMockupHost.Content = toastSurface;
 
-            _toastPreviewBackdrop = _toastPreviewBackdrop ?? new ToastPreviewBackdrop(ToastMockupFrame, ResolvePreviewBackdropPath);
-            _toastPreviewBackdrop.Apply(toastSurface, _toastPreviewViewModel);
+            _toastPreviewSurface = toastSurface;
+            ApplyPreviewBackdrop();
 
             // The host may already have published its animated source — before this control
             // loaded, or while this very method was setting the URI — in which case no further
@@ -1478,6 +1486,47 @@ namespace PlayniteAchievements.Views.Settings.Notifications
             return string.IsNullOrWhiteSpace(imagePath)
                 ? null
                 : _plugin.PlayniteApi?.Database?.GetFullFilePath(imagePath);
+        }
+
+        /// <summary>
+        /// Shows or hides the game behind the toast preview per <see cref="_previewBackdropChoice"/>,
+        /// and keeps the toolbar toggle in step.
+        /// </summary>
+        private void ApplyPreviewBackdrop()
+        {
+            var vm = _toastPreviewViewModel;
+            if (vm == null || _toastPreviewSurface == null || ToastMockupFrame == null)
+            {
+                return;
+            }
+
+            if (_previewBackdropBlurSeen != vm.HasToastBlur)
+            {
+                _previewBackdropBlurSeen = vm.HasToastBlur;
+                _previewBackdropChoice = null;
+            }
+
+            var show = _previewBackdropChoice ?? vm.HasToastBlur;
+            if (PreviewBackdropToggle != null && PreviewBackdropToggle.IsChecked != show)
+            {
+                _suppressPreviewBackdropToggle = true;
+                PreviewBackdropToggle.IsChecked = show;
+                _suppressPreviewBackdropToggle = false;
+            }
+
+            _toastPreviewBackdrop = _toastPreviewBackdrop ?? new ToastPreviewBackdrop(ToastMockupFrame, ResolvePreviewBackdropPath);
+            _toastPreviewBackdrop.Apply(_toastPreviewSurface, vm, show);
+        }
+
+        private void PreviewBackdropToggle_Changed(object sender, RoutedEventArgs e)
+        {
+            if (_suppressPreviewBackdropToggle)
+            {
+                return;
+            }
+
+            _previewBackdropChoice = PreviewBackdropToggle.IsChecked == true;
+            ApplyPreviewBackdrop();
         }
 
         /// <summary>
