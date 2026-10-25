@@ -66,6 +66,9 @@ namespace PlayniteAchievements.Views.Settings.Notifications
         private bool _suppressSelectionChanged;
         private bool _suppressSurfaceTabEvents;
         private AchievementToastViewModel _toastPreviewViewModel;
+        private ToastPreviewBackdrop _toastPreviewBackdrop;
+        private string _previewBackdropScope;
+        private string _previewBackdropPath;
         private ImageSource _lastToastBackgroundRenderSource;
 
         private bool IsGameMode => _gameId != Guid.Empty;
@@ -1127,7 +1130,11 @@ namespace PlayniteAchievements.Views.Settings.Notifications
             var toastTemplate = ToastSurfaceFactory.ResolveToastTemplate(
                 _toastTemplateResolver, toastItems, _currentToastUseThemeStyling, ScopeProviderKey, ScopeGameId);
             ToastMockupHost.ContentTemplate = null;
-            ToastMockupHost.Content = ToastSurfaceFactory.BuildToastSurface(toastItems, toastTemplate);
+            var toastSurface = ToastSurfaceFactory.BuildToastSurface(toastItems, toastTemplate);
+            ToastMockupHost.Content = toastSurface;
+
+            _toastPreviewBackdrop = _toastPreviewBackdrop ?? new ToastPreviewBackdrop(ToastMockupFrame, ResolvePreviewBackdropPath);
+            _toastPreviewBackdrop.Apply(toastSurface, _toastPreviewViewModel);
 
             // The host may already have published its animated source — before this control
             // loaded, or while this very method was setting the URI — in which case no further
@@ -1471,6 +1478,42 @@ namespace PlayniteAchievements.Views.Settings.Notifications
             return string.IsNullOrWhiteSpace(imagePath)
                 ? null
                 : _plugin.PlayniteApi?.Database?.GetFullFilePath(imagePath);
+        }
+
+        /// <summary>
+        /// The image a blurred-background preview sits on: the edited game's background art, or
+        /// outside game mode the most recently played game's; null (a generated stand-in) when there
+        /// is none. Resolved once per scope.
+        /// </summary>
+        private string ResolvePreviewBackdropPath()
+        {
+            var scope = IsGameMode ? _gameId.ToString() : string.Empty;
+            if (string.Equals(_previewBackdropScope, scope, StringComparison.Ordinal))
+            {
+                return _previewBackdropPath;
+            }
+
+            _previewBackdropScope = scope;
+            _previewBackdropPath = null;
+            try
+            {
+                var games = _plugin.PlayniteApi?.Database?.Games;
+                var game = games == null
+                    ? null
+                    : IsGameMode
+                        ? games.Get(_gameId)
+                        : games.Where(g => !string.IsNullOrWhiteSpace(g.BackgroundImage))
+                            .OrderByDescending(g => g.LastActivity ?? DateTime.MinValue)
+                            .FirstOrDefault();
+                var path = ResolveGameImagePath(game?.BackgroundImage);
+                _previewBackdropPath = !string.IsNullOrWhiteSpace(path) && File.Exists(path) ? path : null;
+            }
+            catch (Exception ex)
+            {
+                _logger?.Debug(ex, "Failed resolving the blurred-background preview image.");
+            }
+
+            return _previewBackdropPath;
         }
 
         private void CloseFramePreview()
