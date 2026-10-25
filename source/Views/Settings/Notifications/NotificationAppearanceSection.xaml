@@ -176,6 +176,20 @@
                                         Tag="ActiveTheme"
                                         Content="{DynamicResource LOCPlayAch_Settings_Style_FireTheme}"
                                         Margin="0,0,0,8"/>
+                                <!-- View option, never saved: sit the preview on game art. Starts on
+                                     for a blurred background (ApplyPreviewBackdrop). -->
+                                <ToggleButton x:Name="PreviewBackdropToggle"
+                                              Content="&#xEF4B;"
+                                              ToolTip="{DynamicResource LOCPlayAch_Settings_Style_PreviewBackdrop}"
+                                              Style="{StaticResource PlayAch.ToggleButton.FilterStyle}"
+                                              FontFamily="{DynamicResource PlayAch.FontFamily.Icon}"
+                                              FontSize="16"
+                                              MinHeight="30"
+                                              Width="34"
+                                              Padding="0"
+                                              Margin="8,0,0,8"
+                                              Checked="PreviewBackdropToggle_Changed"
+                                              Unchecked="PreviewBackdropToggle_Changed"/>
                             </StackPanel>
                             <StackPanel Orientation="Horizontal"
                                         Visibility="{Binding IsSelected, ElementName=FrameTabItem, Converter={StaticResource BoolToVis}}">
