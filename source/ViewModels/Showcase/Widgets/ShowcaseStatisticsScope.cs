@@ -27,9 +27,16 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
         private IReadOnlyList<ShowcaseStatistic> _narrowedStatistics;
         private DateTime _narrowedStatisticsDay;
 
-        public ShowcaseStatisticsScope(Action onFilterChanged)
+        private readonly bool _capstoneJoinsTiers;
+
+        /// <param name="capstoneJoinsTiers">
+        /// True for the Profile widget: its Rarity options are one OR set, so Capstone sits beside
+        /// the tiers as its medal does (see <see cref="RarityTrophyControlBarFilters.CapstoneJoinsTiers"/>).
+        /// </param>
+        public ShowcaseStatisticsScope(Action onFilterChanged, bool capstoneJoinsTiers = false)
         {
             _controlBarSlot = new ShowcaseControlBarSlot<StatisticsControlBarAdapter>(onFilterChanged);
+            _capstoneJoinsTiers = capstoneJoinsTiers;
         }
 
         /// <summary>The bar items the widget's settings show; null when it shows none.</summary>
@@ -48,6 +55,7 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
             _controlBarSlot.UpdateShownBar(projection?.Instance);
 
             var adapter = _controlBarSlot.Adapter;
+            adapter.TierFilters.CapstoneJoinsTiers = _capstoneJoinsTiers;
             var collection = projection?.Collection;
             var games = (source.GameSummaries ?? new List<GameSummaryItem>())
                 .Where(game => game != null)
@@ -92,7 +100,8 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
                     _narrowed = OverviewLinkedSnapshots.FilterAchievements(
                         _narrowed,
                         adapter.MatchesAchievement,
-                        adapter.MatchesTally);
+                        adapter.MatchesTally,
+                        adapter.KeepsCompletions);
                 }
 
                 _narrowedStatistics = null;
