@@ -1011,7 +1011,6 @@ namespace PlayniteAchievements
                     MenuSection = PluginMainMenuSection,
                     Action = (a) =>
                     {
-                        global::PlayniteAchievements.Providers.BattleNet.DataForAzerothProbe.ShowCheckWindow(PlayniteApi);
                         var folder = System.IO.Path.Combine(GetPluginUserDataPath(), "diagnostics", "dfa-probe");
                         _ = Task.Run(async () =>
                         {
