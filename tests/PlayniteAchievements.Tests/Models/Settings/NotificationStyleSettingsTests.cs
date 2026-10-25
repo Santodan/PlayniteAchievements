@@ -194,6 +194,7 @@ namespace PlayniteAchievements.Tests.Models.Settings
                 NotificationLineEmphasis.Italic | NotificationLineEmphasis.Strikethrough;
             source.NotificationStyle.Frame.FrameVignetteStrength = 75;
             source.NotificationStyle.Toast.BlurBackground = true;
+            source.NotificationStyle.Toast.BlurStrength = 70;
             source.NotificationStyle.Toast.BlurTintOpacity = 30;
             source.NotificationStyle.FrameBackgroundImagePath = @"C:\frame_background.png";
             source.NotificationStyle.Toast.ImageKeyframeMs = 250;
@@ -221,6 +222,7 @@ namespace PlayniteAchievements.Tests.Models.Settings
                     copy.NotificationStyle.Toast.RarityEmphasis);
                 Assert.AreEqual(75, copy.NotificationStyle.Frame.FrameVignetteStrength);
                 Assert.IsTrue(copy.NotificationStyle.Toast.BlurBackground);
+                Assert.AreEqual(70, copy.NotificationStyle.Toast.BlurStrength);
                 Assert.AreEqual(30, copy.NotificationStyle.Toast.BlurTintOpacity);
                 Assert.AreEqual(@"C:\frame_background.png", copy.NotificationStyle.FrameBackgroundImagePath);
                 Assert.AreEqual(250, copy.NotificationStyle.Toast.ImageKeyframeMs);
