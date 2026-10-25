@@ -20,10 +20,17 @@ namespace PlayniteAchievements.Providers.Metadata.TrueGaming
     internal static class TrueGamingProbe
     {
         /// <summary>Hardcoded gate for the hidden "Probe TrueGaming" menu item. Off in shipped builds.</summary>
-        internal static readonly bool Enabled = false;
+        internal static readonly bool Enabled = true;
 
-        // The site and comparison checks of earlier probes; this run checks languages only.
+        // The site and comparison checks of earlier probes.
         private static readonly bool RunSiteChecks = false;
+
+        // The language check of an earlier probe.
+        private static readonly bool RunLanguageChecks = false;
+
+        // Games whose sites name some achievements differently: each site's rows, what Combine
+        // makes of them, and which rows the sites share a description for but not a name.
+        private static readonly string[] MergeGames = { "Asterigos-Curse-of-the-Stars" };
 
         // How the sites choose the language of achievement titles: what the browser sends, what
         // each page says, and whether an address parameter changes the titles.
@@ -94,7 +101,28 @@ namespace PlayniteAchievements.Providers.Metadata.TrueGaming
             var comparedRows = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
             using (views.BeginLease())
             {
-                await ProbeLanguagesAsync(views, logger, outputDirectory, ct).ConfigureAwait(false);
+                foreach (var game in MergeGames)
+                {
+                    ct.ThrowIfCancellationRequested();
+                    try
+                    {
+                        await MergeCheckAsync(views, logger, game, outputDirectory, ct).ConfigureAwait(false);
+                    }
+                    catch (OperationCanceledException) when (ct.IsCancellationRequested)
+                    {
+                        throw;
+                    }
+                    catch (Exception ex)
+                    {
+                        logger?.Warn(ex, $"[TrueGamingProbe] merge check '{game}' failed");
+                    }
+                }
+
+                if (RunLanguageChecks)
+                {
+                    await ProbeLanguagesAsync(views, logger, outputDirectory, ct).ConfigureAwait(false);
+                }
+
                 if (!RunSiteChecks)
                 {
                     logger?.Info($"[TrueGamingProbe] done; pages saved to {outputDirectory}");
@@ -325,6 +353,110 @@ namespace PlayniteAchievements.Providers.Metadata.TrueGaming
             File.WriteAllText(file, report.ToString(), Encoding.UTF8);
             logger?.Info($"[TrueGamingProbe] compare {report.ToString().Replace("\r", "").Replace("\n", " || ")}");
         }
+
+        /// <summary>
+        /// merge-&lt;slug&gt;.txt: each site's page for <paramref name="slug"/> (the name, then its
+        /// edition variants) and its rows, the rows <see cref="TrueGamingPageSet.Combine"/> makes of
+        /// them with their points, and every row listed by one site only, with the rows of other
+        /// sites that share its description.
+        /// </summary>
+        private static async Task MergeCheckAsync(
+            OffscreenViewLeaseSource views,
+            ILogger logger,
+            string slug,
+            string outputDirectory,
+            CancellationToken ct)
+        {
+            var report = new StringBuilder();
+            report.AppendLine(slug);
+            var found = new List<TrueGamingFoundPage>();
+            foreach (var site in TrueGamingSite.LookupOrder)
+            {
+                var hit = false;
+                foreach (var candidate in TrueGamingLinks.SlugsFor(site, slug))
+                {
+                    ct.ThrowIfCancellationRequested();
+                    var url = site.ListUrl(candidate);
+                    var watch = Stopwatch.StartNew();
+                    var (html, address) = await views.WithNavigableViewAsync(async view =>
+                    {
+                        await view.NavigateAndWaitAsync(url, NavigationTimeoutMs).ConfigureAwait(false);
+                        var source = await view.GetPageSourceAsync().ConfigureAwait(false);
+                        for (var attempt = 1; IsChallenge(source) && attempt < Attempts; attempt++)
+                        {
+                            await Task.Delay(RetryDelayMs, ct).ConfigureAwait(false);
+                            source = await view.GetPageSourceAsync().ConfigureAwait(false);
+                        }
+
+                        return (source ?? string.Empty, view.GetCurrentAddress());
+                    }, ct).ConfigureAwait(false);
+
+                    var page = TrueGamingPageParser.Parse(html);
+                    report.AppendLine(
+                        $"  {site.Prefix}:{candidate} -> {address} | {watch.ElapsedMilliseconds} ms, bytes={html.Length}, " +
+                        $"challenge={IsChallenge(html)}, rows={page.Achievements.Count}");
+                    if (page.Achievements.Count == 0)
+                    {
+                        continue;
+                    }
+
+                    File.WriteAllText(Path.Combine(outputDirectory, $"merge-{site.Prefix}-{candidate}.html"), html, Encoding.UTF8);
+                    found.Add(new TrueGamingFoundPage(site, candidate, page));
+                    hit = true;
+                    break;
+                }
+
+                if (!hit)
+                {
+                    report.AppendLine($"  {site.Prefix}: no page");
+                }
+            }
+
+            foreach (var entry in found)
+            {
+                report.AppendLine($"[{entry.Site.Prefix}] {entry.Slug}");
+                foreach (var row in entry.Page.Achievements)
+                {
+                    report.AppendLine(
+                        $"    {row.Id} | {row.Name} | points={row.Points?.ToString() ?? "-"} | trophy={row.TrophyType ?? "-"} | " +
+                        $"dlc={row.Dlc ?? "-"} | desc={DescriptionKey(row.Description)}");
+                }
+            }
+
+            var combined = TrueGamingPageSet.Combine(found, "Base");
+            report.AppendLine($"[combined] rows={combined.Count}, withPoints={combined.Count(row => row.Points.HasValue)}");
+            foreach (var row in combined)
+            {
+                report.AppendLine($"    {row.ApiName} | {row.DisplayName} | points={row.Points?.ToString() ?? "-"} | trophy={row.TrophyType ?? "-"} | category={row.Category}");
+            }
+
+            // A row only one site lists is a name the sites disagree on, or an achievement only
+            // that site has; a shared description tells the two apart.
+            var listings = found
+                .SelectMany(entry => entry.Page.Achievements.Select(row => (entry.Site, Row: row)))
+                .ToList();
+            var sitesByName = listings
+                .GroupBy(listing => TrueGamingPageSet.NameKey(listing.Row.Name))
+                .ToDictionary(group => group.Key, group => group.Select(listing => listing.Site).Distinct().Count());
+            report.AppendLine("[single-site rows]");
+            foreach (var (site, row) in listings.Where(listing => sitesByName[TrueGamingPageSet.NameKey(listing.Row.Name)] == 1))
+            {
+                var key = DescriptionKey(row.Description);
+                var sameDescription = listings
+                    .Where(other => other.Site != site && key.Length > 0 && DescriptionKey(other.Row.Description) == key)
+                    .Select(other => $"{other.Site.Prefix}:{other.Row.Name} (dlc={other.Row.Dlc ?? "-"}, points={other.Row.Points?.ToString() ?? "-"})")
+                    .ToList();
+                var duplicates = listings.Count(other => other.Site == site && DescriptionKey(other.Row.Description) == key);
+                report.AppendLine(
+                    $"    {site.Prefix}:{row.Name} (dlc={row.Dlc ?? "-"}) | descriptionOnItsPage={duplicates} | " +
+                    $"sameDescription=[{string.Join("; ", sameDescription)}]");
+            }
+
+            File.WriteAllText(Path.Combine(outputDirectory, $"merge-{slug}.txt"), report.ToString(), Encoding.UTF8);
+            logger?.Info($"[TrueGamingProbe] merge {report.ToString().Replace("\r", "").Replace("\n", " || ")}");
+        }
+
+        private static string DescriptionKey(string description) => TrueGamingPageSet.NameKey(description);
 
         private static void CompareRows(
             StringBuilder report,
