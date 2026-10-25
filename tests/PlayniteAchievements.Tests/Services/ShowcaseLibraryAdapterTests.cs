@@ -258,7 +258,7 @@ namespace PlayniteAchievements.Services.Tests
 
         private List<ShowcaseBlockSettings> AuthorBlocks()
         {
-            return _authorPage.Blocks.OrderBy(block => block.Row).ThenBy(block => block.Column).ToList();
+            return ShowcaseLayoutService.DenseBlocks(_authorPage);
         }
 
         private LibraryItem WritePackage(string version)
