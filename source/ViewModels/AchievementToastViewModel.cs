@@ -1379,8 +1379,34 @@ namespace PlayniteAchievements.ViewModels
         {
             get
             {
+                if (HasToastBlur)
+                {
+                    return false;
+                }
+
                 var path = _style.ToastBackgroundImagePath;
                 return !string.IsNullOrWhiteSpace(path) && File.Exists(path);
+            }
+        }
+
+        /// <summary>
+        /// True when the card shows the blurred backdrop behind it. The blur is drawn by a separate
+        /// DWM window under the toast; the card itself draws only <see cref="ToastBlurTintBrush"/>.
+        /// </summary>
+        public bool HasToastBlur => _style.Toast.BlurBackground;
+
+        /// <summary>
+        /// The theme surface brush at the style's tint opacity, drawn over the blurred backdrop.
+        /// </summary>
+        public Brush ToastBlurTintBrush
+        {
+            get
+            {
+                var surface = Application.Current?.TryFindResource("PlayAch.Brush.PopupSurface") as Brush;
+                var tint = surface != null ? surface.Clone() : new SolidColorBrush(Colors.Black);
+                tint.Opacity = NormalizePercent(_style.Toast.BlurTintOpacity, DefaultBlurTintOpacity);
+                tint.Freeze();
+                return tint;
             }
         }
 
@@ -1440,6 +1466,9 @@ namespace PlayniteAchievements.ViewModels
 
         // The percent value that maps to the built-in frame vignette; shared with the editor.
         public const double DefaultFrameVignetteStrength = 50;
+
+        // The tint opacity over a blurred toast background; shared with the editor.
+        public const double DefaultBlurTintOpacity = 50;
 
         // Image shadows are single-layer (artwork has no thin glyph edges to solidify), so
         // 100 is both the default and the darkest the layer can go.
