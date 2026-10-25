@@ -21,11 +21,17 @@ namespace PlayniteAchievements.Tests.Providers
     [TestClass]
     public class DataForAzerothGateTests
     {
-        private const string IndexUrl = "https://dataforazeroth.com/dynamic/index.json";
-        private const string RarityUrl = "https://dataforazeroth.com/dynamic/achievementsrarity.hash.json";
+        private const string IndexUrl = "https://www.dataforazeroth.com/retail/dynamic/index.json";
+        private const string RarityUrl = "https://www.dataforazeroth.com/retail/dynamic/achievementsrarity.hash.json";
 
         private const string IndexJson =
-            @"{""achievements"":""/dynamic/achievements.a.json"",""achievementsrarity"":""/dynamic/achievementsrarity.hash.json""}";
+            @"{""achievements"":""/retail/dynamic/achievements.a.json"",""achievementsrarity"":""/retail/dynamic/achievementsrarity.hash.json""}";
+
+        // What the site serves, with HTTP 200, for any path it does not hold once the gate is cleared.
+        private const string AppShellHtml =
+            "<!doctype html><html lang=\"en\"><head><title>Data for Azeroth</title>" +
+            "<script defer=\"defer\" src=\"/static/js/main.js\"></script></head>" +
+            "<body><div id=\"root\"></div></body></html>";
 
         private const string RarityJson =
             @"{""achievements"":{""6"":100,""157"":4.3049,""158"":22.5}}";
@@ -122,6 +128,25 @@ namespace PlayniteAchievements.Tests.Providers
 
                 Assert.AreEqual(DataForAzerothStatus.Gated, result.Status);
             }
+        }
+
+        [TestMethod]
+        public async Task LoadRarity_TreatsTheAppShellAsFailureRatherThanAGate()
+        {
+            var handler = ScriptedHandler.Serving(
+                (IndexUrl, HttpStatusCode.OK, "text/html", AppShellHtml));
+
+            using (var client = NewClient(handler, Cookie("dfa-captcha", "token-dfa-123")))
+            {
+                var first = await client.LoadRarityAsync(CancellationToken.None);
+                var second = await client.LoadRarityAsync(CancellationToken.None);
+
+                Assert.AreEqual(DataForAzerothStatus.Failed, first.Status);
+                Assert.AreEqual(DataForAzerothStatus.Failed, second.Status);
+            }
+
+            // No gate backoff: the second load went to the network again.
+            Assert.AreEqual(2, handler.Requests.Count);
         }
 
         [TestMethod]
@@ -226,9 +251,10 @@ namespace PlayniteAchievements.Tests.Providers
         {
             Assert.IsTrue(DataForAzerothClient.IsGatedResponse(405, "text/html"));
             Assert.IsTrue(DataForAzerothClient.IsGatedResponse(405, null));
-            Assert.IsTrue(DataForAzerothClient.IsGatedResponse(200, "text/html"));
             Assert.IsTrue(DataForAzerothClient.IsGatedResponse(503, "text/html"));
 
+            // A 200 page is decided by its body: the app shell is not the gate.
+            Assert.IsFalse(DataForAzerothClient.IsGatedResponse(200, "text/html"));
             Assert.IsFalse(DataForAzerothClient.IsGatedResponse(200, "application/json"));
             Assert.IsFalse(DataForAzerothClient.IsGatedResponse(404, "text/html"));
             Assert.IsFalse(DataForAzerothClient.IsGatedResponse(500, "application/json"));
