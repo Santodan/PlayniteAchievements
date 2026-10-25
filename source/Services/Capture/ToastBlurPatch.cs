@@ -2,14 +2,15 @@ using System;
 using System.Drawing;
 using System.Drawing.Drawing2D;
 using System.Drawing.Imaging;
+using System.Runtime.InteropServices;
 
 namespace PlayniteAchievements.Services.Capture
 {
     /// <summary>
-    /// Where a blurred toast card sits inside its rendered container, for the outputs that draw the
-    /// card themselves: the with-notification screenshot and the unlock clip. The live toast's blur
-    /// is drawn by DWM and never reaches the card's own render, so without this those outputs would
-    /// show the tint over a sharp game frame.
+    /// Where a blurred toast card sits inside its rendered container and how far its blur reaches,
+    /// for the outputs that draw the card themselves: the with-notification screenshot and the
+    /// unlock clip. Their card renders leave out the live background, so each blurs its own frame
+    /// under the card instead (<see cref="Apply"/> for the screenshot, Nv12CardBlur for the clip).
     ///
     /// The geometry is stored as fractions of the container, so it maps onto the container's
     /// overlay at whatever size an output draws it. Measured on the UI thread (the toast service
@@ -17,19 +18,36 @@ namespace PlayniteAchievements.Services.Capture
     /// </summary>
     internal sealed class ToastBlurPatch
     {
-        // How far the screenshot is shrunk before being stretched back: the blur's reach in
-        // physical pixels. The clip's box blur is sized to match (Nv12CardBlur).
-        public const int ReachPhys = 16;
+        /// <summary>The blur reach at full strength, in physical screen pixels.</summary>
+        public const double MaxReachPhys = 48;
+
+        /// <summary>The strength (0-100) a style without one blurs at.</summary>
+        public const double DefaultStrength = 50;
 
         private readonly RectangleF _cardFraction;
         private readonly float _cornerRadiusFraction;
 
         /// <param name="cardFraction">The card's rect as fractions of the container's size.</param>
         /// <param name="cornerRadiusFraction">The card's corner radius as a fraction of the container's width.</param>
-        public ToastBlurPatch(RectangleF cardFraction, float cornerRadiusFraction)
+        /// <param name="reachPhys">How far the blur spreads, in physical screen pixels.</param>
+        public ToastBlurPatch(RectangleF cardFraction, float cornerRadiusFraction, double reachPhys)
         {
             _cardFraction = cardFraction;
             _cornerRadiusFraction = cornerRadiusFraction;
+            ReachPhys = reachPhys;
+        }
+
+        /// <summary>How far the blur spreads, in physical screen pixels.</summary>
+        public double ReachPhys { get; }
+
+        /// <summary>
+        /// The blur reach for a style's strength (0-100, null for the default), in physical screen
+        /// pixels. The single mapping the live background, the screenshot and the clip share.
+        /// </summary>
+        public static double ReachForStrength(double? strengthPercent)
+        {
+            var percent = Math.Max(0, Math.Min(100, strengthPercent ?? DefaultStrength));
+            return percent / 100 * MaxReachPhys;
         }
 
         /// <summary>The card's rect for a container overlay drawn at <paramref name="overlayDest"/>.</summary>
@@ -51,15 +69,21 @@ namespace PlayniteAchievements.Services.Capture
         /// <summary>
         /// Blurs <paramref name="shot"/> under the card, for a container overlay drawn at
         /// <paramref name="overlayDest"/>; <paramref name="pxPerPhys"/> is the shot's pixels per
-        /// physical screen pixel, which scales the blur's reach.
+        /// physical screen pixel, which scales the reach.
         /// </summary>
         public void Apply(Bitmap shot, Rectangle overlayDest, double pxPerPhys)
         {
+            var reach = ReachPhys * pxPerPhys;
+            if (reach < 1)
+            {
+                return;
+            }
+
             var card = MapCard(overlayDest);
-            var factor = Math.Max(2, (int)Math.Round(ReachPhys * pxPerPhys));
+            var radius = BoxBlur.RadiusFor(reach);
 
             // The sampled area reaches past the card so its edges blur against what surrounds them.
-            var pad = factor * 2;
+            var pad = radius * BoxBlur.Passes;
             var source = Rectangle.Intersect(
                 Rectangle.Round(RectangleF.Inflate(card, pad, pad)),
                 new Rectangle(0, 0, shot.Width, shot.Height));
@@ -68,33 +92,31 @@ namespace PlayniteAchievements.Services.Capture
                 return;
             }
 
-            var smallWidth = Math.Max(1, source.Width / factor);
-            var smallHeight = Math.Max(1, source.Height / factor);
-            using (var small = new Bitmap(smallWidth, smallHeight, PixelFormat.Format32bppPArgb))
-            using (var attributes = new ImageAttributes())
+            using (var blurred = shot.Clone(source, PixelFormat.Format32bppArgb))
             {
-                // Mirrored edges keep the stretch from fading toward transparent at the borders.
-                attributes.SetWrapMode(WrapMode.TileFlipXY);
-
-                using (var g = Graphics.FromImage(small))
+                var data = blurred.LockBits(
+                    new Rectangle(0, 0, source.Width, source.Height), ImageLockMode.ReadWrite, PixelFormat.Format32bppArgb);
+                try
                 {
-                    g.InterpolationMode = InterpolationMode.HighQualityBilinear;
-                    g.PixelOffsetMode = PixelOffsetMode.Half;
-                    g.DrawImage(
-                        shot, new Rectangle(0, 0, smallWidth, smallHeight),
-                        source.X, source.Y, source.Width, source.Height, GraphicsUnit.Pixel, attributes);
+                    var bytes = new byte[data.Stride * source.Height];
+                    Marshal.Copy(data.Scan0, bytes, 0, bytes.Length);
+                    BoxBlur.Apply(bytes, 0, source.Width, source.Height, data.Stride, 4, radius);
+                    Marshal.Copy(bytes, 0, data.Scan0, bytes.Length);
+                }
+                finally
+                {
+                    blurred.UnlockBits(data);
                 }
 
+                // A texture fill of the rounded card antialiases its edge; a clip region would not.
                 using (var g = Graphics.FromImage(shot))
-                using (var clip = CreateRoundedRect(card, MapCornerRadius(overlayDest)))
+                using (var brush = new TextureBrush(blurred, WrapMode.Clamp))
+                using (var path = CreateRoundedRect(card, MapCornerRadius(overlayDest)))
                 {
+                    brush.TranslateTransform(source.X, source.Y);
                     g.SmoothingMode = SmoothingMode.AntiAlias;
-                    g.InterpolationMode = InterpolationMode.HighQualityBicubic;
                     g.PixelOffsetMode = PixelOffsetMode.Half;
-                    g.SetClip(clip);
-                    g.DrawImage(
-                        small, source,
-                        0, 0, smallWidth, smallHeight, GraphicsUnit.Pixel, attributes);
+                    g.FillPath(brush, path);
                 }
             }
         }
