@@ -35,11 +35,145 @@ namespace PlayniteAchievements.Services.Showcase
         }
 
         /// <summary>
-        /// The id an implicit empty cell gets, so the same cell keeps its id across Normalize
-        /// calls although it is never stored.
+        /// The id an implicit empty cell gets. Pages store only blocks that hold a widget or span
+        /// more than one cell; every other cell is an empty 1x1 block made on request under this
+        /// id, so the same cell always answers to the same id.
         /// </summary>
         public static string CellBlockId(string pageId, int row, int column) =>
             $"{pageId}-{row}-{column}";
+
+        private static bool TryParseCellId(string pageId, string blockId, out int row, out int column)
+        {
+            row = -1;
+            column = -1;
+            var prefix = pageId + "-";
+            if (pageId == null ||
+                blockId == null ||
+                !blockId.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+            {
+                return false;
+            }
+
+            var parts = blockId.Substring(prefix.Length).Split('-');
+            return parts.Length == 2 &&
+                   int.TryParse(parts[0], System.Globalization.NumberStyles.None, System.Globalization.CultureInfo.InvariantCulture, out row) &&
+                   int.TryParse(parts[1], System.Globalization.NumberStyles.None, System.Globalization.CultureInfo.InvariantCulture, out column);
+        }
+
+        private static ShowcaseBlockSettings ImplicitCell(ShowcasePageSettings page, int row, int column) =>
+            new ShowcaseBlockSettings
+            {
+                BlockId = CellBlockId(page.PageId, row, column),
+                Row = row,
+                Column = column
+            };
+
+        private static bool Covers(ShowcaseBlockSettings block, int row, int column) =>
+            block != null &&
+            row >= block.Row && row < block.Row + block.RowSpan &&
+            column >= block.Column && column < block.Column + block.ColumnSpan;
+
+        /// <summary>
+        /// The block covering a cell: the stored block there, or the cell's implicit empty block
+        /// (a new object each call). Null outside the grid.
+        /// </summary>
+        public static ShowcaseBlockSettings ResolveCell(ShowcasePageSettings page, int row, int column)
+        {
+            if (page == null ||
+                row < 0 || column < 0 ||
+                row >= NormalizeTrackCount(page.RowCount) ||
+                column >= NormalizeTrackCount(page.ColumnCount))
+            {
+                return null;
+            }
+
+            return page.Blocks?.FirstOrDefault(block => Covers(block, row, column)) ??
+                   ImplicitCell(page, row, column);
+        }
+
+        /// <summary>
+        /// The block with this id: a stored block, or the implicit empty block of the cell the id
+        /// names while no stored block covers that cell.
+        /// </summary>
+        public static ShowcaseBlockSettings ResolveBlock(ShowcasePageSettings page, string blockId)
+        {
+            var stored = page?.Blocks?.FirstOrDefault(block =>
+                string.Equals(block?.BlockId, blockId, StringComparison.OrdinalIgnoreCase));
+            if (stored != null || page == null || !TryParseCellId(page.PageId, blockId, out var row, out var column))
+            {
+                return stored;
+            }
+
+            var cell = ResolveCell(page, row, column);
+            return cell != null && cell.IsImplicit && cell.Row == row && cell.Column == column &&
+                   string.Equals(cell.BlockId, blockId, StringComparison.OrdinalIgnoreCase)
+                ? cell
+                : null;
+        }
+
+        /// <summary>
+        /// For each cell, the stored block covering it, or null where the cell is implicit.
+        /// </summary>
+        public static ShowcaseBlockSettings[,] CoverageOf(ShowcasePageSettings page)
+        {
+            var rows = NormalizeTrackCount(page?.RowCount ?? 0);
+            var columns = NormalizeTrackCount(page?.ColumnCount ?? 0);
+            var coverage = new ShowcaseBlockSettings[rows, columns];
+            foreach (var block in page?.Blocks ?? new List<ShowcaseBlockSettings>())
+            {
+                if (block == null || !IsValidBlock(block, rows, columns))
+                {
+                    continue;
+                }
+
+                for (var row = block.Row; row < block.Row + block.RowSpan; row++)
+                {
+                    for (var column = block.Column; column < block.Column + block.ColumnSpan; column++)
+                    {
+                        coverage[row, column] = coverage[row, column] ?? block;
+                    }
+                }
+            }
+
+            return coverage;
+        }
+
+        /// <summary>
+        /// Every block of the page in reading order, implicit empty cells included as new
+        /// objects. For callers that need the whole grid at once, such as a file projection.
+        /// </summary>
+        public static List<ShowcaseBlockSettings> DenseBlocks(ShowcasePageSettings page)
+        {
+            var coverage = CoverageOf(page);
+            var result = new List<ShowcaseBlockSettings>();
+            for (var row = 0; row < coverage.GetLength(0); row++)
+            {
+                for (var column = 0; column < coverage.GetLength(1); column++)
+                {
+                    var block = coverage[row, column];
+                    if (block == null)
+                    {
+                        result.Add(ImplicitCell(page, row, column));
+                    }
+                    else if (block.Row == row && block.Column == column)
+                    {
+                        result.Add(block);
+                    }
+                }
+            }
+
+            return result;
+        }
+
+        // Makes a resolved block part of the page, so a change to it is kept: an implicit cell
+        // that takes a widget or a span becomes a stored block under its cell id.
+        private static void Attach(ShowcasePageSettings page, ShowcaseBlockSettings block)
+        {
+            if (block != null && !page.Blocks.Contains(block))
+            {
+                page.Blocks.Add(block);
+            }
+        }
 
         /// <summary>
         /// Whether inserting a track at <paramref name="index"/> keeps every track on that axis
@@ -650,6 +784,7 @@ namespace PlayniteAchievements.Services.Showcase
                 return false;
             }
 
+            Attach(page, survivor);
             survivor.Row = row;
             survivor.Column = column;
             survivor.RowSpan = rowEnd - row;
@@ -691,6 +826,7 @@ namespace PlayniteAchievements.Services.Showcase
             }
 
             var displaced = placement.Target.WidgetInstanceId;
+            Attach(placement.TargetPage, placement.Target);
             placement.Target.WidgetInstanceId = placement.Widget.InstanceId;
             if (placement.Source != null &&
                 !ReferenceEquals(placement.Source, placement.Target))
@@ -987,6 +1123,7 @@ namespace PlayniteAchievements.Services.Showcase
                 : null;
         }
 
+        /// <summary>Whether every block lies inside the grid and no two overlap.</summary>
         public static bool IsValidPartition(
             IEnumerable<ShowcaseBlockSettings> blocks,
             int rows,
@@ -1021,17 +1158,7 @@ namespace PlayniteAchievements.Services.Showcase
                 }
             }
 
-            for (var row = 0; row < rows; row++)
-            {
-                for (var column = 0; column < columns; column++)
-                {
-                    if (!cells[row, column])
-                    {
-                        return false;
-                    }
-                }
-            }
-
+            // Cells no block covers are implicit empty blocks, so coverage is not required.
             return true;
         }
 
@@ -1207,16 +1334,7 @@ namespace PlayniteAchievements.Services.Showcase
                     AddBlock(settings, page, 3, 2, 2, 3, ShowcaseWidgetKind.Statistics);
                     break;
                 default:
-                    for (var row = 0; row < page.RowCount; row++)
-                    {
-                        for (var column = 0; column < page.ColumnCount; column++)
-                        {
-                            var cell = NewBlock(row, column, 1, 1, null);
-                            cell.BlockId = CellBlockId(page.PageId, row, column);
-                            page.Blocks.Add(cell);
-                        }
-                    }
-
+                    // A blank page stores nothing: every cell is an implicit empty block.
                     break;
             }
 
@@ -1477,11 +1595,11 @@ namespace PlayniteAchievements.Services.Showcase
             return result;
         }
 
-        // Stored blocks (widgets and merged empties) keep their ids; every cell none of them covers
-        // becomes an implicit empty 1x1 block under its CellBlockId, in row-major order. An
-        // implicit block passed in for an uncovered cell is kept as that cell's object (callers
-        // hold block references across calls) but takes the cell's id, so a cell's id never
-        // depends on what the page held before.
+        // Keeps the blocks a page stores, in reading order: those holding a widget or spanning
+        // more than one cell, inside the grid and not overlapping an earlier one. Empty 1x1
+        // blocks are dropped (ResolveCell recreates them on request), and a stored block that
+        // carries the cell id of another cell (it was an implicit cell, then moved) gets a fresh
+        // id so that cell's own id stays free.
         private static List<ShowcaseBlockSettings> NormalizeBlocks(
             IEnumerable<ShowcaseBlockSettings> blocks,
             HashSet<string> blockIds,
@@ -1492,25 +1610,21 @@ namespace PlayniteAchievements.Services.Showcase
             rows = NormalizeTrackCount(rows);
             columns = NormalizeTrackCount(columns);
             var stored = new List<ShowcaseBlockSettings>();
-            var implicitCells = new Dictionary<(int Row, int Column), ShowcaseBlockSettings>();
             var occupied = new bool[rows, columns];
             foreach (var block in blocks ?? Array.Empty<ShowcaseBlockSettings>())
             {
-                if (block != null && block.IsImplicit)
-                {
-                    if (IsValidBlock(block, rows, columns) && !implicitCells.ContainsKey((block.Row, block.Column)))
-                    {
-                        implicitCells[(block.Row, block.Column)] = block;
-                    }
-
-                    continue;
-                }
-
                 if (block == null ||
+                    block.IsImplicit ||
                     !IsValidBlock(block, rows, columns) ||
                     Overlaps(occupied, block))
                 {
                     continue;
+                }
+
+                if (TryParseCellId(pageId, block.BlockId, out var row, out var column) &&
+                    (row != block.Row || column != block.Column))
+                {
+                    block.BlockId = NewId();
                 }
 
                 block.BlockId = NormalizeUniqueId(block.BlockId, blockIds);
@@ -1518,38 +1632,10 @@ namespace PlayniteAchievements.Services.Showcase
                 stored.Add(block);
             }
 
-            stored.Sort((left, right) => left.Row != right.Row
-                ? left.Row.CompareTo(right.Row)
-                : left.Column.CompareTo(right.Column));
-            var result = new List<ShowcaseBlockSettings>(rows * columns);
-            var next = 0;
-            for (var row = 0; row < rows; row++)
-            {
-                for (var column = 0; column < columns; column++)
-                {
-                    while (next < stored.Count &&
-                           stored[next].Row == row &&
-                           stored[next].Column == column)
-                    {
-                        result.Add(stored[next++]);
-                    }
-
-                    if (occupied[row, column])
-                    {
-                        continue;
-                    }
-
-                    if (!implicitCells.TryGetValue((row, column), out var block))
-                    {
-                        block = NewBlock(row, column, 1, 1, null);
-                    }
-
-                    block.BlockId = NormalizeUniqueId(CellBlockId(pageId, row, column), blockIds);
-                    result.Add(block);
-                }
-            }
-
-            return result;
+            return stored
+                .OrderBy(block => block.Row)
+                .ThenBy(block => block.Column)
+                .ToList();
         }
 
         private static List<PinnedAchievementReference> NormalizeAchievementPins(
@@ -1791,8 +1877,40 @@ namespace PlayniteAchievements.Services.Showcase
                 }
             }
 
-            return page.Blocks
+            // Implicit cells are 1x1 and never widen the rectangle, so only stored blocks took
+            // part above; the cells inside it that none of them covers join as implicit blocks,
+            // reusing the two given blocks' objects where they are such cells.
+            var closure = page.Blocks
                 .Where(block => Intersects(block, row, column, rowEnd, columnEnd))
+                .ToList();
+            var covered = new bool[rowEnd - row, columnEnd - column];
+            foreach (var block in closure)
+            {
+                for (var r = Math.Max(row, block.Row); r < Math.Min(rowEnd, block.Row + block.RowSpan); r++)
+                {
+                    for (var c = Math.Max(column, block.Column); c < Math.Min(columnEnd, block.Column + block.ColumnSpan); c++)
+                    {
+                        covered[r - row, c - column] = true;
+                    }
+                }
+            }
+
+            for (var r = row; r < rowEnd; r++)
+            {
+                for (var c = column; c < columnEnd; c++)
+                {
+                    if (covered[r - row, c - column])
+                    {
+                        continue;
+                    }
+
+                    closure.Add(Covers(first, r, c) ? first
+                        : Covers(second, r, c) ? second
+                        : ImplicitCell(page, r, c));
+                }
+            }
+
+            return closure
                 .OrderBy(block => block.Row)
                 .ThenBy(block => block.Column)
                 .ToList();
@@ -1860,11 +1978,8 @@ namespace PlayniteAchievements.Services.Showcase
                 string.Equals(page?.PageId, pageId, StringComparison.OrdinalIgnoreCase));
         }
 
-        private static ShowcaseBlockSettings FindBlock(ShowcasePageSettings page, string blockId)
-        {
-            return page?.Blocks?.FirstOrDefault(block =>
-                string.Equals(block?.BlockId, blockId, StringComparison.OrdinalIgnoreCase));
-        }
+        private static ShowcaseBlockSettings FindBlock(ShowcasePageSettings page, string blockId) =>
+            ResolveBlock(page, blockId);
 
         private static ShowcaseWidgetInstanceSettings FindWidget(
             ShowcaseSettings settings,
