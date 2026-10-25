@@ -1254,9 +1254,9 @@
                 <TextBlock Text="{DynamicResource LOCPlayAch_Settings_Style_BackgroundImage}"
                            Style="{StaticResource EditorGroupHeaderStyle}"/>
 
-                <!-- Blurred background: a live blur of what is behind the card under a tint of
-                     the theme surface; replaces the image while on. The preview shows the tint
-                     only, since the blur is drawn by Windows under the real notification. -->
+                <!-- Blurred background: a live blur of the game behind the card (Strength) under a
+                     tint of the theme surface (Opacity); replaces the image while on. The preview
+                     has no game behind it, so it shows the card's surface under the tint. -->
                 <CheckBox Content="{DynamicResource LOCPlayAch_Settings_Style_BlurBackground}"
                           IsChecked="{Binding Surface.BlurBackground}"
                           Margin="0,0,0,6"/>
@@ -1269,17 +1269,36 @@
                         <ColumnDefinition Width="*"/>
                         <ColumnDefinition Width="Auto"/>
                     </Grid.ColumnDefinitions>
-                    <TextBlock Grid.Column="0"
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+                    <TextBlock Grid.Row="0" Grid.Column="0"
+                               Text="{DynamicResource LOCPlayAch_Settings_Style_VignetteStrength}"
+                               Style="{StaticResource EditorRowLabelStyle}"
+                               Margin="0,0,8,6"/>
+                    <Slider Grid.Row="0" Grid.Column="1"
+                            Minimum="0" Maximum="100"
+                            SmallChange="1" LargeChange="10" TickFrequency="1" IsSnapToTickEnabled="True"
+                            Value="{Binding BlurStrengthSlider, Mode=TwoWay}"
+                            VerticalAlignment="Center"
+                            Margin="0,0,8,6"/>
+                    <TextBox Grid.Row="0" Grid.Column="2"
+                             Text="{Binding BlurStrengthText, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
+                             Width="70"
+                             TextAlignment="Right"
+                             Margin="0,0,0,6"/>
+                    <TextBlock Grid.Row="1" Grid.Column="0"
                                Text="{DynamicResource LOCPlayAch_Settings_Style_TextShadowOpacity}"
                                Style="{StaticResource EditorRowLabelStyle}"
                                Margin="0,0,8,0"/>
-                    <Slider Grid.Column="1"
+                    <Slider Grid.Row="1" Grid.Column="1"
                             Minimum="0" Maximum="100"
                             SmallChange="1" LargeChange="10" TickFrequency="1" IsSnapToTickEnabled="True"
                             Value="{Binding BlurTintOpacitySlider, Mode=TwoWay}"
                             VerticalAlignment="Center"
                             Margin="0,0,8,0"/>
-                    <TextBox Grid.Column="2"
+                    <TextBox Grid.Row="1" Grid.Column="2"
                              Text="{Binding BlurTintOpacityText, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
                              Width="70"
                              TextAlignment="Right"/>
