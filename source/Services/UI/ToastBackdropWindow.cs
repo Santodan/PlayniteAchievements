@@ -110,11 +110,19 @@ namespace PlayniteAchievements.Services.UI
         }
 
         /// <summary>
-        /// Creates the hidden backdrop window, or returns null when the window cannot be created or
-        /// this Windows build refuses the blur accent; the card then shows its tint alone.
+        /// Creates the hidden backdrop window, or returns null when Windows transparency effects are
+        /// off, the window cannot be created, or this Windows build refuses the blur accent; the card
+        /// then shows its tint alone.
         /// </summary>
         public static ToastBackdropWindow TryCreate()
         {
+            // With transparency effects off, DWM still accepts the accent but paints it solid black,
+            // which would turn the translucent card opaque.
+            if (!TransparencyEffectsEnabled())
+            {
+                return null;
+            }
+
             HwndSource source = null;
             try
             {
@@ -164,6 +172,26 @@ namespace PlayniteAchievements.Services.UI
                 }
 
                 return null;
+            }
+        }
+
+        /// <summary>
+        /// The Settings > Personalization > Colors > Transparency effects toggle, which Energy Saver
+        /// also turns off. Read per wave, so a change applies to the next toast. Missing means on.
+        /// </summary>
+        private static bool TransparencyEffectsEnabled()
+        {
+            try
+            {
+                using (var key = Microsoft.Win32.Registry.CurrentUser.OpenSubKey(
+                    @"Software\Microsoft\Windows\CurrentVersion\Themes\Personalize"))
+                {
+                    return !(key?.GetValue("EnableTransparency") is int value) || value != 0;
+                }
+            }
+            catch
+            {
+                return true;
             }
         }
 
