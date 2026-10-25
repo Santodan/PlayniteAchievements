@@ -43,6 +43,9 @@ namespace PlayniteAchievements.Services.Capture
         private int _rayNextIndex = -1;
         private byte[] _rayNextPixels;
 
+        // Blurs the frame under a card with a blurred background; created on first use.
+        private Nv12CardBlur _blur;
+
         /// <param name="toastStart">Base-clip tick the card first shows on.</param>
         /// <param name="toastEnd">Base-clip tick the card last shows on (inclusive).</param>
         public OverlayFrameRenderer(
@@ -156,6 +159,18 @@ namespace PlayniteAchievements.Services.Capture
                 }
 
                 overlayPixels = _glowScratch;
+            }
+
+            // A blurred card: blur the frame under it first, as DWM does under the live toast. The
+            // host opacity fades the blur along with the card.
+            if (_track.Blur != null && destRect.Width > 0 && destRect.Height > 0)
+            {
+                var dest = new System.Drawing.RectangleF(destRect.X, destRect.Y, destRect.Width, destRect.Height);
+                _blur = _blur ?? new Nv12CardBlur();
+                _blur.Apply(
+                    _compositor, frame, _frameW, _frameH,
+                    _track.Blur.MapCard(dest), _track.Blur.MapCornerRadius(dest),
+                    (double)destRect.Width / overlayFrame.Width, hostOpacity);
             }
 
             return _compositor.Compose(frame, overlayPixels, overlayFrame.Width, overlayFrame.Height, destRect);
