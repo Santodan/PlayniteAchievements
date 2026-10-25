@@ -43,7 +43,8 @@ namespace PlayniteAchievements.Services.Showcase
 
     /// <summary>
     /// Merges manual showcase profile settings over the current user's provider
-    /// identity. Manual fields win per-field when non-blank; Steam is the
+    /// identity. The display name, subtitle and background are the manual values alone, so a
+    /// blank name shows none; a blank avatar falls back to the identity's. Steam is the
     /// preferred identity source, then any identity with a usable name or avatar.
     /// </summary>
     public static class ShowcaseProfileResolver
@@ -57,10 +58,7 @@ namespace PlayniteAchievements.Services.Showcase
             var identity = PickIdentity(identities);
             return new ShowcaseProfileProjection
             {
-                DisplayName = FirstNonBlank(
-                    manual?.DisplayName,
-                    identity?.DisplayName,
-                    identity?.ProviderNickname),
+                DisplayName = TrimOrNull(manual?.DisplayName),
                 Subtitle = TrimOrNull(manual?.Subtitle),
                 AvatarPath = FirstNonBlank(
                     manual?.AvatarPath,
@@ -68,7 +66,7 @@ namespace PlayniteAchievements.Services.Showcase
                     identity?.AvatarUrl),
                 BackgroundPath = TrimOrNull(manual?.BackgroundPath),
                 FromProviderIdentity = identity != null &&
-                    string.IsNullOrWhiteSpace(manual?.DisplayName),
+                    string.IsNullOrWhiteSpace(manual?.AvatarPath),
                 Links = ResolveLinks(manual)
             };
         }
