@@ -1253,71 +1253,105 @@
             <StackPanel>
                 <TextBlock Text="{DynamicResource LOCPlayAch_Settings_Style_BackgroundImage}"
                            Style="{StaticResource EditorGroupHeaderStyle}"/>
-                <TextBlock Text="{DynamicResource LOCPlayAch_Settings_Style_BackgroundImageHint}"
-                           Style="{StaticResource MutedTextStyle}"
-                           TextWrapping="Wrap"
-                           Margin="0,0,0,6"/>
-                <Grid Margin="0,0,0,6">
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="Auto"/>
-                        <ColumnDefinition Width="Auto"/>
-                        <ColumnDefinition Width="Auto"/>
-                        <ColumnDefinition Width="Auto"/>
-                        <ColumnDefinition Width="*"/>
-                    </Grid.ColumnDefinitions>
-                    <Border x:Name="ToastBackgroundSlot"
-                            Grid.Column="0"
-                            Tag="Background"
-                            Style="{DynamicResource PlayAch.FilePickTarget.Style}"
-                            helpers:FilePickTarget.IsEnabled="True"
-                            helpers:FilePickTarget.Picked="ImagePickTarget_Picked"
-                            Width="192"
-                            Height="108"
-                            Background="{DynamicResource PlayAch.Brush.Surface}"
-                            Margin="0,0,8,0">
-                        <Image helpers:AsyncImage.Uri="{Binding BackgroundThumbnailUri}"
-                               helpers:AsyncImage.DecodePixel="384"
-                               Stretch="Uniform"
-                               RenderOptions.BitmapScalingMode="HighQuality"/>
-                    </Border>
-                    <Button Grid.Column="1"
-                            Tag="Background"
-                            Content="{DynamicResource LOCClearLabel}"
-                            Click="ImageClear_Click"
-                            Margin="0,0,0,0"
-                            VerticalAlignment="Center"/>
-                    <Button Grid.Column="3"
-                            Tag="Background"
-                            Content="..."
-                            ToolTip="{DynamicResource LOCPlayAch_Button_Browse}"
-                            Click="ImageBrowse_Click"
-                            Margin="8,0,0,0"
-                            VerticalAlignment="Center"/>
-                    <Button Grid.Column="2"
-                            Content="{DynamicResource LOCPlayAch_Button_Paste}"
-                            ContentTemplate="{DynamicResource PlayAch.ButtonContent.Paste}"
-                            ToolTip="{DynamicResource LOCPlayAch_Button_Paste}"
-                            helpers:FilePickTarget.PasteTarget="{Binding ElementName=ToastBackgroundSlot}"
-                            Margin="8,0,0,0"
-                            VerticalAlignment="Center"/>
-                </Grid>
-                <!-- Image size + one-click fit so users don't have to guess card dimensions to
-                     match a chosen background (the card crops to its own aspect via UniformToFill). -->
-                <Grid Visibility="{Binding HasBackgroundImage, Converter={StaticResource BoolToVis}}">
+
+                <!-- Blurred background: a live blur of what is behind the card under a tint of
+                     the theme surface; replaces the image while on. The preview shows the tint
+                     only, since the blur is drawn by Windows under the real notification. -->
+                <CheckBox Content="{DynamicResource LOCPlayAch_Settings_Style_BlurBackground}"
+                          IsChecked="{Binding Surface.BlurBackground}"
+                          Margin="0,0,0,6"/>
+                <Grid HorizontalAlignment="Left"
+                      MinWidth="360"
+                      Margin="0,0,0,6"
+                      Visibility="{Binding Surface.BlurBackground, Converter={StaticResource BoolToVis}}">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="Auto"/>
                         <ColumnDefinition Width="*"/>
                         <ColumnDefinition Width="Auto"/>
                     </Grid.ColumnDefinitions>
                     <TextBlock Grid.Column="0"
-                               Text="{Binding BackgroundImageDimensionsText}"
-                               Style="{StaticResource MutedTextStyle}"
-                               VerticalAlignment="Center"/>
-                    <Button Grid.Column="2"
-                            Content="{DynamicResource LOCPlayAch_Settings_Style_FitCardToImage}"
-                            Click="FitCardToImage_Click"
-                            VerticalAlignment="Center"/>
+                               Text="{DynamicResource LOCPlayAch_Settings_Style_TextShadowOpacity}"
+                               Style="{StaticResource EditorRowLabelStyle}"
+                               Margin="0,0,8,0"/>
+                    <Slider Grid.Column="1"
+                            Minimum="0" Maximum="100"
+                            SmallChange="1" LargeChange="10" TickFrequency="1" IsSnapToTickEnabled="True"
+                            Value="{Binding BlurTintOpacitySlider, Mode=TwoWay}"
+                            VerticalAlignment="Center"
+                            Margin="0,0,8,0"/>
+                    <TextBox Grid.Column="2"
+                             Text="{Binding BlurTintOpacityText, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
+                             Width="70"
+                             TextAlignment="Right"/>
                 </Grid>
+
+                <StackPanel Visibility="{Binding ShowBackgroundImagePicker, Converter={StaticResource BoolToVis}}">
+                    <TextBlock Text="{DynamicResource LOCPlayAch_Settings_Style_BackgroundImageHint}"
+                               Style="{StaticResource MutedTextStyle}"
+                               TextWrapping="Wrap"
+                               Margin="0,0,0,6"/>
+                    <Grid Margin="0,0,0,6">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+                        <Border x:Name="ToastBackgroundSlot"
+                                Grid.Column="0"
+                                Tag="Background"
+                                Style="{DynamicResource PlayAch.FilePickTarget.Style}"
+                                helpers:FilePickTarget.IsEnabled="True"
+                                helpers:FilePickTarget.Picked="ImagePickTarget_Picked"
+                                Width="192"
+                                Height="108"
+                                Background="{DynamicResource PlayAch.Brush.Surface}"
+                                Margin="0,0,8,0">
+                            <Image helpers:AsyncImage.Uri="{Binding BackgroundThumbnailUri}"
+                                   helpers:AsyncImage.DecodePixel="384"
+                                   Stretch="Uniform"
+                                   RenderOptions.BitmapScalingMode="HighQuality"/>
+                        </Border>
+                        <Button Grid.Column="1"
+                                Tag="Background"
+                                Content="{DynamicResource LOCClearLabel}"
+                                Click="ImageClear_Click"
+                                Margin="0,0,0,0"
+                                VerticalAlignment="Center"/>
+                        <Button Grid.Column="3"
+                                Tag="Background"
+                                Content="..."
+                                ToolTip="{DynamicResource LOCPlayAch_Button_Browse}"
+                                Click="ImageBrowse_Click"
+                                Margin="8,0,0,0"
+                                VerticalAlignment="Center"/>
+                        <Button Grid.Column="2"
+                                Content="{DynamicResource LOCPlayAch_Button_Paste}"
+                                ContentTemplate="{DynamicResource PlayAch.ButtonContent.Paste}"
+                                ToolTip="{DynamicResource LOCPlayAch_Button_Paste}"
+                                helpers:FilePickTarget.PasteTarget="{Binding ElementName=ToastBackgroundSlot}"
+                                Margin="8,0,0,0"
+                                VerticalAlignment="Center"/>
+                    </Grid>
+                    <!-- Image size + one-click fit so users don't have to guess card dimensions to
+                         match a chosen background (the card crops to its own aspect via UniformToFill). -->
+                    <Grid Visibility="{Binding HasBackgroundImage, Converter={StaticResource BoolToVis}}">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Grid.Column="0"
+                                   Text="{Binding BackgroundImageDimensionsText}"
+                                   Style="{StaticResource MutedTextStyle}"
+                                   VerticalAlignment="Center"/>
+                        <Button Grid.Column="2"
+                                Content="{DynamicResource LOCPlayAch_Settings_Style_FitCardToImage}"
+                                Click="FitCardToImage_Click"
+                                VerticalAlignment="Center"/>
+                    </Grid>
+                </StackPanel>
             </StackPanel>
         </Border>
 
