@@ -80,9 +80,9 @@ namespace PlayniteAchievements.Services.Capture
         public List<TimedLayer> RayLayers { get; } = new List<TimedLayer>();
 
         /// <summary>
-        /// Where the card sits in each frame when it shows a blurred background, so export can
-        /// blur the clip under it (the live blur is drawn by DWM and is not in the recorded
-        /// pixels). Null for a card without one.
+        /// Where the card sits in each frame and how far its blur reaches when it shows a blurred
+        /// background, so export can blur the clip under it (the recorded pixels leave the live
+        /// background out). Null for a card without one.
         /// </summary>
         public ToastBlurPatch Blur { get; set; }
 
