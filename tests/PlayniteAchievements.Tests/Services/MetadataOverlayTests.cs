@@ -508,6 +508,25 @@ namespace PlayniteAchievements.Tests.Services
         }
 
         [TestMethod]
+        public void MatchWithPairings_FindsARowByAnotherIdItWentBy()
+        {
+            var grilled = Row("battle_trinity_0-1", "Grilled Tasty");
+            var joined = Row("a1", "Grilled Tastes Better");
+            joined.Points = 15;
+            var other = Row("a2", "Crabby Patty");
+            var aliases = new Dictionary<string, AchievementDetail>(System.StringComparer.OrdinalIgnoreCase) { { "s1", joined } };
+
+            var matches = MetadataOverlayRun.MatchWithPairings(
+                new[] { grilled },
+                new[] { joined, other },
+                new Dictionary<string, string> { { "battle_trinity_0-1", "s1" } },
+                matchApiNames: false,
+                aliases: aliases);
+
+            Assert.AreSame(joined, matches.Single(match => match.Target == grilled).Source, "a pairing to a joined listing's id finds the row");
+        }
+
+        [TestMethod]
         public async Task Pairings_StayWithTheirLink_AndDropWhenItChanges()
         {
             var playstation = new FakeSource("PlayStation", MetadataField.Icons)
