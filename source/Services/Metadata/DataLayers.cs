@@ -38,15 +38,39 @@ namespace PlayniteAchievements.Services.Metadata
         /// </summary>
         public sealed class Snapshot
         {
-            internal Snapshot(Dictionary<CustomizationArea, Dictionary<string, string>> values, bool hasCapstone)
+            internal Snapshot(Dictionary<CustomizationArea, Dictionary<string, string>> values, bool hasCapstone, int rowCount)
             {
                 Values = values;
                 HasCapstone = hasCapstone;
+                RowCount = rowCount;
             }
 
             public Dictionary<CustomizationArea, Dictionary<string, string>> Values { get; }
 
             public bool HasCapstone { get; }
+
+            /// <summary>The achievements with an ApiName.</summary>
+            public int RowCount { get; }
+
+            /// <summary>
+            /// Whether the achievements are sorted into categories: they are unless every one is
+            /// filed under the same category, as SteamHunters files a game with no groups under the
+            /// game's name.
+            /// </summary>
+            public bool IsCategorized
+            {
+                get
+                {
+                    var categories = Values[CustomizationArea.Categories];
+                    return categories.Count > 0 &&
+                           (categories.Count < RowCount ||
+                            categories.Values.Distinct(StringComparer.OrdinalIgnoreCase).Skip(1).Any());
+                }
+            }
+
+            /// <summary>Whether the area holds any value, with categories counting only when sorted.</summary>
+            public bool Has(CustomizationArea area) =>
+                area == CustomizationArea.Categories ? IsCategorized : Values[area].Count > 0;
         }
 
         public static Snapshot Take(IEnumerable<AchievementDetail> achievements)
@@ -71,7 +95,7 @@ namespace PlayniteAchievements.Services.Metadata
                     return byApiName;
                 });
 
-            return new Snapshot(values, rows.Any(IsPlatformCapstone));
+            return new Snapshot(values, rows.Any(IsPlatformCapstone), rows.Count);
         }
 
         /// <summary>
@@ -117,6 +141,11 @@ namespace PlayniteAchievements.Services.Metadata
 
             foreach (var area in ValueAreas)
             {
+                if (!current.Has(area))
+                {
+                    continue;
+                }
+
                 HashSet<string> supplied = null;
                 metadataByArea?.TryGetValue(area, out supplied);
                 var hasMetadata = supplied != null && supplied.Any(name => current.Values[area].ContainsKey(name));
@@ -155,7 +184,7 @@ namespace PlayniteAchievements.Services.Metadata
         {
             var snapshot = Take(achievements);
             var present = ValueAreas
-                .Where(area => snapshot.Values[area].Count > 0)
+                .Where(snapshot.Has)
                 .Aggregate(CustomizationArea.None, (mask, area) => mask | area);
             var anyCapstone = (achievements ?? Enumerable.Empty<AchievementDetail>())
                 .Any(row => row != null && (row.IsCapstone || IsPlatinum(row)));
