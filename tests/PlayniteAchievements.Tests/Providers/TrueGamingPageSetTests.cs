@@ -69,6 +69,45 @@ namespace PlayniteAchievements.Tests.Providers
         }
 
         [TestMethod]
+        public void Combine_JoinsARowTheSitesNameDifferently_ByItsDescription()
+        {
+            var ta = Page(Described("a1", "Grilled Tastes Better", "Defeat Miltos"), Described("a2", "Free at Last", "Defeat the Black Warden"));
+            ta.Achievements[0].Points = 15;
+            ta.Achievements[1].Points = 30;
+            var tt = Page(Described("t1", "Grilled Tastes Better", "Defeat Miltos"), Described("t2", "Free at Last", "Defeat the Black Warden"));
+            tt.Achievements[0].TrophyType = "bronze";
+            var tsa = Page(Described("s1", "Grilled Tasty", "Defeat Miltos"), Described("s2", "Finally Free", "Defeat the black warden."));
+
+            var combined = TrueGamingPageSet.CombineAll(Pages(ta, tt, tsa), "Asterigos");
+
+            Assert.AreEqual(2, combined.Rows.Count, "the Steam names join the rows the other sites name");
+            Assert.AreEqual(2, combined.MergedByDescription);
+            Assert.AreEqual("a1", combined.Rows[0].ApiName);
+            Assert.AreEqual(15, combined.Rows[0].Points);
+            Assert.AreEqual("bronze", combined.Rows[0].TrophyType);
+            Assert.AreSame(combined.Rows[0], combined.Aliases["s1"]);
+            Assert.AreSame(combined.Rows[0], combined.Aliases["t1"]);
+            Assert.AreSame(combined.Rows[1], combined.Aliases["s2"], "descriptions compare by letters and digits");
+        }
+
+        [TestMethod]
+        public void Combine_KeepsRowsApart_WhenTheDescriptionIsNotOneOfAKind_OrTheDlcDiffers()
+        {
+            var ta = Page(
+                Described("a1", "Chapter One", "Complete a chapter"),
+                Described("a2", "Chapter Two", "Complete a chapter"),
+                Described("a3", "Hunter", "Defeat the boss"));
+            ta.Achievements[2].Dlc = "Expansion";
+            var tsa = Page(Described("s1", "First Chapter", "Complete a chapter"), Described("s3", "Boss Hunter", "Defeat the boss"));
+
+            var combined = TrueGamingPageSet.CombineAll(Pages(ta, tsa), "Base");
+
+            Assert.AreEqual(5, combined.Rows.Count);
+            Assert.AreEqual(0, combined.MergedByDescription);
+            Assert.AreEqual(0, combined.Aliases.Count);
+        }
+
+        [TestMethod]
         public void SameGame_NeedsHalfTheShorterListByName()
         {
             Assert.IsTrue(TrueGamingPageSet.IsSameGame(Page(Row("a1", "LUMIÈRE"), Row("a9", "Other")), Targets));
@@ -82,6 +121,16 @@ namespace PlayniteAchievements.Tests.Providers
             var targets = new[] { "TR2 | These Doors", "TR2 | Snow March", "TR2 | Gold Rush" };
 
             Assert.IsTrue(TrueGamingPageSet.IsSameGame(Page(Row("a1", "These Doors"), Row("a2", "Snow March"), Row("a3", "Gold Rush")), targets));
+        }
+
+        private static TrueGamingFoundPage[] Pages(params TrueGamingPage[] pages) =>
+            pages.Select((page, index) => new TrueGamingFoundPage(TrueGamingSite.LookupOrder[index], "Game", page)).ToArray();
+
+        private static TrueGamingAchievement Described(string id, string name, string description)
+        {
+            var row = Row(id, name);
+            row.Description = description;
+            return row;
         }
 
         private static TrueGamingPage Page(params TrueGamingAchievement[] rows)
