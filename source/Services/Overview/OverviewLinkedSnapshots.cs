@@ -131,11 +131,13 @@ namespace PlayniteAchievements.Services.Overview
         /// <paramref name="keep"/> accepts count. Achievement totals, rarity and trophy counts,
         /// the per-day counts and the unlocked rows are rebuilt from those unlocks, with no locked
         /// remainder (the filters describe unlocks); the game-level totals (games, completions,
-        /// providers) are kept as they were.
+        /// providers) are kept as they were, except that completions drop to zero when
+        /// <paramref name="keepCompletions"/> is false.
         /// </summary>
         public static OverviewDataSnapshot ClipToAchievements(
             OverviewDataSnapshot snapshot,
-            Func<AchievementDisplayItem, bool> keep)
+            Func<AchievementDisplayItem, bool> keep,
+            bool keepCompletions = true)
         {
             if (snapshot == null)
             {
@@ -176,8 +178,8 @@ namespace PlayniteAchievements.Services.Overview
                 TotalByProvider = snapshot.TotalByProvider,
                 TotalGames = snapshot.TotalGames,
                 CompletedGames = snapshot.CompletedGames,
-                Completions = snapshot.Completions,
-                PossibleCompletions = snapshot.PossibleCompletions,
+                Completions = keepCompletions ? snapshot.Completions : 0,
+                PossibleCompletions = keepCompletions ? snapshot.PossibleCompletions : 0,
                 GlobalProgressionPercent = snapshot.GlobalProgressionPercent,
                 GlobalUnlockCountsByDate = global,
                 UnlockCountsByDateByGame = byGame
@@ -238,13 +240,16 @@ namespace PlayniteAchievements.Services.Overview
         /// <paramref name="keepRow"/> accepts; the achievement totals, locked ones included, and
         /// the rarity, trophy and per-provider counts are summed from the tallies
         /// <paramref name="keepTally"/> accepts. Game-level totals (games, completions) are kept as
-        /// they were: achievement filters never narrow games. A view already cut to the unlocks an
-        /// overview filter keeps holds no locked remainder to count, so it is cut again instead.
+        /// they were: achievement filters never narrow games. Completions drop to zero when
+        /// <paramref name="keepCompletions"/> is false, as when the Rarity filter leaves Capstone
+        /// out. A view already cut to the unlocks an overview filter keeps holds no locked
+        /// remainder to count, so it is cut again instead.
         /// </summary>
         public static OverviewDataSnapshot FilterAchievements(
             OverviewDataSnapshot snapshot,
             Func<AchievementDisplayItem, bool> keepRow,
-            Func<Models.Achievements.AchievementTally, bool> keepTally)
+            Func<Models.Achievements.AchievementTally, bool> keepTally,
+            bool keepCompletions = true)
         {
             if (snapshot == null)
             {
@@ -253,7 +258,7 @@ namespace PlayniteAchievements.Services.Overview
 
             if (snapshot.IsAchievementClip)
             {
-                return ClipToAchievements(snapshot, keepRow);
+                return ClipToAchievements(snapshot, keepRow, keepCompletions);
             }
 
             var rows = (snapshot.Achievements ?? new List<AchievementDisplayItem>())
@@ -290,8 +295,8 @@ namespace PlayniteAchievements.Services.Overview
                 TotalByProvider = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase),
                 TotalGames = snapshot.TotalGames,
                 CompletedGames = snapshot.CompletedGames,
-                Completions = snapshot.Completions,
-                PossibleCompletions = snapshot.PossibleCompletions,
+                Completions = keepCompletions ? snapshot.Completions : 0,
+                PossibleCompletions = keepCompletions ? snapshot.PossibleCompletions : 0,
                 GlobalUnlockCountsByDate = global,
                 UnlockCountsByDateByGame = byGame
             };
