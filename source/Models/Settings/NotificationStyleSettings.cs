@@ -218,6 +218,7 @@ namespace PlayniteAchievements.Models.Settings
         private FrameVignetteStyle _frameVignette = FrameVignetteStyle.Full;
         private double? _frameVignetteStrength;
         private bool _blurBackground;
+        private double? _blurStrength;
         private double? _blurTintOpacity;
         private int? _imageKeyframeMs;
         private List<string> _lineOrder;
@@ -531,7 +532,7 @@ namespace PlayniteAchievements.Models.Settings
         }
 
         /// <summary>
-        /// When true, the toast card shows a live blur of what is behind it, under a tint of the
+        /// When true, the toast card shows a live blur of the game behind it, under a tint of the
         /// theme surface color, in place of the surface brush or background image. Toast surface
         /// only; the frame ignores this.
         /// </summary>
@@ -539,6 +540,16 @@ namespace PlayniteAchievements.Models.Settings
         {
             get => _blurBackground;
             set => SetValue(ref _blurBackground, value);
+        }
+
+        /// <summary>
+        /// How far the blurred background spreads (0-100; 0 leaves it sharp), or null for the
+        /// default (50). Applies only while <see cref="BlurBackground"/> is on.
+        /// </summary>
+        public double? BlurStrength
+        {
+            get => _blurStrength;
+            set => SetValue(ref _blurStrength, value);
         }
 
         /// <summary>
@@ -982,6 +993,7 @@ namespace PlayniteAchievements.Models.Settings
                 FrameVignette = FrameVignette,
                 FrameVignetteStrength = FrameVignetteStrength,
                 BlurBackground = BlurBackground,
+                BlurStrength = BlurStrength,
                 BlurTintOpacity = BlurTintOpacity,
                 ImageKeyframeMs = ImageKeyframeMs,
                 LineOrder = LineOrder != null ? new List<string>(LineOrder) : null,
