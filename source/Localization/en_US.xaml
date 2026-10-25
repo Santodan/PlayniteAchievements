@@ -58,11 +58,11 @@
     <sys:String x:Key="LOCPlayAch_Common_Unknown">Unknown</sys:String>
     <sys:String x:Key="LOCPlayAch_Common_Unlocked">Unlocked</sys:String>
     <sys:String x:Key="LOCPlayAch_Common_UnlockedCount">Unlocked Count</sys:String>
-    <sys:String x:Key="LOCPlayAch_Common_Date_ThisWeek">This Week</sys:String>
-    <sys:String x:Key="LOCPlayAch_Common_Date_LastWeek">Last Week</sys:String>
-    <sys:String x:Key="LOCPlayAch_Common_Date_ThisMonth">This Month</sys:String>
-    <sys:String x:Key="LOCPlayAch_Common_Date_LastMonth">Last Month</sys:String>
-    <sys:String x:Key="LOCPlayAch_Common_Date_ThisYear">This Year</sys:String>
+    <sys:String x:Key="LOCPlayAch_Common_Date_DaysAgo">{0} days ago</sys:String>
+    <sys:String x:Key="LOCPlayAch_Common_Date_OneWeekAgo">1 week ago</sys:String>
+    <sys:String x:Key="LOCPlayAch_Common_Date_WeeksAgo">{0} weeks ago</sys:String>
+    <sys:String x:Key="LOCPlayAch_Common_Date_OneMonthAgo">1 month ago</sys:String>
+    <sys:String x:Key="LOCPlayAch_Common_Date_MonthsAgo">{0} months ago</sys:String>
     <sys:String x:Key="LOCPlayAch_Common_Date_OneYearAgo">1 year ago</sys:String>
     <sys:String x:Key="LOCPlayAch_Common_Date_YearsAgo">{0} years ago</sys:String>
     <sys:String x:Key="LOCPlayAch_Common_Validation_NonNegativeInteger">Enter a whole number of 0 or more, or leave blank.</sys:String>
