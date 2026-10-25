@@ -891,7 +891,7 @@ namespace PlayniteAchievements.Services.Metadata
                     ? CrossSourceAchievementMatcher.ApiNameOverlap(targets, set.Achievements)
                     : 0;
                 var matchApiNames = set.SharesApiNames || overlap >= CrossSourceAchievementMatcher.SharedApiNameThreshold;
-                var matches = MatchWithPairings(targets, set.Achievements, ReadPairings(gameId, key, linkId), matchApiNames, set.Lists);
+                var matches = MatchWithPairings(targets, set.Achievements, ReadPairings(gameId, key, linkId), matchApiNames, set.Lists, set.ApiNameAliases);
                 _logger?.Debug(
                     $"[Metadata] {key} matched {matches.Count}/{targets.Count} achievements for '{request.Game?.Name}' " +
                     $"({linkId}, idOverlap={overlap:P0}, byId={matchApiNames}).");
@@ -1002,7 +1002,8 @@ namespace PlayniteAchievements.Services.Metadata
         /// The user's pairings first: each pairs its achievement with the named source row, and an
         /// empty one keeps the achievement out of matching. The rest are matched as usual, against
         /// the source rows no pairing took. A pairing naming a row the source no longer has is
-        /// left to matching. With several <paramref name="lists"/> (a collection's games), each
+        /// left to matching. A pairing naming another id a row went by (<paramref name="aliases"/>)
+        /// pairs with that row. With several <paramref name="lists"/> (a collection's games), each
         /// category is matched against its own list first; see <see cref="MatchByList"/>.
         /// </summary>
         internal static List<AchievementMatch> MatchWithPairings(
@@ -1010,7 +1011,8 @@ namespace PlayniteAchievements.Services.Metadata
             IList<AchievementDetail> sources,
             IReadOnlyDictionary<string, string> pairings,
             bool matchApiNames,
-            IReadOnlyList<MetadataSourceList> lists = null)
+            IReadOnlyList<MetadataSourceList> lists = null,
+            IReadOnlyDictionary<string, AchievementDetail> aliases = null)
         {
             if (pairings == null || pairings.Count == 0)
             {
@@ -1035,7 +1037,9 @@ namespace PlayniteAchievements.Services.Metadata
                 {
                     settled.Add(target);
                 }
-                else if (sourcesByApiName.TryGetValue(sourceApiName, out var source) && taken.Add(source))
+                else if ((sourcesByApiName.TryGetValue(sourceApiName, out var source) ||
+                          (aliases != null && aliases.TryGetValue(sourceApiName, out source) && sources.Contains(source))) &&
+                         taken.Add(source))
                 {
                     paired.Add(new AchievementMatch(target, source));
                     settled.Add(target);
