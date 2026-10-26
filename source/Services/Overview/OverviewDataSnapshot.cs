@@ -30,6 +30,12 @@ namespace PlayniteAchievements.Services.Overview
         public bool UnlockNextPoolBuilt { get; set; }
 
         /// <summary>
+        /// Locked rows per game the pool retained from each ranking. A widget asking for more per
+        /// game than this triggers a rebuild.
+        /// </summary>
+        public int UnlockNextPoolSlice { get; set; }
+
+        /// <summary>
         /// Whether this snapshot was cut to the unlocks an achievement filter keeps, so its
         /// achievement totals count those unlocks only and it holds no locked remainder.
         /// </summary>
