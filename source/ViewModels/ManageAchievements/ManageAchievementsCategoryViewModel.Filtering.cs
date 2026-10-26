@@ -154,6 +154,9 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
 
             var apiNames = ResolveMemberApiNames(row.CategoryLabel);
             _achievementOverridesService.SetCategoryKind(_gameId, row.CategoryLabel, kind);
+            // The write skips the summary fan-out, so the overview's recent unlocks keep the old
+            // kind until the teardown flush refreshes this game's library-scope rows.
+            MarkLibraryRefreshDeferred(false);
 
             var stored = CategoryKindHelper.NormalizeStored(kind);
             var members = new HashSet<string>(apiNames, StringComparer.OrdinalIgnoreCase);
