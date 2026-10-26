@@ -223,9 +223,22 @@
                             <Setter Property="Background" Value="{DynamicResource PlayAch.Brush.Grid.RowHoverBackground}"/>
                             <Setter Property="Panel.ZIndex" Value="20"/>
                         </Trigger>
-                        <Trigger Property="HorizontalContentAlignment" Value="Right">
+                        <!-- Right-aligned text clears the sort arrow only while the arrow shows;
+                             unconditional padding pinned narrow headers to the left edge. -->
+                        <MultiTrigger>
+                            <MultiTrigger.Conditions>
+                                <Condition Property="HorizontalContentAlignment" Value="Right"/>
+                                <Condition Property="SortDirection" Value="Ascending"/>
+                            </MultiTrigger.Conditions>
                             <Setter Property="Padding" Value="10,6,26,6"/>
-                        </Trigger>
+                        </MultiTrigger>
+                        <MultiTrigger>
+                            <MultiTrigger.Conditions>
+                                <Condition Property="HorizontalContentAlignment" Value="Right"/>
+                                <Condition Property="SortDirection" Value="Descending"/>
+                            </MultiTrigger.Conditions>
+                            <Setter Property="Padding" Value="10,6,26,6"/>
+                        </MultiTrigger>
                         <Trigger Property="IsKeyboardFocused" Value="True">
                             <Setter Property="Background" Value="{DynamicResource PlayAch.Brush.Grid.RowHoverBackground}"/>
                             <Setter Property="Panel.ZIndex" Value="20"/>
