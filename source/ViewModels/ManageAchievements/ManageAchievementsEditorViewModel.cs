@@ -2176,11 +2176,13 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 {
                     row.ProviderUnlockedIconPath = ResolveProviderIconBaseline(
                         raw.UnlockedIconPath,
+                        apiName,
                         row.IconFileStem,
                         AchievementIconVariant.Unlocked,
                         iconCacheSnapshot);
                     row.ProviderLockedIconPath = ResolveProviderIconBaseline(
                         raw.LockedIconPath,
+                        apiName,
                         row.IconFileStem,
                         AchievementIconVariant.Locked,
                         iconCacheSnapshot);
@@ -2230,6 +2232,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         /// </remarks>
         private string ResolveProviderIconBaseline(
             string cachedPath,
+            string apiName,
             string fileStem,
             AchievementIconVariant variant,
             ISet<string> iconCacheSnapshot = null)
@@ -2237,6 +2240,16 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             if (!AchievementIconCachePathBuilder.IsCustomIconPath(cachedPath))
             {
                 return cachedPath;
+            }
+
+            // A borrowed metadata icon is kept only in its source folder, not under the own name.
+            if (variant == AchievementIconVariant.Unlocked)
+            {
+                var borrowed = PlayniteAchievementsPlugin.Instance?.MetadataLinks?.GetBorrowedIconPath(_gameId, apiName);
+                if (!string.IsNullOrWhiteSpace(borrowed))
+                {
+                    return borrowed;
+                }
             }
 
             if (string.IsNullOrWhiteSpace(fileStem))
