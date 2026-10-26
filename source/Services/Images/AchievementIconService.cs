@@ -71,6 +71,13 @@ namespace PlayniteAchievements.Services.Images
             _logger = logger;
         }
 
+        /// <summary>
+        /// The stored file of the icon a metadata source gave an achievement (game id, ApiName), or
+        /// null. Borrowed icons are kept only in the game's metadata source folders, so restoring a
+        /// cleared override reads them through this.
+        /// </summary>
+        internal static Func<Guid, string, string> BorrowedIconPathAccessor { get; set; }
+
         private PersistedSettings Persisted => _settingsAccessor();
 
         public async Task PopulateAchievementIconCacheAsync(
@@ -158,6 +165,59 @@ namespace PlayniteAchievements.Services.Images
                     cancel: cancel,
                     onIconProgress: onIconProgress)
                 .ConfigureAwait(false);
+
+            DeleteOwnCopiesOfBorrowedIcons(targets, fileStems, gameId);
+        }
+
+        /// <summary>
+        /// Deletes the game's own-folder files of achievements whose icon is used from a metadata
+        /// source folder. Those files are copies of the borrowed icon, or an own icon no longer
+        /// shown; a later fallback to the own icon downloads it again.
+        /// </summary>
+        private void DeleteOwnCopiesOfBorrowedIcons(
+            IReadOnlyList<AchievementDetail> achievements,
+            IReadOnlyDictionary<string, string> fileStems,
+            string gameId)
+        {
+            HashSet<string> ownFolder = null;
+            foreach (var achievement in achievements)
+            {
+                var apiName = NormalizeText(achievement?.ApiName);
+                if (string.IsNullOrWhiteSpace(apiName) ||
+                    !AchievementIconCachePathBuilder.IsMetadataSourceIconPath(achievement.UnlockedIconPath, gameId) ||
+                    !fileStems.TryGetValue(apiName, out var fileStem) ||
+                    string.IsNullOrWhiteSpace(fileStem))
+                {
+                    continue;
+                }
+
+                // One listing of the own folder for the pass, taken at the first borrowed icon.
+                ownFolder = ownFolder ?? _diskImageService.ScanAchievementIconCacheDirectory(gameId);
+                if (ownFolder.Count == 0)
+                {
+                    return;
+                }
+
+                foreach (var variant in new[] { AchievementIconVariant.Unlocked, AchievementIconVariant.Locked })
+                {
+                    var ownPath = _diskImageService.FindExistingAchievementIconCachePath(gameId, fileStem, variant, ownFolder);
+                    if (string.IsNullOrWhiteSpace(ownPath) ||
+                        string.Equals(ownPath, achievement.UnlockedIconPath, StringComparison.OrdinalIgnoreCase) ||
+                        string.Equals(ownPath, achievement.LockedIconPath, StringComparison.OrdinalIgnoreCase))
+                    {
+                        continue;
+                    }
+
+                    try
+                    {
+                        File.Delete(ownPath);
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger?.Debug(ex, $"Failed to delete own copy of borrowed icon '{ownPath}'.");
+                    }
+                }
+            }
         }
 
         public async Task PopulateFriendAvatarIconCacheAsync(
@@ -531,6 +591,7 @@ namespace PlayniteAchievements.Services.Images
                         achievement.UnlockedIconPath = RestoreDefaultIconPath(
                             achievement.UnlockedIconPath,
                             gameId,
+                            apiName,
                             fileStem,
                             AchievementIconVariant.Unlocked);
                     }
@@ -541,6 +602,7 @@ namespace PlayniteAchievements.Services.Images
                         achievement.LockedIconPath = RestoreDefaultIconPath(
                             achievement.LockedIconPath,
                             gameId,
+                            apiName,
                             fileStem,
                             AchievementIconVariant.Locked);
                     }
@@ -559,13 +621,14 @@ namespace PlayniteAchievements.Services.Images
             }
         }
 
-        // Restores a cleared override variant to the still-cached provider default (original
-        // resolution first, retired compressed cache second - the same order the Icons tab preview
-        // uses). Paths that do not point at this game's managed custom icons or a missing file are
-        // returned unchanged.
+        // Restores a cleared override variant to the still-cached default: a borrowed metadata
+        // icon first, then original resolution, then the retired compressed cache (the same order
+        // the Icons tab preview uses). Paths that do not point at this game's managed custom icons
+        // or a missing file are returned unchanged.
         private string RestoreDefaultIconPath(
             string currentPath,
             string gameId,
+            string apiName,
             string fileStem,
             AchievementIconVariant variant)
         {
@@ -575,6 +638,15 @@ namespace PlayniteAchievements.Services.Images
             if (!needsRestore)
             {
                 return currentPath;
+            }
+
+            if (variant == AchievementIconVariant.Unlocked && Guid.TryParse(gameId, out var playniteGameId))
+            {
+                var borrowed = BorrowedIconPathAccessor?.Invoke(playniteGameId, apiName);
+                if (!string.IsNullOrWhiteSpace(borrowed))
+                {
+                    return borrowed;
+                }
             }
 
             var restored = _diskImageService.FindExistingAchievementIconCachePath(gameId, fileStem, variant);
@@ -1040,6 +1112,13 @@ namespace PlayniteAchievements.Services.Images
             // Owned games skip sources that are already managed custom icons; friend sources are
             // provider URLs, for which this check is a harmless no-op (gameId is null there).
             if (_managedCustomIconService.IsManagedCustomIconPath(sourcePath, gameId))
+            {
+                return;
+            }
+
+            // A borrowed icon already stored in the game's metadata source folder is used from
+            // there; copying it to the game's own folder would store every borrowed icon twice.
+            if (AchievementIconCachePathBuilder.IsMetadataSourceIconPath(sourcePath, gameId))
             {
                 return;
             }
