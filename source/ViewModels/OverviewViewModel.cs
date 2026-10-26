@@ -2097,6 +2097,7 @@ namespace PlayniteAchievements.ViewModels
                 UnlockNextCandidates = _latestSnapshot?.UnlockNextCandidates
                     ?? new List<AchievementDisplayItem>(),
                 UnlockNextPoolBuilt = _latestSnapshot?.UnlockNextPoolBuilt ?? false,
+                UnlockNextPoolSlice = _latestSnapshot?.UnlockNextPoolSlice ?? 0,
                 // The pinned-locked rows a delta keeps are the last full build's, so the pins it
                 // accounted for are too.
                 AchievementPinKeysAtBuild = _latestSnapshot?.AchievementPinKeysAtBuild
