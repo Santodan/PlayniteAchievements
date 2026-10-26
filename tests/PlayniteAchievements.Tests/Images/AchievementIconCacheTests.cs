@@ -1180,6 +1180,109 @@ namespace PlayniteAchievements.Services.Images.Tests
         }
 
         [TestMethod]
+        public async Task PopulateAchievementIconCacheAsync_UsesBorrowedIconsInPlace_AndDeletesTheirOwnCopies()
+        {
+            var tempDir = CreateTempDirectory();
+
+            try
+            {
+                var diskImageService = new DiskImageService(logger: null, cacheRoot: tempDir);
+                var iconService = new AchievementIconService(
+                    diskImageService,
+                    new ManagedCustomIconService(diskImageService, logger: null),
+                    () => new PersistedSettings { UseSeparateLockedIconsWhenAvailable = false },
+                    logger: null);
+                var gameId = Guid.NewGuid();
+                var gameIdText = gameId.ToString("D");
+                var folder = diskImageService.ResolveCacheRelativePath(
+                    AchievementIconCachePathBuilder.BuildMetadataSourceFolderRelativePath(gameIdText, "PlayStation"));
+
+                var borrowedFile = Path.Combine(folder, "exophase_1.png");
+                WritePlaceholderFile(borrowedFile);
+                // A copy written by an earlier refresh, before borrowed icons were used in place.
+                var staleCopy = diskImageService.GetAchievementIconCachePath(gameIdText, "borrowed", AchievementIconVariant.Unlocked);
+                WritePlaceholderFile(staleCopy);
+                var ownSource = Path.Combine(tempDir, "sources", "own.png");
+                WritePlaceholderFile(ownSource);
+
+                var borrowed = new AchievementDetail { ApiName = "borrowed", UnlockedIconPath = borrowedFile };
+                var own = new AchievementDetail { ApiName = "own", UnlockedIconPath = ownSource };
+                var data = new GameAchievementData
+                {
+                    PlayniteGameId = gameId,
+                    Achievements = { borrowed, own }
+                };
+
+                await iconService.PopulateAchievementIconCacheAsync(data, CancellationToken.None);
+
+                Assert.AreEqual(borrowedFile, borrowed.UnlockedIconPath, "a borrowed icon is used from its source folder");
+                Assert.IsTrue(File.Exists(borrowedFile));
+                Assert.IsFalse(File.Exists(staleCopy), "the own-folder copy of a borrowed icon is deleted");
+                var ownTarget = diskImageService.GetAchievementIconCachePath(gameIdText, "own", AchievementIconVariant.Unlocked);
+                Assert.AreEqual(ownTarget, own.UnlockedIconPath, "an icon of the game's own is still cached in its own folder");
+                Assert.IsTrue(File.Exists(ownTarget));
+            }
+            finally
+            {
+                DeleteDirectory(tempDir);
+            }
+        }
+
+        [TestMethod]
+        public async Task PopulateAchievementIconCacheAsync_ClearedOverrideRestoresBorrowedIcon()
+        {
+            var tempDir = CreateTempDirectory();
+            var previousAccessor = AchievementIconService.BorrowedIconPathAccessor;
+
+            try
+            {
+                var diskImageService = new DiskImageService(logger: null, cacheRoot: tempDir);
+                var iconService = new AchievementIconService(
+                    diskImageService,
+                    new ManagedCustomIconService(diskImageService, logger: null),
+                    () => new PersistedSettings { UseSeparateLockedIconsWhenAvailable = false },
+                    logger: null);
+                var gameId = Guid.NewGuid();
+                var folder = diskImageService.ResolveCacheRelativePath(
+                    AchievementIconCachePathBuilder.BuildMetadataSourceFolderRelativePath(gameId.ToString("D"), "PlayStation"));
+                var borrowedFile = Path.Combine(folder, "exophase_1.png");
+                WritePlaceholderFile(borrowedFile);
+                var overrideSource = Path.Combine(tempDir, "sources", "override.png");
+                WriteSolidColorPng(overrideSource, Colors.Blue);
+                AchievementIconService.BorrowedIconPathAccessor = (id, apiName) =>
+                    id == gameId && apiName == "borrowed" ? borrowedFile : null;
+
+                var achievement = new AchievementDetail { ApiName = "borrowed", UnlockedIconPath = borrowedFile };
+                var data = new GameAchievementData
+                {
+                    PlayniteGameId = gameId,
+                    Achievements = { achievement }
+                };
+
+                await iconService.PopulateAchievementIconCacheAsync(
+                    data,
+                    new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase) { ["borrowed"] = overrideSource },
+                    null,
+                    CancellationToken.None);
+                Assert.AreNotEqual(borrowedFile, achievement.UnlockedIconPath);
+
+                await iconService.PopulateAchievementIconCacheAsync(
+                    data,
+                    null,
+                    null,
+                    CancellationToken.None,
+                    forceOverrideApiNames: new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "borrowed" });
+
+                Assert.AreEqual(borrowedFile, achievement.UnlockedIconPath, "clearing the override restores the borrowed icon");
+            }
+            finally
+            {
+                AchievementIconService.BorrowedIconPathAccessor = previousAccessor;
+                DeleteDirectory(tempDir);
+            }
+        }
+
+        [TestMethod]
         public async Task PopulateFriendGameImageCacheAsync_CachesDistinctIconAndCoverPaths()
         {
             var tempDir = CreateTempDirectory();
