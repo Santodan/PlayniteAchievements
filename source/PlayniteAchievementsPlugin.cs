@@ -1000,6 +1000,8 @@ namespace PlayniteAchievements
                         () => Settings?.Persisted?.LockedFallbackIconPath;
                     AchievementIconResolver.HiddenFallbackPathAccessor =
                         () => Settings?.Persisted?.HiddenFallbackIconPath;
+                    AchievementIconService.BorrowedIconPathAccessor =
+                        (gameId, apiName) => _metadataLinkStore?.GetBorrowedIconPath(gameId, apiName);
                     ShowcaseProfileResolver.ProfileUrlBuilder = BuildProviderProfileUrl;
                     ShowcaseProfileResolver.CurrentUserProfileNames = ReadCurrentUserProfileNames;
                     _imageService = new MemoryImageService(_logger, _diskImageService);
