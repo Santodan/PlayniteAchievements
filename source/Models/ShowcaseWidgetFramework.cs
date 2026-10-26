@@ -1357,14 +1357,13 @@ namespace PlayniteAchievements.Models
 
         /// <summary>
         /// Most rows a single game may contribute to Unlock Next. The pool the overview builder
-        /// hydrates retains a bounded slice per game, so the value caps at 10, well below it,
-        /// rather than accepting an amount the pool could not honour.
+        /// hydrates retains a bounded slice per game, so a value above it yields what the pool holds.
         /// </summary>
         public static int GetMaxPerGame(ShowcaseWidgetInstanceSettings settings) =>
-            Clamp(settings?.GetOption(MaxPerGame, 1) ?? 1, 1, 10);
+            Clamp(settings?.GetOption(MaxPerGame, 1) ?? 1, 1, 9999);
 
         public static void SetMaxPerGame(ShowcaseWidgetInstanceSettings settings, int value) =>
-            settings?.SetOption(MaxPerGame, Clamp(value, 1, 10));
+            settings?.SetOption(MaxPerGame, Clamp(value, 1, 9999));
 
         public static bool GetIncludeHiddenAchievements(ShowcaseWidgetInstanceSettings settings) =>
             settings?.GetOption(IncludeHiddenAchievements, false) ?? false;
