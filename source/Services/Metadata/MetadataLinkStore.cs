@@ -455,6 +455,31 @@ namespace PlayniteAchievements.Services.Metadata
         /// <summary>The source key whose icon the last overlay gave this achievement, or null for its own.</summary>
         public string GetBorrowedIconSource(Guid gameId, string apiName) => _state?.GetBorrowedIconSource(gameId, apiName);
 
+        /// <summary>
+        /// The stored file of the icon the last overlay gave this achievement, read from the
+        /// source's snapshot; null for an achievement showing its own icon or a file that is gone.
+        /// </summary>
+        public string GetBorrowedIconPath(Guid gameId, string apiName)
+        {
+            var sourceKey = GetBorrowedIconSource(gameId, apiName);
+            var snapshots = Snapshots;
+            if (string.IsNullOrWhiteSpace(sourceKey) || snapshots == null)
+            {
+                return null;
+            }
+
+            var snapshot = snapshots.Get(gameId, sourceKey, snapshots.GetLinkId(gameId, sourceKey));
+            if (snapshot?.Matches == null || !snapshot.Matches.TryGetValue(apiName.Trim(), out var sourceApiName))
+            {
+                return null;
+            }
+
+            var path = MetadataSourceSnapshotStore.LocalIconPath(snapshot.Rows?
+                .FirstOrDefault(row => string.Equals(row?.ApiName, sourceApiName, StringComparison.OrdinalIgnoreCase))?
+                .Icon);
+            return path != null && System.IO.File.Exists(path) ? path : null;
+        }
+
         /// <summary>The art the plugin last wrote for an auto capstone, or null.</summary>
         public CapstoneArtRecord GetCapstoneArtRecord(Guid gameId, string apiName) => _state?.GetCapstoneArtRecord(gameId, apiName);
 
