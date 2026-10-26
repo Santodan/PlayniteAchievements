@@ -123,7 +123,7 @@ namespace PlayniteAchievements
         private readonly SubscriptionCollection _eventSubscriptions = new SubscriptionCollection();
 
         /// <summary>Last seen answer to "does any widget draw from the Unlock Next pool?".</summary>
-        private bool _unlockNextPoolRequired;
+        private int _unlockNextPoolSlice;
 
         private readonly BackgroundUpdater _backgroundUpdates;
         private Services.Workshop.WorkshopUpdateChecker _workshopUpdateChecker;
@@ -2961,15 +2961,17 @@ namespace PlayniteAchievements
         /// <summary>
         /// Drops the cached library projection when the showcase starts needing the Unlock Next
         /// candidate pool, or gains an achievement pin the cached projection never hydrated, so
-        /// the next build fills them in. Only the Unlock Next false-to-true flip matters; a widget
-        /// dropping the source leaves a harmless pool behind until the next rebuild.
+        /// the next build fills them in. Only a deeper Unlock Next pool matters - the source newly
+        /// used, or Max per game raised past the built depth; a widget dropping the source or
+        /// lowering the value leaves a harmless pool behind until the next rebuild.
         /// </summary>
         private void OnShowcaseConfigurationChanged(object sender, EventArgs e)
         {
             var showcase = Settings?.Persisted?.Showcase;
-            var required = ShowcaseWidgetOptions.RequiresUnlockNextPool(showcase);
-            var poolNewlyRequired = required && !_unlockNextPoolRequired;
-            _unlockNextPoolRequired = required;
+            var maxPerGame = ShowcaseWidgetOptions.GetUnlockNextMaxPerGame(showcase);
+            var slice = maxPerGame > 0 ? Services.Overview.UnlockNextCandidateSelector.SliceFor(maxPerGame) : 0;
+            var poolNewlyRequired = slice > _unlockNextPoolSlice;
+            _unlockNextPoolSlice = slice;
 
             // Only a change to the pin set can leave the projection missing a pin. Layout edits
             // (merge, split, resize, widget options) leave the pins alone, and checking the
