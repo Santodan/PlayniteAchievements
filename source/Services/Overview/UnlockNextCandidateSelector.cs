@@ -25,10 +25,10 @@ namespace PlayniteAchievements.Services.Overview
         public const int GamesPerRanking = 20;
 
         /// <summary>Locked rows retained per game from each of the two within-game rankings.</summary>
-        public const int PerGameSlice = 10;
+        public const int PerGameSlice = 25;
 
         /// <summary>Ceiling on the whole pool, so a large library cannot grow it without bound.</summary>
-        public const int PoolCap = 600;
+        public const int PoolCap = 1500;
 
         /// <summary>
         /// Unfinished games worth hydrating, merged from the two rankings the widget criteria care
