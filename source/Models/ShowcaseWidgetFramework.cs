@@ -1357,7 +1357,8 @@ namespace PlayniteAchievements.Models
 
         /// <summary>
         /// Most rows a single game may contribute to Unlock Next. The pool the overview builder
-        /// hydrates retains a bounded slice per game, so a value above it yields what the pool holds.
+        /// hydrates retains this many per game from each of its rankings, so a larger value costs
+        /// a rebuild and more retained locked rows.
         /// </summary>
         public static int GetMaxPerGame(ShowcaseWidgetInstanceSettings settings) =>
             Clamp(settings?.GetOption(MaxPerGame, 1) ?? 1, 1, 9999);
@@ -1393,6 +1394,26 @@ namespace PlayniteAchievements.Models
                 default:
                     return false;
             }
+        }
+
+        /// <summary>
+        /// The largest Max per game among the live widgets - dashboard or start page - that draw
+        /// from the Unlock Next pool; 0 when none does.
+        /// </summary>
+        public static int GetUnlockNextMaxPerGame(ShowcaseSettings showcase)
+        {
+            if (showcase == null)
+            {
+                return 0;
+            }
+
+            return (showcase.WidgetInstances ?? new List<ShowcaseWidgetInstanceSettings>())
+                .Concat((showcase.StartPageInstances ??
+                         new Dictionary<string, ShowcaseWidgetInstanceSettings>()).Values)
+                .Where(RequiresUnlockNextPool)
+                .Select(GetMaxPerGame)
+                .DefaultIfEmpty(0)
+                .Max();
         }
 
         /// <summary>
