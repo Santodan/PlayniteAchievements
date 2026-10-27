@@ -122,10 +122,13 @@
     <!-- Legend rows stand in for their slices: hovering one pushes the slice out and clicking
          one raises SliceClick, exactly as the slice itself would. Rows beyond the pie's height
          scroll. -->
-    <ScrollViewer VerticalAlignment="Center"
+    <ScrollViewer x:Name="LegendScroller"
+                  VerticalAlignment="Center"
+                  Margin="0,0,0,8"
                   VerticalScrollBarVisibility="Auto"
                   HorizontalScrollBarVisibility="Disabled"
                   PreviewMouseWheel="OnLegendPreviewMouseWheel"
+                  Loaded="OnLegendScrollerLoaded"
                   Visibility="{Binding ShowLegend, ElementName=Root, Converter={StaticResource BoolToVis}}">
     <ItemsControl ItemsSource="{Binding LegendRows, ElementName=Root}">
         <ItemsControl.ItemTemplate>
