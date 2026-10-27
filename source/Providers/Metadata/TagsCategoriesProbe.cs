@@ -82,6 +82,7 @@ namespace PlayniteAchievements.Providers.Metadata
                 .ToList();
 
             var summary = new StringBuilder();
+            var tagRows = new StringBuilder("game\tachievement\tsite\tpage\tflags\ttags\n");
             summary.AppendLine($"Tags and categories probe, {DateTime.Now:yyyy-MM-dd HH:mm:ss}.");
             summary.AppendLine("Tags: per site 'listed/flagged/pairs' of the game's achievements; union = distinct (achievement, tag) pairs over all sites.");
             summary.AppendLine("Rules: each gives loads, pairs kept / union. today = load until every achievement is flagged; listed = stop at the first page listing every achievement with any flags; own = own site (TSA) first, then listed.");
@@ -104,7 +105,7 @@ namespace PlayniteAchievements.Providers.Metadata
                     var report = new StringBuilder();
                     try
                     {
-                        await ProbeCaseAsync(name, appId, steamHunters, trueGaming, exophase, report, summary, ct).ConfigureAwait(false);
+                        await ProbeCaseAsync(name, appId, steamHunters, trueGaming, exophase, report, summary, tagRows, ct).ConfigureAwait(false);
                     }
                     catch (OperationCanceledException) when (ct.IsCancellationRequested)
                     {
@@ -118,6 +119,7 @@ namespace PlayniteAchievements.Providers.Metadata
 
                     File.WriteAllText(Path.Combine(outputDirectory, FileStem(name) + ".txt"), report.ToString(), Encoding.UTF8);
                     File.WriteAllText(Path.Combine(outputDirectory, "summary.txt"), summary.ToString(), Encoding.UTF8);
+                    File.WriteAllText(Path.Combine(outputDirectory, "tags.tsv"), tagRows.ToString(), Encoding.UTF8);
                     logger?.Info($"[TagsCategoriesProbe] {name} done");
                 }
             }
@@ -142,6 +144,7 @@ namespace PlayniteAchievements.Providers.Metadata
             IReadOnlyList<ExophaseMetadataProvider> exophase,
             StringBuilder report,
             StringBuilder summary,
+            StringBuilder tagRows,
             CancellationToken ct)
         {
             var steamSet = steamHunters == null ? null : await steamHunters.FetchAsync(Request(name, null, MetadataField.Categories), appId, ct).ConfigureAwait(false);
@@ -185,6 +188,7 @@ namespace PlayniteAchievements.Providers.Metadata
             }
 
             ReportTags(targets, siteRows, report, summary);
+            AppendTagRows(name, siteRows, tagRows);
 
             if (siteRows.Count > 0)
             {
@@ -349,8 +353,36 @@ namespace PlayniteAchievements.Providers.Metadata
             report.AppendLine();
         }
 
-        private static void ReportCategories(
-            List<AchievementDetail> targets,
+        /// <summary>
+        /// One tags.tsv line per achievement each site lists: the page, the site's own flag names
+        /// and the tag keys they give, so tags can be compared flag by flag across sites.
+        /// </summary>
+        private static void AppendTagRows(
+            string game,
+            List<(TrueGamingSite Site, string Slug, TrueGamingPage Page, List<AchievementMatch> Matches)> siteRows,
+            StringBuilder tagRows)
+        {
+            foreach (var entry in siteRows)
+            {
+                var byId = entry.Page.Achievements
+                    .Where(row => !string.IsNullOrWhiteSpace(row.Id))
+                    .GroupBy(row => row.Id, StringComparer.OrdinalIgnoreCase)
+                    .ToDictionary(group => group.Key, group => group.First(), StringComparer.OrdinalIgnoreCase);
+                foreach (var match in entry.Matches)
+                {
+                    byId.TryGetValue(match.Source.ApiName ?? string.Empty, out var row);
+                    tagRows.Append(game).Append('\t')
+                        .Append(match.Target.DisplayName).Append('\t')
+                        .Append(entry.Site.Prefix).Append('\t')
+                        .Append(entry.Slug).Append('\t')
+                        .Append(string.Join(",", row?.Flags ?? new List<string>())).Append('\t')
+                        .Append(string.Join(",", AchievementTagHelper.Parse(match.Source.Tags)))
+                        .Append('\n');
+                }
+            }
+        }
+
+        private static void ReportCategories(            List<AchievementDetail> targets,
             List<(string Source, IReadOnlyDictionary<AchievementDetail, string> ByTarget)> sources,
             StringBuilder report,
             StringBuilder summary)
