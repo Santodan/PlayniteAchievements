@@ -304,6 +304,9 @@
     },
     "NotificationSurfaceStyle": {
       "BadgeImages": "NotificationBadgeImageSet",
+      "BlurBackground": "value",
+      "BlurStrength": "value",
+      "BlurTintOpacity": "value",
       "BodyEmphasis": "value",
       "BodyFontFamily": "value",
       "BodyFontSize": "value",
