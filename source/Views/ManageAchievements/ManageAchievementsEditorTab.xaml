@@ -741,7 +741,8 @@
                          authored one sit between two provider ones. -->
                     <DataGridTemplateColumn Header="{DynamicResource LOCPlayAch_ManageAchievements_Tab_AchievementOrder}"
                                             Width="44" MinWidth="44" MaxWidth="44" CanUserResize="False" CanUserSort="False" CanUserReorder="False" IsReadOnly="True"
-                                            helpers:ColumnVisibilityHelper.ColumnKey="EditorOrder">
+                                            helpers:ColumnVisibilityHelper.ColumnKey="EditorOrder"
+                                            helpers:DataGridColumnLayoutService.IsHeaderTextHidden="True">
                         <DataGridTemplateColumn.CellStyle>
                             <Style TargetType="DataGridCell" BasedOn="{StaticResource ManageAchievementsControllerCellStyle}">
                                 <Setter Property="Cursor" Value="SizeAll" />
@@ -820,6 +821,7 @@
                                             CanUserReorder="False"
                                             IsReadOnly="True"
                                             helpers:ColumnVisibilityHelper.ColumnKey="EditorStatus"
+                                            helpers:DataGridColumnLayoutService.IsHeaderTextHidden="True"
                                             CellStyle="{StaticResource ManageAchievementsIconCellStyle}"
                                             CellTemplate="{StaticResource AchievementStatusTemplate}" />
 
