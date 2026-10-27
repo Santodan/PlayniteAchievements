@@ -28,6 +28,10 @@ namespace PlayniteAchievements.Services.Images
         private const int ErrorNotSupported = 50;
         private const int ErrorTooManyLinks = 1142;
         private const uint MoveFileReplaceExisting = 0x1;
+        private const uint FileReadAttributes = 0x80;
+        private const uint FileShareAll = 0x7;
+        private const uint OpenExisting = 3;
+        private const uint FileFlagBackupSemantics = 0x02000000;
 
         internal enum LinkResult
         {
@@ -110,6 +114,26 @@ namespace PlayniteAchievements.Services.Images
             catch (Exception ex) when (ex is IOException || ex is UnauthorizedAccessException)
             {
                 return false;
+            }
+        }
+
+        /// <summary>The file-system id of a folder, which changes when the folder is made anew.</summary>
+        internal static bool TryGetFolderIdentity(string folder, out FileIdentity identity)
+        {
+            identity = default(FileIdentity);
+            using (var handle = CreateFile(folder, FileReadAttributes, FileShareAll, IntPtr.Zero, OpenExisting, FileFlagBackupSemantics, IntPtr.Zero))
+            {
+                if (handle.IsInvalid || !GetFileInformationByHandle(handle, out var info))
+                {
+                    return false;
+                }
+
+                identity = new FileIdentity
+                {
+                    Volume = info.VolumeSerialNumber,
+                    Index = ((ulong)info.FileIndexHigh << 32) | info.FileIndexLow
+                };
+                return true;
             }
         }
 
@@ -278,6 +302,16 @@ namespace PlayniteAchievements.Services.Images
         [DllImport("kernel32.dll", SetLastError = true)]
         [return: MarshalAs(UnmanagedType.Bool)]
         private static extern bool GetFileInformationByHandle(SafeFileHandle file, out ByHandleFileInformation info);
+
+        [DllImport("kernel32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
+        private static extern SafeFileHandle CreateFile(
+            string fileName,
+            uint desiredAccess,
+            uint shareMode,
+            IntPtr securityAttributes,
+            uint creationDisposition,
+            uint flagsAndAttributes,
+            IntPtr templateFile);
 
         [DllImport("kernel32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
         [return: MarshalAs(UnmanagedType.Bool)]
