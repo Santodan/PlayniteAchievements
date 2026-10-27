@@ -383,6 +383,15 @@ namespace PlayniteAchievements.Views.Controls
                     {
                         columns.Locked = map;
                     }
+                },
+                getHiddenHeaders: () => GetColumnLayoutOptions(settings)?.HiddenHeaders,
+                setHiddenHeaders: map =>
+                {
+                    var columns = GetColumnLayoutOptions(settings);
+                    if (columns != null)
+                    {
+                        columns.HiddenHeaders = map;
+                    }
                 });
             _columnPersistence.DelayInitialRenderUntilNormalized = DelayInitialRenderUntilNormalized;
             _columnPersistence.Attach();
