@@ -254,21 +254,23 @@ namespace PlayniteAchievements.Services.Metadata
 
         /// <summary>
         /// Replaces the id of an automatic link that the source extended, keeping its label and
-        /// pairings; a user's link, a stored no-match or a missing link is left alone.
+        /// pairings; a stored no-match or a missing link is left alone, and so is a user's link
+        /// unless <paramref name="includeUser"/>, when it stays the user's.
         /// </summary>
-        public bool ExtendAuto(Guid gameId, string sourceKey, string id)
+        public bool ExtendAuto(Guid gameId, string sourceKey, string id, bool includeUser = false)
         {
             if (string.IsNullOrWhiteSpace(id))
             {
                 return false;
             }
 
-            return Write(gameId, sourceKey, existing => existing == null || existing.IsUserSet || string.IsNullOrWhiteSpace(existing.Id)
+            return Write(gameId, sourceKey, existing => existing == null || (existing.IsUserSet && !includeUser) || string.IsNullOrWhiteSpace(existing.Id)
                 ? null
                 : new MetadataLinkData
                 {
                     Id = id.Trim(),
                     Label = existing.Label,
+                    IsUserSet = existing.IsUserSet,
                     Pairings = existing.Pairings == null
                         ? null
                         : new Dictionary<string, string>(existing.Pairings, StringComparer.OrdinalIgnoreCase)
