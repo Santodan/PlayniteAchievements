@@ -1098,6 +1098,13 @@ namespace PlayniteAchievements.Views.Controls
                     return CategoryColumnSettingsKey;
                 }
 
+                // An achievement grid widget's category list keeps a per-instance surface.
+                var widgetCategories = ShowcaseGridSurfaces.ResolveCategorySurface(ColumnSettingsKey);
+                if (widgetCategories != null)
+                {
+                    return widgetCategories;
+                }
+
                 var baseKey = string.IsNullOrWhiteSpace(ColumnSettingsKey) ? "Default" : ColumnSettingsKey;
                 return baseKey + "CategorySummaries";
             }
