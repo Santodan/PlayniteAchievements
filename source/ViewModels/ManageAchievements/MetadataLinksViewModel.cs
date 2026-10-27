@@ -240,7 +240,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                         coverage,
                         snapshot,
                         linkedGames,
-                        titles.Count > 0 ? string.Join(", ", titles) : string.Join(", ", linkedGames.Select(game => game.Name)),
+                        ShownTitle(gameId, record, titles, linkedGames, provider as IMetadataLinkPlatform),
                         provider is IMetadataLinkSearch,
                         stored)
                     {
@@ -351,6 +351,44 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                     .Where(list => !string.IsNullOrWhiteSpace(list))
                     .Distinct(StringComparer.OrdinalIgnoreCase)
                     .ToList();
+        }
+
+        /// <summary>
+        /// The link's titles as its row shows them, each followed by the console of the list it
+        /// leads to when the source says ("BioShock (PS4)"). Display only: the label keeps the
+        /// bare titles, which other sources search by.
+        /// </summary>
+        internal static string ShownTitle(
+            Guid gameId,
+            MetadataLinkRecord record,
+            IReadOnlyList<string> titles,
+            IReadOnlyList<GameSearchResult> linkedGames,
+            IMetadataLinkPlatform platforms)
+        {
+            titles = titles ?? Array.Empty<string>();
+            linkedGames = linkedGames ?? Array.Empty<GameSearchResult>();
+            var ids = record == null || record.IsNoMatch ? new List<string>() : MetadataLinkIds.Parse(record.Id).ToList();
+
+            string WithPlatform(string title, string id)
+            {
+                var platform = platforms == null || id == null ? null : platforms.ShownPlatform(gameId, id);
+                return string.IsNullOrWhiteSpace(platform)
+                    ? title
+                    : string.Format(ResourceProvider.GetString("LOCPlayAch_ManageAchievements_Manual_LinkSummary"), title, platform);
+            }
+
+            if (titles.Count == 0)
+            {
+                return string.Join(", ", linkedGames.Select((game, index) => WithPlatform(game.Name, index < ids.Count ? ids[index] : null)));
+            }
+
+            if (titles.Count == ids.Count)
+            {
+                return string.Join(", ", titles.Select((title, index) => WithPlatform(title, ids[index])));
+            }
+
+            var joined = string.Join(", ", titles);
+            return ids.Count == 1 ? WithPlatform(joined, ids[0]) : joined;
         }
 
         /// <summary>
