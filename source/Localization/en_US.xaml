@@ -672,7 +672,7 @@
     <sys:String x:Key="LOCPlayAch_Settings_Style_TextShadowOffset">Offset</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Style_FontThemeDefault">Theme default</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Style_HeaderTexts">Header text</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_Style_HeaderTextsHint">Leave blank to use the localized default. {0} is the friend's name.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_Style_HeaderTextsHint">Leave blank to use the localized default. {0} is the friend's name, or the game's name in the Game Complete! title.</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Style_HeaderFriendUnlock">Friend unlocked</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Style_HeaderCongratulations">100% Completion</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Style_HeaderFriendCompleted">Friend completed the game</sys:String>
