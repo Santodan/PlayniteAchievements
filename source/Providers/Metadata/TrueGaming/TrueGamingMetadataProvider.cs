@@ -14,8 +14,7 @@ using System.Threading.Tasks;
 namespace PlayniteAchievements.Providers.Metadata.TrueGaming
 {
     /// <summary>
-    /// Achievement flags (as tags), DLC groups (as categories), gamerscore and trophy ranks from
-    /// the TrueGaming sites: TrueAchievements, TrueTrophies and TrueSteamAchievements, tried in that
+    /// Achievement flags (as tags) and DLC groups (as categories) from the TrueGaming sites: TrueAchievements, TrueTrophies and TrueSteamAchievements, tried in that
     /// order for every platform. Pages are public and load through an offscreen browser view. A
     /// game links to one page name ("Fallout-4"), built from its name; each site is read under it
     /// or its edition variants there ("Fallout-4-PS4"), and where it led is kept in
@@ -23,7 +22,7 @@ namespace PlayniteAchievements.Providers.Metadata.TrueGaming
     /// <see cref="TrueGamingPageSet"/>. The sites are English only, so rows pair with the game's
     /// achievements by English title.
     /// </summary>
-    internal sealed class TrueGamingMetadataProvider : IMetadataProvider, IMetadataLinkDetails, IMetadataPageLinks, IMetadataLinkSearch, IMetadataLinkPlatform, IMetadataServedPages
+    internal sealed class TrueGamingMetadataProvider : IMetadataProvider, IMetadataLinkDetails, IMetadataPageLinks, IMetadataLinkSearch, IMetadataLinkPlatform
     {
         public const string MetadataKey = "TrueGaming";
 
@@ -54,7 +53,7 @@ namespace PlayniteAchievements.Providers.Metadata.TrueGaming
             _views == null ? null : new TrueGamingLinkSearch(this, ResourceProvider.GetString(DisplayNameKey));
 
         public MetadataField SupportedFields =>
-            MetadataField.Tags | MetadataField.Categories | MetadataField.CategoryArt | MetadataField.Points | MetadataField.TrophyTypes;
+            MetadataField.Tags | MetadataField.Categories | MetadataField.CategoryArt;
 
         public bool IsNativeFor(string servicingProviderKey) => false;
 
@@ -387,15 +386,6 @@ namespace PlayniteAchievements.Providers.Metadata.TrueGaming
                     $"[TrueGamingMetadata] '{request.Game?.Name}': {string.Join(", ", failed.Select(site => site.Host))} did not load; stored values kept.");
             }
 
-            if (failed.Contains(TrueGamingSite.TrueAchievements))
-            {
-                set.UnavailableFields |= MetadataField.Points;
-            }
-
-            if (failed.Contains(TrueGamingSite.TrueTrophies))
-            {
-                set.UnavailableFields |= MetadataField.TrophyTypes;
-            }
 
             if (set.Achievements.All(row => row.Tags == null))
             {
@@ -444,22 +434,6 @@ namespace PlayniteAchievements.Providers.Metadata.TrueGaming
                     continue;
                 }
 
-                // A page picked for the choice this site serves is read as named, whatever the link's name.
-                var picked = PickedSlug(request, site);
-                if (picked != null)
-                {
-                    var pickedPage = await GetPageAsync(site, picked, ct).ConfigureAwait(false);
-                    if (pickedPage.Achievements.Count > 0)
-                    {
-                        found.Add(new TrueGamingFoundPage(site, picked, pickedPage));
-                    }
-                    else
-                    {
-                        failed.Add(site);
-                    }
-
-                    continue;
-                }
 
                 if (name != null && _store.TryGet(gameId, name, site, out var known))
                 {
@@ -567,59 +541,6 @@ namespace PlayniteAchievements.Providers.Metadata.TrueGaming
                     .Where(page => page.PageSlug != null)
                     .Select(page => new MetadataPageLink(page.Site.Title, page.Site.ListUrl(page.PageSlug)))
                     .ToList();
-        }
-
-        /// <summary>The site a choice's fields are read from: Xbox points from TrueAchievements, PlayStation ranks from TrueTrophies.</summary>
-        private static TrueGamingSite ServedSite(string choiceKey)
-        {
-            var key = choiceKey?.Trim();
-            return string.Equals(key, MetadataChoices.Xbox, StringComparison.OrdinalIgnoreCase) ? TrueGamingSite.TrueAchievements
-                : string.Equals(key, MetadataChoices.PlayStation, StringComparison.OrdinalIgnoreCase) ? TrueGamingSite.TrueTrophies
-                : null;
-        }
-
-        private static string ServedChoice(TrueGamingSite site) =>
-            site == TrueGamingSite.TrueAchievements ? MetadataChoices.Xbox
-            : site == TrueGamingSite.TrueTrophies ? MetadataChoices.PlayStation
-            : null;
-
-        private static string PageKey(string choice) => choice == null ? null : MetadataKey + "." + choice;
-
-        /// <summary>The page picked for the choice <paramref name="site"/> serves, from the game's links; null when none is.</summary>
-        private static string PickedSlug(MetadataLinkRequest request, TrueGamingSite site)
-        {
-            var key = PageKey(ServedChoice(site));
-            return key != null && request?.OtherLinks != null && request.OtherLinks.TryGetValue(key, out var id)
-                ? TrueGamingLinks.ExactSlug(site, id)
-                : null;
-        }
-
-        public string ServedPageKey(string choiceKey) => PageKey(ServedChoice(ServedSite(choiceKey)));
-
-        public MetadataServedPage ServedPage(Guid gameId, string choiceKey, string pickedId, string sourceLinkId)
-        {
-            var site = ServedSite(choiceKey);
-            if (site == null)
-            {
-                return null;
-            }
-
-            var slug = TrueGamingLinks.ExactSlug(site, pickedId);
-            var name = TrueGamingLinks.Normalize(sourceLinkId);
-            if (slug == null && name != null && _store.TryGet(gameId, name, site, out var known))
-            {
-                slug = known;
-            }
-
-            return slug == null
-                ? null
-                : new MetadataServedPage(slug, (TrueGamingLinks.BaseSlug(slug) ?? slug).Replace('-', ' '), site.ListUrl(slug), site.PlatformOf(slug));
-        }
-
-        public IGameSearchSource CreateServedPageSearch(string choiceKey, string displayName)
-        {
-            var site = ServedSite(choiceKey);
-            return _views == null || site == null ? null : new TrueGamingPageSearch(this, site, displayName);
         }
 
         /// <summary>The consoles of the edition pages the link led to, in lookup order; null when every page is the plain one.</summary>
