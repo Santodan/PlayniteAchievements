@@ -1761,12 +1761,18 @@ namespace PlayniteAchievements.Views.Showcase
         private void AddScoreCardOptions(Panel panel)
         {
             Grid showTotalRow = null;
+            Grid rarityBadgesRow = null;
+            Grid artRow = null;
             Grid customColorsRow = null;
             void SyncTypeRows(ScoreCardType type)
             {
-                if (showTotalRow != null)
+                // Points-only rows.
+                foreach (var row in new[] { showTotalRow, rarityBadgesRow, artRow })
                 {
-                    showTotalRow.Visibility = type.IsPoints ? Visibility.Visible : Visibility.Collapsed;
+                    if (row != null)
+                    {
+                        row.Visibility = type.IsPoints ? Visibility.Visible : Visibility.Collapsed;
+                    }
                 }
 
                 if (customColorsRow != null)
@@ -1800,6 +1806,18 @@ namespace PlayniteAchievements.Views.Showcase
                 Localize("LOCPlayAch_Settings_ScoreCardShowTotal"),
                 ShowcaseWidgetOptions.GetScoreCardShowTotal(_settings),
                 value => ShowcaseWidgetOptions.SetScoreCardShowTotal(_settings, value));
+            rarityBadgesRow = AddToggle(
+                panel,
+                Localize("LOCPlayAch_Settings_ShowRarityBadgesBelowProgress"),
+                ShowcaseWidgetOptions.GetScoreCardShowRarityBadges(_settings),
+                value => ShowcaseWidgetOptions.SetScoreCardShowRarityBadges(_settings, value));
+            artRow = AddChoice(
+                panel,
+                Localize("LOCPlayAch_Showcase_ScoreCardArt"),
+                new[] { ShowcaseScoreCardArt.ProviderIcon, ShowcaseScoreCardArt.GameCover, ShowcaseScoreCardArt.GameIcon },
+                ShowcaseWidgetOptions.GetScoreCardArt(_settings),
+                value => ShowcaseWidgetOptions.SetScoreCardArt(_settings, value),
+                ScoreCardArtName);
             customColorsRow = AddToggle(
                 panel,
                 Localize("LOCPlayAch_Settings_ScoreCardUseCustomColors"),
