@@ -739,7 +739,8 @@
                     <!-- Row order is the achievement order, so the list is dragged directly.
                          Custom achievements take part like any other row, which is what lets an
                          authored one sit between two provider ones. -->
-                    <DataGridTemplateColumn Width="44" MinWidth="44" MaxWidth="44" CanUserResize="False" CanUserSort="False" CanUserReorder="False" IsReadOnly="True"
+                    <DataGridTemplateColumn Header="{DynamicResource LOCPlayAch_ManageAchievements_Tab_AchievementOrder}"
+                                            Width="44" MinWidth="44" MaxWidth="44" CanUserResize="False" CanUserSort="False" CanUserReorder="False" IsReadOnly="True"
                                             helpers:ColumnVisibilityHelper.ColumnKey="EditorOrder">
                         <DataGridTemplateColumn.CellStyle>
                             <Style TargetType="DataGridCell" BasedOn="{StaticResource ManageAchievementsControllerCellStyle}">
@@ -811,7 +812,8 @@
 
                     <!-- The same status glyphs the other achievement grids use: unlocked, capstone
                          and goal at a glance, rather than reading three separate controls. -->
-                    <DataGridTemplateColumn Width="36"
+                    <DataGridTemplateColumn Header="{DynamicResource LOCPlayAch_Column_Status}"
+                                            Width="36"
                                             MinWidth="36"
                                             MaxWidth="36"
                                             CanUserResize="False"
