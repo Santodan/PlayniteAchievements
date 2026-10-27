@@ -1452,6 +1452,72 @@ namespace PlayniteAchievements.Services.Images
             }
         }
 
+        // Folders whose existing files have been linked once, one icon_cache-relative path per line.
+        // Kept inside icon_cache so clearing the cache clears it too; a folder deleted and filled
+        // again is scanned anyway, since filling it is a write.
+        private readonly object _linkedOnceSync = new object();
+        private HashSet<string> _linkedOnce;
+
+        private string LinkedOncePath => Path.Combine(IconCacheDirectory, "linked-folders.txt");
+
+        private string LinkedOnceKey(string folder)
+        {
+            var full = Path.GetFullPath(folder).TrimEnd(Path.DirectorySeparatorChar);
+            var root = Path.GetFullPath(IconCacheDirectory).TrimEnd(Path.DirectorySeparatorChar) + Path.DirectorySeparatorChar;
+            return full.StartsWith(root, StringComparison.OrdinalIgnoreCase) ? full.Substring(root.Length) : full;
+        }
+
+        private HashSet<string> LoadLinkedOnce()
+        {
+            if (_linkedOnce == null)
+            {
+                _linkedOnce = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                try
+                {
+                    if (File.Exists(LinkedOncePath))
+                    {
+                        _linkedOnce.UnionWith(File.ReadAllLines(LinkedOncePath).Where(line => !string.IsNullOrWhiteSpace(line)));
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger?.Debug(ex, "Failed to read the linked icon folder list.");
+                }
+            }
+
+            return _linkedOnce;
+        }
+
+        private bool IsLinkedOnce(string folder)
+        {
+            lock (_linkedOnceSync)
+            {
+                return LoadLinkedOnce().Contains(LinkedOnceKey(folder));
+            }
+        }
+
+        private void MarkLinkedOnce(IEnumerable<string> folders)
+        {
+            lock (_linkedOnceSync)
+            {
+                var added = folders.Select(LinkedOnceKey).Where(key => LoadLinkedOnce().Add(key)).ToList();
+                if (added.Count == 0)
+                {
+                    return;
+                }
+
+                try
+                {
+                    EnsureIconCacheDirectory();
+                    File.AppendAllLines(LinkedOncePath, added);
+                }
+                catch (Exception ex)
+                {
+                    _logger?.Debug(ex, "Failed to record linked icon folders.");
+                }
+            }
+        }
+
         // Clears and reports the written folders at or under any of the roots.
         private bool TakeFoldersWrittenUnder(IEnumerable<string> roots)
         {
@@ -1511,7 +1577,9 @@ namespace PlayniteAchievements.Services.Images
                 return 0;
             }
 
-            if (!TakeFoldersWrittenUnder(roots) && onlyWhenWritten)
+            // A folder is scanned once to link what it already holds, then only after writes.
+            var written = TakeFoldersWrittenUnder(roots);
+            if (onlyWhenWritten && !written && roots.All(IsLinkedOnce))
             {
                 return 0;
             }
@@ -1560,6 +1628,8 @@ namespace PlayniteAchievements.Services.Images
                         }
                     }
                 }
+
+                MarkLinkedOnce(roots);
             }
             catch (OperationCanceledException)
             {
