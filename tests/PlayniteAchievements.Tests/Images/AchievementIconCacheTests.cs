@@ -288,6 +288,29 @@ namespace PlayniteAchievements.Services.Images.Tests
         }
 
         [TestMethod]
+        public void DiskImageService_ClearsSessionImagesFromTheRoot_AndKeepsGameFolders()
+        {
+            var tempDir = CreateTempDirectory();
+
+            try
+            {
+                var sessionImage = Path.Combine(tempDir, "icon_cache", "0D8CAF34E5331898.jpg");
+                var gameIcon = Path.Combine(tempDir, "icon_cache", Guid.NewGuid().ToString("D"), "original", "icon.png");
+                WritePlaceholderFile(sessionImage);
+                WritePlaceholderFile(gameIcon);
+
+                new DiskImageService(logger: null, cacheRoot: tempDir).Dispose();
+
+                Assert.IsFalse(File.Exists(sessionImage));
+                Assert.IsTrue(File.Exists(gameIcon));
+            }
+            finally
+            {
+                DeleteDirectory(tempDir);
+            }
+        }
+
+        [TestMethod]
         public async Task PopulateAchievementIconCacheAsync_UsesSeparateLockedIconsForPerGameOverride()
         {
             var tempDir = CreateTempDirectory();
