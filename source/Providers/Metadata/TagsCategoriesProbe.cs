@@ -28,7 +28,7 @@ namespace PlayniteAchievements.Providers.Metadata
     internal static class TagsCategoriesProbe
     {
         /// <summary>Hardcoded gate for the hidden "Probe tags and categories" menu item. Off in shipped builds.</summary>
-        internal static readonly bool Enabled = true;
+        internal static readonly bool Enabled = false;
 
         // (name, Steam appid): single games, games with DLC, and collections, on one platform or several.
         private static readonly (string Name, string AppId)[] Cases =
