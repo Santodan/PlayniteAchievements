@@ -52,6 +52,7 @@ namespace PlayniteAchievements.ViewModels.Settings
         private string _completionHeaderText;
         private string _friendCompletionHeaderText;
         private string _progressHeaderText;
+        private string _completionTitleText;
         private bool _hasHeaderFormatError;
         private string _textShadowText;
         private string _textShadowOffsetText;
@@ -1757,6 +1758,12 @@ namespace PlayniteAchievements.ViewModels.Settings
             set => SetValue(ref _progressHeaderText, value);
         }
 
+        public string CompletionTitleText
+        {
+            get => _completionTitleText;
+            set => SetValue(ref _completionTitleText, value);
+        }
+
         public bool HasHeaderFormatError
         {
             get => _hasHeaderFormatError;
@@ -1784,6 +1791,8 @@ namespace PlayniteAchievements.ViewModels.Settings
                 CompletionHeaderText, NotificationHeaderTextService.GetDefaultCompletionHeader());
             texts.ProgressHeader = NotificationHeaderTextService.NormalizeForStore(
                 ProgressHeaderText, NotificationHeaderTextService.GetDefaultProgressHeader());
+            texts.CompletionTitle = NotificationHeaderTextService.NormalizeForStore(
+                CompletionTitleText, NotificationHeaderTextService.GetDefaultCompletionTitle());
 
             if (string.IsNullOrWhiteSpace(FriendUnlockHeaderText) ||
                 NotificationHeaderTextService.IsValidHeaderFormat(FriendUnlockHeaderText))
@@ -1820,6 +1829,8 @@ namespace PlayniteAchievements.ViewModels.Settings
                 ?? NotificationHeaderTextService.GetDefaultCompletionHeader();
             ProgressHeaderText = texts?.ProgressHeader
                 ?? NotificationHeaderTextService.GetDefaultProgressHeader();
+            CompletionTitleText = texts?.CompletionTitle
+                ?? NotificationHeaderTextService.GetDefaultCompletionTitle();
 
             if (!keepInvalidPending || !HasHeaderFormatError)
             {
