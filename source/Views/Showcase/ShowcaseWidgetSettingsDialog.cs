@@ -122,11 +122,11 @@ namespace PlayniteAchievements.Views.Showcase
             {
                 // Edits the clone; Save copies it back and Cancel discards it.
                 _profileEditor = new ShowcaseProfileSettingsEditor(_workingProfile);
-                panel.Children.Add(_profileEditor);
             }
 
-            // An unlinked widget always has its title alignment and background rows; a linked one
-            // (titled by the overview, or an Overview header card) has only its kind's options.
+            // An unlinked widget always has its title alignment and background rows, right under
+            // the title box; a linked one (titled by the overview, or an Overview header card) has
+            // only its kind's options. The profile editor follows the shared rows.
             if (!_linked || ShowcaseWidgetOptionsControl.HasOptions(_workingWidget.Kind))
             {
                 panel.Children.Add(new ShowcaseWidgetOptionsControl(
@@ -135,7 +135,12 @@ namespace PlayniteAchievements.Views.Showcase
                     margin: new Thickness(0),
                     loadStyles: false,
                     includeScoreHistory: _includeScoreHistory,
-                    backgroundDefault: _linked ? (bool?)null : true));
+                    backgroundDefault: _linked ? (bool?)null : true,
+                    contentAfterSharedRows: _profileEditor));
+            }
+            else if (_profileEditor != null)
+            {
+                panel.Children.Add(_profileEditor);
             }
 
             var buttons = new StackPanel
