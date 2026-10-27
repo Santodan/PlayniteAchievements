@@ -172,6 +172,16 @@ namespace PlayniteAchievements.Views.Showcase
                 ContextMenuOpening += StripContextMenuOpening;
             }
 
+            // Every widget's right-click menu opens its settings through here.
+            ShowcaseWidgetSettingsMenu.SetOpener(this, instanceId =>
+            {
+                var widget = FindWidget(instanceId);
+                if (widget != null)
+                {
+                    OpenWidgetSettings(widget);
+                }
+            });
+
             _snapshotRefreshTimer = new System.Windows.Threading.DispatcherTimer
             {
                 Interval = TimeSpan.FromMilliseconds(1000)
@@ -300,7 +310,8 @@ namespace PlayniteAchievements.Views.Showcase
         public event EventHandler EditingChanged;
 
         // A strip has no header bar, so its right-click menu is how edit mode is entered and
-        // left. It offers only that: whether the strip shows at all is a main settings choice.
+        // left, after the settings of the widget clicked on. Whether the strip shows at all is a
+        // main settings choice.
         private void StripContextMenuOpening(object sender, ContextMenuEventArgs e)
         {
             if (_disposed || !(ContextMenu is ContextMenu menu))
@@ -310,6 +321,13 @@ namespace PlayniteAchievements.Views.Showcase
             }
 
             menu.Items.Clear();
+            var widgetItem = ShowcaseWidgetSettingsMenu.TryCreateItem(this, e.OriginalSource as DependencyObject);
+            if (widgetItem != null)
+            {
+                menu.Items.Add(widgetItem);
+                menu.Items.Add(new Separator());
+            }
+
             var editing = IsEditing;
             menu.Items.Add(MenuItem(
                 Localize(editing ? "LOCPlayAch_Common_View" : "LOCPlayAch_Common_Edit"),
