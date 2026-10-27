@@ -377,7 +377,7 @@ namespace PlayniteAchievements.Services.Metadata
             }
 
             var capstone = ResolveCapstone(plan.CapstoneArtKeys, sets);
-            var capstoneArt = FirstNonBlank(capstone?.UnlockedIconPath, capstone?.LockedIconPath);
+            var capstoneArt = SavedArt(sets.Values, capstone);
             var capstoneTitle = capstone?.DisplayName;
             var capstoneDescription = capstone?.Description;
             var capstoneMatch = MatchCapstone(plan.CapstoneArtKeys, sets, capstone, data.Achievements);
@@ -1536,7 +1536,7 @@ namespace PlayniteAchievements.Services.Metadata
                 result.Add(new MetadataCategoryCapstone
                 {
                     Category = category,
-                    ArtUrl = FirstNonBlank(platinum.UnlockedIconPath, platinum.LockedIconPath),
+                    ArtUrl = SavedArt(new[] { set }, platinum),
                     Title = string.IsNullOrWhiteSpace(platinum.DisplayName) ? null : platinum.DisplayName.Trim(),
                     Description = string.IsNullOrWhiteSpace(platinum.Description) ? null : platinum.Description.Trim(),
                     MatchApiName = MatchCapstoneIn(set, platinum, targets ?? new List<AchievementDetail>(), target =>
@@ -1545,6 +1545,25 @@ namespace PlayniteAchievements.Services.Metadata
             }
 
             return result.Count >= 2 ? result : new List<MetadataCategoryCapstone>();
+        }
+
+        /// <summary>
+        /// A platinum's art as saved in the game's icon cache, so the capstone shows that file
+        /// rather than keeping a copy of its own; its address when the source's icons were not saved.
+        /// </summary>
+        private static string SavedArt(IEnumerable<MatchedSet> sets, AchievementDetail row)
+        {
+            if (row == null)
+            {
+                return null;
+            }
+
+            var saved = sets
+                .Where(set => set?.Icons != null && set.Icons.ContainsKey(row))
+                .Select(set => set.IconsOf(row))
+                .Select(icons => FirstNonBlank(icons.Unlocked, icons.Locked))
+                .FirstOrDefault(art => art != null);
+            return saved ?? FirstNonBlank(row.UnlockedIconPath, row.LockedIconPath);
         }
 
         private static string FirstNonBlank(params string[] values)
