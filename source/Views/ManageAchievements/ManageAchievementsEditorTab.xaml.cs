@@ -40,6 +40,18 @@ namespace PlayniteAchievements.Views.ManageAchievements
         private static readonly string[] PinnedColumnKeys = { "EditorOrder", "EditorStatus", "EditorUnlocked" };
 
         /// <summary>
+        /// Header text a config that has never been touched hides: the drag handle and status
+        /// glyph columns are too narrow for their names, which still label them in the header
+        /// menu. Merged under the persisted map on read, as the column visibility defaults are.
+        /// </summary>
+        private static readonly Dictionary<string, bool> DefaultHiddenHeaders =
+            new Dictionary<string, bool>(StringComparer.OrdinalIgnoreCase)
+            {
+                ["EditorOrder"] = true,
+                ["EditorStatus"] = true
+            };
+
+        /// <summary>
         /// Which columns a config that has never been touched shows. Merged over the persisted map
         /// on read, so a column added later appears at its default without a migration while an
         /// explicit hide still persists.
@@ -2503,7 +2515,7 @@ namespace PlayniteAchievements.Views.ManageAchievements
                         columns.Locked = map;
                     }
                 },
-                getHiddenHeaders: () => GetColumnLayout()?.HiddenHeaders,
+                getHiddenHeaders: GetHiddenHeaders,
                 setHiddenHeaders: map =>
                 {
                     var columns = GetColumnLayout();
@@ -2550,6 +2562,30 @@ namespace PlayniteAchievements.Views.ManageAchievements
             }
 
             foreach (var pair in DefaultColumnVisibility)
+            {
+                if (!map.ContainsKey(pair.Key))
+                {
+                    map[pair.Key] = pair.Value;
+                }
+            }
+
+            return map;
+        }
+
+        /// <summary>
+        /// The persisted hidden-header map with <see cref="DefaultHiddenHeaders"/> merged under
+        /// it, the same way <see cref="GetColumnVisibility"/> merges its defaults.
+        /// </summary>
+        private Dictionary<string, bool> GetHiddenHeaders()
+        {
+            var columns = GetColumnLayout();
+            if (columns == null)
+            {
+                return null;
+            }
+
+            var map = columns.HiddenHeaders;
+            foreach (var pair in DefaultHiddenHeaders)
             {
                 if (!map.ContainsKey(pair.Key))
                 {
