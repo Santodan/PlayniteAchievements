@@ -622,6 +622,44 @@ namespace PlayniteAchievements.Tests.Views
         }
 
         [TestMethod]
+        public void Attach_HonorsAMarkupHiddenHeaderUntilASurfaceChoosesOtherwise()
+        {
+            StaTestHost.Run(() =>
+            {
+                var order = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+                var grid = CreateGrid();
+                var column = ColumnByKey(grid, "A");
+                // As markup declares it: hidden until a surface says otherwise.
+                DataGridColumnLayoutService.SetIsHeaderTextHidden(column, true);
+
+                var untouched = CreateService(grid, order, () => { });
+                untouched.Attach();
+                DrainDispatcher();
+                Assert.IsTrue(DataGridColumnLayoutService.GetIsHeaderTextHidden(column));
+
+                untouched.SetColumnHeaderTextHidden(column, false);
+                Assert.IsFalse(DataGridColumnLayoutService.GetIsHeaderTextHidden(column));
+                untouched.Detach();
+
+                // A service recreated for another surface reads the markup default, not the
+                // previous surface's choice left on the column.
+                var otherSurface = CreateService(grid, order, () => { });
+                otherSurface.Attach();
+                DrainDispatcher();
+                Assert.IsTrue(DataGridColumnLayoutService.GetIsHeaderTextHidden(column));
+                otherSurface.Detach();
+
+                var shownMaps = new PersistedMaps();
+                shownMaps.HiddenHeaders["A"] = false;
+                var shown = CreateService(grid, order, () => { }, maps: shownMaps);
+                shown.Attach();
+                DrainDispatcher();
+                Assert.IsFalse(DataGridColumnLayoutService.GetIsHeaderTextHidden(column));
+                shown.Detach();
+            });
+        }
+
+        [TestMethod]
         public void GridColumnLayoutOptionsClone_CopiesHiddenHeaders()
         {
             var options = new GridColumnLayoutOptions();
