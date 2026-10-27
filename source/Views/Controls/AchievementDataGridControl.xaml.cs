@@ -2726,6 +2726,16 @@ namespace PlayniteAchievements.Views.Controls
         public AchievementDataGridControl()
         {
             InitializeComponent();
+            // The category grids' key binds to this control directly: an ancestor binding in
+            // XAML only resolves once they join the visual tree, after they have prepared their
+            // columns under their own default key, writing into the Overview game list's record.
+            foreach (var categoryGrid in new[] { CategoryListGrid, CategoryDrillHeaderGrid })
+            {
+                categoryGrid.SetBinding(
+                    GameSummariesGridControl.ColumnSettingsKeyProperty,
+                    new System.Windows.Data.Binding(nameof(ResolvedCategoryColumnSettingsKey)) { Source = this });
+            }
+
             RarityAppearanceHelper.BindAnimateRarityGlows(this, AnimateRarityGlowsProperty);
             RarityAppearanceHelper.BindSoftGlowTiers(this, SoftGlowTiersProperty);
             RarityAppearanceHelper.BindRayGlowTiers(this, RayGlowTiersProperty);
@@ -3410,7 +3420,10 @@ namespace PlayniteAchievements.Views.Controls
         // MinWidth, then rebuilt once Attach collapses the hidden ones. Idempotent and cheap.
         private void PrepareColumnsForFirstMeasure()
         {
-            if (_isAttached || AchievementsDataGrid == null)
+            // Not before the template: until then a host may still be handing this grid its
+            // default key, and reading a record fills its missing column defaults, which would
+            // write into the Default surface's record.
+            if (_isAttached || !_templateApplied || AchievementsDataGrid == null)
             {
                 return;
             }
@@ -3429,8 +3442,11 @@ namespace PlayniteAchievements.Views.Controls
         public override void OnApplyTemplate()
         {
             base.OnApplyTemplate();
+            _templateApplied = true;
             PrepareColumnsForFirstMeasure();
         }
+
+        private bool _templateApplied;
 
         private void EnsureColumnPersistence(PlayniteAchievementsSettings settings)
         {
