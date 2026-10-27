@@ -178,6 +178,13 @@ namespace PlayniteAchievements.Providers.Metadata.TrueGaming
 
         public string ListUrl(string slug) => $"https://{Host}/game/{Uri.EscapeDataString(slug)}/{ListPath}";
 
+        /// <summary>The console a page slug's edition ending names ("Xbox One" for "BioShock-Xbox-One"); null for the plain slug.</summary>
+        public string PlatformOf(string pageSlug)
+        {
+            var suffix = Suffixes.FirstOrDefault(ending => (pageSlug ?? string.Empty).EndsWith(ending, StringComparison.OrdinalIgnoreCase));
+            return suffix == null ? null : suffix.Trim('-').Replace('-', ' ');
+        }
+
         public static TrueGamingSite For(string servicingProviderKey)
         {
             var key = servicingProviderKey?.Trim() ?? string.Empty;
