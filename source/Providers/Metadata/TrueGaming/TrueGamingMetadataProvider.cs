@@ -22,7 +22,7 @@ namespace PlayniteAchievements.Providers.Metadata.TrueGaming
     /// <see cref="TrueGamingPageSet"/>. The sites are English only, so rows pair with the game's
     /// achievements by English title.
     /// </summary>
-    internal sealed class TrueGamingMetadataProvider : IMetadataProvider, IMetadataLinkDetails, IMetadataPageLinks, IMetadataLinkSearch
+    internal sealed class TrueGamingMetadataProvider : IMetadataProvider, IMetadataLinkDetails, IMetadataPageLinks, IMetadataLinkSearch, IMetadataLinkPlatform
     {
         public const string MetadataKey = "TrueGaming";
 
@@ -549,6 +549,20 @@ namespace PlayniteAchievements.Providers.Metadata.TrueGaming
                     .Where(page => page.PageSlug != null)
                     .Select(page => new MetadataPageLink(page.Site.Title, page.Site.ListUrl(page.PageSlug)))
                     .ToList();
+        }
+
+        /// <summary>The consoles of the edition pages the link led to, in lookup order; null when every page is the plain one.</summary>
+        public string ShownPlatform(Guid gameId, string linkId)
+        {
+            var name = TrueGamingLinks.Normalize(linkId);
+            var platforms = name == null
+                ? new List<string>()
+                : _store.GetPages(gameId, name)
+                    .Select(page => page.PageSlug == null ? null : page.Site.PlatformOf(page.PageSlug))
+                    .Where(platform => platform != null)
+                    .Distinct(StringComparer.OrdinalIgnoreCase)
+                    .ToList();
+            return platforms.Count == 0 ? null : string.Join(", ", platforms);
         }
 
         /// <summary>The link's one page name, also for a list or address stored before links were one name.</summary>
