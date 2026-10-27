@@ -47,6 +47,11 @@
                             <controls:SettingRow Label="{DynamicResource LOCPlayAch_Settings_EnableUnlockToasts}">
                                 <CheckBox IsChecked="{Binding Persisted.EnableUnlockToasts}"/>
                             </controls:SettingRow>
+                            <!-- App-wide; collapses in game mode with the other *GlobalRow rows. -->
+                            <controls:SettingRow x:Name="SkipCompletionGlobalRow"
+                                                 Label="{DynamicResource LOCPlayAch_Settings_SkipCompletionAfterCapstone}">
+                                <CheckBox IsChecked="{Binding Persisted.SkipCompletionNotificationAfterCapstone}"/>
+                            </controls:SettingRow>
                             <controls:SettingRow x:Name="FriendUnlockToastsRow"
                                                  Label="{DynamicResource LOCPlayAch_Settings_EnableFriendUnlockToasts}"
                                                  Visibility="{Binding Persisted.EnableFriendsFeatures, Converter={StaticResource BoolToVis}}">
