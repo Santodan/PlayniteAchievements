@@ -596,6 +596,15 @@ namespace PlayniteAchievements.ViewModels
         public string FriendCompletionHeaderText => ResolveFriendCompletionHeaderText(_style.Toast.HeaderTexts);
 
         /// <summary>
+        /// Title of the standalone game-completion notification ("Game Complete!" by default),
+        /// honoring the toast surface's user edit, with {0} filled by the game's name.
+        /// </summary>
+        public string CompletionTitleText => ResolveCompletionTitleText(_style.Toast.HeaderTexts);
+
+        private string ResolveCompletionTitleText(NotificationHeaderTextSettings texts) =>
+            NotificationHeaderTextService.FormatCompletionTitle(texts?.CompletionTitle, _args.GameName);
+
+        /// <summary>
         /// Header text of an incremental-progress notification ("Achievement progress" by
         /// default), honoring the toast surface's user edit. <see cref="HeaderText"/> already
         /// resolves to this for progress notifications; this is for templates that compose it.
@@ -1779,7 +1788,8 @@ namespace PlayniteAchievements.ViewModels
                             isFrame ? FrameCompletedTitleBrush : CompletedTitleBrush,
                             isFrame ? FrameShowInlineBadge : ShowInlineBadge,
                             isFrame ? (object)FrameBadgeImage : ToastBadgeSource,
-                            isFrame ? FrameBadgeSize : ToastBadgeSize));
+                            isFrame ? FrameBadgeSize : ToastBadgeSize,
+                            ResolveCompletionTitleText(surface.HeaderTexts)));
                         break;
                     case NotificationSurfaceStyle.LineDescription:
                         lines.Add(new ToastDescriptionLine(
