@@ -415,17 +415,21 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
                 return;
             }
 
+            // Another game's list must not stand in while this one's loads; a reload of the same
+            // game keeps the list shown until the new one replaces it.
+            if (gameId != _categoryGameId)
+            {
+                CategoryItems.Clear();
+            }
+
             _categoryGameId = gameId;
             _categorySnapshot = new WeakReference<OverviewDataSnapshot>(snapshot);
             _categoryLoad?.Cancel();
             _categoryLoad = null;
-            if (!gameId.HasValue)
+            if (gameId.HasValue)
             {
-                CategoryItems.Clear();
-                return;
+                LoadCategoryItems(gameId.Value);
             }
-
-            LoadCategoryItems(gameId.Value);
         }
 
         private async void LoadCategoryItems(Guid gameId)
@@ -433,6 +437,7 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
             var plugin = PlayniteAchievementsPlugin.Instance;
             if (plugin?.AchievementDataService == null)
             {
+                CategoryItems.ReplaceAll(Items.ToList());
                 return;
             }
 
@@ -452,7 +457,9 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
                     .ConfigureAwait(true);
                 if (!load.IsCancellationRequested)
                 {
-                    CategoryItems.ReplaceAll(result.Items ?? new List<AchievementDisplayItem>());
+                    // A game with no stored list falls back to the shown rows, so the grid, which
+                    // waits for this list to start in category mode, never waits on nothing.
+                    CategoryItems.ReplaceAll(result.Items?.Count > 0 ? result.Items : Items.ToList());
                     // The Category dropdown lists every category of the game, not only the shown rows'.
                     _controlBarSlot.Adapter.SetCategoryOptionRows(CategoryItems.ToList());
                 }
@@ -463,6 +470,10 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
             catch (Exception ex)
             {
                 Logger.Warn(ex, $"Failed to load category rows for game {gameId}.");
+                if (!load.IsCancellationRequested)
+                {
+                    CategoryItems.ReplaceAll(Items.ToList());
+                }
             }
         }
 
