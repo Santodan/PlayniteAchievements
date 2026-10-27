@@ -815,7 +815,10 @@ namespace PlayniteAchievements.Views.Controls
         // before rows realize; both are idempotent and cheap.
         private void PrepareColumnsForFirstMeasure()
         {
-            if (_isAttached || GameSummariesGrid == null)
+            // Not before the template: until then a host may still be handing this grid a
+            // placeholder key (a category list starts on its parent's default), and reading a
+            // record fills its missing column defaults, which would write into another grid's.
+            if (_isAttached || !_templateApplied || GameSummariesGrid == null)
             {
                 return;
             }
@@ -833,8 +836,11 @@ namespace PlayniteAchievements.Views.Controls
         public override void OnApplyTemplate()
         {
             base.OnApplyTemplate();
+            _templateApplied = true;
             PrepareColumnsForFirstMeasure();
         }
+
+        private bool _templateApplied;
 
         private static void OnShowColumnHeadersChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
         {
