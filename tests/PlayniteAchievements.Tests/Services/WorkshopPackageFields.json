@@ -281,6 +281,7 @@
     },
     "NotificationHeaderTextSettings": {
       "CompletionHeader": "value",
+      "CompletionTitle": "value",
       "FriendCompletionHeaderFormat": "value",
       "FriendUnlockHeaderFormat": "value",
       "ProgressHeader": "value",
