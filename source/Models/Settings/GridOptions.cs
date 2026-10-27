@@ -67,6 +67,7 @@ namespace PlayniteAchievements.Models.Settings
         private Dictionary<string, GridVerticalAlignment> _cellVerticalAlignments = new Dictionary<string, GridVerticalAlignment>(StringComparer.OrdinalIgnoreCase);
         private Dictionary<string, GridAlignment> _headerAlignments = new Dictionary<string, GridAlignment>(StringComparer.OrdinalIgnoreCase);
         private Dictionary<string, bool> _locked = new Dictionary<string, bool>(StringComparer.OrdinalIgnoreCase);
+        private Dictionary<string, bool> _hiddenHeaders = new Dictionary<string, bool>(StringComparer.OrdinalIgnoreCase);
 
         public Dictionary<string, bool> Visibility
         {
@@ -115,6 +116,16 @@ namespace PlayniteAchievements.Models.Settings
             set => SetValue(ref _locked, NormalizeVisibility(value));
         }
 
+        /// <summary>
+        /// Columns whose header text is blanked: the header menu's eye. The header keeps its
+        /// size, sort arrow and click-to-sort; only the text is not drawn.
+        /// </summary>
+        public Dictionary<string, bool> HiddenHeaders
+        {
+            get => _hiddenHeaders;
+            set => SetValue(ref _hiddenHeaders, NormalizeVisibility(value));
+        }
+
         public GridColumnLayoutOptions Clone()
         {
             return new GridColumnLayoutOptions
@@ -125,7 +136,8 @@ namespace PlayniteAchievements.Models.Settings
                 CellAlignments = CellAlignments,
                 CellVerticalAlignments = CellVerticalAlignments,
                 HeaderAlignments = HeaderAlignments,
-                Locked = Locked
+                Locked = Locked,
+                HiddenHeaders = HiddenHeaders
             };
         }
 
