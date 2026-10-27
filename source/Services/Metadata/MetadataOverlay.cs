@@ -892,9 +892,12 @@ namespace PlayniteAchievements.Services.Metadata
                     : 0;
                 var matchApiNames = set.SharesApiNames || overlap >= CrossSourceAchievementMatcher.SharedApiNameThreshold;
                 var matches = MatchWithPairings(targets, set.Achievements, ReadPairings(gameId, key, linkId), matchApiNames, set.Lists, set.ApiNameAliases);
-                _logger?.Debug(
-                    $"[Metadata] {key} matched {matches.Count}/{targets.Count} achievements for '{request.Game?.Name}' " +
-                    $"({linkId}, idOverlap={overlap:P0}, byId={matchApiNames}).");
+                if (matches.Count < targets.Count)
+                {
+                    _logger?.Debug(
+                        $"[Metadata] {key} matched {matches.Count}/{targets.Count} achievements for '{request.Game?.Name}' " +
+                        $"({linkId}, idOverlap={overlap:P0}, byId={matchApiNames}).");
+                }
 
                 // A game found by name is a different release when too few achievements line up
                 // ("Thief: Definitive Edition" against "Thief Gold"), so it is neither kept nor used.
