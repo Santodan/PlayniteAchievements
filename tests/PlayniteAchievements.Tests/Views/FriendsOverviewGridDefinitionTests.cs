@@ -56,7 +56,7 @@ namespace PlayniteAchievements.Tests.Views
                 "Header=\"{DynamicResource LOCPlayAch_Column_Owned}\"",
                 "SortMemberPath=\"Owned\"",
                 "CellStyle=\"{StaticResource AchievementStatusCellStyle}\"",
-                "Text=\"{Binding}\" Opacity=\"0\"",
+                "helpers:DataGridColumnLayoutService.IsHeaderTextHidden=\"True\"",
                 "Visibility=\"{Binding Owned, Converter={StaticResource BooleanToVisibilityConverter}}",
                 "Data=\"{StaticResource GeoCheck}\"",
                 "Stroke=\"{DynamicResource PlayAch.Brush.Glyph}\"");
