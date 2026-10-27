@@ -196,6 +196,12 @@ namespace PlayniteAchievements.Services.Achievements
             return segments[segments.Count - 1];
         }
 
+        /// <summary>The first segment - the top-level category a nested label sits under.</summary>
+        public static string GetRootName(string rawValue)
+        {
+            return Split(rawValue)[0];
+        }
+
         /// <summary>The parent path, or null for a root label.</summary>
         public static string GetParentPath(string rawValue)
         {
