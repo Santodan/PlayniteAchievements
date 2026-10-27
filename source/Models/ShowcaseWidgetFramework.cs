@@ -463,6 +463,8 @@ namespace PlayniteAchievements.Models
         private const string ScoreHistoryShown = "ScoreHistoryShown";
         private const string ScoreCardUseCustomColors = "ScoreCardUseCustomColors";
         private const string ScoreCardShowTotal = "ScoreCardShowTotal";
+        private const string ScoreCardShowRarityBadges = "ScoreCardShowRarityBadges";
+        private const string ScoreCardArt = "ScoreCardArt";
         private const string IncludeLocked = "IncludeLocked";
         private const string SmallSliceMode = "SmallSliceMode";
         private const string ActivityScope = "ActivityScope";
@@ -812,6 +814,20 @@ namespace PlayniteAchievements.Models
 
         public static void SetScoreCardShowTotal(ShowcaseWidgetInstanceSettings settings, bool value) =>
             settings?.SetOption(ScoreCardShowTotal, value);
+
+        /// <summary>Whether a points card shows its games' unlocks per rarity under the bar; unset means hidden.</summary>
+        public static bool GetScoreCardShowRarityBadges(ShowcaseWidgetInstanceSettings settings) =>
+            settings?.GetOption(ScoreCardShowRarityBadges, false) ?? false;
+
+        public static void SetScoreCardShowRarityBadges(ShowcaseWidgetInstanceSettings settings, bool value) =>
+            settings?.SetOption(ScoreCardShowRarityBadges, value);
+
+        /// <summary>What a points card narrowed to one game shows in its icon slot; unset means the platform icon.</summary>
+        public static ShowcaseScoreCardArt GetScoreCardArt(ShowcaseWidgetInstanceSettings settings) =>
+            GetEnum(settings, ScoreCardArt, ShowcaseScoreCardArt.ProviderIcon);
+
+        public static void SetScoreCardArt(ShowcaseWidgetInstanceSettings settings, ShowcaseScoreCardArt value) =>
+            settings?.SetOption(ScoreCardArt, value);
 
         /// <summary>True for a Scores widget saved with the legacy Mode of Both and no card option.</summary>
         public static bool IsLegacyDualScores(ShowcaseWidgetInstanceSettings settings) =>
