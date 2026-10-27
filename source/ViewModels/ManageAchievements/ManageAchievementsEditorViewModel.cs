@@ -5747,22 +5747,6 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 var materialized = await MaterializeIconSourceAsync(current, row.IconFileStem, variant, errors)
                     .ConfigureAwait(true);
 
-                // Art that turns out to be the provider's own picture - its URL pasted back, or a
-                // re-saved copy - is not a customization, so the slot goes back to the provider
-                // rather than storing a duplicate as an override.
-                var providerArt = NormalizeText(ReadProviderIcon(row, variant));
-                if (!string.IsNullOrWhiteSpace(materialized) &&
-                    !string.IsNullOrWhiteSpace(providerArt) &&
-                    await Task.Run(() => IconImageComparer.AreSameImage(materialized, providerArt)).ConfigureAwait(true))
-                {
-                    StageAcross(new[] { row }, target => WriteIcon(
-                        target,
-                        variant,
-                        variant == AchievementIconVariant.Locked ? null : providerArt));
-                    touched.Add(row);
-                    continue;
-                }
-
                 if (!string.Equals(materialized, current, StringComparison.Ordinal))
                 {
                     StageAcross(new[] { row }, target => WriteIcon(target, variant, materialized));
