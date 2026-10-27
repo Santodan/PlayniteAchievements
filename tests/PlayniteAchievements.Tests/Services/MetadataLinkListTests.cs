@@ -141,6 +141,48 @@ namespace PlayniteAchievements.Tests.Services
         }
 
         [TestMethod]
+        public void NameBaseCategories_FilesEachListsBaseRowsUnderItsGame_KeepingDlcAndOwnNames()
+        {
+            AchievementDetail Kind(AchievementDetail row, string kind)
+            {
+                row.CategoryKind = kind;
+                return row;
+            }
+
+            var first = Set("me1", Kind(Row("1", "Saren", "Mass Effect Legendary Edition"), "Base"), Kind(Row("2", "Pinnacle", "Pinnacle Station"), "DLC"));
+            var second = Set("me2", Kind(Row("3", "Suicide Mission", "Mass Effect Legendary Edition"), "Base"), Kind(Row("4", "Grunt", "Mass Effect 2 (SteamHunters)"), "Base"));
+
+            MetadataListFetch.NameBaseCategories(
+                new[] { ("me1", first), ("me2", second) },
+                MetadataFoundNames.Parse("Mass Effect\tMass Effect\nMass Effect 2"),
+                "Mass Effect Legendary Edition",
+                "Mass Effect Legendary Edition");
+
+            Assert.AreEqual("Mass Effect", first.Achievements[0].Category);
+            Assert.AreEqual("Pinnacle Station", first.Achievements[1].Category);
+            Assert.AreEqual("Mass Effect 2", second.Achievements[0].Category);
+            Assert.AreEqual("Mass Effect 2 (SteamHunters)", second.Achievements[1].Category);
+        }
+
+        [TestMethod]
+        public void NameBaseCategories_LeavesOneListAndLabelsOfAnotherCount()
+        {
+            var only = Set("a", Row("1", "One", "Game"));
+            only.Achievements[0].CategoryKind = "Base";
+            MetadataListFetch.NameBaseCategories(new[] { ("a", only) }, MetadataFoundNames.Parse("A"), "Game", "Game");
+            Assert.AreEqual("Game", only.Achievements[0].Category);
+
+            var a = Set("a", Row("1", "One", "Game"));
+            var b = Set("b", Row("2", "Two", "Game"));
+            a.Achievements[0].CategoryKind = "Base";
+            b.Achievements[0].CategoryKind = "Base";
+            b.Title = "Game B";
+            MetadataListFetch.NameBaseCategories(new[] { ("a", a), ("b", b) }, MetadataFoundNames.Parse("A"), "Game", "Game");
+            Assert.AreEqual("Game", a.Achievements[0].Category);
+            Assert.AreEqual("Game B", b.Achievements[0].Category);
+        }
+
+        [TestMethod]
         public void Combine_ExtendsTheLink_WhenAListIsStoredUnderAFullerId()
         {
             var fetched = new List<(string, AchievementSourceSet)>
