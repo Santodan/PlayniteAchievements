@@ -131,6 +131,7 @@ namespace PlayniteAchievements.Services.Achievements
                     var path = await MaterializeIconAsync(gameId, source, existing, apiName).ConfigureAwait(false);
                     if (!string.IsNullOrWhiteSpace(path))
                     {
+                        DeleteReplacedCopy(gameId, definition.UnlockedIconPath, path);
                         definition.UnlockedIconPath = path;
                         artWritten = true;
                         _logger?.Debug($"[AutoCapstone] Art for gameId={gameId} {apiName} now from {source}.");
@@ -190,7 +191,7 @@ namespace PlayniteAchievements.Services.Achievements
                     return false;
                 }
 
-                if (!IsRecordedFile(definition.UnlockedIconPath, record))
+                if (!IsRecordedFile(gameId, definition.UnlockedIconPath, record))
                 {
                     // The user's art from now on, kept as a record so it is told apart from art
                     // authored before records were kept.
@@ -250,11 +251,22 @@ namespace PlayniteAchievements.Services.Achievements
             return string.IsNullOrWhiteSpace(name) ? ResourceProvider.GetString(AutoCapstoneText.FallbackGameNameKey) : name;
         }
 
-        private static bool IsRecordedFile(string path, CapstoneArtRecord record)
+        private static bool IsRecordedFile(Guid gameId, string path, CapstoneArtRecord record)
         {
             if (string.IsNullOrWhiteSpace(path) ||
-                !string.Equals(path, record.Path, StringComparison.OrdinalIgnoreCase) ||
-                !File.Exists(path))
+                !string.Equals(path, record.Path, StringComparison.OrdinalIgnoreCase))
+            {
+                return false;
+            }
+
+            // A borrowed platinum's file belongs to its source, which rewrites or removes it; only
+            // the user's own pick moves the capstone off that path.
+            if (AchievementIconCachePathBuilder.IsMetadataSourceIconPath(path, gameId.ToString("D")))
+            {
+                return true;
+            }
+
+            if (!File.Exists(path))
             {
                 return false;
             }
@@ -262,6 +274,32 @@ namespace PlayniteAchievements.Services.Achievements
             var info = new FileInfo(path);
             return info.Length == record.Length &&
                    Math.Abs((info.LastWriteTimeUtc - record.WriteTimeUtc).TotalSeconds) < 2;
+        }
+
+        /// <summary>
+        /// Deletes the capstone's own copy of its art once the art moves to another file, such as
+        /// the platinum's file in a metadata source folder. Called only for art the plugin wrote.
+        /// </summary>
+        private void DeleteReplacedCopy(Guid gameId, string previousPath, string newPath)
+        {
+            if (string.IsNullOrWhiteSpace(previousPath) ||
+                string.Equals(previousPath, newPath, StringComparison.OrdinalIgnoreCase) ||
+                _iconService?.Invoke()?.IsManagedCustomIconPath(previousPath, gameId.ToString("D")) != true)
+            {
+                return;
+            }
+
+            try
+            {
+                if (File.Exists(previousPath))
+                {
+                    File.Delete(previousPath);
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger?.Debug(ex, $"[AutoCapstone] Failed deleting the replaced art '{previousPath}' of gameId={gameId}.");
+            }
         }
 
         /// <param name="borrowedText">The borrowed text written with it, or nulls for the templates'.</param>
@@ -437,7 +475,7 @@ namespace PlayniteAchievements.Services.Achievements
                 ResolveGameName(API.Instance?.Database?.Games?.Get(gameId)),
                 null);
             var record = links.GetCapstoneArtRecord(gameId, authoredApiName);
-            if (!IsUntouched(authored, record, templateText))
+            if (!IsUntouched(gameId, authored, record, templateText))
             {
                 _logger?.Debug(
                     $"[AutoCapstone] gameId={gameId} keeps {authoredApiName} over matched platinum {matchApiName}: edited " +
@@ -569,12 +607,12 @@ namespace PlayniteAchievements.Services.Achievements
                 ResolveGameName(API.Instance?.Database?.Games?.Get(gameId)),
                 null);
             var record = links.GetCapstoneArtRecord(gameId, apiName);
-            if (!IsUntouched(authored, record, templateText))
+            if (!IsUntouched(gameId, authored, record, templateText))
             {
                 _logger?.Debug(
                     $"[AutoCapstone] gameId={gameId} keeps its edited whole-game capstone {apiName} " +
                     $"(record={(record == null ? "none" : "yes")}, icon='{authored.UnlockedIconPath}', recordedIcon='{record?.Path}', " +
-                    $"recordedFile={(record != null && !string.IsNullOrWhiteSpace(authored.UnlockedIconPath) && IsRecordedFile(authored.UnlockedIconPath, record))}, " +
+                    $"recordedFile={(record != null && !string.IsNullOrWhiteSpace(authored.UnlockedIconPath) && IsRecordedFile(gameId, authored.UnlockedIconPath, record))}, " +
                     $"lockedIcon={!string.IsNullOrWhiteSpace(authored.LockedIconPath)}, title='{authored.DisplayName}', " +
                     $"recordedTitle='{record?.Title}', templateTitle='{templateText.Title}', description='{authored.Description}', " +
                     $"recordedDescription='{record?.Description}', templateDescription='{templateText.Description}').");
@@ -592,6 +630,7 @@ namespace PlayniteAchievements.Services.Achievements
         /// (or none) and the templates' or the recorded platinum's text.
         /// </summary>
         private static bool IsUntouched(
+            Guid gameId,
             CustomAchievementDefinition definition,
             CapstoneArtRecord record,
             (string Title, string Description) template)
@@ -605,7 +644,7 @@ namespace PlayniteAchievements.Services.Achievements
             // the text decides; art the user replaced is recorded as theirs.
             var pluginArt = string.IsNullOrWhiteSpace(definition.UnlockedIconPath) ||
                             record == null ||
-                            (!string.Equals(record.Source, UserArtSource, StringComparison.Ordinal) && IsRecordedFile(definition.UnlockedIconPath, record));
+                            (!string.Equals(record.Source, UserArtSource, StringComparison.Ordinal) && IsRecordedFile(gameId, definition.UnlockedIconPath, record));
             return pluginArt &&
                    IsPluginText(definition.DisplayName, record?.Title, template.Title) &&
                    IsPluginText(definition.Description, record?.Description, template.Description);
@@ -728,6 +767,12 @@ namespace PlayniteAchievements.Services.Achievements
         {
             var iconService = _iconService?.Invoke();
             if (string.IsNullOrWhiteSpace(source) || iconService == null)
+            {
+                return source;
+            }
+
+            // A platinum the game already saved from its metadata source is shown from that file.
+            if (AchievementIconCachePathBuilder.IsMetadataSourceIconPath(source, gameId.ToString("D")) && File.Exists(source))
             {
                 return source;
             }
