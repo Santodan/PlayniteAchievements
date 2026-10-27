@@ -460,7 +460,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
 
         /// <summary>
         /// Puts an icon cell into the row's slot, where the editor's icon edit then fetches and
-        /// stores it - and drops it again if it is the provider's own picture.
+        /// stores it.
         /// </summary>
         /// <remarks>
         /// A locked icon only counts on a game set to show separate locked art; elsewhere the
