@@ -30,6 +30,32 @@ namespace PlayniteAchievements.Tests.Providers
         }
 
         [DataTestMethod]
+        [DataRow("ta", "BioShock-Xbox-One", "Xbox One")]
+        [DataRow("ta", "BioShock-Xbox-360", "Xbox 360")]
+        [DataRow("ta", "BioShock", null)]
+        [DataRow("tt", "BioShock-PS4", "PS4")]
+        [DataRow("tt", "Persona-4-Golden-PS-Vita", "PS Vita")]
+        [DataRow("tsa", "BioShock-Remastered", null)]
+        public void PlatformOf_IsTheEditionEnding(string site, string pageSlug, string platform)
+        {
+            var found = TrueGamingSite.LookupOrder.Single(candidate => candidate.Prefix == site);
+            Assert.AreEqual(platform, found.PlatformOf(pageSlug));
+        }
+
+        [DataTestMethod]
+        [DataRow("bioshock-ps4", "PS4")]
+        [DataRow("halo-5-xbox-one", "Xbox One")]
+        [DataRow("fable-ii-xbox-360", "Xbox 360")]
+        [DataRow("persona-4-golden-psvita", "PS Vita")]
+        [DataRow("god-of-war-psn", null)]
+        [DataRow("starfield-xbox", null)]
+        [DataRow(null, null)]
+        public void ExophasePlatformOfSlug_NamesOnlyOneConsoleEndings(string slug, string platform)
+        {
+            Assert.AreEqual(platform, PlayniteAchievements.Providers.Metadata.Exophase.ExophaseMetadataBranch.PlatformOfSlug(slug));
+        }
+
+        [DataTestMethod]
         [DataRow("Fallout-4", "Fallout-4")]
         [DataRow(" /game/Fallout-4/achievements ", "Fallout-4")]
         [DataRow("https://www.truetrophies.com/game/Elden-Ring-PS5/trophies", "Elden-Ring")]
