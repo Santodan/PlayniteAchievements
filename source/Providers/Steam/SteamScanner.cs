@@ -843,7 +843,6 @@ namespace PlayniteAchievements.Providers.Steam
                     }
                 }
 
-                _logger?.Debug($"[SteamAch] appId={appId} source={fetch.Data.Source} unlocked={mapping.Unlocks.UnlockedApiNames.Count}.");
                 return new UnlockFetchResult { Unlocks = mapping.Unlocks, Schema = refreshed };
             }
 
