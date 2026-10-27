@@ -97,9 +97,9 @@ namespace PlayniteAchievements.Providers.Metadata.TrueGaming
         internal static string SearchUrl(TrueGamingSite site, string name)
         {
             var query = Uri.EscapeDataString(name ?? string.Empty);
-            return site == TrueGamingSite.TrueSteamAchievements
-                ? $"https://{site.Host}/search-results?search={query}"
-                : $"https://{site.Host}/true-api/sitesearch/search?q={query}&category=Games&site={site.Prefix}";
+            return site == TrueGamingSite.TrueSteamAchievements ? $"https://{site.Host}/search-results?search={query}"
+                : site == TrueGamingSite.TrueTrophies ? $"https://{site.Host}/true-api/sitesearch/search?q={query}&category=Games&site={site.Prefix}"
+                : SearchUrl(name);
         }
 
         private static readonly Regex SearchGamePlatform = new Regex(@"<Platform><Name>(?<name>[^<]*)</Name>", RegexOptions.CultureInvariant);
