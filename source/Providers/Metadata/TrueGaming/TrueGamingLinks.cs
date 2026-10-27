@@ -147,19 +147,6 @@ namespace PlayniteAchievements.Providers.Metadata.TrueGaming
                 .ToList();
         }
 
-        /// <summary>The games a site search answered with, as page slugs and titles, in its order.</summary>
-        internal static IReadOnlyList<(string Slug, string Title)> ParseSearch(string text)
-        {
-            return SearchGame.Matches(text ?? string.Empty)
-                .Cast<Match>()
-                .Select(match => match.Groups["game"].Value)
-                .Select(game => (
-                    Slug: Uri.UnescapeDataString(SearchGameUrl.Match(game).Groups["slug"].Value),
-                    Title: System.Net.WebUtility.HtmlDecode(SearchGameTitle.Match(game).Groups["title"].Value)))
-                .Where(game => game.Slug.Length > 0)
-                .ToList();
-        }
-
         /// <summary>A slug without any site's edition suffix ("Elden-Ring-PS5" as "Elden-Ring").</summary>
         internal static string BaseSlug(string slug)
         {
