@@ -3002,6 +3002,11 @@ namespace PlayniteAchievements.Views.Controls
                 RefreshAppearance();
             }
 
+            if (e.PropertyName == nameof(PersistedSettings.CategoryColumnDisplay))
+            {
+                RefreshCategoryLabelDisplays();
+            }
+
             // Category rows repaint without reopening the window. Grids not currently in category
             // mode pick new modes up from the rebuild that entering category mode already does.
             if (_isCategoryMode)
@@ -3018,6 +3023,14 @@ namespace PlayniteAchievements.Views.Controls
                     // Rebuilding re-stamps AllowCompletionBadge and reassigns CategorySummaries.
                     RebuildCategorySummaries();
                 }
+            }
+        }
+
+        private void RefreshCategoryLabelDisplays()
+        {
+            foreach (var item in ItemsSource ?? Enumerable.Empty<AchievementDisplayItem>())
+            {
+                item?.RefreshCategoryLabelDisplay();
             }
         }
 
