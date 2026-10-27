@@ -32,6 +32,7 @@ namespace PlayniteAchievements.Views.Showcase
         private readonly bool _publishChanges;
         private readonly bool _includeScoreHistory;
         private readonly bool? _backgroundDefault;
+        private readonly UIElement _contentAfterSharedRows;
         private DebouncedSettingsPersist _gridOptionsPersist;
         private FrameworkElement _scoreBarRows;
 
@@ -50,6 +51,10 @@ namespace PlayniteAchievements.Views.Showcase
         /// The host's default for the widget background, which adds the title alignment and
         /// background rows every widget shares; null for an editor with no widget card around it.
         /// </param>
+        /// <param name="contentAfterSharedRows">
+        /// The host's own editor for the widget (the profile's identity fields), placed after the
+        /// shared title alignment and background rows so those stay under the title box.
+        /// </param>
         public ShowcaseWidgetOptionsControl(
             ShowcaseWidgetInstanceSettings settings,
             Action persist = null,
@@ -57,11 +62,13 @@ namespace PlayniteAchievements.Views.Showcase
             Thickness? margin = null,
             bool loadStyles = true,
             bool includeScoreHistory = true,
-            bool? backgroundDefault = null)
+            bool? backgroundDefault = null,
+            UIElement contentAfterSharedRows = null)
         {
             _settings = settings ?? throw new ArgumentNullException(nameof(settings));
             _includeScoreHistory = includeScoreHistory;
             _backgroundDefault = backgroundDefault;
+            _contentAfterSharedRows = contentAfterSharedRows;
             _persist = persist;
             _publishChanges = publishChanges;
             if (loadStyles)
@@ -129,6 +136,11 @@ namespace PlayniteAchievements.Views.Showcase
                     value => ShowcaseWidgetOptions.SetShowBackground(_settings, value));
             }
 
+            if (_contentAfterSharedRows != null)
+            {
+                panel.Children.Add(_contentAfterSharedRows);
+            }
+
             switch (_settings.Kind)
             {
                 case ShowcaseWidgetKind.Profile:
@@ -161,6 +173,23 @@ namespace PlayniteAchievements.Views.Showcase
                         Localize("LOCPlayAch_Showcase_ProfileLinks"),
                         ShowcaseWidgetOptions.GetProfileShowLinks(_settings),
                         value => ShowcaseWidgetOptions.SetProfileShowLinks(_settings, value));
+                    // Prefilled with the defaults; left at them, the picture follows the widget's
+                    // density. Width and height are separate so the picture need not be square.
+                    AddNumberRow(
+                        panel,
+                        Localize("LOCPlayAch_Showcase_ProfileAvatarWidth") + " (px)",
+                        () => ShowcaseWidgetOptions.GetProfileAvatarWidth(_settings),
+                        value => ShowcaseWidgetOptions.SetProfileAvatarWidth(_settings, value));
+                    AddNumberRow(
+                        panel,
+                        Localize("LOCPlayAch_Showcase_ProfileAvatarHeight") + " (px)",
+                        () => ShowcaseWidgetOptions.GetProfileAvatarHeight(_settings),
+                        value => ShowcaseWidgetOptions.SetProfileAvatarHeight(_settings, value));
+                    AddNumberRow(
+                        panel,
+                        Localize("LOCPlayAch_Showcase_ProfileLinkIconSize") + " (px)",
+                        () => ShowcaseWidgetOptions.GetProfileLinkIconSize(_settings),
+                        value => ShowcaseWidgetOptions.SetProfileLinkIconSize(_settings, value));
                     AddProfileStatSlots(panel);
                     AddCollectionChoice(panel, includeAchievementCollections: false);
                     AddControlBarRows<StatisticsControlBarAdapter>(panel);
