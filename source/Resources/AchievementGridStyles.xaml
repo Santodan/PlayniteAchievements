@@ -195,7 +195,8 @@
                             ClipToBounds="False"
                             SnapsToDevicePixels="True">
                         <Grid ClipToBounds="False">
-                            <ContentPresenter HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
+                            <ContentPresenter x:Name="HeaderContent"
+                                              HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
                                               VerticalAlignment="Center"
                                               Margin="{TemplateBinding Padding}"
                                               TextElement.Foreground="{TemplateBinding Foreground}"
@@ -262,6 +263,11 @@
                         <Trigger Property="SortDirection" Value="Descending">
                             <Setter TargetName="SortArrow" Property="Visibility" Value="Visible"/>
                         </Trigger>
+                        <!-- Hidden, not Collapsed: the header keeps its size and stays clickable. -->
+                        <DataTrigger Binding="{Binding RelativeSource={RelativeSource TemplatedParent}, Path=Column.(helpers:DataGridAlignmentBehavior.IsHeaderTextHidden)}"
+                                     Value="True">
+                            <Setter TargetName="HeaderContent" Property="Visibility" Value="Hidden"/>
+                        </DataTrigger>
                     </ControlTemplate.Triggers>
                 </ControlTemplate>
             </Setter.Value>
