@@ -264,7 +264,7 @@
                             <Setter TargetName="SortArrow" Property="Visibility" Value="Visible"/>
                         </Trigger>
                         <!-- Hidden, not Collapsed: the header keeps its size and stays clickable. -->
-                        <DataTrigger Binding="{Binding RelativeSource={RelativeSource TemplatedParent}, Path=Column.(helpers:DataGridColumnLayoutService.IsHeaderTextHidden)}"
+                        <DataTrigger Binding="{Binding RelativeSource={RelativeSource Self}, Path=Column.(helpers:DataGridColumnLayoutService.IsHeaderTextHidden)}"
                                      Value="True">
                             <Setter TargetName="HeaderContent" Property="Visibility" Value="Hidden"/>
                         </DataTrigger>
