@@ -2,12 +2,14 @@ using System;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Linq;
+using System.Threading;
 using Playnite.SDK;
 using PlayniteAchievements.Common;
 using PlayniteAchievements.Models;
 using PlayniteAchievements.Models.Settings;
 using PlayniteAchievements.Services;
 using PlayniteAchievements.Services.Achievements;
+using PlayniteAchievements.Services.Overview;
 using PlayniteAchievements.Services.Showcase;
 using PlayniteAchievements.ViewModels.Items;
 
@@ -252,6 +254,13 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
             {
                 Items.ReplaceAll(visible);
             }
+
+            OnItemsRefreshed();
+        }
+
+        /// <summary>Runs after every <see cref="RefreshItems"/>, with <see cref="Items"/> current.</summary>
+        protected virtual void OnItemsRefreshed()
+        {
         }
 
         private bool SameRows(System.Collections.Generic.IEnumerable<TItem> items)
@@ -356,6 +365,106 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
         // This grid's own copies of any revealable rows, so a reveal stays in this widget.
         protected override IEnumerable<AchievementDisplayItem> ScopeVisibleItems(
             IEnumerable<AchievementDisplayItem> visible) => _reveals.Map(visible);
+
+        private static readonly ILogger Logger = LogManager.GetLogger();
+
+        private Guid? _categoryGameId;
+        private WeakReference<OverviewDataSnapshot> _categorySnapshot;
+        private CancellationTokenSource _categoryLoad;
+        private AchievementSelectionPipeline _categoryPipeline;
+
+        /// <summary>
+        /// The whole achievement list (locked included) of the one game the rows show, which the
+        /// grid's category mode totals its categories from and lists when drilled into one; empty
+        /// while the rows span several games, where category mode is not offered.
+        /// </summary>
+        public BulkObservableCollection<AchievementDisplayItem> CategoryItems { get; } =
+            new BulkObservableCollection<AchievementDisplayItem>();
+
+        protected override void OnItemsRefreshed()
+        {
+            var gameId = ResolveSingleGameId(Items);
+            var snapshot = Projection?.Snapshot;
+            OverviewDataSnapshot loadedFrom = null;
+            _categorySnapshot?.TryGetTarget(out loadedFrom);
+            // Reloaded when the game changes, and when a new snapshot (a refresh) may have
+            // changed the game's achievements.
+            if (gameId == _categoryGameId && ReferenceEquals(loadedFrom, snapshot))
+            {
+                return;
+            }
+
+            _categoryGameId = gameId;
+            _categorySnapshot = new WeakReference<OverviewDataSnapshot>(snapshot);
+            _categoryLoad?.Cancel();
+            _categoryLoad = null;
+            if (!gameId.HasValue)
+            {
+                CategoryItems.Clear();
+                return;
+            }
+
+            LoadCategoryItems(gameId.Value);
+        }
+
+        private async void LoadCategoryItems(Guid gameId)
+        {
+            var plugin = PlayniteAchievementsPlugin.Instance;
+            if (plugin?.AchievementDataService == null)
+            {
+                return;
+            }
+
+            var load = new CancellationTokenSource();
+            _categoryLoad = load;
+            try
+            {
+                if (_categoryPipeline == null)
+                {
+                    _categoryPipeline = new AchievementSelectionPipeline(plugin.AchievementDataService, plugin.Settings);
+                }
+
+                // The pipeline's cache would hold the game's rows from before a refresh.
+                _categoryPipeline.Invalidate(gameId);
+                var result = await _categoryPipeline
+                    .LoadAsync(gameId, null, load.Token)
+                    .ConfigureAwait(true);
+                if (!load.IsCancellationRequested)
+                {
+                    CategoryItems.ReplaceAll(result.Items ?? new List<AchievementDisplayItem>());
+                }
+            }
+            catch (OperationCanceledException)
+            {
+            }
+            catch (Exception ex)
+            {
+                Logger.Warn(ex, $"Failed to load category rows for game {gameId}.");
+            }
+        }
+
+        // The rows' one game, or null when they are empty or span several.
+        private static Guid? ResolveSingleGameId(IEnumerable<AchievementDisplayItem> items)
+        {
+            Guid? gameId = null;
+            foreach (var item in items)
+            {
+                var id = item?.PlayniteGameId;
+                if (!id.HasValue)
+                {
+                    return null;
+                }
+
+                if (gameId.HasValue && gameId.Value != id.Value)
+                {
+                    return null;
+                }
+
+                gameId = id;
+            }
+
+            return gameId;
+        }
     }
 
     /// <summary>
