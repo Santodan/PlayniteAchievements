@@ -19,6 +19,7 @@ using PlayniteAchievements.Services.GameCustomData;
 using PlayniteAchievements.Services.Hydration;
 using PlayniteAchievements.Services.InGameMonitoring;
 using PlayniteAchievements.Services.Refresh;
+using PlayniteAchievements.Services.UI;
 
 namespace PlayniteAchievements.Services
 {
@@ -1850,6 +1851,12 @@ namespace PlayniteAchievements.Services
         /// toasts reflect the same categories and capstone state the user sees elsewhere. The
         /// SQLite cache stores raw provider data; these overrides live in the custom data store.
         /// </summary>
+        private static GameCustomDataFile LoadGameCustomData(Guid gameId)
+        {
+            var store = PlayniteAchievementsPlugin.Instance?.GameCustomDataStore;
+            return gameId != Guid.Empty && store != null && store.TryLoad(gameId, out var data) ? data : null;
+        }
+
         private void HydrateForToast(GameAchievementData data)
         {
             if (data == null || _api == null)
@@ -2119,7 +2126,17 @@ namespace PlayniteAchievements.Services
             bool primed,
             DateTime observedUtc)
         {
-            if (!primed || _settings?.Persisted?.EnableProgressToasts != true)
+            if (!primed || _settings?.Persisted == null)
+            {
+                return 0;
+            }
+
+            // The game's own behavior when it has one, else its provider's and the globals.
+            var effective = ProviderNotificationPolicy.Resolve(
+                _settings.Persisted,
+                after?.ProviderKey,
+                LoadGameCustomData(state.Game?.Id ?? after?.PlayniteGameId ?? Guid.Empty));
+            if (!effective.ProgressToasts)
             {
                 return 0;
             }
@@ -2149,8 +2166,20 @@ namespace PlayniteAchievements.Services
                         continue;
                     }
 
-                    if (state.NotifiedProgressByKey.TryGetValue(key, out var announced) &&
-                        announced >= advance.Current)
+                    var hasAnnounced = state.NotifiedProgressByKey.TryGetValue(key, out var announced);
+                    if (hasAnnounced && announced >= advance.Current)
+                    {
+                        continue;
+                    }
+
+                    // Only an advance that passes another interval step is announced, measured
+                    // from the later of the previous snapshot and the last announcement.
+                    var baseline = Math.Max(advance.Previous ?? 0, hasAnnounced ? announced : 0);
+                    if (!ProviderNotificationPolicy.CrossesProgressInterval(
+                            baseline,
+                            advance.Current,
+                            advance.Denominator,
+                            effective.ProgressToastIntervalPercent))
                     {
                         continue;
                     }
