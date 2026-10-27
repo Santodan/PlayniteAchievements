@@ -1452,11 +1452,13 @@ namespace PlayniteAchievements.Services.Images
             }
         }
 
-        // Folders whose existing files have been linked once, one icon_cache-relative path per line.
-        // Kept inside icon_cache so clearing the cache clears it too; a folder deleted and filled
-        // again is scanned anyway, since filling it is a write.
+        // Folders whose existing files have been linked once, one "icon_cache-relative path|folder id"
+        // per line, the last line for a path winning. The folder's file-system id makes a folder
+        // restored from a backup, which holds separate copies again, or deleted and made anew, a
+        // different folder that is scanned once more. Kept inside icon_cache so clearing the cache
+        // clears it too.
         private readonly object _linkedOnceSync = new object();
-        private HashSet<string> _linkedOnce;
+        private Dictionary<string, string> _linkedOnce;
 
         private string LinkedOncePath => Path.Combine(IconCacheDirectory, "linked-folders.txt");
 
@@ -1467,16 +1469,30 @@ namespace PlayniteAchievements.Services.Images
             return full.StartsWith(root, StringComparison.OrdinalIgnoreCase) ? full.Substring(root.Length) : full;
         }
 
-        private HashSet<string> LoadLinkedOnce()
+        private static string FolderId(string folder)
+        {
+            return IconFileLinks.TryGetFolderIdentity(folder, out var identity)
+                ? identity.Volume.ToString("X8") + ":" + identity.Index.ToString("X16")
+                : null;
+        }
+
+        private Dictionary<string, string> LoadLinkedOnce()
         {
             if (_linkedOnce == null)
             {
-                _linkedOnce = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                _linkedOnce = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
                 try
                 {
                     if (File.Exists(LinkedOncePath))
                     {
-                        _linkedOnce.UnionWith(File.ReadAllLines(LinkedOncePath).Where(line => !string.IsNullOrWhiteSpace(line)));
+                        foreach (var line in File.ReadAllLines(LinkedOncePath))
+                        {
+                            var split = line.LastIndexOf('|');
+                            if (split > 0)
+                            {
+                                _linkedOnce[line.Substring(0, split)] = line.Substring(split + 1);
+                            }
+                        }
                     }
                 }
                 catch (Exception ex)
@@ -1488,19 +1504,43 @@ namespace PlayniteAchievements.Services.Images
             return _linkedOnce;
         }
 
+        // A folder that does not exist has nothing to link; one made later is made by a write.
         private bool IsLinkedOnce(string folder)
         {
+            if (!Directory.Exists(folder))
+            {
+                return true;
+            }
+
+            var id = FolderId(folder);
             lock (_linkedOnceSync)
             {
-                return LoadLinkedOnce().Contains(LinkedOnceKey(folder));
+                return id != null &&
+                       LoadLinkedOnce().TryGetValue(LinkedOnceKey(folder), out var recorded) &&
+                       string.Equals(recorded, id, StringComparison.OrdinalIgnoreCase);
             }
         }
 
         private void MarkLinkedOnce(IEnumerable<string> folders)
         {
+            var current = folders
+                .Select(folder => (Key: LinkedOnceKey(folder), Id: FolderId(folder)))
+                .Where(folder => folder.Id != null)
+                .ToList();
             lock (_linkedOnceSync)
             {
-                var added = folders.Select(LinkedOnceKey).Where(key => LoadLinkedOnce().Add(key)).ToList();
+                var linkedOnce = LoadLinkedOnce();
+                var added = new List<string>();
+                foreach (var folder in current)
+                {
+                    if (!linkedOnce.TryGetValue(folder.Key, out var recorded) ||
+                        !string.Equals(recorded, folder.Id, StringComparison.OrdinalIgnoreCase))
+                    {
+                        linkedOnce[folder.Key] = folder.Id;
+                        added.Add(folder.Key + "|" + folder.Id);
+                    }
+                }
+
                 if (added.Count == 0)
                 {
                     return;
