@@ -151,6 +151,104 @@ namespace PlayniteAchievements.Services.Images
             DeleteSessionImageFiles();
         }
 
+        // Set once a session image is written, so saves skip looking for loose copies until then.
+        private volatile bool _sessionImagesWritten;
+
+        private bool IsSessionImagePath(string path)
+        {
+            try
+            {
+                return string.Equals(
+                    Path.GetDirectoryName(Path.GetFullPath(path)),
+                    Path.GetFullPath(IconCacheDirectory).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar),
+                    StringComparison.OrdinalIgnoreCase);
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
+        private void AfterSave(string uri, bool savedSessionImage)
+        {
+            if (savedSessionImage)
+            {
+                _sessionImagesWritten = true;
+            }
+            else
+            {
+                DeleteSessionImages(uri);
+            }
+        }
+
+        // Saving an address that was already shown takes the session file when it holds the image
+        // at full size, as a save does, instead of downloading it again.
+        private bool TryTakeSessionImage(string uri, int decodeSize, string resolvedTargetPath)
+        {
+            if (decodeSize > 0)
+            {
+                return false;
+            }
+
+            var sessionPath = ResolveTargetPathForSource(GetIconCachePathFromUri(uri, 0), uri, 0);
+            if (!File.Exists(sessionPath) ||
+                !string.Equals(Path.GetExtension(sessionPath), Path.GetExtension(resolvedTargetPath), StringComparison.OrdinalIgnoreCase))
+            {
+                return false;
+            }
+
+            try
+            {
+                IconFileLinks.Detach(resolvedTargetPath);
+                File.Copy(sessionPath, resolvedTargetPath, overwrite: true);
+            }
+            catch (Exception ex)
+            {
+                _logger?.Debug(ex, $"Failed to take session image '{sessionPath}' for '{resolvedTargetPath}'.");
+                return false;
+            }
+
+            try
+            {
+                File.Delete(sessionPath);
+            }
+            catch (Exception ex)
+            {
+                _logger?.Debug(ex, $"Failed to delete session image '{sessionPath}'.");
+            }
+
+            DeleteSessionImages(uri);
+            return true;
+        }
+
+        // Deletes every session file of an address, at any size, once the image is saved elsewhere.
+        private void DeleteSessionImages(string uri)
+        {
+            if (!_sessionImagesWritten)
+            {
+                return;
+            }
+
+            try
+            {
+                foreach (var file in Directory.EnumerateFiles(IconCacheDirectory, ComputeUriHashPrefix(uri) + "*", SearchOption.TopDirectoryOnly).ToList())
+                {
+                    try
+                    {
+                        File.Delete(file);
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger?.Debug(ex, $"Failed to delete session image '{file}'.");
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger?.Debug(ex, $"Failed to look for session images of '{uri}'.");
+            }
+        }
+
         // An image shown from an address with no game to file it under is cached in the icon_cache
         // root for the session only: nothing stores its path, so each start clears what the last left.
         private void DeleteSessionImageFiles()
@@ -756,6 +854,18 @@ namespace PlayniteAchievements.Services.Images
                     }
 
                     var overwritingExisting = overwriteExistingTarget && File.Exists(resolvedTargetPath);
+                    var savesSessionImage = IsSessionImagePath(resolvedTargetPath);
+                    if (!savesSessionImage && TryTakeSessionImage(uri, decodeSize, resolvedTargetPath))
+                    {
+                        InvalidateDefaultCategoryArtSnapshotForTargetPath(resolvedTargetPath);
+                        if (overwritingExisting)
+                        {
+                            NotifyImageFileOverwritten(resolvedTargetPath);
+                        }
+
+                        return resolvedTargetPath;
+                    }
+
                     var downloadGate = IsRateLimitedDomain(uri) ? _rateLimitedDownloadGate : _downloadGate;
 
                     byte[] bytes;
@@ -788,6 +898,7 @@ namespace PlayniteAchievements.Services.Images
                             NotifyImageFileOverwritten(resolvedTargetPath);
                         }
 
+                        AfterSave(uri, savesSessionImage);
                         return resolvedTargetPath;
                     }
 
@@ -801,6 +912,8 @@ namespace PlayniteAchievements.Services.Images
                             {
                                 NotifyImageFileOverwritten(savedPath);
                             }
+
+                            AfterSave(uri, savesSessionImage);
                         }
 
                         return savedPath;
@@ -831,6 +944,7 @@ namespace PlayniteAchievements.Services.Images
                 attempt++;
                 try
                 {
+                    IconFileLinks.Detach(cachePath);
                     using (var fs = new FileStream(cachePath, FileMode.Create, FileAccess.Write, FileShare.Read))
                     {
                         encoder.Save(fs);
@@ -857,6 +971,7 @@ namespace PlayniteAchievements.Services.Images
                 attempt++;
                 try
                 {
+                    IconFileLinks.Detach(targetPath);
                     using (var fs = new FileStream(targetPath, FileMode.Create, FileAccess.Write, FileShare.Read))
                     {
                         await fs.WriteAsync(bytes, 0, bytes.Length, cancel).ConfigureAwait(false);
@@ -1310,6 +1425,89 @@ namespace PlayniteAchievements.Services.Images
             }
         }
 
+        // Set once a link fails because the volume has no hard links; later games skip the scan.
+        private volatile bool _hardLinksUnsupported;
+
+        /// <summary>
+        /// Hard-links byte-identical files in a game's original, category_defaults and metadata
+        /// folders, so an image the provider reuses for many achievements is stored once. Every
+        /// name stays where it is. custom/ is left alone: the user's files and the capstone's
+        /// recorded write times live there. Returns the number of names linked.
+        /// </summary>
+        internal async Task<int> LinkIdenticalGameIconFilesAsync(string gameId, CancellationToken cancel)
+        {
+            if (_hardLinksUnsupported || string.IsNullOrWhiteSpace(gameId))
+            {
+                return 0;
+            }
+
+            var gameDir = Path.Combine(IconCacheDirectory, gameId.Trim());
+            var folders = new[]
+            {
+                AchievementIconCachePathBuilder.ModeFolderName,
+                AchievementIconCachePathBuilder.DefaultCategoryFolderName,
+                AchievementIconCachePathBuilder.MetadataSourceFolderName
+            }.Select(folder => Path.Combine(gameDir, folder));
+
+            var linked = 0;
+            try
+            {
+                var groups = await Task.Run(() => IconFileLinks.FindIdenticalFiles(folders, cancel), cancel).ConfigureAwait(false);
+                foreach (var group in groups)
+                {
+                    using (await AcquirePathWriteLockAsync(group.Keeper.Path, cancel).ConfigureAwait(false))
+                    {
+                        if (!group.Keeper.IsCurrent())
+                        {
+                            continue;
+                        }
+
+                        foreach (var file in group.Others)
+                        {
+                            using (await AcquirePathWriteLockAsync(file.Path, cancel).ConfigureAwait(false))
+                            {
+                                // A write since the hash may have put another image here.
+                                if (!file.IsCurrent())
+                                {
+                                    continue;
+                                }
+
+                                var result = IconFileLinks.ReplaceWithLink(file.Path, group.Keeper.Path);
+                                if (result == IconFileLinks.LinkResult.Linked)
+                                {
+                                    linked++;
+                                }
+                                else if (result == IconFileLinks.LinkResult.Unsupported)
+                                {
+                                    _hardLinksUnsupported = true;
+                                    _logger?.Info("Icon cache volume does not support hard links; identical icons stay separate files.");
+                                    return linked;
+                                }
+                                else if (result == IconFileLinks.LinkResult.KeeperFull)
+                                {
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            catch (OperationCanceledException)
+            {
+            }
+            catch (Exception ex)
+            {
+                _logger?.Warn(ex, $"Failed to link identical icon files for game '{gameId}'.");
+            }
+
+            if (linked > 0)
+            {
+                _logger?.Debug($"Linked {linked} identical icon file(s) for game '{gameId}'.");
+            }
+
+            return linked;
+        }
+
         // Deletes a single icon_cache-rooted subdirectory (recursively) and prunes parent
         // directories left empty, up to but not including the icon_cache root. Guarded so only
         // paths resolving under icon_cache can be removed. Used to drop a specific game's cached
@@ -1741,6 +1939,7 @@ namespace PlayniteAchievements.Services.Images
                     var overwritingExisting = overwriteExistingTarget && File.Exists(resolvedTargetPath);
                     if (preserveOriginalFormat)
                     {
+                        IconFileLinks.Detach(resolvedTargetPath);
                         File.Copy(localPath, resolvedTargetPath, overwrite: overwriteExistingTarget);
                         InvalidateDefaultCategoryArtSnapshotForTargetPath(resolvedTargetPath);
                         if (overwritingExisting)
@@ -1809,6 +2008,7 @@ namespace PlayniteAchievements.Services.Images
 
                     cancel.ThrowIfCancellationRequested();
                     var overwritingExisting = overwriteExistingTarget && File.Exists(targetPath);
+                    IconFileLinks.Detach(targetPath);
                     File.Copy(existingPath, targetPath, overwrite: overwriteExistingTarget);
                     InvalidateDefaultCategoryArtSnapshotForTargetPath(targetPath);
                     if (overwritingExisting)

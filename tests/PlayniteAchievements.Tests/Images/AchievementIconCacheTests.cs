@@ -312,6 +312,35 @@ namespace PlayniteAchievements.Services.Images.Tests
         }
 
         [TestMethod]
+        public async Task GetOrDownloadIconToPathAsync_TakesTheShownSessionImage_InsteadOfDownloading()
+        {
+            var tempDir = CreateTempDirectory();
+
+            try
+            {
+                using (var diskImageService = new DiskImageService(logger: null, cacheRoot: tempDir))
+                {
+                    // An address that cannot be fetched, so only the shown file can satisfy the save.
+                    var uri = "https://cdn.invalid/category/art.png";
+                    var sessionPath = DiskImageService.ResolveTargetPathForSource(
+                        diskImageService.GetIconCachePathFromUri(uri, 0), uri, 0);
+                    WritePlaceholderFile(sessionPath);
+                    var target = Path.Combine(tempDir, "icon_cache", Guid.NewGuid().ToString("D"), "custom", "category_art.png");
+
+                    var saved = await diskImageService.GetOrDownloadIconToPathAsync(uri, target, decodeSize: 0, CancellationToken.None);
+
+                    Assert.AreEqual(DiskImageService.ResolveTargetPathForSource(target, uri, 0), saved);
+                    CollectionAssert.AreEqual(new byte[] { 1, 2, 3, 4 }, File.ReadAllBytes(saved));
+                    Assert.IsFalse(File.Exists(sessionPath), "no loose copy is left in the cache root");
+                }
+            }
+            finally
+            {
+                DeleteDirectory(tempDir);
+            }
+        }
+
+        [TestMethod]
         public async Task PopulateAchievementIconCacheAsync_UsesSeparateLockedIconsForPerGameOverride()
         {
             var tempDir = CreateTempDirectory();

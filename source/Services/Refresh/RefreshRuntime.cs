@@ -1786,6 +1786,9 @@ namespace PlayniteAchievements.Services.Refresh
                 // retired compressed 128px folder (if any) is no longer referenced and can go.
                 _achievementIconService.DeleteLegacyCompressedIconFolder(key);
 
+                // Identical images the game's icons reuse become one file with a name each.
+                await _achievementIconService.LinkIdenticalIconFilesAsync(key, cancel).ConfigureAwait(false);
+
                 FriendRefresh.PromoteMatchingProviderOnlyFriendGame(provider, data);
 
                 // Fire per-game refresh event for amortized tag syncing
