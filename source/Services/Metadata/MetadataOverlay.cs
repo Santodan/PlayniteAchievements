@@ -622,10 +622,7 @@ namespace PlayniteAchievements.Services.Metadata
                     ? new List<string> { key.Trim() }
                     : new List<string>();
 
-            var choices = MetadataSourceRouting.Route(
-                (_settings ?? new PersistedSettings()).ResolveMetadataChoices(servicingProviderKey, gameChoices),
-                _providersByKey.Values,
-                servicingProviderKey);
+            var choices = (_settings ?? new PersistedSettings()).ResolveMetadataChoices(servicingProviderKey, gameChoices);
             return new OverlayPlan(
                 Chosen(choices.Icons, MetadataField.Icons),
                 Chosen(choices.Categories, MetadataField.Categories),
