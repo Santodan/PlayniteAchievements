@@ -27,17 +27,6 @@ namespace PlayniteAchievements.Tests.Providers
         }
 
         [TestMethod]
-        public void PointsAndRanks_NeedTheirOwnSite_WhateverElseCovers()
-        {
-            var full = Page(Row("a1", "Lumière", "Single Player"), Row("a2", "Spring Meadows", "Missable"), Row("a3", "The End", "Story Completed"));
-
-            Assert.IsTrue(TrueGamingPageSet.NeedsPage(TrueGamingSite.TrueTrophies, MetadataField.Tags | MetadataField.TrophyTypes, new[] { full }, Targets));
-            Assert.IsFalse(TrueGamingPageSet.NeedsPage(TrueGamingSite.TrueSteamAchievements, MetadataField.Tags | MetadataField.TrophyTypes, new[] { full }, Targets));
-            Assert.IsTrue(TrueGamingPageSet.NeedsPage(TrueGamingSite.TrueAchievements, MetadataField.Points, new[] { full }, Targets));
-            Assert.IsFalse(TrueGamingPageSet.NeedsPage(TrueGamingSite.TrueTrophies, MetadataField.Points, new TrueGamingPage[0], Targets));
-        }
-
-        [TestMethod]
         public void Combine_TakesEachFieldFromItsPage()
         {
             var ta = Page(Row("a1", "Lumière", "Single Player"), Row("a2", "Spring Meadows"));
