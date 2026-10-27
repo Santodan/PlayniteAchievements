@@ -240,6 +240,7 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
             adapter.UpdateOptions(games);
             var kept = adapter.Apply(games);
             keptGames = kept;
+            adapter.ShownGameCount = kept.Count;
             if (kept.Count == games.Count)
             {
                 return source;
