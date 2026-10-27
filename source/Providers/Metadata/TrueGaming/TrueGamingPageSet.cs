@@ -53,8 +53,7 @@ namespace PlayniteAchievements.Providers.Metadata.TrueGaming
 
     /// <summary>
     /// Which of a game's TrueGaming pages the wanted fields need, and the rows they give together.
-    /// Points come only from TrueAchievements and trophy ranks only from TrueTrophies. Tags and
-    /// categories come from the pages in lookup order: each achievement takes its category from
+    /// Tags and categories come from the pages in lookup order: each achievement takes its category from
     /// the first page that lists it, and its tags from the first page that lists it with flags.
     /// Achievements of different pages are paired by name, then by description where the sites
     /// name one differently ("Grilled Tasty" on TrueSteamAchievements, "Grilled Tastes Better" on
@@ -66,8 +65,8 @@ namespace PlayniteAchievements.Providers.Metadata.TrueGaming
     {
         /// <summary>
         /// True when <paramref name="site"/>'s page is still needed after <paramref name="found"/>:
-        /// for points or ranks it alone supplies, or for achievements of <paramref name="targetNames"/>
-        /// the found pages leave without tags or category.
+        /// for achievements of <paramref name="targetNames"/> the found pages leave without tags or
+        /// category.
         /// </summary>
         public static bool NeedsPage(
             TrueGamingSite site,
@@ -75,12 +74,6 @@ namespace PlayniteAchievements.Providers.Metadata.TrueGaming
             IEnumerable<TrueGamingPage> found,
             IEnumerable<string> targetNames)
         {
-            if ((wanted & MetadataField.Points) != 0 && site == TrueGamingSite.TrueAchievements ||
-                (wanted & MetadataField.TrophyTypes) != 0 && site == TrueGamingSite.TrueTrophies)
-            {
-                return true;
-            }
-
             var wantsTags = (wanted & MetadataField.Tags) != 0;
             var wantsCategories = (wanted & (MetadataField.Categories | MetadataField.CategoryArt)) != 0;
             if (!wantsTags && !wantsCategories)
