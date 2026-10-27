@@ -131,6 +131,40 @@ namespace PlayniteAchievements.Tests.Providers
         }
 
         [TestMethod]
+        public void SiteSearch_ReadsPlatforms_FromTheApiAndFromTheSearchPage()
+        {
+            // TrueTrophies' API answer for "Elden Ring" (2026-10-27), shortened.
+            const string api =
+                "<Games><Game><Title>ELDEN RING</Title><Url>/game/Elden-Ring/trophies</Url><PlatformsXML><Platforms><Platform><Name>PlayStation 5</Name></Platform></Platforms></PlatformsXML></Game>" +
+                "<Game><Title>ELDEN RING NIGHTREIGN (PS4)</Title><Url>/game/ELDEN-RING-NIGHTREIGN-v2/trophies</Url><PlatformsXML><Platforms><Platform><Name>PlayStation 4</Name></Platform></Platforms></PlatformsXML></Game></Games>";
+            // TrueSteamAchievements' search page for "Hades" (2026-10-27), one row.
+            const string page =
+                "<a class=\"sst-game-row\" href=\"/game/Hades/achievements\"><img class=\"sst-game-art\" src=\"/imagestore/2901193.jpg\" alt=\"\">" +
+                "<span class=\"sst-game-info\"><span class=\"sst-game-name\"><span class=\"hl\">Hades</span></span><span class=\"sst-game-meta\"><span class=\"sst-stat\">49</span></span>" +
+                "<span class=\"sst-game-platforms\"><span class=\"sst-platform-tag\" style=\"background:#6b7280\">Windows</span><span class=\"sst-platform-tag\">Mac OS X</span></span></span></a>";
+
+            var tt = TrueGamingLinks.ParseSiteSearch(api);
+            Assert.AreEqual(("ELDEN-RING-NIGHTREIGN-v2", "ELDEN RING NIGHTREIGN (PS4)", "PlayStation 4"), tt[1]);
+            Assert.AreEqual("PlayStation 5", tt[0].Platforms);
+
+            var tsa = TrueGamingLinks.ParseSiteSearch(page);
+            Assert.AreEqual(("Hades", "Hades", "Windows, Mac OS X"), tsa.Single());
+        }
+
+        [TestMethod]
+        public void PickedPage_KeepsItsSiteAndEdition()
+        {
+            Assert.AreEqual((TrueGamingSite.TrueTrophies, "Elden-Ring-PS4"), TrueGamingLinks.Picked("tt:Elden-Ring-PS4"));
+            Assert.IsNull(TrueGamingLinks.Picked("Elden-Ring").Site);
+            Assert.IsNull(TrueGamingLinks.Picked("ta:Hades, tt:Hades-PS5").Site, "a list stored by an earlier version");
+            Assert.AreEqual("Elden-Ring", TrueGamingLinks.Normalize("tt:Elden-Ring-PS4"), "other sites read the page name");
+
+            Assert.AreEqual("tt:Elden-Ring-PS4", TrueGamingLinks.PickedIdFromAddress("https://www.truetrophies.com/game/Elden-Ring-PS4/trophies"));
+            Assert.AreEqual("tsa:Hades", TrueGamingLinks.PickedIdFromAddress("truesteamachievements.com/game/Hades/achievements"));
+            Assert.IsNull(TrueGamingLinks.PickedIdFromAddress("Hades"));
+        }
+
+        [TestMethod]
         public void SiteSearch_WithNoGames_ListsNone()
         {
             Assert.AreEqual(0, TrueGamingLinks.ParseSearch("<SearchResults><TotalGames>0</TotalGames></SearchResults>").Count);
