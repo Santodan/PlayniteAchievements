@@ -356,9 +356,7 @@ namespace PlayniteAchievements.Providers.Metadata.TrueGaming
                 Description = first.Description,
                 Category = string.IsNullOrWhiteSpace(dlc) ? baseLabel : dlc,
                 CategoryKind = string.IsNullOrWhiteSpace(dlc) ? CategoryKindHelper.Base : CategoryKindHelper.Dlc,
-                Tags = TrueGamingFlags.ToTags(flags),
-                Points = listings.FirstOrDefault(listing => listing.Site == TrueGamingSite.TrueAchievements).Row?.Points,
-                TrophyType = listings.FirstOrDefault(listing => listing.Site == TrueGamingSite.TrueTrophies).Row?.TrophyType
+                Tags = TrueGamingFlags.ToTags(flags)
             };
         }
 
