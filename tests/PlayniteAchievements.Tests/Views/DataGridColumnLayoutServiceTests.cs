@@ -834,6 +834,52 @@ namespace PlayniteAchievements.Tests.Views
         }
 
         [TestMethod]
+        public void BuildColumnVisibilityMenu_WidthRowSpansTheButtonRow()
+        {
+            StaTestHost.Run(() =>
+            {
+                var maps = new PersistedMaps();
+                var cellAlignments = new Dictionary<string, GridAlignment>(StringComparer.OrdinalIgnoreCase);
+                var cellVerticalAlignments = new Dictionary<string, GridVerticalAlignment>(StringComparer.OrdinalIgnoreCase);
+                var headerAlignments = new Dictionary<string, GridAlignment>(StringComparer.OrdinalIgnoreCase);
+                var grid = CreateGrid();
+                var service = new DataGridColumnLayoutService(
+                    grid,
+                    logger: null,
+                    getWidths: () => maps.Widths,
+                    setWidths: map => maps.Widths = map,
+                    getVisibility: () => maps.Visibility,
+                    setVisibility: map => maps.Visibility = map,
+                    saveSettings: () => { },
+                    getCellAlignments: () => cellAlignments,
+                    setCellAlignments: map => cellAlignments = map,
+                    getCellVerticalAlignments: () => cellVerticalAlignments,
+                    setCellVerticalAlignments: map => cellVerticalAlignments = map,
+                    getHeaderHorizontalAlignments: () => headerAlignments,
+                    setHeaderHorizontalAlignments: map => headerAlignments = map,
+                    getLocks: () => maps.Locks,
+                    setLocks: map => maps.Locks = map,
+                    getHiddenHeaders: () => maps.HiddenHeaders,
+                    setHiddenHeaders: map => maps.HiddenHeaders = map);
+                service.Attach();
+
+                var menu = service.BuildColumnVisibilityMenu(ColumnByKey(grid, "B"));
+                var widthRow = (menu.Items[1] as MenuItem)?.Header as StackPanel;
+                var buttonRow = (menu.Items[2] as MenuItem)?.Header as StackPanel;
+                Assert.IsNotNull(widthRow);
+                Assert.IsNotNull(buttonRow);
+                Assert.AreEqual(4, buttonRow.Children.Count);
+
+                var infinite = new Size(double.PositiveInfinity, double.PositiveInfinity);
+                widthRow.Measure(infinite);
+                buttonRow.Measure(infinite);
+                Assert.AreEqual(buttonRow.DesiredSize.Width, widthRow.DesiredSize.Width, 0.01);
+
+                service.Detach();
+            });
+        }
+
+        [TestMethod]
         public void SetColumnWidthFromInput_OnAnUnlockedColumnMovesTheBoundaryAndKeepsTheTotal()
         {
             StaTestHost.Run(() =>
