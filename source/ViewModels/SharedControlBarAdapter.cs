@@ -145,6 +145,12 @@ namespace PlayniteAchievements.ViewModels
             _filterListeners.RemoveAll(entry => !entry.TryGetTarget(out var alive) || alive == listener);
         }
 
+        /// <summary>
+        /// Has every listener filter again, for a change outside the bar that alters what the bar
+        /// filters (a score card switching platform).
+        /// </summary>
+        public void Reapply() => RaiseFilterChanged();
+
         protected void RaiseFilterChanged()
         {
             var live = new List<Action>(_filterListeners.Count);
