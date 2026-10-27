@@ -287,6 +287,17 @@ namespace PlayniteAchievements.Services.Images
                     cancel: cancel,
                     onIconProgress: onIconProgress)
                 .ConfigureAwait(false);
+
+            // Achievements of a friend game that reuse one image become one file with a name each.
+            await _diskImageService.LinkIdenticalFilesAsync(
+                    new[]
+                    {
+                        _diskImageService.ResolveCacheRelativePath(
+                            FriendImageCachePathBuilder.BuildGameFolderRelativePath(definition.ProviderKey, definition.ProviderGameKey))
+                    },
+                    $"friend game '{definition.ProviderKey}/{definition.ProviderGameKey}'",
+                    cancel)
+                .ConfigureAwait(false);
         }
 
         /// <summary>
