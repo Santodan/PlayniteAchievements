@@ -337,6 +337,21 @@ namespace PlayniteAchievements.Tests.Models
             Assert.IsTrue(grids.Achievement[recentKey].UseCoverImages);
             Assert.IsTrue(grids.GameSummaries.ContainsKey(gamesKey));
             Assert.IsFalse(grids.GameSummaries[gamesKey].UseCoverImages);
+            var categoriesKey = ShowcaseGridSurfaces.ResolveCategorySurface(recentKey);
+            Assert.IsTrue(grids.CategorySummaries.ContainsKey(categoriesKey));
+            Assert.IsTrue(grids.CategorySummaries[categoriesKey].ShowNameAboveProgress);
+        }
+
+        [TestMethod]
+        public void RoundTrip_CarriesTheAchievementGridWidgetsCategoryList()
+        {
+            var (settings, grids, page, recent, _) = BuildSource();
+            var path = Path.Combine(_tempDirectory, "page.pashowcase");
+            ShowcasePagePortableStore.Write(path, ShowcasePagePortableStore.BuildPortable(settings, grids, page.PageId));
+
+            var read = ShowcasePagePortableStore.Read(path);
+
+            Assert.IsTrue(read.CategoryGridSurfaces[recent.InstanceId].ShowNameAboveProgress);
         }
 
         [TestMethod]
@@ -436,6 +451,9 @@ namespace PlayniteAchievements.Tests.Models
                 .UseCoverImages = true;
             grids.GetGameSummaries(ShowcaseGridSurfaces.ResolveWidgetSurface(games.Kind, games.InstanceId))
                 .UseCoverImages = false;
+            grids.GetCategorySummaries(ShowcaseGridSurfaces.ResolveCategorySurface(
+                    ShowcaseGridSurfaces.ResolveWidgetSurface(recent.Kind, recent.InstanceId)))
+                .ShowNameAboveProgress = true;
 
             // Drop the pages AddPage's default settings may have seeded, keeping only this one.
             settings.Pages.RemoveAll(candidate => candidate != page);
