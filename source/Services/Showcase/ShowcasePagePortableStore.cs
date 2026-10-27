@@ -56,6 +56,13 @@ namespace PlayniteAchievements.Services.Showcase
         /// <summary>Game summaries grid settings keyed by exported widget instance id.</summary>
         public Dictionary<string, GameSummaryGridOptions> GameGridSurfaces { get; set; } =
             new Dictionary<string, GameSummaryGridOptions>(StringComparer.OrdinalIgnoreCase);
+
+        /// <summary>
+        /// Recent achievements widgets' category list settings (category mode), keyed by
+        /// exported widget instance id.
+        /// </summary>
+        public Dictionary<string, CategorySummaryGridOptions> CategoryGridSurfaces { get; set; } =
+            new Dictionary<string, CategorySummaryGridOptions>(StringComparer.OrdinalIgnoreCase);
     }
 
     /// <summary>
@@ -562,11 +569,20 @@ namespace PlayniteAchievements.Services.Showcase
                 return;
             }
 
-            if (ShowcaseGridSurfaces.IsAchievementSurface(key) &&
-                gridOptions.Achievement.TryGetValue(key, out var achievement) &&
-                achievement != null)
+            if (ShowcaseGridSurfaces.IsAchievementSurface(key))
             {
-                portable.AchievementGridSurfaces[widget.InstanceId] = achievement.Clone();
+                if (gridOptions.Achievement.TryGetValue(key, out var achievement) && achievement != null)
+                {
+                    portable.AchievementGridSurfaces[widget.InstanceId] = achievement.Clone();
+                }
+
+                var categoryKey = ShowcaseGridSurfaces.ResolveCategorySurface(key);
+                if (categoryKey != null &&
+                    gridOptions.CategorySummaries.TryGetValue(categoryKey, out var categories) &&
+                    categories != null)
+                {
+                    portable.CategoryGridSurfaces[widget.InstanceId] = categories.Clone();
+                }
             }
             else if (ShowcaseGridSurfaces.IsGameSurface(key) &&
                      gridOptions.GameSummaries.TryGetValue(key, out var games) &&
@@ -589,11 +605,21 @@ namespace PlayniteAchievements.Services.Showcase
                 return;
             }
 
-            if (ShowcaseGridSurfaces.IsAchievementSurface(key) &&
-                portable.AchievementGridSurfaces != null &&
-                portable.AchievementGridSurfaces.TryGetValue(sourceId, out var achievement))
+            if (ShowcaseGridSurfaces.IsAchievementSurface(key))
             {
-                gridOptions.SetAchievement(key, achievement);
+                if (portable.AchievementGridSurfaces != null &&
+                    portable.AchievementGridSurfaces.TryGetValue(sourceId, out var achievement))
+                {
+                    gridOptions.SetAchievement(key, achievement);
+                }
+
+                var categoryKey = ShowcaseGridSurfaces.ResolveCategorySurface(key);
+                if (categoryKey != null &&
+                    portable.CategoryGridSurfaces != null &&
+                    portable.CategoryGridSurfaces.TryGetValue(sourceId, out var categories))
+                {
+                    gridOptions.SetCategorySummaries(categoryKey, categories);
+                }
             }
             else if (ShowcaseGridSurfaces.IsGameSurface(key) &&
                      portable.GameGridSurfaces != null &&
