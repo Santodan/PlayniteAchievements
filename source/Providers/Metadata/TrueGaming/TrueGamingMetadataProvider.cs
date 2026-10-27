@@ -130,10 +130,11 @@ namespace PlayniteAchievements.Providers.Metadata.TrueGaming
             if (targets?.Count > 0)
             {
                 var health = new MetadataLookupHealth();
+                var own = TrueGamingSite.For(request.ServicingProviderKey);
                 var search = new MetadataPageSearch(
-                    (name, token) => CandidatesAsync(name, health, token),
+                    (name, token) => CandidatesAsync(name, own, health, token),
                     (slug, token) => RowsAsync(request, slug, health, token),
-                    (name, token) => CandidatesAsync(name, health, token, buildSlug: false));
+                    (name, token) => CandidatesAsync(name, own, health, token, buildSlug: false));
                 var names = request.SearchNames.Distinct(StringComparer.OrdinalIgnoreCase).ToList();
                 var choice = await search.ChooseAsync(names, targets, MetadataSubGame.From(targets), ct, request.CategoryNames, sharedNames: request.AlternateNames, englishTitles: request.EnglishTitles).ConfigureAwait(false);
                 if (health.LeavesDoubt(choice))
@@ -179,11 +180,12 @@ namespace PlayniteAchievements.Providers.Metadata.TrueGaming
             new Dictionary<string, IReadOnlyList<(string Slug, string Title)>>(StringComparer.OrdinalIgnoreCase);
 
         /// <summary>
-        /// The page names to judge for one name: its own slug, then what TrueAchievements search
-        /// lists. A broader form of a name ("Spyro Year of the") is searched only: a slug built
-        /// from it seldom names a page and costs a load on every site.
+        /// The page names to judge for one name: its own slug, then what the game's own site's
+        /// search lists, then what TrueAchievements' search lists, each once. A broader form of a
+        /// name ("Spyro Year of the") is searched only: a slug built from it seldom names a page
+        /// and costs a load on every site.
         /// </summary>
-        private async Task<IReadOnlyList<MetadataPageCandidate>> CandidatesAsync(string name, MetadataLookupHealth health, CancellationToken ct, bool buildSlug = true)
+        private async Task<IReadOnlyList<MetadataPageCandidate>> CandidatesAsync(string name, TrueGamingSite own, MetadataLookupHealth health, CancellationToken ct, bool buildSlug = true)
         {
             var candidates = new List<MetadataPageCandidate>();
             var slug = buildSlug ? TrueGamingLinks.ToSlug(name) : null;
@@ -192,19 +194,26 @@ namespace PlayniteAchievements.Providers.Metadata.TrueGaming
                 candidates.Add(new MetadataPageCandidate(slug, name, "built name"));
             }
 
-            var results = await SearchAsync(name, health, ct).ConfigureAwait(false);
-            for (var i = 0; i < results.Count; i++)
+            foreach (var site in new[] { own, TrueGamingSite.TrueAchievements }.Distinct())
             {
-                candidates.Add(new MetadataPageCandidate(TrueGamingLinks.BaseSlug(results[i].Slug), results[i].Title, $"TrueAchievements search #{i + 1}"));
+                var results = await SearchAsync(site, name, health, ct).ConfigureAwait(false);
+                for (var i = 0; i < results.Count; i++)
+                {
+                    var page = TrueGamingLinks.BaseSlug(results[i].Slug);
+                    if (candidates.All(candidate => !string.Equals(candidate.Id, page, StringComparison.OrdinalIgnoreCase)))
+                    {
+                        candidates.Add(new MetadataPageCandidate(page, results[i].Title, $"{site.Title} search #{i + 1}"));
+                    }
+                }
             }
 
             return candidates;
         }
 
-        /// <summary>TrueAchievements' search results for a name, asked once per run; a search that did not answer is not kept.</summary>
-        private async Task<IReadOnlyList<(string Slug, string Title)>> SearchAsync(string name, MetadataLookupHealth health, CancellationToken ct)
+        /// <summary>One site's search results for a name, asked once per run; a search that did not answer is not kept.</summary>
+        private async Task<IReadOnlyList<(string Slug, string Title)>> SearchAsync(TrueGamingSite site, string name, MetadataLookupHealth health, CancellationToken ct)
         {
-            var url = TrueGamingLinks.SearchUrl(name);
+            var url = TrueGamingLinks.SearchUrl(site, name);
             lock (_searches)
             {
                 if (_searches.TryGetValue(url, out var cached))
@@ -213,20 +222,21 @@ namespace PlayniteAchievements.Providers.Metadata.TrueGaming
                 }
             }
 
-            if (IsChallenged(TrueGamingSite.TrueAchievements))
+            if (IsChallenged(site))
             {
                 health.MarkUnreadable();
                 return Array.Empty<(string, string)>();
             }
 
-            var text = await ReadSearchPageAsync(url, ct).ConfigureAwait(false);
+            // The search page is markup; the API answers as a text document.
+            var text = await ReadSearchPageAsync(url, ct, site, asText: site != TrueGamingSite.TrueSteamAchievements).ConfigureAwait(false);
             if (text == null)
             {
                 health.MarkUnreadable();
                 return Array.Empty<(string, string)>();
             }
 
-            var results = TrueGamingLinks.ParseSearch(text).Take(SearchCandidatesJudged).ToList();
+            var results = TrueGamingLinks.ParseSiteSearch(text).Take(SearchCandidatesJudged).Select(game => (game.Slug, game.Title)).ToList();
             lock (_searches)
             {
                 _searches[url] = results;
