@@ -33,7 +33,13 @@ namespace PlayniteAchievements.Views.Showcase
         private readonly bool _includeScoreHistory;
         private readonly bool? _backgroundDefault;
         private readonly UIElement _contentAfterSharedRows;
+        private readonly ShowcaseWidgetInstanceSettings _liveWidget;
         private DebouncedSettingsPersist _gridOptionsPersist;
+
+        // What a score card type change replaced on the live widget, kept so a cancelled dialog
+        // can put it back; null until the type changes.
+        private ScoreCardType? _liveTypeBeforeChange;
+        private List<string> _gamesBeforeTypeChange;
         private FrameworkElement _scoreBarRows;
 
         // The control bar items' show checkboxes, which only apply while the widget shows its
@@ -55,6 +61,11 @@ namespace PlayniteAchievements.Views.Showcase
         /// The host's own editor for the widget (the profile's identity fields), placed after the
         /// shared title alignment and background rows so those stay under the title box.
         /// </param>
+        /// <param name="liveWidget">
+        /// The widget on screen when <paramref name="settings"/> is a working copy. A score card's
+        /// type applies to it at once, as its control bar filters do, so the filters list the new
+        /// type's platforms and games; <see cref="RevertLivePreview"/> undoes that on cancel.
+        /// </param>
         public ShowcaseWidgetOptionsControl(
             ShowcaseWidgetInstanceSettings settings,
             Action persist = null,
@@ -63,9 +74,11 @@ namespace PlayniteAchievements.Views.Showcase
             bool loadStyles = true,
             bool includeScoreHistory = true,
             bool? backgroundDefault = null,
-            UIElement contentAfterSharedRows = null)
+            UIElement contentAfterSharedRows = null,
+            ShowcaseWidgetInstanceSettings liveWidget = null)
         {
             _settings = settings ?? throw new ArgumentNullException(nameof(settings));
+            _liveWidget = ReferenceEquals(liveWidget, settings) ? null : liveWidget;
             _includeScoreHistory = includeScoreHistory;
             _backgroundDefault = backgroundDefault;
             _contentAfterSharedRows = contentAfterSharedRows;
@@ -1802,6 +1815,105 @@ namespace PlayniteAchievements.Views.Showcase
             }
         }
 
+        // A points card's bar, which lists one platform's games; null for a card with no widget.
+        private ChartControlBarAdapter ScoreCardAdapter =>
+            string.IsNullOrWhiteSpace(_settings.InstanceId)
+                ? null
+                : ShowcaseControlBarStates.Get<ChartControlBarAdapter>(_settings.InstanceId);
+
+        // A new platform shows on the live card at once, so its bar lists that platform's games.
+        // Game picks name the old platform's games and would empty the new card, so they clear.
+        private void PreviewScoreCardType(ScoreCardType previous, ScoreCardType value)
+        {
+            var adapter = ScoreCardAdapter;
+            if (adapter == null || previous == value)
+            {
+                return;
+            }
+
+            if (_gamesBeforeTypeChange == null)
+            {
+                _gamesBeforeTypeChange = adapter.GameFilter.Capture();
+            }
+
+            adapter.GameFilter.Clear();
+            if (_liveWidget != null)
+            {
+                if (!_liveTypeBeforeChange.HasValue)
+                {
+                    _liveTypeBeforeChange = ShowcaseWidgetOptions.GetScoreCardType(_liveWidget);
+                }
+
+                ShowcaseWidgetOptions.SetScoreCardType(_liveWidget, value);
+            }
+
+            adapter.Reapply();
+        }
+
+        /// <summary>
+        /// Puts back the live card's type and Game picks a type change replaced, for a dialog
+        /// closed without saving.
+        /// </summary>
+        public void RevertLivePreview()
+        {
+            var adapter = ScoreCardAdapter;
+            if (adapter == null || (!_liveTypeBeforeChange.HasValue && _gamesBeforeTypeChange == null))
+            {
+                return;
+            }
+
+            if (_liveWidget != null && _liveTypeBeforeChange.HasValue)
+            {
+                ShowcaseWidgetOptions.SetScoreCardType(_liveWidget, _liveTypeBeforeChange.Value);
+            }
+
+            if (_gamesBeforeTypeChange != null)
+            {
+                adapter.GameFilter.Restore(_gamesBeforeTypeChange);
+            }
+
+            _liveTypeBeforeChange = null;
+            _gamesBeforeTypeChange = null;
+            adapter.Reapply();
+        }
+
+        // The one-game options only act on a card that sums one game, so they are disabled while
+        // the card's filters keep more; before any card has counted, they stay enabled.
+        private void TrackOneGameRow(FrameworkElement row)
+        {
+            var adapter = ScoreCardAdapter;
+            if (row == null || adapter == null)
+            {
+                return;
+            }
+
+            ToolTipService.SetShowOnDisabled(row, true);
+            void Sync()
+            {
+                var count = adapter.ShownGameCount;
+                row.IsEnabled = count < 0 || count == 1;
+                row.ToolTip = row.IsEnabled ? null : Localize("LOCPlayAch_Showcase_ScoreCardArtHint");
+            }
+
+            void OnAdapterChanged(object sender, System.ComponentModel.PropertyChangedEventArgs e)
+            {
+                if (e.PropertyName == nameof(ChartControlBarAdapter.ShownGameCount))
+                {
+                    Sync();
+                }
+            }
+
+            // The adapter outlives this editor, so the handler is held only while it is shown.
+            Loaded += (_, __) =>
+            {
+                adapter.PropertyChanged -= OnAdapterChanged;
+                adapter.PropertyChanged += OnAdapterChanged;
+                Sync();
+            };
+            Unloaded += (_, __) => adapter.PropertyChanged -= OnAdapterChanged;
+            Sync();
+        }
+
         private void AddScoreCardOptions(Panel panel)
         {
             Grid showTotalRow = null;
@@ -1834,8 +1946,10 @@ namespace PlayniteAchievements.Views.Showcase
                 ShowcaseWidgetOptions.GetScoreCardType(_settings),
                 value =>
                 {
+                    var previous = ShowcaseWidgetOptions.GetScoreCardType(_settings);
                     ShowcaseWidgetOptions.SetScoreCardType(_settings, value);
                     SyncTypeRows(value);
+                    PreviewScoreCardType(previous, value);
                 },
                 ScoreCardTypeName);
             AddChoice(
@@ -1862,6 +1976,7 @@ namespace PlayniteAchievements.Views.Showcase
                 ShowcaseWidgetOptions.GetScoreCardArt(_settings),
                 value => ShowcaseWidgetOptions.SetScoreCardArt(_settings, value),
                 ScoreCardArtName);
+            TrackOneGameRow(artRow);
             customColorsRow = AddToggle(
                 panel,
                 Localize("LOCPlayAch_Settings_ScoreCardUseCustomColors"),
