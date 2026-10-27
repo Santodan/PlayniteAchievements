@@ -8,6 +8,7 @@ using PlayniteAchievements.ViewModels.Items;
 using PlayniteAchievements.Views.Controls;
 using PlayniteAchievements.Views.Dialogs;
 using PlayniteAchievements.Views.Settings.Controls;
+using PlayniteAchievements.Views.Showcase;
 
 namespace PlayniteAchievements.Views.Helpers
 {
@@ -31,7 +32,8 @@ namespace PlayniteAchievements.Views.Helpers
         /// </summary>
         public static bool Append(ContextMenu menu, FrameworkElement resourceOwner, DependencyObject source)
         {
-            if (menu == null || !TryResolveSurface(source, out var kind, out var surfaceKey, out var categoryKey, out var barEntries))
+            var item = menu == null ? null : CreateItem(resourceOwner, source);
+            if (item == null)
             {
                 return false;
             }
@@ -41,7 +43,7 @@ namespace PlayniteAchievements.Views.Helpers
                 menu.Items.Add(new Separator());
             }
 
-            menu.Items.Add(CreateItem(resourceOwner, kind, surfaceKey, categoryKey, barEntries));
+            menu.Items.Add(item);
             return true;
         }
 
@@ -51,13 +53,14 @@ namespace PlayniteAchievements.Views.Helpers
         /// </summary>
         public static ContextMenu BuildStandalone(FrameworkElement resourceOwner, DependencyObject source)
         {
-            if (!TryResolveSurface(source, out var kind, out var surfaceKey, out var categoryKey, out var barEntries))
+            var item = CreateItem(resourceOwner, source);
+            if (item == null)
             {
                 return null;
             }
 
             var menu = new ContextMenu();
-            menu.Items.Add(CreateItem(resourceOwner, kind, surfaceKey, categoryKey, barEntries));
+            menu.Items.Add(item);
             return menu;
         }
 
@@ -119,13 +122,23 @@ namespace PlayniteAchievements.Views.Helpers
             return true;
         }
 
-        private static MenuItem CreateItem(
-            FrameworkElement resourceOwner,
-            GridOptionKind kind,
-            string surfaceKey,
-            string categoryKey,
-            IReadOnlyList<IGridControlBarEntry> barEntries)
+        /// <summary>
+        /// A grid inside a showcase widget opens the widget's own settings, which hold its grid
+        /// display options along with the rest; any other grid opens its display settings popup.
+        /// </summary>
+        private static MenuItem CreateItem(FrameworkElement resourceOwner, DependencyObject source)
         {
+            var widgetItem = ShowcaseWidgetSettingsMenu.TryCreateItem(resourceOwner, source);
+            if (widgetItem != null)
+            {
+                return widgetItem;
+            }
+
+            if (!TryResolveSurface(source, out var kind, out var surfaceKey, out var categoryKey, out var barEntries))
+            {
+                return null;
+            }
+
             return GameRowContextMenuBuilder.CreateMenuItem(
                 resourceOwner,
                 MenuItemKey,
