@@ -20,12 +20,14 @@ namespace PlayniteAchievements.Services.UI
         public const string CompletionHeaderId = nameof(NotificationHeaderTextSettings.CompletionHeader);
         public const string FriendCompletionHeaderFormatId = nameof(NotificationHeaderTextSettings.FriendCompletionHeaderFormat);
         public const string ProgressHeaderId = nameof(NotificationHeaderTextSettings.ProgressHeader);
+        public const string CompletionTitleId = nameof(NotificationHeaderTextSettings.CompletionTitle);
 
         private const string UnlockHeaderKey = "LOCPlayAch_Toast_AchievementUnlocked";
         private const string FriendUnlockedKey = "LOCPlayAch_Toast_FriendUnlocked";
         private const string CongratulationsKey = "LOCPlayAch_Toast_Congratulations";
         private const string CompletedTheGameKey = "LOCPlayAch_Toast_CompletedTheGame";
         private const string ProgressHeaderKey = "LOCPlayAch_Toast_AchievementProgress";
+        private const string GameCompleteKey = "LOCPlayAch_Toast_GameComplete";
 
         private readonly string _localizationDirectory;
         private readonly ILogger _logger;
@@ -69,6 +71,34 @@ namespace PlayniteAchievements.Services.UI
         /// </summary>
         public static string GetDefaultProgressHeader() =>
             ResourceProvider.GetString(ProgressHeaderKey);
+
+        /// <summary>
+        /// Current-language default for the game-completion title line.
+        /// </summary>
+        public static string GetDefaultCompletionTitle() =>
+            ResourceProvider.GetString(GameCompleteKey);
+
+        /// <summary>
+        /// The completion title for a game: the stored edit with any {0} replaced by the game's
+        /// name, or the localized default when nothing is stored. An edit that does not format
+        /// (a stray brace) is shown as typed rather than dropped.
+        /// </summary>
+        public static string FormatCompletionTitle(string stored, string gameName)
+        {
+            if (string.IsNullOrWhiteSpace(stored))
+            {
+                return GetDefaultCompletionTitle();
+            }
+
+            try
+            {
+                return string.Format(stored, gameName ?? string.Empty);
+            }
+            catch (FormatException)
+            {
+                return stored;
+            }
+        }
 
         /// <summary>
         /// Returns the value to persist for an edited header: null when the edit is blank or
@@ -178,6 +208,12 @@ namespace PlayniteAchievements.Services.UI
                 changed = true;
             }
 
+            if (IsStoredDefault(CompletionTitleId, texts.CompletionTitle))
+            {
+                texts.CompletionTitle = null;
+                changed = true;
+            }
+
             return changed;
         }
 
@@ -218,6 +254,12 @@ namespace PlayniteAchievements.Services.UI
                 {
                     Id = ProgressHeaderId,
                     ResourceKeys = new[] { ProgressHeaderKey },
+                    Compose = values => values[0]
+                },
+                new LocalizedDefaultDefinition
+                {
+                    Id = CompletionTitleId,
+                    ResourceKeys = new[] { GameCompleteKey },
                     Compose = values => values[0]
                 }
             };
