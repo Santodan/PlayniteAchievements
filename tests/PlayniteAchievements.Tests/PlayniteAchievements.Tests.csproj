@@ -50,7 +50,6 @@
 
     <Compile Include="..\..\source\Providers\Ffxiv\FfxivParsing.cs" Link="Source\Providers\Ffxiv\FfxivParsing.cs" />
     <Compile Include="..\..\source\Providers\Ffxiv\FfxivModels.cs" Link="Source\Providers\Ffxiv\FfxivModels.cs" />
-    <Compile Include="..\..\source\Providers\Ffxiv\FfxivCharacterCache.cs" Link="Source\Providers\Ffxiv\FfxivCharacterCache.cs" />
     <Compile Include="..\..\source\Providers\Ffxiv\FfxivApiClient.cs" Link="Source\Providers\Ffxiv\FfxivApiClient.cs" />
     <Compile Include="..\..\source\Common\PluginManifest.cs" Link="Source\Common\PluginManifest.cs" />
 
