@@ -893,7 +893,8 @@ namespace PlayniteAchievements.Views.Controls
 
         public static readonly DependencyProperty CategoryColumnSettingsKeyProperty =
             DependencyProperty.Register(nameof(CategoryColumnSettingsKey), typeof(string),
-                typeof(AchievementDataGridControl), new PropertyMetadata(null));
+                typeof(AchievementDataGridControl),
+                new PropertyMetadata(null, (d, _) => ((AchievementDataGridControl)d).UpdateResolvedCategoryColumnSettingsKey()));
 
         // Per-surface column-settings key for the embedded category grids (list + drill header),
         // kept distinct from the achievement grid's ColumnSettingsKey so category columns persist
@@ -1103,25 +1104,42 @@ namespace PlayniteAchievements.Views.Controls
             set => SetValue(DrillHeaderVisibleProperty, value);
         }
 
-        public string ResolvedCategoryColumnSettingsKey
+        // A dependency property rather than a computed getter: the category grids bind it when the
+        // template is built, before a host has set either key, and must follow the later values.
+        private static readonly DependencyPropertyKey ResolvedCategoryColumnSettingsKeyPropertyKey =
+            DependencyProperty.RegisterReadOnly(
+                nameof(ResolvedCategoryColumnSettingsKey),
+                typeof(string),
+                typeof(AchievementDataGridControl),
+                new PropertyMetadata("DefaultCategorySummaries"));
+
+        public static readonly DependencyProperty ResolvedCategoryColumnSettingsKeyProperty =
+            ResolvedCategoryColumnSettingsKeyPropertyKey.DependencyProperty;
+
+        public string ResolvedCategoryColumnSettingsKey =>
+            (string)GetValue(ResolvedCategoryColumnSettingsKeyProperty);
+
+        private void UpdateResolvedCategoryColumnSettingsKey()
         {
-            get
+            SetValue(ResolvedCategoryColumnSettingsKeyPropertyKey, ResolveCategoryColumnSettingsKey());
+        }
+
+        private string ResolveCategoryColumnSettingsKey()
+        {
+            if (!string.IsNullOrWhiteSpace(CategoryColumnSettingsKey))
             {
-                if (!string.IsNullOrWhiteSpace(CategoryColumnSettingsKey))
-                {
-                    return CategoryColumnSettingsKey;
-                }
-
-                // An achievement grid widget's category list keeps a per-instance surface.
-                var widgetCategories = ShowcaseGridSurfaces.ResolveCategorySurface(ColumnSettingsKey);
-                if (widgetCategories != null)
-                {
-                    return widgetCategories;
-                }
-
-                var baseKey = string.IsNullOrWhiteSpace(ColumnSettingsKey) ? "Default" : ColumnSettingsKey;
-                return baseKey + "CategorySummaries";
+                return CategoryColumnSettingsKey;
             }
+
+            // An achievement grid widget's category list keeps a per-instance surface.
+            var widgetCategories = ShowcaseGridSurfaces.ResolveCategorySurface(ColumnSettingsKey);
+            if (widgetCategories != null)
+            {
+                return widgetCategories;
+            }
+
+            var baseKey = string.IsNullOrWhiteSpace(ColumnSettingsKey) ? "Default" : ColumnSettingsKey;
+            return baseKey + "CategorySummaries";
         }
 
         // Category grouping is a per-game concept, so the toggle is only offered when the current
@@ -2738,6 +2756,7 @@ namespace PlayniteAchievements.Views.Controls
                 // feed to a selected friend+game pair), so re-arm the one-shot start-in-category
                 // application for the incoming surface.
                 control._startInCategoryModeApplied = false;
+                control.UpdateResolvedCategoryColumnSettingsKey();
                 control.UpdateUnlockDateMode();
                 control.RefreshAppearance();
                 control.ReattachColumnPersistence();
