@@ -34,6 +34,10 @@ namespace PlayniteAchievements.Providers.Metadata.TrueGaming
         public void Set(Guid gameId, string name, TrueGamingSite site, string pageSlug) =>
             _pages?.Set(gameId, name, site.Prefix, pageSlug);
 
+        /// <summary>Forgets the sites of <paramref name="name"/>'s record other than <paramref name="sites"/>.</summary>
+        public void Keep(Guid gameId, string name, IEnumerable<TrueGamingSite> sites) =>
+            _pages?.Keep(gameId, name, (sites ?? Enumerable.Empty<TrueGamingSite>()).Select(site => site.Prefix));
+
         /// <summary>Each site looked at for <paramref name="name"/>, in lookup order, with its page or null for none.</summary>
         public IReadOnlyList<(TrueGamingSite Site, string PageSlug)> GetPages(Guid gameId, string name)
         {
