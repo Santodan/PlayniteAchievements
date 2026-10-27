@@ -100,6 +100,12 @@ namespace PlayniteAchievements.Views.Showcase
         public ShowcaseAchievementGridControl()
         {
             InitializeComponent();
+            // The key binds to this control directly: an ancestor binding in XAML only resolves
+            // once the grid joins the visual tree, after it has prepared its columns, and its
+            // category list's, under the default keys, writing into those surfaces' records.
+            InnerGrid.SetBinding(
+                Controls.AchievementDataGridControl.ColumnSettingsKeyProperty,
+                new System.Windows.Data.Binding(nameof(ColumnSettingsKey)) { Source = this });
             InnerGrid.EnableCategoryMode = CategoryItemsSource != null;
         }
 
