@@ -1257,6 +1257,35 @@ namespace PlayniteAchievements.Services.Images.Tests
         }
 
         [TestMethod]
+        public async Task PopulateMetadataSourceIconCacheAsync_RowsSharingAnImage_ShareOneFile()
+        {
+            var tempDir = CreateTempDirectory();
+
+            try
+            {
+                var diskImageService = new DiskImageService(logger: null, cacheRoot: tempDir);
+                var iconService = NewIconService(diskImageService);
+                var localSource = Path.Combine(tempDir, "sources", "dragon.png");
+                WritePlaceholderFile(localSource);
+                var first = new AchievementDetail { ApiName = "p1", UnlockedIconPath = localSource };
+                var second = new AchievementDetail { ApiName = "p2", UnlockedIconPath = localSource };
+
+                var icons = await iconService.PopulateMetadataSourceIconCacheAsync(
+                    Guid.NewGuid(), "PlayStation", OneList("NPWR00001_00", first, second), forceRefreshExistingTargets: false, CancellationToken.None);
+
+                Assert.AreNotEqual(icons[first].Unlocked, icons[second].Unlocked, "each row keeps its own name");
+                Assert.IsTrue(IconFileLinks.TryGetIdentity(icons[first].Unlocked, out var firstFile, out var links));
+                Assert.IsTrue(IconFileLinks.TryGetIdentity(icons[second].Unlocked, out var secondFile, out _));
+                Assert.AreEqual(firstFile, secondFile);
+                Assert.AreEqual(2, links);
+            }
+            finally
+            {
+                DeleteDirectory(tempDir);
+            }
+        }
+
+        [TestMethod]
         public async Task PopulateMetadataSourceIconCacheAsync_MovesTheGamesOwnFolderIntoTheList()
         {
             var tempDir = CreateTempDirectory();
