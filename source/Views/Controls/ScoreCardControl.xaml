@@ -195,6 +195,11 @@
                 <Setter Property="MaxWidth" Value="96"/>
                 <Setter Property="Visibility" Value="Collapsed"/>
                 <Style.Triggers>
+                    <!-- Both states are stated: the base style's IsPoints trigger would otherwise
+                         keep an empty art slot, and its margin, on every points card. -->
+                    <DataTrigger Binding="{Binding HasGameArt}" Value="False">
+                        <Setter Property="Visibility" Value="Collapsed"/>
+                    </DataTrigger>
                     <DataTrigger Binding="{Binding HasGameArt}" Value="True">
                         <Setter Property="Visibility" Value="Visible"/>
                     </DataTrigger>
