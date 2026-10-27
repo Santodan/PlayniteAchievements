@@ -101,6 +101,16 @@
                     <controls:SettingRow Label="{DynamicResource LOCPlayAch_Settings_ShowCompletedProgressColoring}">
                         <CheckBox IsChecked="{Binding Persisted.ShowCompletedProgressColoring}"/>
                     </controls:SettingRow>
+                    <controls:SettingRow Label="{DynamicResource LOCPlayAch_Settings_CategoryColumn}"
+                                         Hint="{DynamicResource LOCPlayAch_Settings_CategoryColumn_Help}">
+                        <ComboBox SelectedValue="{Binding Persisted.CategoryColumnDisplay, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                  SelectedValuePath="Tag"
+                                  MinWidth="140">
+                            <ComboBoxItem Content="{DynamicResource LOCPlayAch_Settings_CategoryColumn_Subcategory}" Tag="{x:Static settings:CategoryColumnDisplay.Subcategory}"/>
+                            <ComboBoxItem Content="{DynamicResource LOCPlayAch_Settings_CategoryColumn_TopLevel}" Tag="{x:Static settings:CategoryColumnDisplay.TopLevel}"/>
+                            <ComboBoxItem Content="{DynamicResource LOCPlayAch_Settings_CategoryColumn_FullPath}" Tag="{x:Static settings:CategoryColumnDisplay.FullPath}"/>
+                        </ComboBox>
+                    </controls:SettingRow>
                     <controls:SettingRow Label="{DynamicResource LOCPlayAch_Settings_CategoryCompletionBadge}"
                                          Hint="{DynamicResource LOCPlayAch_Settings_CategoryCompletionBadge_Help}"
                                          Margin="0">
