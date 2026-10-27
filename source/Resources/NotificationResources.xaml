@@ -241,7 +241,7 @@
                         <Setter Property="Visibility" Value="{Binding ShowName, Converter={StaticResource BooleanToVisibilityConverter}}"/>
                         <Style.Triggers>
                             <DataTrigger Binding="{Binding Parent.IsGameCompleted}" Value="True">
-                                <Setter Property="helpers:InlineMarkdownFormatter.MarkupText" Value="{DynamicResource LOCPlayAch_Toast_GameComplete}"/>
+                                <Setter Property="helpers:InlineMarkdownFormatter.MarkupText" Value="{Binding CompletionTitleText}"/>
                                 <!-- CompletedTitleBrush honors the surface's rarity-colored-name
                                      toggle: completed color when on, plain text when off. -->
                                 <Setter Property="Foreground" Value="{Binding CompletedTitleBrush}"/>
