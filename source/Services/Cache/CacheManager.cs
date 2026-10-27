@@ -399,6 +399,11 @@ namespace PlayniteAchievements.Services.Cache
             return _store.GetMetadataSourceSnapshot(playniteGameId, sourceKey);
         }
 
+        List<MetadataSourceSnapshotRow> IMetadataStateDatabase.LoadMetadataSourceSnapshots()
+        {
+            return _store.LoadMetadataSourceSnapshots();
+        }
+
         void IMetadataStateDatabase.SaveMetadataSourceSnapshot(MetadataSourceSnapshotRow row)
         {
             _store.SaveMetadataSourceSnapshot(row);
