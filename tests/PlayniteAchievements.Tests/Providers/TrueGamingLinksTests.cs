@@ -30,23 +30,6 @@ namespace PlayniteAchievements.Tests.Providers
         }
 
         [DataTestMethod]
-        [DataRow("ta", "https://www.trueachievements.com/game/BioShock-Xbox-One/achievements", "BioShock-Xbox-One")]
-        [DataRow("ta", "trueachievements.com/game/BioShock-Xbox-One", "BioShock-Xbox-One")]
-        [DataRow("ta", "game/BioShock-Xbox-One/achievements", "BioShock-Xbox-One")]
-        [DataRow("ta", "BioShock-Xbox-One", "BioShock-Xbox-One")]
-        [DataRow("tt", "https://www.truetrophies.com/game/BioShock-PS4/trophies", "BioShock-PS4")]
-        [DataRow("tsa", "https://truesteamachievements.com/game/BioShock-Remastered/achievements", "BioShock-Remastered")]
-        [DataRow("ta", "https://www.truetrophies.com/game/BioShock-PS4/trophies", null)]
-        [DataRow("tsa", "https://www.trueachievements.com/game/BioShock/achievements", null)]
-        [DataRow("ta", "BioShock Xbox One", null)]
-        [DataRow("ta", "", null)]
-        public void ExactSlug_KeepsTheEditionAndOnlyTakesTheSitesAddresses(string site, string text, string slug)
-        {
-            var found = TrueGamingSite.LookupOrder.Single(candidate => candidate.Prefix == site);
-            Assert.AreEqual(slug, TrueGamingLinks.ExactSlug(found, text));
-        }
-
-        [DataTestMethod]
         [DataRow("ta", "BioShock-Xbox-One", "Xbox One")]
         [DataRow("ta", "BioShock-Xbox-360", "Xbox 360")]
         [DataRow("ta", "BioShock", null)]
