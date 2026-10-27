@@ -1105,7 +1105,8 @@ namespace PlayniteAchievements.Models.Settings
     /// User-edited notification header strings. Null or blank values follow the current
     /// localized default; unedited stored values are re-normalized to null at startup by
     /// NotificationHeaderTextService so they keep following language changes. The friend
-    /// variants are format strings where {0} is the friend's display name.
+    /// variants are format strings where {0} is the friend's display name; the completion title
+    /// may use {0} for the game's name.
     /// </summary>
     public sealed class NotificationHeaderTextSettings : ObservableObject
     {
@@ -1114,6 +1115,7 @@ namespace PlayniteAchievements.Models.Settings
         private string _completionHeader;
         private string _friendCompletionHeaderFormat;
         private string _progressHeader;
+        private string _completionTitle;
 
         public string UnlockHeader
         {
@@ -1148,6 +1150,16 @@ namespace PlayniteAchievements.Models.Settings
             set => SetValue(ref _progressHeader, value);
         }
 
+        /// <summary>
+        /// Title line of the standalone game-completion notification ("Game Complete!" by
+        /// default). An optional {0} stands for the game's name.
+        /// </summary>
+        public string CompletionTitle
+        {
+            get => _completionTitle;
+            set => SetValue(ref _completionTitle, value);
+        }
+
         public NotificationHeaderTextSettings Clone()
         {
             return new NotificationHeaderTextSettings
@@ -1156,7 +1168,8 @@ namespace PlayniteAchievements.Models.Settings
                 FriendUnlockHeaderFormat = FriendUnlockHeaderFormat,
                 CompletionHeader = CompletionHeader,
                 FriendCompletionHeaderFormat = FriendCompletionHeaderFormat,
-                ProgressHeader = ProgressHeader
+                ProgressHeader = ProgressHeader,
+                CompletionTitle = CompletionTitle
             };
         }
     }
