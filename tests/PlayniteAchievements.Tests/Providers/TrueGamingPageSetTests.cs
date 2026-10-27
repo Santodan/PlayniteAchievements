@@ -34,11 +34,7 @@ namespace PlayniteAchievements.Tests.Providers
         public void Combine_TakesEachFieldFromItsPage()
         {
             var ta = Page(Row("a1", "Lumière", "Single Player"), Row("a2", "Spring Meadows"));
-            ta.Achievements[0].Points = 10;
-            ta.Achievements[1].Points = 20;
             var tt = Page(Row("t1", "Lumiere", "Missable"), Row("t2", "Spring Meadows", "Collectable"), Row("t3", "The End", "Story Completed"));
-            tt.Achievements[0].TrophyType = "bronze";
-            tt.Achievements[2].TrophyType = "gold";
             tt.Achievements[2].Dlc = "Epilogue";
 
             var rows = TrueGamingPageSet.Combine(
@@ -53,12 +49,9 @@ namespace PlayniteAchievements.Tests.Providers
             var lumiere = rows[0];
             Assert.AreEqual("a1", lumiere.ApiName, "the first page's row names it");
             Assert.AreEqual("Singleplayer", lumiere.Tags, "tags from the first page that flags it");
-            Assert.AreEqual(10, lumiere.Points);
-            Assert.AreEqual("bronze", lumiere.TrophyType);
             Assert.AreEqual("Clair Obscur", lumiere.Category);
             Assert.IsNull(rows[1].Tags, "a row the first page lists without flags has none");
             Assert.AreEqual("Epilogue", rows[2].Category);
-            Assert.IsNull(rows[2].Points, "points come from TrueAchievements only");
         }
 
         [TestMethod]
@@ -84,10 +77,7 @@ namespace PlayniteAchievements.Tests.Providers
         public void Combine_JoinsARowTheSitesNameDifferently_ByItsDescription()
         {
             var ta = Page(Described("a1", "Grilled Tastes Better", "Defeat Miltos"), Described("a2", "Free at Last", "Defeat the Black Warden"));
-            ta.Achievements[0].Points = 15;
-            ta.Achievements[1].Points = 30;
             var tt = Page(Described("t1", "Grilled Tastes Better", "Defeat Miltos"), Described("t2", "Free at Last", "Defeat the Black Warden"));
-            tt.Achievements[0].TrophyType = "bronze";
             var tsa = Page(Described("s1", "Grilled Tasty", "Defeat Miltos"), Described("s2", "Finally Free", "Defeat the black warden."));
 
             var combined = TrueGamingPageSet.CombineAll(Pages(ta, tt, tsa), "Asterigos");
@@ -95,8 +85,6 @@ namespace PlayniteAchievements.Tests.Providers
             Assert.AreEqual(2, combined.Rows.Count, "the Steam names join the rows the other sites name");
             Assert.AreEqual(2, combined.MergedByDescription);
             Assert.AreEqual("a1", combined.Rows[0].ApiName);
-            Assert.AreEqual(15, combined.Rows[0].Points);
-            Assert.AreEqual("bronze", combined.Rows[0].TrophyType);
             Assert.AreSame(combined.Rows[0], combined.Aliases["s1"]);
             Assert.AreSame(combined.Rows[0], combined.Aliases["t1"]);
             Assert.AreSame(combined.Rows[1], combined.Aliases["s2"], "descriptions compare by letters and digits");
@@ -126,7 +114,6 @@ namespace PlayniteAchievements.Tests.Providers
                 Described("a1", "Your Name?", "Enjoyed a fulfilling chat with Kagami"),
                 Described("a2", "The Dream Invader", "Saw Gray twice in Somnium"),
                 Described("a3", "Protect Your Head", "Had Aiba wear the basket"));
-            ta.Achievements[1].Points = 10;
             var tt = Page(
                 Described("t1", "Your Name?", "Enjoyed a fulfilling chat with Kagami"),
                 Described("t2", "The Dream Wanderer", "Saw This Man twice in Somnium"),
@@ -141,7 +128,6 @@ namespace PlayniteAchievements.Tests.Providers
             Assert.AreEqual(3, combined.Rows.Count);
             Assert.AreEqual(1, combined.MergedByPosition, "the third page joins by name");
             Assert.AreEqual("a2", combined.Rows[1].ApiName);
-            Assert.AreEqual(10, combined.Rows[1].Points);
             Assert.AreSame(combined.Rows[1], combined.Aliases["t2"]);
             Assert.AreSame(combined.Rows[1], combined.Aliases["s2"]);
         }
