@@ -832,6 +832,7 @@ namespace PlayniteAchievements.Views.Controls
         private string _categorySortPath;
         private ListSortDirection? _categorySortDirection;
         private bool _startInCategoryModeApplied;
+        private Guid? _startInCategoryModeGameId;
         private DataGridRow _pendingCategoryRightClickRow;
 
         // Collapsed subtrees, keyed by CategoryPath. View-local for the control's lifetime and
@@ -1330,7 +1331,9 @@ namespace PlayniteAchievements.Views.Controls
             if (_startInCategoryModeApplied ||
                 !EnableCategoryMode ||
                 ControlBar == null ||
-                !IsCategorySourceSingleGame())
+                !IsCategorySourceSingleGame() ||
+                // Wait for a host's whole-game list, which arrives after its rows.
+                (DrillIntoCategorySummarySource && CategorySummarySource?.Any() != true))
             {
                 return;
             }
@@ -2114,6 +2117,18 @@ namespace PlayniteAchievements.Views.Controls
         {
             // A host that loads its summary source after its rows (the showcase grid) needs the
             // mode toggle re-offered once the categories arrive, not only while grouped.
+            if (DrillIntoCategorySummarySource)
+            {
+                // Such a host's summary source is one game's whole list, swapped as its rows move
+                // to another game; Start in Category Mode applies afresh to each game.
+                var gameId = CategorySummarySource?.FirstOrDefault()?.PlayniteGameId;
+                if (gameId.HasValue && gameId != _startInCategoryModeGameId)
+                {
+                    _startInCategoryModeGameId = gameId;
+                    _startInCategoryModeApplied = false;
+                }
+            }
+
             if (_isCategoryMode || DrillIntoCategorySummarySource)
             {
                 RequestItemsSourceContentRefresh();
