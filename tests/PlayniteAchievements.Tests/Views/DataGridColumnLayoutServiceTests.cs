@@ -568,7 +568,7 @@ namespace PlayniteAchievements.Tests.Views
         }
 
         [TestMethod]
-        public void SetColumnHeaderTextHidden_FlagsTheColumnAndPersistsOnlyHiddenKeys()
+        public void SetColumnHeaderTextHidden_FlagsTheColumnAndPersistsTheExplicitChoice()
         {
             StaTestHost.Run(() =>
             {
@@ -592,7 +592,8 @@ namespace PlayniteAchievements.Tests.Views
                 service.SetColumnHeaderTextHidden(column, false);
 
                 Assert.IsFalse(DataGridColumnLayoutService.GetIsHeaderTextHidden(column));
-                Assert.IsFalse(maps.HiddenHeaders.ContainsKey("B"));
+                // An explicit false, so a grid that defaults the column to hidden keeps it shown.
+                Assert.IsTrue(maps.HiddenHeaders.TryGetValue("B", out var shownHidden) && !shownHidden);
                 Assert.AreEqual(2, saveCount);
 
                 service.Detach();
