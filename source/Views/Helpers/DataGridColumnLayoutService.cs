@@ -40,11 +40,19 @@ namespace PlayniteAchievements.Views.Helpers
         /// <summary>
         /// Set on a <see cref="DataGridColumn"/> when the user hides its header text from the
         /// header menu. The header template hides (not collapses) the text while true, so the
-        /// header keeps its size, sort arrow and click-to-sort.
+        /// header keeps its size, sort arrow and click-to-sort. Set in markup, it is the column's
+        /// default until the user picks a state for the surface.
         /// </summary>
         public static readonly DependencyProperty IsHeaderTextHiddenProperty =
             DependencyProperty.RegisterAttached(
                 "IsHeaderTextHidden",
+                typeof(bool),
+                typeof(DataGridColumnLayoutService),
+                new PropertyMetadata(false));
+
+        private static readonly DependencyProperty DeclaredHeaderTextHiddenProperty =
+            DependencyProperty.RegisterAttached(
+                "DeclaredHeaderTextHidden",
                 typeof(bool),
                 typeof(DataGridColumnLayoutService),
                 new PropertyMetadata(false));
@@ -2156,20 +2164,31 @@ namespace PlayniteAchievements.Views.Helpers
             var map = _getHiddenHeaders.Invoke();
             foreach (var column in _grid.Columns)
             {
+                var declaredHidden = GetDeclaredHeaderTextHidden(column);
                 var key = GetColumnKey(column);
                 var hidden = !string.IsNullOrWhiteSpace(key) &&
                              map != null &&
-                             map.TryGetValue(key, out var isHidden) &&
-                             isHidden;
-                if (hidden)
-                {
-                    DataGridColumnLayoutService.SetIsHeaderTextHidden(column, true);
-                }
-                else
-                {
-                    column.ClearValue(DataGridColumnLayoutService.IsHeaderTextHiddenProperty);
-                }
+                             map.TryGetValue(key, out var isHidden)
+                    ? isHidden
+                    : declaredHidden;
+                SetIsHeaderTextHidden(column, hidden);
             }
+        }
+
+        /// <summary>
+        /// The column's markup default for <see cref="IsHeaderTextHiddenProperty"/>, recorded on
+        /// the column the first time a service sees it, before any persisted choice is written.
+        /// Kept on the column so a service recreated for another surface reads the markup value,
+        /// not the previous surface's choice.
+        /// </summary>
+        private static bool GetDeclaredHeaderTextHidden(DataGridColumn column)
+        {
+            if (column.ReadLocalValue(DeclaredHeaderTextHiddenProperty) == DependencyProperty.UnsetValue)
+            {
+                column.SetValue(DeclaredHeaderTextHiddenProperty, GetIsHeaderTextHidden(column));
+            }
+
+            return (bool)column.GetValue(DeclaredHeaderTextHiddenProperty);
         }
 
         private void ReleaseRuntimeLocks()
