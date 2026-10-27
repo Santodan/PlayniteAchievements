@@ -8,6 +8,33 @@ namespace PlayniteAchievements.Tests.Services
     public class OpenEditorRegistryTests
     {
         [TestMethod]
+        public void NotifyBackgroundWrite_NamesTheGameAndSurvivesAThrowingListener()
+        {
+            var game = Guid.NewGuid();
+            Guid? seen = null;
+            Action<Guid> throwing = _ => throw new InvalidOperationException();
+            Action<Guid> recording = gameId => seen = gameId;
+            OpenEditorRegistry.BackgroundWritten += recording;
+            try
+            {
+                OpenEditorRegistry.NotifyBackgroundWrite(game);
+                Assert.AreEqual(game, seen);
+
+                OpenEditorRegistry.BackgroundWritten += throwing;
+                OpenEditorRegistry.NotifyBackgroundWrite(Guid.NewGuid());
+
+                seen = null;
+                OpenEditorRegistry.NotifyBackgroundWrite(Guid.Empty);
+                Assert.IsNull(seen);
+            }
+            finally
+            {
+                OpenEditorRegistry.BackgroundWritten -= recording;
+                OpenEditorRegistry.BackgroundWritten -= throwing;
+            }
+        }
+
+        [TestMethod]
         public void DeferWhileOpen_IsFalseWithNoEditor()
         {
             var ran = 0;
