@@ -1479,7 +1479,8 @@ namespace PlayniteAchievements.Tests.Services
                 loadStored,
                 iconSaver == null ? null : new SourceIconDownload(iconSaver.SaveAsync),
                 iconSaver == null ? null : new Action<Guid, string>(iconSaver.Delete),
-                englishTitles);
+                englishTitles,
+                iconSaver == null ? null : new Action<IEnumerable<string>>(iconSaver.Sweep));
         }
 
         /// <summary>Saves each row's icon as C:\saved\&lt;source&gt;\&lt;ApiName&gt;.png, except the ones it is told fail.</summary>
@@ -1496,10 +1497,11 @@ namespace PlayniteAchievements.Tests.Services
             public Task<IReadOnlyDictionary<AchievementDetail, (string Unlocked, string Locked)>> SaveAsync(
                 Guid gameId,
                 string sourceKey,
-                IEnumerable<AchievementDetail> rows,
+                IReadOnlyList<MetadataSourceList> lists,
                 bool force,
                 CancellationToken ct)
             {
+                var rows = lists.SelectMany(list => list.Rows);
                 lock (Saves)
                 {
                     Saves.Add((sourceKey, force));
@@ -1514,6 +1516,42 @@ namespace PlayniteAchievements.Tests.Services
             }
 
             public void Delete(Guid gameId, string sourceKey) => Deleted.Add(sourceKey);
+
+            /// <summary>The icons each sweep was told are in use, one entry per sweep.</summary>
+            public List<List<string>> Sweeps { get; } = new List<List<string>>();
+
+            public void Sweep(IEnumerable<string> usedIcons) => Sweeps.Add(usedIcons.ToList());
+        }
+
+        [TestMethod]
+        public async Task UnusedSourceLists_AreSweptWhenTheLastOpenRunEnds_KeepingTheSnapshotsIcons()
+        {
+            var playstation = new FakeSource("PlayStation", MetadataField.Icons)
+            {
+                Rows = { Row("p1", "Dragon Slayer", icon: "https://psn/dragon.png") }
+            };
+            var data = Game("Steam", Row("ACH_DRAGON", "Dragon Slayer", icon: "steam.png"));
+            var saver = new FakeIconSaver();
+            var overlay = Overlay(new[] { playstation }, Choices(icons: "PlayStation"), iconSaver: saver);
+
+            using (overlay.BeginRun())
+            {
+                using (var run = overlay.BeginRun())
+                {
+                    await run.ApplyAsync(data.Game, data, CancellationToken.None);
+                }
+
+                Assert.AreEqual(0, saver.Sweeps.Count, "another run is still open and may still save files");
+            }
+
+            Assert.AreEqual(1, saver.Sweeps.Count);
+            CollectionAssert.AreEqual(new[] { FakeIconSaver.PathOf("PlayStation", "p1") }, saver.Sweeps[0]);
+
+            using (overlay.BeginRun(keepStored: true))
+            {
+            }
+
+            Assert.AreEqual(1, saver.Sweeps.Count, "a run that asks no source saves nothing to sweep after");
         }
 
         [TestMethod]

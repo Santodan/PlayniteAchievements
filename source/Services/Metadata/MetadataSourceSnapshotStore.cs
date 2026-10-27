@@ -208,6 +208,47 @@ namespace PlayniteAchievements.Services.Metadata
             }
         }
 
+        /// <summary>
+        /// Every row icon the games' snapshots point at, across all games and sources; null when
+        /// the snapshots could not be read, so nothing is taken for unused.
+        /// </summary>
+        internal IReadOnlyCollection<string> LoadIconPaths()
+        {
+            var database = _database?.Invoke();
+            if (database == null)
+            {
+                return null;
+            }
+
+            try
+            {
+                var paths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                foreach (var row in database.LoadMetadataSourceSnapshots())
+                {
+                    if (string.IsNullOrWhiteSpace(row?.RowsJson))
+                    {
+                        continue;
+                    }
+
+                    var rows = JsonConvert.DeserializeObject<List<MetadataSourceRow>>(row.RowsJson);
+                    foreach (var icon in rows?.Select(sourceRow => sourceRow?.Icon) ?? Enumerable.Empty<string>())
+                    {
+                        if (!string.IsNullOrWhiteSpace(icon))
+                        {
+                            paths.Add(icon);
+                        }
+                    }
+                }
+
+                return paths;
+            }
+            catch (Exception ex)
+            {
+                _logger?.Warn(ex, "[Metadata] Failed to read the source snapshots' icons.");
+                return null;
+            }
+        }
+
         /// <summary>The path when it names a local file, else null: an address or blank shows no icon.</summary>
         internal static string LocalIconPath(string path)
         {

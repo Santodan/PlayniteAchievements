@@ -382,6 +382,7 @@ namespace PlayniteAchievements.Services.Images
                     case ImageCompressionScope.AchievementIcons:
                         AddPerGameSubfolder(files, cacheRoot, AchievementIconCachePathBuilder.ModeFolderName);
                         AddPerGameSubfolder(files, cacheRoot, AchievementIconCachePathBuilder.MetadataSourceFolderName);
+                        AddFilesUnder(files, Path.Combine(cacheRoot, AchievementIconCachePathBuilder.MetadataSourceFolderName));
                         break;
 
                     case ImageCompressionScope.CategoryDefaults:

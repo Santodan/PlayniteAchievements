@@ -3,6 +3,7 @@ using PlayniteAchievements.Models.Achievements;
 using PlayniteAchievements.Models.Friends;
 using PlayniteAchievements.Models.Settings;
 using PlayniteAchievements.Services;
+using PlayniteAchievements.Providers.Metadata;
 using PlayniteAchievements.Services.Achievements;
 using PlayniteAchievements.Services.Friends;
 using PlayniteAchievements.Services.GameCustomData;
@@ -286,31 +287,87 @@ namespace PlayniteAchievements.Services.Images
                     cancel: cancel,
                     onIconProgress: onIconProgress)
                 .ConfigureAwait(false);
+
+            // Achievements of a friend game that reuse one image become one file with a name each.
+            await _diskImageService.LinkIdenticalFilesAsync(
+                    new[]
+                    {
+                        _diskImageService.ResolveCacheRelativePath(
+                            FriendImageCachePathBuilder.BuildGameFolderRelativePath(definition.ProviderKey, definition.ProviderGameKey))
+                    },
+                    $"friend game '{definition.ProviderKey}/{definition.ProviderGameKey}'",
+                    cancel)
+                .ConfigureAwait(false);
         }
 
         /// <summary>
-        /// Downloads a metadata source's row icons for a game into its metadata/&lt;source&gt; folder,
-        /// through the same pipeline as the game's own icons, and deletes the folder's files no row
-        /// uses any more. Returns each row's icon paths: local where the file resolved, the row's own
-        /// value where it did not. The rows themselves are left as they are, since a source can
-        /// hand the same rows to several games in a run.
+        /// Downloads a metadata source's row icons into each list's shared folder, through the same
+        /// pipeline as the game's own icons, and deletes the folder's files no row of the list uses
+        /// any more. A list another game linked to it already saved is not downloaded again. Returns
+        /// each row's icon paths: local where the file resolved, the row's own value where it did not.
+        /// The rows themselves are left as they are, since a source can hand the same rows to
+        /// several games in a run.
         /// </summary>
-        public async Task<IReadOnlyDictionary<AchievementDetail, (string Unlocked, string Locked)>> PopulateMetadataSourceIconCacheAsync(
+        internal async Task<IReadOnlyDictionary<AchievementDetail, (string Unlocked, string Locked)>> PopulateMetadataSourceIconCacheAsync(
             Guid gameId,
             string sourceKey,
-            IEnumerable<AchievementDetail> rows,
+            IReadOnlyList<MetadataSourceList> lists,
             bool forceRefreshExistingTargets,
             CancellationToken cancel)
         {
             var result = new Dictionary<AchievementDetail, (string Unlocked, string Locked)>();
-            if (gameId == Guid.Empty || string.IsNullOrWhiteSpace(sourceKey) || rows == null)
+            if (gameId == Guid.Empty || string.IsNullOrWhiteSpace(sourceKey) || lists == null)
             {
                 return result;
             }
 
             var gameIdText = gameId.ToString("D");
-            var folder = _diskImageService.ResolveCacheRelativePath(
-                AchievementIconCachePathBuilder.BuildMetadataSourceFolderRelativePath(gameIdText, sourceKey));
+            var usable = lists.Where(list => list?.Rows?.Count > 0 && !string.IsNullOrWhiteSpace(list.Id)).ToList();
+            var folders = usable.Select(list => _diskImageService.ResolveCacheRelativePath(
+                    AchievementIconCachePathBuilder.BuildMetadataListFolderRelativePath(sourceKey, list.Id)))
+                .ToList();
+
+            // The game's folder from before lists were shared names its files as a lone list's
+            // folder does, so they move over rather than download again.
+            if (usable.Count == 1)
+            {
+                MoveFiles(
+                    _diskImageService.ResolveCacheRelativePath(
+                        AchievementIconCachePathBuilder.BuildMetadataSourceFolderRelativePath(gameIdText, sourceKey)),
+                    folders[0]);
+            }
+
+            for (var i = 0; i < usable.Count; i++)
+            {
+                var saved = await PopulateMetadataListIconCacheAsync(
+                        gameIdText,
+                        folders[i],
+                        usable[i].Rows,
+                        forceRefreshExistingTargets,
+                        cancel)
+                    .ConfigureAwait(false);
+                foreach (var pair in saved.Where(pair => !result.ContainsKey(pair.Key)))
+                {
+                    result[pair.Key] = pair.Value;
+                }
+            }
+
+            if (!cancel.IsCancellationRequested)
+            {
+                DeleteMetadataSourceIconCache(gameId, sourceKey);
+            }
+
+            return result;
+        }
+
+        private async Task<IReadOnlyDictionary<AchievementDetail, (string Unlocked, string Locked)>> PopulateMetadataListIconCacheAsync(
+            string gameIdText,
+            string folder,
+            IEnumerable<AchievementDetail> rows,
+            bool forceRefreshExistingTargets,
+            CancellationToken cancel)
+        {
+            var result = new Dictionary<AchievementDetail, (string Unlocked, string Locked)>();
             var copies = new Dictionary<AchievementDetail, AchievementDetail>();
             foreach (var row in rows.Where(row => row != null && !string.IsNullOrWhiteSpace(row.ApiName)))
             {
@@ -361,12 +418,18 @@ namespace PlayniteAchievements.Services.Images
             if (!cancel.IsCancellationRequested)
             {
                 DeleteUnusedFiles(folder, achievements.SelectMany(row => new[] { row.UnlockedIconPath, row.LockedIconPath }));
+
+                // Rows that reuse one image become one file with a name per row.
+                await _diskImageService.LinkIdenticalFilesAsync(new[] { folder }, $"list folder '{folder}'", cancel).ConfigureAwait(false);
             }
 
             return result;
         }
 
-        /// <summary>Deletes a metadata source's row icons for a game, for a source it no longer keeps rows of.</summary>
+        /// <summary>
+        /// Deletes a game's own folder of a metadata source's row icons, from before lists were
+        /// shared. A list folder goes once no game uses it, by <see cref="DeleteUnusedMetadataListFolders"/>.
+        /// </summary>
         public void DeleteMetadataSourceIconCache(Guid gameId, string sourceKey)
         {
             if (gameId == Guid.Empty || string.IsNullOrWhiteSpace(sourceKey))
@@ -376,6 +439,72 @@ namespace PlayniteAchievements.Services.Images
 
             _diskImageService.DeleteCacheRelativeDirectory(
                 AchievementIconCachePathBuilder.BuildMetadataSourceFolderRelativePath(gameId.ToString("D"), sourceKey));
+        }
+
+        /// <summary>
+        /// Deletes every metadata list folder that holds none of <paramref name="usedIconPaths"/>,
+        /// the icons the games' saved source lists point at.
+        /// </summary>
+        public void DeleteUnusedMetadataListFolders(IEnumerable<string> usedIconPaths)
+        {
+            var root = _diskImageService.ResolveCacheRelativePath(AchievementIconCachePathBuilder.BuildMetadataListsRootRelativePath());
+            try
+            {
+                if (string.IsNullOrWhiteSpace(root) || !Directory.Exists(root))
+                {
+                    return;
+                }
+
+                var usedFolders = new HashSet<string>(
+                    (usedIconPaths ?? Enumerable.Empty<string>())
+                        .Where(path => !string.IsNullOrWhiteSpace(path) && !IsHttpIconPath(path))
+                        .Select(path => Path.GetDirectoryName(Path.GetFullPath(path))),
+                    StringComparer.OrdinalIgnoreCase);
+                foreach (var sourceFolder in Directory.EnumerateDirectories(root).ToList())
+                {
+                    foreach (var listFolder in Directory.EnumerateDirectories(sourceFolder).ToList())
+                    {
+                        if (!usedFolders.Contains(Path.GetFullPath(listFolder)))
+                        {
+                            Directory.Delete(listFolder, recursive: true);
+                        }
+                    }
+
+                    if (!Directory.EnumerateFileSystemEntries(sourceFolder).Any())
+                    {
+                        Directory.Delete(sourceFolder);
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger?.Warn(ex, $"Failed to delete unused metadata list folders in '{root}'.");
+            }
+        }
+
+        private void MoveFiles(string fromFolder, string toFolder)
+        {
+            try
+            {
+                if (string.IsNullOrWhiteSpace(fromFolder) || !Directory.Exists(fromFolder))
+                {
+                    return;
+                }
+
+                Directory.CreateDirectory(toFolder);
+                foreach (var file in Directory.EnumerateFiles(fromFolder).ToList())
+                {
+                    var target = Path.Combine(toFolder, Path.GetFileName(file));
+                    if (!File.Exists(target))
+                    {
+                        File.Move(file, target);
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger?.Debug(ex, $"Failed to move metadata source icons from '{fromFolder}' to '{toFolder}'.");
+            }
         }
 
         private void DeleteUnusedFiles(string folder, IEnumerable<string> usedPaths)
@@ -482,6 +611,11 @@ namespace PlayniteAchievements.Services.Images
         public void DeleteLegacyCompressedIconFolder(string gameId)
         {
             _diskImageService.DeleteLegacyCompressedGameIconFolder(gameId);
+        }
+
+        public Task<int> LinkIdenticalIconFilesAsync(string gameId, CancellationToken cancel)
+        {
+            return _diskImageService.LinkIdenticalGameIconFilesAsync(gameId, cancel);
         }
 
         private async Task<string> ResolveCacheRelativeImagePathAsync(

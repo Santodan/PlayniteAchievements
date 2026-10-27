@@ -2,6 +2,7 @@ using Microsoft.VisualStudio.TestTools.UnitTesting;
 using PlayniteAchievements.Models.Achievements;
 using PlayniteAchievements.Models.Friends;
 using PlayniteAchievements.Models.Settings;
+using PlayniteAchievements.Providers.Metadata;
 using PlayniteAchievements.Services.Friends;
 using PlayniteAchievements.Services.Images;
 using System;
@@ -1184,21 +1185,17 @@ namespace PlayniteAchievements.Services.Images.Tests
         }
 
         [TestMethod]
-        public async Task PopulateMetadataSourceIconCacheAsync_SavesRowsInTheSourceFolder_AndDeletesUnusedFiles()
+        public async Task PopulateMetadataSourceIconCacheAsync_SavesRowsInTheListFolder_AndDeletesUnusedFiles()
         {
             var tempDir = CreateTempDirectory();
 
             try
             {
                 var diskImageService = new DiskImageService(logger: null, cacheRoot: tempDir);
-                var iconService = new AchievementIconService(
-                    diskImageService,
-                    new ManagedCustomIconService(diskImageService, logger: null),
-                    () => new PersistedSettings(),
-                    logger: null);
+                var iconService = NewIconService(diskImageService);
                 var gameId = Guid.NewGuid();
                 var folder = diskImageService.ResolveCacheRelativePath(
-                    AchievementIconCachePathBuilder.BuildMetadataSourceFolderRelativePath(gameId.ToString("D"), "PlayStation"));
+                    AchievementIconCachePathBuilder.BuildMetadataListFolderRelativePath("PlayStation", "NPWR00001_00"));
 
                 var localSource = Path.Combine(tempDir, "sources", "dragon.png");
                 WritePlaceholderFile(localSource);
@@ -1211,7 +1208,7 @@ namespace PlayniteAchievements.Services.Images.Tests
                 WritePlaceholderFile(droppedFile);
 
                 var icons = await iconService.PopulateMetadataSourceIconCacheAsync(
-                    gameId, "PlayStation", new[] { copied, kept }, forceRefreshExistingTargets: false, CancellationToken.None);
+                    gameId, "PlayStation", OneList("NPWR00001_00", copied, kept), forceRefreshExistingTargets: false, CancellationToken.None);
 
                 var copiedFile = Path.Combine(folder, "p1.png");
                 Assert.AreEqual((copiedFile, copiedFile), icons[copied], "a locked icon that is the unlocked one follows the unlocked file");
@@ -1221,15 +1218,142 @@ namespace PlayniteAchievements.Services.Images.Tests
                 Assert.IsFalse(File.Exists(droppedFile), "a file no row uses is deleted");
                 Assert.AreEqual(localSource, copied.UnlockedIconPath, "the rows are left as they were");
                 Assert.AreEqual("https://cdn.example.com/p2.png", kept.UnlockedIconPath);
-
-                iconService.DeleteMetadataSourceIconCache(gameId, "PlayStation");
-                Assert.IsFalse(Directory.Exists(folder));
+                Assert.IsTrue(AchievementIconCachePathBuilder.IsMetadataSourceIconPath(copiedFile, Guid.NewGuid().ToString("D")),
+                    "a list folder's icon is borrowed for every game linked to the list");
             }
             finally
             {
                 DeleteDirectory(tempDir);
             }
         }
+
+        [TestMethod]
+        public async Task PopulateMetadataSourceIconCacheAsync_SecondGameOnTheList_UsesTheSavedFiles()
+        {
+            var tempDir = CreateTempDirectory();
+
+            try
+            {
+                var diskImageService = new DiskImageService(logger: null, cacheRoot: tempDir);
+                var iconService = NewIconService(diskImageService);
+                var localSource = Path.Combine(tempDir, "sources", "dragon.png");
+                WritePlaceholderFile(localSource);
+
+                var first = await iconService.PopulateMetadataSourceIconCacheAsync(
+                    Guid.NewGuid(), "PlayStation", OneList("NPWR00001_00", new AchievementDetail { ApiName = "p1", UnlockedIconPath = localSource }),
+                    forceRefreshExistingTargets: false, CancellationToken.None);
+                // An address that cannot be fetched, so only the first game's file can satisfy it.
+                var secondRow = new AchievementDetail { ApiName = "p1", UnlockedIconPath = "https://cdn.invalid/p1.png" };
+                var second = await iconService.PopulateMetadataSourceIconCacheAsync(
+                    Guid.NewGuid(), "PlayStation", OneList("NPWR00001_00", secondRow), forceRefreshExistingTargets: false, CancellationToken.None);
+
+                Assert.AreEqual(first.Values.Single().Unlocked, second[secondRow].Unlocked);
+                Assert.IsTrue(File.Exists(second[secondRow].Unlocked), "the second game reads the file the first saved");
+            }
+            finally
+            {
+                DeleteDirectory(tempDir);
+            }
+        }
+
+        [TestMethod]
+        public async Task PopulateMetadataSourceIconCacheAsync_RowsSharingAnImage_ShareOneFile()
+        {
+            var tempDir = CreateTempDirectory();
+
+            try
+            {
+                var diskImageService = new DiskImageService(logger: null, cacheRoot: tempDir);
+                var iconService = NewIconService(diskImageService);
+                var localSource = Path.Combine(tempDir, "sources", "dragon.png");
+                WritePlaceholderFile(localSource);
+                var first = new AchievementDetail { ApiName = "p1", UnlockedIconPath = localSource };
+                var second = new AchievementDetail { ApiName = "p2", UnlockedIconPath = localSource };
+
+                var icons = await iconService.PopulateMetadataSourceIconCacheAsync(
+                    Guid.NewGuid(), "PlayStation", OneList("NPWR00001_00", first, second), forceRefreshExistingTargets: false, CancellationToken.None);
+
+                Assert.AreNotEqual(icons[first].Unlocked, icons[second].Unlocked, "each row keeps its own name");
+                Assert.IsTrue(IconFileLinks.TryGetIdentity(icons[first].Unlocked, out var firstFile, out var links));
+                Assert.IsTrue(IconFileLinks.TryGetIdentity(icons[second].Unlocked, out var secondFile, out _));
+                Assert.AreEqual(firstFile, secondFile);
+                Assert.AreEqual(2, links);
+            }
+            finally
+            {
+                DeleteDirectory(tempDir);
+            }
+        }
+
+        [TestMethod]
+        public async Task PopulateMetadataSourceIconCacheAsync_MovesTheGamesOwnFolderIntoTheList()
+        {
+            var tempDir = CreateTempDirectory();
+
+            try
+            {
+                var diskImageService = new DiskImageService(logger: null, cacheRoot: tempDir);
+                var iconService = NewIconService(diskImageService);
+                var gameId = Guid.NewGuid();
+                var legacyFolder = diskImageService.ResolveCacheRelativePath(
+                    AchievementIconCachePathBuilder.BuildMetadataSourceFolderRelativePath(gameId.ToString("D"), "PlayStation"));
+                WritePlaceholderFile(Path.Combine(legacyFolder, "p1.png"));
+                var row = new AchievementDetail { ApiName = "p1", UnlockedIconPath = "https://cdn.example.com/p1.png" };
+
+                var icons = await iconService.PopulateMetadataSourceIconCacheAsync(
+                    gameId, "PlayStation", OneList("NPWR00001_00", row), forceRefreshExistingTargets: false, CancellationToken.None);
+
+                var moved = Path.Combine(
+                    diskImageService.ResolveCacheRelativePath(
+                        AchievementIconCachePathBuilder.BuildMetadataListFolderRelativePath("PlayStation", "NPWR00001_00")),
+                    "p1.png");
+                Assert.AreEqual(moved, icons[row].Unlocked, "the saved file is used, not downloaded again");
+                Assert.IsTrue(File.Exists(moved));
+                Assert.IsFalse(Directory.Exists(legacyFolder));
+            }
+            finally
+            {
+                DeleteDirectory(tempDir);
+            }
+        }
+
+        [TestMethod]
+        public void DeleteUnusedMetadataListFolders_KeepsOnlyListsAGameUses()
+        {
+            var tempDir = CreateTempDirectory();
+
+            try
+            {
+                var diskImageService = new DiskImageService(logger: null, cacheRoot: tempDir);
+                var iconService = NewIconService(diskImageService);
+                string FileIn(string listId) => Path.Combine(
+                    diskImageService.ResolveCacheRelativePath(AchievementIconCachePathBuilder.BuildMetadataListFolderRelativePath("PlayStation", listId)),
+                    "p1.png");
+                var used = FileIn("used");
+                var unused = FileIn("unused");
+                WritePlaceholderFile(used);
+                WritePlaceholderFile(unused);
+
+                iconService.DeleteUnusedMetadataListFolders(new[] { used });
+
+                Assert.IsTrue(File.Exists(used));
+                Assert.IsFalse(Directory.Exists(Path.GetDirectoryName(unused)));
+            }
+            finally
+            {
+                DeleteDirectory(tempDir);
+            }
+        }
+
+        private static AchievementIconService NewIconService(DiskImageService diskImageService) =>
+            new AchievementIconService(
+                diskImageService,
+                new ManagedCustomIconService(diskImageService, logger: null),
+                () => new PersistedSettings(),
+                logger: null);
+
+        private static IReadOnlyList<MetadataSourceList> OneList(string id, params AchievementDetail[] rows) =>
+            new[] { new MetadataSourceList(id, id, rows) };
 
         [TestMethod]
         public async Task PopulateAchievementIconCacheAsync_UsesBorrowedIconsInPlace_AndDeletesTheirOwnCopies()
