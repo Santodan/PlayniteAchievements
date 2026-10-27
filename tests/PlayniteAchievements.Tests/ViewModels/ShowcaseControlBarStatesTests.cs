@@ -154,6 +154,7 @@ namespace PlayniteAchievements.Tests.ViewModels
                     ShowcaseControlBarItems.Search,
                     ShowcaseControlBarItems.Platform,
                     ShowcaseControlBarItems.Game,
+                    ShowcaseControlBarItems.Category,
                     ShowcaseControlBarItems.Tag,
                     ShowcaseControlBarItems.UnlockDate,
                     ShowcaseControlBarItems.Rarity,
@@ -192,7 +193,31 @@ namespace PlayniteAchievements.Tests.ViewModels
 
             Assert.IsNull(slot.ShownBar.Search);
             Assert.AreEqual(1, slot.ShownBar.Items.Count);
-            Assert.AreSame(slot.Adapter.ControlBar.Items[4], slot.ShownBar.Items[0]);
+            Assert.AreSame(slot.Adapter.ControlBar.Items[5], slot.ShownBar.Items[0]);
+        }
+
+        [TestMethod]
+        public void CategoryFilter_OffersOneGamesCategoriesAndNarrowsItsRows()
+        {
+            var adapter = new CrossGameAchievementControlBarAdapter();
+            var gameA = Guid.NewGuid();
+            var gameB = Guid.NewGuid();
+            var story = new AchievementDisplayItem { PlayniteGameId = gameA, ApiName = "a1", CategoryLabel = "Story" };
+            var dlc = new AchievementDisplayItem { PlayniteGameId = gameA, ApiName = "a2", CategoryLabel = "DLC" };
+            var other = new AchievementDisplayItem { PlayniteGameId = gameB, ApiName = "b1", CategoryLabel = "Story" };
+            var category = (GridMultiSelectFilter)adapter.ControlBar.Items
+                .First(item => (item as GridMultiSelectFilter)?.Id == ShowcaseControlBarItems.Category);
+
+            // Two games: no categories to offer, so no category narrows the rows.
+            adapter.Apply(new[] { story, dlc, other });
+            Assert.AreEqual(0, category.Options.Count());
+
+            adapter.Apply(new[] { story, dlc });
+            CollectionAssert.AreEquivalent(new[] { "Story", "DLC" }, category.Options.ToArray());
+
+            category.SetSelected("DLC", true);
+            CollectionAssert.AreEqual(new[] { dlc }, adapter.Apply(new[] { story, dlc }).ToArray());
+            Assert.AreEqual(3, adapter.Apply(new[] { story, dlc, other }).Count, "a selection made for one game drops away with several");
         }
 
         [TestMethod]
