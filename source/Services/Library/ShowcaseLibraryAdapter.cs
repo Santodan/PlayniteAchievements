@@ -33,12 +33,15 @@ namespace PlayniteAchievements.Services.Library
         private const string OptionsKey = "Options";
         private const string ControlBarKey = "ControlBar";
         private const string GridKey = "Grid";
+        // An achievement grid widget's category list (category mode) keeps its own record.
+        private const string CategoryGridKey = "CategoryGrid";
         private const string BackgroundKey = "Background";
 
         private static readonly string[] AtomicPaths =
         {
             WidgetsKey + "." + JsonThreeWayMerge.AnySegment + "." + OptionsKey,
             WidgetsKey + "." + JsonThreeWayMerge.AnySegment + "." + GridKey,
+            WidgetsKey + "." + JsonThreeWayMerge.AnySegment + "." + CategoryGridKey,
             WidgetsKey + "." + JsonThreeWayMerge.AnySegment + "." + BackgroundKey
         };
 
@@ -92,6 +95,7 @@ namespace PlayniteAchievements.Services.Library
                 id => FindWidget(layout, id),
                 id => id,
                 widget => GridOf(grid, widget.Kind, widget.InstanceId),
+                widget => CategoryGridOf(grid, widget.Kind, widget.InstanceId),
                 widget => ShowcaseWidgetImages.GetFilePath(widget));
         }
 
@@ -289,6 +293,7 @@ namespace PlayniteAchievements.Services.Library
                 id => FindWidget(normalized, id),
                 id => map.TryGetValue(id, out var local) ? local : null,
                 widget => PackageGridOf(portable, widget.Kind, widget.InstanceId),
+                widget => PackageCategoryGridOf(portable, widget.Kind, widget.InstanceId),
                 widget => map.TryGetValue(widget.InstanceId ?? string.Empty, out var local) && extracted.TryGetValue(local, out var file) ? file : null);
         }
 
@@ -520,6 +525,7 @@ namespace PlayniteAchievements.Services.Library
                 ShowcaseWidgetImages.SetFilePath(widget, image);
 
                 WriteGrid(grid, widget, value[GridKey], currentValue?[GridKey]);
+                WriteCategoryGrid(grid, widget, value[CategoryGridKey], currentValue?[CategoryGridKey]);
             }
         }
 
@@ -571,6 +577,21 @@ namespace PlayniteAchievements.Services.Library
             }
         }
 
+        private static void WriteCategoryGrid(GridOptionsCatalog grid, ShowcaseWidgetInstanceSettings widget, JToken merged, JToken current)
+        {
+            if (grid == null || !(merged is JObject value) || JsonThreeWayMerge.SameValue(merged, current))
+            {
+                return;
+            }
+
+            var key = ShowcaseGridSurfaces.ResolveCategorySurface(
+                ShowcaseGridSurfaces.ResolveWidgetSurface(widget.Kind, widget.InstanceId));
+            if (key != null)
+            {
+                grid.SetCategorySummaries(key, value.ToObject<CategorySummaryGridOptions>(Serializer));
+            }
+        }
+
         // ---- projection -------------------------------------------------------------------------
 
         private static JObject ProjectPage(
@@ -578,6 +599,7 @@ namespace PlayniteAchievements.Services.Library
             Func<string, ShowcaseWidgetInstanceSettings> widgetOf,
             Func<string, string> idOf,
             Func<ShowcaseWidgetInstanceSettings, JToken> gridOf,
+            Func<ShowcaseWidgetInstanceSettings, JToken> categoryGridOf,
             Func<ShowcaseWidgetInstanceSettings, string> backgroundOf)
         {
             var scalars = new JObject
@@ -645,6 +667,7 @@ namespace PlayniteAchievements.Services.Library
                     [OptionsKey] = options,
                     [ControlBarKey] = controlBar,
                     [GridKey] = gridOf(widget),
+                    [CategoryGridKey] = categoryGridOf(widget),
                     [BackgroundKey] = LibraryFileTokens.FileValue(backgroundOf(widget))
                 };
             }
@@ -710,6 +733,42 @@ namespace PlayniteAchievements.Services.Library
             }
 
             return null;
+        }
+
+        private static JToken CategoryGridOf(GridOptionsCatalog grid, ShowcaseWidgetKind kind, string instanceId)
+        {
+            var key = ShowcaseGridSurfaces.ResolveCategorySurface(
+                ShowcaseGridSurfaces.ResolveWidgetSurface(kind, instanceId));
+            return grid != null && key != null &&
+                   grid.CategorySummaries.TryGetValue(key, out var categories)
+                ? CategoryGridToken(categories)
+                : null;
+        }
+
+        private static JToken PackageCategoryGridOf(ShowcasePagePortableFile portable, ShowcaseWidgetKind kind, string exportedId)
+        {
+            var id = exportedId?.Trim() ?? string.Empty;
+            return ShowcaseGridSurfaces.IsAchievementSurface(ShowcaseGridSurfaces.ResolveWidgetSurface(kind, exportedId)) &&
+                   portable.CategoryGridSurfaces != null &&
+                   portable.CategoryGridSurfaces.TryGetValue(id, out var categories)
+                ? CategoryGridToken(categories)
+                : null;
+        }
+
+        // A record still at its defaults reads as none. Showing the widget creates one, and a
+        // created record must not count as the user's edit against a package that had none.
+        private static JToken CategoryGridToken(CategorySummaryGridOptions categories)
+        {
+            if (categories == null)
+            {
+                return null;
+            }
+
+            var token = JObject.FromObject(categories, Serializer);
+            var defaults = JObject.FromObject(
+                new GridOptionsCatalog().GetCategorySummaries(ShowcaseGridSurfaces.AchievementCategories),
+                Serializer);
+            return JToken.DeepEquals(token, defaults) ? null : token;
         }
 
         private static IEnumerable<string> PackageWidgetIds(ShowcasePagePortableFile portable)
