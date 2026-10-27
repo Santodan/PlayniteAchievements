@@ -641,16 +641,20 @@ namespace PlayniteAchievements.Providers.Metadata.TrueGaming
                     $"{page.Site.Title}: {page.PageSlug ?? ResourceProvider.GetString("LOCNone")}"));
         }
 
-        /// <summary>Each site's page the link led to, as kept in the page store; sites without one are left out.</summary>
+        /// <summary>
+        /// The link's own page, then each other site's page the link led to, as kept in the page
+        /// store; sites without one are left out.
+        /// </summary>
         public IReadOnlyList<MetadataPageLink> PageLinks(Guid gameId, string linkId, string servicingProviderKey)
         {
             var name = StoreName(linkId);
-            return name == null
-                ? Array.Empty<MetadataPageLink>()
-                : _store.GetPages(gameId, name)
-                    .Where(page => page.PageSlug != null)
-                    .Select(page => new MetadataPageLink(page.Site.Title, page.Site.ListUrl(page.PageSlug)))
-                    .ToList();
+            var picked = TrueGamingLinks.Picked(linkId);
+            var stored = name == null ? Array.Empty<(TrueGamingSite Site, string PageSlug)>() : _store.GetPages(gameId, name);
+            return (picked.Site == null ? Enumerable.Empty<(TrueGamingSite Site, string PageSlug)>() : new[] { (picked.Site, picked.Slug) })
+                .Concat(stored.Where(page => page.Site != picked.Site))
+                .Where(page => page.PageSlug != null)
+                .Select(page => new MetadataPageLink(page.Site.Title, page.Site.ListUrl(page.PageSlug)))
+                .ToList();
         }
 
         /// <summary>The consoles of the edition pages the link led to, in lookup order; null when every page is the plain one.</summary>
