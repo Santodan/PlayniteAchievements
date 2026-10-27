@@ -411,7 +411,10 @@ namespace PlayniteAchievements.ViewModels
                 var name = EffectiveGameName;
                 var category = EffectiveCategory;
                 var hasName = !string.IsNullOrWhiteSpace(name);
-                var hasCategory = !string.IsNullOrWhiteSpace(category);
+                // A category named after the game (a base group labeled with the title) would
+                // only repeat it, so the row shows the name once.
+                var hasCategory = !string.IsNullOrWhiteSpace(category) &&
+                    !(hasName && string.Equals(name.Trim(), category.Trim(), StringComparison.OrdinalIgnoreCase));
 
                 if (hasName && hasCategory)
                 {
