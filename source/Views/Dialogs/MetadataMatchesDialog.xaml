@@ -90,13 +90,7 @@
                                           Style="{StaticResource PlayAch.ToggleButton.ComboBoxLookStyle}"
                                           IsChecked="{Binding IsPickerOpen, Mode=TwoWay}"
                                           IsHitTestVisible="{Binding IsPickerOpen, Converter={StaticResource InvertBoolConverter}}">
-                                <StackPanel Orientation="Horizontal">
-                                    <Image Style="{StaticResource MatchIconStyle}"
-                                           Width="24" Height="24"
-                                           helpers:AsyncImage.Uri="{Binding Trophy.Icon}"
-                                           Visibility="{Binding IsMatched, Converter={StaticResource BoolToVis}}"/>
-                                    <TextBlock Style="{StaticResource MatchNameStyle}" Text="{Binding PairingText, Mode=OneWay}"/>
-                                </StackPanel>
+                                <TextBlock Style="{StaticResource MatchNameStyle}" Text="{Binding PairingText, Mode=OneWay}"/>
                             </ToggleButton>
 
                             <Popup Grid.Column="2"
@@ -125,26 +119,16 @@
                                                  PreviewMouseLeftButtonUp="PickerList_PreviewMouseLeftButtonUp">
                                             <ListBox.ItemTemplate>
                                                 <DataTemplate>
-                                                    <Grid Margin="2" ToolTip="{Binding Description}">
-                                                        <Grid.ColumnDefinitions>
-                                                            <ColumnDefinition Width="Auto"/>
-                                                            <ColumnDefinition Width="*"/>
-                                                        </Grid.ColumnDefinitions>
-                                                        <Image Grid.Column="0"
-                                                               Style="{StaticResource MatchIconStyle}"
-                                                               helpers:AsyncImage.Uri="{Binding Icon}"
-                                                               Visibility="{Binding IsSpecial, Converter={StaticResource InverseBoolToVis}}"/>
-                                                        <StackPanel Grid.Column="1" VerticalAlignment="Center">
-                                                            <TextBlock Style="{StaticResource MatchNameStyle}" Text="{Binding Name, Mode=OneWay}"/>
-                                                            <!-- Which game of a collection the row is from. -->
-                                                            <TextBlock Style="{StaticResource MatchDetailStyle}"
-                                                                       Text="{Binding List, Mode=OneWay}"
-                                                                       Visibility="{Binding HasList, Converter={StaticResource BoolToVis}}"/>
-                                                            <TextBlock Style="{StaticResource MatchDetailStyle}"
-                                                                       Text="{Binding PairedWith, Mode=OneWay}"
-                                                                       Visibility="{Binding IsPaired, Converter={StaticResource BoolToVis}}"/>
-                                                        </StackPanel>
-                                                    </Grid>
+                                                    <StackPanel Margin="2" ToolTip="{Binding Description}">
+                                                        <TextBlock Style="{StaticResource MatchNameStyle}" Text="{Binding Name, Mode=OneWay}"/>
+                                                        <!-- Which game of a collection the row is from. -->
+                                                        <TextBlock Style="{StaticResource MatchDetailStyle}"
+                                                                   Text="{Binding List, Mode=OneWay}"
+                                                                   Visibility="{Binding HasList, Converter={StaticResource BoolToVis}}"/>
+                                                        <TextBlock Style="{StaticResource MatchDetailStyle}"
+                                                                   Text="{Binding PairedWith, Mode=OneWay}"
+                                                                   Visibility="{Binding IsPaired, Converter={StaticResource BoolToVis}}"/>
+                                                    </StackPanel>
                                                 </DataTemplate>
                                             </ListBox.ItemTemplate>
                                         </ListBox>
