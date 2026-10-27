@@ -33,6 +33,10 @@ namespace PlayniteAchievements.Views.Helpers
         /// </summary>
         private const int ViewportRescaleThrottleMilliseconds = 60;
 
+        // Header menu buttons (lock, eye, alignment) and the gap after each but the last.
+        private const double AlignmentButtonWidth = 34;
+        private const double AlignmentButtonGap = 4;
+
         /// <summary>
         /// Set on a <see cref="DataGridColumn"/> when the user hides its header text from the
         /// header menu. The header template hides (not collapses) the text while true, so the
@@ -2365,12 +2369,13 @@ namespace PlayniteAchievements.Views.Helpers
             };
 
             var isLocked = IsColumnLocked(contextColumn);
+            var hasLockButton = _getLocks != null && _setLocks != null;
             var editor = new TextBox
             {
-                Width = 72,
+                Width = ResolveWidthEditorWidth(contextColumn, hasLockButton),
                 Height = 28,
                 MinWidth = 72,
-                Margin = new Thickness(0, 0, 4, 0),
+                Margin = new Thickness(0, 0, AlignmentButtonGap, 0),
                 Padding = new Thickness(4, 0, 4, 0),
                 TextAlignment = TextAlignment.Center,
                 VerticalContentAlignment = VerticalAlignment.Center,
@@ -2429,7 +2434,7 @@ namespace PlayniteAchievements.Views.Helpers
             };
             row.Children.Add(editor);
 
-            if (_getLocks != null && _setLocks != null)
+            if (hasLockButton)
             {
                 var description = ResourceProvider.GetString(isLocked ? "LOCPlayAch_Common_Locked" : "LOCPlayAch_Common_Unlocked");
                 var lockButton = CreateAlignmentButton(
@@ -2451,6 +2456,35 @@ namespace PlayniteAchievements.Views.Helpers
             }
 
             return row;
+        }
+
+        /// <summary>
+        /// Stretches the pixel box so the width row spans the same width as the button row
+        /// beneath it; with no button row (or a short one) it keeps its 72 px minimum.
+        /// </summary>
+        private double ResolveWidthEditorWidth(DataGridColumn column, bool hasLockButton)
+        {
+            const double minimumWidth = 72;
+            var buttonCount = CanShowAlignmentSection(column) ? CountAlignmentRowButtons(column) : 0;
+            if (buttonCount == 0)
+            {
+                return minimumWidth;
+            }
+
+            var buttonRowWidth = buttonCount * AlignmentButtonWidth + (buttonCount - 1) * AlignmentButtonGap;
+            var lockWidth = hasLockButton ? AlignmentButtonWidth + AlignmentButtonGap : 0;
+            return Math.Max(minimumWidth, buttonRowWidth - lockWidth);
+        }
+
+        private int CountAlignmentRowButtons(DataGridColumn column)
+        {
+            return new[]
+            {
+                CanShowHeaderTextVisibility(column),
+                CanShowHeaderHorizontalAlignment(column),
+                CanShowCellHorizontalAlignment(column),
+                CanShowCellVerticalAlignment(column)
+            }.Count(shown => shown);
         }
 
         private void CommitWidthEdit(DataGridColumn column, string text)
@@ -2566,16 +2600,14 @@ namespace PlayniteAchievements.Views.Helpers
         /// <summary>IcoFont eye (EF24) while the header text shows, eye-blocked (EF22) while hidden.</summary>
         private FrameworkElement CreateHeaderTextVisibilityIcon(bool isHidden)
         {
-            var icon = new Controls.GlyphIcon
+            // The shared icon-button face: the glyph drawn as vector outlines by GlyphIcon.
+            return new ContentPresenter
             {
-                Glyph = isHidden ? "" : "",
-                Size = 14,
-                Opacity = isHidden ? 1 : 0.62,
-                FontFamily = _grid?.TryFindResource("PlayAch.FontFamily.Icon") as FontFamily ??
-                             Application.Current?.TryFindResource("PlayAch.FontFamily.Icon") as FontFamily
+                Content = isHidden ? "\uEF22" : "\uEF24",
+                ContentTemplate = _grid?.TryFindResource("PlayAch.ButtonContent.Glyph") as DataTemplate ??
+                                  Application.Current?.TryFindResource("PlayAch.ButtonContent.Glyph") as DataTemplate,
+                Opacity = isHidden ? 1 : 0.62
             };
-            SetTextBrushOpacity(icon, Controls.GlyphIcon.ForegroundProperty, 0.88);
-            return icon;
         }
 
         private MenuItem CreateAlignmentButtonRowItem(DataGridColumn contextColumn)
@@ -2736,11 +2768,11 @@ namespace PlayniteAchievements.Views.Helpers
 
             var button = new Button
             {
-                Width = 34,
+                Width = AlignmentButtonWidth,
                 Height = 28,
-                MinWidth = 34,
+                MinWidth = AlignmentButtonWidth,
                 MinHeight = 28,
-                Margin = new Thickness(0, 0, 4, 0),
+                Margin = new Thickness(0, 0, AlignmentButtonGap, 0),
                 Padding = new Thickness(4),
                 BorderThickness = isDefault ? new Thickness(1) : new Thickness(1.6),
                 Cursor = Cursors.Hand,
