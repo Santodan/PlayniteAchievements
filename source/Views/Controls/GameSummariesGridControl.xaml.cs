@@ -29,7 +29,7 @@ namespace PlayniteAchievements.Views.Controls
         private DataGridColumnLayoutService _columnPersistence;
         private bool _isAttached;
         private PersistedSettingsSubscription _persistedSubscription;
-        private GameSummaryGridOptions _subscribedShowcaseOptions;
+        private INotifyPropertyChanged _subscribedShowcaseOptions;
         private INotifyCollectionChanged _watchedRows;
         private bool _tailSlackPending;
         private const double DefaultCoverColumnWidth = 96;
@@ -1138,22 +1138,27 @@ namespace PlayniteAchievements.Views.Controls
 
             var surface = ResolveSurface();
             // Showcase widgets persist their whole grid-options record (columns and display
-            // options) under their own (per-instance) surface key; other surfaces resolve
-            // per-surface behavior through the GridSurface switches below.
+            // options) under their own (per-instance) surface key: a game list's game-summary
+            // record, or an achievement widget's category list's category-summary record. Other
+            // surfaces resolve per-surface behavior through the GridSurface switches below.
             var showcaseOptions = ShowcaseGridSurfaces.IsGameSurface(ColumnSettingsKey)
                 ? persisted.GridOptions.GetGameSummaries(ColumnSettingsKey)
                 : null;
-            var columns = showcaseOptions != null
-                ? showcaseOptions.Columns
-                : ResolveColumnLayoutOptions(persisted, surface);
-            return CreateSurfaceSettings(persisted, surface, columns, showcaseOptions);
+            var showcaseCategoryOptions = surface == GridSurface.ShowcaseCategory
+                ? persisted.GridOptions.GetCategorySummaries(ColumnSettingsKey)
+                : null;
+            var columns = showcaseOptions?.Columns ??
+                          showcaseCategoryOptions?.Columns ??
+                          ResolveColumnLayoutOptions(persisted, surface);
+            return CreateSurfaceSettings(persisted, surface, columns, showcaseOptions, showcaseCategoryOptions);
         }
 
         private static GameSummarySurfaceSettings CreateSurfaceSettings(
             PersistedSettings persisted,
             GridSurface surface,
             GridColumnLayoutOptions columns,
-            GameSummaryGridOptions showcaseOptions)
+            GameSummaryGridOptions showcaseOptions,
+            CategorySummaryGridOptions showcaseCategoryOptions = null)
         {
             return new GameSummarySurfaceSettings
             {
@@ -1216,10 +1221,13 @@ namespace PlayniteAchievements.Views.Controls
                 GetLastPlayedDateMode = () => showcaseOptions?.LastPlayedDateMode ??
                     ResolveLastPlayedDateMode(persisted, surface),
                 GetColorRarityColumnsByRarity = () => showcaseOptions?.ColorRarityColumnsByRarity ??
+                    showcaseCategoryOptions?.ColorRarityColumnsByRarity ??
                     ResolveColorRarityColumnsByRarity(persisted, surface),
                 GetShowNameAboveProgress = () => showcaseOptions?.ShowNameAboveProgress ??
+                    showcaseCategoryOptions?.ShowNameAboveProgress ??
                     ResolveShowNameAboveProgress(persisted, surface),
                 GetShowRarityBadgesBelowProgress = () => showcaseOptions?.ShowRarityBadgesBelowProgress ??
+                    showcaseCategoryOptions?.ShowRarityBadgesBelowProgress ??
                     ResolveShowRarityBadgesBelowProgress(persisted, surface),
                 GetShowCompletionFrame = () => showcaseOptions?.ShowCompletionFrame ??
                     ResolveShowCompletionFrame(persisted, surface)
@@ -1423,6 +1431,7 @@ namespace PlayniteAchievements.Views.Controls
                 case GridSurface.ViewFriendsAchievementsCategory:
                 case GridSurface.DesktopThemeCategory:
                 case GridSurface.WorkshopPreviewCategory:
+                case GridSurface.ShowcaseCategory:
                     return false;
                 case GridSurface.DesktopTheme:
                     return persisted.GridOptions.GetGameSummaries(GridOptionKeys.GameSummaries.DesktopTheme).ShowCompletionFrame;
@@ -1501,7 +1510,8 @@ namespace PlayniteAchievements.Views.Controls
             ViewFriendsAchievementsCategory,
             DesktopThemeCategory,
             DesktopTheme,
-            WorkshopPreviewCategory
+            WorkshopPreviewCategory,
+            ShowcaseCategory
         }
 
         private IReadOnlyDictionary<string, double> ResolveDefaultWidthSeeds()
@@ -1520,6 +1530,11 @@ namespace PlayniteAchievements.Views.Controls
 
         private GridSurface ResolveSurface()
         {
+            if (ShowcaseGridSurfaces.IsAchievementCategorySurface(ColumnSettingsKey))
+            {
+                return GridSurface.ShowcaseCategory;
+            }
+
             if (string.Equals(ColumnSettingsKey, "StartPageGameSummaries", StringComparison.OrdinalIgnoreCase) ||
                 string.Equals(ColumnSettingsKey, "StartPageOverview", StringComparison.OrdinalIgnoreCase))
             {
@@ -1619,7 +1634,8 @@ namespace PlayniteAchievements.Views.Controls
                    surface == GridSurface.FriendsOverviewCategory ||
                    surface == GridSurface.ViewFriendsAchievementsCategory ||
                    surface == GridSurface.DesktopThemeCategory ||
-                   surface == GridSurface.WorkshopPreviewCategory;
+                   surface == GridSurface.WorkshopPreviewCategory ||
+                   surface == GridSurface.ShowcaseCategory;
         }
 
         private const string CapturesColumnKey = "Captures";
@@ -1806,9 +1822,17 @@ namespace PlayniteAchievements.Views.Controls
         // never fires for their edits; the control listens to the surface's option record directly.
         private void UpdateShowcaseOptionsSubscription(PlayniteAchievementsSettings settings)
         {
-            var options = ShowcaseGridSurfaces.IsGameSurface(ColumnSettingsKey)
-                ? settings?.Persisted?.GridOptions?.GetGameSummaries(ColumnSettingsKey)
-                : null;
+            var gridOptions = settings?.Persisted?.GridOptions;
+            INotifyPropertyChanged options = null;
+            if (ShowcaseGridSurfaces.IsGameSurface(ColumnSettingsKey))
+            {
+                options = gridOptions?.GetGameSummaries(ColumnSettingsKey);
+            }
+            else if (ShowcaseGridSurfaces.IsAchievementCategorySurface(ColumnSettingsKey))
+            {
+                options = gridOptions?.GetCategorySummaries(ColumnSettingsKey);
+            }
+
             if (ReferenceEquals(_subscribedShowcaseOptions, options))
             {
                 return;
