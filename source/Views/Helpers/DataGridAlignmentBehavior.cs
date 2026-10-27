@@ -27,6 +27,14 @@ namespace PlayniteAchievements.Views.Helpers
                 typeof(DataGridAlignmentBehavior),
                 new PropertyMetadata(HorizontalAlignment.Center));
 
+        // Set on a column; the header template hides (not collapses) its text while true.
+        public static readonly DependencyProperty IsHeaderTextHiddenProperty =
+            DependencyProperty.RegisterAttached(
+                "IsHeaderTextHidden",
+                typeof(bool),
+                typeof(DataGridAlignmentBehavior),
+                new PropertyMetadata(false));
+
         public static readonly DependencyProperty CellHorizontalAlignmentProperty =
             DependencyProperty.RegisterAttached(
                 "CellHorizontalAlignment",
@@ -94,6 +102,16 @@ namespace PlayniteAchievements.Views.Helpers
         public static void SetHeaderHorizontalAlignment(DependencyObject obj, HorizontalAlignment value)
         {
             obj.SetValue(HeaderHorizontalAlignmentProperty, value);
+        }
+
+        public static bool GetIsHeaderTextHidden(DependencyObject obj)
+        {
+            return (bool)obj.GetValue(IsHeaderTextHiddenProperty);
+        }
+
+        public static void SetIsHeaderTextHidden(DependencyObject obj, bool value)
+        {
+            obj.SetValue(IsHeaderTextHiddenProperty, value);
         }
 
         public static HorizontalAlignment GetCellHorizontalAlignment(DependencyObject obj)
