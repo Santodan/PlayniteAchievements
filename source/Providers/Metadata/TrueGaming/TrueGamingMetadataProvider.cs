@@ -16,8 +16,8 @@ namespace PlayniteAchievements.Providers.Metadata.TrueGaming
     /// <summary>
     /// Achievement flags, as tags, from the TrueGaming sites: TrueAchievements, TrueTrophies and
     /// TrueSteamAchievements, tried in that order for every platform. Pages are public and load through an offscreen browser view. A
-    /// game links to one page name ("Fallout-4"), built from its name; each site is read under it
-    /// or its edition variants there ("Fallout-4-PS4"), and where it led is kept in
+    /// game links to one site's page ("tt:Fallout-4-PS4"), read first; another site is read under
+    /// the page's name or its edition variants there ("Fallout-4"), and where it led is kept in
     /// <see cref="TrueGamingPageStore"/>. Only the pages the wanted fields need are loaded; see
     /// <see cref="TrueGamingPageSet"/>. The sites are English only, so rows pair with the game's
     /// achievements by English title.
@@ -113,8 +113,9 @@ namespace PlayniteAchievements.Providers.Metadata.TrueGaming
         }
 
         /// <summary>
-        /// The game's one page name, from the first page found by slugs built from its names.
-        /// Only the pages the wanted fields need are looked for; what each site gave is kept.
+        /// The game's link: the page name its achievements match best, as that name's first page in
+        /// lookup order ("ta:Satisfactory"), the form the link search lists. Without achievements,
+        /// the first page found by slugs built from its names. What each site gave is kept.
         /// </summary>
         public async Task<MetadataSourceLink> ResolveLinkAsync(MetadataLinkRequest request, CancellationToken ct)
         {
@@ -149,9 +150,25 @@ namespace PlayniteAchievements.Providers.Metadata.TrueGaming
                     return null;
                 }
 
+                // Each chosen page name is linked as its first page in lookup order, the form the
+                // link search lists ("ta:Satisfactory"); the pages judging it are already loaded.
+                var targetNames = targets.Select(row => row.DisplayName).Where(title => !string.IsNullOrWhiteSpace(title)).ToList();
+                var pages = new List<string>();
+                foreach (var id in choice.Ids.Select(TrueGamingLinks.BaseSlug))
+                {
+                    var (page, settled) = await FirstPageAsync(request, targetNames, id, ct).ConfigureAwait(false);
+                    if (!settled)
+                    {
+                        _logger?.Debug($"[TrueGamingMetadata] '{request.Game?.Name}': {id} matched, but some pages could not be read; looking again next refresh.");
+                        return MetadataSourceLink.Unavailable(choice.Trace);
+                    }
+
+                    pages.Add(page == null ? id : TrueGamingLinks.PickedId(page.Site, page.Slug));
+                }
+
                 // A new lookup (a new game, or a reset link) starts the game's pages over.
                 _store.Clear(GameId(request));
-                var chosen = MetadataLinkIds.Join(choice.Ids.Select(TrueGamingLinks.BaseSlug));
+                var chosen = MetadataLinkIds.Join(pages);
                 _logger?.Debug($"[TrueGamingMetadata] '{request.Game?.Name}' -> {chosen} ({choice.Matched}/{targets.Count} matched; {choice.Trace}).");
                 return new MetadataSourceLink(chosen, choice.Label ?? request.Game?.Name, foundByName: true) { Trace = choice.Trace, Matched = choice.Matched };
             }
@@ -166,9 +183,9 @@ namespace PlayniteAchievements.Providers.Metadata.TrueGaming
             }
 
             // A new lookup (a new game, or a reset link) starts the game's pages over.
-            var linkId = TrueGamingLinks.BaseSlug(found[0].Slug);
+            var linkId = TrueGamingLinks.PickedId(found[0].Site, found[0].Slug);
             _store.Clear(GameId(request));
-            Record(request, linkId, outcomes);
+            Record(request, StoreName(linkId), outcomes);
             _logger?.Debug($"[TrueGamingMetadata] '{request.Game?.Name}' -> {linkId} ({Describe(found)}).");
             return new MetadataSourceLink(linkId, request.Game?.Name, foundByName: true);
         }
@@ -405,15 +422,14 @@ namespace PlayniteAchievements.Providers.Metadata.TrueGaming
                     $"{combined.Rows.Count} combined, {combined.MergedByDescription} joined by description, {combined.MergedByPosition} by position" +
                     $"{(failed.Count > 0 ? $"; not loaded: {string.Join(", ", failed.Select(site => site.Host))}" : string.Empty)}.");
             }
-            // A link that is only a page name is stored as the page read first, the form the link
-            // search lists ("ta:Satisfactory"); it reads the same pages. A site that did not load
-            // may have been the first, so the link is then only brought to its one name.
+            // A found link stored as a page name before links named their site is stored as the
+            // page read first ("ta:Satisfactory"), which reads the same pages. A site that did not
+            // load may have been the first, so the link is then only brought to its one name.
             if (picked.Site == null)
             {
                 if (failed.Count == 0)
                 {
                     set.ExtendedLinkId = TrueGamingLinks.PickedId(found[0].Site, found[0].Slug);
-                    set.RewritesUserLink = true;
                 }
                 else if (!string.Equals(name, linkId?.Trim(), StringComparison.Ordinal))
                 {
@@ -576,6 +592,28 @@ namespace PlayniteAchievements.Providers.Metadata.TrueGaming
             }
 
             return (null, settled);
+        }
+
+        /// <summary>
+        /// The first site's page for <paramref name="name"/> in lookup order, as a fetch would read
+        /// it; null when no site has it. Not settled when a site before it could not be read.
+        /// </summary>
+        private async Task<(TrueGamingFoundPage Page, bool Settled)> FirstPageAsync(
+            MetadataLinkRequest request,
+            IReadOnlyCollection<string> targetNames,
+            string name,
+            CancellationToken ct)
+        {
+            foreach (var site in TrueGamingSite.LookupOrder)
+            {
+                var (page, settled) = await FindPageAsync(site, request, targetNames, name, ct).ConfigureAwait(false);
+                if (page != null || !settled)
+                {
+                    return (page, settled);
+                }
+            }
+
+            return (null, true);
         }
 
         /// <summary>One site's list page, as a fetch reads it; for the developer probes.</summary>
