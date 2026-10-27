@@ -414,7 +414,7 @@ namespace PlayniteAchievements.Models.Settings
                     {
                         ShowcaseWidgetOptions.SetPieCenterMode(pie, centerMode);
                         ShowcaseWidgetOptions.SetPieShowIcons(pie, showIcons);
-                        ShowcaseWidgetOptions.SetPieShowLegend(pie, showLegend);
+                        ShowcaseWidgetOptions.SetShowLegend(pie, showLegend);
                         ShowcaseWidgetOptions.SetPieLegendPosition(pie, legendPosition);
                         ShowcaseWidgetOptions.SetPieSmallSliceMode(pie, smallSliceMode);
                         ShowcaseWidgetOptions.SetPieIncludeLocked(pie, includeLocked);
