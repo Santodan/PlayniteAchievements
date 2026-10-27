@@ -381,6 +381,24 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
         public BulkObservableCollection<AchievementDisplayItem> CategoryItems { get; } =
             new BulkObservableCollection<AchievementDisplayItem>();
 
+        private CategorySummaryGridOptions _categoryGridOptions;
+
+        /// <summary>The widget's own category grid display options, which category mode's list follows.</summary>
+        public CategorySummaryGridOptions CategoryGridOptions
+        {
+            get => _categoryGridOptions;
+            private set => SetValue(ref _categoryGridOptions, value);
+        }
+
+        protected override void Refresh()
+        {
+            base.Refresh();
+            var categorySurface = ShowcaseGridSurfaces.ResolveCategorySurface(ColumnSettingsKey);
+            CategoryGridOptions = categorySurface == null
+                ? null
+                : PlayniteAchievementsPlugin.Instance?.Settings?.Persisted?.GridOptions?.GetCategorySummaries(categorySurface);
+        }
+
         protected override void OnItemsRefreshed()
         {
             var gameId = ResolveSingleGameId(Items);
