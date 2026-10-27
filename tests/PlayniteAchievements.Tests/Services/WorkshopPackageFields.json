@@ -69,6 +69,16 @@
     "CategoryImageOverrideData": {
       "Art": "value"
     },
+    "CategorySummaryGridOptions": {
+      "ColorRarityColumnsByRarity": "value",
+      "Columns": "GridColumnLayoutOptions",
+      "RowHeight": "value",
+      "ShowColumnHeaders": "value",
+      "ShowCompletionGlow": "value",
+      "ShowNameAboveProgress": "value",
+      "ShowRarityBadgesBelowProgress": "value",
+      "UseCoverImages": "value"
+    },
     "ColorPackFile": {
       "Kind": "value",
       "ProviderColorOverrides": {
@@ -415,6 +425,9 @@
     "ShowcasePagePortableFile": {
       "AchievementGridSurfaces": {
         "map": "AchievementGridOptions"
+      },
+      "CategoryGridSurfaces": {
+        "map": "CategorySummaryGridOptions"
       },
       "GameGridSurfaces": {
         "map": "GameSummaryGridOptions"
