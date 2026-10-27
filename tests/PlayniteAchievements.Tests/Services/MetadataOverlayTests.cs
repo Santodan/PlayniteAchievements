@@ -1309,28 +1309,6 @@ namespace PlayniteAchievements.Tests.Services
         }
 
         [TestMethod]
-        public async Task RewrittenLink_ReplacesAUsersLink_AndStaysTheirs()
-        {
-            var trueGaming = new FakeSource("TrueGaming", MetadataField.Tags) { ExtendedId = "ta:X", RewritesUserLink = true };
-            trueGaming.Rows.Add(Row("t1", "One"));
-            var data = Game("Steam", Row("s1", "One"));
-            var gameId = data.PlayniteGameId.Value;
-            var overlay = Overlay(new[] { trueGaming }, Choices(tags: trueGaming.Key));
-            overlay.Links.SetUser(gameId, trueGaming.Key, "X");
-            overlay.Links.SetPairing(gameId, trueGaming.Key, "s1", "t1");
-
-            using (var run = overlay.BeginRun())
-            {
-                await run.ApplyAsync(data.Game, data, CancellationToken.None);
-            }
-
-            Assert.IsTrue(overlay.Links.TryGet(gameId, trueGaming.Key, out var rewritten));
-            Assert.AreEqual("ta:X", rewritten.Id);
-            Assert.AreEqual(MetadataLinkOrigin.User, rewritten.Origin, "the link stays the user's");
-            Assert.AreEqual("t1", rewritten.Pairings["s1"]);
-        }
-
-        [TestMethod]
         public async Task XboxPoints_ComeFromTheXboxSource_WhenTrueGamingLoadsForTags()
         {
             var xbox = new FakeSource("Xbox", MetadataField.Points);
@@ -1891,8 +1869,6 @@ namespace PlayniteAchievements.Tests.Services
             /// <summary>The fuller link the fetched set reports.</summary>
             public string ExtendedId { get; set; }
 
-            public bool RewritesUserLink { get; set; }
-
             /// <summary>Whether the fetched rows' text is in the plugin's language.</summary>
             public bool TextInPluginLanguage { get; set; } = true;
 
@@ -1969,7 +1945,6 @@ namespace PlayniteAchievements.Tests.Services
                     ApiNamesMayBeShared = IdsMayBeShared,
                     UnavailableFields = Unavailable,
                     ExtendedLinkId = ExtendedId,
-                    RewritesUserLink = RewritesUserLink,
                     TextInPluginLanguage = TextInPluginLanguage,
                     GameArtUrl = GameArtByLink.TryGetValue(linkId, out var gameArt) ? gameArt : null,
                     EnglishRows = EnglishRows == null
