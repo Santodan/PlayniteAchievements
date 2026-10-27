@@ -117,8 +117,9 @@ namespace PlayniteAchievements.Models.Settings
         }
 
         /// <summary>
-        /// Columns whose header text is blanked: the header menu's eye. The header keeps its
-        /// size, sort arrow and click-to-sort; only the text is not drawn.
+        /// Columns whose header text is blanked (true) or explicitly shown (false): the header
+        /// menu's eye. The header keeps its size, sort arrow and click-to-sort; only the text is
+        /// not drawn. A column absent from the map shows its text unless its grid defaults it to hidden.
         /// </summary>
         public Dictionary<string, bool> HiddenHeaders
         {
