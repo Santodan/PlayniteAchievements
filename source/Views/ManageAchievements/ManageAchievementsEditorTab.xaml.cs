@@ -2502,6 +2502,15 @@ namespace PlayniteAchievements.Views.ManageAchievements
                     {
                         columns.Locked = map;
                     }
+                },
+                getHiddenHeaders: () => GetColumnLayout()?.HiddenHeaders,
+                setHiddenHeaders: map =>
+                {
+                    var columns = GetColumnLayout();
+                    if (columns != null)
+                    {
+                        columns.HiddenHeaders = map;
+                    }
                 });
 
             _columnPersistence.PinnedLeadingKeys = PinnedColumnKeys;
