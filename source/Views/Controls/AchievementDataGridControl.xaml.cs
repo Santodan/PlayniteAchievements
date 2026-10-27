@@ -994,6 +994,20 @@ namespace PlayniteAchievements.Views.Controls
             set => SetValue(CategorySummarySourceProperty, value);
         }
 
+        public static readonly DependencyProperty CategoryModeWithoutControlBarProperty =
+            DependencyProperty.Register(nameof(CategoryModeWithoutControlBar), typeof(bool),
+                typeof(AchievementDataGridControl), new PropertyMetadata(false, OnEnableCategoryModeChanged));
+
+        /// <summary>
+        /// When set, a grid shown without a control bar still enters category mode when Start in
+        /// Category Mode asks for it, and stays in it, since there is no toggle to leave by.
+        /// </summary>
+        public bool CategoryModeWithoutControlBar
+        {
+            get => (bool)GetValue(CategoryModeWithoutControlBarProperty);
+            set => SetValue(CategoryModeWithoutControlBarProperty, value);
+        }
+
         public static readonly DependencyProperty DrillIntoCategorySummarySourceProperty =
             DependencyProperty.Register(nameof(DrillIntoCategorySummarySource), typeof(bool),
                 typeof(AchievementDataGridControl), new PropertyMetadata(false));
@@ -1238,6 +1252,23 @@ namespace PlayniteAchievements.Views.Controls
                 _controlBarWithToggle = null;
             }
 
+            if (EnableCategoryMode &&
+                ControlBar == null &&
+                CategoryModeWithoutControlBar &&
+                IsCategorySourceSingleGame())
+            {
+                // No bar to hold a toggle: Start in Category Mode alone decides, and the mode
+                // stays as it starts.
+                if (_controlBarWithToggle != null)
+                {
+                    RestoreControlBar(_controlBarWithToggle);
+                    _controlBarWithToggle = null;
+                }
+
+                ApplyStartInCategoryModeIfNeeded();
+                return;
+            }
+
             if (!EnableCategoryMode || ControlBar == null || !IsCategorySourceSingleGame())
             {
                 // Disabled, detached, or a multi-game source: leave category mode and strip the
@@ -1337,7 +1368,7 @@ namespace PlayniteAchievements.Views.Controls
         {
             if (_startInCategoryModeApplied ||
                 !EnableCategoryMode ||
-                ControlBar == null ||
+                (ControlBar == null && !CategoryModeWithoutControlBar) ||
                 !IsCategorySourceSingleGame() ||
                 // Wait for a host's whole-game list, which arrives after its rows.
                 (DrillIntoCategorySummarySource && CategorySummarySource?.Any() != true))
