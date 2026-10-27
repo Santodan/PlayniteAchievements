@@ -14,8 +14,8 @@ using System.Threading.Tasks;
 namespace PlayniteAchievements.Providers.Metadata.TrueGaming
 {
     /// <summary>
-    /// Achievement flags (as tags) and DLC groups (as categories) from the TrueGaming sites: TrueAchievements, TrueTrophies and TrueSteamAchievements, tried in that
-    /// order for every platform. Pages are public and load through an offscreen browser view. A
+    /// Achievement flags, as tags, from the TrueGaming sites: TrueAchievements, TrueTrophies and
+    /// TrueSteamAchievements, tried in that order for every platform. Pages are public and load through an offscreen browser view. A
     /// game links to one page name ("Fallout-4"), built from its name; each site is read under it
     /// or its edition variants there ("Fallout-4-PS4"), and where it led is kept in
     /// <see cref="TrueGamingPageStore"/>. Only the pages the wanted fields need are loaded; see
@@ -53,7 +53,7 @@ namespace PlayniteAchievements.Providers.Metadata.TrueGaming
             _views == null ? null : new TrueGamingLinkSearch(this, ResourceProvider.GetString(DisplayNameKey));
 
         public MetadataField SupportedFields =>
-            MetadataField.Tags | MetadataField.Categories | MetadataField.CategoryArt;
+            MetadataField.Tags;
 
         public bool IsNativeFor(string servicingProviderKey) => false;
 
@@ -377,28 +377,18 @@ namespace PlayniteAchievements.Providers.Metadata.TrueGaming
                 set.ExtendedLinkId = name;
             }
 
-            // A needed page that did not load leaves the fields it shares with the others as
-            // stored, not partly replaced; tags stay as stored too when no page flags any row.
+            // A needed page that did not load leaves the tags as stored, not partly replaced; so
+            // does a set where no page flags any row.
             if (failed.Count > 0)
             {
-                set.UnavailableFields |= MetadataField.Tags | MetadataField.Categories;
+                set.UnavailableFields |= MetadataField.Tags;
                 _logger?.Debug(
                     $"[TrueGamingMetadata] '{request.Game?.Name}': {string.Join(", ", failed.Select(site => site.Host))} did not load; stored values kept.");
             }
 
-
             if (set.Achievements.All(row => row.Tags == null))
             {
                 set.UnavailableFields |= MetadataField.Tags;
-            }
-
-            foreach (var art in found.SelectMany(page => page.Page.DlcArt))
-            {
-                var label = CategoryPathHelper.SanitizeSegment(art.Key);
-                if (!string.IsNullOrWhiteSpace(label) && !set.CategoryArtUrls.ContainsKey(label))
-                {
-                    set.CategoryArtUrls[label] = art.Value;
-                }
             }
 
             return set;
@@ -420,7 +410,7 @@ namespace PlayniteAchievements.Providers.Metadata.TrueGaming
         {
             var outcomes = new List<(TrueGamingSite Site, string PageSlug)>();
             var wanted = request.WantedFields == MetadataField.None
-                ? MetadataField.Tags | MetadataField.Categories
+                ? MetadataField.Tags
                 : request.WantedFields;
             var targets = (request.Data?.Achievements ?? new List<AchievementDetail>())
                 .Select(row => row?.DisplayName)
