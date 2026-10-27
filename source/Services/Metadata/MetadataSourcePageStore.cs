@@ -85,6 +85,36 @@ namespace PlayniteAchievements.Services.Metadata
             }
         }
 
+        /// <summary>Forgets the sites of <paramref name="name"/>'s record other than <paramref name="sites"/>.</summary>
+        public void Keep(Guid gameId, string name, IEnumerable<string> sites)
+        {
+            var keep = new HashSet<string>(sites ?? Enumerable.Empty<string>(), StringComparer.OrdinalIgnoreCase);
+            List<MetadataSourcePageRow> rows;
+            lock (_sync)
+            {
+                if (!Games().TryGetValue(gameId, out var record) ||
+                    !string.Equals(record.Name, name, StringComparison.OrdinalIgnoreCase))
+                {
+                    return;
+                }
+
+                var stale = record.Pages.Keys.Where(site => !keep.Contains(site)).ToList();
+                if (stale.Count == 0)
+                {
+                    return;
+                }
+
+                foreach (var site in stale)
+                {
+                    record.Pages.Remove(site);
+                }
+
+                rows = ToRows(gameId, record);
+            }
+
+            Write(gameId, rows);
+        }
+
         /// <summary>Forgets the game's pages, so every site is looked at again.</summary>
         public void Clear(Guid gameId)
         {
