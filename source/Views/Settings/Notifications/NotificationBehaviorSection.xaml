@@ -52,10 +52,20 @@
                                                  Visibility="{Binding Persisted.EnableFriendsFeatures, Converter={StaticResource BoolToVis}}">
                                 <CheckBox IsChecked="{Binding Persisted.EnableFriendUnlockToasts}"/>
                             </controls:SettingRow>
-                            <controls:SettingRow Label="{DynamicResource LOCPlayAch_Settings_EnableProgressToasts}"
-                                                 Margin="0">
+                            <controls:SettingRow Label="{DynamicResource LOCPlayAch_Settings_EnableProgressToasts}">
                                 <CheckBox IsChecked="{Binding Persisted.EnableProgressToasts}"/>
                             </controls:SettingRow>
+                            <StackPanel Margin="{StaticResource PlayAch.Thickness.SettingRow.Indent}"
+                                        IsEnabled="{Binding Persisted.EnableProgressToasts}"
+                                        Grid.IsSharedSizeScope="True">
+                                <controls:SettingRow Label="{DynamicResource LOCPlayAch_Settings_ProgressToastIntervalPercent}"
+                                                     Hint="{DynamicResource LOCPlayAch_Settings_ProgressToastIntervalPercent_Hint}"
+                                                     Margin="0">
+                                    <TextBox Text="{Binding Persisted.ProgressToastIntervalPercent, UpdateSourceTrigger=LostFocus}"
+                                             Width="{StaticResource PlayAch.Size.Input.NarrowWidth}"
+                                             TextAlignment="Right"/>
+                                </controls:SettingRow>
+                            </StackPanel>
                         </StackPanel>
                     </StackPanel>
                 </Border>
