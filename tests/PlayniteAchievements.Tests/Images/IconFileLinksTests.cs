@@ -204,7 +204,7 @@ namespace PlayniteAchievements.Services.Images.Tests
         }
 
         [TestMethod]
-        public async Task LinkIdenticalGameIconFiles_ScansOnlyFoldersTheServiceWroteInto()
+        public async Task LinkIdenticalGameIconFiles_ScansAFolderOnce_ThenOnlyAfterWrites()
         {
             var tempDir = CreateTempDirectory();
             try
@@ -217,18 +217,26 @@ namespace PlayniteAchievements.Services.Images.Tests
 
                 using (var diskImageService = new DiskImageService(logger: null, cacheRoot: tempDir))
                 {
+                    Assert.AreEqual(1, await diskImageService.LinkIdenticalGameIconFilesAsync(gameId, CancellationToken.None),
+                        "the first pass links what the folder already holds");
+
+                    Write(Path.Combine(gameDir, "original", "d.png"), "same");
                     Assert.AreEqual(0, await diskImageService.LinkIdenticalGameIconFilesAsync(gameId, CancellationToken.None),
-                        "files the service did not write are not scanned");
+                        "a scanned folder the service did not write into is skipped");
 
                     await diskImageService.CopyCachedIconAsync(source, Path.Combine(gameDir, "original", "c.png"), CancellationToken.None);
-
                     Assert.AreEqual(2, await diskImageService.LinkIdenticalGameIconFilesAsync(gameId, CancellationToken.None),
-                        "a write into the folder brings the folder into the next pass");
-                    Assert.AreEqual(0, await diskImageService.LinkIdenticalGameIconFilesAsync(gameId, CancellationToken.None),
-                        "the pass clears what it scanned");
+                        "a write brings the folder back into the next pass");
                 }
 
-                Assert.AreEqual(3, LinkCount(first));
+                Write(Path.Combine(gameDir, "original", "e.png"), "same");
+                using (var restarted = new DiskImageService(logger: null, cacheRoot: tempDir))
+                {
+                    Assert.AreEqual(0, await restarted.LinkIdenticalGameIconFilesAsync(gameId, CancellationToken.None),
+                        "the once-scanned record outlives the session");
+                }
+
+                Assert.AreEqual(4, LinkCount(first));
             }
             finally
             {
