@@ -152,6 +152,18 @@ namespace PlayniteAchievements.Tests.Providers
         }
 
         [TestMethod]
+        public void SearchUrls_AskEachSiteTheWayItAnswersGames()
+        {
+            Assert.AreEqual(TrueGamingLinks.SearchUrl("Elden Ring"), TrueGamingLinks.SearchUrl(TrueGamingSite.TrueAchievements, "Elden Ring"));
+            Assert.AreEqual(
+                "https://www.truetrophies.com/true-api/sitesearch/search?q=Elden%20Ring&category=Games&site=tt",
+                TrueGamingLinks.SearchUrl(TrueGamingSite.TrueTrophies, "Elden Ring"));
+            Assert.AreEqual(
+                "https://truesteamachievements.com/search-results?search=Hades",
+                TrueGamingLinks.SearchUrl(TrueGamingSite.TrueSteamAchievements, "Hades"));
+        }
+
+        [TestMethod]
         public void PickedPage_KeepsItsSiteAndEdition()
         {
             Assert.AreEqual((TrueGamingSite.TrueTrophies, "Elden-Ring-PS4"), TrueGamingLinks.Picked("tt:Elden-Ring-PS4"));
