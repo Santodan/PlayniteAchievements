@@ -477,6 +477,9 @@ namespace PlayniteAchievements.Models
         private const string ProfileLayoutOption = "ProfileLayout";
         private const string ProfileLinks = "ProfileLinks";
         private const string MosaicIconSize = "MosaicIconSize";
+        private const string ProfileAvatarWidth = "ProfileAvatarWidth";
+        private const string ProfileAvatarHeight = "ProfileAvatarHeight";
+        private const string ProfileLinkIconSize = "ProfileLinkIconSize";
         private const string MosaicCoverWidth = "MosaicCoverWidth";
         private const string MosaicSpacing = "MosaicSpacing";
         private const string Sort = "Sort";
@@ -1177,6 +1180,48 @@ namespace PlayniteAchievements.Models
         public static void SetProfileShowLinks(ShowcaseWidgetInstanceSettings settings, bool value) =>
             settings?.SetOption(ProfileLinks, value);
 
+        /// <summary>Standard-density profile picture size, shown in the editor when no size is set.</summary>
+        public const int DefaultProfileAvatarSize = 72;
+
+        /// <summary>Profile link icon size, shown in the editor when no size is set.</summary>
+        public const int DefaultProfileLinkIconSize = 18;
+
+        /// <summary>
+        /// A fixed profile picture width in pixels, or null to follow the widget's density. Width
+        /// and height are separate, so the picture need not be square.
+        /// </summary>
+        public static int? GetProfileAvatarWidthOverride(ShowcaseWidgetInstanceSettings settings) =>
+            GetPixelOverride(settings, ProfileAvatarWidth, MinProfileAvatarSize, MaxProfileAvatarSize);
+
+        public static int GetProfileAvatarWidth(ShowcaseWidgetInstanceSettings settings) =>
+            GetProfileAvatarWidthOverride(settings) ?? DefaultProfileAvatarSize;
+
+        public static void SetProfileAvatarWidth(ShowcaseWidgetInstanceSettings settings, int value) =>
+            settings?.SetOption(ProfileAvatarWidth, Clamp(value, MinProfileAvatarSize, MaxProfileAvatarSize));
+
+        /// <summary>A fixed profile picture height in pixels, or null to follow the widget's density.</summary>
+        public static int? GetProfileAvatarHeightOverride(ShowcaseWidgetInstanceSettings settings) =>
+            GetPixelOverride(settings, ProfileAvatarHeight, MinProfileAvatarSize, MaxProfileAvatarSize);
+
+        public static int GetProfileAvatarHeight(ShowcaseWidgetInstanceSettings settings) =>
+            GetProfileAvatarHeightOverride(settings) ?? DefaultProfileAvatarSize;
+
+        public static void SetProfileAvatarHeight(ShowcaseWidgetInstanceSettings settings, int value) =>
+            settings?.SetOption(ProfileAvatarHeight, Clamp(value, MinProfileAvatarSize, MaxProfileAvatarSize));
+
+        /// <summary>The profile link icon size in pixels; unset means <see cref="DefaultProfileLinkIconSize"/>.</summary>
+        public static int GetProfileLinkIconSize(ShowcaseWidgetInstanceSettings settings) =>
+            GetPixelOverride(settings, ProfileLinkIconSize, MinProfileLinkIconSize, MaxProfileLinkIconSize)
+            ?? DefaultProfileLinkIconSize;
+
+        public static void SetProfileLinkIconSize(ShowcaseWidgetInstanceSettings settings, int value) =>
+            settings?.SetOption(ProfileLinkIconSize, Clamp(value, MinProfileLinkIconSize, MaxProfileLinkIconSize));
+
+        private const int MinProfileAvatarSize = 16;
+        private const int MaxProfileAvatarSize = 512;
+        private const int MinProfileLinkIconSize = 8;
+        private const int MaxProfileLinkIconSize = 64;
+
 
         public static ShowcasePointsGrouping GetPointsGrouping(ShowcaseWidgetInstanceSettings settings) =>
             GetEnum(settings, Grouping, ShowcasePointsGrouping.Provider);
@@ -1234,14 +1279,17 @@ namespace PlayniteAchievements.Models
         private const int MinMosaicTileSize = 16;
         private const int MaxMosaicTileSize = 256;
 
-        private static int? GetPixelOverride(ShowcaseWidgetInstanceSettings settings, string key)
+        private static int? GetPixelOverride(ShowcaseWidgetInstanceSettings settings, string key) =>
+            GetPixelOverride(settings, key, MinMosaicTileSize, MaxMosaicTileSize);
+
+        private static int? GetPixelOverride(ShowcaseWidgetInstanceSettings settings, string key, int min, int max)
         {
             if (settings?.Options == null || !settings.Options.ContainsKey(key))
             {
                 return null;
             }
 
-            return Clamp(settings.GetOption(key, 0), MinMosaicTileSize, MaxMosaicTileSize);
+            return Clamp(settings.GetOption(key, 0), min, max);
         }
 
         /// <summary>Space around each mosaic tile, in pixels (0-40); 6 is the original fixed margin.</summary>
