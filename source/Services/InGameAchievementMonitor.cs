@@ -836,10 +836,10 @@ namespace PlayniteAchievements.Services
             var held = write.Changed
                 ? TakeHeldCapstones(state.Game.Id)
                 : Array.Empty<AchievementUnlockedEventArgs>();
-            AchievementUnlockedEventArgs completion = null;
+            var emission = (Reaches100Percent: false, Completion: (AchievementUnlockedEventArgs)null);
             if (emittableKeys.Count > 0)
             {
-                completion = EmitUserUnlocks(
+                emission = EmitUserUnlocks(
                     state,
                     before,
                     after,
@@ -848,21 +848,21 @@ namespace PlayniteAchievements.Services
                     observedUtc,
                     anchorPolicy,
                     anchorBias,
-                    heldCapstoneCompletes: held.Count > 0);
+                    held);
             }
 
             AnnounceHeldCapstones(
                 held,
                 emittableKeys.Count > 0,
-                completion != null,
+                emission.Reaches100Percent,
                 after,
                 observedUtc,
                 anchorPolicy,
                 anchorBias);
 
-            if (completion != null)
+            if (emission.Completion != null)
             {
-                _notifyUnlocked?.Invoke(completion);
+                _notifyUnlocked?.Invoke(emission.Completion);
             }
 
             var progressed = EmitProgressAdvances(state, before, after, primed, observedUtc);
@@ -1326,8 +1326,8 @@ namespace PlayniteAchievements.Services
                         // The refresh above already brought the capstone up to date; its unlock
                         // was held so it lands after the achievement that earned it.
                         var held = TakeHeldCapstones(state.Game.Id);
-                        var completion = keys.Count == 0
-                            ? null
+                        var emission = keys.Count == 0
+                            ? (Reaches100Percent: false, Completion: (AchievementUnlockedEventArgs)null)
                             : EmitUserUnlocks(
                                 state,
                                 before,
@@ -1341,20 +1341,20 @@ namespace PlayniteAchievements.Services
                                 // resolves to ProviderReported.
                                 InGameUnlockAnchorSelector.ResolvePolicy(state.Registration),
                                 state.Registration?.UnlockAnchorBias ?? TimeSpan.Zero,
-                                heldCapstoneCompletes: held.Count > 0);
+                                held);
 
                         AnnounceHeldCapstones(
                             held,
                             keys.Count > 0,
-                            completion != null,
+                            emission.Reaches100Percent,
                             after,
                             observedUtc,
                             InGameUnlockAnchorSelector.ResolvePolicy(state.Registration),
                             state.Registration?.UnlockAnchorBias ?? TimeSpan.Zero);
 
-                        if (completion != null)
+                        if (emission.Completion != null)
                         {
-                            _notifyUnlocked?.Invoke(completion);
+                            _notifyUnlocked?.Invoke(emission.Completion);
                         }
 
                         EmitProgressAdvances(state, before, after, primed, observedUtc);
@@ -1442,7 +1442,12 @@ namespace PlayniteAchievements.Services
             }
         }
 
-        private AchievementUnlockedEventArgs EmitUserUnlocks(
+        /// <returns>
+        /// Whether the batch reached 100%, and the standalone completion notification to send
+        /// after any held capstones, null when the batch did not reach 100% or
+        /// <see cref="CompletionNotificationPolicy"/> leaves the completion to the capstone.
+        /// </returns>
+        private (bool Reaches100Percent, AchievementUnlockedEventArgs Completion) EmitUserUnlocks(
             GamePollState state,
             GameAchievementData before,
             GameAchievementData after,
@@ -1451,8 +1456,9 @@ namespace PlayniteAchievements.Services
             DateTime observedUtc,
             InGameUnlockAnchorPolicy anchorPolicy,
             TimeSpan anchorBias,
-            bool heldCapstoneCompletes)
+            IReadOnlyList<AchievementUnlockedEventArgs> held)
         {
+            var heldCapstoneCompletes = held?.Count > 0;
             var game = state.Game;
             // Both snapshots take the custom-data overlay. A manual capstone lives in the custom
             // data store rather than the cache row, so an unhydrated snapshot would drop the
@@ -1528,9 +1534,28 @@ namespace PlayniteAchievements.Services
             // completing batch. Null when the provider supplies no timestamps, so the completion
             // toast shows no datetime exactly when its unlocks don't.
             var completionTimeUtc = claimed.Select(a => a?.UnlockTimeUtc).Max();
-            return reaches100Percent
+            if (!reaches100Percent)
+            {
+                return (false, null);
+            }
+
+            // The unlock that reached 100%: the last held capstone (AnnounceHeldCapstones flags the
+            // same one), else the one flagged above. The snapshot is hydrated, so held auto
+            // capstones are found among its rows with their category kind.
+            var finishingApiName = heldCapstoneCompletes
+                ? held.LastOrDefault(args => args != null)?.ApiName
+                : completingApiName;
+            var finishing = string.IsNullOrWhiteSpace(finishingApiName)
+                ? null
+                : after?.Achievements?.FirstOrDefault(a =>
+                    string.Equals(a?.ApiName, finishingApiName, StringComparison.OrdinalIgnoreCase));
+            var sendsStandalone = CompletionNotificationPolicy.SendsStandalone(
+                _settings?.Persisted?.SkipCompletionNotificationAfterCapstone == true,
+                finishing?.IsCapstone == true,
+                finishing?.CategoryKind);
+            return (true, sendsStandalone
                 ? CreateUserCompletionEventArgs(game, after, completionTimeUtc, observedUtc, anchorPolicy, anchorBias)
-                : null;
+                : null);
         }
 
         /// <summary>
@@ -1784,7 +1809,15 @@ namespace PlayniteAchievements.Services
             // The completion time is the triggering achievement's unlock time — the latest in the
             // completing batch — and null when the provider supplies no timestamps.
             var completionTimeUtc = fresh.Select(row => row?.UnlockTimeUtc).Max();
-            return (fresh.Count, reaches100Percent ? CreateFriendCompletionEventArgs(state.Game, target, rows, completionTimeUtc) : null);
+            var finishing = completingFriendApiName == null
+                ? null
+                : fresh.FirstOrDefault(row =>
+                    string.Equals(row?.ApiName, completingFriendApiName, StringComparison.OrdinalIgnoreCase));
+            var sendsStandalone = reaches100Percent && CompletionNotificationPolicy.SendsStandalone(
+                _settings?.Persisted?.SkipCompletionNotificationAfterCapstone == true,
+                finishing?.IsCapstone == true,
+                finishing?.CategoryKind);
+            return (fresh.Count, sendsStandalone ? CreateFriendCompletionEventArgs(state.Game, target, rows, completionTimeUtc) : null);
         }
 
         private HashSet<string> GetToastedFriendSet(GamePollState state, FriendPollTarget target)
