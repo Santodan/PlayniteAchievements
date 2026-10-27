@@ -28,8 +28,8 @@ namespace PlayniteAchievements.Services.Images.Tests
 
                 using (var diskImageService = new DiskImageService(logger: null, cacheRoot: tempDir))
                 {
-                    var linked = await diskImageService.LinkIdenticalGameIconFilesAsync(gameId, CancellationToken.None);
-                    var again = await diskImageService.LinkIdenticalGameIconFilesAsync(gameId, CancellationToken.None);
+                    var linked = await diskImageService.LinkIdenticalGameIconFilesAsync(gameId, CancellationToken.None, onlyWhenWritten: false);
+                    var again = await diskImageService.LinkIdenticalGameIconFilesAsync(gameId, CancellationToken.None, onlyWhenWritten: false);
 
                     Assert.AreEqual(2, linked);
                     Assert.AreEqual(0, again);
@@ -63,7 +63,7 @@ namespace PlayniteAchievements.Services.Images.Tests
 
                 using (var diskImageService = new DiskImageService(logger: null, cacheRoot: tempDir))
                 {
-                    await diskImageService.LinkIdenticalGameIconFilesAsync(gameId, CancellationToken.None);
+                    await diskImageService.LinkIdenticalGameIconFilesAsync(gameId, CancellationToken.None, onlyWhenWritten: false);
                     Assert.AreEqual(2, LinkCount(first));
 
                     await diskImageService.CopyCachedIconAsync(replacement, second, CancellationToken.None, overwriteExistingTarget: true);
@@ -92,7 +92,7 @@ namespace PlayniteAchievements.Services.Images.Tests
 
                 using (var diskImageService = new DiskImageService(logger: null, cacheRoot: tempDir))
                 {
-                    await diskImageService.LinkIdenticalGameIconFilesAsync(gameId, CancellationToken.None);
+                    await diskImageService.LinkIdenticalGameIconFilesAsync(gameId, CancellationToken.None, onlyWhenWritten: false);
                     await diskImageService.ReplaceCachedImageBytesAsync(second, Encoding.UTF8.GetBytes("small"), CancellationToken.None);
                 }
 
@@ -123,11 +123,11 @@ namespace PlayniteAchievements.Services.Images.Tests
                     using (new FileStream(first, FileMode.Open, FileAccess.Read, FileShare.Read))
                     using (new FileStream(second, FileMode.Open, FileAccess.Read, FileShare.Read))
                     {
-                        linked = await diskImageService.LinkIdenticalGameIconFilesAsync(gameId, CancellationToken.None);
+                        linked = await diskImageService.LinkIdenticalGameIconFilesAsync(gameId, CancellationToken.None, onlyWhenWritten: false);
                     }
 
                     Assert.AreEqual(0, linked);
-                    Assert.AreEqual(1, await diskImageService.LinkIdenticalGameIconFilesAsync(gameId, CancellationToken.None),
+                    Assert.AreEqual(1, await diskImageService.LinkIdenticalGameIconFilesAsync(gameId, CancellationToken.None, onlyWhenWritten: false),
                         "the next pass links them once they are closed");
                 }
 
@@ -160,7 +160,7 @@ namespace PlayniteAchievements.Services.Images.Tests
                             .ToList();
                         var target = originals[i % originals.Count];
 
-                        var link = Task.Run(() => diskImageService.LinkIdenticalGameIconFilesAsync(gameId, CancellationToken.None));
+                        var link = Task.Run(() => diskImageService.LinkIdenticalGameIconFilesAsync(gameId, CancellationToken.None, onlyWhenWritten: false));
                         var overwrite = Task.Run(() => diskImageService.CopyCachedIconAsync(replacement, target, CancellationToken.None, overwriteExistingTarget: true));
                         await Task.WhenAll(link, overwrite);
 
@@ -189,13 +189,46 @@ namespace PlayniteAchievements.Services.Images.Tests
 
                 using (var diskImageService = new DiskImageService(logger: null, cacheRoot: tempDir))
                 {
-                    await diskImageService.LinkIdenticalGameIconFilesAsync(gameId, CancellationToken.None);
+                    await diskImageService.LinkIdenticalGameIconFilesAsync(gameId, CancellationToken.None, onlyWhenWritten: false);
                     diskImageService.DeleteCacheRelativeDirectory(Path.Combine("icon_cache", gameId, "metadata", "PlayStation"));
                 }
 
                 Assert.IsFalse(Directory.Exists(Path.Combine(gameDir, "metadata", "PlayStation")));
                 Assert.AreEqual("same", File.ReadAllText(own));
                 Assert.AreEqual(1, LinkCount(own));
+            }
+            finally
+            {
+                DeleteDirectory(tempDir);
+            }
+        }
+
+        [TestMethod]
+        public async Task LinkIdenticalGameIconFiles_ScansOnlyFoldersTheServiceWroteInto()
+        {
+            var tempDir = CreateTempDirectory();
+            try
+            {
+                var gameId = Guid.NewGuid().ToString("D");
+                var gameDir = Path.Combine(tempDir, "icon_cache", gameId);
+                var first = Write(Path.Combine(gameDir, "original", "a.png"), "same");
+                Write(Path.Combine(gameDir, "original", "b.png"), "same");
+                var source = Write(Path.Combine(tempDir, "source.png"), "same");
+
+                using (var diskImageService = new DiskImageService(logger: null, cacheRoot: tempDir))
+                {
+                    Assert.AreEqual(0, await diskImageService.LinkIdenticalGameIconFilesAsync(gameId, CancellationToken.None),
+                        "files the service did not write are not scanned");
+
+                    await diskImageService.CopyCachedIconAsync(source, Path.Combine(gameDir, "original", "c.png"), CancellationToken.None);
+
+                    Assert.AreEqual(2, await diskImageService.LinkIdenticalGameIconFilesAsync(gameId, CancellationToken.None),
+                        "a write into the folder brings the folder into the next pass");
+                    Assert.AreEqual(0, await diskImageService.LinkIdenticalGameIconFilesAsync(gameId, CancellationToken.None),
+                        "the pass clears what it scanned");
+                }
+
+                Assert.AreEqual(3, LinkCount(first));
             }
             finally
             {
