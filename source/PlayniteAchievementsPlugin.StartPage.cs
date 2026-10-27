@@ -108,8 +108,8 @@ namespace PlayniteAchievements
                 viewId,
                 instanceId,
                 definition.ShowcaseWidgetKind.Value);
-            // The custom title, then (for the profile card) its identity, then the display
-            // options, as in the Showcase widget dialog; each persists on edit.
+            // The custom title and its alignment, then (for the profile card) its identity, then
+            // the display options, as in the Showcase widget dialog; each persists on edit.
             var panel = new StackPanel { Margin = new Thickness(16) };
             ShowcaseProfileSettingsEditor.AddTextBox(
                 panel,
@@ -121,14 +121,15 @@ namespace PlayniteAchievements
                     PersistSettingsForUi();
                     ShowcaseConfigurationEvents.RaiseChanged();
                 });
+            ShowcaseProfileSettingsEditor profileEditor = null;
             if (settings.Kind == ShowcaseWidgetKind.Profile)
             {
                 var profile = settings.Profile ?? (settings.Profile = new ShowcaseProfileSettings());
-                panel.Children.Add(new ShowcaseProfileSettingsEditor(profile, () =>
+                profileEditor = new ShowcaseProfileSettingsEditor(profile, () =>
                 {
                     PersistSettingsForUi();
                     ShowcaseConfigurationEvents.RaiseChanged();
-                }));
+                });
             }
 
             panel.Children.Add(new ShowcaseWidgetOptionsControl(
@@ -136,7 +137,8 @@ namespace PlayniteAchievements
                 PersistSettingsForUi,
                 margin: new Thickness(0),
                 loadStyles: false,
-                backgroundDefault: false));
+                backgroundDefault: false,
+                contentAfterSharedRows: profileEditor));
             var host = new UserControl { Content = panel };
             host.Resources.MergedDictionaries.Add(new ResourceDictionary
             {
