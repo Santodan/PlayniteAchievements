@@ -510,6 +510,10 @@ namespace PlayniteAchievements.Providers.Metadata.TrueGaming
             return (null, settled);
         }
 
+        /// <summary>One site's list page, as a fetch reads it; for the developer probes.</summary>
+        internal Task<TrueGamingPage> LoadPageAsync(TrueGamingSite site, string slug, CancellationToken ct) =>
+            _views == null ? Task.FromResult(new TrueGamingPage()) : GetPageAsync(site, slug, ct);
+
         /// <summary>The game's achievement titles in English; empty when there are none to compare.</summary>
         private static async Task<IReadOnlyCollection<string>> EnglishTitlesAsync(MetadataLinkRequest request, CancellationToken ct)
         {
