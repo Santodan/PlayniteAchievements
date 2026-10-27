@@ -160,9 +160,6 @@ namespace PlayniteAchievements.Services.Metadata
             if (!finalIds.SequenceEqual(requestedIds, StringComparer.OrdinalIgnoreCase))
             {
                 combined.ExtendedLinkId = MetadataLinkIds.Join(finalIds);
-                combined.RewritesUserLink = fetched
-                    .Where(list => !string.IsNullOrWhiteSpace(list.Set.ExtendedLinkId))
-                    .All(list => list.Set.RewritesUserLink);
             }
 
             return combined;
