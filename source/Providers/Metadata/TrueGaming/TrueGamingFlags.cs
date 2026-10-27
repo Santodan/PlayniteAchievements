@@ -30,6 +30,13 @@ namespace PlayniteAchievements.Providers.Metadata.TrueGaming
                 ["Partly Disc/Unob"] = new[] { "PartlyDiscontinued", AchievementTagHelper.Unobtainable }
             };
 
+        // Flags about one platform's version of a game, which the sites disagree on across platforms.
+        private static readonly HashSet<string> PlatformFlagNames =
+            new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "Buggy +", "Buggy -", "Platinum" };
+
+        /// <summary>Whether a flag describes one platform's version, so it is taken only from that platform's site.</summary>
+        public static bool IsPlatformFlag(string flagName) => PlatformFlagNames.Contains((flagName ?? string.Empty).Trim());
+
         /// <summary>The tag keys of a row's flags, pipe-joined; null for none.</summary>
         public static string ToTags(IEnumerable<string> flagNames) =>
             AchievementTagHelper.Combine((flagNames ?? Enumerable.Empty<string>()).SelectMany(KeysFor));
