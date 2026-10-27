@@ -3491,6 +3491,14 @@ namespace PlayniteAchievements.Views.Controls
                     {
                         SetLocksByKey(settings, map);
                     }
+                },
+                getHiddenHeaders: () => GetColumnLayoutOptions(settings)?.HiddenHeaders,
+                setHiddenHeaders: map =>
+                {
+                    if (AllowLayoutPersistence)
+                    {
+                        SetHiddenHeadersByKey(settings, map);
+                    }
                 });
             _columnPersistence.DelayInitialRenderUntilNormalized = DelayInitialRenderUntilNormalized;
         }
@@ -3774,6 +3782,15 @@ namespace PlayniteAchievements.Views.Controls
             if (options != null)
             {
                 options.HeaderAlignments = map;
+            }
+        }
+
+        private void SetHiddenHeadersByKey(PlayniteAchievementsSettings settings, Dictionary<string, bool> map)
+        {
+            var options = GetColumnLayoutOptions(settings);
+            if (options != null)
+            {
+                options.HiddenHeaders = map;
             }
         }
 
