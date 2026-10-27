@@ -230,7 +230,8 @@ namespace PlayniteAchievements.ViewModels
             Brush completedTitleBrush,
             bool showInlineBadge,
             object inlineBadgeSource,
-            double inlineBadgeSize)
+            double inlineBadgeSize,
+            string completionTitleText)
             : base(parent, fontSize, fontFamily, textShadow)
         {
             ShowName = showName;
@@ -239,9 +240,13 @@ namespace PlayniteAchievements.ViewModels
             ShowInlineBadge = showInlineBadge;
             InlineBadgeSource = inlineBadgeSource;
             InlineBadgeSize = inlineBadgeSize;
+            CompletionTitleText = completionTitleText;
         }
 
         public bool ShowName { get; }
+
+        /// <summary>The resolved game-completion title text for this line's surface.</summary>
+        public string CompletionTitleText { get; }
 
         public Brush TitleBrush { get; }
 
