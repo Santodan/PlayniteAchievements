@@ -27,6 +27,7 @@ namespace PlayniteAchievements.Views.Showcase
         private readonly bool _backgroundDefault;
         private TextBox _titleBox;
         private ShowcaseProfileSettingsEditor _profileEditor;
+        private ShowcaseWidgetOptionsControl _options;
 
         private ShowcaseWidgetSettingsDialog(
             ShowcaseWidgetInstanceSettings widget,
@@ -99,6 +100,12 @@ namespace PlayniteAchievements.Views.Showcase
             WindowPlacementPersistenceService.Attach(window, WindowPlacementKey);
 
             window.ShowDialog();
+            if (!editor.Saved)
+            {
+                // Cancel and the close button both land here.
+                editor._options?.RevertLivePreview();
+            }
+
             return editor.Saved;
         }
 
@@ -140,14 +147,16 @@ namespace PlayniteAchievements.Views.Showcase
             // only its kind's options. The profile editor follows the shared rows.
             if (!_linked || ShowcaseWidgetOptionsControl.HasOptions(_workingWidget.Kind))
             {
-                panel.Children.Add(new ShowcaseWidgetOptionsControl(
+                _options = new ShowcaseWidgetOptionsControl(
                     _workingWidget,
                     publishChanges: false,
                     margin: new Thickness(0),
                     loadStyles: false,
                     includeScoreHistory: _includeScoreHistory,
                     backgroundDefault: _linked ? (bool?)null : _backgroundDefault,
-                    contentAfterSharedRows: _profileEditor));
+                    contentAfterSharedRows: _profileEditor,
+                    liveWidget: _sourceWidget);
+                panel.Children.Add(_options);
             }
             else if (_profileEditor != null)
             {
