@@ -405,9 +405,20 @@ namespace PlayniteAchievements.Providers.Metadata.TrueGaming
                     $"{combined.Rows.Count} combined, {combined.MergedByDescription} joined by description, {combined.MergedByPosition} by position" +
                     $"{(failed.Count > 0 ? $"; not loaded: {string.Join(", ", failed.Select(site => site.Host))}" : string.Empty)}.");
             }
-            if (picked.Site == null && !string.Equals(name, linkId?.Trim(), StringComparison.Ordinal))
+            // A link that is only a page name is stored as the page read first, the form the link
+            // search lists ("ta:Satisfactory"); it reads the same pages. A site that did not load
+            // may have been the first, so the link is then only brought to its one name.
+            if (picked.Site == null)
             {
-                set.ExtendedLinkId = name;
+                if (failed.Count == 0)
+                {
+                    set.ExtendedLinkId = TrueGamingLinks.PickedId(found[0].Site, found[0].Slug);
+                    set.RewritesUserLink = true;
+                }
+                else if (!string.Equals(name, linkId?.Trim(), StringComparison.Ordinal))
+                {
+                    set.ExtendedLinkId = name;
+                }
             }
 
             // A needed page that did not load leaves the tags as stored, not partly replaced; so
