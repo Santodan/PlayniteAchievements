@@ -227,6 +227,9 @@
       "HeaderAlignments": {
         "map": "value"
       },
+      "HiddenHeaders": {
+        "map": "value"
+      },
       "Locked": {
         "map": "value"
       },
