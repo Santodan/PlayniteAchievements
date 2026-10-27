@@ -820,6 +820,7 @@
     <!-- RecentAchievements: the shared achievement grid over the latest unlocks. -->
     <DataTemplate DataType="{x:Type widgets:RecentAchievementsWidgetViewModel}">
         <showcase:ShowcaseAchievementGridControl ItemsSource="{Binding Items}"
+                                                 CategoryItemsSource="{Binding CategoryItems}"
                                                  ColumnSettingsKey="{Binding ColumnSettingsKey}"
                                                  ControlBar="{Binding ControlBar}"
                                                  ShowControlBar="{Binding ShowControlBar}"
