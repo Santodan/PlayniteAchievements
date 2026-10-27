@@ -391,15 +391,25 @@
                                                     Command="{Binding ChangeCommand}"
                                                     VerticalAlignment="Center"
                                                     Margin="{StaticResource PlayAch.Thickness.Left.Sm}" />
-                                            <!-- Back to automatic matching; off while there is no stored link to drop (IcoFont undo). -->
+                                            <!-- Back to automatic matching; hidden, keeping its place, while there is no
+                                                 stored link to drop, as for a link the game implies (IcoFont undo). -->
                                             <Button Grid.Column="3"
                                                     Content="&#xEE0B;"
-                                                    Style="{StaticResource OverviewIconButtonStyle}"
                                                     ToolTip="{DynamicResource LOCResetLabel}"
                                                     AutomationProperties.Name="{DynamicResource LOCResetLabel}"
                                                     Command="{Binding ClearCommand}"
                                                     VerticalAlignment="Center"
-                                                    Margin="{StaticResource PlayAch.Thickness.Left.Sm}" />
+                                                    Margin="{StaticResource PlayAch.Thickness.Left.Sm}">
+                                                <Button.Style>
+                                                    <Style TargetType="Button" BasedOn="{StaticResource OverviewIconButtonStyle}">
+                                                        <Style.Triggers>
+                                                            <DataTrigger Binding="{Binding CanReset}" Value="False">
+                                                                <Setter Property="Visibility" Value="Hidden"/>
+                                                            </DataTrigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </Button.Style>
+                                            </Button>
                                             <!-- The match count, and the pairings window for the source's match list. -->
                                             <TextBlock Grid.Column="4"
                                                        Style="{StaticResource SettingStatusStyle}"
