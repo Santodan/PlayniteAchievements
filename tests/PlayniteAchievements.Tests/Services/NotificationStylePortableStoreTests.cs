@@ -278,6 +278,33 @@ namespace PlayniteAchievements.Services.Tests
         }
 
         [TestMethod]
+        public void ExportSurfacePackage_Toast_RoundTripsBlurFields()
+        {
+            var tempDir = CreateTempDirectory();
+            try
+            {
+                var store = CreateStore(tempDir, out _);
+
+                var style = NotificationStyleSettings.CreateDefault();
+                style.Toast.BlurBackground = true;
+                style.Toast.BlurStrength = 80;
+                style.Toast.BlurTintOpacity = 25;
+
+                var filePath = Path.Combine(tempDir, "blur.panotif");
+                store.ExportSurfacePackage(isFrame: false, style, filePath);
+
+                var imported = Read(store, tempDir, filePath);
+                Assert.IsTrue(imported.Toast.BlurBackground);
+                Assert.AreEqual(80, imported.Toast.BlurStrength);
+                Assert.AreEqual(25, imported.Toast.BlurTintOpacity);
+            }
+            finally
+            {
+                DeleteDirectory(tempDir);
+            }
+        }
+
+        [TestMethod]
         public void ExportSurfacePackage_Toast_UnsetMotionStaysUnset()
         {
             var tempDir = CreateTempDirectory();
