@@ -20,7 +20,7 @@ namespace PlayniteAchievements.Providers.Metadata.TrueGaming
     internal static class TrueGamingProbe
     {
         /// <summary>Hardcoded gate for the hidden "Probe TrueGaming" menu item. Off in shipped builds.</summary>
-        internal static readonly bool Enabled = false;
+        internal static readonly bool Enabled = true;
 
         // The site and comparison checks of earlier probes.
         private static readonly bool RunSiteChecks = false;
@@ -30,7 +30,7 @@ namespace PlayniteAchievements.Providers.Metadata.TrueGaming
 
         // Games whose sites name some achievements differently: each site's rows, what Combine
         // makes of them, and which rows the sites share a description for but not a name.
-        private static readonly string[] MergeGames = { "Asterigos-Curse-of-the-Stars" };
+        private static readonly string[] MergeGames = { "AI-The-Somnium-Files" };
 
         // How the sites choose the language of achievement titles: what the browser sends, what
         // each page says, and whether an address parameter changes the titles.
