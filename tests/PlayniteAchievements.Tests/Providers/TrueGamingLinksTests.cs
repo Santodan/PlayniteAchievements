@@ -124,7 +124,7 @@ namespace PlayniteAchievements.Tests.Providers
                 "<Game><GameID>9305</GameID><Title>Fallout 4 (Windows) &amp; More</Title><Url>/game/Fallout-4-Windows/achievements</Url></Game></Games>" +
                 "</SearchResults></ResultsXML></SiteSearchController.SiteSearchResponse>";
 
-            var games = TrueGamingLinks.ParseSearch(text);
+            var games = TrueGamingLinks.ParseSiteSearch(text);
 
             CollectionAssert.AreEqual(new[] { "Fallout-4", "Fallout-4-Windows" }, games.Select(game => game.Slug).ToList());
             Assert.AreEqual("Fallout 4 (Windows) & More", games[1].Title);
@@ -179,8 +179,8 @@ namespace PlayniteAchievements.Tests.Providers
         [TestMethod]
         public void SiteSearch_WithNoGames_ListsNone()
         {
-            Assert.AreEqual(0, TrueGamingLinks.ParseSearch("<SearchResults><TotalGames>0</TotalGames></SearchResults>").Count);
-            Assert.AreEqual(0, TrueGamingLinks.ParseSearch(null).Count);
+            Assert.AreEqual(0, TrueGamingLinks.ParseSiteSearch("<SearchResults><TotalGames>0</TotalGames></SearchResults>").Count);
+            Assert.AreEqual(0, TrueGamingLinks.ParseSiteSearch(null).Count);
         }
     }
 }
