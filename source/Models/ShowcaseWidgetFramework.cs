@@ -123,6 +123,9 @@ namespace PlayniteAchievements.Models
         public const string RecentAchievements = "ShowcaseRecentAchievements";
         public const string GameSummaries = "ShowcaseGameSummaries";
 
+        /// <summary>An achievement grid widget's category list, which category mode shows.</summary>
+        public const string AchievementCategories = "ShowcaseAchievementCategories";
+
         private const char InstanceSeparator = ':';
 
         public static string ForInstance(string baseKey, string instanceId)
@@ -157,6 +160,44 @@ namespace PlayniteAchievements.Models
                 GetBaseKey(columnSettingsKey),
                 GameSummaries,
                 StringComparison.OrdinalIgnoreCase);
+        }
+
+        public static bool IsAchievementCategorySurface(string columnSettingsKey)
+        {
+            return string.Equals(
+                GetBaseKey(columnSettingsKey),
+                AchievementCategories,
+                StringComparison.OrdinalIgnoreCase);
+        }
+
+        /// <summary>
+        /// The category list surface of the achievement grid widget whose surface is
+        /// <paramref name="achievementSurfaceKey"/>, or null for any other surface.
+        /// </summary>
+        public static string ResolveCategorySurface(string achievementSurfaceKey)
+        {
+            if (!IsAchievementSurface(achievementSurfaceKey))
+            {
+                return null;
+            }
+
+            var separator = achievementSurfaceKey.IndexOf(InstanceSeparator);
+            return ForInstance(
+                AchievementCategories,
+                separator < 0 ? null : achievementSurfaceKey.Substring(separator + 1));
+        }
+
+        /// <summary>The widget instance a per-instance surface key belongs to, or null for a bare base key.</summary>
+        public static string GetInstanceId(string columnSettingsKey)
+        {
+            var separator = columnSettingsKey?.IndexOf(InstanceSeparator) ?? -1;
+            if (separator < 0)
+            {
+                return null;
+            }
+
+            var instanceId = columnSettingsKey.Substring(separator + 1).Trim();
+            return instanceId.Length > 0 ? instanceId : null;
         }
 
         /// <summary>
@@ -201,6 +242,9 @@ namespace PlayniteAchievements.Models
             if (IsAchievementSurface(sourceKey) && IsAchievementSurface(targetKey))
             {
                 catalog.SetAchievement(targetKey, catalog.GetAchievement(sourceKey));
+                catalog.SetCategorySummaries(
+                    ResolveCategorySurface(targetKey),
+                    catalog.GetCategorySummaries(ResolveCategorySurface(sourceKey)));
             }
             else if (IsGameSurface(sourceKey) && IsGameSurface(targetKey))
             {
@@ -250,6 +294,13 @@ namespace PlayniteAchievements.Models
             {
                 catalog.RemoveGameSummaries(key);
             }
+
+            foreach (var key in catalog.CategorySummaries.Keys
+                .Where(key => IsOrphanedInstanceKey(key, IsAchievementCategorySurface, live))
+                .ToList())
+            {
+                catalog.RemoveCategorySummaries(key);
+            }
         }
 
         private static bool IsOrphanedInstanceKey(
@@ -262,14 +313,8 @@ namespace PlayniteAchievements.Models
                 return false;
             }
 
-            var separator = key.IndexOf(InstanceSeparator);
-            if (separator < 0)
-            {
-                return false;
-            }
-
-            var instanceId = key.Substring(separator + 1).Trim();
-            return instanceId.Length > 0 && !liveInstanceIds.Contains(instanceId);
+            var instanceId = GetInstanceId(key);
+            return instanceId != null && !liveInstanceIds.Contains(instanceId);
         }
     }
 
