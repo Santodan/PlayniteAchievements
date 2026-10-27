@@ -800,7 +800,9 @@ namespace PlayniteAchievements.Views.Controls
                 applyCellAlignments: () => DataGridAlignmentBehavior.Refresh(GameSummariesGrid),
                 isRuntimeDefaultWidth: IsRuntimeDefaultWidth,
                 getLocks: () => GetSurfaceSettings(settings)?.GetLocks(),
-                setLocks: map => GetSurfaceSettings(settings)?.SetLocks(map));
+                setLocks: map => GetSurfaceSettings(settings)?.SetLocks(map),
+                getHiddenHeaders: () => GetSurfaceSettings(settings)?.GetHiddenHeaders(),
+                setHiddenHeaders: map => GetSurfaceSettings(settings)?.SetHiddenHeaders(map));
             _columnPersistence.DelayInitialRenderUntilNormalized = DelayInitialRenderUntilNormalized;
             ApplyFriendColumnRestrictions();
         }
@@ -1218,6 +1220,14 @@ namespace PlayniteAchievements.Views.Controls
                         columns.Locked = map;
                     }
                 },
+                GetHiddenHeaders = () => columns?.HiddenHeaders,
+                SetHiddenHeaders = map =>
+                {
+                    if (columns != null)
+                    {
+                        columns.HiddenHeaders = map;
+                    }
+                },
                 GetLastPlayedDateMode = () => showcaseOptions?.LastPlayedDateMode ??
                     ResolveLastPlayedDateMode(persisted, surface),
                 GetColorRarityColumnsByRarity = () => showcaseOptions?.ColorRarityColumnsByRarity ??
@@ -1488,6 +1498,8 @@ namespace PlayniteAchievements.Views.Controls
             public Action<Dictionary<string, GridAlignment>> SetHeaderAlignments { get; set; }
             public Func<Dictionary<string, bool>> GetLocks { get; set; }
             public Action<Dictionary<string, bool>> SetLocks { get; set; }
+            public Func<Dictionary<string, bool>> GetHiddenHeaders { get; set; }
+            public Action<Dictionary<string, bool>> SetHiddenHeaders { get; set; }
             public Func<DateDisplayMode> GetLastPlayedDateMode { get; set; }
             public Func<bool> GetColorRarityColumnsByRarity { get; set; }
             public Func<bool> GetShowNameAboveProgress { get; set; }
