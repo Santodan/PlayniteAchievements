@@ -44,7 +44,6 @@ namespace PlayniteAchievements.Views.Controls
         private readonly List<PieSeries> subscribedSeries = new List<PieSeries>();
         private readonly List<INotifyPropertyChanged> subscribedLegendItems = new List<INotifyPropertyChanged>();
         private readonly List<INotifyPropertyChanged> subscribedSliceItems = new List<INotifyPropertyChanged>();
-        private const int MaxLegendRows = 8;
         private bool calculationScheduled;
         private bool legendSyncScheduled;
         private string hoveredSliceLabel;
@@ -1097,6 +1096,28 @@ namespace PlayniteAchievements.Views.Controls
         }
 
         /// <summary>
+        /// The legend's ScrollViewer marks every wheel event handled; while its rows fit, the wheel
+        /// is passed on so the page around the pie keeps scrolling.
+        /// </summary>
+        private void OnLegendPreviewMouseWheel(object sender, MouseWheelEventArgs e)
+        {
+            if (e.Handled
+                || !(sender is ScrollViewer scroller)
+                || scroller.ScrollableHeight > 0
+                || !(VisualTreeHelper.GetParent(scroller) is UIElement parent))
+            {
+                return;
+            }
+
+            e.Handled = true;
+            parent.RaiseEvent(new MouseWheelEventArgs(e.MouseDevice, e.Timestamp, e.Delta)
+            {
+                RoutedEvent = MouseWheelEvent,
+                Source = scroller
+            });
+        }
+
+        /// <summary>
         /// Updates the legend rows in place by index, adding or removing only the rows the count
         /// changed by, so a data change neither regenerates row visuals nor drops the row under
         /// the mouse.
@@ -1104,7 +1125,7 @@ namespace PlayniteAchievements.Views.Controls
         private void SynchronizeLegendRows()
         {
             var items = ShowLegend
-                ? (LegendItems ?? Enumerable.Empty<LegendItem>()).Where(item => item != null).Take(MaxLegendRows).ToList()
+                ? (LegendItems ?? Enumerable.Empty<LegendItem>()).Where(item => item != null).ToList()
                 : new List<LegendItem>();
 
             while (LegendRows.Count > items.Count)
