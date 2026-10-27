@@ -120,6 +120,25 @@ namespace PlayniteAchievements.Services.Tests
         }
 
         [TestMethod]
+        public void Update_CarriesTheAuthorsCategoryListSettings()
+        {
+            var page = Install("1.0.0");
+            var recent = Local(page, ShowcaseWidgetKind.RecentAchievements);
+            var liveKey = CategoryKey(recent);
+            Assert.IsFalse(_live.GridOptions.GetCategorySummaries(liveKey).ShowNameAboveProgress);
+
+            _authorGrids.GetCategorySummaries(CategoryKey(_authorRecent)).ShowNameAboveProgress = true;
+            WritePackage("1.1.0");
+            _updates.MergeIntoTargets("ws:trophies", LibraryApplyMode.Merge);
+
+            Assert.IsTrue(_live.GridOptions.GetCategorySummaries(liveKey).ShowNameAboveProgress);
+        }
+
+        private static string CategoryKey(ShowcaseWidgetInstanceSettings widget) =>
+            ShowcaseGridSurfaces.ResolveCategorySurface(
+                ShowcaseGridSurfaces.ResolveWidgetSurface(widget.Kind, widget.InstanceId));
+
+        [TestMethod]
         public void Update_AddsANewWidget_WhenTheUserLeftTheLayoutAlone()
         {
             var page = Install("1.0.0");
