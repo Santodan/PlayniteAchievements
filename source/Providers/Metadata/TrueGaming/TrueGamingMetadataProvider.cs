@@ -364,11 +364,14 @@ namespace PlayniteAchievements.Providers.Metadata.TrueGaming
                 GameArtUrl = found.Select(page => page.Page.GameArt).FirstOrDefault(art => art != null),
                 ApiNameAliases = combined.Aliases
             };
-            _logger?.Debug(
-                $"[TrueGamingMetadata] '{request.Game?.Name}' ({name}): " +
-                $"{string.Join(", ", found.Select(page => $"{page.Site.Host}/game/{page.Slug} {page.Page.Achievements.Count} rows"))}; " +
-                $"{combined.Rows.Count} combined, {combined.MergedByDescription} joined by description" +
-                $"{(failed.Count > 0 ? $"; not loaded: {string.Join(", ", failed.Select(site => site.Host))}" : string.Empty)}.");
+            if (failed.Count > 0 || combined.MergedByDescription > 0)
+            {
+                _logger?.Debug(
+                    $"[TrueGamingMetadata] '{request.Game?.Name}' ({name}): " +
+                    $"{string.Join(", ", found.Select(page => $"{page.Site.Host}/game/{page.Slug} {page.Page.Achievements.Count} rows"))}; " +
+                    $"{combined.Rows.Count} combined, {combined.MergedByDescription} joined by description" +
+                    $"{(failed.Count > 0 ? $"; not loaded: {string.Join(", ", failed.Select(site => site.Host))}" : string.Empty)}.");
+            }
             if (!string.Equals(name, linkId?.Trim(), StringComparison.Ordinal))
             {
                 set.ExtendedLinkId = name;
