@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Linq;
 using Playnite.SDK;
+using PlayniteAchievements.Common;
 using PlayniteAchievements.Models;
 using PlayniteAchievements.Models.Achievements;
 using PlayniteAchievements.Services.Achievements;
@@ -60,6 +61,33 @@ namespace PlayniteAchievements.ViewModels
                     _unlockDateItem.IsVisible = !value;
                 }
             }
+        }
+
+        // The Category dropdown: the one game's categories, offered while the rows (within the
+        // game filter) come from a single game, and empty, so hidden, while they span several.
+        private readonly HashSet<string> _selectedCategories = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        private readonly ObservableCollection<string> _categoryOptions = new ObservableCollection<string>();
+        private IReadOnlyList<AchievementDisplayItem> _categoryOptionRows;
+
+        public string SelectedCategoryText
+        {
+            get
+            {
+                var selected = _categoryOptions.Where(_selectedCategories.Contains).ToList();
+                return selected.Count == 0
+                    ? ResourceProvider.GetString("LOCCategoryLabel")
+                    : string.Join(", ", selected.Select(AchievementCategoryHelper.ToCategoryLabelDisplayText));
+            }
+        }
+
+        /// <summary>
+        /// The whole achievement list of the game the rows show, so the Category dropdown also
+        /// offers categories none of the shown rows fall in. Ignored while it is another game's.
+        /// </summary>
+        public void SetCategoryOptionRows(IReadOnlyList<AchievementDisplayItem> rows)
+        {
+            _categoryOptionRows = rows;
+            RaiseFilterChanged();
         }
 
         // Rarity and Trophy, which the Timeline's bar shares.
@@ -181,7 +209,8 @@ namespace PlayniteAchievements.ViewModels
                 Platforms = CapturePlatformSelections(ProviderFilterGroups),
                 Games = GameFilter.Capture(),
                 UnlockedFrom = _unlockedFrom,
-                UnlockedTo = _unlockedTo
+                UnlockedTo = _unlockedTo,
+                Categories = _selectedCategories.Count > 0 ? _selectedCategories.ToList() : null
             };
             _tierFilters.Capture(state);
             _tagFilter.Capture(state);
@@ -204,6 +233,13 @@ namespace PlayniteAchievements.ViewModels
             _unlockedTo = state.UnlockedTo?.Date;
             OnPropertyChanged(nameof(UnlockedRangeKey));
             _tierFilters.Restore(state);
+            _selectedCategories.Clear();
+            foreach (var category in state.Categories ?? Enumerable.Empty<string>())
+            {
+                _selectedCategories.Add(AchievementCategoryHelper.NormalizeCategoryOrDefault(category));
+            }
+
+            OnPropertyChanged(nameof(SelectedCategoryText));
         }
 
         /// <summary>True while any filter would drop a row.</summary>
@@ -214,7 +250,8 @@ namespace PlayniteAchievements.ViewModels
             _tagFilter.HasSelection ||
             _unlockedFrom.HasValue ||
             _unlockedTo.HasValue ||
-            _tierFilters.HasSelection;
+            _tierFilters.HasSelection ||
+            _selectedCategories.Count > 0;
 
         /// <summary>
         /// Applies the search, then the provider/platform selection. While a platform is selected,
@@ -249,6 +286,15 @@ namespace PlayniteAchievements.ViewModels
                 filtered = filtered.Where(item => GameFilter.Matches(item.PlayniteGameId));
             }
 
+            var gameRows = GameFilter.HasSelection
+                ? items.Where(item => GameFilter.Matches(item.PlayniteGameId)).ToList()
+                : items;
+            if (UpdateCategoryOptions(gameRows) && _selectedCategories.Count > 0)
+            {
+                filtered = filtered.Where(item => _selectedCategories.Contains(
+                    AchievementCategoryHelper.NormalizeCategoryOrDefault(item.CategoryLabel)));
+            }
+
             _tagOptionRows = items;
             if (_tagFilter.HasSelection)
             {
@@ -270,6 +316,68 @@ namespace PlayniteAchievements.ViewModels
             }
 
             return filtered.ToList();
+        }
+
+        /// <summary>
+        /// Lists the categories of the one game <paramref name="gameRows"/> come from, or none
+        /// while they span several games. Returns whether the rows are one game's.
+        /// </summary>
+        private bool UpdateCategoryOptions(IReadOnlyList<AchievementDisplayItem> gameRows)
+        {
+            var gameIds = gameRows.Select(item => item.PlayniteGameId).Distinct().ToList();
+            var gameId = gameIds.Count == 1 ? gameIds[0] : null;
+            List<string> options;
+            if (!gameId.HasValue)
+            {
+                options = new List<string>();
+            }
+            else
+            {
+                var source = _categoryOptionRows != null &&
+                             _categoryOptionRows.Count > 0 &&
+                             _categoryOptionRows[0]?.PlayniteGameId == gameId
+                    ? _categoryOptionRows
+                    : gameRows;
+                options = AchievementCategoryFilterOrderHelper.BuildOrderedCategoryLabels(
+                    source,
+                    item => item?.CategoryLabel,
+                    source
+                        .Where(item => item != null && item.CategoryOrderIndex < int.MaxValue)
+                        .OrderBy(item => item.CategoryOrderIndex)
+                        .Select(item => item.CategoryLabel));
+            }
+
+            var changed = !options.SequenceEqual(_categoryOptions, StringComparer.OrdinalIgnoreCase);
+            if (changed)
+            {
+                CollectionHelper.SynchronizeCollection(_categoryOptions, options);
+            }
+
+            // A selection only means something within the game it was made for.
+            var optionSet = new HashSet<string>(options, StringComparer.OrdinalIgnoreCase);
+            changed |= _selectedCategories.RemoveWhere(category => !optionSet.Contains(category)) > 0;
+            if (changed)
+            {
+                OnPropertyChanged(nameof(SelectedCategoryText));
+                ControlBar?.Refresh();
+            }
+
+            return gameId.HasValue;
+        }
+
+        private void SetCategorySelected(string category, bool isSelected)
+        {
+            if (string.IsNullOrWhiteSpace(category))
+            {
+                return;
+            }
+
+            var normalized = AchievementCategoryHelper.NormalizeCategoryOrDefault(category);
+            if (isSelected ? _selectedCategories.Add(normalized) : _selectedCategories.Remove(normalized))
+            {
+                OnPropertyChanged(nameof(SelectedCategoryText));
+                RaiseFilterChanged();
+            }
         }
 
         public void CollapseUnselectedProviderFilters()
@@ -328,6 +436,22 @@ namespace PlayniteAchievements.ViewModels
                 Width = 170
             });
             controlBar.Items.Add(GameFilter.Item);
+            controlBar.Items.Add(new GridMultiSelectFilter(
+                this,
+                nameof(SelectedCategoryText),
+                () => SelectedCategoryText,
+                () => _categoryOptions,
+                category => _selectedCategories.Contains(AchievementCategoryHelper.NormalizeCategoryOrDefault(category)),
+                SetCategorySelected,
+                AchievementCategoryHelper.ToCategoryLabelDisplayText)
+            {
+                Id = ShowcaseControlBarItems.Category,
+                LabelKey = "LOCCategoryLabel",
+                Width = 140,
+                IsCategoryFilter = true,
+                RendersCategoryTree = true,
+                ToolTip = ResourceProvider.GetString("LOCPlayAch_ManageAchievements_Category_Filter_Label")
+            });
             controlBar.Items.Add(_tagFilter.Item);
             _unlockDateItem = new GridDateRangeFilter(
                 this,
