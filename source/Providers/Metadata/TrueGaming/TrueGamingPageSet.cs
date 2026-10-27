@@ -52,9 +52,9 @@ namespace PlayniteAchievements.Providers.Metadata.TrueGaming
     }
 
     /// <summary>
-    /// Which of a game's TrueGaming pages the wanted fields need, and the rows they give together.
-    /// Tags and categories come from the pages in lookup order: each achievement takes its category from
-    /// the first page that lists it, and its tags from the first page that lists it with flags.
+    /// Which of a game's TrueGaming pages the tags need, and the rows they give together. Tags come
+    /// from the pages in lookup order: each achievement takes its tags from the first page that
+    /// lists it with flags.
     /// Achievements of different pages are paired by name, then by description where the sites
     /// name one differently ("Grilled Tasty" on TrueSteamAchievements, "Grilled Tastes Better" on
     /// the others, both "Defeat Miltos"), then by their place on pages that list the same
@@ -65,8 +65,7 @@ namespace PlayniteAchievements.Providers.Metadata.TrueGaming
     {
         /// <summary>
         /// True when <paramref name="site"/>'s page is still needed after <paramref name="found"/>:
-        /// for achievements of <paramref name="targetNames"/> the found pages leave without tags or
-        /// category.
+        /// for achievements of <paramref name="targetNames"/> the found pages leave without tags.
         /// </summary>
         public static bool NeedsPage(
             TrueGamingSite site,
@@ -74,20 +73,17 @@ namespace PlayniteAchievements.Providers.Metadata.TrueGaming
             IEnumerable<TrueGamingPage> found,
             IEnumerable<string> targetNames)
         {
-            var wantsTags = (wanted & MetadataField.Tags) != 0;
-            var wantsCategories = (wanted & (MetadataField.Categories | MetadataField.CategoryArt)) != 0;
-            if (!wantsTags && !wantsCategories)
+            if ((wanted & MetadataField.Tags) == 0)
             {
                 return false;
             }
 
             var rows = (found ?? Enumerable.Empty<TrueGamingPage>()).SelectMany(page => page.Achievements).ToList();
-            var listed = new HashSet<string>(rows.Select(row => NameKey(row.Name)), StringComparer.Ordinal);
             var flagged = new HashSet<string>(rows.Where(row => row.Flags.Count > 0).Select(row => NameKey(row.Name)), StringComparer.Ordinal);
             return (targetNames ?? Enumerable.Empty<string>())
                 .Select(NameKey)
                 .Where(key => key.Length > 0)
-                .Any(key => wantsTags && !flagged.Contains(key) || wantsCategories && !listed.Contains(key));
+                .Any(key => !flagged.Contains(key));
         }
 
         /// <summary>
