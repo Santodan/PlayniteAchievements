@@ -19,9 +19,6 @@ namespace PlayniteAchievements.Models.Achievements.Scoring
 
         public const string RetroAchievements = "RetroAchievements";
 
-        /// <summary>The families every card picker lists, whether or not any game has their points.</summary>
-        public static readonly IReadOnlyList<string> AlwaysListed = new[] { Xbox, Epic, RetroAchievements };
-
         private static readonly Dictionary<string, string> FamilyByProviderKey =
             new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
             {
