@@ -979,10 +979,10 @@ namespace PlayniteAchievements.Services.Metadata
                     _links?.SetAuto(gameId, provider.Key, ExtendedOr(set, linkId), unconfirmed.Label);
                     storedId = ExtendedOr(set, linkId);
                 }
-                else if ((!request.LinkIsUserSet || set.RewritesUserLink) && !string.IsNullOrWhiteSpace(set.ExtendedLinkId) &&
+                else if (!request.LinkIsUserSet && !string.IsNullOrWhiteSpace(set.ExtendedLinkId) &&
                          !string.Equals(set.ExtendedLinkId.Trim(), linkId, StringComparison.OrdinalIgnoreCase))
                 {
-                    _links?.ExtendAuto(gameId, provider.Key, set.ExtendedLinkId, includeUser: set.RewritesUserLink);
+                    _links?.ExtendAuto(gameId, provider.Key, set.ExtendedLinkId);
                     storedId = set.ExtendedLinkId.Trim();
                 }
 
