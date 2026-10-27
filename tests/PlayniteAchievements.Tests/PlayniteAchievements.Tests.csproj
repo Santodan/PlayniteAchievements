@@ -575,6 +575,7 @@
     <Compile Include="..\..\source\Models\Settings\FriendNameDisplayMode.cs" Link="Source\Models\Settings\FriendNameDisplayMode.cs" />
     <Compile Include="..\..\source\Models\Settings\PlaytimeDisplayMode.cs" Link="Source\Models\Settings\PlaytimeDisplayMode.cs" />
     <Compile Include="..\..\source\Models\Settings\CategoryCompletionBadgeMode.cs" Link="Source\Models\Settings\CategoryCompletionBadgeMode.cs" />
+    <Compile Include="..\..\source\Models\Settings\CategoryColumnDisplay.cs" Link="Source\Models\Settings\CategoryColumnDisplay.cs" />
     <Compile Include="..\..\source\Models\Settings\ToastScreenCorner.cs" Link="Source\Models\Settings\ToastScreenCorner.cs" />
     <Compile Include="..\..\source\Models\Settings\NotificationRenderMode.cs" Link="Source\Models\Settings\NotificationRenderMode.cs" />
     <Compile Include="..\..\source\Models\Settings\ToastHorizontalAlignment.cs" Link="Source\Models\Settings\ToastHorizontalAlignment.cs" />
