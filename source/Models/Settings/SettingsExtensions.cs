@@ -113,6 +113,7 @@ namespace PlayniteAchievements.Models.Settings
             target.EnableUnlockToasts = source.EnableUnlockToasts;
             target.EnableFriendUnlockToasts = source.EnableFriendUnlockToasts;
             target.EnableProgressToasts = source.EnableProgressToasts;
+            target.SkipCompletionNotificationAfterCapstone = source.SkipCompletionNotificationAfterCapstone;
             target.ProgressToastIntervalPercent = source.ProgressToastIntervalPercent;
             target.NotificationStyle = source.NotificationStyle?.Clone() ?? NotificationStyleSettings.CreateDefault();
             target.ToastUseThemeStyling = source.ToastUseThemeStyling;
