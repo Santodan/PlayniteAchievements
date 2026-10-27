@@ -2137,15 +2137,10 @@ namespace PlayniteAchievements.Views.Helpers
 
             DataGridColumnLayoutService.SetIsHeaderTextHidden(column, hidden);
 
+            // Stored either way: a grid can default a column's header text to hidden, so showing
+            // it must be an explicit entry rather than an absent key.
             var map = _getHiddenHeaders.Invoke() ?? new Dictionary<string, bool>(StringComparer.OrdinalIgnoreCase);
-            if (hidden)
-            {
-                map[key] = true;
-            }
-            else
-            {
-                map.Remove(key);
-            }
+            map[key] = hidden;
 
             _setHiddenHeaders.Invoke(map);
             _saveSettings?.Invoke();
