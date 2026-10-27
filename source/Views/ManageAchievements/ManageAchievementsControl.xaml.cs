@@ -122,6 +122,7 @@ namespace PlayniteAchievements.Views.ManageAchievements
             _viewModel.PropertyChanged += ViewModel_PropertyChanged;
             _refreshService.GameCacheUpdated += RefreshService_GameCacheUpdated;
             _refreshService.CacheDeltaUpdated += RefreshService_CacheDeltaUpdated;
+            OpenEditorRegistry.BackgroundWritten += OpenEditorRegistry_BackgroundWritten;
             Loaded += ManageAchievementsControl_Loaded;
 
             // A window per game visited, each holding that game's rows and resolved art. If
@@ -219,6 +220,8 @@ namespace PlayniteAchievements.Views.ManageAchievements
                 _refreshService.GameCacheUpdated -= RefreshService_GameCacheUpdated;
                 _refreshService.CacheDeltaUpdated -= RefreshService_CacheDeltaUpdated;
             }
+
+            OpenEditorRegistry.BackgroundWritten -= OpenEditorRegistry_BackgroundWritten;
 
             CleanupEditor();
             CleanupCategory();
@@ -1181,6 +1184,18 @@ namespace PlayniteAchievements.Views.ManageAchievements
             if (_viewModel == null ||
                 !Guid.TryParse(e?.GameId, out var updatedGameId) ||
                 updatedGameId != _viewModel.GameId)
+            {
+                return;
+            }
+
+            DispatchHandleStateChanged();
+        }
+
+        // A platinum labelled or a capstone authored after a refresh lands after that refresh's
+        // reload, so it shows only through this one.
+        private void OpenEditorRegistry_BackgroundWritten(Guid gameId)
+        {
+            if (_viewModel == null || gameId != _viewModel.GameId)
             {
                 return;
             }
