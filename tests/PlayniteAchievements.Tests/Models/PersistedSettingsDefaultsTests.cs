@@ -584,6 +584,21 @@ namespace PlayniteAchievements.Models.Tests
         }
 
         [TestMethod]
+        public void CategoryColumnDisplay_DefaultsToSubcategoryAndSurvivesCloneCopyAndReset()
+        {
+            Assert.AreEqual(CategoryColumnDisplay.Subcategory, new PersistedSettings().CategoryColumnDisplay);
+
+            var source = new PersistedSettings { CategoryColumnDisplay = CategoryColumnDisplay.FullPath };
+            var target = new PersistedSettings();
+            target.CopyFrom(source);
+            Assert.AreEqual(CategoryColumnDisplay.FullPath, source.Clone().CategoryColumnDisplay);
+            Assert.AreEqual(CategoryColumnDisplay.FullPath, target.CategoryColumnDisplay);
+
+            source.ResetDisplaySettingsToDefaults();
+            Assert.AreEqual(CategoryColumnDisplay.Subcategory, source.CategoryColumnDisplay);
+        }
+
+        [TestMethod]
         public void CloneAndCopyFrom_PreserveProgressColumnAlignmentDefaultedFlag()
         {
             var source = new PersistedSettings { ProgressColumnAlignmentDefaulted = false };
