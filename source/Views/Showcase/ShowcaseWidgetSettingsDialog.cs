@@ -24,12 +24,18 @@ namespace PlayniteAchievements.Views.Showcase
         private readonly ShowcaseProfileSettings _workingProfile;
         private readonly bool _linked;
         private readonly bool _includeScoreHistory;
+        private readonly bool _backgroundDefault;
         private TextBox _titleBox;
         private ShowcaseProfileSettingsEditor _profileEditor;
 
-        private ShowcaseWidgetSettingsDialog(ShowcaseWidgetInstanceSettings widget, bool linked, bool includeScoreHistory)
+        private ShowcaseWidgetSettingsDialog(
+            ShowcaseWidgetInstanceSettings widget,
+            bool linked,
+            bool includeScoreHistory,
+            bool backgroundDefault)
         {
             _includeScoreHistory = includeScoreHistory;
+            _backgroundDefault = backgroundDefault;
             _sourceWidget = widget ?? throw new ArgumentNullException(nameof(widget));
             _linked = linked;
             _workingWidget = widget.Clone();
@@ -53,14 +59,19 @@ namespace PlayniteAchievements.Views.Showcase
         /// selections, so no title field is offered.
         /// </param>
         /// <param name="includeScoreHistory">False for a score card with no history chart, such as the Overview header's.</param>
-        public static bool Show(ShowcaseWidgetInstanceSettings widget, bool linked = false, bool includeScoreHistory = true)
+        /// <param name="backgroundDefault">The host's default for the widget background: shown on the Showcase, hidden on the start page.</param>
+        public static bool Show(
+            ShowcaseWidgetInstanceSettings widget,
+            bool linked = false,
+            bool includeScoreHistory = true,
+            bool backgroundDefault = true)
         {
             if (widget == null)
             {
                 return false;
             }
 
-            var editor = new ShowcaseWidgetSettingsDialog(widget, linked, includeScoreHistory);
+            var editor = new ShowcaseWidgetSettingsDialog(widget, linked, includeScoreHistory, backgroundDefault);
             var title = string.Format(
                 FormattingCulture.Current,
                 Localize("LOCPlayAch_Showcase_WidgetSettingsTitle"),
@@ -135,7 +146,7 @@ namespace PlayniteAchievements.Views.Showcase
                     margin: new Thickness(0),
                     loadStyles: false,
                     includeScoreHistory: _includeScoreHistory,
-                    backgroundDefault: _linked ? (bool?)null : true,
+                    backgroundDefault: _linked ? (bool?)null : _backgroundDefault,
                     contentAfterSharedRows: _profileEditor));
             }
             else if (_profileEditor != null)
