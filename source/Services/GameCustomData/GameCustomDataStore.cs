@@ -1655,7 +1655,9 @@ namespace PlayniteAchievements.Services.GameCustomData
 
             var managedIcons = GetManagedCustomIconServiceOrThrow();
             var gameIdText = playniteGameId.ToString("D");
-            if (managedIcons.IsManagedCustomIconPath(normalizedValue, gameIdText) && File.Exists(normalizedValue))
+            if ((managedIcons.IsManagedCustomIconPath(normalizedValue, gameIdText) ||
+                 AchievementIconCachePathBuilder.IsMetadataSourceIconPath(normalizedValue, gameIdText)) &&
+                File.Exists(normalizedValue))
             {
                 return normalizedValue;
             }
