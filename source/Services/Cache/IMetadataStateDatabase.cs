@@ -42,6 +42,9 @@ namespace PlayniteAchievements.Services.Cache
         /// <summary>Returns the snapshot for a game and source, or null when none is stored.</summary>
         MetadataSourceSnapshotRow GetMetadataSourceSnapshot(string playniteGameId, string sourceKey);
 
+        /// <summary>Loads every snapshot, across all games and sources.</summary>
+        List<MetadataSourceSnapshotRow> LoadMetadataSourceSnapshots();
+
         /// <summary>Upserts a snapshot keyed by its PlayniteGameId and SourceKey.</summary>
         void SaveMetadataSourceSnapshot(MetadataSourceSnapshotRow row);
 
