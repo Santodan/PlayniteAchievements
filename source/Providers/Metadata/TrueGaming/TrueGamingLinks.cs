@@ -45,6 +45,36 @@ namespace PlayniteAchievements.Providers.Metadata.TrueGaming
             return BaseSlug(slug);
         }
 
+        private static readonly Regex SiteAddress = new Regex(
+            @"^(?:https?://)?(?:www\.)?(?<site>trueachievements|truetrophies|truesteamachievements)\.com/game/(?<slug>[^/?#]+)",
+            RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+
+        /// <summary>
+        /// One site's page exactly as named, edition ending kept ("BioShock-Xbox-One"): from the
+        /// page name, "game/Name", or an address on <paramref name="site"/>. Null for an address on
+        /// another site or nothing usable.
+        /// </summary>
+        internal static string ExactSlug(TrueGamingSite site, string text)
+        {
+            var slug = (text ?? string.Empty).Trim().Trim('/');
+            var address = SiteAddress.Match(slug);
+            if (address.Success)
+            {
+                if (site == null || !string.Equals(address.Groups["site"].Value, site.Name, StringComparison.OrdinalIgnoreCase))
+                {
+                    return null;
+                }
+
+                slug = address.Groups["slug"].Value;
+            }
+            else if (slug.StartsWith("game/", StringComparison.OrdinalIgnoreCase))
+            {
+                slug = slug.Substring("game/".Length).Split('/')[0];
+            }
+
+            return slug.Length == 0 || slug.IndexOfAny(new[] { '/', '?', '#', ' ', ':', ',' }) >= 0 ? null : slug;
+        }
+
         private static readonly Regex SearchGame = new Regex(
             @"<Game>(?<game>.*?)</Game>",
             RegexOptions.Singleline | RegexOptions.CultureInvariant);
