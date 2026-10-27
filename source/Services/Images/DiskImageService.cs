@@ -1066,7 +1066,6 @@ namespace PlayniteAchievements.Services.Images
                                 // so images that appear later are picked up without any cached failure.
                                 if (IsPermanentImageHttpFailure((int)resp.StatusCode))
                                 {
-                                    _logger?.Debug($"Image unavailable (HTTP {(int)resp.StatusCode}) for {url}; not retrying.");
                                     return null;
                                 }
 
