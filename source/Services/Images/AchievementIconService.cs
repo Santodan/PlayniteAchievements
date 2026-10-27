@@ -484,6 +484,11 @@ namespace PlayniteAchievements.Services.Images
             _diskImageService.DeleteLegacyCompressedGameIconFolder(gameId);
         }
 
+        public Task<int> LinkIdenticalIconFilesAsync(string gameId, CancellationToken cancel)
+        {
+            return _diskImageService.LinkIdenticalGameIconFilesAsync(gameId, cancel);
+        }
+
         private async Task<string> ResolveCacheRelativeImagePathAsync(
             string sourcePath,
             string relativeTargetPath,
