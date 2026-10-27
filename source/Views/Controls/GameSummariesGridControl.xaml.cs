@@ -1617,7 +1617,8 @@ namespace PlayniteAchievements.Views.Controls
         }
 
         // Category-summaries surfaces reuse this grid with category labels in the name column,
-        // so that column takes the Category header instead of Game.
+        // so that column takes the Category header instead of Game. A key can arrive after the
+        // grid attached, so this runs again on every key change.
         private void ApplyCategoryHeaderOverride()
         {
             if (!IsCategorySurface(ResolveSurface()) || GameSummariesGrid?.Columns == null)
@@ -1925,6 +1926,7 @@ namespace PlayniteAchievements.Views.Controls
             }
 
             control.PrepareColumnsForFirstMeasure();
+            control.ApplyCategoryHeaderOverride();
         }
 
         private static bool IsLegacyImageColumnRuntimeDefaultWidth(string key, double width)
