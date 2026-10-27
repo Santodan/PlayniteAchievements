@@ -101,6 +101,19 @@ namespace PlayniteAchievements.Tests.Providers
             Assert.IsNull(TrueGamingPageParser.DecodeFlags(filter, new[] { 0x40000000u, 0x40000000u }));
         }
 
+        [TestMethod]
+        public void Flags_IgnoreTheBitTheFilterNeverLists()
+        {
+            var page = Parse("ta-doom-eternal.html");
+
+            Assert.IsTrue(page.FlagsDecoded);
+            Assert.AreEqual(50, page.Achievements.Count(row => row.Flags.Count > 0));
+            CollectionAssert.AreEquivalent(
+                new[] { "Online Mode", "Versus" },
+                page.Achievements.Single(row => row.Name == "Mix and Match").Flags);
+            Assert.AreEqual(1, page.Achievements.Count(row => row.Flags.Contains("Story Completed")));
+        }
+
         private static TrueGamingPage Parse(string file) =>
             TrueGamingPageParser.Parse(File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "Fixtures", "TrueGaming", file)));
     }
