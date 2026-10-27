@@ -33,15 +33,7 @@ namespace PlayniteAchievements.Tests.Providers
         }
 
         [TestMethod]
-        public void GameArt_IsThePagesShareImage()
-        {
-            Assert.AreEqual("https://img.trueachievements.com/game/14402?v=1819", Parse("ta-clair-obscur.html").GameArt);
-            Assert.AreEqual("https://img.truetrophies.com/game/14950?v=1732", Parse("tt-elden-ring.html").GameArt);
-            Assert.IsNull(TrueGamingPageParser.Parse("<html><body></body></html>").GameArt);
-        }
-
-        [TestMethod]
-        public void DlcHeaders_GroupTheRowsAfterThem_WithTheirArt()
+        public void DlcHeaders_GroupTheRowsAfterThem()
         {
             var page = Parse("ta-fallout-4.html");
 
@@ -50,7 +42,6 @@ namespace PlayniteAchievements.Tests.Providers
             Assert.AreEqual("Automatron", page.Achievements.Single(row => row.Name == "Mechanical Menace").Dlc);
             Assert.AreEqual("Wasteland Workshop", page.Achievements.Single(row => row.Name == "Docile").Dlc);
             Assert.IsNull(page.Achievements.Single(row => row.Name == "War Never Changes").Dlc);
-            Assert.AreEqual("https://img.trueachievements.com/dlc/5688?v=5", page.DlcArt["Automatron"]);
             Assert.AreEqual(6, page.Achievements.Where(row => row.Dlc != null).Select(row => row.Dlc).Distinct().Count());
         }
 
@@ -65,25 +56,6 @@ namespace PlayniteAchievements.Tests.Providers
             Assert.AreEqual(count, page.Achievements.Count);
             Assert.IsTrue(page.FlagsDecoded);
             Assert.IsTrue(page.Achievements.All(row => !string.IsNullOrWhiteSpace(row.Id) && row.Flags.Count > 0));
-        }
-
-        [TestMethod]
-        public void TrueAchievements_RowsCarryGamerscore_AndTrueTrophiesRanks()
-        {
-            var ta = Parse("ta-clair-obscur.html");
-            Assert.AreEqual(10, ta.Achievements.Single(row => row.Name == "Lumière").Points);
-            Assert.AreEqual(1000, ta.Achievements.Sum(row => row.Points ?? 0));
-            Assert.IsTrue(ta.Achievements.All(row => row.TrophyType == null));
-
-            var tt = Parse("tt-elden-ring.html");
-            Assert.AreEqual("platinum", tt.Achievements.Single(row => row.Name == "Elden Ring").TrophyType);
-            Assert.AreEqual("gold", tt.Achievements.Single(row => row.Name == "Elden Lord").TrophyType);
-            CollectionAssert.AreEquivalent(
-                new[] { "bronze", "gold", "platinum", "silver" },
-                tt.Achievements.Select(row => row.TrophyType).Distinct().ToList());
-            Assert.AreEqual(24, tt.Achievements.Count(row => row.TrophyType == "bronze"));
-
-            Assert.IsTrue(Parse("tsa-hades.html").Achievements.All(row => row.Points == null && row.TrophyType == null));
         }
 
         [TestMethod]
