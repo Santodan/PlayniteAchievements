@@ -12,6 +12,7 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Globalization;
+using System.IO;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -45,7 +46,7 @@ namespace PlayniteAchievements.Providers.Ffxiv
         private readonly object _initLock = new object();
         private FfxivApiClient _apiClient;
         private FfxivCatalogCache _catalogCache;
-        private FfxivCharacterCache _characterCache;
+        private bool _retiredCharacterCache;
 
         public FfxivDataProvider(ILogger logger, PlayniteAchievementsSettings settings, IPlayniteAPI playniteApi, string pluginUserDataPath)
         {
@@ -123,12 +124,7 @@ namespace PlayniteAchievements.Providers.Ffxiv
             FfxivCharacter character;
             try
             {
-                // Every refresh path lands here, so the minimum fetch interval holds no matter
-                // what asked for the refresh or how often.
-                character = await _characterCache.GetAsync(
-                    characterId,
-                    token => _apiClient.FetchCharacterAsync(characterId, token),
-                    cancel).ConfigureAwait(false);
+                character = await _apiClient.FetchCharacterAsync(characterId, cancel).ConfigureAwait(false);
             }
             catch (FfxivCharacterNotIndexedException ex)
             {
@@ -343,10 +339,31 @@ namespace PlayniteAchievements.Providers.Ffxiv
                     _catalogCache = new FfxivCatalogCache(_logger, _pluginUserDataPath);
                 }
 
-                if (_characterCache == null)
+                if (!_retiredCharacterCache)
                 {
-                    _characterCache = new FfxivCharacterCache(_logger, _pluginUserDataPath);
+                    _retiredCharacterCache = true;
+                    DeleteRetiredCharacterCache();
                 }
+            }
+        }
+
+        /// <summary>
+        /// Removes the character response file kept by the former fetch interval.
+        /// The catalog cache shares the folder, so only this file is deleted.
+        /// </summary>
+        private void DeleteRetiredCharacterCache()
+        {
+            var path = Path.Combine(_pluginUserDataPath, "ffxiv", "character.json");
+            try
+            {
+                if (File.Exists(path))
+                {
+                    File.Delete(path);
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger?.Debug(ex, "[FFXIV] Failed to delete retired character cache.");
             }
         }
 
