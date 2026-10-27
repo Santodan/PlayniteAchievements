@@ -201,6 +201,7 @@ namespace PlayniteAchievements.Services.Images
             {
                 IconFileLinks.Detach(resolvedTargetPath);
                 File.Copy(sessionPath, resolvedTargetPath, overwrite: true);
+                NoteWritten(resolvedTargetPath);
             }
             catch (Exception ex)
             {
@@ -609,6 +610,7 @@ namespace PlayniteAchievements.Services.Images
                     : Path.ChangeExtension(canonicalPath, extension);
                 Directory.CreateDirectory(Path.GetDirectoryName(targetPath));
                 File.Copy(sourcePath, targetPath, overwrite: false);
+                NoteWritten(targetPath);
                 InvalidateDefaultCategoryArtSnapshot(gameId);
                 return targetPath;
             }
@@ -931,7 +933,7 @@ namespace PlayniteAchievements.Services.Images
             }
         }
 
-        private static async Task SavePngWithRetryAsync(
+        private async Task SavePngWithRetryAsync(
             string cachePath,
             PngBitmapEncoder encoder,
             CancellationToken cancel,
@@ -949,6 +951,8 @@ namespace PlayniteAchievements.Services.Images
                     {
                         encoder.Save(fs);
                     }
+
+                    NoteWritten(cachePath);
                     return;
                 }
                 catch (IOException) when (attempt < maxAttempts)
@@ -958,7 +962,7 @@ namespace PlayniteAchievements.Services.Images
             }
         }
 
-        private static async Task SaveBytesWithRetryAsync(
+        private async Task SaveBytesWithRetryAsync(
             string targetPath,
             byte[] bytes,
             CancellationToken cancel,
@@ -977,6 +981,7 @@ namespace PlayniteAchievements.Services.Images
                         await fs.WriteAsync(bytes, 0, bytes.Length, cancel).ConfigureAwait(false);
                     }
 
+                    NoteWritten(targetPath);
                     return;
                 }
                 catch (IOException) when (attempt < maxAttempts)
@@ -1428,13 +1433,53 @@ namespace PlayniteAchievements.Services.Images
         // Set once a link fails because the volume has no hard links; later games skip the scan.
         private volatile bool _hardLinksUnsupported;
 
+        // Folders this service wrote a file into since their last link pass.
+        private readonly ConcurrentDictionary<string, byte> _foldersWritten =
+            new ConcurrentDictionary<string, byte>(StringComparer.OrdinalIgnoreCase);
+
+        private void NoteWritten(string path)
+        {
+            try
+            {
+                var folder = Path.GetDirectoryName(Path.GetFullPath(path));
+                if (!string.IsNullOrEmpty(folder))
+                {
+                    _foldersWritten[folder] = 0;
+                }
+            }
+            catch
+            {
+            }
+        }
+
+        // Clears and reports the written folders at or under any of the roots.
+        private bool TakeFoldersWrittenUnder(IEnumerable<string> roots)
+        {
+            var taken = false;
+            foreach (var root in roots)
+            {
+                var prefix = Path.GetFullPath(root).TrimEnd(Path.DirectorySeparatorChar);
+                foreach (var folder in _foldersWritten.Keys)
+                {
+                    if ((string.Equals(folder, prefix, StringComparison.OrdinalIgnoreCase) ||
+                         folder.StartsWith(prefix + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase)) &&
+                        _foldersWritten.TryRemove(folder, out _))
+                    {
+                        taken = true;
+                    }
+                }
+            }
+
+            return taken;
+        }
+
         /// <summary>
         /// Hard-links byte-identical files in a game's original, category_defaults and metadata
         /// folders, so an image the provider reuses for many achievements is stored once. Every
         /// name stays where it is. custom/ is left alone: the user's files and the capstone's
         /// recorded write times live there. Returns the number of names linked.
         /// </summary>
-        internal async Task<int> LinkIdenticalGameIconFilesAsync(string gameId, CancellationToken cancel)
+        internal async Task<int> LinkIdenticalGameIconFilesAsync(string gameId, CancellationToken cancel, bool onlyWhenWritten = true)
         {
             if (_hardLinksUnsupported || string.IsNullOrWhiteSpace(gameId))
             {
@@ -1449,19 +1494,29 @@ namespace PlayniteAchievements.Services.Images
                 AchievementIconCachePathBuilder.MetadataSourceFolderName
             }.Select(folder => Path.Combine(gameDir, folder));
 
-            return await LinkIdenticalFilesAsync(folders, $"game '{gameId}'", cancel).ConfigureAwait(false);
+            return await LinkIdenticalFilesAsync(folders, $"game '{gameId}'", cancel, onlyWhenWritten).ConfigureAwait(false);
         }
 
         /// <summary>
         /// Hard-links byte-identical files under <paramref name="folders"/>, such as a shared metadata
         /// list folder whose source reuses one image for many rows. Returns the number of names linked.
+        /// With <paramref name="onlyWhenWritten"/>, folders this service wrote nothing into since
+        /// their last pass are not scanned.
         /// </summary>
-        internal async Task<int> LinkIdenticalFilesAsync(IEnumerable<string> folders, string label, CancellationToken cancel)
+        internal async Task<int> LinkIdenticalFilesAsync(IEnumerable<string> folders, string label, CancellationToken cancel, bool onlyWhenWritten = true)
         {
-            if (_hardLinksUnsupported || folders == null)
+            var roots = folders?.Where(folder => !string.IsNullOrWhiteSpace(folder)).ToList();
+            if (_hardLinksUnsupported || roots == null || roots.Count == 0)
             {
                 return 0;
             }
+
+            if (!TakeFoldersWrittenUnder(roots) && onlyWhenWritten)
+            {
+                return 0;
+            }
+
+            folders = roots;
 
             var linked = 0;
             try
@@ -1955,6 +2010,7 @@ namespace PlayniteAchievements.Services.Images
                     {
                         IconFileLinks.Detach(resolvedTargetPath);
                         File.Copy(localPath, resolvedTargetPath, overwrite: overwriteExistingTarget);
+                        NoteWritten(resolvedTargetPath);
                         InvalidateDefaultCategoryArtSnapshotForTargetPath(resolvedTargetPath);
                         if (overwritingExisting)
                         {
@@ -2024,6 +2080,7 @@ namespace PlayniteAchievements.Services.Images
                     var overwritingExisting = overwriteExistingTarget && File.Exists(targetPath);
                     IconFileLinks.Detach(targetPath);
                     File.Copy(existingPath, targetPath, overwrite: overwriteExistingTarget);
+                    NoteWritten(targetPath);
                     InvalidateDefaultCategoryArtSnapshotForTargetPath(targetPath);
                     if (overwritingExisting)
                     {
