@@ -1,6 +1,7 @@
 using Playnite.SDK;
 using PlayniteAchievements.Models.Achievements;
 using PlayniteAchievements.Providers.Metadata;
+using PlayniteAchievements.Services.Achievements;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -20,12 +21,14 @@ namespace PlayniteAchievements.Services.Metadata
         /// The source's rows for every list of the link, in the link's order; null when any list
         /// returned nothing, so the game keeps its previous values rather than losing one list's.
         /// </summary>
+        /// <param name="linkLabel">The link's label, whose found names name each list's base category.</param>
         public static async Task<AchievementSourceSet> FetchAsync(
             IMetadataProvider provider,
             MetadataLinkRequest request,
             string linkId,
             ILogger logger,
-            CancellationToken ct)
+            CancellationToken ct,
+            string linkLabel = null)
         {
             var shown = MetadataLinkIds.ShownLink(provider as IMetadataLinkDetails, linkId) ?? linkId;
             var parts = MetadataLinkIds.Parse(shown);
@@ -48,7 +51,56 @@ namespace PlayniteAchievements.Services.Metadata
                 fetched.Add((string.IsNullOrWhiteSpace(set.ExtendedLinkId) ? part : set.ExtendedLinkId.Trim(), set));
             }
 
+            NameBaseCategories(fetched, MetadataFoundNames.Parse(linkLabel), request?.BaseCategoryLabel, request?.Game?.Name);
             return Combine(provider.Key, linkId, parts, fetched);
+        }
+
+        /// <summary>
+        /// Files each list's base-game rows under that list's game rather than the whole game's
+        /// name, so a collection's games stay apart as categories: by the category the list was
+        /// found for, else its found title, else the source's title for it. The names are the
+        /// label's lines by position, so a label with another count names none. DLC rows, and base
+        /// rows the source already named after a game of its own, keep their categories.
+        /// </summary>
+        internal static void NameBaseCategories(
+            IReadOnlyList<(string Id, AchievementSourceSet Set)> fetched,
+            IReadOnlyList<(string Category, string Title)> foundNames,
+            string baseLabel,
+            string gameName)
+        {
+            if (fetched == null || fetched.Count < 2)
+            {
+                return;
+            }
+
+            var wholeGame = new[] { baseLabel, gameName, CategoryPathHelper.SanitizeSegment(gameName) }
+                .Where(name => !string.IsNullOrWhiteSpace(name))
+                .Select(name => name.Trim())
+                .ToList();
+            var byPosition = foundNames != null && foundNames.Count == fetched.Count;
+            for (var i = 0; i < fetched.Count; i++)
+            {
+                var set = fetched[i].Set;
+                var name = CategoryPathHelper.SanitizeSegment(
+                    byPosition
+                        ? foundNames[i].Category ?? foundNames[i].Title
+                        : set?.Title);
+                if (string.IsNullOrWhiteSpace(name) || set == null)
+                {
+                    continue;
+                }
+
+                foreach (var row in set.Achievements)
+                {
+                    if (row != null &&
+                        string.Equals(row.CategoryKind, CategoryKindHelper.Base, StringComparison.OrdinalIgnoreCase) &&
+                        (string.IsNullOrWhiteSpace(row.Category) ||
+                         wholeGame.Any(label => string.Equals(label, row.Category.Trim(), StringComparison.OrdinalIgnoreCase))))
+                    {
+                        row.Category = name.Trim();
+                    }
+                }
+            }
         }
 
         /// <summary>The lists' rows as one set: in link order, with each list's own rows, title and art.</summary>
