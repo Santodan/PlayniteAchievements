@@ -1039,32 +1039,6 @@
     </DataTemplate>
 
     <!-- ActivityCalendar: contributions-style heatmap of unlocks per day. -->
-    <!-- Legend swatches only; the calendar grid itself is drawn by ActivityCalendarHeatmap,
-         which owns the matching intensity ramp. -->
-    <DataTemplate x:Key="ShowcaseActivityCellTemplate" DataType="{x:Type widgets:ActivityCalendarDayViewModel}">
-        <Border Width="10" Height="10" CornerRadius="2" Margin="1">
-            <Border.Style>
-                <Style TargetType="Border">
-                    <Setter Property="Background" Value="{DynamicResource PlayAch.Brush.Accent}"/>
-                    <Style.Triggers>
-                        <DataTrigger Binding="{Binding Intensity}" Value="0">
-                            <Setter Property="Background" Value="{DynamicResource PlayAch.Brush.Overlay.Tint.08}"/>
-                        </DataTrigger>
-                        <DataTrigger Binding="{Binding Intensity}" Value="1">
-                            <Setter Property="Opacity" Value="0.30"/>
-                        </DataTrigger>
-                        <DataTrigger Binding="{Binding Intensity}" Value="2">
-                            <Setter Property="Opacity" Value="0.55"/>
-                        </DataTrigger>
-                        <DataTrigger Binding="{Binding Intensity}" Value="3">
-                            <Setter Property="Opacity" Value="0.78"/>
-                        </DataTrigger>
-                    </Style.Triggers>
-                </Style>
-            </Border.Style>
-        </Border>
-    </DataTemplate>
-
     <!-- Rows of the day popup: a text list, so unlike the mosaic tiles the container keeps a
          hover highlight; the heatmap's mosaic click behavior resolves rows through this
          container's DataContext. -->
@@ -1221,6 +1195,7 @@
                     <showcase:ActivityCalendarHeatmap Weeks="{Binding Weeks}"
                                                       SelectsDays="{Binding IsLinked}"
                                                       HighlightedDay="{Binding HighlightedDay}"
+                                                      CellColor="{Binding CellColor}"
                                                       ShowMonthLabels="True"
                                                       HorizontalAlignment="Left"
                                                       VerticalAlignment="Top"/>
@@ -1238,22 +1213,16 @@
                         Orientation="Horizontal"
                         HorizontalAlignment="Right"
                         VerticalAlignment="Center"
-                        Margin="0,4,0,0">
+                        Margin="0,4,0,0"
+                        Visibility="{Binding ShowLegend, Converter={StaticResource BoolToVis}}">
                 <TextBlock Text="{DynamicResource LOCPlayAch_Showcase_ActivityLegend_Less}"
                            Foreground="{DynamicResource PlayAch.Brush.Text}"
                            Opacity="{StaticResource PlayAch.Opacity.Subtle}"
                            FontSize="{DynamicResource PlayAch.FontSize.Caption}"
                            Margin="0,0,4,0"
                            VerticalAlignment="Center"/>
-                <ItemsControl ItemsSource="{Binding LegendCells}"
-                              ItemTemplate="{StaticResource ShowcaseActivityCellTemplate}"
-                              VerticalAlignment="Center">
-                    <ItemsControl.ItemsPanel>
-                        <ItemsPanelTemplate>
-                            <StackPanel Orientation="Horizontal"/>
-                        </ItemsPanelTemplate>
-                    </ItemsControl.ItemsPanel>
-                </ItemsControl>
+                <showcase:ActivityCalendarLegendSwatches CellColor="{Binding CellColor}"
+                                                         VerticalAlignment="Center"/>
                 <TextBlock Text="{DynamicResource LOCPlayAch_Showcase_ActivityLegend_More}"
                            Foreground="{DynamicResource PlayAch.Brush.Text}"
                            Opacity="{StaticResource PlayAch.Opacity.Subtle}"
