@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Media;
 using PlayniteAchievements.Common;
 using PlayniteAchievements.Models;
 using PlayniteAchievements.Models.Achievements.Scoring;
@@ -14,6 +15,7 @@ using PlayniteAchievements.ViewModels;
 using PlayniteAchievements.ViewModels.Items;
 using PlayniteAchievements.ViewModels.Showcase.Widgets;
 using PlayniteAchievements.Views.Controls;
+using PlayniteAchievements.Views.Dialogs;
 using PlayniteAchievements.Views.Settings.Controls;
 using static PlayniteAchievements.Views.Showcase.ShowcaseUiText;
 
@@ -30,6 +32,7 @@ namespace PlayniteAchievements.Views.Showcase
         private readonly bool _publishChanges;
         private readonly bool _includeScoreHistory;
         private readonly bool? _backgroundDefault;
+        private readonly UIElement _contentAfterSharedRows;
         private DebouncedSettingsPersist _gridOptionsPersist;
         private FrameworkElement _scoreBarRows;
 
@@ -48,6 +51,10 @@ namespace PlayniteAchievements.Views.Showcase
         /// The host's default for the widget background, which adds the title alignment and
         /// background rows every widget shares; null for an editor with no widget card around it.
         /// </param>
+        /// <param name="contentAfterSharedRows">
+        /// The host's own editor for the widget (the profile's identity fields), placed after the
+        /// shared title alignment and background rows so those stay under the title box.
+        /// </param>
         public ShowcaseWidgetOptionsControl(
             ShowcaseWidgetInstanceSettings settings,
             Action persist = null,
@@ -55,11 +62,13 @@ namespace PlayniteAchievements.Views.Showcase
             Thickness? margin = null,
             bool loadStyles = true,
             bool includeScoreHistory = true,
-            bool? backgroundDefault = null)
+            bool? backgroundDefault = null,
+            UIElement contentAfterSharedRows = null)
         {
             _settings = settings ?? throw new ArgumentNullException(nameof(settings));
             _includeScoreHistory = includeScoreHistory;
             _backgroundDefault = backgroundDefault;
+            _contentAfterSharedRows = contentAfterSharedRows;
             _persist = persist;
             _publishChanges = publishChanges;
             if (loadStyles)
@@ -127,6 +136,11 @@ namespace PlayniteAchievements.Views.Showcase
                     value => ShowcaseWidgetOptions.SetShowBackground(_settings, value));
             }
 
+            if (_contentAfterSharedRows != null)
+            {
+                panel.Children.Add(_contentAfterSharedRows);
+            }
+
             switch (_settings.Kind)
             {
                 case ShowcaseWidgetKind.Profile:
@@ -159,6 +173,23 @@ namespace PlayniteAchievements.Views.Showcase
                         Localize("LOCPlayAch_Showcase_ProfileLinks"),
                         ShowcaseWidgetOptions.GetProfileShowLinks(_settings),
                         value => ShowcaseWidgetOptions.SetProfileShowLinks(_settings, value));
+                    // Prefilled with the defaults; left at them, the picture follows the widget's
+                    // density. Width and height are separate so the picture need not be square.
+                    AddNumberRow(
+                        panel,
+                        Localize("LOCPlayAch_Showcase_ProfileAvatarWidth") + " (px)",
+                        () => ShowcaseWidgetOptions.GetProfileAvatarWidth(_settings),
+                        value => ShowcaseWidgetOptions.SetProfileAvatarWidth(_settings, value));
+                    AddNumberRow(
+                        panel,
+                        Localize("LOCPlayAch_Showcase_ProfileAvatarHeight") + " (px)",
+                        () => ShowcaseWidgetOptions.GetProfileAvatarHeight(_settings),
+                        value => ShowcaseWidgetOptions.SetProfileAvatarHeight(_settings, value));
+                    AddNumberRow(
+                        panel,
+                        Localize("LOCPlayAch_Showcase_ProfileLinkIconSize") + " (px)",
+                        () => ShowcaseWidgetOptions.GetProfileLinkIconSize(_settings),
+                        value => ShowcaseWidgetOptions.SetProfileLinkIconSize(_settings, value));
                     AddProfileStatSlots(panel);
                     AddCollectionChoice(panel, includeAchievementCollections: false);
                     AddControlBarRows<StatisticsControlBarAdapter>(panel);
@@ -235,9 +266,9 @@ namespace PlayniteAchievements.Views.Showcase
                         PieCenterModeName);
                     AddToggle(
                         panel,
-                        Localize("LOCPlayAch_Settings_ShowOverviewPieLegend"),
-                        ShowcaseWidgetOptions.GetPieShowLegend(_settings),
-                        value => ShowcaseWidgetOptions.SetPieShowLegend(_settings, value));
+                        Localize("LOCPlayAch_Showcase_ShowLegend"),
+                        ShowcaseWidgetOptions.GetShowLegend(_settings),
+                        value => ShowcaseWidgetOptions.SetShowLegend(_settings, value));
                     AddChoice(
                         panel,
                         Localize("LOCPlayAch_Settings_PieLegendPosition"),
@@ -640,6 +671,16 @@ namespace PlayniteAchievements.Views.Showcase
                 case ShowcaseWidgetKind.ActivityCalendar:
                     AddCountChoice(panel);
                     AddRangeChoice(panel);
+                    AddToggle(
+                        panel,
+                        Localize("LOCPlayAch_Showcase_ShowLegend"),
+                        ShowcaseWidgetOptions.GetShowLegend(_settings),
+                        value => ShowcaseWidgetOptions.SetShowLegend(_settings, value));
+                    AddColorRow(
+                        panel,
+                        Localize("LOCPlayAch_Common_Color"),
+                        () => ShowcaseWidgetOptions.GetActivityColor(_settings),
+                        value => ShowcaseWidgetOptions.SetActivityColor(_settings, value));
                     AddTimeControlRows(panel, includeSplit: false);
                     _achievementFilterRows = AddControlBarRows<ActivityCalendarControlBarAdapter>(panel, header: false);
                     ApplyAchievementFilterRows();
@@ -1720,12 +1761,18 @@ namespace PlayniteAchievements.Views.Showcase
         private void AddScoreCardOptions(Panel panel)
         {
             Grid showTotalRow = null;
+            Grid rarityBadgesRow = null;
+            Grid artRow = null;
             Grid customColorsRow = null;
             void SyncTypeRows(ScoreCardType type)
             {
-                if (showTotalRow != null)
+                // Points-only rows.
+                foreach (var row in new[] { showTotalRow, rarityBadgesRow, artRow })
                 {
-                    showTotalRow.Visibility = type.IsPoints ? Visibility.Visible : Visibility.Collapsed;
+                    if (row != null)
+                    {
+                        row.Visibility = type.IsPoints ? Visibility.Visible : Visibility.Collapsed;
+                    }
                 }
 
                 if (customColorsRow != null)
@@ -1759,6 +1806,18 @@ namespace PlayniteAchievements.Views.Showcase
                 Localize("LOCPlayAch_Settings_ScoreCardShowTotal"),
                 ShowcaseWidgetOptions.GetScoreCardShowTotal(_settings),
                 value => ShowcaseWidgetOptions.SetScoreCardShowTotal(_settings, value));
+            rarityBadgesRow = AddToggle(
+                panel,
+                Localize("LOCPlayAch_Settings_ShowRarityBadgesBelowProgress"),
+                ShowcaseWidgetOptions.GetScoreCardShowRarityBadges(_settings),
+                value => ShowcaseWidgetOptions.SetScoreCardShowRarityBadges(_settings, value));
+            artRow = AddChoice(
+                panel,
+                Localize("LOCPlayAch_Showcase_ScoreCardArt"),
+                new[] { ShowcaseScoreCardArt.ProviderIcon, ShowcaseScoreCardArt.GameCover, ShowcaseScoreCardArt.GameIcon },
+                ShowcaseWidgetOptions.GetScoreCardArt(_settings),
+                value => ShowcaseWidgetOptions.SetScoreCardArt(_settings, value),
+                ScoreCardArtName);
             customColorsRow = AddToggle(
                 panel,
                 Localize("LOCPlayAch_Settings_ScoreCardUseCustomColors"),
@@ -1889,6 +1948,93 @@ namespace PlayniteAchievements.Views.Showcase
             checkBox.Unchecked += (_, __) => Commit();
             Grid.SetColumn(checkBox, 1);
             row.Children.Add(checkBox);
+            panel.Children.Add(row);
+            return row;
+        }
+
+        /// <summary>
+        /// A color option: a swatch that opens the color picker, and a reset that clears the
+        /// stored color so the theme accent applies again.
+        /// </summary>
+        private Grid AddColorRow(Panel panel, string label, Func<string> read, Action<string> apply)
+        {
+            var row = new Grid();
+            row.SetResourceReference(MarginProperty, "PlayAch.Thickness.Bottom.Md");
+            row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(2, GridUnitType.Star) });
+            row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(3, GridUnitType.Star) });
+            var labelBlock = new TextBlock
+            {
+                Text = label,
+                Margin = new Thickness(0, 0, 8, 0),
+                FontWeight = FontWeights.SemiBold,
+                VerticalAlignment = VerticalAlignment.Center,
+                TextWrapping = TextWrapping.Wrap
+            };
+            labelBlock.SetResourceReference(TextBlock.ForegroundProperty, "PlayAch.Brush.Text");
+            row.Children.Add(labelBlock);
+
+            var swatch = new Border
+            {
+                Width = 36,
+                Height = 18,
+                CornerRadius = new CornerRadius(3),
+                BorderThickness = new Thickness(1)
+            };
+            swatch.SetResourceReference(Border.BorderBrushProperty, "PlayAch.Brush.Border");
+            var pick = new Button
+            {
+                Content = swatch,
+                MinHeight = 30,
+                Padding = new Thickness(8, 0, 8, 0),
+                HorizontalAlignment = HorizontalAlignment.Left,
+                ToolTip = Localize("LOCPlayAch_ColorPicker_WindowTitle")
+            };
+            var reset = new Button
+            {
+                Content = Localize("LOCPlayAch_Settings_Style_ResetToDefault"),
+                MinHeight = 30,
+                Margin = new Thickness(8, 0, 0, 0),
+                Padding = new Thickness(8, 0, 8, 0)
+            };
+
+            void ShowStored()
+            {
+                var stored = read();
+                if (AlphaColorPickerDialog.TryParseColor(stored, out var color))
+                {
+                    swatch.Background = new SolidColorBrush(color);
+                }
+                else
+                {
+                    swatch.SetResourceReference(Border.BackgroundProperty, "PlayAch.Brush.Accent");
+                }
+
+                reset.IsEnabled = stored != null;
+            }
+
+            void Commit(string value)
+            {
+                apply(value);
+                Committed();
+                ShowStored();
+            }
+
+            pick.Click += (_, __) =>
+            {
+                var picked = PlayniteAchievementsPlugin.Instance?.PickColor(Window.GetWindow(this), read());
+                if (!string.IsNullOrWhiteSpace(picked))
+                {
+                    Commit(picked);
+                }
+            };
+            reset.Click += (_, __) => Commit(null);
+            ShowStored();
+
+            var buttons = new StackPanel { Orientation = Orientation.Horizontal };
+            buttons.Children.Add(pick);
+            buttons.Children.Add(reset);
+            Grid.SetColumn(buttons, 1);
+            row.Children.Add(buttons);
             panel.Children.Add(row);
             return row;
         }

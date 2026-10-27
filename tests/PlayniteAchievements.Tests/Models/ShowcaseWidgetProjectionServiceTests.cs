@@ -635,9 +635,11 @@ namespace PlayniteAchievements.Tests.Models
             var calendar = ShowcaseWidgetProjectionService.BuildActivityCalendar(
                 snapshot,
                 CalendarInstance(TimelineRange.OneYear),
-                endDate);
+                endDate,
+                firstDayOfWeek: DayOfWeek.Sunday);
 
             Assert.AreEqual(DayOfWeek.Sunday, calendar.StartDate.DayOfWeek);
+            Assert.AreEqual(DayOfWeek.Sunday, calendar.FirstDayOfWeek);
             Assert.IsTrue(calendar.StartDate <= endDate.AddDays(-364));
             Assert.IsTrue(calendar.StartDate > endDate.AddDays(-364 - 7));
             Assert.AreEqual(endDate, calendar.EndDate);
@@ -729,9 +731,31 @@ namespace PlayniteAchievements.Tests.Models
             var quarter = ShowcaseWidgetProjectionService.BuildActivityCalendar(
                 snapshot,
                 CalendarInstance(TimelineRange.ThreeMonths),
-                endDate);
+                endDate,
+                firstDayOfWeek: DayOfWeek.Sunday);
             Assert.AreEqual(DayOfWeek.Sunday, quarter.StartDate.DayOfWeek);
             Assert.IsTrue(quarter.Days.Count < 120);
+        }
+
+        [TestMethod]
+        public void ActivityCalendar_StartsWeeksOnTheGivenFirstDay()
+        {
+            var endDate = new DateTime(2026, 7, 31); // a Friday
+            var snapshot = new OverviewDataSnapshot
+            {
+                GlobalUnlockCountsByDate = new Dictionary<DateTime, int> { [endDate] = 1 }
+            };
+
+            var calendar = ShowcaseWidgetProjectionService.BuildActivityCalendar(
+                snapshot,
+                CalendarInstance(TimelineRange.OneMonth),
+                endDate,
+                firstDayOfWeek: DayOfWeek.Monday);
+
+            Assert.AreEqual(DayOfWeek.Monday, calendar.FirstDayOfWeek);
+            Assert.AreEqual(DayOfWeek.Monday, calendar.StartDate.DayOfWeek);
+            Assert.AreEqual(calendar.StartDate, calendar.Days[0].Date);
+            Assert.AreEqual(endDate, calendar.EndDate);
         }
 
         private static ShowcaseWidgetInstanceSettings CalendarInstance(TimelineRange range)
@@ -760,7 +784,8 @@ namespace PlayniteAchievements.Tests.Models
             var instance = new ShowcaseWidgetInstanceSettings { Kind = ShowcaseWidgetKind.ActivityCalendar };
             ShowcaseTimelineOptions.SetWindow(instance, TimeWindow.Custom(new DateTime(2026, 3, 1), new DateTime(2026, 4, 15)));
 
-            var calendar = ShowcaseWidgetProjectionService.BuildActivityCalendar(snapshot, instance, today);
+            var calendar = ShowcaseWidgetProjectionService.BuildActivityCalendar(
+                snapshot, instance, today, firstDayOfWeek: DayOfWeek.Sunday);
 
             Assert.AreEqual(new DateTime(2026, 4, 15), calendar.EndDate);
             Assert.AreEqual(DayOfWeek.Sunday, calendar.StartDate.DayOfWeek);

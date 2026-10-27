@@ -1,5 +1,6 @@
 using System.Linq;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
+using PlayniteAchievements.Models.Settings;
 using PlayniteAchievements.Services.Achievements;
 
 namespace PlayniteAchievements.Tests.Services
@@ -69,6 +70,19 @@ namespace PlayniteAchievements.Tests.Services
             Assert.AreEqual(string.Empty, AchievementCategoryHelper.ToCategoryLabelCellText("  "));
             Assert.AreEqual(string.Empty, AchievementCategoryHelper.ToCategoryLabelCellText("Default"));
             Assert.AreEqual("Story DLC", AchievementCategoryHelper.ToCategoryLabelCellText(" Story DLC "));
+        }
+
+        [TestMethod]
+        public void ToCategoryLabelCellText_ShowsThePartTheColumnSettingPicks()
+        {
+            const string nested = "DLC::Season Pass::Week 1";
+
+            Assert.AreEqual("Week 1", AchievementCategoryHelper.ToCategoryLabelCellText(nested));
+            Assert.AreEqual("Week 1", AchievementCategoryHelper.ToCategoryLabelCellText(nested, CategoryColumnDisplay.Subcategory));
+            Assert.AreEqual("DLC", AchievementCategoryHelper.ToCategoryLabelCellText(nested, CategoryColumnDisplay.TopLevel));
+            Assert.AreEqual("DLC > Season Pass > Week 1", AchievementCategoryHelper.ToCategoryLabelCellText(nested, CategoryColumnDisplay.FullPath));
+            Assert.AreEqual("Story", AchievementCategoryHelper.ToCategoryLabelCellText("Story", CategoryColumnDisplay.TopLevel), "a flat label is its own top level");
+            Assert.AreEqual(string.Empty, AchievementCategoryHelper.ToCategoryLabelCellText("Default", CategoryColumnDisplay.FullPath));
         }
 
         [TestMethod]

@@ -220,6 +220,7 @@ namespace PlayniteAchievements.Models.Settings
         private DateDisplayMode _unlockDateDisplayMode = DateDisplayMode.DateAndTime;
         private PlaytimeDisplayMode _playtimeDisplayMode = PlaytimeDisplayMode.HoursAndMinutes;
         private CategoryCompletionBadgeMode _categoryCompletionBadgeMode = CategoryCompletionBadgeMode.All;
+        private CategoryColumnDisplay _categoryColumnDisplay = CategoryColumnDisplay.Subcategory;
         private ProgressBadgeSource _progressBadgeSource = ProgressBadgeSource.TrophyWhenAvailable;
         private FriendNameDisplayMode _friendNameDisplayMode = FriendNameDisplayMode.PersonaAndNickname;
         private bool _enableAchievementCompactListControl = true;
@@ -2579,6 +2580,16 @@ namespace PlayniteAchievements.Models.Settings
         }
 
         /// <summary>
+        /// Which part of a nested category the grids' Category column shows: the subcategory, the
+        /// top level, or the full path.
+        /// </summary>
+        public CategoryColumnDisplay CategoryColumnDisplay
+        {
+            get => _categoryColumnDisplay;
+            set => SetValue(ref _categoryColumnDisplay, value);
+        }
+
+        /// <summary>
         /// Which badges the progress column footer shows: a game's trophies when it has them, or
         /// its rarity spread regardless.
         /// </summary>
@@ -3455,6 +3466,7 @@ namespace PlayniteAchievements.Models.Settings
                 UnlockDateDisplayMode = this.UnlockDateDisplayMode,
                 PlaytimeDisplayMode = this.PlaytimeDisplayMode,
                 CategoryCompletionBadgeMode = this.CategoryCompletionBadgeMode,
+                CategoryColumnDisplay = this.CategoryColumnDisplay,
                 ProgressBadgeSource = this.ProgressBadgeSource,
                 FriendNameDisplayMode = this.FriendNameDisplayMode,
                 EnableAchievementCompactListControl = this.EnableAchievementCompactListControl,
@@ -3617,6 +3629,7 @@ namespace PlayniteAchievements.Models.Settings
             UnlockDateDisplayMode = defaults.UnlockDateDisplayMode;
             PlaytimeDisplayMode = defaults.PlaytimeDisplayMode;
             CategoryCompletionBadgeMode = defaults.CategoryCompletionBadgeMode;
+            CategoryColumnDisplay = defaults.CategoryColumnDisplay;
             ProgressBadgeSource = defaults.ProgressBadgeSource;
             FriendNameDisplayMode = defaults.FriendNameDisplayMode;
 

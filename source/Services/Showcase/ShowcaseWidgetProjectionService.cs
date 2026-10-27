@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
 using System.Runtime.CompilerServices;
+using PlayniteAchievements.Common;
 using PlayniteAchievements.Models;
 using PlayniteAchievements.Models.Achievements.Scoring;
 using PlayniteAchievements.Models.Settings;
@@ -54,9 +55,12 @@ namespace PlayniteAchievements.Services.Showcase
 
     public sealed class ShowcaseActivityCalendar
     {
-        /// <summary>Contiguous ascending days; the first entry is a Sunday and the last is the end date.</summary>
+        /// <summary>Contiguous ascending days; the first entry falls on <see cref="FirstDayOfWeek"/> and the last is the end date.</summary>
         public IReadOnlyList<ShowcaseActivityDay> Days { get; set; } =
             Array.Empty<ShowcaseActivityDay>();
+
+        /// <summary>The weekday each week column starts on.</summary>
+        public DayOfWeek FirstDayOfWeek { get; set; } = DayOfWeek.Sunday;
 
         public DateTime StartDate { get; set; }
 
@@ -547,10 +551,13 @@ namespace PlayniteAchievements.Services.Showcase
             bool trimToUnlocks)
         {
             var cache = DerivedCache.GetOrCreateValue(snapshot);
-            var key = WindowKey(ShowcaseTimelineOptions.GetWindow(instance), endDate) + (trimToUnlocks ? "|trim" : string.Empty);
+            var firstDayOfWeek = FormattingCulture.Current.DateTimeFormat.FirstDayOfWeek;
+            var key = WindowKey(ShowcaseTimelineOptions.GetWindow(instance), endDate)
+                + (trimToUnlocks ? "|trim" : string.Empty)
+                + "|" + (int)firstDayOfWeek;
             if (!cache.ActivityCalendars.TryGetValue(key, out var calendar))
             {
-                calendar = BuildActivityCalendar(snapshot, instance, endDate, trimToUnlocks);
+                calendar = BuildActivityCalendar(snapshot, instance, endDate, trimToUnlocks, firstDayOfWeek);
                 cache.ActivityCalendars[key] = calendar;
             }
 
@@ -1064,12 +1071,18 @@ namespace PlayniteAchievements.Services.Showcase
         /// following a selection (the overview's mini-showcase) whose span is what matters, not
         /// the run up to today.
         /// </param>
+        /// <param name="firstDayOfWeek">
+        /// The weekday week columns start on; null follows the formatting culture, so a locale
+        /// whose weeks start on Monday gets Monday-first columns.
+        /// </param>
         public static ShowcaseActivityCalendar BuildActivityCalendar(
             OverviewDataSnapshot snapshot,
             ShowcaseWidgetInstanceSettings instance,
             DateTime endDate,
-            bool trimToUnlocks = false)
+            bool trimToUnlocks = false,
+            DayOfWeek? firstDayOfWeek = null)
         {
+            var weekStart = firstDayOfWeek ?? FormattingCulture.Current.DateTimeFormat.FirstDayOfWeek;
             var counts = NormalizeDailyCounts(snapshot);
             var range = ResolveDayRange(instance, endDate.Date, counts);
             var start = range.Start;
@@ -1087,8 +1100,8 @@ namespace PlayniteAchievements.Services.Showcase
                     endDate = active.Max();
                 }
             }
-            // Weeks render as Sunday-first columns, so the window starts on a Sunday.
-            while (start.DayOfWeek != DayOfWeek.Sunday)
+            // Weeks render as columns starting on weekStart, so the window starts on that weekday.
+            while (start.DayOfWeek != weekStart)
             {
                 start = start.AddDays(-1);
             }
@@ -1133,6 +1146,7 @@ namespace PlayniteAchievements.Services.Showcase
             return new ShowcaseActivityCalendar
             {
                 Days = days,
+                FirstDayOfWeek = weekStart,
                 StartDate = start,
                 EndDate = endDate,
                 MaxCount = max,

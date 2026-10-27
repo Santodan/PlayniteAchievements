@@ -161,6 +161,10 @@
                     <DataTrigger Binding="{Binding IsPoints}" Value="True">
                         <Setter Property="Visibility" Value="Visible"/>
                     </DataTrigger>
+                    <!-- The game's own art takes the slot when the card shows one game. -->
+                    <DataTrigger Binding="{Binding HasGameArt}" Value="True">
+                        <Setter Property="Visibility" Value="Collapsed"/>
+                    </DataTrigger>
                     <DataTrigger Binding="{Binding IsFeatured, ElementName=Root}" Value="True">
                         <Setter Property="Width" Value="54"/>
                         <Setter Property="Height" Value="61"/>
@@ -181,6 +185,27 @@
                         </MultiDataTrigger.Conditions>
                         <Setter Property="Margin" Value="14,0,0,0"/>
                     </MultiDataTrigger>
+                </Style.Triggers>
+            </Style>
+
+            <!-- A points card's game cover or icon in the platform icon's slot: the same height and
+                 side, with the width following the image so a cover keeps its shape. -->
+            <Style x:Key="ScoreCardGameArtStyle" TargetType="Image" BasedOn="{StaticResource ScoreCardPlatformIconStyle}">
+                <Setter Property="Width" Value="Auto"/>
+                <Setter Property="MaxWidth" Value="96"/>
+                <Setter Property="Visibility" Value="Collapsed"/>
+                <Style.Triggers>
+                    <DataTrigger Binding="{Binding HasGameArt}" Value="True">
+                        <Setter Property="Visibility" Value="Visible"/>
+                    </DataTrigger>
+                    <DataTrigger Binding="{Binding IsFeatured, ElementName=Root}" Value="True">
+                        <Setter Property="Width" Value="Auto"/>
+                        <Setter Property="MaxWidth" Value="128"/>
+                    </DataTrigger>
+                    <DataTrigger Binding="{Binding Compact, ElementName=Root}" Value="True">
+                        <Setter Property="Width" Value="Auto"/>
+                        <Setter Property="MaxWidth" Value="64"/>
+                    </DataTrigger>
                 </Style.Triggers>
             </Style>
 
@@ -530,6 +555,9 @@
 
                 <Image Source="{Binding PlatformIcon}"
                        Style="{StaticResource ScoreCardPlatformIconStyle}"/>
+                <Image helpers:AsyncImage.Uri="{Binding GameArtPath}"
+                       helpers:AsyncImage.DecodePixel="256"
+                       Style="{StaticResource ScoreCardGameArtStyle}"/>
 
                 <Grid x:Name="TextColumn">
                     <!-- Centered against the badge column, so the text and the badge share a
@@ -585,6 +613,50 @@
                     <TextBlock Grid.Row="2"
                                Text="{Binding CaptionText}"
                                Style="{StaticResource ScoreCardCaptionTextStyle}"/>
+
+                    <!-- A points card's rarity badges sit on the caption line, which a points card
+                         keeps empty. -->
+                    <ItemsControl Grid.Row="2"
+                                  ItemsSource="{Binding RarityBadges}"
+                                  Margin="0,5,0,0"
+                                  Focusable="False">
+                        <ItemsControl.Style>
+                            <Style TargetType="ItemsControl">
+                                <Setter Property="Visibility" Value="Collapsed"/>
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding HasRarityBadges}" Value="True">
+                                        <Setter Property="Visibility" Value="Visible"/>
+                                    </DataTrigger>
+                                    <DataTrigger Binding="{Binding BadgePosition, ElementName=Root}" Value="{x:Static settings:ScoreCardBadgePosition.Right}">
+                                        <Setter Property="HorizontalAlignment" Value="Right"/>
+                                    </DataTrigger>
+                                    <DataTrigger Binding="{Binding Compact, ElementName=Root}" Value="True">
+                                        <Setter Property="Visibility" Value="Collapsed"/>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </ItemsControl.Style>
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <WrapPanel/>
+                            </ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <StackPanel Orientation="Horizontal" Margin="0,0,10,0">
+                                    <Image Source="{Binding IconKey, Converter={StaticResource ResourceKeyToImage}}"
+                                           Width="16"
+                                           Height="16"
+                                           VerticalAlignment="Center"/>
+                                    <TextBlock Text="{Binding CountText}"
+                                               Foreground="{DynamicResource PlayAch.Brush.Text}"
+                                               FontSize="{DynamicResource PlayAch.FontSize.Caption}"
+                                               Margin="4,0,0,0"
+                                               VerticalAlignment="Center"/>
+                                </StackPanel>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
                 </Grid>
             </DockPanel>
         </Border>

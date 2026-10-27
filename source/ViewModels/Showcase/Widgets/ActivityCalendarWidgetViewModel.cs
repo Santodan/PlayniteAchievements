@@ -1,12 +1,14 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Windows.Media;
 using Playnite.SDK;
 using PlayniteAchievements.Common;
 using PlayniteAchievements.Models;
 using PlayniteAchievements.Services.Overview;
 using PlayniteAchievements.Services.Showcase;
 using PlayniteAchievements.ViewModels.Items;
+using PlayniteAchievements.Views.Dialogs;
 
 namespace PlayniteAchievements.ViewModels.Showcase.Widgets
 {
@@ -36,9 +38,6 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
 
         public static ActivityCalendarDayViewModel ForDay(ShowcaseActivityDay day) =>
             new ActivityCalendarDayViewModel(day.Intensity, day.Date, day.Count, day.Unlocks);
-
-        public static ActivityCalendarDayViewModel ForLegend(int intensity) =>
-            new ActivityCalendarDayViewModel(intensity, default(DateTime), 0);
 
         public int Intensity { get; }
 
@@ -105,6 +104,10 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
         // The calendar the week columns were built from; rebuilding them re-renders the whole
         // heatmap, so an unrelated refresh must leave them alone.
         private ShowcaseActivityCalendar _builtCalendar;
+        private IReadOnlyList<string> _weekdayLabels;
+        private bool _showLegend = true;
+        private Brush _cellColor;
+        private string _cellColorText;
 
         // The widget instance's shared adapter, so the filters survive view model swaps.
         private readonly ShowcaseControlBarSlot<ActivityCalendarControlBarAdapter> _controlBarSlot;
@@ -135,21 +138,16 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
         {
             _controlBarSlot = new ShowcaseControlBarSlot<ActivityCalendarControlBarAdapter>(
                 () => BuildWeeks(ResolveCalendar()));
-            LegendCells = Enumerable.Range(0, 5)
-                .Select(ActivityCalendarDayViewModel.ForLegend)
-                .ToList();
+            WeekdayLabels = BuildWeekdayLabels(FormattingCulture.Current.DateTimeFormat.FirstDayOfWeek);
+        }
 
+        /// <summary>Abbreviated weekday names, one per row, starting on <paramref name="firstDay"/>.</summary>
+        private static IReadOnlyList<string> BuildWeekdayLabels(DayOfWeek firstDay)
+        {
             var dayNames = FormattingCulture.Current.DateTimeFormat.AbbreviatedDayNames;
-            WeekdayLabels = new[]
-            {
-                dayNames[(int)DayOfWeek.Sunday],
-                dayNames[(int)DayOfWeek.Monday],
-                dayNames[(int)DayOfWeek.Tuesday],
-                dayNames[(int)DayOfWeek.Wednesday],
-                dayNames[(int)DayOfWeek.Thursday],
-                dayNames[(int)DayOfWeek.Friday],
-                dayNames[(int)DayOfWeek.Saturday]
-            };
+            return Enumerable.Range(0, 7)
+                .Select(offset => dayNames[((int)firstDay + offset) % 7])
+                .ToArray();
         }
 
         /// <summary>
@@ -162,11 +160,26 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
             private set => SetValue(ref _weeks, value);
         }
 
-        /// <summary>The five intensity swatches of the Less-to-More legend; never changes.</summary>
-        public IReadOnlyList<ActivityCalendarDayViewModel> LegendCells { get; }
+        /// <summary>Whether the Less-to-More legend shows.</summary>
+        public bool ShowLegend
+        {
+            get => _showLegend;
+            private set => SetValue(ref _showLegend, value);
+        }
 
-        /// <summary>Sunday-first weekday labels, one per row; never changes.</summary>
-        public IReadOnlyList<string> WeekdayLabels { get; }
+        /// <summary>The widget's custom cell color, or null for the theme accent.</summary>
+        public Brush CellColor
+        {
+            get => _cellColor;
+            private set => SetValue(ref _cellColor, value);
+        }
+
+        /// <summary>Weekday labels, one per row, starting on the calendar's first day of the week.</summary>
+        public IReadOnlyList<string> WeekdayLabels
+        {
+            get => _weekdayLabels;
+            private set => SetValue(ref _weekdayLabels, value);
+        }
 
         public bool ShowEmpty
         {
@@ -232,7 +245,28 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
                 Projection?.Instance,
                 ShowcaseControlBarItems.TimeWindow);
             SetValue(ref _window, ShowcaseTimelineOptions.GetWindow(Projection?.Instance), nameof(Window));
+            ShowLegend = ShowcaseWidgetOptions.GetShowLegend(Projection?.Instance);
+            UpdateCellColor(ShowcaseWidgetOptions.GetActivityColor(Projection?.Instance));
             BuildWeeks(ResolveCalendar());
+        }
+
+        /// <summary>Rebuilds the cell brush only when the stored color text changes.</summary>
+        private void UpdateCellColor(string colorText)
+        {
+            if (string.Equals(_cellColorText, colorText, StringComparison.OrdinalIgnoreCase))
+            {
+                return;
+            }
+
+            _cellColorText = colorText;
+            Brush brush = null;
+            if (AlphaColorPickerDialog.TryParseColor(colorText, out var color))
+            {
+                brush = new SolidColorBrush(color);
+                brush.Freeze();
+            }
+
+            CellColor = brush;
         }
 
         /// <summary>
@@ -321,6 +355,11 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
             }
 
             _builtCalendar = calendar;
+            if (calendar.Days?.Count > 0)
+            {
+                WeekdayLabels = BuildWeekdayLabels(calendar.FirstDayOfWeek);
+            }
+
             var culture = FormattingCulture.Current;
             var days = calendar.Days ?? Array.Empty<ShowcaseActivityDay>();
             var weeks = new List<ActivityCalendarWeekViewModel>((days.Count / 7) + 1);

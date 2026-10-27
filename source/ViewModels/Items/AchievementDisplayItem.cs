@@ -1107,9 +1107,14 @@ namespace PlayniteAchievements.ViewModels.Items
             }
         }
 
-        public string CategoryLabelDisplay => AchievementCategoryHelper.ToCategoryLabelCellText(CategoryLabel);
+        public string CategoryLabelDisplay => AchievementCategoryHelper.ToCategoryLabelCellText(
+            CategoryLabel,
+            PlayniteAchievementsPlugin.Instance?.Settings?.Persisted?.CategoryColumnDisplay ?? CategoryColumnDisplay.Subcategory);
 
-        /// <summary>Full path for the category cell's tooltip; the cell itself shows the leaf.</summary>
+        /// <summary>Re-reads <see cref="CategoryLabelDisplay"/> after the Category column display setting changes.</summary>
+        public void RefreshCategoryLabelDisplay() => OnPropertyChanged(nameof(CategoryLabelDisplay));
+
+        /// <summary>Full path for the category cell's tooltip; the cell itself shows the part the display setting picks.</summary>
         public string CategoryLabelPathDisplay => AchievementCategoryHelper.ToCategoryLabelCellPathText(CategoryLabel);
 
         /// <summary>

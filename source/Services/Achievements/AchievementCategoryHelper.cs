@@ -1,5 +1,6 @@
 using System;
 using Playnite.SDK;
+using PlayniteAchievements.Models.Settings;
 
 namespace PlayniteAchievements.Services.Achievements
 {
@@ -53,11 +54,12 @@ namespace PlayniteAchievements.Services.Achievements
         /// renders as an empty string instead of the localized "Default" placeholder. Category
         /// management rows, summaries, and theme options keep the named bucket.
         ///
-        /// Shows the leaf only. A grid column has no room for a path, and a column of paths sharing
-        /// long prefixes is harder to scan than a column of names; the full path is the cell's
-        /// tooltip - see <see cref="ToCategoryLabelCellPathText"/>.
+        /// <paramref name="display"/> picks the leaf (the default), the top level, or the full path;
+        /// the full path is also the cell's tooltip - see <see cref="ToCategoryLabelCellPathText"/>.
         /// </summary>
-        public static string ToCategoryLabelCellText(string rawValue)
+        public static string ToCategoryLabelCellText(
+            string rawValue,
+            CategoryColumnDisplay display = CategoryColumnDisplay.Subcategory)
         {
             if (NormalizeCategory(rawValue) == null)
             {
@@ -65,9 +67,20 @@ namespace PlayniteAchievements.Services.Achievements
             }
 
             var label = CategoryPathHelper.NormalizePath(rawValue);
-            return string.Equals(label, DefaultCategoryLabel, StringComparison.OrdinalIgnoreCase)
-                ? string.Empty
-                : CategoryPathHelper.ToDisplayLeaf(label);
+            if (string.Equals(label, DefaultCategoryLabel, StringComparison.OrdinalIgnoreCase))
+            {
+                return string.Empty;
+            }
+
+            switch (display)
+            {
+                case CategoryColumnDisplay.TopLevel:
+                    return CategoryPathHelper.GetRootName(label);
+                case CategoryColumnDisplay.FullPath:
+                    return CategoryPathHelper.ToDisplayPath(label);
+                default:
+                    return CategoryPathHelper.ToDisplayLeaf(label);
+            }
         }
 
         /// <summary>

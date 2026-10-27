@@ -482,7 +482,7 @@ namespace PlayniteAchievements.Models.Tests
 
             Assert.AreEqual(PieCenterMode.Filled, ShowcaseWidgetOptions.GetPieCenterMode(placed[0]));
             Assert.IsFalse(ShowcaseWidgetOptions.GetPieShowIcons(placed[0]));
-            Assert.IsTrue(ShowcaseWidgetOptions.GetPieShowLegend(placed[1]));
+            Assert.IsTrue(ShowcaseWidgetOptions.GetShowLegend(placed[1]));
             Assert.AreEqual(PieLegendPosition.Left, ShowcaseWidgetOptions.GetPieLegendPosition(placed[1]));
             Assert.IsFalse(ShowcaseWidgetOptions.GetPieIncludeLocked(placed[1]));
             Assert.AreEqual(TimelineGranularity.Week, ShowcaseTimelineOptions.GetGranularity(placed[2]));

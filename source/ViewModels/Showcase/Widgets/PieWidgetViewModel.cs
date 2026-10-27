@@ -121,7 +121,7 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
                 IncludeLocked = ShowcaseWidgetOptions.GetPieIncludeLocked(Projection?.Instance),
                 CenterMode = ShowcaseWidgetOptions.GetPieCenterMode(Projection?.Instance),
                 ShowIcons = ShowcaseWidgetOptions.GetPieShowIcons(Projection?.Instance),
-                ShowLegend = ShowcaseWidgetOptions.GetPieShowLegend(Projection?.Instance),
+                ShowLegend = ShowcaseWidgetOptions.GetShowLegend(Projection?.Instance),
                 LegendPosition = ShowcaseWidgetOptions.GetPieLegendPosition(Projection?.Instance)
             };
             switch (mode)

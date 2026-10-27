@@ -993,6 +993,21 @@ namespace PlayniteAchievements.Views.Controls
             set => SetValue(CategorySummarySourceProperty, value);
         }
 
+        public static readonly DependencyProperty DrillIntoCategorySummarySourceProperty =
+            DependencyProperty.Register(nameof(DrillIntoCategorySummarySource), typeof(bool),
+                typeof(AchievementDataGridControl), new PropertyMetadata(false));
+
+        /// <summary>
+        /// When set, a drilled category lists its rows from <see cref="CategorySummarySource"/>
+        /// instead of ItemsSource, for a host whose rows are only a slice of the game (the showcase
+        /// grid's unlocks) while its summary source is the whole game.
+        /// </summary>
+        public bool DrillIntoCategorySummarySource
+        {
+            get => (bool)GetValue(DrillIntoCategorySummarySourceProperty);
+            set => SetValue(DrillIntoCategorySummarySourceProperty, value);
+        }
+
         private static void OnCategorySummarySourceChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
         {
             if (d is AchievementDataGridControl control)
@@ -2028,7 +2043,10 @@ namespace PlayniteAchievements.Views.Controls
                 // opens it; an expanded row's numbers were its own and the drill opens those.
                 var drilled = DrilledPath;
                 var selfOnly = _drillScope == DrillScope.Own;
-                var filtered = (ItemsSource ?? Enumerable.Empty<AchievementDisplayItem>())
+                var drillSource = DrillIntoCategorySummarySource && CategorySummarySource != null
+                    ? CategorySummarySource
+                    : ItemsSource;
+                var filtered = (drillSource ?? Enumerable.Empty<AchievementDisplayItem>())
                     .Where(i => i != null && (selfOnly
                         ? CategoryPathHelper.IsSame(i.CategoryLabel, drilled)
                         : CategoryPathHelper.IsSelfOrDescendantOf(i.CategoryLabel, drilled)))
@@ -2094,7 +2112,9 @@ namespace PlayniteAchievements.Views.Controls
 
         private void OnCategorySummarySourceCollectionChanged(object sender, NotifyCollectionChangedEventArgs e)
         {
-            if (_isCategoryMode)
+            // A host that loads its summary source after its rows (the showcase grid) needs the
+            // mode toggle re-offered once the categories arrive, not only while grouped.
+            if (_isCategoryMode || DrillIntoCategorySummarySource)
             {
                 RequestItemsSourceContentRefresh();
             }
@@ -3002,6 +3022,11 @@ namespace PlayniteAchievements.Views.Controls
                 RefreshAppearance();
             }
 
+            if (e.PropertyName == nameof(PersistedSettings.CategoryColumnDisplay))
+            {
+                RefreshCategoryLabelDisplays();
+            }
+
             // Category rows repaint without reopening the window. Grids not currently in category
             // mode pick new modes up from the rebuild that entering category mode already does.
             if (_isCategoryMode)
@@ -3018,6 +3043,14 @@ namespace PlayniteAchievements.Views.Controls
                     // Rebuilding re-stamps AllowCompletionBadge and reassigns CategorySummaries.
                     RebuildCategorySummaries();
                 }
+            }
+        }
+
+        private void RefreshCategoryLabelDisplays()
+        {
+            foreach (var item in ItemsSource ?? Enumerable.Empty<AchievementDisplayItem>())
+            {
+                item?.RefreshCategoryLabelDisplay();
             }
         }
 

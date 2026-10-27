@@ -57,6 +57,12 @@ namespace PlayniteAchievements.Views.Showcase
             }
         }
 
+        // Cover reuses the "Cover" column header.
+        public static string ScoreCardArtName(ShowcaseScoreCardArt value) =>
+            value == ShowcaseScoreCardArt.GameCover
+                ? Localize("LOCPlayAch_Column_Cover")
+                : EnumValueName("LOCPlayAch_Showcase_ScoreCardArt_", value);
+
         // Both reuses the shared "Both" rather than adding a second identical string.
         public static string ProfileMedalModeName(ShowcaseProfileMedalMode value) =>
             value == ShowcaseProfileMedalMode.Both

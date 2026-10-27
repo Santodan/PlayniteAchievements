@@ -2,6 +2,7 @@ using System;
 using System.Linq;
 using PlayniteAchievements.Common;
 using PlayniteAchievements.Models.Achievements;
+using PlayniteAchievements.Models.Settings;
 using PlayniteAchievements.Services;
 using PlayniteAchievements.Services.Achievements;
 using Playnite.SDK;
@@ -267,9 +268,11 @@ namespace PlayniteAchievements.ViewModels.Items
             }
         }
 
-        public string CategoryLabelDisplay => AchievementCategoryHelper.ToCategoryLabelCellText(CategoryLabel);
+        public string CategoryLabelDisplay => AchievementCategoryHelper.ToCategoryLabelCellText(
+            CategoryLabel,
+            PlayniteAchievementsPlugin.Instance?.Settings?.Persisted?.CategoryColumnDisplay ?? CategoryColumnDisplay.Subcategory);
 
-        /// <summary>Full path for the category cell's tooltip; the cell itself shows the leaf.</summary>
+        /// <summary>Full path for the category cell's tooltip; the cell itself shows the part the display setting picks.</summary>
         public string CategoryLabelPathDisplay => AchievementCategoryHelper.ToCategoryLabelCellPathText(CategoryLabel);
 
         private string _achievementNote;

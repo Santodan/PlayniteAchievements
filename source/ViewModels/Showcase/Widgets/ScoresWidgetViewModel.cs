@@ -212,9 +212,14 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
         /// A points card's snapshot narrowed to the games its control bar keeps; the snapshot
         /// itself for the other cards, or while the bar keeps every game.
         /// </summary>
-        private OverviewDataSnapshot ApplyControlBarFilter(OverviewDataSnapshot source, ScoreCardType type)
+        /// <param name="keptGames">The platform's games the bar keeps; empty for the other cards.</param>
+        private OverviewDataSnapshot ApplyControlBarFilter(
+            OverviewDataSnapshot source,
+            ScoreCardType type,
+            out IReadOnlyList<GameSummaryItem> keptGames)
         {
             _controlBarSlot.Bind(Projection?.Instance?.InstanceId);
+            keptGames = Array.Empty<GameSummaryItem>();
             if (!type.IsPoints)
             {
                 ControlBar = null;
@@ -234,6 +239,7 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
                 .ToList();
             adapter.UpdateOptions(games);
             var kept = adapter.Apply(games);
+            keptGames = kept;
             if (kept.Count == games.Count)
             {
                 return source;
@@ -250,6 +256,34 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
             }
 
             return _narrowed;
+        }
+
+        // The kept games' unlocks per rarity, summed: only the card's platform, as its points are.
+        private static IReadOnlyList<BadgeCountItem> BuildRarityBadges(IReadOnlyList<GameSummaryItem> games) =>
+            BadgeCountItem.BuildRarity(
+                games.Sum(game => game.UltraRareCount),
+                games.Sum(game => game.RareCount),
+                games.Sum(game => game.UncommonCount),
+                games.Sum(game => game.CommonCount));
+
+        // A card narrowed to one game shows that game's art when the option asks for it; with
+        // several games, or art the game lacks, the platform icon stays.
+        private static string ResolveGameArt(IReadOnlyList<GameSummaryItem> games, ShowcaseScoreCardArt art)
+        {
+            if (games.Count != 1)
+            {
+                return null;
+            }
+
+            switch (art)
+            {
+                case ShowcaseScoreCardArt.GameCover:
+                    return games[0].GameCoverPath;
+                case ShowcaseScoreCardArt.GameIcon:
+                    return games[0].GameLogo;
+                default:
+                    return null;
+            }
         }
 
         // The narrowed view's history over the card's window, counted once per view and day.
@@ -273,7 +307,11 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
             var source = Projection?.Snapshot ?? new OverviewDataSnapshot();
             var instance = Projection?.Instance;
             var type = ShowcaseWidgetOptions.GetScoreCardType(instance);
-            var snapshot = ApplyControlBarFilter(source, type);
+            var snapshot = ApplyControlBarFilter(source, type, out var keptGames);
+            var rarityBadges = ShowcaseWidgetOptions.GetScoreCardShowRarityBadges(instance)
+                ? BuildRarityBadges(keptGames)
+                : null;
+            var gameArt = ResolveGameArt(keptGames, ShowcaseWidgetOptions.GetScoreCardArt(instance));
 
             Rows = 1;
             Columns = 1;
@@ -287,6 +325,8 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
                 existing.BadgePosition = badgePosition;
                 existing.Card.SetUseCustomColors(useCustomColors);
                 existing.Card.SetShowTotal(showTotal);
+                existing.Card.SetRarityBadges(rarityBadges);
+                existing.Card.SetGameArt(gameArt);
             }
 
             var history = ReferenceEquals(snapshot, source)
@@ -327,6 +367,8 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
             card.SetUseCustomColors(useCustomColors);
             card.SetShowTotal(showTotal);
             card.ApplyFor(type, snapshot, uniformBadges);
+            card.SetRarityBadges(rarityBadges);
+            card.SetGameArt(gameArt);
             Cards.ReplaceAll(new[]
             {
                 new ScoreCardWithHistoryViewModel(

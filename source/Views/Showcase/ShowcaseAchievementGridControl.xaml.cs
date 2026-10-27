@@ -1,8 +1,10 @@
 using System;
+using System.Collections.Generic;
 using System.Windows;
 using System.Windows.Controls;
 using PlayniteAchievements.Models.Settings;
 using PlayniteAchievements.Services.Showcase;
+using PlayniteAchievements.ViewModels.Items;
 
 namespace PlayniteAchievements.Views.Showcase
 {
@@ -53,9 +55,38 @@ namespace PlayniteAchievements.Views.Showcase
             set => SetValue(ColorRarityColumnsByRarityProperty, value);
         }
 
+        /// <summary>
+        /// The whole achievement list of the one game the rows show; set, the grid offers category
+        /// mode while its rows stay within that game, and totals and drills from this list.
+        /// </summary>
+        public static readonly DependencyProperty CategoryItemsSourceProperty =
+            DependencyProperty.Register(
+                nameof(CategoryItemsSource),
+                typeof(IEnumerable<AchievementDisplayItem>),
+                typeof(ShowcaseAchievementGridControl),
+                new PropertyMetadata(null, OnCategoryItemsSourceChanged));
+
+        // Category mode only where a whole-game list backs it; without one the grid's totals
+        // would count only the shown rows.
+        private static void OnCategoryItemsSourceChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
+        {
+            var host = (ShowcaseAchievementGridControl)d;
+            if (host.InnerGrid != null)
+            {
+                host.InnerGrid.EnableCategoryMode = e.NewValue != null;
+            }
+        }
+
+        public IEnumerable<AchievementDisplayItem> CategoryItemsSource
+        {
+            get => (IEnumerable<AchievementDisplayItem>)GetValue(CategoryItemsSourceProperty);
+            set => SetValue(CategoryItemsSourceProperty, value);
+        }
+
         public ShowcaseAchievementGridControl()
         {
             InitializeComponent();
+            InnerGrid.EnableCategoryMode = CategoryItemsSource != null;
         }
 
         protected override FrameworkElement GridElement => InnerGrid;
