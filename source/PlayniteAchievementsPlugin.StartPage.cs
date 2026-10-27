@@ -83,6 +83,20 @@ namespace PlayniteAchievements
             var view = CreateStartPageView(definition);
             Common.FormattingCulture.Apply(view);
             view.DataContext = viewModel;
+            if (resolveSettings != null)
+            {
+                // The widget's right-click opens the same settings dialog as on the Showcase.
+                ShowcaseWidgetSettingsMenu.SetOpener(view, _ =>
+                {
+                    var settings = resolveSettings();
+                    if (settings != null &&
+                        ShowcaseWidgetSettingsDialog.Show(settings, backgroundDefault: false))
+                    {
+                        PersistSettingsForUi();
+                        ShowcaseConfigurationEvents.RaiseChanged();
+                    }
+                });
+            }
 
             var key = GetStartPageInstanceKey(viewId, instanceId);
             DisposeStartPageViewModel(key);
