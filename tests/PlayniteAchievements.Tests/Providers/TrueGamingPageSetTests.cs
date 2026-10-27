@@ -1,6 +1,7 @@
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using PlayniteAchievements.Providers.Metadata;
 using PlayniteAchievements.Providers.Metadata.TrueGaming;
+using PlayniteAchievements.Services.Achievements;
 using System.Linq;
 
 namespace PlayniteAchievements.Tests.Providers
@@ -12,15 +13,18 @@ namespace PlayniteAchievements.Tests.Providers
         private static readonly string[] Targets = { "Lumière", "Spring Meadows", "The End" };
 
         [TestMethod]
-        public void Tags_NeedNoMorePages_OnceEveryAchievementIsListedWithFlags()
+        public void Tags_NeedNoMorePages_OnceADecodedPageListsEveryAchievement()
         {
             var full = Page(Row("a1", "Lumière", "Single Player"), Row("a2", "Spring Meadows", "Missable"), Row("a3", "The End", "Story Completed"));
             var unflagged = Page(Row("a1", "Lumière", "Single Player"), Row("a2", "Spring Meadows"), Row("a3", "The End", "Story Completed"));
+            var undecoded = Page(Row("a1", "Lumière"), Row("a2", "Spring Meadows"), Row("a3", "The End"));
+            undecoded.FlagsDecoded = false;
             var partial = Page(Row("a1", "Lumière", "Single Player"), Row("a2", "Spring Meadows", "Missable"));
             var wanted = MetadataField.Tags;
 
             Assert.IsFalse(TrueGamingPageSet.NeedsPage(TrueGamingSite.TrueTrophies, wanted, new[] { full }, Targets));
-            Assert.IsTrue(TrueGamingPageSet.NeedsPage(TrueGamingSite.TrueTrophies, wanted, new[] { unflagged }, Targets), "a row without flags");
+            Assert.IsFalse(TrueGamingPageSet.NeedsPage(TrueGamingSite.TrueTrophies, wanted, new[] { unflagged }, Targets), "a row without flags is answered");
+            Assert.IsTrue(TrueGamingPageSet.NeedsPage(TrueGamingSite.TrueTrophies, wanted, new[] { undecoded }, Targets), "flags that did not decode");
             Assert.IsTrue(TrueGamingPageSet.NeedsPage(TrueGamingSite.TrueTrophies, wanted, new[] { partial }, Targets), "a missing row");
             Assert.IsTrue(TrueGamingPageSet.NeedsPage(TrueGamingSite.TrueAchievements, wanted, new TrueGamingPage[0], Targets));
             Assert.IsFalse(TrueGamingPageSet.NeedsPage(TrueGamingSite.TrueAchievements, MetadataField.Categories, new TrueGamingPage[0], Targets), "only tags need a page");
@@ -52,9 +56,28 @@ namespace PlayniteAchievements.Tests.Providers
             Assert.AreEqual(10, lumiere.Points);
             Assert.AreEqual("bronze", lumiere.TrophyType);
             Assert.AreEqual("Clair Obscur", lumiere.Category);
-            Assert.AreEqual("Collectable", rows[1].Tags, "an unflagged row takes the next page's flags");
+            Assert.IsNull(rows[1].Tags, "a row the first page lists without flags has none");
             Assert.AreEqual("Epilogue", rows[2].Category);
             Assert.IsNull(rows[2].Points, "points come from TrueAchievements only");
+        }
+
+        [TestMethod]
+        public void Combine_SkipsUndecodedPages_AndTakesPlatformFlagsFromTheOwnSiteOnly()
+        {
+            var ta = Page(Row("a1", "Lumière", "Single Player", "Buggy +"), Row("a2", "Spring Meadows"));
+            var undecoded = Page(Row("x1", "Lumière"), Row("x2", "Spring Meadows"));
+            undecoded.FlagsDecoded = false;
+            var tt = Page(Row("t1", "Lumière", "Missable", "Buggy -", "Platinum"), Row("t2", "Spring Meadows", "Collectable"));
+
+            var steam = TrueGamingPageSet.Combine(Pages(ta, tt), "Base", TrueGamingSite.TrueSteamAchievements);
+            Assert.AreEqual("Singleplayer", steam[0].Tags, "no other platform's flags");
+
+            var playStation = TrueGamingPageSet.Combine(Pages(ta, tt), "Base", TrueGamingSite.TrueTrophies);
+            CollectionAssert.AreEquivalent(new[] { "Singleplayer", "BuggyMinus", "Platinum" }, playStation[0].Tags.Split('|'));
+
+            var afterUndecoded = TrueGamingPageSet.Combine(Pages(undecoded, tt), "Base", TrueGamingSite.TrueSteamAchievements);
+            Assert.AreEqual(AchievementTagHelper.Missable, afterUndecoded[0].Tags, "the next decoded page answers");
+            Assert.AreEqual("Collectable", afterUndecoded[1].Tags);
         }
 
         [TestMethod]
