@@ -1017,14 +1017,15 @@ namespace PlayniteAchievements
                         _logger,
                         (gameId, art, ct) => CategoryDefaultArtDownloader.DownloadAsync(_diskImageService, gameId, art, _logger, ct),
                         gameId => _cacheManager?.LoadGameData(gameId.ToString()),
-                        (gameId, sourceKey, rows, force, ct) =>
-                            _refreshService.IconService.PopulateMetadataSourceIconCacheAsync(gameId, sourceKey, rows, force, ct),
+                        (gameId, sourceKey, lists, force, ct) =>
+                            _refreshService.IconService.PopulateMetadataSourceIconCacheAsync(gameId, sourceKey, lists, force, ct),
                         (gameId, sourceKey) => _refreshService.IconService.DeleteMetadataSourceIconCache(gameId, sourceKey),
                         (game, data, ct) =>
                             _providerRegistry.TryGetProvider(data?.ProviderKey, out var servicing) &&
                             servicing is IEnglishTitleSource englishSource
                                 ? englishSource.GetEnglishTitlesAsync(game, data, ct)
-                                : System.Threading.Tasks.Task.FromResult<IList<AchievementDetail>>(null));
+                                : System.Threading.Tasks.Task.FromResult<IList<AchievementDetail>>(null),
+                        usedIcons => _refreshService.IconService.DeleteUnusedMetadataListFolders(usedIcons));
                     _cacheManager = _refreshService.Cache;
                     _metadataState.AttachDatabase(_cacheManager as Services.Cache.IMetadataStateDatabase);
                     _friendCacheManager = _cacheManager as Services.Friends.IFriendCacheManager;
