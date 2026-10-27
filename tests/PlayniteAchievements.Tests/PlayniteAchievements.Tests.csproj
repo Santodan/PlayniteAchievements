@@ -426,6 +426,7 @@
     <Compile Include="..\..\source\Providers\Steam\SteamWebApiTokenResolver.cs" Link="Source\Providers\Steam\SteamWebApiTokenResolver.cs" />
     <Compile Include="..\..\source\Providers\Exophase\ExophaseApiClient.cs" Link="Source\Providers\Exophase\ExophaseApiClient.cs" />
     <Compile Include="..\..\source\Providers\Exophase\ExophaseGamePageParser.cs" Link="Source\Providers\Exophase\ExophaseGamePageParser.cs" />
+    <Compile Include="..\..\source\Providers\Metadata\Exophase\ExophaseMetadataBranch.cs" Link="Source\Providers\Metadata\Exophase\ExophaseMetadataBranch.cs" />
     <Compile Include="..\..\source\Providers\Metadata\TrueGaming\TrueGamingPageParser.cs" Link="Source\Providers\Metadata\TrueGaming\TrueGamingPageParser.cs" />
     <Compile Include="..\..\source\Providers\Metadata\TrueGaming\TrueGamingLinks.cs" Link="Source\Providers\Metadata\TrueGaming\TrueGamingLinks.cs" />
     <Compile Include="..\..\source\Providers\Metadata\TrueGaming\TrueGamingPageSet.cs" Link="Source\Providers\Metadata\TrueGaming\TrueGamingPageSet.cs" />
