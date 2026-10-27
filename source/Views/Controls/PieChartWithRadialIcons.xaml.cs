@@ -1096,6 +1096,36 @@ namespace PlayniteAchievements.Views.Controls
         }
 
         /// <summary>
+        /// The legend's scrollbar keeps its width, so the pie never shifts, but shows only while
+        /// the chart is hovered.
+        /// </summary>
+        private void OnLegendScrollerLoaded(object sender, RoutedEventArgs e)
+        {
+            LegendScroller.ApplyTemplate();
+            if (!(LegendScroller.Template?.FindName("PART_VerticalScrollBar", LegendScroller) is System.Windows.Controls.Primitives.ScrollBar bar))
+            {
+                return;
+            }
+
+            bar.SetBinding(OpacityProperty, new System.Windows.Data.Binding(nameof(IsMouseOver))
+            {
+                Source = this,
+                Converter = HoverOpacityConverter.Instance
+            });
+        }
+
+        private sealed class HoverOpacityConverter : System.Windows.Data.IValueConverter
+        {
+            public static readonly HoverOpacityConverter Instance = new HoverOpacityConverter();
+
+            public object Convert(object value, Type targetType, object parameter, System.Globalization.CultureInfo culture) =>
+                value is bool hovered && hovered ? 1.0 : 0.0;
+
+            public object ConvertBack(object value, Type targetType, object parameter, System.Globalization.CultureInfo culture) =>
+                System.Windows.Data.Binding.DoNothing;
+        }
+
+        /// <summary>
         /// The legend's ScrollViewer marks every wheel event handled; while its rows fit, the wheel
         /// is passed on so the page around the pie keeps scrolling.
         /// </summary>
