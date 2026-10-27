@@ -40,6 +40,7 @@ namespace PlayniteAchievements.Models.Settings
         private bool _enableUnlockToasts;
         private bool _enableFriendUnlockToasts;
         private bool _enableProgressToasts;
+        private int _progressToastIntervalPercent;
         private double _notificationDelaySeconds;
 
         public bool EnableNotifications
@@ -64,6 +65,12 @@ namespace PlayniteAchievements.Models.Settings
         {
             get => _enableProgressToasts;
             set => SetValue(ref _enableProgressToasts, value);
+        }
+
+        public int ProgressToastIntervalPercent
+        {
+            get => _progressToastIntervalPercent;
+            set => SetValue(ref _progressToastIntervalPercent, Math.Max(0, Math.Min(99, value)));
         }
 
         public double NotificationDelaySeconds
@@ -91,6 +98,7 @@ namespace PlayniteAchievements.Models.Settings
                 EnableUnlockToasts = provider?.UnlockToasts ?? settings.EnableUnlockToasts,
                 EnableFriendUnlockToasts = provider?.FriendUnlockToasts ?? settings.EnableFriendUnlockToasts,
                 EnableProgressToasts = provider?.ProgressToasts ?? settings.EnableProgressToasts,
+                ProgressToastIntervalPercent = settings.ProgressToastIntervalPercent,
                 NotificationDelaySeconds = settings.NotificationDelaySeconds
             };
         }
@@ -103,6 +111,7 @@ namespace PlayniteAchievements.Models.Settings
                 EnableUnlockToasts = EnableUnlockToasts,
                 EnableFriendUnlockToasts = EnableFriendUnlockToasts,
                 EnableProgressToasts = EnableProgressToasts,
+                ProgressToastIntervalPercent = ProgressToastIntervalPercent,
                 NotificationDelaySeconds = NotificationDelaySeconds
             };
         }
