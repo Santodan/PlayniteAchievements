@@ -732,6 +732,50 @@ namespace PlayniteAchievements.Views.Showcase
             AttachGridOptionsPersist(options);
 
             panel.Children.Add(editor);
+            AppendCategoryGridEditor(panel, catalog, surfaceKey, options as AchievementGridOptions);
+        }
+
+        /// <summary>
+        /// The achievement grid widget's category grid section, the same rows the grid display
+        /// settings popup shows for any achievement grid with category mode: hide the category grid
+        /// after a selection, and the category grid's own display options.
+        /// </summary>
+        private void AppendCategoryGridEditor(
+            Panel panel,
+            GridOptionsCatalog catalog,
+            string surfaceKey,
+            AchievementGridOptions achievementOptions)
+        {
+            var categorySurfaceKey = ShowcaseGridSurfaces.ResolveCategorySurface(surfaceKey);
+            if (achievementOptions == null || categorySurfaceKey == null)
+            {
+                return;
+            }
+
+            // The section's heading style lives with the settings styles.
+            var section = new StackPanel();
+            section.Resources.MergedDictionaries.Add(new ResourceDictionary
+            {
+                Source = new Uri(
+                    "pack://application:,,,/PlayniteAchievements;component/Resources/SettingsStyles.xaml",
+                    UriKind.Absolute)
+            });
+            GridDisplaySettingsDialog.AppendCategorySection(
+                section,
+                categorySurfaceKey,
+                out var hideCategoryRow,
+                out var categoryEditor);
+            hideCategoryRow.SetBinding(
+                System.Windows.Controls.Primitives.ToggleButton.IsCheckedProperty,
+                new System.Windows.Data.Binding(nameof(AchievementGridOptions.HideCategorySummaryRow))
+                {
+                    Source = achievementOptions,
+                    Mode = System.Windows.Data.BindingMode.TwoWay
+                });
+            var categoryOptions = catalog.GetCategorySummaries(categorySurfaceKey);
+            categoryEditor.Options = categoryOptions;
+            _gridOptionsPersist?.Watch(categoryOptions);
+            panel.Children.Add(section);
         }
 
         private void AttachGridOptionsPersist(object record)
