@@ -1429,6 +1429,7 @@
     <sys:String x:Key="LOCPlayAch_Showcase_ProfileLayout_Stacked">Stacked</sys:String>
     <sys:String x:Key="LOCPlayAch_Showcase_ProfileLinks">Profile links</sys:String>
     <sys:String x:Key="LOCPlayAch_Showcase_ScoreCardArt">Icon for one game</sys:String>
+    <sys:String x:Key="LOCPlayAch_Showcase_ScoreCardArtHint">Applies when the card shows one game.</sys:String>
     <sys:String x:Key="LOCPlayAch_Showcase_ScoreCardArt_ProviderIcon">Platform icon</sys:String>
     <sys:String x:Key="LOCPlayAch_Showcase_ScoreCardArt_GameIcon">Game icon</sys:String>
     <sys:String x:Key="LOCPlayAch_Showcase_ProfileAvatarWidth">Avatar width</sys:String>
