@@ -96,7 +96,9 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
         private bool _hasBackground;
         private string _avatarPath;
         private bool _hasAvatar;
-        private double _avatarSize = 72;
+        private double _avatarWidth = 72;
+        private double _avatarHeight = 72;
+        private double _linkIconSize = 18;
         private CornerRadius _avatarCornerRadius = new CornerRadius(12);
         private int _avatarDecodePixel = 144;
         private string _displayName;
@@ -153,7 +155,11 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
 
         public bool HasAvatar { get => _hasAvatar; private set => SetValue(ref _hasAvatar, value); }
 
-        public double AvatarSize { get => _avatarSize; private set => SetValue(ref _avatarSize, value); }
+        public double AvatarWidth { get => _avatarWidth; private set => SetValue(ref _avatarWidth, value); }
+
+        public double AvatarHeight { get => _avatarHeight; private set => SetValue(ref _avatarHeight, value); }
+
+        public double LinkIconSize { get => _linkIconSize; private set => SetValue(ref _linkIconSize, value); }
 
         public CornerRadius AvatarCornerRadius { get => _avatarCornerRadius; private set => SetValue(ref _avatarCornerRadius, value); }
 
@@ -239,11 +245,15 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
 
             AvatarPath = resolved.AvatarPath;
             HasAvatar = !string.IsNullOrWhiteSpace(resolved.AvatarPath);
-            AvatarSize = compact ? 42 : 72;
-            // Rounded rectangle, not a circle: the corner scales with the avatar so both
-            // densities read the same.
-            AvatarCornerRadius = new CornerRadius(Math.Round(AvatarSize * 0.17));
-            AvatarDecodePixel = Math.Max(64, (int)Math.Ceiling(AvatarSize * 2));
+            // A set width or height is fixed; an unset one follows the density.
+            var densitySize = compact ? 42 : ShowcaseWidgetOptions.DefaultProfileAvatarSize;
+            AvatarWidth = ShowcaseWidgetOptions.GetProfileAvatarWidthOverride(Projection?.Instance) ?? densitySize;
+            AvatarHeight = ShowcaseWidgetOptions.GetProfileAvatarHeightOverride(Projection?.Instance) ?? densitySize;
+            // Rounded rectangle, not a circle: the corner scales with the shorter side so every
+            // size reads the same.
+            AvatarCornerRadius = new CornerRadius(Math.Round(Math.Min(AvatarWidth, AvatarHeight) * 0.17));
+            AvatarDecodePixel = Math.Max(64, (int)Math.Ceiling(Math.Max(AvatarWidth, AvatarHeight) * 2));
+            LinkIconSize = ShowcaseWidgetOptions.GetProfileLinkIconSize(Projection?.Instance);
 
             DisplayName = resolved.DisplayName;
             ShowDisplayName = !string.IsNullOrWhiteSpace(resolved.DisplayName);
