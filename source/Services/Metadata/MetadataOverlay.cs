@@ -872,7 +872,12 @@ namespace PlayniteAchievements.Services.Metadata
                     return (null, unavailable);
                 }
 
-                var set = await MetadataListFetch.FetchAsync(provider, request, linkId, _logger, ct).ConfigureAwait(false);
+                // The label names the link's lists only while it is the label of this link.
+                var label = _links != null && _links.TryGet(gameId, key, out var linkRecord) &&
+                            string.Equals(linkRecord?.Id?.Trim(), linkId.Trim(), StringComparison.OrdinalIgnoreCase)
+                    ? linkRecord.Label
+                    : null;
+                var set = await MetadataListFetch.FetchAsync(provider, request, linkId, _logger, ct, label).ConfigureAwait(false);
                 // The id the game's link holds after this fetch, which the match list is kept under.
                 var storedId = linkId;
                 if (set == null || set.Achievements.Count == 0)

@@ -100,6 +100,31 @@ namespace PlayniteAchievements.Providers.Metadata.Exophase
         /// </summary>
         public bool OwnPlatform { get; }
 
+        // Endings that name one console. "-psn" (PS4 or PS5) and "-xbox" (Xbox One or Series) do not.
+        private static readonly (string Suffix, string Platform)[] PlatformEndings =
+        {
+            ("-xbox-one", "Xbox One"),
+            ("-xbox-360", "Xbox 360"),
+            ("-ps4", "PS4"),
+            ("-ps3", "PS3"),
+            ("-psvita", "PS Vita")
+        };
+
+        /// <summary>The console a page slug's ending names ("PS4" for "bioshock-ps4"); null when it names none.</summary>
+        public static string PlatformOfSlug(string slug)
+        {
+            var trimmed = slug?.Trim() ?? string.Empty;
+            foreach (var (suffix, platform) in PlatformEndings)
+            {
+                if (trimmed.EndsWith(suffix, StringComparison.OrdinalIgnoreCase))
+                {
+                    return platform;
+                }
+            }
+
+            return null;
+        }
+
         /// <summary>
         /// The Exophase platform slug of a servicing provider's achievements, for the own-platform
         /// branch; null for a platform Exophase rarity does not cover.

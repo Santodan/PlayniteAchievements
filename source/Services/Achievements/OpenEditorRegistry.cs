@@ -30,6 +30,29 @@ namespace PlayniteAchievements.Services.Achievements
         /// </summary>
         public static event Action AllClosed;
 
+        /// <summary>
+        /// Raised after a background writer changed a game's custom data, so an open Manage window
+        /// on that game reloads: those writes come after the refresh that window already showed.
+        /// </summary>
+        public static event Action<Guid> BackgroundWritten;
+
+        public static void NotifyBackgroundWrite(Guid gameId)
+        {
+            if (gameId == Guid.Empty)
+            {
+                return;
+            }
+
+            try
+            {
+                BackgroundWritten?.Invoke(gameId);
+            }
+            catch
+            {
+                // A listener's failure is its own and must not fail the writer.
+            }
+        }
+
         public static void Open(Guid gameId)
         {
             if (gameId == Guid.Empty)

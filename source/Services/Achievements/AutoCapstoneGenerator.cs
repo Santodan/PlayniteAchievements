@@ -81,7 +81,10 @@ namespace PlayniteAchievements.Services.Achievements
                     cancel.ThrowIfCancellationRequested();
                     try
                     {
-                        await GenerateOneAsync(ids[i], enabled).ConfigureAwait(false);
+                        if (await GenerateOneAsync(ids[i], enabled).ConfigureAwait(false))
+                        {
+                            OpenEditorRegistry.NotifyBackgroundWrite(ids[i]);
+                        }
                     }
                     catch (Exception ex)
                     {
@@ -97,18 +100,19 @@ namespace PlayniteAchievements.Services.Achievements
             }
         }
 
-        private async Task GenerateOneAsync(Guid gameId, bool enabled)
+        /// <returns>True when the game's achievements changed in a way a Manage window shows.</returns>
+        private async Task<bool> GenerateOneAsync(Guid gameId, bool enabled)
         {
             if (_overridesService.IsExcludedFromRefreshes(gameId))
             {
-                return;
+                return false;
             }
 
             // The open editor saves the definitions from its own rows, so an achievement added
             // underneath it would be gone at its next save. The game is looked at when it closes.
             if (OpenEditorRegistry.DeferWhileOpen(gameId, this, () => _ = GenerateAsync(new[] { gameId })))
             {
-                return;
+                return false;
             }
 
             var stored = _store.TryLoad(gameId, out var data) ? data : null;
@@ -121,21 +125,24 @@ namespace PlayniteAchievements.Services.Achievements
             {
                 if (!enabled)
                 {
-                    return;
+                    return false;
                 }
 
+                var wrote = false;
                 if (!categoryCapstones.All(capstone => string.IsNullOrWhiteSpace(capstone?.Category) || _authoring.IsCategoryHandled(gameId, capstone.Category.Trim())))
                 {
                     await _authoring.GenerateCategoryCapstonesAsync(gameId, categoryCapstones).ConfigureAwait(false);
+                    wrote = true;
                 }
 
                 // With the games' own capstones in place, an untouched whole-game one gives way.
                 if (stored?.CustomAchievements?.Any(definition => definition?.IsAutoCapstone == true && definition.IsWholeGameAutoCapstone) == true)
                 {
                     _authoring.RemoveUntouchedWholeGameCapstone(gameId);
+                    wrote = true;
                 }
 
-                return;
+                return wrote;
             }
 
             // Checked before hydrating: once the library has been handled, every refresh reaches
@@ -144,15 +151,17 @@ namespace PlayniteAchievements.Services.Achievements
 
             // A real capstone matched after the game got an authored one takes its place, however
             // it was authored and whatever the setting.
+            var replaced = false;
             if (matchedCapstone != null &&
                 stored?.CustomAchievements?.Any(definition => definition?.IsWholeGameAutoCapstone == true && definition.IsAutoCapstone) == true)
             {
                 _authoring.ReplaceWithMatchedCapstone(gameId);
+                replaced = true;
             }
 
             if (!enabled || stored?.AutoCapstoneGenerated == true)
             {
-                return;
+                return replaced;
             }
 
             var ordered = _authoring.LoadAchievementsInOrder(gameId);
@@ -166,16 +175,18 @@ namespace PlayniteAchievements.Services.Achievements
             {
                 case AutoCapstoneGenerationAction.MarkHandled:
                     _overridesService.MarkAutoCapstoneGenerated(gameId);
-                    break;
+                    return replaced;
 
                 case AutoCapstoneGenerationAction.NominatePlatinum:
                     _authoring.NominatePlatinum(gameId, decision.Platinum);
-                    break;
+                    return true;
 
                 case AutoCapstoneGenerationAction.Author:
                     await _authoring.AuthorAsync(gameId).ConfigureAwait(false);
-                    break;
+                    return true;
             }
+
+            return replaced;
         }
     }
 }
