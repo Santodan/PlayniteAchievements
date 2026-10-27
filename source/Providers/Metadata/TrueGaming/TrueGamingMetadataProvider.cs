@@ -378,6 +378,13 @@ namespace PlayniteAchievements.Providers.Metadata.TrueGaming
             var failed = new HashSet<TrueGamingSite>();
             var outcomes = await AddNeededPagesAsync(request, found, failed, name, ct, picked).ConfigureAwait(false);
             Record(request, StoreName(linkId), outcomes);
+
+            // Sites this refresh did not need are forgotten, so the link lists only the pages its
+            // tags came from; a site that did not load leaves the record as it was.
+            if (failed.Count == 0)
+            {
+                _store.Keep(GameId(request), StoreName(linkId), outcomes.Select(outcome => outcome.Site));
+            }
             if (found.Count == 0)
             {
                 return null;
@@ -487,6 +494,7 @@ namespace PlayniteAchievements.Providers.Metadata.TrueGaming
                 {
                     if (known == null)
                     {
+                        outcomes.Add((site, null));
                         continue;
                     }
 
@@ -494,6 +502,7 @@ namespace PlayniteAchievements.Providers.Metadata.TrueGaming
                     if (page.Achievements.Count > 0)
                     {
                         found.Add(new TrueGamingFoundPage(site, known, page));
+                        outcomes.Add((site, known));
                     }
                     else
                     {
