@@ -300,7 +300,8 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
         {
             _controlBarSlot.Bind(Projection?.Instance?.InstanceId);
             _controlBarSlot.UpdateShownBar(Projection?.Instance, LegacyShowControlBar);
-            ControlBar = _controlBarSlot.ShownBar;
+            // The bar is assigned once the rows are known (OnItemsRefreshed): a hidden bar still
+            // gives way to the category-only bar while the rows are one game's.
 
             var adapter = _controlBarSlot.Adapter;
             var list = (items ?? Enumerable.Empty<AchievementDisplayItem>())
@@ -399,9 +400,17 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
                 : PlayniteAchievementsPlugin.Instance?.Settings?.Persisted?.GridOptions?.GetCategorySummaries(categorySurface);
         }
 
+        // Holds only the category mode controls the grid adds, for a widget whose own bar is
+        // hidden: category mode lives in the control bar, so without one it could not be entered.
+        private readonly GridControlBarViewModel _categoryOnlyBar = new GridControlBarViewModel();
+
+        /// <summary>Only the achievement grid widget backs category mode with the game's whole list.</summary>
+        private bool OffersCategoryMode => Projection?.Instance?.Kind == ShowcaseWidgetKind.RecentAchievements;
+
         protected override void OnItemsRefreshed()
         {
-            var gameId = ResolveSingleGameId(Items);
+            var gameId = OffersCategoryMode ? ResolveSingleGameId(Items) : null;
+            ControlBar = _controlBarSlot.ShownBar ?? (gameId.HasValue ? _categoryOnlyBar : null);
             var snapshot = Projection?.Snapshot;
             OverviewDataSnapshot loadedFrom = null;
             _categorySnapshot?.TryGetTarget(out loadedFrom);
