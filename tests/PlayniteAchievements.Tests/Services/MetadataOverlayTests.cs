@@ -527,6 +527,33 @@ namespace PlayniteAchievements.Tests.Services
         }
 
         [TestMethod]
+        public async Task PairedPlatinum_TakesItsRankInTheSameRefreshAsItsText()
+        {
+            var platinum = Row("p1", "Platinum Trophy", icon: "https://psn/platinum.png");
+            platinum.Description = "Obtain all trophies";
+            platinum.TrophyType = "platinum";
+            var playstation = new FakeSource("PlayStation", MetadataField.Text | MetadataField.TrophyTypes | MetadataField.CapstoneArt)
+            {
+                Rows = { platinum }
+            };
+            var completionist = Row("ACH_ALL", "Completionist");
+            completionist.Description = "All achievements acquired";
+            var data = Game("Steam", completionist);
+            var overlay = Overlay(new[] { playstation }, Choices(capstoneArt: "PlayStation", trophyTypes: "PlayStation", text: "PlayStation"));
+            var gameId = data.PlayniteGameId.Value;
+            overlay.Links.SetUser(gameId, "PlayStation", "link-PlayStation");
+            Assert.IsTrue(overlay.Links.SetPairing(gameId, "PlayStation", "ACH_ALL", "p1"));
+
+            using (var run = overlay.BeginRun())
+            {
+                await run.ApplyAsync(data.Game, data, CancellationToken.None);
+            }
+
+            Assert.AreEqual("Platinum Trophy", completionist.DisplayName);
+            Assert.AreEqual("platinum", completionist.TrophyType);
+        }
+
+        [TestMethod]
         public async Task Pairings_StayWithTheirLink_AndDropWhenItChanges()
         {
             var playstation = new FakeSource("PlayStation", MetadataField.Icons)
