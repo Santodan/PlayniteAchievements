@@ -324,12 +324,6 @@ namespace PlayniteAchievements.Providers.Metadata
         public string ExtendedLinkId { get; set; }
 
         /// <summary>
-        /// True when <see cref="ExtendedLinkId"/> names the same pages as the link in the source's
-        /// current form, so a link the user set takes it too and stays the user's.
-        /// </summary>
-        public bool RewritesUserLink { get; set; }
-
-        /// <summary>
         /// Other ids a row went by, to the row: a row joined from several pages goes by its first
         /// page's id, and a pairing made to another page's id still finds it. Empty when none.
         /// </summary>
