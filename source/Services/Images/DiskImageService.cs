@@ -1449,6 +1449,20 @@ namespace PlayniteAchievements.Services.Images
                 AchievementIconCachePathBuilder.MetadataSourceFolderName
             }.Select(folder => Path.Combine(gameDir, folder));
 
+            return await LinkIdenticalFilesAsync(folders, $"game '{gameId}'", cancel).ConfigureAwait(false);
+        }
+
+        /// <summary>
+        /// Hard-links byte-identical files under <paramref name="folders"/>, such as a shared metadata
+        /// list folder whose source reuses one image for many rows. Returns the number of names linked.
+        /// </summary>
+        internal async Task<int> LinkIdenticalFilesAsync(IEnumerable<string> folders, string label, CancellationToken cancel)
+        {
+            if (_hardLinksUnsupported || folders == null)
+            {
+                return 0;
+            }
+
             var linked = 0;
             try
             {
@@ -1497,12 +1511,12 @@ namespace PlayniteAchievements.Services.Images
             }
             catch (Exception ex)
             {
-                _logger?.Warn(ex, $"Failed to link identical icon files for game '{gameId}'.");
+                _logger?.Warn(ex, $"Failed to link identical icon files for {label}.");
             }
 
             if (linked > 0)
             {
-                _logger?.Debug($"Linked {linked} identical icon file(s) for game '{gameId}'.");
+                _logger?.Debug($"Linked {linked} identical icon file(s) for {label}.");
             }
 
             return linked;
