@@ -52,10 +52,11 @@ namespace PlayniteAchievements.Providers.Metadata.TrueGaming
     }
 
     /// <summary>
-    /// Which of a game's TrueGaming pages the wanted fields need, and the rows they give together.
-    /// Points come only from TrueAchievements and trophy ranks only from TrueTrophies. Tags and
-    /// categories come from the pages in lookup order: each achievement takes its category from
-    /// the first page that lists it, and its tags from the first page that lists it with flags.
+    /// Which of a game's TrueGaming pages the tags need, and the rows they give together. Tags come
+    /// from the pages in lookup order: each achievement takes its tags from the first page whose
+    /// flags decoded and that lists it, with or without flags. A later page loads only for
+    /// achievements no such page lists. Flags about one platform's version (Buggy, Platinum) are
+    /// taken only from the game's own platform's site.
     /// Achievements of different pages are paired by name, then by description where the sites
     /// name one differently ("Grilled Tasty" on TrueSteamAchievements, "Grilled Tastes Better" on
     /// the others, both "Defeat Miltos"), then by their place on pages that list the same
@@ -66,8 +67,7 @@ namespace PlayniteAchievements.Providers.Metadata.TrueGaming
     {
         /// <summary>
         /// True when <paramref name="site"/>'s page is still needed after <paramref name="found"/>:
-        /// for points or ranks it alone supplies, or for achievements of <paramref name="targetNames"/>
-        /// the found pages leave without tags or category.
+        /// for achievements of <paramref name="targetNames"/> no found page with decoded flags lists.
         /// </summary>
         public static bool NeedsPage(
             TrueGamingSite site,
@@ -75,26 +75,21 @@ namespace PlayniteAchievements.Providers.Metadata.TrueGaming
             IEnumerable<TrueGamingPage> found,
             IEnumerable<string> targetNames)
         {
-            if ((wanted & MetadataField.Points) != 0 && site == TrueGamingSite.TrueAchievements ||
-                (wanted & MetadataField.TrophyTypes) != 0 && site == TrueGamingSite.TrueTrophies)
-            {
-                return true;
-            }
-
-            var wantsTags = (wanted & MetadataField.Tags) != 0;
-            var wantsCategories = (wanted & (MetadataField.Categories | MetadataField.CategoryArt)) != 0;
-            if (!wantsTags && !wantsCategories)
+            if ((wanted & MetadataField.Tags) == 0)
             {
                 return false;
             }
 
-            var rows = (found ?? Enumerable.Empty<TrueGamingPage>()).SelectMany(page => page.Achievements).ToList();
-            var listed = new HashSet<string>(rows.Select(row => NameKey(row.Name)), StringComparer.Ordinal);
-            var flagged = new HashSet<string>(rows.Where(row => row.Flags.Count > 0).Select(row => NameKey(row.Name)), StringComparer.Ordinal);
+            var answered = new HashSet<string>(
+                (found ?? Enumerable.Empty<TrueGamingPage>())
+                    .Where(page => page.FlagsDecoded)
+                    .SelectMany(page => page.Achievements)
+                    .Select(row => NameKey(row.Name)),
+                StringComparer.Ordinal);
             return (targetNames ?? Enumerable.Empty<string>())
                 .Select(NameKey)
                 .Where(key => key.Length > 0)
-                .Any(key => wantsTags && !flagged.Contains(key) || wantsCategories && !listed.Contains(key));
+                .Any(key => !answered.Contains(key));
         }
 
         /// <summary>
@@ -123,8 +118,8 @@ namespace PlayniteAchievements.Providers.Metadata.TrueGaming
         }
 
         /// <summary>The rows <paramref name="pages"/> give together, in page order; <paramref name="baseLabel"/> names the base game's category.</summary>
-        public static List<AchievementDetail> Combine(IReadOnlyList<TrueGamingFoundPage> pages, string baseLabel) =>
-            CombineAll(pages, baseLabel).Rows;
+        public static List<AchievementDetail> Combine(IReadOnlyList<TrueGamingFoundPage> pages, string baseLabel, TrueGamingSite ownSite = null) =>
+            CombineAll(pages, baseLabel, ownSite).Rows;
 
         /// <summary>
         /// <see cref="Combine"/>'s rows with the ids of the listings they joined. A page's row whose
@@ -132,8 +127,9 @@ namespace PlayniteAchievements.Providers.Metadata.TrueGaming
         /// one of a kind on both sides, the earlier row has no listing from this site yet, and both
         /// are in the same DLC pack. A row left over then joins the first page's row at its place
         /// (see <see cref="JoinByPosition"/>); otherwise it is a row of its own.
+        /// <paramref name="ownSite"/> is the only site platform flags are taken from.
         /// </summary>
-        public static TrueGamingCombinedRows CombineAll(IReadOnlyList<TrueGamingFoundPage> pages, string baseLabel)
+        public static TrueGamingCombinedRows CombineAll(IReadOnlyList<TrueGamingFoundPage> pages, string baseLabel, TrueGamingSite ownSite = null)
         {
             var entries = new List<List<(TrueGamingSite Site, TrueGamingAchievement Row)>>();
             var byName = new Dictionary<string, List<(TrueGamingSite Site, TrueGamingAchievement Row)>>(StringComparer.Ordinal);
@@ -233,11 +229,12 @@ namespace PlayniteAchievements.Providers.Metadata.TrueGaming
                 }
             }
 
+            var decoded = new HashSet<TrueGamingAchievement>(pages.Where(found => found.Page.FlagsDecoded).SelectMany(found => found.Page.Achievements));
             var rows = new List<AchievementDetail>();
             var aliases = new Dictionary<string, AchievementDetail>(StringComparer.OrdinalIgnoreCase);
             foreach (var listings in entries)
             {
-                var row = ToRow(listings, baseLabel);
+                var row = ToRow(listings, baseLabel, decoded, ownSite);
                 rows.Add(row);
                 foreach (var listing in listings.Skip(1))
                 {
@@ -335,11 +332,23 @@ namespace PlayniteAchievements.Providers.Metadata.TrueGaming
                 CategoryPathHelper.SanitizeSegment(right) ?? string.Empty,
                 StringComparison.OrdinalIgnoreCase);
 
-        private static AchievementDetail ToRow(List<(TrueGamingSite Site, TrueGamingAchievement Row)> listings, string baseLabel)
+        /// <summary>
+        /// The combined row: tags from the first listing with decoded flags, without platform
+        /// flags, plus the platform flags of the own site's listing.
+        /// </summary>
+        private static AchievementDetail ToRow(
+            List<(TrueGamingSite Site, TrueGamingAchievement Row)> listings,
+            string baseLabel,
+            ISet<TrueGamingAchievement> decoded,
+            TrueGamingSite ownSite)
         {
             var first = listings[0].Row;
             var dlc = CategoryPathHelper.SanitizeSegment(first.Dlc);
-            var flagged = listings.Select(listing => listing.Row).FirstOrDefault(row => row.Flags.Count > 0);
+            var answer = listings.Select(listing => listing.Row).FirstOrDefault(decoded.Contains);
+            var own = ownSite == null ? null : listings.FirstOrDefault(listing => listing.Site == ownSite && decoded.Contains(listing.Row)).Row;
+            var flags = (answer?.Flags ?? new List<string>()).Where(flag => !TrueGamingFlags.IsPlatformFlag(flag))
+                .Concat((own?.Flags ?? new List<string>()).Where(TrueGamingFlags.IsPlatformFlag))
+                .ToList();
             return new AchievementDetail
             {
                 ApiName = first.Id,
@@ -347,9 +356,7 @@ namespace PlayniteAchievements.Providers.Metadata.TrueGaming
                 Description = first.Description,
                 Category = string.IsNullOrWhiteSpace(dlc) ? baseLabel : dlc,
                 CategoryKind = string.IsNullOrWhiteSpace(dlc) ? CategoryKindHelper.Base : CategoryKindHelper.Dlc,
-                Tags = flagged == null ? null : TrueGamingFlags.ToTags(flagged.Flags),
-                Points = listings.FirstOrDefault(listing => listing.Site == TrueGamingSite.TrueAchievements).Row?.Points,
-                TrophyType = listings.FirstOrDefault(listing => listing.Site == TrueGamingSite.TrueTrophies).Row?.TrophyType
+                Tags = TrueGamingFlags.ToTags(flags)
             };
         }
 

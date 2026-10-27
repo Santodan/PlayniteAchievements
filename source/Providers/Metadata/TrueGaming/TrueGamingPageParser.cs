@@ -23,23 +23,11 @@ namespace PlayniteAchievements.Providers.Metadata.TrueGaming
 
         /// <summary>The site's flag names on the row ("Missable", "Single Player").</summary>
         public List<string> Flags { get; } = new List<string>();
-
-        /// <summary>The score shown before the description (<c>data-bf="70 - "</c>): gamerscore on TrueAchievements.</summary>
-        public int? Points { get; set; }
-
-        /// <summary>The rank in the description's class (<c>class="t g"</c>) on TrueTrophies: "platinum", "gold", "silver" or "bronze".</summary>
-        public string TrophyType { get; set; }
     }
 
     internal sealed class TrueGamingPage
     {
         public List<TrueGamingAchievement> Achievements { get; } = new List<TrueGamingAchievement>();
-
-        /// <summary>The game's own image (the page's <c>og:image</c>); null when it has none.</summary>
-        public string GameArt { get; set; }
-
-        /// <summary>DLC pack name to its image URL.</summary>
-        public Dictionary<string, string> DlcArt { get; } = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 
         /// <summary>False when the row flags could not be paired with the page's flag list; rows then carry none.</summary>
         public bool FlagsDecoded { get; set; }
@@ -65,8 +53,6 @@ namespace PlayniteAchievements.Providers.Metadata.TrueGaming
         private static readonly Regex FlagMask = new Regex(@"\bflg-([0-9a-fA-F]{8})\b", RegexOptions.CultureInvariant);
         private static readonly Regex FilterInput = new Regex(@"^chkFlag_(\d+)$", RegexOptions.CultureInvariant);
         private static readonly Regex FilterLabel = new Regex(@"^\s*([\d,]+)\s+(.+?)\s*$", RegexOptions.CultureInvariant | RegexOptions.Singleline);
-        private static readonly Regex LeadingScore = new Regex(@"^\s*([\d,]+)\s*-", RegexOptions.CultureInvariant);
-        private static readonly Regex ShareImage = new Regex(@"ImagerShare\.share\('([^']+)'", RegexOptions.CultureInvariant);
 
         public static TrueGamingPage Parse(string html)
         {
@@ -78,11 +64,6 @@ namespace PlayniteAchievements.Providers.Metadata.TrueGaming
 
             var document = new HtmlDocument();
             document.LoadHtml(html);
-            var gameArt = document.DocumentNode
-                .SelectSingleNode("//meta[@property='og:image']")
-                ?.GetAttributeValue("content", null);
-            page.GameArt = string.IsNullOrWhiteSpace(gameArt) ? null : WebUtility.HtmlDecode(gameArt).Trim();
-
             var masks = new List<uint>();
             string dlc = null;
             foreach (var node in document.DocumentNode.Descendants())
@@ -94,7 +75,7 @@ namespace PlayniteAchievements.Providers.Metadata.TrueGaming
 
                 if (node.Name == "div" && HasClass(node, "pnl-hd") && HasClass(node, "game"))
                 {
-                    dlc = HasClass(node, "dlc") ? ReadDlc(node, page) : null;
+                    dlc = HasClass(node, "dlc") ? Text(node.SelectSingleNode(".//h2")) : null;
                     continue;
                 }
 
@@ -125,25 +106,6 @@ namespace PlayniteAchievements.Providers.Metadata.TrueGaming
             return page;
         }
 
-        private static string ReadDlc(HtmlNode header, TrueGamingPage page)
-        {
-            var name = Text(header.SelectSingleNode(".//h2"));
-            if (name == null)
-            {
-                return null;
-            }
-
-            var share = header.Descendants("span")
-                .Select(span => ShareImage.Match(span.GetAttributeValue("onclick", string.Empty)))
-                .FirstOrDefault(match => match.Success);
-            if (share != null && !page.DlcArt.ContainsKey(name))
-            {
-                page.DlcArt[name] = WebUtility.HtmlDecode(share.Groups[1].Value);
-            }
-
-            return name;
-        }
-
         private static TrueGamingAchievement ReadRow(HtmlNode item, string dlc, out uint mask)
         {
             mask = 0;
@@ -163,28 +125,14 @@ namespace PlayniteAchievements.Providers.Metadata.TrueGaming
                 mask = uint.Parse(flagNode.Groups[1].Value, NumberStyles.HexNumber, CultureInfo.InvariantCulture);
             }
 
-            var description = item.ChildNodes.FirstOrDefault(child => child.Name == "p");
-            var score = LeadingScore.Match(description?.GetAttributeValue("data-bf", string.Empty) ?? string.Empty);
             return new TrueGamingAchievement
             {
                 Id = link.Groups[1].Value.ToLowerInvariant(),
                 Name = name,
-                Description = Text(description),
-                Dlc = dlc,
-                Points = score.Success &&
-                         int.TryParse(score.Groups[1].Value.Replace(",", string.Empty), NumberStyles.Integer, CultureInfo.InvariantCulture, out var points)
-                    ? points
-                    : (int?)null,
-                TrophyType = description != null && HasClass(description, "t") ? ReadTrophyType(description) : null
+                Description = Text(item.ChildNodes.FirstOrDefault(child => child.Name == "p")),
+                Dlc = dlc
             };
         }
-
-        private static string ReadTrophyType(HtmlNode description) =>
-            HasClass(description, "p") ? "platinum"
-            : HasClass(description, "g") ? "gold"
-            : HasClass(description, "s") ? "silver"
-            : HasClass(description, "b") ? "bronze"
-            : null;
 
         /// <summary>The page's flag filter: (flag id, name, row count) for each flag present.</summary>
         private static List<(int Id, string Name, int Count)> ReadFilter(HtmlDocument document)
@@ -214,12 +162,15 @@ namespace PlayniteAchievements.Providers.Metadata.TrueGaming
             return filter;
         }
 
+        // Set on some rows of all three sites but never listed in the flag filter.
+        private const uint UnlistedBit = 0x00000008;
+
         /// <summary>Each flag's name and mask bit, or null when the page's bits and flag list disagree.</summary>
         internal static List<(string Name, uint Bit)> DecodeFlags(
             IReadOnlyList<(int Id, string Name, int Count)> filter,
             IReadOnlyList<uint> masks)
         {
-            var union = masks.Aggregate(0u, (all, mask) => all | mask);
+            var union = masks.Aggregate(0u, (all, mask) => all | mask) & ~UnlistedBit;
             var bits = Enumerable.Range(0, 32)
                 .Select(shift => 1u << (31 - shift))
                 .Where(bit => (union & bit) != 0)

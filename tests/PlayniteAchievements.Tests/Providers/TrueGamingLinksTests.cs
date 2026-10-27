@@ -30,23 +30,6 @@ namespace PlayniteAchievements.Tests.Providers
         }
 
         [DataTestMethod]
-        [DataRow("ta", "https://www.trueachievements.com/game/BioShock-Xbox-One/achievements", "BioShock-Xbox-One")]
-        [DataRow("ta", "trueachievements.com/game/BioShock-Xbox-One", "BioShock-Xbox-One")]
-        [DataRow("ta", "game/BioShock-Xbox-One/achievements", "BioShock-Xbox-One")]
-        [DataRow("ta", "BioShock-Xbox-One", "BioShock-Xbox-One")]
-        [DataRow("tt", "https://www.truetrophies.com/game/BioShock-PS4/trophies", "BioShock-PS4")]
-        [DataRow("tsa", "https://truesteamachievements.com/game/BioShock-Remastered/achievements", "BioShock-Remastered")]
-        [DataRow("ta", "https://www.truetrophies.com/game/BioShock-PS4/trophies", null)]
-        [DataRow("tsa", "https://www.trueachievements.com/game/BioShock/achievements", null)]
-        [DataRow("ta", "BioShock Xbox One", null)]
-        [DataRow("ta", "", null)]
-        public void ExactSlug_KeepsTheEditionAndOnlyTakesTheSitesAddresses(string site, string text, string slug)
-        {
-            var found = TrueGamingSite.LookupOrder.Single(candidate => candidate.Prefix == site);
-            Assert.AreEqual(slug, TrueGamingLinks.ExactSlug(found, text));
-        }
-
-        [DataTestMethod]
         [DataRow("ta", "BioShock-Xbox-One", "Xbox One")]
         [DataRow("ta", "BioShock-Xbox-360", "Xbox 360")]
         [DataRow("ta", "BioShock", null)]
@@ -141,17 +124,63 @@ namespace PlayniteAchievements.Tests.Providers
                 "<Game><GameID>9305</GameID><Title>Fallout 4 (Windows) &amp; More</Title><Url>/game/Fallout-4-Windows/achievements</Url></Game></Games>" +
                 "</SearchResults></ResultsXML></SiteSearchController.SiteSearchResponse>";
 
-            var games = TrueGamingLinks.ParseSearch(text);
+            var games = TrueGamingLinks.ParseSiteSearch(text);
 
             CollectionAssert.AreEqual(new[] { "Fallout-4", "Fallout-4-Windows" }, games.Select(game => game.Slug).ToList());
             Assert.AreEqual("Fallout 4 (Windows) & More", games[1].Title);
         }
 
         [TestMethod]
+        public void SiteSearch_ReadsPlatforms_FromTheApiAndFromTheSearchPage()
+        {
+            // TrueTrophies' API answer for "Elden Ring" (2026-10-27), shortened.
+            const string api =
+                "<Games><Game><Title>ELDEN RING</Title><Url>/game/Elden-Ring/trophies</Url><PlatformsXML><Platforms><Platform><Name>PlayStation 5</Name></Platform></Platforms></PlatformsXML></Game>" +
+                "<Game><Title>ELDEN RING NIGHTREIGN (PS4)</Title><Url>/game/ELDEN-RING-NIGHTREIGN-v2/trophies</Url><PlatformsXML><Platforms><Platform><Name>PlayStation 4</Name></Platform></Platforms></PlatformsXML></Game></Games>";
+            // TrueSteamAchievements' search page for "Hades" (2026-10-27), one row.
+            const string page =
+                "<a class=\"sst-game-row\" href=\"/game/Hades/achievements\"><img class=\"sst-game-art\" src=\"/imagestore/2901193.jpg\" alt=\"\">" +
+                "<span class=\"sst-game-info\"><span class=\"sst-game-name\"><span class=\"hl\">Hades</span></span><span class=\"sst-game-meta\"><span class=\"sst-stat\">49</span></span>" +
+                "<span class=\"sst-game-platforms\"><span class=\"sst-platform-tag\" style=\"background:#6b7280\">Windows</span><span class=\"sst-platform-tag\">Mac OS X</span></span></span></a>";
+
+            var tt = TrueGamingLinks.ParseSiteSearch(api);
+            Assert.AreEqual(("ELDEN-RING-NIGHTREIGN-v2", "ELDEN RING NIGHTREIGN (PS4)", "PlayStation 4"), tt[1]);
+            Assert.AreEqual("PlayStation 5", tt[0].Platforms);
+
+            var tsa = TrueGamingLinks.ParseSiteSearch(page);
+            Assert.AreEqual(("Hades", "Hades", "Windows, Mac OS X"), tsa.Single());
+        }
+
+        [TestMethod]
+        public void SearchUrls_AskEachSiteTheWayItAnswersGames()
+        {
+            Assert.AreEqual(TrueGamingLinks.SearchUrl("Elden Ring"), TrueGamingLinks.SearchUrl(TrueGamingSite.TrueAchievements, "Elden Ring"));
+            Assert.AreEqual(
+                "https://www.truetrophies.com/true-api/sitesearch/search?q=Elden%20Ring&category=Games&site=tt",
+                TrueGamingLinks.SearchUrl(TrueGamingSite.TrueTrophies, "Elden Ring"));
+            Assert.AreEqual(
+                "https://truesteamachievements.com/search-results?search=Hades",
+                TrueGamingLinks.SearchUrl(TrueGamingSite.TrueSteamAchievements, "Hades"));
+        }
+
+        [TestMethod]
+        public void PickedPage_KeepsItsSiteAndEdition()
+        {
+            Assert.AreEqual((TrueGamingSite.TrueTrophies, "Elden-Ring-PS4"), TrueGamingLinks.Picked("tt:Elden-Ring-PS4"));
+            Assert.IsNull(TrueGamingLinks.Picked("Elden-Ring").Site);
+            Assert.IsNull(TrueGamingLinks.Picked("ta:Hades, tt:Hades-PS5").Site, "a list stored by an earlier version");
+            Assert.AreEqual("Elden-Ring", TrueGamingLinks.Normalize("tt:Elden-Ring-PS4"), "other sites read the page name");
+
+            Assert.AreEqual("tt:Elden-Ring-PS4", TrueGamingLinks.PickedIdFromAddress("https://www.truetrophies.com/game/Elden-Ring-PS4/trophies"));
+            Assert.AreEqual("tsa:Hades", TrueGamingLinks.PickedIdFromAddress("truesteamachievements.com/game/Hades/achievements"));
+            Assert.IsNull(TrueGamingLinks.PickedIdFromAddress("Hades"));
+        }
+
+        [TestMethod]
         public void SiteSearch_WithNoGames_ListsNone()
         {
-            Assert.AreEqual(0, TrueGamingLinks.ParseSearch("<SearchResults><TotalGames>0</TotalGames></SearchResults>").Count);
-            Assert.AreEqual(0, TrueGamingLinks.ParseSearch(null).Count);
+            Assert.AreEqual(0, TrueGamingLinks.ParseSiteSearch("<SearchResults><TotalGames>0</TotalGames></SearchResults>").Count);
+            Assert.AreEqual(0, TrueGamingLinks.ParseSiteSearch(null).Count);
         }
     }
 }

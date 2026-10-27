@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 
@@ -10,7 +11,8 @@ namespace PlayniteAchievements.Models.Settings
     /// UseExophaseForRarity becomes its Rarity choice, and the Steam SteamHuntersCategoryMode (or its
     /// older UseSteamHuntersForCategories checkbox) becomes Steam's Categories choice. Choices the
     /// config already holds are kept. Tags are not seeded: they follow the TrueGaming default.
-    /// Runs before deserialization so the writes persist.
+    /// TrueGaming category choices are dropped on every load. Runs before deserialization so the
+    /// writes persist.
     /// </summary>
     public static class MetadataSettingsMigration
     {
@@ -29,13 +31,48 @@ namespace PlayniteAchievements.Models.Settings
                     return json;
                 }
 
-                return Seed(persisted) ? root.ToString(Formatting.None) : json;
+                var changed = Seed(persisted);
+                changed |= DropTrueGamingCategories(persisted);
+                return changed ? root.ToString(Formatting.None) : json;
             }
             catch (Exception)
             {
                 return json;
             }
         }
+
+        /// <summary>
+        /// TrueGaming supplies tags only. A defaults row that chose it for categories takes
+        /// SteamHunters, and a platform row that chose it follows the defaults.
+        /// </summary>
+        private static bool DropTrueGamingCategories(JObject persisted)
+        {
+            const string field = nameof(MetadataChoices.Categories);
+            var changed = false;
+            if (persisted[nameof(PersistedSettings.MetadataDefaults)] is JObject defaults && IsTrueGaming(defaults[field]))
+            {
+                defaults[field] = MetadataChoices.SteamHunters;
+                changed = true;
+            }
+
+            if (persisted[nameof(PersistedSettings.MetadataPlatformChoices)] is JObject platforms)
+            {
+                foreach (var platform in platforms.Properties().Select(property => property.Value).OfType<JObject>())
+                {
+                    if (IsTrueGaming(platform[field]))
+                    {
+                        platform.Remove(field);
+                        changed = true;
+                    }
+                }
+            }
+
+            return changed;
+        }
+
+        private static bool IsTrueGaming(JToken value) =>
+            value?.Type == JTokenType.String &&
+            string.Equals(value.Value<string>(), MetadataChoices.TrueGaming, StringComparison.OrdinalIgnoreCase);
 
         private static bool Seed(JObject persisted)
         {

@@ -52,36 +52,18 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
 
         /// <summary>
         /// What a source supplies to this game as its own choice, as the Sources grid names the
-        /// fields ("Icons, Auto Capstone"); empty when nothing. <paramref name="choices"/> are the
-        /// routed ones; a field the source serves for another choice (Xbox points) is listed on that
-        /// choice's row instead, not here.
+        /// fields ("Icons, Auto Capstone"); empty when nothing.
         /// </summary>
-        private static string DescribeSupplies(
-            MetadataChoices choices,
-            MetadataChoices chosen,
-            IMetadataProvider provider,
-            IReadOnlyList<IMetadataProvider> providers)
+        private static string DescribeSupplies(MetadataChoices choices, IMetadataProvider provider)
         {
             if (choices == null || provider == null)
             {
                 return string.Empty;
             }
 
-            bool Uses(string routed, MetadataField field) =>
+            bool Uses(string chosen, MetadataField field) =>
                 (provider.SupportedFields & field) == field &&
-                string.Equals(routed, provider.Key, StringComparison.OrdinalIgnoreCase);
-
-            // Null for a field picked as another source that this one serves; that choice's row lists it.
-            string Served(string label, string picked)
-            {
-                if (string.IsNullOrWhiteSpace(picked) || string.Equals(picked, provider.Key, StringComparison.OrdinalIgnoreCase))
-                {
-                    return label;
-                }
-
-                var source = providers?.FirstOrDefault(candidate => string.Equals(candidate?.Key, picked, StringComparison.OrdinalIgnoreCase));
-                return source == null ? label : null;
-            }
+                string.Equals(chosen, provider.Key, StringComparison.OrdinalIgnoreCase);
 
             var fields = new List<string>();
             if (Uses(choices.Icons, MetadataField.Icons))
@@ -111,12 +93,12 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
 
             if (Uses(choices.TrophyTypes, MetadataField.TrophyTypes))
             {
-                fields.Add(Served(ResourceProvider.GetString("LOCPlayAch_Column_Trophy"), chosen?.TrophyTypes));
+                fields.Add(ResourceProvider.GetString("LOCPlayAch_Column_Trophy"));
             }
 
             if (Uses(choices.Points, MetadataField.Points))
             {
-                fields.Add(Served(ResourceProvider.GetString("LOCPlayAch_Column_Points"), chosen?.Points));
+                fields.Add(ResourceProvider.GetString("LOCPlayAch_Column_Points"));
             }
 
             if (Uses(choices.Text, MetadataField.Text))
@@ -124,19 +106,8 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 fields.Add(ResourceProvider.GetString("LOCPlayAch_Tagging_Area_Text"));
             }
 
-            return string.Join(", ", fields.Where(field => field != null));
+            return string.Join(", ", fields);
         }
-
-        /// <summary>
-        /// True when the source serves a field picked as another choice (Xbox points read from
-        /// TrueAchievements), so its row shows to hold the link that choice's row points to.
-        /// </summary>
-        private static bool ServesOtherChoice(MetadataChoices routed, MetadataChoices chosen, IMetadataProvider provider) =>
-            routed != null && chosen != null &&
-            RoutableFields.Any(entry =>
-                string.Equals(entry.Get(routed)?.Trim(), provider.Key, StringComparison.OrdinalIgnoreCase) &&
-                !string.IsNullOrWhiteSpace(entry.Get(chosen)) &&
-                !string.Equals(entry.Get(chosen).Trim(), provider.Key, StringComparison.OrdinalIgnoreCase));
 
         public ObservableCollection<MetadataLinkRow> Rows { get; } = new ObservableCollection<MetadataLinkRow>();
 
@@ -183,11 +154,8 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
 
                 // A source's link shows while the game uses the source, or while it holds a link the
                 // user set, so a hand-entered link never disappears with a choice.
-                // Rows follow where the data comes from: points and ranks show on the source that
-                // serves them, named after the choice they serve.
                 var providers = _providers?.Invoke() ?? Array.Empty<IMetadataProvider>();
-                var chosen = _settings?.Invoke()?.ResolveMetadataChoices(servicingProviderKey, gameChoices);
-                var choices = MetadataSourceRouting.Route(chosen, providers.ToList(), servicingProviderKey);
+                var choices = _settings?.Invoke()?.ResolveMetadataChoices(servicingProviderKey, gameChoices);
                 foreach (var provider in providers.Where(provider => !provider.IsNativeFor(servicingProviderKey)))
                 {
                     store.TryGet(gameId, provider.Key, out var record);
@@ -208,12 +176,9 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                         };
                     }
 
-                    var supplies = DescribeSupplies(choices, chosen, provider, providers);
-                    if (string.IsNullOrEmpty(supplies) &&
-                        record?.Origin != MetadataLinkOrigin.User &&
-                        !ServesOtherChoice(choices, chosen, provider))
+                    var supplies = DescribeSupplies(choices, provider);
+                    if (string.IsNullOrEmpty(supplies) && record?.Origin != MetadataLinkOrigin.User)
                     {
-                        AddRoutedRow(chosen, choices, provider, providers, store, gameId, servicingProviderKey);
                         continue;
                     }
 
@@ -222,7 +187,6 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                     var coverage = store.GetCoverage(gameId, provider.Key);
                     if (record == null && coverage == null)
                     {
-                        AddRoutedRow(chosen, choices, provider, providers, store, gameId, servicingProviderKey);
                         continue;
                     }
 
@@ -260,121 +224,6 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
 
             OnPropertyChanged(nameof(HasRows));
         }
-
-        /// <summary>
-        /// A row for a choice whose fields another source serves (Xbox points read from
-        /// TrueAchievements), so every choice in the grid has a row: it names the source that
-        /// serves it. When that source reads the fields from one page, the row shows the page and
-        /// can pick another for this choice alone; the source's own row and link stay as they are.
-        /// </summary>
-        private void AddRoutedRow(
-            MetadataChoices chosen,
-            MetadataChoices routed,
-            IMetadataProvider provider,
-            IReadOnlyList<IMetadataProvider> providers,
-            MetadataLinkStore store,
-            Guid gameId,
-            string servicingProviderKey)
-        {
-            if (chosen == null || routed == null)
-            {
-                return;
-            }
-
-            var away = RoutableFields
-                .Where(entry => string.Equals(entry.Get(chosen)?.Trim(), provider.Key, StringComparison.OrdinalIgnoreCase))
-                .Select(entry => (entry.LabelKey, ServedBy: entry.Get(routed)?.Trim()))
-                .Where(entry => !string.IsNullOrEmpty(entry.ServedBy) &&
-                                !string.Equals(entry.ServedBy, provider.Key, StringComparison.OrdinalIgnoreCase))
-                .ToList();
-            var servedBy = away.Count == 0
-                ? null
-                : providers.FirstOrDefault(candidate => string.Equals(candidate?.Key, away[0].ServedBy, StringComparison.OrdinalIgnoreCase));
-            if (servedBy == null)
-            {
-                return;
-            }
-
-            var sourceName = ResourceProvider.GetString(provider.DisplayNameKey);
-            var servedByText = string.Format(ResourceProvider.GetString("LOCPlayAch_Settings_ProviderServicedByFormat"), ResourceProvider.GetString(servedBy.DisplayNameKey));
-            var fields = string.Join(", ", away.Select(entry => ResourceProvider.GetString(entry.LabelKey)));
-            var pages = servedBy as IMetadataServedPages;
-            var pageKey = pages?.ServedPageKey(provider.Key);
-            if (pageKey == null || store == null || gameId == Guid.Empty)
-            {
-                Rows.Add(MetadataLinkRow.Routed(sourceName, servedByText, fields));
-                return;
-            }
-
-            var picked = store.TryGet(gameId, pageKey, out var pickedRecord) && !pickedRecord.IsNoMatch ? pickedRecord : null;
-            var sourceLink = store.TryGet(gameId, servedBy.Key, out var sourceRecord) && !sourceRecord.IsNoMatch ? sourceRecord : null;
-            var page = pages.ServedPage(gameId, provider.Key, picked?.Id, sourceLink?.Id);
-            // The page goes by the title it was picked under, else its name: the source's own link
-            // may have found the game under another edition's title.
-            var title = (picked == null ? null : LinkTitles(picked, null).FirstOrDefault()) ?? page?.Title;
-            var linkedGames = page == null
-                ? Array.Empty<GameSearchResult>()
-                : new[] { new GameSearchResult(page.Slug, title, platforms: page.Platform) };
-            Rows.Add(MetadataLinkRow.ServedPage(
-                this,
-                gameId,
-                servicingProviderKey,
-                pageKey,
-                provider.Key,
-                servedBy.Key,
-                sourceName,
-                page == null
-                    ? servedByText
-                    : string.IsNullOrWhiteSpace(page.Platform)
-                        ? title
-                        : string.Format(ResourceProvider.GetString("LOCPlayAch_ManageAchievements_Manual_LinkSummary"), title, page.Platform),
-                // Still says which source reads the page, now that the title shows the page.
-                page == null ? fields : string.Join(" · ", fields, servedByText),
-                servedByText,
-                picked != null,
-                linkedGames,
-                page == null ? null : new MetadataPageLinkItem(page.Slug, page.Url)));
-        }
-
-        /// <summary>
-        /// Opens the search for the page a routed choice is read from; the page picked is kept for
-        /// that choice alone, under the title it was picked by.
-        /// </summary>
-        internal void ChangeServedPage(MetadataLinkRow row)
-        {
-            var store = _store?.Invoke();
-            var pages = (_providers?.Invoke() ?? Array.Empty<IMetadataProvider>())
-                .FirstOrDefault(candidate => string.Equals(candidate?.Key, row.ServedByKey, StringComparison.OrdinalIgnoreCase)) as IMetadataServedPages;
-            var search = pages?.CreateServedPageSearch(row.ServedChoiceKey, row.SourceName);
-            if (store == null || search == null)
-            {
-                return;
-            }
-
-            var gameName = _gameName?.Invoke();
-            var title = string.Join(
-                " · ",
-                new[] { row.SourceName, gameName }
-                    .Where(part => !string.IsNullOrWhiteSpace(part)));
-            var picked = GameSearchWindow.Show(null, search, title, gameName, row.LinkedGames);
-            var result = picked?.FirstOrDefault();
-            if (result == null ||
-                (row.IsUserSet && string.Equals(result.Id, row.LinkedGames.FirstOrDefault()?.Id, StringComparison.OrdinalIgnoreCase)))
-            {
-                return;
-            }
-
-            var name = string.Equals(result.Name, result.Id, StringComparison.OrdinalIgnoreCase) ? null : result.Name;
-            store.SetUser(row.GameId, row.SourceKey, result.Id, MetadataFoundNames.Format(new[] { ((string)null, name) }));
-            _onChanged?.Invoke();
-        }
-
-        /// <summary>The fields routing can move to another source: points and trophy ranks.</summary>
-        private static readonly (Func<MetadataChoices, string> Get, string LabelKey)[] RoutableFields =
-        {
-            (choices => choices.TrophyTypes, "LOCPlayAch_Column_Trophy"),
-            (choices => choices.Points, "LOCPlayAch_Column_Points")
-        };
 
         private void SetChoiceRows(Guid gameId, string servicingProviderKey, IReadOnlyList<MetadataChoiceRow> rows)
         {
@@ -599,90 +448,6 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
     public sealed class MetadataLinkRow : ObservableObject
     {
         private string _supplies = string.Empty;
-
-        private MetadataLinkRow(string sourceName, string linkTitle, string supplies)
-        {
-            SourceName = sourceName;
-            LinkTitle = linkTitle;
-            Supplies = supplies;
-            LinkedGames = Array.Empty<GameSearchResult>();
-            StatusText = string.Empty;
-            ChangeCommand = new RelayCommand(_ => { }, _ => false);
-            ClearCommand = new RelayCommand(_ => { }, _ => false);
-            OpenMatchesCommand = new RelayCommand(_ => { }, _ => false);
-        }
-
-        /// <summary>A read-only row for a choice another source serves: its name, "Uses TrueGaming" and the fields.</summary>
-        internal static MetadataLinkRow Routed(string sourceName, string servedByText, string supplies) =>
-            new MetadataLinkRow(sourceName, servedByText, supplies) { IsEditable = false };
-
-        /// <summary>
-        /// A row for a choice another source serves from one page (Xbox points from TrueAchievements):
-        /// the page and its console, a search that picks another page for this choice alone, and a
-        /// reset back to the page the source's own link leads to.
-        /// </summary>
-        internal static MetadataLinkRow ServedPage(
-            MetadataLinksViewModel owner,
-            Guid gameId,
-            string servicingProviderKey,
-            string pageKey,
-            string choiceKey,
-            string servedByKey,
-            string sourceName,
-            string linkTitle,
-            string supplies,
-            string servedByText,
-            bool picked,
-            IReadOnlyList<GameSearchResult> linkedGames,
-            MetadataPageLinkItem page)
-        {
-            return new MetadataLinkRow(owner, gameId, servicingProviderKey, pageKey, choiceKey, servedByKey, sourceName, linkTitle, supplies, servedByText, picked, linkedGames)
-            {
-                PageLinks = page == null ? Array.Empty<MetadataPageLinkItem>() : new[] { page }
-            };
-        }
-
-        private MetadataLinkRow(
-            MetadataLinksViewModel owner,
-            Guid gameId,
-            string servicingProviderKey,
-            string pageKey,
-            string choiceKey,
-            string servedByKey,
-            string sourceName,
-            string linkTitle,
-            string supplies,
-            string servedByText,
-            bool picked,
-            IReadOnlyList<GameSearchResult> linkedGames)
-        {
-            GameId = gameId;
-            ServicingProviderKey = servicingProviderKey;
-            SourceKey = pageKey;
-            ServedChoiceKey = choiceKey;
-            ServedByKey = servedByKey;
-            SourceName = sourceName;
-            LinkTitle = linkTitle;
-            Supplies = supplies;
-            LinkDetails = servedByText;
-            LinkedGames = linkedGames ?? Array.Empty<GameSearchResult>();
-            HasLink = LinkedGames.Count > 0;
-            StatusText = string.Empty;
-            IsUserSet = picked;
-            CanReset = picked;
-            ChangeCommand = new RelayCommand(_ => owner.ChangeServedPage(this));
-            ClearCommand = new RelayCommand(_ => owner.Clear(this), _ => CanReset);
-            OpenMatchesCommand = new RelayCommand(_ => { }, _ => false);
-        }
-
-        /// <summary>For a served-page row, the choice it picks the page for ("Xbox"); null otherwise.</summary>
-        internal string ServedChoiceKey { get; }
-
-        /// <summary>For a served-page row, the source that reads the page ("TrueGaming"); null otherwise.</summary>
-        internal string ServedByKey { get; }
-
-        /// <summary>False for a row that only names the source serving the choice; that source's row holds the link.</summary>
-        public bool IsEditable { get; private set; } = true;
 
         internal MetadataLinkRow(
             MetadataLinksViewModel owner,

@@ -45,34 +45,36 @@ namespace PlayniteAchievements.Providers.Metadata.TrueGaming
             return BaseSlug(slug);
         }
 
+        // A page picked in the link search: the site, then its exact slug ("tt:Elden-Ring-PS4").
+        private static readonly Regex PickedPage = new Regex(
+            @"^(ta|tt|tsa):([^,/?#\s:]+)$", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+
         private static readonly Regex SiteAddress = new Regex(
-            @"^(?:https?://)?(?:www\.)?(?<site>trueachievements|truetrophies|truesteamachievements)\.com/game/(?<slug>[^/?#]+)",
+            @"^(?:https?://)?(?:www\.)?(trueachievements|truetrophies|truesteamachievements)\.com/game/([^/?#]+)",
             RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
 
         /// <summary>
-        /// One site's page exactly as named, edition ending kept ("BioShock-Xbox-One"): from the
-        /// page name, "game/Name", or an address on <paramref name="site"/>. Null for an address on
-        /// another site or nothing usable.
+        /// The site and exact page a link names when the user picked one ("tt:Elden-Ring-PS4"); the
+        /// site is null for a link that is only a page name.
         /// </summary>
-        internal static string ExactSlug(TrueGamingSite site, string text)
+        internal static (TrueGamingSite Site, string Slug) Picked(string linkId)
         {
-            var slug = (text ?? string.Empty).Trim().Trim('/');
-            var address = SiteAddress.Match(slug);
-            if (address.Success)
-            {
-                if (site == null || !string.Equals(address.Groups["site"].Value, site.Name, StringComparison.OrdinalIgnoreCase))
-                {
-                    return null;
-                }
+            var match = PickedPage.Match((linkId ?? string.Empty).Trim());
+            return match.Success
+                ? (TrueGamingSite.LookupOrder.First(site => string.Equals(site.Prefix, match.Groups[1].Value, StringComparison.OrdinalIgnoreCase)), match.Groups[2].Value)
+                : (null, null);
+        }
 
-                slug = address.Groups["slug"].Value;
-            }
-            else if (slug.StartsWith("game/", StringComparison.OrdinalIgnoreCase))
-            {
-                slug = slug.Substring("game/".Length).Split('/')[0];
-            }
+        /// <summary>The link for a picked page ("tt:Elden-Ring-PS4").</summary>
+        internal static string PickedId(TrueGamingSite site, string slug) => $"{site.Prefix}:{slug}";
 
-            return slug.Length == 0 || slug.IndexOfAny(new[] { '/', '?', '#', ' ', ':', ',' }) >= 0 ? null : slug;
+        /// <summary>The picked-page link a pasted page address on one of the sites names, its edition kept; null for anything else.</summary>
+        internal static string PickedIdFromAddress(string text)
+        {
+            var match = SiteAddress.Match((text ?? string.Empty).Trim());
+            return match.Success
+                ? PickedId(TrueGamingSite.LookupOrder.First(site => site.Name.Equals(match.Groups[1].Value, StringComparison.OrdinalIgnoreCase)), Uri.UnescapeDataString(match.Groups[2].Value))
+                : null;
         }
 
         private static readonly Regex SearchGame = new Regex(
@@ -87,16 +89,61 @@ namespace PlayniteAchievements.Providers.Metadata.TrueGaming
         internal static string SearchUrl(string name) =>
             $"https://{TrueGamingSite.TrueAchievements.Host}/true-api/sitesearch/search?q={Uri.EscapeDataString(name ?? string.Empty)}&category=Games";
 
-        /// <summary>The games a site search answered with, as page slugs and titles, in its order.</summary>
-        internal static IReadOnlyList<(string Slug, string Title)> ParseSearch(string text)
+        /// <summary>
+        /// The address that searches one site for games: TrueAchievements' and TrueTrophies' search
+        /// API, which TrueTrophies answers only when asked for its own site, and
+        /// TrueSteamAchievements' search page, as its API answers no games.
+        /// </summary>
+        internal static string SearchUrl(TrueGamingSite site, string name)
         {
-            return SearchGame.Matches(text ?? string.Empty)
+            var query = Uri.EscapeDataString(name ?? string.Empty);
+            return site == TrueGamingSite.TrueSteamAchievements ? $"https://{site.Host}/search-results?search={query}"
+                : site == TrueGamingSite.TrueTrophies ? $"https://{site.Host}/true-api/sitesearch/search?q={query}&category=Games&site={site.Prefix}"
+                : SearchUrl(name);
+        }
+
+        private static readonly Regex SearchGamePlatform = new Regex(@"<Platform><Name>(?<name>[^<]*)</Name>", RegexOptions.CultureInvariant);
+
+        private static readonly Regex SearchRow = new Regex(
+            @"<a class=""sst-game-row"" href=""/game/(?<slug>[^/""]+)/[^""]*"">(?<row>.*?)</a>",
+            RegexOptions.Singleline | RegexOptions.CultureInvariant);
+
+        private static readonly Regex SearchRowName = new Regex(@"<span class=""sst-game-name"">(?<name>.*?)</span><span class=""sst-game-meta"">", RegexOptions.Singleline | RegexOptions.CultureInvariant);
+
+        private static readonly Regex SearchRowPlatform = new Regex(@"<span class=""sst-platform-tag""[^>]*>(?<name>[^<]*)</span>", RegexOptions.CultureInvariant);
+
+        private static readonly Regex Markup = new Regex(@"<[^>]+>", RegexOptions.CultureInvariant);
+
+        /// <summary>
+        /// The games one site's search answered with, in its order: page slug, title and the
+        /// platforms listed, from the search API's text or the search page's rows.
+        /// </summary>
+        internal static IReadOnlyList<(string Slug, string Title, string Platforms)> ParseSiteSearch(string text)
+        {
+            text = text ?? string.Empty;
+            var api = SearchGame.Matches(text)
                 .Cast<Match>()
                 .Select(match => match.Groups["game"].Value)
                 .Select(game => (
                     Slug: Uri.UnescapeDataString(SearchGameUrl.Match(game).Groups["slug"].Value),
-                    Title: System.Net.WebUtility.HtmlDecode(SearchGameTitle.Match(game).Groups["title"].Value)))
+                    Title: System.Net.WebUtility.HtmlDecode(SearchGameTitle.Match(game).Groups["title"].Value),
+                    Platforms: string.Join(", ", SearchGamePlatform.Matches(game).Cast<Match>().Select(platform => System.Net.WebUtility.HtmlDecode(platform.Groups["name"].Value)))))
                 .Where(game => game.Slug.Length > 0)
+                .ToList();
+            if (api.Count > 0)
+            {
+                return api;
+            }
+
+            return SearchRow.Matches(text)
+                .Cast<Match>()
+                .Select(match => (
+                    Slug: Uri.UnescapeDataString(match.Groups["slug"].Value),
+                    Title: System.Net.WebUtility.HtmlDecode(Markup.Replace(SearchRowName.Match(match.Groups["row"].Value).Groups["name"].Value, string.Empty)).Trim(),
+                    Platforms: string.Join(", ", SearchRowPlatform.Matches(match.Groups["row"].Value).Cast<Match>().Select(platform => System.Net.WebUtility.HtmlDecode(platform.Groups["name"].Value).Trim()))))
+                .Where(game => game.Slug.Length > 0)
+                .GroupBy(game => game.Slug, StringComparer.OrdinalIgnoreCase)
+                .Select(group => group.First())
                 .ToList();
         }
 

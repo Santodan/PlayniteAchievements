@@ -389,7 +389,6 @@
                                                     ToolTip="{DynamicResource LOCPlayAch_Button_Pick}"
                                                     AutomationProperties.Name="{DynamicResource LOCPlayAch_Button_Pick}"
                                                     Command="{Binding ChangeCommand}"
-                                                    Visibility="{Binding IsEditable, Converter={StaticResource BoolToVis}}"
                                                     VerticalAlignment="Center"
                                                     Margin="{StaticResource PlayAch.Thickness.Left.Sm}" />
                                             <!-- Back to automatic matching; off while there is no stored link to drop (IcoFont undo). -->
@@ -399,7 +398,6 @@
                                                     ToolTip="{DynamicResource LOCResetLabel}"
                                                     AutomationProperties.Name="{DynamicResource LOCResetLabel}"
                                                     Command="{Binding ClearCommand}"
-                                                    Visibility="{Binding IsEditable, Converter={StaticResource BoolToVis}}"
                                                     VerticalAlignment="Center"
                                                     Margin="{StaticResource PlayAch.Thickness.Left.Sm}" />
                                             <!-- The match count, and the pairings window for the source's match list. -->
