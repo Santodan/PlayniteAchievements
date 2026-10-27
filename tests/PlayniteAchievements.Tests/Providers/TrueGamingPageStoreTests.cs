@@ -57,6 +57,27 @@ namespace PlayniteAchievements.Tests.Providers
         }
 
         [TestMethod]
+        public void Keep_ForgetsTheOtherSites_InTheDatabaseToo()
+        {
+            var database = new FakeMetadataStateDatabase();
+            var gameId = Guid.NewGuid();
+            var store = Store(database);
+            store.Set(gameId, "Hades", TrueGamingSite.TrueAchievements, "Hades");
+            store.Set(gameId, "Hades", TrueGamingSite.TrueTrophies, "Hades-PS5");
+            store.Set(gameId, "Hades", TrueGamingSite.TrueSteamAchievements, "Hades");
+
+            store.Keep(gameId, "Hades", new[] { TrueGamingSite.TrueAchievements });
+            var writes = database.PageWrites;
+            store.Keep(gameId, "Hades", new[] { TrueGamingSite.TrueAchievements });
+            store.Keep(gameId, "Other", Array.Empty<TrueGamingSite>());
+
+            Assert.AreEqual(writes, database.PageWrites, "nothing left to forget writes nothing");
+            CollectionAssert.AreEqual(
+                new[] { "TrueAchievements=Hades" },
+                Store(database).GetPages(gameId, "Hades").Select(page => page.Site.Title + "=" + page.PageSlug).ToList());
+        }
+
+        [TestMethod]
         public void ClearingTheCache_DropsThePagesKeptInMemory()
         {
             var database = new FakeMetadataStateDatabase();
