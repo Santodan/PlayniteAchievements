@@ -61,6 +61,8 @@ namespace PlayniteAchievements.Views.Helpers
         private readonly Func<Dictionary<string, bool>> _getLocks;
         private readonly Action<Dictionary<string, bool>> _setLocks;
         private readonly HashSet<DataGridColumn> _lockedColumns = new HashSet<DataGridColumn>();
+        private readonly Func<Dictionary<string, bool>> _getHiddenHeaders;
+        private readonly Action<Dictionary<string, bool>> _setHiddenHeaders;
         private ColumnResizeWidthAdorner _resizeWidthAdorner;
         private AdornerLayer _resizeWidthAdornerLayer;
         private DispatcherTimer _saveTimer;
@@ -141,6 +143,8 @@ namespace PlayniteAchievements.Views.Helpers
         /// <param name="isRuntimeDefaultWidth">Optional predicate for legacy seed widths that should not count as user customization.</param>
         /// <param name="getLocks">Function to get the persisted per-column lock map; null hides the lock control.</param>
         /// <param name="setLocks">Action to set the persisted per-column lock map.</param>
+        /// <param name="getHiddenHeaders">Function to get the persisted per-column hidden header text map; null hides the eye control.</param>
+        /// <param name="setHiddenHeaders">Action to set the persisted per-column hidden header text map.</param>
         public DataGridColumnLayoutService(
             DataGrid grid,
             ILogger logger,
@@ -164,7 +168,9 @@ namespace PlayniteAchievements.Views.Helpers
             Action applyCellAlignments = null,
             Func<string, double, bool> isRuntimeDefaultWidth = null,
             Func<Dictionary<string, bool>> getLocks = null,
-            Action<Dictionary<string, bool>> setLocks = null)
+            Action<Dictionary<string, bool>> setLocks = null,
+            Func<Dictionary<string, bool>> getHiddenHeaders = null,
+            Action<Dictionary<string, bool>> setHiddenHeaders = null)
         {
             _grid = grid ?? throw new ArgumentNullException(nameof(grid));
             _logger = logger;
@@ -189,6 +195,8 @@ namespace PlayniteAchievements.Views.Helpers
             _isRuntimeDefaultWidth = isRuntimeDefaultWidth;
             _getLocks = getLocks;
             _setLocks = setLocks;
+            _getHiddenHeaders = getHiddenHeaders;
+            _setHiddenHeaders = setHiddenHeaders;
         }
 
         /// <summary>
@@ -216,6 +224,7 @@ namespace PlayniteAchievements.Views.Helpers
             ApplyPersistedVisibility();
             ApplyPersistedWidths();
             ApplyPersistedLocks();
+            ApplyPersistedHiddenHeaders();
         }
 
         /// <summary>
@@ -244,6 +253,7 @@ namespace PlayniteAchievements.Views.Helpers
                 context: $"columns={_grid.Columns.Count}");
             ApplyPersistedOrder();
             ApplyPersistedVisibility();
+            ApplyPersistedHiddenHeaders();
             WritePersistedPixelWidths(BuildEffectivePreferredWidths(includePending: false));
         }
 
@@ -312,6 +322,7 @@ namespace PlayniteAchievements.Views.Helpers
             ApplyPersistedOrder();
             ApplyPersistedWidths();
             ApplyPersistedLocks();
+            ApplyPersistedHiddenHeaders();
         }
 
         /// <summary>
@@ -2082,6 +2093,64 @@ namespace PlayniteAchievements.Views.Helpers
             }
         }
 
+        public bool IsColumnHeaderTextHidden(DataGridColumn column)
+        {
+            return column != null && DataGridAlignmentBehavior.GetIsHeaderTextHidden(column);
+        }
+
+        /// <summary>
+        /// Hides or shows a column's header text from the header menu and persists the choice.
+        /// </summary>
+        public void SetColumnHeaderTextHidden(DataGridColumn column, bool hidden)
+        {
+            var key = GetColumnKey(column);
+            if (string.IsNullOrWhiteSpace(key) || _getHiddenHeaders == null || _setHiddenHeaders == null)
+            {
+                return;
+            }
+
+            DataGridAlignmentBehavior.SetIsHeaderTextHidden(column, hidden);
+
+            var map = _getHiddenHeaders.Invoke() ?? new Dictionary<string, bool>(StringComparer.OrdinalIgnoreCase);
+            if (hidden)
+            {
+                map[key] = true;
+            }
+            else
+            {
+                map.Remove(key);
+            }
+
+            _setHiddenHeaders.Invoke(map);
+            _saveSettings?.Invoke();
+        }
+
+        private void ApplyPersistedHiddenHeaders()
+        {
+            if (_grid == null || _getHiddenHeaders == null)
+            {
+                return;
+            }
+
+            var map = _getHiddenHeaders.Invoke();
+            foreach (var column in _grid.Columns)
+            {
+                var key = GetColumnKey(column);
+                var hidden = !string.IsNullOrWhiteSpace(key) &&
+                             map != null &&
+                             map.TryGetValue(key, out var isHidden) &&
+                             isHidden;
+                if (hidden)
+                {
+                    DataGridAlignmentBehavior.SetIsHeaderTextHidden(column, true);
+                }
+                else
+                {
+                    column.ClearValue(DataGridAlignmentBehavior.IsHeaderTextHiddenProperty);
+                }
+            }
+        }
+
         private void ReleaseRuntimeLocks()
         {
             foreach (var column in _lockedColumns.ToList())
@@ -2472,6 +2541,21 @@ namespace PlayniteAchievements.Views.Helpers
             return icon;
         }
 
+        /// <summary>IcoFont eye (EF24) while the header text shows, eye-blocked (EF22) while hidden.</summary>
+        private FrameworkElement CreateHeaderTextVisibilityIcon(bool isHidden)
+        {
+            var icon = new Controls.GlyphIcon
+            {
+                Glyph = isHidden ? "" : "",
+                Size = 14,
+                Opacity = isHidden ? 1 : 0.62,
+                FontFamily = _grid?.TryFindResource("PlayAch.FontFamily.Icon") as FontFamily ??
+                             Application.Current?.TryFindResource("PlayAch.FontFamily.Icon") as FontFamily
+            };
+            SetTextBrushOpacity(icon, Controls.GlyphIcon.ForegroundProperty, 0.88);
+            return icon;
+        }
+
         private MenuItem CreateAlignmentButtonRowItem(DataGridColumn contextColumn)
         {
             MenuItem item = null;
@@ -2527,6 +2611,20 @@ namespace PlayniteAchievements.Views.Helpers
             if (string.IsNullOrWhiteSpace(key))
             {
                 return null;
+            }
+
+            if (CanShowHeaderTextVisibility(contextColumn))
+            {
+                var isHidden = IsColumnHeaderTextHidden(contextColumn);
+                row.Children.Add(CreateAlignmentButton(
+                    CreateHeaderTextVisibilityIcon(isHidden),
+                    ResourceProvider.GetString(isHidden ? "LOCPlayAch_Filter_Hidden" : "LOCPlayAch_Dynamic_Visible"),
+                    !isHidden,
+                    () =>
+                    {
+                        SetColumnHeaderTextHidden(contextColumn, !IsColumnHeaderTextHidden(contextColumn));
+                        refreshRow?.Invoke();
+                    }));
             }
 
             if (CanShowHeaderHorizontalAlignment(contextColumn))
@@ -2777,7 +2875,16 @@ namespace PlayniteAchievements.Views.Helpers
         {
             return CanShowCellHorizontalAlignment(column) ||
                    CanShowCellVerticalAlignment(column) ||
-                   CanShowHeaderHorizontalAlignment(column);
+                   CanShowHeaderHorizontalAlignment(column) ||
+                   CanShowHeaderTextVisibility(column);
+        }
+
+        private bool CanShowHeaderTextVisibility(DataGridColumn column)
+        {
+            return column != null &&
+                   _getHiddenHeaders != null &&
+                   _setHiddenHeaders != null &&
+                   !string.IsNullOrWhiteSpace(GetColumnKey(column));
         }
 
         private bool CanShowCellHorizontalAlignment(DataGridColumn column)
