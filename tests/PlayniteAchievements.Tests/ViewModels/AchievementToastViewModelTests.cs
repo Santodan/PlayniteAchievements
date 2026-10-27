@@ -838,6 +838,39 @@ namespace PlayniteAchievements.Tests.ViewModels
         }
 
         [TestMethod]
+        public void GameCategoryLine_CategoryMatchingTheGameShowsTheNameOnce()
+        {
+            Assert.AreEqual("Some Game", GameCategoryTextFor("Some Game", "some game "));
+        }
+
+        [TestMethod]
+        public void GameCategoryLine_DistinctCategoryShowsBoth()
+        {
+            StringAssert.Contains(GameCategoryTextFor("Some Game", "Expansion"), "Expansion");
+            StringAssert.StartsWith(GameCategoryTextFor("Some Game", "Expansion"), "Some Game");
+        }
+
+        private static string GameCategoryTextFor(string gameName, string category)
+        {
+            var viewModel = BuildLineToast(AllLinesVisible(), new AchievementUnlockedEventArgs
+            {
+                DisplayName = "Deep Diver",
+                GameName = gameName,
+                Category = category
+            });
+            foreach (var line in viewModel.ToastLines)
+            {
+                if (line is ToastGameCategoryLine row)
+                {
+                    return row.GameCategoryText;
+                }
+            }
+
+            Assert.Fail("No game/category line.");
+            return null;
+        }
+
+        [TestMethod]
         public void CompletionTitle_StrayBraceShowsAsTyped()
         {
             Assert.AreEqual("Done {", NotificationHeaderTextService.FormatCompletionTitle("Done {", "Some Game"));
