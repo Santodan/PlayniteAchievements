@@ -924,6 +924,34 @@ namespace PlayniteAchievements.Models.Settings
             return _gameSummaries.Remove(id);
         }
 
+        public bool RemoveCategorySummaries(string id)
+        {
+            if (string.IsNullOrWhiteSpace(id) || !_categorySummaries.TryGetValue(id, out var options))
+            {
+                return false;
+            }
+
+            DetachOptions(options);
+            return _categorySummaries.Remove(id);
+        }
+
+        /// <summary>
+        /// Stores a clone of <paramref name="options"/> under the surface, replacing (and
+        /// detaching) any existing record so change notifications follow the new instance.
+        /// </summary>
+        public void SetCategorySummaries(string id, CategorySummaryGridOptions options)
+        {
+            if (string.IsNullOrWhiteSpace(id) || options == null)
+            {
+                return;
+            }
+
+            RemoveCategorySummaries(id);
+            var copy = options.Clone();
+            _categorySummaries[id] = copy;
+            AttachOptions(CategorySummariesKindName, id, copy);
+        }
+
         /// <summary>
         /// Stores a clone of <paramref name="options"/> under the surface, replacing (and
         /// detaching) any existing record so change notifications follow the new instance.
@@ -1137,6 +1165,12 @@ namespace PlayniteAchievements.Models.Settings
 
         public static string ResolveCategorySummariesId(string columnSettingsKey)
         {
+            // An achievement grid widget's category list keeps its own per-instance record.
+            if (ShowcaseGridSurfaces.IsAchievementCategorySurface(columnSettingsKey))
+            {
+                return columnSettingsKey;
+            }
+
             switch (columnSettingsKey)
             {
                 case "OverviewSelectedGameCategorySummaries":
