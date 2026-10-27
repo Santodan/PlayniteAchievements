@@ -405,5 +405,8 @@ namespace PlayniteAchievements.ViewModels
 
         /// <summary>Selected trophy types ("platinum", "gold", ...), for achievement control bars.</summary>
         public List<string> Trophies { get; set; }
+
+        /// <summary>Selected category paths, for achievement control bars showing one game.</summary>
+        public List<string> Categories { get; set; }
     }
 }
