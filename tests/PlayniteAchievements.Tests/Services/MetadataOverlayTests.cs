@@ -857,6 +857,25 @@ namespace PlayniteAchievements.Tests.Services
         }
 
         [TestMethod]
+        public async Task CapstoneArt_IsThePlatinumsSavedIcon_WhenTheSourcesIconsWereSaved()
+        {
+            var playstation = new FakeSource("PlayStation", MetadataField.Icons | MetadataField.CapstoneArt);
+            var platinum = Row("p0", "Master", icon: "https://psn/platinum.png");
+            platinum.TrophyType = "platinum";
+            playstation.Rows.Add(platinum);
+            playstation.Rows.Add(Row("p1", "One", icon: "https://psn/one.png"));
+            var data = Game("Xbox", Row("x1", "One"));
+            var overlay = Overlay(new[] { playstation }, Choices(icons: "PlayStation", capstoneArt: "PlayStation"), iconSaver: new FakeIconSaver());
+
+            using (var run = overlay.BeginRun())
+            {
+                await run.ApplyAsync(data.Game, data, CancellationToken.None);
+            }
+
+            Assert.AreEqual(FakeIconSaver.PathOf("PlayStation", "p0"), overlay.Links.GetCapstoneArtUrl(data.PlayniteGameId.Value));
+        }
+
+        [TestMethod]
         public async Task CapstoneArtPlatinum_MatchesTheGamesAchievementByTitle_AndLeavesItsTrophyType()
         {
             var data = Game("Steam", Row("ACH_MASTER", "Master"), Row("ACH_ONE", "One"));
