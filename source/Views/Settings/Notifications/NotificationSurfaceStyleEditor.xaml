@@ -1396,6 +1396,7 @@
                         <RowDefinition Height="Auto"/>
                         <RowDefinition Height="Auto"/>
                         <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
                     </Grid.RowDefinitions>
 
                     <TextBlock Grid.Row="0" Grid.Column="0"
@@ -1436,14 +1437,27 @@
                              PreviewKeyDown="HeaderTextBox_PreviewKeyDown"
                              Margin="0,0,0,6"/>
 
+                    <!-- The completion title line; {0} is the game's name. -->
                     <TextBlock Grid.Row="3" Grid.Column="0"
+                               Text="{DynamicResource LOCPlayAch_Toast_GameComplete}"
+                               Foreground="{DynamicResource PlayAch.Brush.Text}"
+                               VerticalAlignment="Center"
+                               Margin="0,0,12,6"/>
+                    <TextBox x:Name="CompletionTitleTextBox"
+                             Grid.Row="3" Grid.Column="1"
+                             Text="{Binding CompletionTitleText, Mode=TwoWay, UpdateSourceTrigger=Explicit}"
+                             LostFocus="HeaderTextBox_LostFocus"
+                             PreviewKeyDown="HeaderTextBox_PreviewKeyDown"
+                             Margin="0,0,0,6"/>
+
+                    <TextBlock Grid.Row="4" Grid.Column="0"
                                Text="{DynamicResource LOCPlayAch_Settings_Style_HeaderFriendCompleted}"
                                Foreground="{DynamicResource PlayAch.Brush.Text}"
                                VerticalAlignment="Center"
                                Margin="0,0,12,6"
                                Visibility="{Binding IsToastSurface, Converter={StaticResource BoolToVis}}"/>
                     <TextBox x:Name="FriendCompletionHeaderTextBox"
-                             Grid.Row="3" Grid.Column="1"
+                             Grid.Row="4" Grid.Column="1"
                              Text="{Binding FriendCompletionHeaderText, Mode=TwoWay, UpdateSourceTrigger=Explicit}"
                              LostFocus="HeaderTextBox_LostFocus"
                              PreviewKeyDown="HeaderTextBox_PreviewKeyDown"
@@ -1451,14 +1465,14 @@
                              Visibility="{Binding IsToastSurface, Converter={StaticResource BoolToVis}}"/>
 
                     <!-- Progress notifications are toast-only (never screenshotted). -->
-                    <TextBlock Grid.Row="4" Grid.Column="0"
+                    <TextBlock Grid.Row="5" Grid.Column="0"
                                Text="{DynamicResource LOCPlayAch_Toast_AchievementProgress}"
                                Foreground="{DynamicResource PlayAch.Brush.Text}"
                                VerticalAlignment="Center"
                                Margin="0,0,12,0"
                                Visibility="{Binding IsToastSurface, Converter={StaticResource BoolToVis}}"/>
                     <TextBox x:Name="ProgressHeaderTextBox"
-                             Grid.Row="4" Grid.Column="1"
+                             Grid.Row="5" Grid.Column="1"
                              Text="{Binding ProgressHeaderText, Mode=TwoWay, UpdateSourceTrigger=Explicit}"
                              LostFocus="HeaderTextBox_LostFocus"
                              PreviewKeyDown="HeaderTextBox_PreviewKeyDown"
