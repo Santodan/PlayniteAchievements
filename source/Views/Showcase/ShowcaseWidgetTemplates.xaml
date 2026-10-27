@@ -140,8 +140,8 @@
                                IsHitTestVisible="False"
                                helpers:AsyncImage.Uri="{Binding AvatarPath}"
                                helpers:AsyncImage.DecodePixel="{Binding AvatarDecodePixel}"/>
-                        <Border Width="{Binding AvatarSize}"
-                                Height="{Binding AvatarSize}"
+                        <Border Width="{Binding AvatarWidth}"
+                                Height="{Binding AvatarHeight}"
                                 CornerRadius="{Binding AvatarCornerRadius}"
                                 SnapsToDevicePixels="True">
                             <Border.Background>
@@ -220,8 +220,8 @@
                                                 <Border x:Name="LinkBorder"
                                                         Background="Transparent"
                                                         Opacity="0.85">
-                                                    <Image Width="18"
-                                                           Height="18"
+                                                    <Image Width="{Binding DataContext.LinkIconSize, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                           Height="{Binding DataContext.LinkIconSize, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
                                                            SnapsToDevicePixels="True"
                                                            RenderOptions.BitmapScalingMode="HighQuality">
                                                         <Image.Source>
