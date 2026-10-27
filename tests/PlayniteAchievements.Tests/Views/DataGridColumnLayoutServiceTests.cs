@@ -8,6 +8,7 @@ using System.Windows.Documents;
 using System.Windows.Media;
 using System.Windows.Threading;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
+using PlayniteAchievements.Models.Settings;
 using PlayniteAchievements.Tests.TestInfrastructure;
 using PlayniteAchievements.Views.Helpers;
 
@@ -567,6 +568,71 @@ namespace PlayniteAchievements.Tests.Views
         }
 
         [TestMethod]
+        public void SetColumnHeaderTextHidden_FlagsTheColumnAndPersistsOnlyHiddenKeys()
+        {
+            StaTestHost.Run(() =>
+            {
+                var order = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+                var saveCount = 0;
+                var maps = new PersistedMaps();
+                var grid = CreateGrid();
+                var service = CreateService(grid, order, () => saveCount++, maps: maps);
+                service.Attach();
+                DrainDispatcher();
+
+                var column = ColumnByKey(grid, "B");
+                Assert.IsFalse(service.IsColumnHeaderTextHidden(column));
+
+                service.SetColumnHeaderTextHidden(column, true);
+
+                Assert.IsTrue(DataGridColumnLayoutService.GetIsHeaderTextHidden(column));
+                Assert.IsTrue(maps.HiddenHeaders.TryGetValue("B", out var hidden) && hidden);
+                Assert.AreEqual(1, saveCount);
+
+                service.SetColumnHeaderTextHidden(column, false);
+
+                Assert.IsFalse(DataGridColumnLayoutService.GetIsHeaderTextHidden(column));
+                Assert.IsFalse(maps.HiddenHeaders.ContainsKey("B"));
+                Assert.AreEqual(2, saveCount);
+
+                service.Detach();
+            });
+        }
+
+        [TestMethod]
+        public void Attach_WithPersistedHiddenHeaderFlagsOnlyThatColumn()
+        {
+            StaTestHost.Run(() =>
+            {
+                var order = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+                var maps = new PersistedMaps();
+                maps.HiddenHeaders["C"] = true;
+                var grid = CreateGrid();
+                var service = CreateService(grid, order, () => { }, maps: maps);
+                service.Attach();
+                DrainDispatcher();
+
+                Assert.IsTrue(DataGridColumnLayoutService.GetIsHeaderTextHidden(ColumnByKey(grid, "C")));
+                Assert.IsFalse(DataGridColumnLayoutService.GetIsHeaderTextHidden(ColumnByKey(grid, "A")));
+                Assert.IsFalse(DataGridColumnLayoutService.GetIsHeaderTextHidden(ColumnByKey(grid, "B")));
+
+                service.Detach();
+            });
+        }
+
+        [TestMethod]
+        public void GridColumnLayoutOptionsClone_CopiesHiddenHeaders()
+        {
+            var options = new GridColumnLayoutOptions();
+            options.HiddenHeaders = new Dictionary<string, bool> { ["Progress"] = true };
+
+            var clone = options.Clone();
+
+            Assert.IsTrue(clone.HiddenHeaders.TryGetValue("progress", out var hidden) && hidden);
+            Assert.AreNotSame(options.HiddenHeaders, clone.HiddenHeaders);
+        }
+
+        [TestMethod]
         public void Attach_WithPersistedLockRestoresTheLockAndTheSavedWidth()
         {
             StaTestHost.Run(() =>
@@ -755,7 +821,13 @@ namespace PlayniteAchievements.Tests.Views
                 Assert.IsInstanceOfType(widthRow.Children[1], typeof(Button));
                 Assert.IsTrue(((Button)widthRow.Children[1]).IsEnabled);
 
-                Assert.IsInstanceOfType(menu.Items[2], typeof(Separator));
+                // With no alignment delegates, the button row holds only the header text eye.
+                var buttonRow = (menu.Items[2] as MenuItem)?.Header as StackPanel;
+                Assert.IsNotNull(buttonRow);
+                Assert.AreEqual(1, buttonRow.Children.Count);
+                Assert.IsInstanceOfType(buttonRow.Children[0], typeof(Button));
+
+                Assert.IsInstanceOfType(menu.Items[3], typeof(Separator));
 
                 service.Detach();
             });
@@ -952,6 +1024,7 @@ namespace PlayniteAchievements.Tests.Views
             public Dictionary<string, double> Widths = new Dictionary<string, double>(StringComparer.OrdinalIgnoreCase);
             public Dictionary<string, bool> Visibility = new Dictionary<string, bool>(StringComparer.OrdinalIgnoreCase);
             public Dictionary<string, bool> Locks = new Dictionary<string, bool>(StringComparer.OrdinalIgnoreCase);
+            public Dictionary<string, bool> HiddenHeaders = new Dictionary<string, bool>(StringComparer.OrdinalIgnoreCase);
         }
 
         private static DataGridColumnLayoutService CreateService(
@@ -1004,7 +1077,9 @@ namespace PlayniteAchievements.Tests.Views
                     }
                 },
                 getLocks: () => maps.Locks,
-                setLocks: map => maps.Locks = map);
+                setLocks: map => maps.Locks = map,
+                getHiddenHeaders: () => maps.HiddenHeaders,
+                setHiddenHeaders: map => maps.HiddenHeaders = map);
         }
 
         private static DataGrid CreateGrid()
