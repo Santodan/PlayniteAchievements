@@ -967,6 +967,42 @@ namespace PlayniteAchievements
                 };
             }
 
+            // Developer-only, hidden unless the hardcoded TagsCategoriesProbe.Enabled flag is on.
+            // Deliberately not localized. Compares tag and category sources on a fixed list of Steam games.
+            if (global::PlayniteAchievements.Providers.Metadata.TagsCategoriesProbe.Enabled)
+            {
+                yield return new MainMenuItem
+                {
+                    Description = "Probe tags and categories",
+                    MenuSection = PluginMainMenuSection,
+                    Action = (a) =>
+                    {
+                        var folder = System.IO.Path.Combine(GetPluginUserDataPath(), "diagnostics", "tags-categories");
+                        _ = Task.Run(async () =>
+                        {
+                            try
+                            {
+                                await global::PlayniteAchievements.Providers.Metadata.TagsCategoriesProbe.RunAsync(
+                                    PlayniteApi,
+                                    Settings,
+                                    _providerRegistry?.GetMetadataProviders(),
+                                    _logger,
+                                    folder,
+                                    CancellationToken.None).ConfigureAwait(false);
+                                PlayniteApi.Notifications.Add(
+                                    "PlayAch_TagsCategoriesProbe",
+                                    $"Tags and categories probe finished: {folder}",
+                                    NotificationType.Info);
+                            }
+                            catch (Exception ex)
+                            {
+                                _logger?.Warn(ex, "Tags and categories probe failed.");
+                            }
+                        });
+                    }
+                };
+            }
+
             // Developer-only, hidden unless the hardcoded ExophaseMissingPageProbe.Enabled flag is on.
             // Deliberately not localized. Loads a fixed list of Exophase award pages, localized and English.
             if (global::PlayniteAchievements.Providers.Metadata.Exophase.ExophaseMissingPageProbe.Enabled)
