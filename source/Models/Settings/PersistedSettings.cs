@@ -88,6 +88,7 @@ namespace PlayniteAchievements.Models.Settings
         private bool _enableUnlockToasts = true;
         private bool _enableFriendUnlockToasts = true;
         private bool _enableProgressToasts = true;
+        private int _progressToastIntervalPercent;
         private NotificationStyleSettings _notificationStyle;
         private bool _toastUseThemeStyling = true;
         private bool _frameUseThemeStyling = true;
@@ -1258,6 +1259,16 @@ namespace PlayniteAchievements.Models.Settings
         {
             get => _enableProgressToasts;
             set => SetValue(ref _enableProgressToasts, value);
+        }
+
+        /// <summary>
+        /// A progress notification fires only when progress passes another multiple of this
+        /// percentage of the goal. 0 notifies on every advance. Clamped to 0-99.
+        /// </summary>
+        public int ProgressToastIntervalPercent
+        {
+            get => _progressToastIntervalPercent;
+            set => SetValue(ref _progressToastIntervalPercent, Math.Max(0, Math.Min(99, value)));
         }
 
         /// <summary>
@@ -3307,6 +3318,7 @@ namespace PlayniteAchievements.Models.Settings
                 EnableUnlockToasts = this.EnableUnlockToasts,
                 EnableFriendUnlockToasts = this.EnableFriendUnlockToasts,
                 EnableProgressToasts = this.EnableProgressToasts,
+                ProgressToastIntervalPercent = this.ProgressToastIntervalPercent,
                 NotificationStyle = this.NotificationStyle?.Clone() ?? NotificationStyleSettings.CreateDefault(),
                 ToastUseThemeStyling = this.ToastUseThemeStyling,
                 FrameUseThemeStyling = this.FrameUseThemeStyling,
