@@ -151,6 +151,103 @@ namespace PlayniteAchievements.Services.Images
             DeleteSessionImageFiles();
         }
 
+        // Set once a session image is written, so saves skip looking for loose copies until then.
+        private volatile bool _sessionImagesWritten;
+
+        private bool IsSessionImagePath(string path)
+        {
+            try
+            {
+                return string.Equals(
+                    Path.GetDirectoryName(Path.GetFullPath(path)),
+                    Path.GetFullPath(IconCacheDirectory).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar),
+                    StringComparison.OrdinalIgnoreCase);
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
+        private void AfterSave(string uri, bool savedSessionImage)
+        {
+            if (savedSessionImage)
+            {
+                _sessionImagesWritten = true;
+            }
+            else
+            {
+                DeleteSessionImages(uri);
+            }
+        }
+
+        // Saving an address that was already shown takes the session file when it holds the image
+        // at full size, as a save does, instead of downloading it again.
+        private bool TryTakeSessionImage(string uri, int decodeSize, string resolvedTargetPath)
+        {
+            if (decodeSize > 0)
+            {
+                return false;
+            }
+
+            var sessionPath = ResolveTargetPathForSource(GetIconCachePathFromUri(uri, 0), uri, 0);
+            if (!File.Exists(sessionPath) ||
+                !string.Equals(Path.GetExtension(sessionPath), Path.GetExtension(resolvedTargetPath), StringComparison.OrdinalIgnoreCase))
+            {
+                return false;
+            }
+
+            try
+            {
+                File.Copy(sessionPath, resolvedTargetPath, overwrite: true);
+            }
+            catch (Exception ex)
+            {
+                _logger?.Debug(ex, $"Failed to take session image '{sessionPath}' for '{resolvedTargetPath}'.");
+                return false;
+            }
+
+            try
+            {
+                File.Delete(sessionPath);
+            }
+            catch (Exception ex)
+            {
+                _logger?.Debug(ex, $"Failed to delete session image '{sessionPath}'.");
+            }
+
+            DeleteSessionImages(uri);
+            return true;
+        }
+
+        // Deletes every session file of an address, at any size, once the image is saved elsewhere.
+        private void DeleteSessionImages(string uri)
+        {
+            if (!_sessionImagesWritten)
+            {
+                return;
+            }
+
+            try
+            {
+                foreach (var file in Directory.EnumerateFiles(IconCacheDirectory, ComputeUriHashPrefix(uri) + "*", SearchOption.TopDirectoryOnly).ToList())
+                {
+                    try
+                    {
+                        File.Delete(file);
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger?.Debug(ex, $"Failed to delete session image '{file}'.");
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger?.Debug(ex, $"Failed to look for session images of '{uri}'.");
+            }
+        }
+
         // An image shown from an address with no game to file it under is cached in the icon_cache
         // root for the session only: nothing stores its path, so each start clears what the last left.
         private void DeleteSessionImageFiles()
@@ -756,6 +853,18 @@ namespace PlayniteAchievements.Services.Images
                     }
 
                     var overwritingExisting = overwriteExistingTarget && File.Exists(resolvedTargetPath);
+                    var savesSessionImage = IsSessionImagePath(resolvedTargetPath);
+                    if (!savesSessionImage && TryTakeSessionImage(uri, decodeSize, resolvedTargetPath))
+                    {
+                        InvalidateDefaultCategoryArtSnapshotForTargetPath(resolvedTargetPath);
+                        if (overwritingExisting)
+                        {
+                            NotifyImageFileOverwritten(resolvedTargetPath);
+                        }
+
+                        return resolvedTargetPath;
+                    }
+
                     var downloadGate = IsRateLimitedDomain(uri) ? _rateLimitedDownloadGate : _downloadGate;
 
                     byte[] bytes;
@@ -788,6 +897,7 @@ namespace PlayniteAchievements.Services.Images
                             NotifyImageFileOverwritten(resolvedTargetPath);
                         }
 
+                        AfterSave(uri, savesSessionImage);
                         return resolvedTargetPath;
                     }
 
@@ -801,6 +911,8 @@ namespace PlayniteAchievements.Services.Images
                             {
                                 NotifyImageFileOverwritten(savedPath);
                             }
+
+                            AfterSave(uri, savesSessionImage);
                         }
 
                         return savedPath;
