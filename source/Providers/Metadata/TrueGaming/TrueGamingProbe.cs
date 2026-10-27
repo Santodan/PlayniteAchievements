@@ -20,7 +20,7 @@ namespace PlayniteAchievements.Providers.Metadata.TrueGaming
     internal static class TrueGamingProbe
     {
         /// <summary>Hardcoded gate for the hidden "Probe TrueGaming" menu item. Off in shipped builds.</summary>
-        internal static readonly bool Enabled = false;
+        internal static readonly bool Enabled = true;
 
         // The site and comparison checks of earlier probes.
         private static readonly bool RunSiteChecks = false;
@@ -30,7 +30,26 @@ namespace PlayniteAchievements.Providers.Metadata.TrueGaming
 
         // Games whose sites name some achievements differently: each site's rows, what Combine
         // makes of them, and which rows the sites share a description for but not a name.
-        private static readonly string[] MergeGames = { "AI-The-Somnium-Files" };
+        private static readonly string[] MergeGames = { };
+
+        // Which address searches TrueTrophies and TrueSteamAchievements for games: their true-api
+        // search answers no games, so each site's search pages are tried for two names.
+        private static readonly string[] SearchUrls =
+        {
+            "https://www.trueachievements.com/searchresults.aspx?search=Elden+Ring",
+            "https://www.truetrophies.com/searchresults.aspx?search=Elden+Ring",
+            "https://www.truetrophies.com/searchresults.aspx?search=Ghost+of+Tsushima",
+            "https://www.truetrophies.com/search?q=Elden+Ring",
+            "https://www.truetrophies.com/true-api/sitesearch/search?q=Elden%20Ring&category=Games&site=tt",
+            "https://www.truetrophies.com/true-api/sitesearch/overviewcategory?q=Elden%20Ring&category=games",
+            "https://www.truetrophies.com/games.aspx?search=Elden+Ring",
+            "https://truesteamachievements.com/searchresults.aspx?search=Hades",
+            "https://truesteamachievements.com/searchresults.aspx?search=Elden+Ring",
+            "https://truesteamachievements.com/search?q=Hades",
+            "https://truesteamachievements.com/games.aspx?search=Hades"
+        };
+
+        private static readonly Regex GameLink = new Regex(@"/game/([^/""'?#<\s]+)/(?:achievements|trophies)", RegexOptions.CultureInvariant);
 
         // How the sites choose the language of achievement titles: what the browser sends, what
         // each page says, and whether an address parameter changes the titles.
@@ -122,6 +141,8 @@ namespace PlayniteAchievements.Providers.Metadata.TrueGaming
                 {
                     await ProbeLanguagesAsync(views, logger, outputDirectory, ct).ConfigureAwait(false);
                 }
+
+                await ProbeSearchesAsync(views, outputDirectory, ct).ConfigureAwait(false);
 
                 if (!RunSiteChecks)
                 {
@@ -218,6 +239,53 @@ namespace PlayniteAchievements.Providers.Metadata.TrueGaming
 
             File.WriteAllText(Path.Combine(outputDirectory, "language.txt"), report.ToString(), Encoding.UTF8);
             logger?.Info($"[TrueGamingProbe] language {report.ToString().Replace("\r", "").Replace("\n", " || ")}");
+        }
+
+        /// <summary>
+        /// search.txt: for each of <see cref="SearchUrls"/>, the final address, whether it was a
+        /// challenge, and the distinct game pages it links to. Each page is saved beside it.
+        /// </summary>
+        private static async Task ProbeSearchesAsync(OffscreenViewLeaseSource views, string outputDirectory, CancellationToken ct)
+        {
+            var report = new StringBuilder();
+            for (var i = 0; i < SearchUrls.Length; i++)
+            {
+                ct.ThrowIfCancellationRequested();
+                var url = SearchUrls[i];
+                try
+                {
+                    var (html, address) = await views.WithNavigableViewAsync(async view =>
+                    {
+                        await view.NavigateAndWaitAsync(url, NavigationTimeoutMs).ConfigureAwait(false);
+                        var source = await view.GetPageSourceAsync().ConfigureAwait(false);
+                        for (var attempt = 1; IsChallenge(source) && attempt < Attempts; attempt++)
+                        {
+                            await Task.Delay(RetryDelayMs, ct).ConfigureAwait(false);
+                            source = await view.GetPageSourceAsync().ConfigureAwait(false);
+                        }
+
+                        return (source ?? string.Empty, view.GetCurrentAddress());
+                    }, ct).ConfigureAwait(false);
+
+                    File.WriteAllText(Path.Combine(outputDirectory, $"search-{i:00}-{FileStem(url)}.html"), html, Encoding.UTF8);
+                    var games = GameLink.Matches(html).Cast<Match>().Select(m => m.Groups[1].Value).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+                    var title = Title.Match(html);
+                    report.AppendLine(url);
+                    report.AppendLine($"  -> {address} | bytes={html.Length}, challenge={IsChallenge(html)}, title=\"{(title.Success ? title.Groups[1].Value.Trim() : "")}\"");
+                    report.AppendLine($"  games ({games.Count}): {string.Join(", ", games.Take(25))}");
+                }
+                catch (OperationCanceledException) when (ct.IsCancellationRequested)
+                {
+                    throw;
+                }
+                catch (Exception ex)
+                {
+                    report.AppendLine(url);
+                    report.AppendLine($"  failed: {ex.GetType().Name}: {ex.Message}");
+                }
+            }
+
+            File.WriteAllText(Path.Combine(outputDirectory, "search.txt"), report.ToString(), Encoding.UTF8);
         }
 
         /// <summary>
