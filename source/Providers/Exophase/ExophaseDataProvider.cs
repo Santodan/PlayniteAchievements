@@ -245,12 +245,6 @@ namespace PlayniteAchievements.Providers.Exophase
                 return true;
             }
 
-            // Log why it wasn't capable for debugging
-            LogCapability(
-                game,
-                $"false (Token={platformToken ?? "null"}, " +
-                $"Source={game.Source?.Name ?? "null"}, " +
-                $"Platforms={string.Join(", ", game.Platforms?.Select(p => p.Name) ?? Array.Empty<string>())})");
             return false;
         }
 
