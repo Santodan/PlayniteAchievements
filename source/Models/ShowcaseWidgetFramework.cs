@@ -492,6 +492,7 @@ namespace PlayniteAchievements.Models
         private const string InfoPanel = "InfoPanel";
         private const string ImagePath = "ImagePath";
         private const string TextContent = "Text";
+        private const string ActivityColor = "ActivityColor";
         private const string HorizontalAlign = "HorizontalAlignment";
         private const string TitleAlign = "TitleAlignment";
         private const string ShowBackground = "ShowBackground";
@@ -942,10 +943,11 @@ namespace PlayniteAchievements.Models
         public static void SetPieIncludeLocked(ShowcaseWidgetInstanceSettings settings, bool value) =>
             settings?.SetOption(IncludeLocked, value);
 
-        public static bool GetPieShowLegend(ShowcaseWidgetInstanceSettings settings) =>
+        /// <summary>Whether a pie or activity calendar shows its legend; unset means shown.</summary>
+        public static bool GetShowLegend(ShowcaseWidgetInstanceSettings settings) =>
             settings?.GetOption(ShowLegend, true) ?? true;
 
-        public static void SetPieShowLegend(ShowcaseWidgetInstanceSettings settings, bool value) =>
+        public static void SetShowLegend(ShowcaseWidgetInstanceSettings settings, bool value) =>
             settings?.SetOption(ShowLegend, value);
 
         public static PieLegendPosition GetPieLegendPosition(ShowcaseWidgetInstanceSettings settings) =>
@@ -1750,6 +1752,13 @@ namespace PlayniteAchievements.Models
         public static void SetImagePath(ShowcaseWidgetInstanceSettings settings, string value) =>
             SetString(settings, ImagePath, value);
 
+        /// <summary>The activity calendar's cell color as hex text; null uses the theme accent.</summary>
+        public static string GetActivityColor(ShowcaseWidgetInstanceSettings settings) =>
+            GetString(settings, ActivityColor);
+
+        public static void SetActivityColor(ShowcaseWidgetInstanceSettings settings, string value) =>
+            SetString(settings, ActivityColor, value);
+
         /// <summary>The Text widget's text, in inline markdown; null while empty.</summary>
         public static string GetText(ShowcaseWidgetInstanceSettings settings) =>
             GetString(settings, TextContent, trim: false);
@@ -1881,7 +1890,7 @@ namespace PlayniteAchievements.Models
                 case ShowcaseWidgetKind.Pie:
                     ShowcaseWidgetOptions.SetPieMode(settings, ShowcasePieMode.CompletedGames);
                     ShowcaseWidgetOptions.SetPieCenterMode(settings, PieCenterMode.Percentage);
-                    ShowcaseWidgetOptions.SetPieShowLegend(settings, true);
+                    ShowcaseWidgetOptions.SetShowLegend(settings, true);
                     ShowcaseWidgetOptions.SetPieLegendPosition(settings, PieLegendPosition.Right);
                     ShowcaseWidgetOptions.SetPieShowIcons(settings, true);
                     ShowcaseWidgetOptions.SetPieIncludeLocked(settings, true);
