@@ -407,6 +407,9 @@ namespace PlayniteAchievements.Services.Images
             if (!cancel.IsCancellationRequested)
             {
                 DeleteUnusedFiles(folder, achievements.SelectMany(row => new[] { row.UnlockedIconPath, row.LockedIconPath }));
+
+                // Rows that reuse one image become one file with a name per row.
+                await _diskImageService.LinkIdenticalFilesAsync(new[] { folder }, $"list folder '{folder}'", cancel).ConfigureAwait(false);
             }
 
             return result;
