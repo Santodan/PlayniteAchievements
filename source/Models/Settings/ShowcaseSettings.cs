@@ -108,6 +108,19 @@ namespace PlayniteAchievements.Models.Settings
     /// completions medal outright rather than adding to them, so a PlayStation-shaped library
     /// reads as trophies and nothing else; Both shows the rarity row followed by the grades.
     /// </summary>
+    /// <summary>What a points card shows in its icon slot while its control bar narrows it to one game.</summary>
+    public enum ShowcaseScoreCardArt
+    {
+        /// <summary>The platform's icon, as with several games.</summary>
+        ProviderIcon = 0,
+
+        /// <summary>The game's cover image.</summary>
+        GameCover = 1,
+
+        /// <summary>The game's icon.</summary>
+        GameIcon = 2
+    }
+
     /// <summary>How the profile card arranges its avatar, text, medals and stat strip.</summary>
     public enum ShowcaseProfileLayout
     {
