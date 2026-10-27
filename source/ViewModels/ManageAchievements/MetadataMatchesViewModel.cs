@@ -249,21 +249,20 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
     {
         private string _pairedWith;
 
-        private MatchOption(string key, string name, string description, string icon, string list, bool isSpecial)
+        private MatchOption(string key, string name, string description, string list, bool isSpecial)
         {
             Key = key;
             Name = name;
             Description = description;
-            Icon = icon;
             List = list;
             IsSpecial = isSpecial;
         }
 
         internal static MatchOption ForRow(MetadataSourceRow row) =>
-            new MatchOption(row.ApiName, row.Name, row.Description, MetadataSourceSnapshotStore.LocalIconPath(row.Icon), row.List, isSpecial: false);
+            new MatchOption(row.ApiName, row.Name, row.Description, row.List, isSpecial: false);
 
         internal static MatchOption Special(string key, string name) =>
-            new MatchOption(key, name, null, null, null, isSpecial: true);
+            new MatchOption(key, name, null, null, isSpecial: true);
 
         /// <summary>The list it comes from when the link names several (a collection's game), else null.</summary>
         public string List { get; }
@@ -275,8 +274,6 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         public string Name { get; }
 
         public string Description { get; }
-
-        public string Icon { get; }
 
         public bool IsSpecial { get; }
 
