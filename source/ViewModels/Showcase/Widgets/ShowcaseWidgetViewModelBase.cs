@@ -432,6 +432,8 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
                 if (!load.IsCancellationRequested)
                 {
                     CategoryItems.ReplaceAll(result.Items ?? new List<AchievementDisplayItem>());
+                    // The Category dropdown lists every category of the game, not only the shown rows'.
+                    _controlBarSlot.Adapter.SetCategoryOptionRows(CategoryItems.ToList());
                 }
             }
             catch (OperationCanceledException)
