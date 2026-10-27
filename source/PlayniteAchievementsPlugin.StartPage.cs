@@ -148,7 +148,11 @@ namespace PlayniteAchievements
 
             panel.Children.Add(new ShowcaseWidgetOptionsControl(
                 settings,
-                PersistSettingsForUi,
+                () =>
+                {
+                    PersistSettingsForUi();
+                    ShowcaseConfigurationEvents.RaiseChanged();
+                },
                 margin: new Thickness(0),
                 loadStyles: false,
                 backgroundDefault: false,
