@@ -198,24 +198,32 @@ namespace PlayniteAchievements.Services.Images
         }
 
         /// <summary>
-        /// Whether a path names a file in one of the game's metadata source folders, that is, an
-        /// icon borrowed from a metadata source and already stored for this game.
+        /// Whether a path names an icon borrowed from a metadata source: a file in a source list's
+        /// shared folder, or in one of the game's own metadata source folders from before lists
+        /// were shared.
         /// </summary>
         internal static bool IsMetadataSourceIconPath(string path, string gameId)
         {
-            if (!IsCachedIconPath(path) || string.IsNullOrWhiteSpace(gameId))
+            if (!IsCachedIconPath(path))
             {
                 return false;
             }
 
             try
             {
-                var sourceFolder = Path.GetDirectoryName(path);
-                var metadataFolder = Path.GetDirectoryName(sourceFolder);
-                var gameFolder = Path.GetDirectoryName(metadataFolder);
-                return string.Equals(Path.GetFileName(metadataFolder), MetadataSourceFolderName, StringComparison.OrdinalIgnoreCase) &&
-                    string.Equals(Path.GetFileName(gameFolder), gameId.Trim(), StringComparison.OrdinalIgnoreCase) &&
-                    string.Equals(Path.GetFileName(Path.GetDirectoryName(gameFolder)), IconCacheFolderName, StringComparison.OrdinalIgnoreCase);
+                var listFolder = Path.GetDirectoryName(path);
+                var sourceFolder = Path.GetDirectoryName(listFolder);
+                var parent = Path.GetDirectoryName(sourceFolder);
+                if (string.Equals(Path.GetFileName(parent), MetadataSourceFolderName, StringComparison.OrdinalIgnoreCase) &&
+                    string.Equals(Path.GetFileName(Path.GetDirectoryName(parent)), IconCacheFolderName, StringComparison.OrdinalIgnoreCase))
+                {
+                    return true;
+                }
+
+                return !string.IsNullOrWhiteSpace(gameId) &&
+                    string.Equals(Path.GetFileName(sourceFolder), MetadataSourceFolderName, StringComparison.OrdinalIgnoreCase) &&
+                    string.Equals(Path.GetFileName(parent), gameId.Trim(), StringComparison.OrdinalIgnoreCase) &&
+                    string.Equals(Path.GetFileName(Path.GetDirectoryName(parent)), IconCacheFolderName, StringComparison.OrdinalIgnoreCase);
             }
             catch
             {
@@ -333,8 +341,29 @@ namespace PlayniteAchievements.Services.Images
                 fileName);
         }
 
-        // Folder holding one metadata source's row icons for a game, named by row the way
-        // original/ names the game's own; outside custom/, so cache clears wipe it.
+        // Root of the metadata sources' shared list folders, beside the per-game folders.
+        public static string BuildMetadataListsRootRelativePath()
+        {
+            return Path.Combine(IconCacheFolderName, MetadataSourceFolderName);
+        }
+
+        // Folder holding one list's row icons from a metadata source, shared by every game linked
+        // to that list. Named by the source's own list id with a hash of it, so ids that sanitize
+        // alike stay apart and no list folder takes a reserved folder name.
+        public static string BuildMetadataListFolderRelativePath(
+            string sourceKey,
+            string listId)
+        {
+            var id = (listId ?? string.Empty).Trim();
+            var suffix = "_" + GetApiNameHashSuffix(id);
+            return Path.Combine(
+                BuildMetadataListsRootRelativePath(),
+                SanitizeSegment(sourceKey),
+                TrimStemForSuffix(SanitizeSegment(id), suffix.Length) + suffix);
+        }
+
+        // A game's own folder of one metadata source's row icons, from before lists were shared;
+        // read only to move its files into the list folders.
         public static string BuildMetadataSourceFolderRelativePath(
             string gameId,
             string sourceKey)
