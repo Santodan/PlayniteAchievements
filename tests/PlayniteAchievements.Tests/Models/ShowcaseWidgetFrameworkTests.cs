@@ -641,6 +641,30 @@ namespace PlayniteAchievements.Tests.Models
         }
 
         [TestMethod]
+        public void GridSurfaces_AchievementWidgetsOwnTheirCategoryGridRecord()
+        {
+            var catalog = new GridOptionsCatalog();
+            var source = new ShowcaseWidgetInstanceSettings { Kind = ShowcaseWidgetKind.RecentAchievements, InstanceId = "a" };
+            var copy = new ShowcaseWidgetInstanceSettings { Kind = ShowcaseWidgetKind.RecentAchievements, InstanceId = "b" };
+
+            var categoryKey = ShowcaseGridSurfaces.ResolveCategorySurface("ShowcaseRecentAchievements:a");
+            Assert.AreEqual("ShowcaseAchievementCategories:a", categoryKey);
+            Assert.IsNull(ShowcaseGridSurfaces.ResolveCategorySurface("ShowcaseGameSummaries:a"));
+            Assert.AreEqual(categoryKey, GridOptionsCatalog.ResolveCategorySummariesId(categoryKey), "not the View Achievements record");
+
+            catalog.GetCategorySummaries(categoryKey).UseCoverImages = true;
+            ShowcaseGridSurfaces.CopySurface(catalog, source, copy);
+            Assert.IsTrue(catalog.GetCategorySummaries("ShowcaseAchievementCategories:b").UseCoverImages);
+
+            ShowcaseGridSurfaces.PruneOrphaned(catalog, new ShowcaseSettings
+            {
+                WidgetInstances = new System.Collections.Generic.List<ShowcaseWidgetInstanceSettings> { copy }
+            });
+            Assert.IsFalse(catalog.CategorySummaries.ContainsKey(categoryKey));
+            Assert.IsTrue(catalog.CategorySummaries.ContainsKey("ShowcaseAchievementCategories:b"));
+        }
+
+        [TestMethod]
         public void GridSurfaces_SeedFromClonesDonorOnlyWhenAbsent()
         {
             var catalog = new PlayniteAchievements.Models.Settings.GridOptionsCatalog();
