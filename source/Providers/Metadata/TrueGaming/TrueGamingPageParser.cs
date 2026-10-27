@@ -214,12 +214,15 @@ namespace PlayniteAchievements.Providers.Metadata.TrueGaming
             return filter;
         }
 
+        // Set on some rows of all three sites but never listed in the flag filter.
+        private const uint UnlistedBit = 0x00000008;
+
         /// <summary>Each flag's name and mask bit, or null when the page's bits and flag list disagree.</summary>
         internal static List<(string Name, uint Bit)> DecodeFlags(
             IReadOnlyList<(int Id, string Name, int Count)> filter,
             IReadOnlyList<uint> masks)
         {
-            var union = masks.Aggregate(0u, (all, mask) => all | mask);
+            var union = masks.Aggregate(0u, (all, mask) => all | mask) & ~UnlistedBit;
             var bits = Enumerable.Range(0, 32)
                 .Select(shift => 1u << (31 - shift))
                 .Where(bit => (union & bit) != 0)
