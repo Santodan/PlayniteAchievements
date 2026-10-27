@@ -3781,7 +3781,9 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 return null;
             }
 
-            if (_managedCustomIconService.IsManagedCustomIconPath(normalized, _gameIdText))
+            // A borrowed file, such as an auto capstone's platinum, stays where its source keeps it.
+            if (_managedCustomIconService.IsManagedCustomIconPath(normalized, _gameIdText) ||
+                AchievementIconCachePathBuilder.IsMetadataSourceIconPath(normalized, _gameIdText))
             {
                 return normalized;
             }
