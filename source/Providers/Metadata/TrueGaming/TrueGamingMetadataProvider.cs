@@ -358,7 +358,7 @@ namespace PlayniteAchievements.Providers.Metadata.TrueGaming
             }
 
             found = found.OrderBy(page => TrueGamingSite.LookupOrder.ToList().IndexOf(page.Site)).ToList();
-            var combined = TrueGamingPageSet.CombineAll(found, request.BaseCategoryLabel);
+            var combined = TrueGamingPageSet.CombineAll(found, request.BaseCategoryLabel, TrueGamingSite.For(request.ServicingProviderKey));
             var set = new AchievementSourceSet(Key, linkId, combined.Rows)
             {
                 GameArtUrl = found.Select(page => page.Page.GameArt).FirstOrDefault(art => art != null),
