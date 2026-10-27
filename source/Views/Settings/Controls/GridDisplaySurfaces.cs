@@ -138,7 +138,8 @@ namespace PlayniteAchievements.Views.Settings.Controls
                 // projection order (unlock recency), so sorting stays offered. The widget's
                 // settings show or hide each control bar item, so there is no whole-bar row.
                 [ShowcaseGridSurfaces.RecentAchievements] = new GridDisplayRowCapabilities(
-                    showControlBarRow: false),
+                    showControlBarRow: false,
+                    showCategoryModeRow: true),
                 // Sort stays off (the control sorts externally) and cover images do not apply,
                 // but the appearance rows now reach this grid's own record rather than the
                 // legacy Achievement[Default] one, so they are offered here.
