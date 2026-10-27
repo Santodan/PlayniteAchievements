@@ -14,20 +14,6 @@ using PlayniteAchievements.ViewModels.Items;
 
 namespace PlayniteAchievements.ViewModels.Showcase.Widgets
 {
-    /// <summary>A medal-count entry: a runtime badge resource key plus its formatted count.</summary>
-    public sealed class ProfileMedalViewModel
-    {
-        public ProfileMedalViewModel(string iconKey, string countText)
-        {
-            IconKey = iconKey;
-            CountText = countText;
-        }
-
-        public string IconKey { get; }
-
-        public string CountText { get; }
-    }
-
     /// <summary>A clickable platform profile link, drawn as the provider's icon.</summary>
     public sealed class ProfileLinkViewModel
     {
@@ -136,8 +122,8 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
 
         public bool ShowControlBar => ControlBar != null;
 
-        public BulkObservableCollection<ProfileMedalViewModel> Medals { get; } =
-            new BulkObservableCollection<ProfileMedalViewModel>();
+        public BulkObservableCollection<BadgeCountItem> Medals { get; } =
+            new BulkObservableCollection<BadgeCountItem>();
 
         public BulkObservableCollection<ProfileStatViewModel> Stats { get; } =
             new BulkObservableCollection<ProfileStatViewModel>();
@@ -295,44 +281,35 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
             ShowLinks = Links.Count > 0;
         }
 
-        private static IReadOnlyList<ProfileMedalViewModel> BuildMedals(
+        private static IReadOnlyList<BadgeCountItem> BuildMedals(
             OverviewDataSnapshot snapshot,
             ShowcaseProfileMedalMode mode)
         {
-            var medals = new List<ProfileMedalViewModel>();
+            var medals = new List<BadgeCountItem>();
             if (mode != ShowcaseProfileMedalMode.Trophy)
             {
                 // Completions, not completed games: a game with several capstones is finished
                 // several times over, and the medal sits beside rarity counts that are all totals
                 // of things earned rather than counts of games.
-                AddMedal(medals, "BadgeCompletedGame", snapshot.Completions);
-                AddMedal(medals, "BadgeRarityUltraRare", snapshot.TotalUltraRare);
-                AddMedal(medals, "BadgeRarityRare", snapshot.TotalRare);
-                AddMedal(medals, "BadgeRarityUncommon", snapshot.TotalUncommon);
-                AddMedal(medals, "BadgeRarityCommon", snapshot.TotalCommon);
+                BadgeCountItem.Add(medals, "BadgeCompletedGame", snapshot.Completions);
+                medals.AddRange(BadgeCountItem.BuildRarity(
+                    snapshot.TotalUltraRare,
+                    snapshot.TotalRare,
+                    snapshot.TotalUncommon,
+                    snapshot.TotalCommon));
             }
 
             if (mode != ShowcaseProfileMedalMode.Rarity)
             {
                 // Trophy grades alone skip the completions medal: they already carry the sense of
                 // a finished game through the platinum. Both keeps it from the rarity row.
-                AddMedal(medals, "TrophyPlatinum", snapshot.TotalPlatinum);
-                AddMedal(medals, "TrophyGold", snapshot.TotalGold);
-                AddMedal(medals, "TrophySilver", snapshot.TotalSilver);
-                AddMedal(medals, "TrophyBronze", snapshot.TotalBronze);
+                BadgeCountItem.Add(medals, "TrophyPlatinum", snapshot.TotalPlatinum);
+                BadgeCountItem.Add(medals, "TrophyGold", snapshot.TotalGold);
+                BadgeCountItem.Add(medals, "TrophySilver", snapshot.TotalSilver);
+                BadgeCountItem.Add(medals, "TrophyBronze", snapshot.TotalBronze);
             }
 
             return medals;
-        }
-
-        private static void AddMedal(List<ProfileMedalViewModel> medals, string iconKey, int count)
-        {
-            if (count > 0)
-            {
-                medals.Add(new ProfileMedalViewModel(
-                    iconKey,
-                    count.ToString("N0", FormattingCulture.Current)));
-            }
         }
 
         private IReadOnlyList<ProfileStatViewModel> BuildStatStrip()
