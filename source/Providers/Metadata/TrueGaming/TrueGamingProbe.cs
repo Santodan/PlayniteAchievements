@@ -486,16 +486,15 @@ namespace PlayniteAchievements.Providers.Metadata.TrueGaming
                 foreach (var row in entry.Page.Achievements)
                 {
                     report.AppendLine(
-                        $"    {row.Id} | {row.Name} | points={row.Points?.ToString() ?? "-"} | trophy={row.TrophyType ?? "-"} | " +
-                        $"dlc={row.Dlc ?? "-"} | desc={DescriptionKey(row.Description)}");
+                        $"    {row.Id} | {row.Name} | dlc={row.Dlc ?? "-"} | desc={DescriptionKey(row.Description)}");
                 }
             }
 
             var combined = TrueGamingPageSet.Combine(found, "Base");
-            report.AppendLine($"[combined] rows={combined.Count}, withPoints={combined.Count(row => row.Points.HasValue)}");
+            report.AppendLine($"[combined] rows={combined.Count}, withTags={combined.Count(row => row.Tags != null)}");
             foreach (var row in combined)
             {
-                report.AppendLine($"    {row.ApiName} | {row.DisplayName} | points={row.Points?.ToString() ?? "-"} | trophy={row.TrophyType ?? "-"} | category={row.Category}");
+                report.AppendLine($"    {row.ApiName} | {row.DisplayName} | tags={row.Tags ?? "-"} | category={row.Category}");
             }
 
             // A row only one site lists is a name the sites disagree on, or an achievement only
@@ -512,7 +511,7 @@ namespace PlayniteAchievements.Providers.Metadata.TrueGaming
                 var key = DescriptionKey(row.Description);
                 var sameDescription = listings
                     .Where(other => other.Site != site && key.Length > 0 && DescriptionKey(other.Row.Description) == key)
-                    .Select(other => $"{other.Site.Prefix}:{other.Row.Name} (dlc={other.Row.Dlc ?? "-"}, points={other.Row.Points?.ToString() ?? "-"})")
+                    .Select(other => $"{other.Site.Prefix}:{other.Row.Name} (dlc={other.Row.Dlc ?? "-"})")
                     .ToList();
                 var duplicates = listings.Count(other => other.Site == site && DescriptionKey(other.Row.Description) == key);
                 report.AppendLine(
