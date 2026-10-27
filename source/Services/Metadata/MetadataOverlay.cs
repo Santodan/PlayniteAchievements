@@ -30,6 +30,10 @@ namespace PlayniteAchievements.Services.Metadata
         private readonly SourceIconDownload _downloadSourceIcons;
         private readonly Action<Guid, string> _deleteSourceIcons;
         private readonly EnglishTitleFetch _englishTitles;
+        private readonly Action<IEnumerable<string>> _deleteUnusedSourceIcons;
+        private readonly object _runSync = new object();
+        private int _openRuns;
+        private bool _sweepDue;
 
         /// <param name="downloadCategoryArt">
         /// Saves a source's category art for the categories it gave a game; null keeps none.
@@ -45,6 +49,10 @@ namespace PlayniteAchievements.Services.Metadata
         /// The game's achievements in English from its servicing provider, for pairing when every
         /// other way fails; null pairs only as given.
         /// </param>
+        /// <param name="deleteUnusedSourceIcons">
+        /// Deletes the saved source lists no game uses, given the icons the games' snapshots point
+        /// at; null deletes none.
+        /// </param>
         public MetadataOverlay(
             Func<IReadOnlyList<IMetadataProvider>> providers,
             Func<PersistedSettings> settings,
@@ -54,9 +62,11 @@ namespace PlayniteAchievements.Services.Metadata
             Func<Guid, GameAchievementData> loadStored = null,
             SourceIconDownload downloadSourceIcons = null,
             Action<Guid, string> deleteSourceIcons = null,
-            EnglishTitleFetch englishTitles = null)
+            EnglishTitleFetch englishTitles = null,
+            Action<IEnumerable<string>> deleteUnusedSourceIcons = null)
         {
             _englishTitles = englishTitles;
+            _deleteUnusedSourceIcons = deleteUnusedSourceIcons;
             _providers = providers;
             _settings = settings;
             _links = links;
@@ -76,6 +86,12 @@ namespace PlayniteAchievements.Services.Metadata
         /// </param>
         public MetadataOverlayRun BeginRun(bool keepStored = false)
         {
+            lock (_runSync)
+            {
+                _openRuns++;
+                _sweepDue |= !keepStored;
+            }
+
             return new MetadataOverlayRun(
                 _providers?.Invoke() ?? Array.Empty<IMetadataProvider>(),
                 _settings?.Invoke(),
@@ -86,7 +102,40 @@ namespace PlayniteAchievements.Services.Metadata
                 _downloadSourceIcons,
                 _deleteSourceIcons,
                 _englishTitles,
-                keepStored);
+                keepStored,
+                EndRun);
+        }
+
+        /// <summary>
+        /// When the last open run ends, deletes the saved source lists no game's snapshot points
+        /// into. It runs under the lock a new run takes, so no run saves a list it would miss.
+        /// </summary>
+        private void EndRun()
+        {
+            lock (_runSync)
+            {
+                _openRuns = Math.Max(0, _openRuns - 1);
+                if (_openRuns > 0 || !_sweepDue || _deleteUnusedSourceIcons == null)
+                {
+                    return;
+                }
+
+                _sweepDue = false;
+                var used = _links?.Snapshots?.LoadIconPaths();
+                if (used == null)
+                {
+                    return;
+                }
+
+                try
+                {
+                    _deleteUnusedSourceIcons(used);
+                }
+                catch (Exception ex)
+                {
+                    _logger?.Warn(ex, "[Metadata] Deleting unused source lists failed.");
+                }
+            }
         }
     }
 
@@ -113,7 +162,7 @@ namespace PlayniteAchievements.Services.Metadata
     internal delegate Task<IReadOnlyDictionary<AchievementDetail, (string Unlocked, string Locked)>> SourceIconDownload(
         Guid gameId,
         string sourceKey,
-        IEnumerable<AchievementDetail> rows,
+        IReadOnlyList<MetadataSourceList> lists,
         bool force,
         CancellationToken ct);
 
@@ -142,9 +191,11 @@ namespace PlayniteAchievements.Services.Metadata
             SourceIconDownload downloadSourceIcons = null,
             Action<Guid, string> deleteSourceIcons = null,
             EnglishTitleFetch englishTitles = null,
-            bool keepStored = false)
+            bool keepStored = false,
+            Action onEnded = null)
         {
             KeepsStored = keepStored;
+            _onEnded = onEnded;
             _englishTitles = englishTitles;
             _loadStored = loadStored;
             _downloadSourceIcons = downloadSourceIcons;
@@ -169,6 +220,7 @@ namespace PlayniteAchievements.Services.Metadata
         private readonly Func<Guid, GameAchievementData> _loadStored;
         private readonly SourceIconDownload _downloadSourceIcons;
         private readonly Action<Guid, string> _deleteSourceIcons;
+        private Action _onEnded;
 
         /// <summary>
         /// Whether the game's last overlay borrowed a capstone from a source: its art or text, or a
@@ -554,6 +606,8 @@ namespace PlayniteAchievements.Services.Metadata
                     _logger?.Debug(ex, $"[Metadata] Ending the '{key}' session failed.");
                 }
             }
+
+            Interlocked.Exchange(ref _onEnded, null)?.Invoke();
         }
 
         private OverlayPlan BuildPlan(string servicingProviderKey, MetadataChoices gameChoices)
@@ -1146,7 +1200,7 @@ namespace PlayniteAchievements.Services.Metadata
                         pair.Value.Icons = await _downloadSourceIcons(
                                 gameId,
                                 pair.Key,
-                                pair.Value.Set.Achievements,
+                                IconLists(pair.Value),
                                 forceIcons || relinked,
                                 ct)
                             .ConfigureAwait(false);
@@ -1545,6 +1599,22 @@ namespace PlayniteAchievements.Services.Metadata
             }
 
             return result.Count >= 2 ? result : new List<MetadataCategoryCapstone>();
+        }
+
+        /// <summary>
+        /// The set's rows by the source list they come from, so each list's icons are saved once
+        /// for every game linked to it. A set of one list goes by its link.
+        /// </summary>
+        private static IReadOnlyList<MetadataSourceList> IconLists(MatchedSet matched)
+        {
+            var set = matched.Set;
+            if (set.Lists?.Count > 1)
+            {
+                return set.Lists;
+            }
+
+            var id = FirstNonBlank(set.LinkId, matched.LinkId);
+            return new[] { new MetadataSourceList(id, id, set.Achievements.ToList()) };
         }
 
         /// <summary>
