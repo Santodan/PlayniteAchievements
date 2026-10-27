@@ -108,6 +108,47 @@ namespace PlayniteAchievements.Tests.Providers
         }
 
         [TestMethod]
+        public void Combine_JoinsARowNamedAndDescribedDifferently_ByItsPlaceOnPagesInTheSameOrder()
+        {
+            var ta = Page(
+                Described("a1", "Your Name?", "Enjoyed a fulfilling chat with Kagami"),
+                Described("a2", "The Dream Invader", "Saw Gray twice in Somnium"),
+                Described("a3", "Protect Your Head", "Had Aiba wear the basket"));
+            ta.Achievements[1].Points = 10;
+            var tt = Page(
+                Described("t1", "Your Name?", "Enjoyed a fulfilling chat with Kagami"),
+                Described("t2", "The Dream Wanderer", "Saw This Man twice in Somnium"),
+                Described("t3", "Protect Your Head", "Had Aiba wear the basket"));
+            var tsa = Page(
+                Described("s1", "Your Name?", "Enjoyed a fulfilling chat with Kagami"),
+                Described("s2", "The Dream Wanderer", "Saw This Man twice in Somnium"),
+                Described("s3", "Protect Your Head", "Had Aiba wear the basket"));
+
+            var combined = TrueGamingPageSet.CombineAll(Pages(ta, tt, tsa), "Somnium");
+
+            Assert.AreEqual(3, combined.Rows.Count);
+            Assert.AreEqual(1, combined.MergedByPosition, "the third page joins by name");
+            Assert.AreEqual("a2", combined.Rows[1].ApiName);
+            Assert.AreEqual(10, combined.Rows[1].Points);
+            Assert.AreSame(combined.Rows[1], combined.Aliases["t2"]);
+            Assert.AreSame(combined.Rows[1], combined.Aliases["s2"]);
+        }
+
+        [TestMethod]
+        public void Combine_KeepsLeftoversApart_WhenThePagesDifferInLengthOrOrder()
+        {
+            var ta = Page(Described("a1", "First", "One"), Described("a2", "Invader", "Gray"), Described("a3", "Third", "Three"));
+            var longer = Page(Described("t1", "First", "One"), Described("t2", "Wanderer", "Man"), Described("t3", "Third", "Three"), Described("t4", "Platinum", "All"));
+            var reordered = Page(Described("t3", "Third", "Three"), Described("t2", "Wanderer", "Man"), Described("t1", "First", "One"));
+            var otherDlc = Page(Described("t1", "First", "One"), Described("t2", "Wanderer", "Man"), Described("t3", "Third", "Three"));
+            otherDlc.Achievements[1].Dlc = "Expansion";
+
+            Assert.AreEqual(0, TrueGamingPageSet.CombineAll(Pages(ta, longer), "Base").MergedByPosition, "a page lists another achievement");
+            Assert.AreEqual(0, TrueGamingPageSet.CombineAll(Pages(ta, reordered), "Base").MergedByPosition, "the shared rows sit elsewhere");
+            Assert.AreEqual(4, TrueGamingPageSet.CombineAll(Pages(ta, otherDlc), "Base").Rows.Count, "the DLC differs");
+        }
+
+        [TestMethod]
         public void SameGame_NeedsHalfTheShorterListByName()
         {
             Assert.IsTrue(TrueGamingPageSet.IsSameGame(Page(Row("a1", "LUMIÈRE"), Row("a9", "Other")), Targets));
