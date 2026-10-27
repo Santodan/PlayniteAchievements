@@ -33,6 +33,28 @@ namespace PlayniteAchievements.Views.Helpers
         /// </summary>
         private const int ViewportRescaleThrottleMilliseconds = 60;
 
+        /// <summary>
+        /// Set on a <see cref="DataGridColumn"/> when the user hides its header text from the
+        /// header menu. The header template hides (not collapses) the text while true, so the
+        /// header keeps its size, sort arrow and click-to-sort.
+        /// </summary>
+        public static readonly DependencyProperty IsHeaderTextHiddenProperty =
+            DependencyProperty.RegisterAttached(
+                "IsHeaderTextHidden",
+                typeof(bool),
+                typeof(DataGridColumnLayoutService),
+                new PropertyMetadata(false));
+
+        public static bool GetIsHeaderTextHidden(DependencyObject obj)
+        {
+            return (bool)obj.GetValue(IsHeaderTextHiddenProperty);
+        }
+
+        public static void SetIsHeaderTextHidden(DependencyObject obj, bool value)
+        {
+            obj.SetValue(IsHeaderTextHiddenProperty, value);
+        }
+
         private readonly DataGrid _grid;
         private readonly ILogger _logger;
         private readonly Func<Dictionary<string, double>> _getWidths;
@@ -2095,7 +2117,7 @@ namespace PlayniteAchievements.Views.Helpers
 
         public bool IsColumnHeaderTextHidden(DataGridColumn column)
         {
-            return column != null && DataGridAlignmentBehavior.GetIsHeaderTextHidden(column);
+            return column != null && DataGridColumnLayoutService.GetIsHeaderTextHidden(column);
         }
 
         /// <summary>
@@ -2109,7 +2131,7 @@ namespace PlayniteAchievements.Views.Helpers
                 return;
             }
 
-            DataGridAlignmentBehavior.SetIsHeaderTextHidden(column, hidden);
+            DataGridColumnLayoutService.SetIsHeaderTextHidden(column, hidden);
 
             var map = _getHiddenHeaders.Invoke() ?? new Dictionary<string, bool>(StringComparer.OrdinalIgnoreCase);
             if (hidden)
@@ -2142,11 +2164,11 @@ namespace PlayniteAchievements.Views.Helpers
                              isHidden;
                 if (hidden)
                 {
-                    DataGridAlignmentBehavior.SetIsHeaderTextHidden(column, true);
+                    DataGridColumnLayoutService.SetIsHeaderTextHidden(column, true);
                 }
                 else
                 {
-                    column.ClearValue(DataGridAlignmentBehavior.IsHeaderTextHiddenProperty);
+                    column.ClearValue(DataGridColumnLayoutService.IsHeaderTextHiddenProperty);
                 }
             }
         }
