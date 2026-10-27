@@ -12,18 +12,18 @@ namespace PlayniteAchievements.Tests.Providers
         private static readonly string[] Targets = { "Lumière", "Spring Meadows", "The End" };
 
         [TestMethod]
-        public void TagsAndCategories_NeedNoMorePages_OnceEveryAchievementIsListedWithFlags()
+        public void Tags_NeedNoMorePages_OnceEveryAchievementIsListedWithFlags()
         {
             var full = Page(Row("a1", "Lumière", "Single Player"), Row("a2", "Spring Meadows", "Missable"), Row("a3", "The End", "Story Completed"));
             var unflagged = Page(Row("a1", "Lumière", "Single Player"), Row("a2", "Spring Meadows"), Row("a3", "The End", "Story Completed"));
             var partial = Page(Row("a1", "Lumière", "Single Player"), Row("a2", "Spring Meadows", "Missable"));
-            var wanted = MetadataField.Tags | MetadataField.Categories;
+            var wanted = MetadataField.Tags;
 
             Assert.IsFalse(TrueGamingPageSet.NeedsPage(TrueGamingSite.TrueTrophies, wanted, new[] { full }, Targets));
             Assert.IsTrue(TrueGamingPageSet.NeedsPage(TrueGamingSite.TrueTrophies, wanted, new[] { unflagged }, Targets), "a row without flags");
-            Assert.IsFalse(TrueGamingPageSet.NeedsPage(TrueGamingSite.TrueTrophies, MetadataField.Categories, new[] { unflagged }, Targets), "categories need only the row");
             Assert.IsTrue(TrueGamingPageSet.NeedsPage(TrueGamingSite.TrueTrophies, wanted, new[] { partial }, Targets), "a missing row");
             Assert.IsTrue(TrueGamingPageSet.NeedsPage(TrueGamingSite.TrueAchievements, wanted, new TrueGamingPage[0], Targets));
+            Assert.IsFalse(TrueGamingPageSet.NeedsPage(TrueGamingSite.TrueAchievements, MetadataField.Categories, new TrueGamingPage[0], Targets), "only tags need a page");
         }
 
         [TestMethod]
