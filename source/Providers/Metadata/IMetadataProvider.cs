@@ -83,6 +83,17 @@ namespace PlayniteAchievements.Providers.Metadata
         string ShownLink(string linkId);
     }
 
+    /// <summary>A source whose links say which console's list they lead to.</summary>
+    internal interface IMetadataLinkPlatform
+    {
+        /// <summary>
+        /// The platform of the list one link id leads to, as the source names it ("PS4", "Xbox
+        /// One"), several joined when the id leads to a list on each of several sites; null when
+        /// the link does not say.
+        /// </summary>
+        string ShownPlatform(Guid gameId, string linkId);
+    }
+
     /// <summary>
     /// A source that some games are linked to by what they already are, such as SteamHunters for a
     /// Steam game by its own appId. That link is never stored, so it adds no custom data to the
