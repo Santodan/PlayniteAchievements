@@ -199,6 +199,7 @@ namespace PlayniteAchievements.Services.Images
 
             try
             {
+                IconFileLinks.Detach(resolvedTargetPath);
                 File.Copy(sessionPath, resolvedTargetPath, overwrite: true);
             }
             catch (Exception ex)
@@ -943,6 +944,7 @@ namespace PlayniteAchievements.Services.Images
                 attempt++;
                 try
                 {
+                    IconFileLinks.Detach(cachePath);
                     using (var fs = new FileStream(cachePath, FileMode.Create, FileAccess.Write, FileShare.Read))
                     {
                         encoder.Save(fs);
@@ -969,6 +971,7 @@ namespace PlayniteAchievements.Services.Images
                 attempt++;
                 try
                 {
+                    IconFileLinks.Detach(targetPath);
                     using (var fs = new FileStream(targetPath, FileMode.Create, FileAccess.Write, FileShare.Read))
                     {
                         await fs.WriteAsync(bytes, 0, bytes.Length, cancel).ConfigureAwait(false);
@@ -1422,6 +1425,89 @@ namespace PlayniteAchievements.Services.Images
             }
         }
 
+        // Set once a link fails because the volume has no hard links; later games skip the scan.
+        private volatile bool _hardLinksUnsupported;
+
+        /// <summary>
+        /// Hard-links byte-identical files in a game's original, category_defaults and metadata
+        /// folders, so an image the provider reuses for many achievements is stored once. Every
+        /// name stays where it is. custom/ is left alone: the user's files and the capstone's
+        /// recorded write times live there. Returns the number of names linked.
+        /// </summary>
+        internal async Task<int> LinkIdenticalGameIconFilesAsync(string gameId, CancellationToken cancel)
+        {
+            if (_hardLinksUnsupported || string.IsNullOrWhiteSpace(gameId))
+            {
+                return 0;
+            }
+
+            var gameDir = Path.Combine(IconCacheDirectory, gameId.Trim());
+            var folders = new[]
+            {
+                AchievementIconCachePathBuilder.ModeFolderName,
+                AchievementIconCachePathBuilder.DefaultCategoryFolderName,
+                AchievementIconCachePathBuilder.MetadataSourceFolderName
+            }.Select(folder => Path.Combine(gameDir, folder));
+
+            var linked = 0;
+            try
+            {
+                var groups = await Task.Run(() => IconFileLinks.FindIdenticalFiles(folders, cancel), cancel).ConfigureAwait(false);
+                foreach (var group in groups)
+                {
+                    using (await AcquirePathWriteLockAsync(group.Keeper.Path, cancel).ConfigureAwait(false))
+                    {
+                        if (!group.Keeper.IsCurrent())
+                        {
+                            continue;
+                        }
+
+                        foreach (var file in group.Others)
+                        {
+                            using (await AcquirePathWriteLockAsync(file.Path, cancel).ConfigureAwait(false))
+                            {
+                                // A write since the hash may have put another image here.
+                                if (!file.IsCurrent())
+                                {
+                                    continue;
+                                }
+
+                                var result = IconFileLinks.ReplaceWithLink(file.Path, group.Keeper.Path);
+                                if (result == IconFileLinks.LinkResult.Linked)
+                                {
+                                    linked++;
+                                }
+                                else if (result == IconFileLinks.LinkResult.Unsupported)
+                                {
+                                    _hardLinksUnsupported = true;
+                                    _logger?.Info("Icon cache volume does not support hard links; identical icons stay separate files.");
+                                    return linked;
+                                }
+                                else if (result == IconFileLinks.LinkResult.KeeperFull)
+                                {
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            catch (OperationCanceledException)
+            {
+            }
+            catch (Exception ex)
+            {
+                _logger?.Warn(ex, $"Failed to link identical icon files for game '{gameId}'.");
+            }
+
+            if (linked > 0)
+            {
+                _logger?.Debug($"Linked {linked} identical icon file(s) for game '{gameId}'.");
+            }
+
+            return linked;
+        }
+
         // Deletes a single icon_cache-rooted subdirectory (recursively) and prunes parent
         // directories left empty, up to but not including the icon_cache root. Guarded so only
         // paths resolving under icon_cache can be removed. Used to drop a specific game's cached
@@ -1853,6 +1939,7 @@ namespace PlayniteAchievements.Services.Images
                     var overwritingExisting = overwriteExistingTarget && File.Exists(resolvedTargetPath);
                     if (preserveOriginalFormat)
                     {
+                        IconFileLinks.Detach(resolvedTargetPath);
                         File.Copy(localPath, resolvedTargetPath, overwrite: overwriteExistingTarget);
                         InvalidateDefaultCategoryArtSnapshotForTargetPath(resolvedTargetPath);
                         if (overwritingExisting)
@@ -1921,6 +2008,7 @@ namespace PlayniteAchievements.Services.Images
 
                     cancel.ThrowIfCancellationRequested();
                     var overwritingExisting = overwriteExistingTarget && File.Exists(targetPath);
+                    IconFileLinks.Detach(targetPath);
                     File.Copy(existingPath, targetPath, overwrite: overwriteExistingTarget);
                     InvalidateDefaultCategoryArtSnapshotForTargetPath(targetPath);
                     if (overwritingExisting)
