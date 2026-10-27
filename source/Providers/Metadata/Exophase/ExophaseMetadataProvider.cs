@@ -39,7 +39,7 @@ namespace PlayniteAchievements.Providers.Metadata.Exophase
     /// Exophase search, with the scan's hints (the platform's title for the game, a collection's
     /// trophy set titles, a region).
     /// </summary>
-    internal sealed class ExophaseMetadataProvider : IMetadataProvider, IMetadataPageLinks, IMetadataLinkSearch
+    internal sealed class ExophaseMetadataProvider : IMetadataProvider, IMetadataPageLinks, IMetadataLinkSearch, IMetadataLinkPlatform
     {
         // Search results judged per name; each costs a page load the first time in a run.
         private const int SearchCandidatesJudged = 6;
@@ -490,6 +490,10 @@ namespace PlayniteAchievements.Providers.Metadata.Exophase
                 .SelectMany(slug => endings.Select(suffix => slug + suffix))
                 .Distinct(StringComparer.OrdinalIgnoreCase);
         }
+
+        /// <summary>The console the list's page slug names, for a borrowed platform's list; the own platform's needs none.</summary>
+        public string ShownPlatform(Guid gameId, string linkId) =>
+            _branch.OwnPlatform ? null : ExophaseMetadataBranch.PlatformOfSlug(PageSlug(linkId));
 
         /// <summary>The page slug one list of a link names; a full page address is accepted. Null when blank.</summary>
         internal static string PageSlug(string linkId)
