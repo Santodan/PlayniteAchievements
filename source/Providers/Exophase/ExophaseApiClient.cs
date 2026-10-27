@@ -1253,9 +1253,6 @@ namespace PlayniteAchievements.Providers.Exophase
 
                 var achievements = new List<AchievementDetail>(achievementNodes.Count);
 
-                var unlockedCount = 0;
-                var lockedCount = 0;
-
                 foreach (var node in achievementNodes)
                 {
                     try
@@ -1264,10 +1261,6 @@ namespace PlayniteAchievements.Providers.Exophase
                         if (achievement != null)
                         {
                             achievements.Add(achievement);
-                            if (achievement.Unlocked)
-                                unlockedCount++;
-                            else
-                                lockedCount++;
                         }
                     }
                     catch (Exception ex)
@@ -1275,8 +1268,6 @@ namespace PlayniteAchievements.Providers.Exophase
                         _logger?.Debug(ex, "[Exophase] Failed to parse achievement node.");
                     }
                 }
-
-                _logger?.Info($"[Exophase] Parsed {achievements.Count} achievements ({unlockedCount} unlocked, {lockedCount} locked)");
 
                 var legacyKeyCount = achievements.Count(a =>
                     a.ApiName?.StartsWith(ExophaseStableApiNamePrefix, StringComparison.Ordinal) != true);
