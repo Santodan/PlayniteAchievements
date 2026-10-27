@@ -83,6 +83,20 @@ namespace PlayniteAchievements.Views.Showcase
             set => SetValue(CategoryItemsSourceProperty, value);
         }
 
+        /// <summary>The widget's category grid display options, which category mode's list follows.</summary>
+        public static readonly DependencyProperty CategoryOptionsProperty =
+            DependencyProperty.Register(
+                nameof(CategoryOptions),
+                typeof(CategorySummaryGridOptions),
+                typeof(ShowcaseAchievementGridControl),
+                new PropertyMetadata(null));
+
+        public CategorySummaryGridOptions CategoryOptions
+        {
+            get => (CategorySummaryGridOptions)GetValue(CategoryOptionsProperty);
+            set => SetValue(CategoryOptionsProperty, value);
+        }
+
         public ShowcaseAchievementGridControl()
         {
             InitializeComponent();
