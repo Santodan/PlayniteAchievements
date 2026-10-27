@@ -44,6 +44,8 @@ namespace PlayniteAchievements.Tests.Services
         public MetadataSourceSnapshotRow GetMetadataSourceSnapshot(string playniteGameId, string sourceKey) =>
             _snapshots.TryGetValue(playniteGameId + "|" + sourceKey, out var row) ? row : null;
 
+        public List<MetadataSourceSnapshotRow> LoadMetadataSourceSnapshots() => _snapshots.Values.ToList();
+
         public void SaveMetadataSourceSnapshot(MetadataSourceSnapshotRow row)
         {
             SnapshotWrites++;
