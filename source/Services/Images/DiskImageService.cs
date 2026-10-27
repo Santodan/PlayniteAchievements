@@ -148,6 +148,33 @@ namespace PlayniteAchievements.Services.Images
             _http.DefaultRequestHeaders.UserAgent.ParseAdd("PlayniteAchievements/1.0");
 
             EnsureIconCacheDirectory();
+            DeleteSessionImageFiles();
+        }
+
+        // An image shown from an address with no game to file it under is cached in the icon_cache
+        // root for the session only: nothing stores its path, so each start clears what the last left.
+        private void DeleteSessionImageFiles()
+        {
+            try
+            {
+                foreach (var file in Directory.EnumerateFiles(IconCacheDirectory, "*", SearchOption.TopDirectoryOnly)
+                    .Where(IsSupportedCacheImageFile)
+                    .ToList())
+                {
+                    try
+                    {
+                        File.Delete(file);
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger?.Debug(ex, $"Failed to delete session image '{file}'.");
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger?.Warn(ex, "Failed to clear session images from the icon cache root.");
+            }
         }
 
         public void Dispose()
