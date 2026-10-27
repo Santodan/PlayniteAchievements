@@ -116,12 +116,7 @@
         </DataGrid.RowStyle>
         <DataGrid.Columns>
             <DataGridTemplateColumn Width="96" MinWidth="56" MaxWidth="600" CanUserResize="True" Header="{DynamicResource LOCPlayAch_Column_Cover}"
-                                    helpers:ColumnVisibilityHelper.ColumnKey="Cover">
-                <DataGridTemplateColumn.HeaderTemplate>
-                    <DataTemplate>
-                        <TextBlock Text="{Binding}" Opacity="0"/>
-                    </DataTemplate>
-                </DataGridTemplateColumn.HeaderTemplate>
+                                    helpers:ColumnVisibilityHelper.ColumnKey="Cover" helpers:DataGridColumnLayoutService.IsHeaderTextHidden="True">
                 <DataGridTemplateColumn.CellStyle>
                     <Style TargetType="DataGridCell" BasedOn="{StaticResource GameSummariesImageCellStyle}">
                         <Setter Property="ToolTip" Value="{Binding GameName}"/>
@@ -369,13 +364,7 @@
                                     Header="{DynamicResource LOCPlatformTitle}"
                                     CanUserResize="True"
                                     CanUserSort="False"
-                                    helpers:ColumnVisibilityHelper.ColumnKey="GameSummaryPlatform">
-                    <DataGridTemplateColumn.HeaderTemplate>
-                        <DataTemplate>
-                            <TextBlock Text="{Binding}"
-                                    Opacity="0"/>
-                        </DataTemplate>
-                    </DataGridTemplateColumn.HeaderTemplate>
+                                    helpers:ColumnVisibilityHelper.ColumnKey="GameSummaryPlatform" helpers:DataGridColumnLayoutService.IsHeaderTextHidden="True">
 
                 <DataGridTemplateColumn.CellStyle>
                     <Style TargetType="DataGridCell" BasedOn="{StaticResource GameSummariesImageCellStyle}">
@@ -414,12 +403,7 @@
             </DataGridTemplateColumn>
 
             <DataGridTemplateColumn Width="40" MinWidth="28" MaxWidth="96" CanUserResize="True" Header="{DynamicResource LOCPlayAch_Column_Owned}" SortMemberPath="Owned" helpers:ColumnVisibilityHelper.ColumnKey="GameSummaryOwned"
-                                    CellStyle="{StaticResource AchievementStatusCellStyle}">
-                <DataGridTemplateColumn.HeaderTemplate>
-                    <DataTemplate>
-                        <TextBlock Text="{Binding}" Opacity="0"/>
-                    </DataTemplate>
-                </DataGridTemplateColumn.HeaderTemplate>
+                                    CellStyle="{StaticResource AchievementStatusCellStyle}" helpers:DataGridColumnLayoutService.IsHeaderTextHidden="True">
                 <DataGridTemplateColumn.CellTemplate>
                     <DataTemplate>
                         <Viewbox Stretch="Uniform"
