@@ -6108,6 +6108,17 @@ namespace PlayniteAchievements.Services.Database
         }
 
         /// <summary>
+        /// Loads every MetadataSourceSnapshots row, across all games and sources.
+        /// </summary>
+        internal List<MetadataSourceSnapshotRow> LoadMetadataSourceSnapshots()
+        {
+            return WithDb(db => db.Load<MetadataSourceSnapshotRow>(
+                    @"SELECT PlayniteGameId, SourceKey, LinkId, RowsJson, MatchesJson, UpdatedUtc
+                      FROM MetadataSourceSnapshots;")
+                .ToList());
+        }
+
+        /// <summary>
         /// Upserts a MetadataSourceSnapshots row keyed by its PlayniteGameId and SourceKey.
         /// A null RowsJson is stored as an empty string; a blank UpdatedUtc is stored as now.
         /// </summary>
