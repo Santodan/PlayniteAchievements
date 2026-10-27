@@ -182,17 +182,19 @@ namespace PlayniteAchievements
             Action onChanged,
             DependencyObject menuSource)
         {
-            var menu = BuildStartPageBaseRowContextMenu(data, resourceOwner);
+            var menu = BuildStartPageBaseRowContextMenu(data, resourceOwner, menuSource);
+            // A game row's menu is the shared game menu, which ends with the settings entry.
+            var hasGameMenu = data is GameSummaryItem && menu.Items.Count > 0;
             var appendedAchievementOptions = AchievementRowOptionsMenuBuilder.AppendAchievementOptions(
                 menu,
                 data,
                 resourceOwner,
                 onChanged,
                 menuSource);
-            if (!appendedAchievementOptions)
+            if (!appendedAchievementOptions && !hasGameMenu)
             {
-                // Game rows get no achievement options, which is where display settings are
-                // appended for achievement rows; add the entry here so every grid row has it.
+                // Achievement options end with the settings entry; add it for any other row so
+                // every grid row has it.
                 GridDisplaySettingsMenuBuilder.Append(menu, resourceOwner, menuSource);
             }
 
@@ -548,7 +550,10 @@ namespace PlayniteAchievements
             }
         }
 
-        private ContextMenu BuildStartPageBaseRowContextMenu(object data, FrameworkElement resourceOwner)
+        private ContextMenu BuildStartPageBaseRowContextMenu(
+            object data,
+            FrameworkElement resourceOwner,
+            DependencyObject menuSource)
         {
             var menu = new ContextMenu();
             if (!TryGetStartPageGameId(data, out var gameId))
@@ -578,7 +583,7 @@ namespace PlayniteAchievements
                     _achievementOverridesService,
                     _cacheManager,
                     _logger,
-                    menuSource: resourceOwner,
+                    menuSource: menuSource,
                     includeViewCaptures: true);
             }
 
