@@ -1383,6 +1383,26 @@ namespace PlayniteAchievements.Views.Controls
             }
         }
 
+        /// <summary>
+        /// True while a host's whole-game list (which arrives after its rows) is still loading
+        /// and the grid will show categories once it lands: it is already in category mode (a
+        /// game switch), or Start in Category Mode is about to apply.
+        /// </summary>
+        private bool IsAwaitingStartInCategoryMode()
+        {
+            if (!EnableCategoryMode ||
+                !DrillIntoCategorySummarySource ||
+                (ControlBar == null && !CategoryModeWithoutControlBar) ||
+                CategorySummarySource?.Any() == true ||
+                ItemsSource?.Any() != true ||
+                !IsCategorySourceSingleGame())
+            {
+                return false;
+            }
+
+            return _isCategoryMode || (!_startInCategoryModeApplied && GetStartInCategoryMode());
+        }
+
         private bool GetStartInCategoryMode()
         {
             var persisted = PlayniteAchievementsPlugin.Instance?.Settings?.Persisted;
@@ -2031,7 +2051,9 @@ namespace PlayniteAchievements.Views.Controls
             var hasCategoryRows = grouping && CategorySummaries != null && CategorySummaries.Any();
 
             CategoryListVisible = hasCategoryRows && !drill;
-            AchievementGridVisible = !hasCategoryRows || drill;
+            // While a host's whole-game list is still on its way and Start in Category Mode will
+            // apply once it lands, the flat rows stay hidden rather than flash up first.
+            AchievementGridVisible = (!hasCategoryRows || drill) && !IsAwaitingStartInCategoryMode();
             DrillHeaderVisible = drill && !HideCategorySummaryRow;
             // Display form: hosts bind this straight into a header TextBlock, and the storage
             // separator is internal - never shown to a user.
