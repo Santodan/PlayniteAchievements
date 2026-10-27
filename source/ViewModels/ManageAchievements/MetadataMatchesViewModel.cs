@@ -28,26 +28,8 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             IReadOnlyDictionary<string, string> pairings)
         {
             SourceName = sourceName;
-            var matches = snapshot?.Matches ?? new Dictionary<string, string>();
-            pairings = pairings ?? new Dictionary<string, string>();
-
-            // A source row without its own icon on disk (a source not used for icons) shows the
-            // icon of the game's achievement it is paired with, already on disk.
-            var pairedIcons = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-            foreach (var target in targets ?? Array.Empty<AchievementDetail>())
-            {
-                var sourceApiName = pairings.TryGetValue(target.ApiName, out var paired)
-                    ? paired
-                    : matches.TryGetValue(target.ApiName, out var automatic) ? automatic : null;
-                var icon = string.IsNullOrWhiteSpace(target.UnlockedIconPath) ? target.LockedIconPath : target.UnlockedIconPath;
-                if (!string.IsNullOrEmpty(sourceApiName) && !string.IsNullOrWhiteSpace(icon) && !pairedIcons.ContainsKey(sourceApiName))
-                {
-                    pairedIcons[sourceApiName] = icon;
-                }
-            }
-
             _trophies = (snapshot?.Rows ?? new List<MetadataSourceRow>())
-                .Select(row => MatchOption.ForRow(row, pairedIcons.TryGetValue(row.ApiName ?? string.Empty, out var icon) ? icon : null))
+                .Select(MatchOption.ForRow)
                 .ToList();
             _trophiesByApiName = _trophies
                 .GroupBy(trophy => trophy.Key, StringComparer.OrdinalIgnoreCase)
@@ -55,6 +37,8 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             Automatic = MatchOption.Special(null, ResourceProvider.GetString("LOCAutomatic"));
             None = MatchOption.Special(string.Empty, ResourceProvider.GetString("LOCNone"));
 
+            var matches = snapshot?.Matches ?? new Dictionary<string, string>();
+            pairings = pairings ?? new Dictionary<string, string>();
             var rows = (targets ?? Array.Empty<AchievementDetail>())
                 .Select(target =>
                 {
@@ -275,9 +259,8 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             IsSpecial = isSpecial;
         }
 
-        /// <summary>A source row, with its own icon on disk, else <paramref name="pairedIcon"/>.</summary>
-        internal static MatchOption ForRow(MetadataSourceRow row, string pairedIcon = null) =>
-            new MatchOption(row.ApiName, row.Name, row.Description, MetadataSourceSnapshotStore.LocalIconPath(row.Icon) ?? pairedIcon, row.List, isSpecial: false);
+        internal static MatchOption ForRow(MetadataSourceRow row) =>
+            new MatchOption(row.ApiName, row.Name, row.Description, MetadataSourceSnapshotStore.LocalIconPath(row.Icon), row.List, isSpecial: false);
 
         internal static MatchOption Special(string key, string name) =>
             new MatchOption(key, name, null, null, null, isSpecial: true);
