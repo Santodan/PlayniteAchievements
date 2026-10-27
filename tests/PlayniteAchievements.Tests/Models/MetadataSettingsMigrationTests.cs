@@ -69,6 +69,23 @@ namespace PlayniteAchievements.Tests.Models
             Assert.AreEqual(migrated, MetadataSettingsMigration.MigrateFromJson(migrated));
         }
 
+        [TestMethod]
+        public void TrueGamingCategories_BecomeSteamHuntersOnTheDefaults_AndDefaultOnPlatforms()
+        {
+            var persisted = Migrate(@"{
+                ""MetadataChoicesSeeded"": true,
+                ""MetadataDefaults"": { ""Categories"": ""TrueGaming"", ""Tags"": ""TrueGaming"" },
+                ""MetadataPlatformChoices"": {
+                    ""Xbox"": { ""Categories"": ""TrueGaming"", ""Rarity"": """" },
+                    ""Steam"": { ""Categories"": ""SteamHunters"" } } }");
+
+            Assert.AreEqual("SteamHunters", (string)persisted["MetadataDefaults"]["Categories"]);
+            Assert.AreEqual("TrueGaming", (string)persisted["MetadataDefaults"]["Tags"], "tags keep TrueGaming");
+            Assert.IsNull(persisted["MetadataPlatformChoices"]["Xbox"]["Categories"]);
+            Assert.AreEqual("", (string)persisted["MetadataPlatformChoices"]["Xbox"]["Rarity"]);
+            Assert.AreEqual("SteamHunters", (string)persisted["MetadataPlatformChoices"]["Steam"]["Categories"]);
+        }
+
         private static string SteamCategories(string steamJson)
         {
             var persisted = Migrate(@"{ ""ProviderSettings"": { ""Steam"": " + steamJson + " } }");
