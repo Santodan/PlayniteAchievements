@@ -175,29 +175,7 @@ namespace PlayniteAchievements.Views.Dialogs
             // carries the hide-after-selection flag.
             if (_kind == GridOptionKind.Achievement && !string.IsNullOrEmpty(_categorySurfaceKey))
             {
-                var header = new TextBlock
-                {
-                    Text = Localize("LOCPlayAch_Settings_CategoryGrid")
-                };
-                header.SetResourceReference(StyleProperty, "SubSectionHeaderStyle");
-                header.SetResourceReference(MarginProperty, "PlayAch.Thickness.SubSectionHeading");
-                panel.Children.Add(header);
-
-                _hideCategoryRowCheckBox = new CheckBox
-                {
-                    HorizontalAlignment = HorizontalAlignment.Left,
-                    VerticalAlignment = VerticalAlignment.Center
-                };
-                panel.Children.Add(BuildOptionRow(
-                    Localize("LOCPlayAch_Settings_HideCategorySummaryRow"),
-                    _hideCategoryRowCheckBox));
-
-                _categoryEditor = new GridOptionsEditor
-                {
-                    SurfaceKind = GridOptionKind.CategorySummaries,
-                    SurfaceKey = _categorySurfaceKey
-                };
-                panel.Children.Add(_categoryEditor);
+                AppendCategorySection(panel, _categorySurfaceKey, out _hideCategoryRowCheckBox, out _categoryEditor);
             }
 
             BindRecords();
@@ -221,6 +199,43 @@ namespace PlayniteAchievements.Views.Dialogs
             root.Children.Add(buttons);
 
             return root;
+        }
+
+        /// <summary>
+        /// Appends an achievement grid's category grid section: its heading, the hide-after-
+        /// selection row (bound by the caller to the achievement grid's own record) and the
+        /// category grid's editor (whose record the caller sets). Shared with the showcase grid
+        /// widget's settings, so the two show the same rows.
+        /// </summary>
+        internal static void AppendCategorySection(
+            Panel panel,
+            string categorySurfaceKey,
+            out CheckBox hideCategoryRowCheckBox,
+            out GridOptionsEditor categoryEditor)
+        {
+            var header = new TextBlock
+            {
+                Text = Localize("LOCPlayAch_Settings_CategoryGrid")
+            };
+            header.SetResourceReference(StyleProperty, "SubSectionHeaderStyle");
+            header.SetResourceReference(MarginProperty, "PlayAch.Thickness.SubSectionHeading");
+            panel.Children.Add(header);
+
+            hideCategoryRowCheckBox = new CheckBox
+            {
+                HorizontalAlignment = HorizontalAlignment.Left,
+                VerticalAlignment = VerticalAlignment.Center
+            };
+            panel.Children.Add(BuildOptionRow(
+                Localize("LOCPlayAch_Settings_HideCategorySummaryRow"),
+                hideCategoryRowCheckBox));
+
+            categoryEditor = new GridOptionsEditor
+            {
+                SurfaceKind = GridOptionKind.CategorySummaries,
+                SurfaceKey = categorySurfaceKey
+            };
+            panel.Children.Add(categoryEditor);
         }
 
         // Laid out like the editor's option rows: a semibold label in the left two fifths, the
