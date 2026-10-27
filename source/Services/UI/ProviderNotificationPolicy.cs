@@ -1,3 +1,4 @@
+using System;
 using PlayniteAchievements.Models.Settings;
 
 namespace PlayniteAchievements.Services.UI
@@ -44,6 +45,9 @@ namespace PlayniteAchievements.Services.UI
 
             /// <summary>Incremental-progress notifications (silent, capture-free).</summary>
             public bool ProgressToasts => Behavior != null && Behavior.EnableNotifications && Behavior.EnableProgressToasts;
+
+            /// <summary>The progress notification step as a percentage of the goal; 0 is every advance.</summary>
+            public int ProgressToastIntervalPercent => Behavior?.ProgressToastIntervalPercent ?? 0;
 
             public bool ScreenshotClean => Captures != null && Captures.EnableUnlockScreenshots && Captures.UnlockScreenshotClean;
 
@@ -97,6 +101,22 @@ namespace PlayniteAchievements.Services.UI
                 // A game's own capture settings carry every clip variant explicitly, so the
                 // provider's legacy all-clips switch no longer applies to it.
                 recordings: gameCaptures != null || (overrides?.Recordings ?? true));
+        }
+
+        /// <summary>
+        /// Whether progress moving from <paramref name="baseline"/> to <paramref name="current"/>
+        /// passes another multiple of <paramref name="percent"/>% of <paramref name="denominator"/>.
+        /// A non-positive percent or denominator passes every advance.
+        /// </summary>
+        public static bool CrossesProgressInterval(int baseline, int current, int denominator, int percent)
+        {
+            if (percent <= 0 || denominator <= 0)
+            {
+                return current > baseline;
+            }
+
+            long step = (long)denominator * percent;
+            return (long)current * 100 / step > (long)Math.Max(0, baseline) * 100 / step;
         }
     }
 }
