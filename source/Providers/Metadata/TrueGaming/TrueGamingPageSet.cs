@@ -27,11 +27,16 @@ namespace PlayniteAchievements.Providers.Metadata.TrueGaming
     /// <summary>The rows a game's TrueGaming pages give together.</summary>
     internal sealed class TrueGamingCombinedRows
     {
-        public TrueGamingCombinedRows(List<AchievementDetail> rows, Dictionary<string, AchievementDetail> aliases, int mergedByDescription)
+        public TrueGamingCombinedRows(
+            List<AchievementDetail> rows,
+            Dictionary<string, AchievementDetail> aliases,
+            int mergedByDescription,
+            int mergedByPosition)
         {
             Rows = rows;
             Aliases = aliases;
             MergedByDescription = mergedByDescription;
+            MergedByPosition = mergedByPosition;
         }
 
         public List<AchievementDetail> Rows { get; }
@@ -41,6 +46,9 @@ namespace PlayniteAchievements.Providers.Metadata.TrueGaming
 
         /// <summary>How many listings joined a row by description, their names differing between sites.</summary>
         public int MergedByDescription { get; }
+
+        /// <summary>How many listings joined a row by their place on the page, name and description both differing.</summary>
+        public int MergedByPosition { get; }
     }
 
     /// <summary>
@@ -50,7 +58,9 @@ namespace PlayniteAchievements.Providers.Metadata.TrueGaming
     /// the first page that lists it, and its tags from the first page that lists it with flags.
     /// Achievements of different pages are paired by name, then by description where the sites
     /// name one differently ("Grilled Tasty" on TrueSteamAchievements, "Grilled Tastes Better" on
-    /// the others, both "Defeat Miltos").
+    /// the others, both "Defeat Miltos"), then by their place on pages that list the same
+    /// achievements in the same order ("The Dream Invader" on TrueAchievements, "The Dream
+    /// Wanderer" on TrueTrophies, each the 42nd of 45).
     /// </summary>
     internal static class TrueGamingPageSet
     {
@@ -120,14 +130,17 @@ namespace PlayniteAchievements.Providers.Metadata.TrueGaming
         /// <see cref="Combine"/>'s rows with the ids of the listings they joined. A page's row whose
         /// name no earlier page lists joins an earlier row by description when the description is
         /// one of a kind on both sides, the earlier row has no listing from this site yet, and both
-        /// are in the same DLC pack; otherwise it is a row of its own.
+        /// are in the same DLC pack. A row left over then joins the first page's row at its place
+        /// (see <see cref="JoinByPosition"/>); otherwise it is a row of its own.
         /// </summary>
         public static TrueGamingCombinedRows CombineAll(IReadOnlyList<TrueGamingFoundPage> pages, string baseLabel)
         {
             var entries = new List<List<(TrueGamingSite Site, TrueGamingAchievement Row)>>();
             var byName = new Dictionary<string, List<(TrueGamingSite Site, TrueGamingAchievement Row)>>(StringComparer.Ordinal);
             var mergedByDescription = 0;
-            foreach (var found in pages ?? Array.Empty<TrueGamingFoundPage>())
+            var mergedByPosition = 0;
+            pages = pages ?? Array.Empty<TrueGamingFoundPage>();
+            foreach (var found in pages)
             {
                 var earlier = entries.ToList();
                 var unnamed = new List<TrueGamingAchievement>();
@@ -159,6 +172,7 @@ namespace PlayniteAchievements.Providers.Metadata.TrueGaming
 
                 var pageDescriptions = DescriptionCounts(found.Page.Achievements.Select(row => row.Description));
                 var earlierDescriptions = DescriptionCounts(earlier.Select(listings => listings[0].Row.Description));
+                var leftovers = new List<TrueGamingAchievement>();
                 foreach (var row in unnamed)
                 {
                     var key = NameKey(row.Name);
@@ -190,6 +204,30 @@ namespace PlayniteAchievements.Providers.Metadata.TrueGaming
                     }
                     else
                     {
+                        leftovers.Add(row);
+                    }
+                }
+
+                var byPosition = JoinByPosition(pages[0], found, entries, leftovers);
+                foreach (var row in leftovers)
+                {
+                    var key = NameKey(row.Name);
+                    if (byPosition.TryGetValue(row, out var placed))
+                    {
+                        placed.Add((found.Site, row));
+                        byName[key] = placed;
+                        mergedByPosition++;
+                    }
+                    else if (byName.TryGetValue(key, out var named))
+                    {
+                        // Another leftover of this page by the same name came first.
+                        if (named.All(listing => listing.Site != found.Site))
+                        {
+                            named.Add((found.Site, row));
+                        }
+                    }
+                    else
+                    {
                         AddEntry(entries, byName, key, found.Site, row);
                     }
                 }
@@ -212,7 +250,60 @@ namespace PlayniteAchievements.Providers.Metadata.TrueGaming
                 }
             }
 
-            return new TrueGamingCombinedRows(rows, aliases, mergedByDescription);
+            return new TrueGamingCombinedRows(rows, aliases, mergedByDescription, mergedByPosition);
+        }
+
+        /// <summary>
+        /// The first page's rows <paramref name="leftovers"/> of <paramref name="found"/> join by
+        /// place: only when both pages list as many rows, every row already joined across the two
+        /// sits at the same place on both, and the row at a leftover's place has no listing from
+        /// this site yet and is in the same DLC pack.
+        /// </summary>
+        private static Dictionary<TrueGamingAchievement, List<(TrueGamingSite Site, TrueGamingAchievement Row)>> JoinByPosition(
+            TrueGamingFoundPage first,
+            TrueGamingFoundPage found,
+            List<List<(TrueGamingSite Site, TrueGamingAchievement Row)>> entries,
+            List<TrueGamingAchievement> leftovers)
+        {
+            var joins = new Dictionary<TrueGamingAchievement, List<(TrueGamingSite Site, TrueGamingAchievement Row)>>();
+            var firstRows = first.Page.Achievements;
+            var rows = found.Page.Achievements;
+            if (leftovers.Count == 0 || first.Site == found.Site || firstRows.Count != rows.Count)
+            {
+                return joins;
+            }
+
+            var entryAt = new Dictionary<int, List<(TrueGamingSite Site, TrueGamingAchievement Row)>>();
+            foreach (var listings in entries)
+            {
+                var firstRow = listings.FirstOrDefault(listing => listing.Site == first.Site).Row;
+                var at = firstRow == null ? -1 : firstRows.IndexOf(firstRow);
+                if (at < 0)
+                {
+                    continue;
+                }
+
+                var row = listings.FirstOrDefault(listing => listing.Site == found.Site).Row;
+                if (row != null && rows.IndexOf(row) != at)
+                {
+                    // The pages list the achievements in different orders.
+                    return joins;
+                }
+
+                entryAt[at] = listings;
+            }
+
+            foreach (var row in leftovers)
+            {
+                if (entryAt.TryGetValue(rows.IndexOf(row), out var listings) &&
+                    listings.All(listing => listing.Site != found.Site) &&
+                    SameDlc(listings[0].Row.Dlc, row.Dlc))
+                {
+                    joins[row] = listings;
+                }
+            }
+
+            return joins;
         }
 
         private static void AddEntry(
