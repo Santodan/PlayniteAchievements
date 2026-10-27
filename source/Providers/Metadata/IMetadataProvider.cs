@@ -83,6 +83,50 @@ namespace PlayniteAchievements.Providers.Metadata
         string ShownLink(string linkId);
     }
 
+    /// <summary>
+    /// A source that serves another choice's fields from one of its pages (TrueGaming's
+    /// TrueAchievements page for Xbox points), whose row can pick that page apart from the
+    /// source's own link. The page picked is stored as a link of its own, under
+    /// <see cref="ServedPageKey"/>.
+    /// </summary>
+    internal interface IMetadataServedPages
+    {
+        /// <summary>The link key the page picked for <paramref name="choiceKey"/> is kept under; null when the choice is not served from one page.</summary>
+        string ServedPageKey(string choiceKey);
+
+        /// <summary>
+        /// The page the choice is served from for the game: the one picked, else the one the
+        /// source's own link led to; null when neither is known yet.
+        /// </summary>
+        MetadataServedPage ServedPage(Guid gameId, string choiceKey, string pickedId, string sourceLinkId);
+
+        /// <summary>A search for the choice's pages, which keeps the page each result names exactly.</summary>
+        IGameSearchSource CreateServedPageSearch(string choiceKey, string displayName);
+    }
+
+    /// <summary>One page a choice is served from.</summary>
+    internal sealed class MetadataServedPage
+    {
+        public MetadataServedPage(string slug, string title, string url, string platform)
+        {
+            Slug = slug;
+            Title = title;
+            Url = url;
+            Platform = platform;
+        }
+
+        /// <summary>The page's own name on its site ("BioShock-Xbox-One").</summary>
+        public string Slug { get; }
+
+        /// <summary>The game's title as read from the page name ("BioShock"), for a page known only by its name.</summary>
+        public string Title { get; }
+
+        public string Url { get; }
+
+        /// <summary>The console its edition ending names, or null.</summary>
+        public string Platform { get; }
+    }
+
     /// <summary>A source whose links say which console's list they lead to.</summary>
     internal interface IMetadataLinkPlatform
     {
