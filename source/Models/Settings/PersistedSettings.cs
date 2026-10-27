@@ -88,6 +88,7 @@ namespace PlayniteAchievements.Models.Settings
         private bool _enableUnlockToasts = true;
         private bool _enableFriendUnlockToasts = true;
         private bool _enableProgressToasts = true;
+        private bool _skipCompletionNotificationAfterCapstone = true;
         private int _progressToastIntervalPercent;
         private NotificationStyleSettings _notificationStyle;
         private bool _toastUseThemeStyling = true;
@@ -1259,6 +1260,17 @@ namespace PlayniteAchievements.Models.Settings
         {
             get => _enableProgressToasts;
             set => SetValue(ref _enableProgressToasts, value);
+        }
+
+        /// <summary>
+        /// Drop the standalone 100% notification when the unlock that reached 100% is a capstone
+        /// outside DLC and subset categories, whose own notification already marks the completion.
+        /// Applies to the user's and friends' unlocks alike.
+        /// </summary>
+        public bool SkipCompletionNotificationAfterCapstone
+        {
+            get => _skipCompletionNotificationAfterCapstone;
+            set => SetValue(ref _skipCompletionNotificationAfterCapstone, value);
         }
 
         /// <summary>
@@ -3318,6 +3330,7 @@ namespace PlayniteAchievements.Models.Settings
                 EnableUnlockToasts = this.EnableUnlockToasts,
                 EnableFriendUnlockToasts = this.EnableFriendUnlockToasts,
                 EnableProgressToasts = this.EnableProgressToasts,
+                SkipCompletionNotificationAfterCapstone = this.SkipCompletionNotificationAfterCapstone,
                 ProgressToastIntervalPercent = this.ProgressToastIntervalPercent,
                 NotificationStyle = this.NotificationStyle?.Clone() ?? NotificationStyleSettings.CreateDefault(),
                 ToastUseThemeStyling = this.ToastUseThemeStyling,
