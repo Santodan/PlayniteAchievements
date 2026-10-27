@@ -245,6 +245,43 @@ namespace PlayniteAchievements.Services.Images.Tests
         }
 
         [TestMethod]
+        public async Task LinkIdenticalGameIconFiles_ScansARestoredFolderAgain()
+        {
+            var tempDir = CreateTempDirectory();
+            try
+            {
+                var gameId = Guid.NewGuid().ToString("D");
+                var folder = Path.Combine(tempDir, "icon_cache", gameId, "original");
+                var first = Write(Path.Combine(folder, "a.png"), "same");
+                Write(Path.Combine(folder, "b.png"), "same");
+
+                using (var diskImageService = new DiskImageService(logger: null, cacheRoot: tempDir))
+                {
+                    Assert.AreEqual(1, await diskImageService.LinkIdenticalGameIconFilesAsync(gameId, CancellationToken.None));
+                }
+
+                // A restore from a zip backup brings the folder and the record back, with the
+                // linked names as separate copies.
+                Directory.Delete(folder, recursive: true);
+                Write(Path.Combine(folder, "a.png"), "same");
+                Write(Path.Combine(folder, "b.png"), "same");
+
+                using (var restarted = new DiskImageService(logger: null, cacheRoot: tempDir))
+                {
+                    Assert.AreEqual(1, await restarted.LinkIdenticalGameIconFilesAsync(gameId, CancellationToken.None),
+                        "a folder made anew is not the folder the record names");
+                    Assert.AreEqual(0, await restarted.LinkIdenticalGameIconFilesAsync(gameId, CancellationToken.None));
+                }
+
+                Assert.AreEqual(2, LinkCount(first));
+            }
+            finally
+            {
+                DeleteDirectory(tempDir);
+            }
+        }
+
+        [TestMethod]
         public void Detach_KeepsAnUnlinkedFile()
         {
             var tempDir = CreateTempDirectory();
