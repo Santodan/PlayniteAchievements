@@ -92,7 +92,9 @@ namespace PlayniteAchievements.Views.Controls
                 nameof(ColorByRarity),
                 typeof(bool),
                 typeof(ProgressBadgeStrip),
-                new FrameworkPropertyMetadata(false, FrameworkPropertyMetadataOptions.AffectsRender));
+                new FrameworkPropertyMetadata(
+                    false,
+                    FrameworkPropertyMetadataOptions.AffectsMeasure | FrameworkPropertyMetadataOptions.AffectsRender));
 
         /// <summary>Tint each count with its tier's color instead of the plain text brush.</summary>
         public bool ColorByRarity
