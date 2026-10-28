@@ -1199,8 +1199,9 @@
                 <showcase:ActivityCalendarDayGutter Labels="{Binding WeekdayLabels}"
                                                     ShowMonthBand="True"
                                                     VerticalAlignment="Top"/>
+                <!-- The default template keeps the bar in its own row under the cells, so it
+                     never covers the bottom row; the hover behavior still hides it at rest. -->
                 <ScrollViewer Grid.Column="1"
-                              Style="{StaticResource PlayAch.ScrollViewer.OverlayStyle}"
                               HorizontalScrollBarVisibility="Auto"
                               VerticalScrollBarVisibility="Disabled"
                               helpers:DataGridHoverScrollBarBehavior.IsEnabled="True"
