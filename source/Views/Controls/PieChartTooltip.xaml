@@ -28,36 +28,44 @@
         <ItemsControl ItemsSource="{Binding Points}">
             <ItemsControl.ItemTemplate>
                 <DataTemplate DataType="{x:Type wpf:DataPointViewModel}">
-                    <StackPanel Orientation="Horizontal">
-                        <Grid Width="18" Height="18" Margin="{StaticResource PlayAch.Thickness.Right.Compact}" VerticalAlignment="Center">
-                            <!-- Badge icons: complex DrawingImages from AchievementResources.xaml -->
-                            <Image SnapsToDevicePixels="True"
-                                   RenderOptions.BitmapScalingMode="NearestNeighbor">
-                                <Image.Source>
-                                    <MultiBinding Converter="{StaticResource ResourceKeyToImage}">
-                                        <Binding Path="ChartPoint.Instance.IconKey"/>
-                                        <Binding Path="ChartPoint.Instance.IconRefreshKey"/>
-                                    </MultiBinding>
-                                </Image.Source>
-                            </Image>
-                            <!-- Provider icons: created at runtime from geometry + color -->
-                            <Image SnapsToDevicePixels="True" RenderOptions.BitmapScalingMode="NearestNeighbor">
-                                <Image.Source>
-                                    <MultiBinding Converter="{StaticResource ProviderIconConverter}">
-                                        <Binding Path="ChartPoint.Instance.IconKey"/>
-                                        <Binding Path="ChartPoint.Instance.ColorHex"/>
-                                    </MultiBinding>
-                                </Image.Source>
-                            </Image>
-                        </Grid>
-                        <StackPanel Orientation="Vertical" VerticalAlignment="Center">
-                            <TextBlock Text="{Binding ChartPoint.Instance.PrimaryMetricText}"
-                                       Foreground="{DynamicResource PlayAch.Brush.Text}"
-                                       FontSize="{DynamicResource PlayAch.FontSize.Body}"/>
-                            <TextBlock Text="{Binding ChartPoint.Instance.SecondaryMetricText}"
-                                       Foreground="{DynamicResource PlayAch.Brush.Text}"
-                                       FontSize="{DynamicResource PlayAch.FontSize.Caption}"
-                                       Opacity="0.72"/>
+                    <StackPanel Orientation="Vertical">
+                        <TextBlock Text="{Binding ChartPoint.Instance.TooltipTitle}"
+                                   Visibility="{Binding ChartPoint.Instance.TooltipTitle, Converter={StaticResource StringToVisibility}}"
+                                   Foreground="{DynamicResource PlayAch.Brush.Text}"
+                                   FontSize="{DynamicResource PlayAch.FontSize.Body}"
+                                   Margin="0,0,0,2"/>
+                        <StackPanel Orientation="Horizontal">
+                            <Grid Width="18" Height="18" Margin="{StaticResource PlayAch.Thickness.Right.Compact}" VerticalAlignment="Center"
+                                  Visibility="{Binding ChartPoint.Instance.IconKey, Converter={StaticResource StringToVisibility}}">
+                                <!-- Badge icons: complex DrawingImages from AchievementResources.xaml -->
+                                <Image SnapsToDevicePixels="True"
+                                       RenderOptions.BitmapScalingMode="NearestNeighbor">
+                                    <Image.Source>
+                                        <MultiBinding Converter="{StaticResource ResourceKeyToImage}">
+                                            <Binding Path="ChartPoint.Instance.IconKey"/>
+                                            <Binding Path="ChartPoint.Instance.IconRefreshKey"/>
+                                        </MultiBinding>
+                                    </Image.Source>
+                                </Image>
+                                <!-- Provider icons: created at runtime from geometry + color -->
+                                <Image SnapsToDevicePixels="True" RenderOptions.BitmapScalingMode="NearestNeighbor">
+                                    <Image.Source>
+                                        <MultiBinding Converter="{StaticResource ProviderIconConverter}">
+                                            <Binding Path="ChartPoint.Instance.IconKey"/>
+                                            <Binding Path="ChartPoint.Instance.ColorHex"/>
+                                        </MultiBinding>
+                                    </Image.Source>
+                                </Image>
+                            </Grid>
+                            <StackPanel Orientation="Vertical" VerticalAlignment="Center">
+                                <TextBlock Text="{Binding ChartPoint.Instance.PrimaryMetricText}"
+                                           Foreground="{DynamicResource PlayAch.Brush.Text}"
+                                           FontSize="{DynamicResource PlayAch.FontSize.Body}"/>
+                                <TextBlock Text="{Binding ChartPoint.Instance.SecondaryMetricText}"
+                                           Foreground="{DynamicResource PlayAch.Brush.Text}"
+                                           FontSize="{DynamicResource PlayAch.FontSize.Caption}"
+                                           Opacity="0.72"/>
+                            </StackPanel>
                         </StackPanel>
                     </StackPanel>
                 </DataTemplate>
