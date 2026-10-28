@@ -1610,6 +1610,30 @@ namespace PlayniteAchievements.Tests.Services
         }
 
         [TestMethod]
+        public async Task OnlyTheIconSource_SavesIcons_AndOtherSourcesMatchListsKeepNoAddress()
+        {
+            var playstation = new FakeSource("PlayStation", MetadataField.Icons)
+            {
+                Rows = { Row("p1", "Dragon Slayer", icon: "https://psn/dragon.png") }
+            };
+            var xboxRow = Row("x1", "Dragon Slayer", icon: "https://xbox/dragon.png");
+            xboxRow.Points = 50;
+            var xbox = new FakeSource("Xbox", MetadataField.Icons | MetadataField.Points) { Rows = { xboxRow } };
+            var data = Game("Steam", Row("ACH_DRAGON", "Dragon Slayer", icon: "steam.png"));
+            var saver = new FakeIconSaver();
+            var overlay = Overlay(new IMetadataProvider[] { playstation, xbox }, Choices(icons: "PlayStation", points: "Xbox"), iconSaver: saver);
+            using (var run = overlay.BeginRun())
+            {
+                await run.ApplyAsync(data.Game, data, CancellationToken.None);
+            }
+
+            CollectionAssert.AreEqual(new[] { ("PlayStation", false) }, saver.Saves);
+            Assert.AreEqual(50, data.Achievements.Single().Points);
+            var snapshot = overlay.Links.Snapshots.Get(data.PlayniteGameId.Value, "Xbox", "link-Xbox");
+            Assert.IsNull(snapshot.Rows.Single().Icon);
+        }
+
+        [TestMethod]
         public async Task SavedIcons_AreOverwritten_OnARelinkOrAnIconRefresh()
         {
             var playstation = new FakeSource("PlayStation", MetadataField.Icons)
