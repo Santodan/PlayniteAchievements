@@ -286,6 +286,11 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
             ShowcaseProfileMedalMode mode)
         {
             var medals = new List<BadgeCountItem>();
+            if (mode == ShowcaseProfileMedalMode.None)
+            {
+                return medals;
+            }
+
             if (mode != ShowcaseProfileMedalMode.Trophy)
             {
                 // Completions, not completed games: a game with several capstones is finished

@@ -63,10 +63,12 @@ namespace PlayniteAchievements.Views.Showcase
                 ? Localize("LOCPlayAch_Column_Cover")
                 : EnumValueName("LOCPlayAch_Showcase_ScoreCardArt_", value);
 
-        // Both reuses the shared "Both" rather than adding a second identical string.
+        // Both and None reuse the shared strings rather than adding identical ones.
         public static string ProfileMedalModeName(ShowcaseProfileMedalMode value) =>
             value == ShowcaseProfileMedalMode.Both
                 ? Localize("LOCPlayAch_Common_Both")
+                : value == ShowcaseProfileMedalMode.None
+                ? Localize("LOCNone")
                 : EnumValueName("LOCPlayAch_Showcase_ProfileMedalMode_", value);
 
         // Completed games reuses the completions stat label.

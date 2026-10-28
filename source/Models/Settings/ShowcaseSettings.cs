@@ -138,7 +138,8 @@ namespace PlayniteAchievements.Models.Settings
     {
         Rarity = 0,
         Trophy = 1,
-        Both = 2
+        Both = 2,
+        None = 3
     }
 
     public enum ShowcasePointsGrouping
