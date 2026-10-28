@@ -49,6 +49,12 @@ namespace PlayniteAchievements.Models.Settings
                     OnPropertyChanged(flatName);
                 }
             }
+            else if (!string.IsNullOrEmpty(memberName))
+            {
+                // Options without flat compatibility names still reach PropertyChanged
+                // listeners, under "GridOptions.<member>".
+                OnPropertyChanged(string.Concat(nameof(GridOptions), ".", memberName));
+            }
         }
 
         private static string FlatNameKey(string kindName, string surfaceKey, string memberName)
