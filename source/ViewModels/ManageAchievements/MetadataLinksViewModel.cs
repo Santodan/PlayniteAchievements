@@ -154,7 +154,9 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
 
                 // A source's link shows while the game uses the source, or while it holds a link the
                 // user set, so a hand-entered link never disappears with a choice.
-                var providers = _providers?.Invoke() ?? Array.Empty<IMetadataProvider>();
+                var providers = (_providers?.Invoke() ?? Array.Empty<IMetadataProvider>())
+                    .OrderBy(provider => RowOrder(provider.Key))
+                    .ToList();
                 var choices = _settings?.Invoke()?.ResolveMetadataChoices(servicingProviderKey, gameChoices);
                 foreach (var provider in providers.Where(provider => !provider.IsNativeFor(servicingProviderKey)))
                 {
@@ -223,6 +225,22 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             }
 
             OnPropertyChanged(nameof(HasRows));
+        }
+
+        // The source rows' order: the borrowed consoles first, then the Steam and site sources,
+        // then any other source in the registry's order.
+        private static readonly string[] RowKeys =
+        {
+            "PlayStation",
+            "Xbox",
+            SteamHuntersMetadataProvider.MetadataKey,
+            Providers.Metadata.TrueGaming.TrueGamingMetadataProvider.MetadataKey
+        };
+
+        private static int RowOrder(string key)
+        {
+            var index = Array.FindIndex(RowKeys, rowKey => string.Equals(rowKey, key, StringComparison.OrdinalIgnoreCase));
+            return index < 0 ? RowKeys.Length : index;
         }
 
         private void SetChoiceRows(Guid gameId, string servicingProviderKey, IReadOnlyList<MetadataChoiceRow> rows)
