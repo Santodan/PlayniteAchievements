@@ -1110,6 +1110,43 @@ namespace PlayniteAchievements
                     }
                 };
             }
+
+            // Developer-only, hidden unless the hardcoded ExophaseIconProbe.Enabled flag is on.
+            // Deliberately not localized. Saves a fixed list of Exophase pages' icons.
+            if (global::PlayniteAchievements.Providers.Metadata.Exophase.ExophaseIconProbe.Enabled)
+            {
+                yield return new MainMenuItem
+                {
+                    Description = "Probe borrowed icons (Exophase PlayStation)",
+                    MenuSection = PluginMainMenuSection,
+                    Action = (a) =>
+                    {
+                        var folder = System.IO.Path.Combine(GetPluginUserDataPath(), "diagnostics", "icon-probe");
+                        _ = Task.Run(async () =>
+                        {
+                            try
+                            {
+                                await global::PlayniteAchievements.Providers.Metadata.Exophase.ExophaseIconProbe.RunAsync(
+                                    PlayniteApi,
+                                    Settings,
+                                    _refreshService?.IconService,
+                                    _diskImageService,
+                                    _logger,
+                                    folder,
+                                    CancellationToken.None).ConfigureAwait(false);
+                                PlayniteApi.Notifications.Add(
+                                    "PlayAch_IconProbe",
+                                    $"Icon probe finished: {folder}",
+                                    NotificationType.Info);
+                            }
+                            catch (Exception ex)
+                            {
+                                _logger?.Warn(ex, "Icon probe failed.");
+                            }
+                        });
+                    }
+                };
+            }
         }
     }
 }
