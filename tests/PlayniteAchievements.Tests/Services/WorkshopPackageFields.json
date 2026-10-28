@@ -75,6 +75,8 @@
       "RowHeight": "value",
       "ShowColumnHeaders": "value",
       "ShowCompletionGlow": "value",
+      "ShowMetadataPoints": "value",
+      "ShowMetadataTotal": "value",
       "ShowNameAboveProgress": "value",
       "ShowRarityBadgesBelowProgress": "value",
       "UseCoverImages": "value"
@@ -220,7 +222,9 @@
       "ShowControlBar": "value",
       "ShowMetadataPlatform": "value",
       "ShowMetadataPlaytime": "value",
+      "ShowMetadataPoints": "value",
       "ShowMetadataRegion": "value",
+      "ShowMetadataTotal": "value",
       "ShowNameAboveProgress": "value",
       "ShowRarityBadgesBelowProgress": "value",
       "SortDescending": "value",
