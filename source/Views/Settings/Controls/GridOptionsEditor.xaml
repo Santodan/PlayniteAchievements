@@ -234,7 +234,15 @@
                               Margin="{StaticResource PlayAch.Thickness.Bottom.Xs}"/>
                     <CheckBox Content="{DynamicResource LOCRegionLabel}"
                               Style="{StaticResource OptionCheckBoxStyle}"
-                              IsChecked="{Binding GameSummaryOptions.ShowMetadataRegion, ElementName=EditorRoot}"/>
+                              IsChecked="{Binding GameSummaryOptions.ShowMetadataRegion, ElementName=EditorRoot}"
+                              Margin="{StaticResource PlayAch.Thickness.Bottom.Xs}"/>
+                    <CheckBox Content="{DynamicResource LOCPlayAch_Column_Total}"
+                              Style="{StaticResource OptionCheckBoxStyle}"
+                              IsChecked="{Binding GameSummaryOptions.ShowMetadataTotal, ElementName=EditorRoot}"
+                              Margin="{StaticResource PlayAch.Thickness.Bottom.Xs}"/>
+                    <CheckBox Content="{DynamicResource LOCPlayAch_Column_Points}"
+                              Style="{StaticResource OptionCheckBoxStyle}"
+                              IsChecked="{Binding GameSummaryOptions.ShowMetadataPoints, ElementName=EditorRoot}"/>
                 </StackPanel>
             </HeaderedContentControl>
             <HeaderedContentControl Header="{DynamicResource LOCPlayAch_Settings_ShowCompletionGlow}"
@@ -276,6 +284,20 @@
                                     Visibility="{Binding ShowCoverImagesRow, ElementName=EditorRoot, Converter={StaticResource BoolToVis}}">
                 <CheckBox Style="{StaticResource OptionCheckBoxStyle}"
                           IsChecked="{Binding CategorySummaryOptions.UseCoverImages, ElementName=EditorRoot}"/>
+            </HeaderedContentControl>
+            <!-- Category rows have no platform, playtime or region; only the counts apply. -->
+            <HeaderedContentControl Header="{DynamicResource LOCPlayAch_Settings_GameMetadataHeader}"
+                                    Style="{StaticResource OptionRowStyle}"
+                                    Visibility="{Binding ShowMetadataRows, ElementName=EditorRoot, Converter={StaticResource BoolToVis}}">
+                <StackPanel>
+                    <CheckBox Content="{DynamicResource LOCPlayAch_Column_Total}"
+                              Style="{StaticResource OptionCheckBoxStyle}"
+                              IsChecked="{Binding CategorySummaryOptions.ShowMetadataTotal, ElementName=EditorRoot}"
+                              Margin="{StaticResource PlayAch.Thickness.Bottom.Xs}"/>
+                    <CheckBox Content="{DynamicResource LOCPlayAch_Column_Points}"
+                              Style="{StaticResource OptionCheckBoxStyle}"
+                              IsChecked="{Binding CategorySummaryOptions.ShowMetadataPoints, ElementName=EditorRoot}"/>
+                </StackPanel>
             </HeaderedContentControl>
             <HeaderedContentControl Header="{DynamicResource LOCPlayAch_Settings_ShowAchievementGridColumnHeaders}"
                                     Style="{StaticResource OptionRowStyle}"
