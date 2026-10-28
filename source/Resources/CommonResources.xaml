@@ -12,6 +12,7 @@
         <ResourceDictionary Source="pack://application:,,,/PlayniteAchievements;component/Resources/DatePickerStyles.xaml"/>
     </ResourceDictionary.MergedDictionaries>
 
+    <converters:ScrollBarThumbViewportConverter x:Key="PlayAch.ScrollBarThumbViewportConverter"/>
     <converters:BooleanConverter x:Key="BoolToVis" Mode="ToVisibility"/>
     <converters:BooleanConverter x:Key="BooleanToVisibilityConverter" Mode="ToVisibility"/>
     <converters:BooleanConverter x:Key="InverseBoolToVis" Mode="InvertedToVisibility"/>
@@ -1173,13 +1174,24 @@
                                Orientation="Vertical"
                                IsDirectionReversed="True"
                                Width="17">
+                            <!-- Keeps the thumb at least 32px long in either orientation; see the converter. -->
+                            <Track.ViewportSize>
+                                <MultiBinding Converter="{StaticResource PlayAch.ScrollBarThumbViewportConverter}"
+                                              ConverterParameter="32">
+                                    <Binding Path="ViewportSize" RelativeSource="{RelativeSource TemplatedParent}"/>
+                                    <Binding Path="Minimum" RelativeSource="{RelativeSource TemplatedParent}"/>
+                                    <Binding Path="Maximum" RelativeSource="{RelativeSource TemplatedParent}"/>
+                                    <Binding Path="ActualWidth" RelativeSource="{RelativeSource Self}"/>
+                                    <Binding Path="ActualHeight" RelativeSource="{RelativeSource Self}"/>
+                                    <Binding Path="Orientation" RelativeSource="{RelativeSource Self}"/>
+                                </MultiBinding>
+                            </Track.ViewportSize>
                             <Track.Resources>
                                 <sys:Double x:Key="{x:Static SystemParameters.VerticalScrollBarButtonHeightKey}">42</sys:Double>
                             </Track.Resources>
                             <Track.Thumb>
                                 <Thumb x:Name="Thumb"
                                        Width="8"
-                                       MinHeight="10"
                                        Style="{StaticResource PlayAch.ScrollBar.ThumbStyle}"/>
                             </Track.Thumb>
                             <Track.DecreaseRepeatButton>
@@ -1204,8 +1216,6 @@
                             <Setter TargetName="PART_Track" Property="Height" Value="17"/>
                             <Setter TargetName="Thumb" Property="Width" Value="Auto"/>
                             <Setter TargetName="Thumb" Property="Height" Value="8"/>
-                            <Setter TargetName="Thumb" Property="MinWidth" Value="10"/>
-                            <Setter TargetName="Thumb" Property="MinHeight" Value="0"/>
                             <Setter TargetName="DecreaseButton" Property="Command" Value="ScrollBar.PageLeftCommand"/>
                             <Setter TargetName="IncreaseButton" Property="Command" Value="ScrollBar.PageRightCommand"/>
                         </Trigger>
