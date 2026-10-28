@@ -482,8 +482,15 @@ namespace PlayniteAchievements.Services.Metadata
                         pair.Value.Set.Achievements,
                         pair.Value.Matches.Select(match => new KeyValuePair<string, string>(match.Target.ApiName, match.Source.ApiName)),
                         pair.Value.Set.Lists,
+                        // Only the icon source's rows have saved icons; the others keep none rather
+                        // than their addresses.
                         row =>
                         {
+                            if (pair.Value.Icons == null)
+                            {
+                                return null;
+                            }
+
                             var icons = pair.Value.IconsOf(row);
                             return string.IsNullOrWhiteSpace(icons.Unlocked) ? icons.Locked : icons.Unlocked;
                         });
@@ -1171,10 +1178,10 @@ namespace PlayniteAchievements.Services.Metadata
         }
 
         /// <summary>
-        /// Saves each per-achievement source's row icons in the game's icon cache, all sources at
-        /// once, so borrowed icons copy those files and the matches window shows them. A relinked
-        /// source overwrites its files, which are named by row. A failure keeps the rows' addresses
-        /// and never fails the refresh.
+        /// Saves the icon source's row icons in the game's icon cache, so borrowed icons copy those
+        /// files and the matches window shows them. A source chosen for other fields saves none. A
+        /// relinked source overwrites its files, which are named by row. A failure keeps the rows'
+        /// addresses and never fails the refresh.
         /// </summary>
         private async Task DownloadSourceIconsAsync(
             Guid gameId,
@@ -1190,7 +1197,7 @@ namespace PlayniteAchievements.Services.Metadata
 
             // A set of the game's own rows has no icons of its own and no match list to show.
             var downloads = sets
-                .Where(pair => plan.PerAchievementKeys.Contains(pair.Key, StringComparer.OrdinalIgnoreCase) &&
+                .Where(pair => plan.IconKeys.Contains(pair.Key, StringComparer.OrdinalIgnoreCase) &&
                                !pair.Value.Set.KeepsNoMatchList)
                 .Select(async pair =>
                 {
