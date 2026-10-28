@@ -491,6 +491,7 @@
                                         ShowControlBar="{Binding ShowControlBar}"/>
         <ListBox ItemsSource="{Binding Items}"
                  showcase:ShowcaseMosaicClickBehavior.IsEnabled="True"
+                 helpers:DataGridHoverScrollBarBehavior.IsEnabled="True"
                  Cursor="Hand"
                  Background="Transparent"
                  BorderThickness="0"
@@ -501,6 +502,11 @@
                  ScrollViewer.CanContentScroll="True"
                  VirtualizingPanel.IsVirtualizing="True"
                  VirtualizingPanel.VirtualizationMode="Recycling">
+            <ListBox.Resources>
+                <!-- Reaches the ScrollViewer inside the ListBox template: the bar floats over
+                     the tiles and the hover behavior hides it until needed. -->
+                <Style TargetType="ScrollViewer" BasedOn="{StaticResource PlayAch.ScrollViewer.OverlayStyle}"/>
+            </ListBox.Resources>
             <ListBox.ItemsPanel>
                 <ItemsPanelTemplate>
                     <!-- Packs the tiles at the spacing option's gap and centers them. -->
@@ -859,6 +865,7 @@
                                         ShowControlBar="{Binding ShowControlBar}"/>
         <ListBox ItemsSource="{Binding Tiles}"
                  showcase:ShowcaseMosaicClickBehavior.IsEnabled="True"
+                 helpers:DataGridHoverScrollBarBehavior.IsEnabled="True"
                  Cursor="Hand"
                  Background="Transparent"
                  BorderThickness="0"
@@ -869,6 +876,11 @@
                  ScrollViewer.CanContentScroll="True"
                  VirtualizingPanel.IsVirtualizing="True"
                  VirtualizingPanel.VirtualizationMode="Recycling">
+            <ListBox.Resources>
+                <!-- Reaches the ScrollViewer inside the ListBox template: the bar floats over
+                     the tiles and the hover behavior hides it until needed. -->
+                <Style TargetType="ScrollViewer" BasedOn="{StaticResource PlayAch.ScrollViewer.OverlayStyle}"/>
+            </ListBox.Resources>
             <ListBox.ItemsPanel>
                 <ItemsPanelTemplate>
                     <!-- Packs the tiles at the spacing option's gap and centers them. Covers keep
@@ -1188,8 +1200,10 @@
                                                     ShowMonthBand="True"
                                                     VerticalAlignment="Top"/>
                 <ScrollViewer Grid.Column="1"
+                              Style="{StaticResource PlayAch.ScrollViewer.OverlayStyle}"
                               HorizontalScrollBarVisibility="Auto"
                               VerticalScrollBarVisibility="Disabled"
+                              helpers:DataGridHoverScrollBarBehavior.IsEnabled="True"
                               showcase:ActivityCalendarScrollBehavior.Enabled="True">
                     <!-- Single custom-drawn visual: one element for the whole grid of cells,
                          with tooltips and the day popup (ShowcaseActivityDayPopupTemplate)

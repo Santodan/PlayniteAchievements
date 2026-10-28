@@ -394,6 +394,51 @@ namespace PlayniteAchievements.Tests.Views
             });
         }
 
+        [TestMethod]
+        public void ScrollViewerHost_HidesUntilHoveredAndShowsAnywhereOverContent()
+        {
+            StaTestHost.Run(() =>
+            {
+                var content = new Border { Height = 600 };
+                var scrollViewer = new ScrollViewer
+                {
+                    Width = 200,
+                    Height = 150,
+                    VerticalScrollBarVisibility = ScrollBarVisibility.Visible,
+                    Content = content
+                };
+                Window window = null;
+
+                try
+                {
+                    DataGridHoverScrollBarBehavior.SetIsEnabled(scrollViewer, true);
+                    window = StaTestHost.ShowOffscreen(scrollViewer, 340, 240);
+                    scrollViewer.UpdateLayout();
+                    DrainDispatcher();
+
+                    var scrollBar = scrollViewer.Template.FindName("PART_VerticalScrollBar", scrollViewer) as ScrollBar;
+                    Assert.IsNotNull(scrollBar);
+                    Assert.AreEqual(0d, scrollBar.Opacity, 0.001d);
+                    Assert.IsFalse(scrollBar.IsHitTestVisible);
+
+                    RaiseMouseMove(content);
+                    DrainDispatcher();
+
+                    Assert.IsTrue(scrollBar.Opacity > 0d);
+                    Assert.IsTrue(scrollBar.IsHitTestVisible);
+
+                    RaiseMouseLeave(scrollViewer);
+                    DrainDispatcher();
+
+                    Assert.AreEqual(0d, scrollBar.Opacity, 0.001d);
+                }
+                finally
+                {
+                    window?.Close();
+                }
+            });
+        }
+
         private static DataGrid CreateScrollableGrid()
         {
             var grid = new DataGrid
