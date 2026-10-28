@@ -30,6 +30,7 @@ namespace PlayniteAchievements.ViewModels
             public int UnlockedCount { get; set; }
             public int TotalCount { get; set; }
             public bool IsLocked { get; set; }
+            public string TooltipTitle { get; set; }
         }
 
         /// <summary>
@@ -52,6 +53,7 @@ namespace PlayniteAchievements.ViewModels
             public int PieTotalCount { get; set; }
             public string PrimaryMetricText { get; set; }
             public string SecondaryMetricText { get; set; }
+            public string TooltipTitle { get; set; }
         }
 
         public SeriesCollection PieSeries { get; } = new SeriesCollection();
@@ -570,7 +572,8 @@ namespace PlayniteAchievements.ViewModels
                     OriginalColorHex = colorHex,
                     UnlockedCount = tag.Unlocked,
                     TotalCount = tag.Total,
-                    IsLocked = false
+                    IsLocked = false,
+                    TooltipTitle = tag.Label ?? tag.Key
                 });
             }
 
@@ -899,7 +902,8 @@ namespace PlayniteAchievements.ViewModels
                 SuppressRadialIconOnCollision = suppressOnCollision,
                 PieTotalCount = pieTotalCount,
                 PrimaryMetricText = primaryMetricText,
-                SecondaryMetricText = secondaryMetricText
+                SecondaryMetricText = secondaryMetricText,
+                TooltipTitle = dataPoint.TooltipTitle
             };
         }
 
@@ -1187,6 +1191,7 @@ namespace PlayniteAchievements.ViewModels
             chartData.PieTotalCount = slice?.PieTotalCount ?? 0;
             chartData.PrimaryMetricText = slice?.PrimaryMetricText ?? string.Empty;
             chartData.SecondaryMetricText = slice?.SecondaryMetricText ?? string.Empty;
+            chartData.TooltipTitle = slice?.TooltipTitle ?? string.Empty;
         }
 
         private void SynchronizeLegendItems(IReadOnlyList<PieSliceData> slices)
