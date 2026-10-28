@@ -1094,12 +1094,13 @@ namespace PlayniteAchievements.Services.Images
         }
 
         /// <summary>
-        /// Ensures the icon at <paramref name="path"/> is stored as a centered square. Compares the
-        /// image dimensions via a header-only read (no full pixel decode), and only decodes, crops,
-        /// and rewrites the file (as PNG) when it is actually non-square. No-op for already-square,
-        /// missing, or empty paths, so it is cheap to call on every refresh.
+        /// Ensures the icon at <paramref name="path"/> is stored as a centered square no larger than
+        /// <paramref name="maxDimension"/> on a side. Compares the image dimensions via a header-only
+        /// read (no full pixel decode), and only decodes, scales, crops, and rewrites the file (as
+        /// PNG) when it is non-square or oversized. No-op for conforming, missing, or empty paths, so
+        /// it is cheap to call on every refresh.
         /// </summary>
-        public async Task EnsureIconSquareAsync(string path, CancellationToken cancel)
+        public async Task EnsureIconSquareAsync(string path, int maxDimension, CancellationToken cancel)
         {
             // WebM keeps its own bytes: WPF can neither decode nor re-encode it.
             if (string.IsNullOrWhiteSpace(path) ||
@@ -1134,7 +1135,8 @@ namespace PlayniteAchievements.Services.Images
                         height = frame.PixelHeight;
                     }
 
-                    if (width <= 0 || height <= 0 || Math.Abs(width - height) <= 1)
+                    var oversized = maxDimension > 0 && Math.Min(width, height) > maxDimension;
+                    if (width <= 0 || height <= 0 || (Math.Abs(width - height) <= 1 && !oversized))
                     {
                         return;
                     }
@@ -1144,6 +1146,18 @@ namespace PlayniteAchievements.Services.Images
                     bitmap.BeginInit();
                     bitmap.CacheOption = BitmapCacheOption.OnLoad;
                     bitmap.CreateOptions = BitmapCreateOptions.IgnoreColorProfile;
+                    if (oversized)
+                    {
+                        // Decoded so the shorter edge lands on the cap, which the crop keeps whole.
+                        if (height < width)
+                        {
+                            bitmap.DecodePixelHeight = maxDimension;
+                        }
+                        else
+                        {
+                            bitmap.DecodePixelWidth = maxDimension;
+                        }
+                    }
                     using (var ms = new MemoryStream(originalBytes, writable: false))
                     {
                         bitmap.StreamSource = ms;
