@@ -22,15 +22,17 @@ namespace PlayniteAchievements.Providers.Metadata.Exophase
     internal static class ExophaseIconProbe
     {
         /// <summary>Hardcoded gate for the hidden "Probe icons" menu item. Off in shipped builds.</summary>
-        internal static readonly bool Enabled = false;
+        internal static readonly bool Enabled = true;
 
         private static readonly Guid ProbeGameId = new Guid("6c0a3c1e-1c0b-4b9e-9d0e-1c0b1c0b1c0b");
 
-        // The reported page (a PS3 slug Exophase percent-encodes) and a control page.
-        private static readonly string[] Slugs =
+        // A game linked to PlayStation for icons and Xbox for points, each page read through the
+        // branch it was linked on, and a control page.
+        private static readonly (ExophaseMetadataBranch Branch, string Slug)[] Cases =
         {
-            "steinsgate-%e7%b7%9a%e5%bd%a2%e6%8b%98%e6%9d%9f%e3%81%ae%e3%83%95%e3%82%a7%e3%83%8e%e3%82%b0%e3%83%a9%e3%83%a0-ps3",
-            "hollow-knight-silksong-psn"
+            (ExophaseMetadataBranch.PlayStation, "007-first-light-psn"),
+            (ExophaseMetadataBranch.Xbox, "007-first-light-xbox"),
+            (ExophaseMetadataBranch.PlayStation, "hollow-knight-silksong-psn")
         };
 
         public static async Task RunAsync(
@@ -43,26 +45,32 @@ namespace PlayniteAchievements.Providers.Metadata.Exophase
             CancellationToken ct)
         {
             Directory.CreateDirectory(outputDirectory);
-            var provider = new ExophaseMetadataProvider(ExophaseMetadataBranch.PlayStation, new ExophasePageSource(api, settings, logger), logger);
+            var pages = new ExophasePageSource(api, settings, logger);
+            var providers = Cases.Select(entry => entry.Branch).Distinct()
+                .ToDictionary(branch => branch, branch => new ExophaseMetadataProvider(branch, pages, logger));
             var report = new StringBuilder();
             report.AppendLine($"Icon probe {DateTime.Now:O}");
             report.AppendLine($"List root: {disk?.ResolveCacheRelativePath(AchievementIconCachePathBuilder.BuildMetadataListsRootRelativePath())}");
-            if (!await provider.BeginRunAsync(ct).ConfigureAwait(false))
+            foreach (var provider in providers.Values)
             {
-                report.AppendLine("Exophase is not available.");
-                File.WriteAllText(Path.Combine(outputDirectory, "icon-probe.txt"), report.ToString(), Encoding.UTF8);
-                return;
+                if (!await provider.BeginRunAsync(ct).ConfigureAwait(false))
+                {
+                    report.AppendLine("Exophase is not available.");
+                    File.WriteAllText(Path.Combine(outputDirectory, "icon-probe.txt"), report.ToString(), Encoding.UTF8);
+                    return;
+                }
             }
 
+            var iconUrlsByCase = new Dictionary<string, HashSet<string>>();
             try
             {
-                foreach (var slug in Slugs)
+                foreach (var (branch, slug) in Cases)
                 {
                     report.AppendLine();
-                    report.AppendLine($"== {slug}");
+                    report.AppendLine($"== {branch.Key}: {slug}");
                     try
                     {
-                        await ProbeAsync(provider, slug, icons, disk, report, ct).ConfigureAwait(false);
+                        iconUrlsByCase[slug] = await ProbeAsync(providers[branch], branch.Key, slug, icons, disk, report, ct).ConfigureAwait(false);
                     }
                     catch (Exception ex) when (!(ex is OperationCanceledException))
                     {
@@ -72,14 +80,28 @@ namespace PlayniteAchievements.Providers.Metadata.Exophase
             }
             finally
             {
-                provider.EndRun();
+                foreach (var provider in providers.Values)
+                {
+                    provider.EndRun();
+                }
+            }
+
+            // Whether two pages serve the same image files (query strings dropped).
+            report.AppendLine();
+            foreach (var first in iconUrlsByCase)
+            {
+                foreach (var second in iconUrlsByCase.Where(other => string.CompareOrdinal(other.Key, first.Key) > 0))
+                {
+                    report.AppendLine($"Shared icon files {first.Key} / {second.Key}: {first.Value.Intersect(second.Value).Count()}");
+                }
             }
 
             File.WriteAllText(Path.Combine(outputDirectory, "icon-probe.txt"), report.ToString(), Encoding.UTF8);
         }
 
-        private static async Task ProbeAsync(
+        private static async Task<HashSet<string>> ProbeAsync(
             ExophaseMetadataProvider provider,
+            string sourceKey,
             string slug,
             AchievementIconService icons,
             DiskImageService disk,
@@ -88,14 +110,17 @@ namespace PlayniteAchievements.Providers.Metadata.Exophase
         {
             var set = await provider.FetchAsync(null, slug, ct).ConfigureAwait(false);
             var rows = set?.Achievements?.Where(row => row != null).ToList() ?? new List<AchievementDetail>();
-            report.AppendLine($"Rows: {rows.Count}; game art: {set?.GameArtUrl ?? "(none)"}");
+            var iconUrls = new HashSet<string>(
+                rows.Select(row => row.UnlockedIconPath?.Split('?')[0]).Where(url => !string.IsNullOrWhiteSpace(url)),
+                StringComparer.OrdinalIgnoreCase);
+            report.AppendLine($"Rows: {rows.Count}; with icons: {rows.Count(row => !string.IsNullOrWhiteSpace(row.UnlockedIconPath))}; game art: {set?.GameArtUrl ?? "(none)"}");
             foreach (var row in rows)
             {
-                report.AppendLine($"  {row.ApiName} | unlocked={Show(row.UnlockedIconPath)} | locked={Show(row.LockedIconPath)}");
+                report.AppendLine($"  {row.ApiName} | {row.DisplayName} | unlocked={Show(row.UnlockedIconPath)} | locked={Show(row.LockedIconPath)}");
             }
 
             var folder = disk?.ResolveCacheRelativePath(
-                AchievementIconCachePathBuilder.BuildMetadataListFolderRelativePath(ExophaseMetadataBranch.PlayStation.Key, slug));
+                AchievementIconCachePathBuilder.BuildMetadataListFolderRelativePath(sourceKey, slug));
             var firstFile = folder == null || rows.Count == 0
                 ? null
                 : Path.Combine(folder, Path.GetFileName(AchievementIconCachePathBuilder.BuildRelativePath(
@@ -107,11 +132,11 @@ namespace PlayniteAchievements.Providers.Metadata.Exophase
             report.AppendLine($"Its compress temp: {(firstFile == null ? 0 : firstFile.Length + ".compress.tmp".Length)} characters");
             if (rows.Count == 0 || icons == null)
             {
-                return;
+                return iconUrls;
             }
 
             var lists = new[] { new MetadataSourceList(slug, slug, rows) };
-            var saved = await icons.PopulateMetadataSourceIconCacheAsync(ProbeGameId, ExophaseMetadataBranch.PlayStation.Key, lists, true, ct).ConfigureAwait(false);
+            var saved = await icons.PopulateMetadataSourceIconCacheAsync(ProbeGameId, sourceKey, lists, true, ct).ConfigureAwait(false);
             var local = 0;
             foreach (var row in rows)
             {
@@ -123,6 +148,7 @@ namespace PlayniteAchievements.Providers.Metadata.Exophase
 
             report.AppendLine($"Saved locally: {local}/{rows.Count}");
             report.AppendLine($"Folder exists: {folder != null && Directory.Exists(folder)}; files: {(folder != null && Directory.Exists(folder) ? Directory.GetFiles(folder).Length : 0)}");
+            return iconUrls;
         }
 
         private static bool IsLocalFile(string path)
