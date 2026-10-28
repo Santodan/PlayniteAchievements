@@ -2558,10 +2558,6 @@ namespace PlayniteAchievements.Views.Showcase
 
                         SaveAndApplyBlocks();
                     });
-                item.IsEnabled = !captured.SingleInstancePerPage ||
-                    !CurrentPage.Blocks
-                        .Select(candidate => FindWidget(candidate.WidgetInstanceId))
-                        .Any(candidate => candidate?.Kind == captured.Kind);
                 menu.Items.Add(item);
             }
 
@@ -4345,20 +4341,6 @@ namespace PlayniteAchievements.Views.Showcase
             }
 
             if (_clipboardWidget == null || !_host.IsKindAllowed(_clipboardWidget.Kind))
-            {
-                return;
-            }
-
-            var definition = ShowcaseWidgetCatalog.Get(_clipboardWidget.Kind);
-            if (definition != null &&
-                definition.SingleInstancePerPage &&
-                CurrentPage.Blocks
-                    .Where(candidate => !string.Equals(
-                        candidate.BlockId,
-                        block.BlockId,
-                        StringComparison.OrdinalIgnoreCase))
-                    .Select(candidate => FindWidget(candidate.WidgetInstanceId))
-                    .Any(candidate => candidate?.Kind == _clipboardWidget.Kind))
             {
                 return;
             }

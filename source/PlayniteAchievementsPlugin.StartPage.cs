@@ -50,7 +50,7 @@ namespace PlayniteAchievements
                         Name = L(view.NameKey, view.ViewId),
                         Description = string.Empty,
                         HasSettings = view.HasSettings,
-                        AllowMultipleInstances = view.AllowMultipleInstances
+                        AllowMultipleInstances = true
                     }).ToList()
             };
         }

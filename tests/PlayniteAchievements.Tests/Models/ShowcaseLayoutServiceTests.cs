@@ -571,6 +571,24 @@ namespace PlayniteAchievements.Tests.Models
         }
 
         [TestMethod]
+        public void PlaceWidget_AllowsASecondProfileOnTheSamePageAndNormalizeKeepsIt()
+        {
+            var settings = ShowcaseLayoutService.CreateDefault();
+            var page = settings.Pages.Single();
+            var first = settings.WidgetInstances.Single(widget => widget.Kind == ShowcaseWidgetKind.Profile);
+            var target = page.Blocks.First(block => block.WidgetInstanceId != first.InstanceId);
+            var second = ShowcaseLayoutService.CreateWidget(settings, ShowcaseWidgetKind.Profile);
+
+            Assert.IsTrue(ShowcaseLayoutService.CanPlaceWidget(settings, page.PageId, target.BlockId, second.InstanceId));
+            Assert.IsTrue(ShowcaseLayoutService.PlaceWidget(settings, page.PageId, target.BlockId, second.InstanceId));
+            ShowcaseLayoutService.Normalize(settings);
+
+            CollectionAssert.IsSubsetOf(
+                new[] { first.InstanceId, second.InstanceId },
+                page.Blocks.Select(block => block.WidgetInstanceId).ToList());
+        }
+
+        [TestMethod]
         public void DuplicatePage_ProfileEditOnCopyLeavesOriginalUnchanged()
         {
             var settings = ShowcaseLayoutService.CreateDefault();
@@ -671,7 +689,7 @@ namespace PlayniteAchievements.Tests.Models
         }
 
         [TestMethod]
-        public void PlaceWidget_SwapsAssignmentsAndEnforcesSingletonKindPerPage()
+        public void PlaceWidget_SwapsAssignmentsAndAllowsRepeatedKindsPerPage()
         {
             var settings = new ShowcaseSettings();
             var page = ShowcaseLayoutService.AddPage(settings, ShowcasePageTemplate.Blank);
@@ -703,8 +721,9 @@ namespace PlayniteAchievements.Tests.Models
                 settings, page.PageId, Cell(page, 0, 3).BlockId, profileOne.InstanceId));
             Assert.AreEqual(profileOne.InstanceId, Cell(page, 0, 3).WidgetInstanceId);
             Assert.IsNull(Cell(page, 0, 2).WidgetInstanceId);
-            Assert.IsFalse(ShowcaseLayoutService.PlaceWidget(
+            Assert.IsTrue(ShowcaseLayoutService.PlaceWidget(
                 settings, page.PageId, Cell(page, 0, 4).BlockId, profileTwo.InstanceId));
+            Assert.AreEqual(profileTwo.InstanceId, Cell(page, 0, 4).WidgetInstanceId);
         }
 
         private static ShowcaseBlockSettings Cell(ShowcasePageSettings page, int row, int column) =>

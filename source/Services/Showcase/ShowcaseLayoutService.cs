@@ -820,7 +820,7 @@ namespace PlayniteAchievements.Services.Showcase
         {
             Normalize(settings);
             var placement = ResolvePlacement(settings, pageId, blockId, widgetInstanceId);
-            if (!IsPlacementAllowed(settings, placement))
+            if (placement == null)
             {
                 return false;
             }
@@ -843,9 +843,7 @@ namespace PlayniteAchievements.Services.Showcase
             string blockId,
             string widgetInstanceId)
         {
-            return IsPlacementAllowed(
-                settings,
-                ResolvePlacement(settings, pageId, blockId, widgetInstanceId));
+            return ResolvePlacement(settings, pageId, blockId, widgetInstanceId) != null;
         }
 
         private static WidgetPlacement ResolvePlacement(
@@ -875,47 +873,12 @@ namespace PlayniteAchievements.Services.Showcase
                     string.Equals(block.WidgetInstanceId, resolvedWidgetId, StringComparison.OrdinalIgnoreCase));
                 if (source != null)
                 {
-                    placement.SourcePage = candidatePage;
                     placement.Source = source;
                     break;
                 }
             }
 
             return placement;
-        }
-
-        private static bool IsPlacementAllowed(
-            ShowcaseSettings settings,
-            WidgetPlacement placement)
-        {
-            if (placement == null)
-            {
-                return false;
-            }
-
-            if (ShowcaseWidgetCatalog.Get(placement.Widget.Kind).SingleInstancePerPage &&
-                placement.TargetPage.Blocks.Any(block =>
-                    !ReferenceEquals(block, placement.Target) &&
-                    !ReferenceEquals(block, placement.Source) &&
-                    FindWidget(settings, block.WidgetInstanceId)?.Kind == placement.Widget.Kind))
-            {
-                return false;
-            }
-
-            var displaced = FindWidget(settings, placement.Target.WidgetInstanceId);
-            if (placement.Source != null &&
-                !ReferenceEquals(placement.Source, placement.Target) &&
-                displaced != null &&
-                ShowcaseWidgetCatalog.Get(displaced.Kind).SingleInstancePerPage &&
-                placement.SourcePage?.Blocks?.Any(block =>
-                    !ReferenceEquals(block, placement.Source) &&
-                    !ReferenceEquals(block, placement.Target) &&
-                    FindWidget(settings, block.WidgetInstanceId)?.Kind == displaced.Kind) == true)
-            {
-                return false;
-            }
-
-            return true;
         }
 
         public static ShowcaseWidgetInstanceSettings CreateWidget(
@@ -1028,7 +991,6 @@ namespace PlayniteAchievements.Services.Showcase
                 page.RowWeights = NormalizeTrackWeightList(page.RowWeights, page.RowCount);
                 page.ColumnWeights = NormalizeTrackWeightList(page.ColumnWeights, page.ColumnCount);
 
-                var singletonKinds = new HashSet<ShowcaseWidgetKind>();
                 foreach (var block in page.Blocks)
                 {
                     if (string.IsNullOrWhiteSpace(block.WidgetInstanceId) ||
@@ -1040,9 +1002,7 @@ namespace PlayniteAchievements.Services.Showcase
                     }
 
                     var widget = FindWidget(settings, block.WidgetInstanceId);
-                    if (widget == null ||
-                        (ShowcaseWidgetCatalog.Get(widget.Kind).SingleInstancePerPage &&
-                         !singletonKinds.Add(widget.Kind)))
+                    if (widget == null)
                     {
                         block.WidgetInstanceId = null;
                         continue;
@@ -2068,8 +2028,6 @@ namespace PlayniteAchievements.Services.Showcase
             public ShowcasePageSettings TargetPage { get; set; }
 
             public ShowcaseBlockSettings Target { get; set; }
-
-            public ShowcasePageSettings SourcePage { get; set; }
 
             public ShowcaseBlockSettings Source { get; set; }
 

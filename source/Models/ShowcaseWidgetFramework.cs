@@ -58,10 +58,6 @@ namespace PlayniteAchievements.Models
 
         public string NameKey { get; set; }
 
-        public bool AllowMultipleInstances { get; set; }
-
-        public bool SingleInstancePerPage { get; set; }
-
         /// <summary>
         /// Hidden kinds are omitted from the add-widget pickers but keep rendering already-placed
         /// widgets. NativePoints is parked here as underbaked rather than deleted.
@@ -74,19 +70,19 @@ namespace PlayniteAchievements.Models
         private static readonly IReadOnlyList<ShowcaseWidgetDefinition> DefinitionsValue =
             new List<ShowcaseWidgetDefinition>
             {
-                Define(ShowcaseWidgetKind.Profile, "LOCPlayAch_Showcase_Widget_Profile", false, true),
-                Define(ShowcaseWidgetKind.Scores, "LOCPlayAch_Showcase_Widget_Scores", true, false),
-                Define(ShowcaseWidgetKind.Pie, "LOCPlayAch_Showcase_Widget_Pie", true, false),
-                Define(ShowcaseWidgetKind.Timeline, "LOCPlayAch_Showcase_Widget_Timeline", true, false),
-                Define(ShowcaseWidgetKind.Statistics, "LOCPlayAch_Showcase_Widget_Statistics", true, false),
-                Define(ShowcaseWidgetKind.NativePoints, "LOCPlayAch_Showcase_Widget_NativePoints", true, false, hidden: true),
-                Define(ShowcaseWidgetKind.IconMosaic, "LOCPlayAch_Showcase_Widget_IconMosaic", true, false),
-                Define(ShowcaseWidgetKind.ScreenshotSlideshow, "LOCPlayAch_Showcase_Widget_ScreenshotSlideshow", true, false),
-                Define(ShowcaseWidgetKind.RecentAchievements, "LOCPlayAch_Showcase_Widget_RecentAchievements", true, false),
-                Define(ShowcaseWidgetKind.GameSummaries, "LOCPlayAch_Showcase_Widget_GameSummaries", true, false),
-                Define(ShowcaseWidgetKind.ActivityCalendar, "LOCPlayAch_Showcase_Widget_ActivityCalendar", true, false),
-                Define(ShowcaseWidgetKind.Image, "LOCPlayAch_Showcase_Widget_Image", true, false),
-                Define(ShowcaseWidgetKind.Text, "LOCPlayAch_Showcase_Widget_Text", true, false)
+                Define(ShowcaseWidgetKind.Profile, "LOCPlayAch_Showcase_Widget_Profile"),
+                Define(ShowcaseWidgetKind.Scores, "LOCPlayAch_Showcase_Widget_Scores"),
+                Define(ShowcaseWidgetKind.Pie, "LOCPlayAch_Showcase_Widget_Pie"),
+                Define(ShowcaseWidgetKind.Timeline, "LOCPlayAch_Showcase_Widget_Timeline"),
+                Define(ShowcaseWidgetKind.Statistics, "LOCPlayAch_Showcase_Widget_Statistics"),
+                Define(ShowcaseWidgetKind.NativePoints, "LOCPlayAch_Showcase_Widget_NativePoints", hidden: true),
+                Define(ShowcaseWidgetKind.IconMosaic, "LOCPlayAch_Showcase_Widget_IconMosaic"),
+                Define(ShowcaseWidgetKind.ScreenshotSlideshow, "LOCPlayAch_Showcase_Widget_ScreenshotSlideshow"),
+                Define(ShowcaseWidgetKind.RecentAchievements, "LOCPlayAch_Showcase_Widget_RecentAchievements"),
+                Define(ShowcaseWidgetKind.GameSummaries, "LOCPlayAch_Showcase_Widget_GameSummaries"),
+                Define(ShowcaseWidgetKind.ActivityCalendar, "LOCPlayAch_Showcase_Widget_ActivityCalendar"),
+                Define(ShowcaseWidgetKind.Image, "LOCPlayAch_Showcase_Widget_Image"),
+                Define(ShowcaseWidgetKind.Text, "LOCPlayAch_Showcase_Widget_Text")
             };
 
         public static IReadOnlyList<ShowcaseWidgetDefinition> Definitions => DefinitionsValue;
@@ -99,16 +95,12 @@ namespace PlayniteAchievements.Models
         private static ShowcaseWidgetDefinition Define(
             ShowcaseWidgetKind kind,
             string nameKey,
-            bool allowMultipleInstances,
-            bool singleInstancePerPage,
             bool hidden = false)
         {
             return new ShowcaseWidgetDefinition
             {
                 Kind = kind,
                 NameKey = nameKey,
-                AllowMultipleInstances = allowMultipleInstances,
-                SingleInstancePerPage = singleInstancePerPage,
                 Hidden = hidden
             };
         }

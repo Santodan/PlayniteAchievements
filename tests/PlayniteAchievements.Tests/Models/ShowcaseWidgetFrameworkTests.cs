@@ -515,24 +515,17 @@ namespace PlayniteAchievements.Tests.Models
             ShowcaseWidgetOptions.SetScoreCardShowTotal(scores, false);
             Assert.IsFalse(ShowcaseWidgetOptions.GetScoreCardShowTotal(scores));
             Assert.IsFalse(ShowcaseWidgetOptions.IsLegacyDualScores(scores));
-            Assert.IsTrue(ShowcaseWidgetCatalog.Get(ShowcaseWidgetKind.Scores).AllowMultipleInstances);
             Assert.AreEqual(TimeWindow.FromPreset(TimelineRange.ThreeMonths), ShowcaseTimelineOptions.GetWindow(scores));
 
             var calendar = ShowcaseWidgetSettingsFactory.CreateDefault(ShowcaseWidgetKind.ActivityCalendar);
             Assert.AreEqual(TimeWindow.All, ShowcaseTimelineOptions.GetWindow(calendar));
-            Assert.IsTrue(ShowcaseWidgetCatalog.Get(ShowcaseWidgetKind.ActivityCalendar).AllowMultipleInstances);
         }
 
         [TestMethod]
-        public void WidgetCatalog_AllowsMultipleGridPlacementsAndParksOnlyNativePoints()
+        public void WidgetCatalog_ParksOnlyNativePoints()
         {
             var achievements = ShowcaseWidgetCatalog.Get(ShowcaseWidgetKind.RecentAchievements);
-            var games = ShowcaseWidgetCatalog.Get(ShowcaseWidgetKind.GameSummaries);
 
-            Assert.IsTrue(achievements.AllowMultipleInstances);
-            Assert.IsFalse(achievements.SingleInstancePerPage);
-            Assert.IsTrue(games.AllowMultipleInstances);
-            Assert.IsFalse(games.SingleInstancePerPage);
             Assert.IsFalse(achievements.Hidden);
             Assert.IsTrue(ShowcaseWidgetCatalog.Get(ShowcaseWidgetKind.NativePoints).Hidden);
             Assert.AreEqual(1, ShowcaseWidgetCatalog.Definitions.Count(definition => definition.Hidden));
