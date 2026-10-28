@@ -22,7 +22,7 @@ namespace PlayniteAchievements.Providers.Metadata.Exophase
     internal static class ExophaseIconProbe
     {
         /// <summary>Hardcoded gate for the hidden "Probe icons" menu item. Off in shipped builds.</summary>
-        internal static readonly bool Enabled = true;
+        internal static readonly bool Enabled = false;
 
         private static readonly Guid ProbeGameId = new Guid("6c0a3c1e-1c0b-4b9e-9d0e-1c0b1c0b1c0b");
 
