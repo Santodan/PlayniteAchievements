@@ -45,10 +45,15 @@ namespace PlayniteAchievements.Services.Images
             public bool ForceSquare { get; set; }
         }
 
-        // Xbox achievement art is not always square; force a centered square crop for it. Keyed on
-        // the provider key string ("Xbox") to keep this Services type free of a Providers reference
-        // (matches XboxDataProvider.ProviderKey).
+        // Xbox achievement art is 1920x1080 artwork rather than an icon; store it as a centered
+        // square capped at MaxSquareIconDimension, for the Xbox provider's own icons and the Xbox
+        // metadata source's alike. Keyed on the provider key string ("Xbox") to keep this Services
+        // type free of a Providers reference (matches XboxDataProvider.ProviderKey and the Xbox
+        // metadata branch's key).
         private const string XboxProviderKey = "Xbox";
+
+        // The side of a forced-square icon, the size of PS5 trophy icons.
+        private const int MaxSquareIconDimension = 512;
 
         private static bool ShouldForceSquareIcons(string providerKey) =>
             string.Equals(providerKey, XboxProviderKey, StringComparison.OrdinalIgnoreCase);
@@ -344,6 +349,7 @@ namespace PlayniteAchievements.Services.Images
                         folders[i],
                         usable[i].Rows,
                         forceRefreshExistingTargets,
+                        ShouldForceSquareIcons(sourceKey),
                         cancel)
                     .ConfigureAwait(false);
                 foreach (var pair in saved.Where(pair => !result.ContainsKey(pair.Key)))
@@ -365,6 +371,7 @@ namespace PlayniteAchievements.Services.Images
             string folder,
             IEnumerable<AchievementDetail> rows,
             bool forceRefreshExistingTargets,
+            bool forceSquareIcons,
             CancellationToken cancel)
         {
             var result = new Dictionary<AchievementDetail, (string Unlocked, string Locked)>();
@@ -393,7 +400,7 @@ namespace PlayniteAchievements.Services.Images
                     gameIdText,
                     buildLockedRequests: true,
                     forceRefreshExistingTargets: forceRefreshExistingTargets,
-                    forceSquareIcons: false,
+                    forceSquareIcons: forceSquareIcons,
                     reportInitialProgress: false,
                     resolveTargetPath: (achievement, fileStem, variant) => Path.Combine(
                         folder,
@@ -1058,14 +1065,15 @@ namespace PlayniteAchievements.Services.Images
                 return resolved;
             }
 
-            // Normalize the primary to a centered square before locked variants copy it. Runs for
-            // both freshly downloaded and already-cached primaries (rewrites only when non-square),
-            // so the crop is independent of first-time download. Requests in a group share a source
-            // and therefore the same ForceSquare value.
-            if (requests[0]?.ForceSquare == true)
+            // Normalize the primary to a capped centered square before locked variants copy it. Runs
+            // for both freshly downloaded and already-cached primaries (rewrites only when
+            // non-square or oversized), so the crop is independent of first-time download. Requests
+            // in a group share a source and therefore the same ForceSquare value.
+            var forceSquare = requests[0]?.ForceSquare == true;
+            if (forceSquare)
             {
                 await _diskImageService
-                    .EnsureIconSquareAsync(primaryPath, cancel)
+                    .EnsureIconSquareAsync(primaryPath, MaxSquareIconDimension, cancel)
                     .ConfigureAwait(false);
             }
 
@@ -1085,6 +1093,14 @@ namespace PlayniteAchievements.Services.Images
                 if (string.IsNullOrWhiteSpace(finalPath) || !File.Exists(finalPath))
                 {
                     continue;
+                }
+
+                // A variant copied before the cap applied is still the full-size image.
+                if (forceSquare && !string.Equals(primaryPath, finalPath, StringComparison.OrdinalIgnoreCase))
+                {
+                    await _diskImageService
+                        .EnsureIconSquareAsync(finalPath, MaxSquareIconDimension, cancel)
+                        .ConfigureAwait(false);
                 }
 
                 resolved[request] = finalPath;
