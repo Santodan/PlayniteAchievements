@@ -384,7 +384,16 @@ namespace PlayniteAchievements.Providers.Metadata.Exophase
             var rows = page?.Achievements ?? new List<AchievementDetail>();
             var categoryArt = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
             var gameArt = page?.GameArtUrl;
-            ApplySections(rows, page?.Sections ?? Array.Empty<ExophaseAwardSection>(), categoryArt, request?.BaseCategoryLabel);
+            var baseLabel = request?.BaseCategoryLabel;
+            ApplySections(rows, page?.Sections ?? Array.Empty<ExophaseAwardSection>(), categoryArt, baseLabel);
+
+            // The page's game image is its base list's art; a link to several pages gives each
+            // page's image to its own game's category instead.
+            if (!string.IsNullOrWhiteSpace(gameArt) && !string.IsNullOrWhiteSpace(baseLabel) && !categoryArt.ContainsKey(baseLabel))
+            {
+                categoryArt[baseLabel] = gameArt.Trim();
+            }
+
             if (rows.Count == 0)
             {
                 return null;
