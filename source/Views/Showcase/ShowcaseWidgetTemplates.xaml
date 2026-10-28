@@ -1167,14 +1167,12 @@
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto"/>
                 <RowDefinition Height="*"/>
-                <RowDefinition Height="Auto"/>
             </Grid.RowDefinitions>
             <!-- Platform, game and progress filters over the games whose unlocks fill the days. -->
             <controls:GridControlBarControl Margin="0,0,0,8"
                                             ControlBar="{Binding ControlBar}"
                                             ShowControlBar="{Binding ShowControlBar}"/>
             <TextBlock Grid.Row="1"
-                       Grid.RowSpan="2"
                        Text="{DynamicResource LOCPlayAch_Showcase_NoData}"
                        Foreground="{DynamicResource PlayAch.Brush.Text}"
                        Opacity="{StaticResource PlayAch.Opacity.Placeholder}"
@@ -1188,65 +1186,71 @@
                  with the mouse wheel mapped to horizontal scrolling. The weekday gutter
                  and the legend sit outside the scroll area so they stay put while the
                  calendar scrolls, and the gutter shares the heatmap's metrics so its
-                 rows line up. -->
+                 rows line up. The calendar and its legend line center as one group, so
+                 spare height never opens a gap between them. -->
             <Grid Grid.Row="1"
-                  TextElement.FontSize="{DynamicResource PlayAch.FontSize.Title}"
                   VerticalAlignment="Center">
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="Auto"/>
-                    <ColumnDefinition Width="*"/>
-                </Grid.ColumnDefinitions>
-                <showcase:ActivityCalendarDayGutter Labels="{Binding WeekdayLabels}"
-                                                    ShowMonthBand="True"
-                                                    VerticalAlignment="Top"/>
-                <!-- The default template keeps the bar in its own row under the cells, so it
-                     never covers the bottom row; the hover behavior still hides it at rest. -->
-                <ScrollViewer Grid.Column="1"
-                              HorizontalScrollBarVisibility="Auto"
-                              VerticalScrollBarVisibility="Disabled"
-                              helpers:DataGridHoverScrollBarBehavior.IsEnabled="True"
-                              showcase:ActivityCalendarScrollBehavior.Enabled="True">
-                    <!-- Single custom-drawn visual: one element for the whole grid of cells,
-                         with tooltips and the day popup (ShowcaseActivityDayPopupTemplate)
-                         served from hit tests. -->
-                    <showcase:ActivityCalendarHeatmap Weeks="{Binding Weeks}"
-                                                      SelectsDays="{Binding IsLinked}"
-                                                      HighlightedDay="{Binding HighlightedDay}"
-                                                      CellColor="{Binding CellColor}"
-                                                      ShowMonthLabels="True"
-                                                      HorizontalAlignment="Left"
-                                                      VerticalAlignment="Top"/>
-                </ScrollViewer>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                </Grid.RowDefinitions>
+                <Grid TextElement.FontSize="{DynamicResource PlayAch.FontSize.Title}">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+                    <showcase:ActivityCalendarDayGutter Labels="{Binding WeekdayLabels}"
+                                                        ShowMonthBand="True"
+                                                        VerticalAlignment="Top"/>
+                    <!-- The default template keeps the bar in its own row under the cells, so it
+                         never covers the bottom row; the hover behavior still hides it at rest. -->
+                    <ScrollViewer Grid.Column="1"
+                                  HorizontalScrollBarVisibility="Auto"
+                                  VerticalScrollBarVisibility="Disabled"
+                                  helpers:DataGridHoverScrollBarBehavior.IsEnabled="True"
+                                  showcase:ActivityCalendarScrollBehavior.Enabled="True">
+                        <!-- Single custom-drawn visual: one element for the whole grid of cells,
+                             with tooltips and the day popup (ShowcaseActivityDayPopupTemplate)
+                             served from hit tests. -->
+                        <showcase:ActivityCalendarHeatmap Weeks="{Binding Weeks}"
+                                                          SelectsDays="{Binding IsLinked}"
+                                                          HighlightedDay="{Binding HighlightedDay}"
+                                                          CellColor="{Binding CellColor}"
+                                                          ShowMonthLabels="True"
+                                                          HorizontalAlignment="Left"
+                                                          VerticalAlignment="Top"/>
+                    </ScrollViewer>
+                </Grid>
+                <!-- When the widget's settings show it, the calendar's window is set here, on the
+                     legend's line, and saved back to the widget. -->
+                <controls:TimeWindowPicker Grid.Row="1"
+                                           Margin="0,4,8,0"
+                                           HorizontalAlignment="Left"
+                                           VerticalAlignment="Center"
+                                           Window="{Binding Window, Mode=TwoWay}"
+                                           Visibility="{Binding ShowControls, Converter={StaticResource BoolToVis}}"/>
+                <StackPanel Grid.Row="1"
+                            Orientation="Horizontal"
+                            HorizontalAlignment="Right"
+                            VerticalAlignment="Center"
+                            Margin="0,4,0,0"
+                            Visibility="{Binding ShowLegend, Converter={StaticResource BoolToVis}}">
+                    <TextBlock Text="{DynamicResource LOCPlayAch_Showcase_ActivityLegend_Less}"
+                               Foreground="{DynamicResource PlayAch.Brush.Text}"
+                               Opacity="{StaticResource PlayAch.Opacity.Subtle}"
+                               FontSize="{DynamicResource PlayAch.FontSize.Caption}"
+                               Margin="0,0,4,0"
+                               VerticalAlignment="Center"/>
+                    <showcase:ActivityCalendarLegendSwatches CellColor="{Binding CellColor}"
+                                                             VerticalAlignment="Center"/>
+                    <TextBlock Text="{DynamicResource LOCPlayAch_Showcase_ActivityLegend_More}"
+                               Foreground="{DynamicResource PlayAch.Brush.Text}"
+                               Opacity="{StaticResource PlayAch.Opacity.Subtle}"
+                               FontSize="{DynamicResource PlayAch.FontSize.Caption}"
+                               Margin="4,0,0,0"
+                               VerticalAlignment="Center"/>
+                </StackPanel>
             </Grid>
-            <!-- When the widget's settings show it, the calendar's window is set here, on the
-                 legend's line, and saved back to the widget. -->
-            <controls:TimeWindowPicker Grid.Row="2"
-                                       Margin="0,4,8,0"
-                                       HorizontalAlignment="Left"
-                                       VerticalAlignment="Center"
-                                       Window="{Binding Window, Mode=TwoWay}"
-                                       Visibility="{Binding ShowControls, Converter={StaticResource BoolToVis}}"/>
-            <StackPanel Grid.Row="2"
-                        Orientation="Horizontal"
-                        HorizontalAlignment="Right"
-                        VerticalAlignment="Center"
-                        Margin="0,4,0,0"
-                        Visibility="{Binding ShowLegend, Converter={StaticResource BoolToVis}}">
-                <TextBlock Text="{DynamicResource LOCPlayAch_Showcase_ActivityLegend_Less}"
-                           Foreground="{DynamicResource PlayAch.Brush.Text}"
-                           Opacity="{StaticResource PlayAch.Opacity.Subtle}"
-                           FontSize="{DynamicResource PlayAch.FontSize.Caption}"
-                           Margin="0,0,4,0"
-                           VerticalAlignment="Center"/>
-                <showcase:ActivityCalendarLegendSwatches CellColor="{Binding CellColor}"
-                                                         VerticalAlignment="Center"/>
-                <TextBlock Text="{DynamicResource LOCPlayAch_Showcase_ActivityLegend_More}"
-                           Foreground="{DynamicResource PlayAch.Brush.Text}"
-                           Opacity="{StaticResource PlayAch.Opacity.Subtle}"
-                           FontSize="{DynamicResource PlayAch.FontSize.Caption}"
-                           Margin="4,0,0,0"
-                           VerticalAlignment="Center"/>
-            </StackPanel>
         </Grid>
     </DataTemplate>
 
