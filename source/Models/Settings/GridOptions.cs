@@ -484,6 +484,8 @@ namespace PlayniteAchievements.Models.Settings
         private bool _showMetadataPlatform = true;
         private bool _showMetadataPlaytime = true;
         private bool _showMetadataRegion = true;
+        private bool _showMetadataTotal;
+        private bool _showMetadataPoints;
         private bool _showCompletionGlow = true;
         private bool _colorRarityColumnsByRarity;
         private bool _showNameAboveProgress;
@@ -515,6 +517,20 @@ namespace PlayniteAchievements.Models.Settings
         {
             get => _showMetadataRegion;
             set => SetValue(ref _showMetadataRegion, value);
+        }
+
+        // Adds the total achievement count to the line under the name.
+        public bool ShowMetadataTotal
+        {
+            get => _showMetadataTotal;
+            set => SetValue(ref _showMetadataTotal, value);
+        }
+
+        // Adds the earned points to the line under the name.
+        public bool ShowMetadataPoints
+        {
+            get => _showMetadataPoints;
+            set => SetValue(ref _showMetadataPoints, value);
         }
 
         public bool ShowCompletionGlow
@@ -580,6 +596,8 @@ namespace PlayniteAchievements.Models.Settings
             clone.ShowMetadataPlatform = ShowMetadataPlatform;
             clone.ShowMetadataPlaytime = ShowMetadataPlaytime;
             clone.ShowMetadataRegion = ShowMetadataRegion;
+            clone.ShowMetadataTotal = ShowMetadataTotal;
+            clone.ShowMetadataPoints = ShowMetadataPoints;
             clone.ShowCompletionGlow = ShowCompletionGlow;
             clone.ColorRarityColumnsByRarity = ColorRarityColumnsByRarity;
             clone.ShowNameAboveProgress = ShowNameAboveProgress;
@@ -660,6 +678,8 @@ namespace PlayniteAchievements.Models.Settings
         private bool _colorRarityColumnsByRarity;
         private bool _showNameAboveProgress;
         private bool _showRarityBadgesBelowProgress = true;
+        private bool _showMetadataTotal;
+        private bool _showMetadataPoints;
 
         public GridColumnLayoutOptions Columns
         {
@@ -716,6 +736,20 @@ namespace PlayniteAchievements.Models.Settings
             set => SetValue(ref _showRarityBadgesBelowProgress, value);
         }
 
+        // Adds the total achievement count to the line under the category name.
+        public bool ShowMetadataTotal
+        {
+            get => _showMetadataTotal;
+            set => SetValue(ref _showMetadataTotal, value);
+        }
+
+        // Adds the earned points to the line under the category name.
+        public bool ShowMetadataPoints
+        {
+            get => _showMetadataPoints;
+            set => SetValue(ref _showMetadataPoints, value);
+        }
+
         public CategorySummaryGridOptions Clone()
         {
             return new CategorySummaryGridOptions
@@ -727,7 +761,9 @@ namespace PlayniteAchievements.Models.Settings
                 ShowCompletionGlow = ShowCompletionGlow,
                 ColorRarityColumnsByRarity = ColorRarityColumnsByRarity,
                 ShowNameAboveProgress = ShowNameAboveProgress,
-                ShowRarityBadgesBelowProgress = ShowRarityBadgesBelowProgress
+                ShowRarityBadgesBelowProgress = ShowRarityBadgesBelowProgress,
+                ShowMetadataTotal = ShowMetadataTotal,
+                ShowMetadataPoints = ShowMetadataPoints
             };
         }
     }
