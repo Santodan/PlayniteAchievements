@@ -19,6 +19,7 @@ namespace PlayniteAchievements.Services.Images
         internal const string IconCacheFolderName = "icon_cache";
         internal const string LockedFileNameSuffix = ".locked";
         private const int MaxStemLength = 96;
+        private const int MaxListFolderLength = 48;
         internal const string CustomFolderName = "custom";
         internal const string ModeFolderName = "original";
         internal const string LegacyCompressedModeFolderName = "128";
@@ -348,8 +349,9 @@ namespace PlayniteAchievements.Services.Images
         }
 
         // Folder holding one list's row icons from a metadata source, shared by every game linked
-        // to that list. Named by the source's own list id with a hash of it, so ids that sanitize
-        // alike stay apart and no list folder takes a reserved folder name.
+        // to that list. Named by the source's own list id, percent escapes decoded and kept short
+        // so the icon paths stay within MAX_PATH, with a hash of the raw id, so ids that sanitize
+        // or shorten alike stay apart and no list folder takes a reserved folder name.
         public static string BuildMetadataListFolderRelativePath(
             string sourceKey,
             string listId)
@@ -359,7 +361,26 @@ namespace PlayniteAchievements.Services.Images
             return Path.Combine(
                 BuildMetadataListsRootRelativePath(),
                 SanitizeSegment(sourceKey),
-                TrimStemForSuffix(SanitizeSegment(id), suffix.Length) + suffix);
+                TrimStemForSuffix(SanitizeSegment(UnescapeListId(id)), suffix.Length, MaxListFolderLength) + suffix);
+        }
+
+        // A list id with its percent escapes decoded ("steinsgate-%e7%b7%9a" -> "steinsgate-線");
+        // the id as given when it holds a malformed escape.
+        private static string UnescapeListId(string id)
+        {
+            if (id.IndexOf('%') < 0)
+            {
+                return id;
+            }
+
+            try
+            {
+                return Uri.UnescapeDataString(id);
+            }
+            catch (UriFormatException)
+            {
+                return id;
+            }
         }
 
         // A game's own folder of one metadata source's row icons, from before lists were shared;
@@ -454,9 +475,9 @@ namespace PlayniteAchievements.Services.Images
             }
         }
 
-        private static string TrimStemForSuffix(string stem, int suffixLength)
+        private static string TrimStemForSuffix(string stem, int suffixLength, int maxStemLength = MaxStemLength)
         {
-            var maxLength = Math.Max(1, MaxStemLength - Math.Max(0, suffixLength));
+            var maxLength = Math.Max(1, maxStemLength - Math.Max(0, suffixLength));
             if (string.IsNullOrWhiteSpace(stem) || stem.Length <= maxLength)
             {
                 return string.IsNullOrWhiteSpace(stem) ? FallbackStem : stem;
