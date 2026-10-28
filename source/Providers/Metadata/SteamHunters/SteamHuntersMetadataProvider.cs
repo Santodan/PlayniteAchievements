@@ -275,8 +275,12 @@ namespace PlayniteAchievements.Providers.Metadata
                 return null;
             }
 
+            // The enricher saves category art for the game it is given, so it gets the game only
+            // when SteamHunters is the category source.
+            var wantsArt = request.WantedFields == MetadataField.None ||
+                           (request.WantedFields & MetadataField.CategoryArt) != 0;
             var applied = await _steam.SteamHuntersEnricher
-                .EnrichAsync(appId, request.Data.GameName ?? request.Game?.Name, rows, request.Game?.Id, ct)
+                .EnrichAsync(appId, request.Data.GameName ?? request.Game?.Name, rows, wantsArt ? request.Game?.Id : null, ct)
                 .ConfigureAwait(false);
             if (!applied)
             {
