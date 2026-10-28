@@ -322,6 +322,10 @@
                                             <Binding Path="ShowMetadataPlatform" RelativeSource="{RelativeSource AncestorType=controls:GameSummariesGridControl}"/>
                                             <Binding Path="ShowMetadataPlaytime" RelativeSource="{RelativeSource AncestorType=controls:GameSummariesGridControl}"/>
                                             <Binding Path="ShowMetadataRegion" RelativeSource="{RelativeSource AncestorType=controls:GameSummariesGridControl}"/>
+                                            <Binding Path="TotalAchievements"/>
+                                            <Binding Path="Points"/>
+                                            <Binding Path="ShowMetadataTotal" RelativeSource="{RelativeSource AncestorType=controls:GameSummariesGridControl}"/>
+                                            <Binding Path="ShowMetadataPoints" RelativeSource="{RelativeSource AncestorType=controls:GameSummariesGridControl}"/>
                                         </MultiBinding>
                                     </TextBlock.Text>
                                     <TextBlock.Visibility>
@@ -332,6 +336,10 @@
                                             <Binding Path="ShowMetadataPlatform" RelativeSource="{RelativeSource AncestorType=controls:GameSummariesGridControl}"/>
                                             <Binding Path="ShowMetadataPlaytime" RelativeSource="{RelativeSource AncestorType=controls:GameSummariesGridControl}"/>
                                             <Binding Path="ShowMetadataRegion" RelativeSource="{RelativeSource AncestorType=controls:GameSummariesGridControl}"/>
+                                            <Binding Path="TotalAchievements"/>
+                                            <Binding Path="Points"/>
+                                            <Binding Path="ShowMetadataTotal" RelativeSource="{RelativeSource AncestorType=controls:GameSummariesGridControl}"/>
+                                            <Binding Path="ShowMetadataPoints" RelativeSource="{RelativeSource AncestorType=controls:GameSummariesGridControl}"/>
                                         </MultiBinding>
                                     </TextBlock.Visibility>
                                 </TextBlock>
