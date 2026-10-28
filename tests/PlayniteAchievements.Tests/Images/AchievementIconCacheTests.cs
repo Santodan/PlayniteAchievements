@@ -2018,6 +2018,47 @@ namespace PlayniteAchievements.Services.Images.Tests
         }
 
         [TestMethod]
+        public async Task EnsureIconSquareAsync_CropsAndCapsWideArt_AndLeavesConformingIconsAlone()
+        {
+            var tempDir = CreateTempDirectory();
+            try
+            {
+                var wide = Path.Combine(tempDir, "wide.png");
+                var small = Path.Combine(tempDir, "small.png");
+                WritePng(wide, 1920, 1080);
+                WritePng(small, 256, 256);
+                var smallBytes = File.ReadAllBytes(small);
+
+                using (var diskImageService = new DiskImageService(logger: null, cacheRoot: tempDir))
+                {
+                    await diskImageService.EnsureIconSquareAsync(wide, 512, CancellationToken.None);
+                    await diskImageService.EnsureIconSquareAsync(small, 512, CancellationToken.None);
+                }
+
+                var frame = BitmapFrame.Create(new Uri(wide), BitmapCreateOptions.IgnoreImageCache, BitmapCacheOption.OnLoad);
+                Assert.AreEqual(512, frame.PixelWidth);
+                Assert.AreEqual(512, frame.PixelHeight);
+                CollectionAssert.AreEqual(smallBytes, File.ReadAllBytes(small));
+            }
+            finally
+            {
+                DeleteDirectory(tempDir);
+            }
+        }
+
+        private static void WritePng(string path, int width, int height)
+        {
+            var stride = width * 4;
+            var bitmap = BitmapSource.Create(width, height, 96, 96, PixelFormats.Bgra32, null, new byte[stride * height], stride);
+            var encoder = new PngBitmapEncoder();
+            encoder.Frames.Add(BitmapFrame.Create(bitmap));
+            using (var stream = new FileStream(path, FileMode.Create, FileAccess.Write, FileShare.Read))
+            {
+                encoder.Save(stream);
+            }
+        }
+
+        [TestMethod]
         public void BuildCategoryFileStem_IsAPureFunctionOfTheLabel()
         {
             Assert.AreEqual(
