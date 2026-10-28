@@ -70,6 +70,43 @@ namespace PlayniteAchievements.Models.Tests
         }
 
         [TestMethod]
+        public void MetadataCountOptionEdits_RaiseQualifiedNamesOnPersistedSettings()
+        {
+            var settings = new PersistedSettings();
+            var raised = new List<string>();
+            settings.PropertyChanged += (sender, e) => raised.Add(e.PropertyName);
+
+            var game = settings.GridOptions.GetGameSummaries(GridOptionKeys.GameSummaries.Overview);
+            game.ShowMetadataTotal = true;
+            var category = settings.GridOptions.GetCategorySummaries(GridOptionKeys.CategorySummaries.ViewAchievements);
+            category.ShowMetadataPoints = true;
+
+            CollectionAssert.Contains(raised, "GridOptions." + nameof(GameSummaryGridOptions.ShowMetadataTotal));
+            CollectionAssert.Contains(raised, "GridOptions." + nameof(CategorySummaryGridOptions.ShowMetadataPoints));
+        }
+
+        [TestMethod]
+        public void MetadataCountOptions_DefaultOffAndSurviveClone()
+        {
+            var game = new GameSummaryGridOptions();
+            var category = new CategorySummaryGridOptions();
+            Assert.IsFalse(game.ShowMetadataTotal);
+            Assert.IsFalse(game.ShowMetadataPoints);
+            Assert.IsFalse(category.ShowMetadataTotal);
+            Assert.IsFalse(category.ShowMetadataPoints);
+
+            game.ShowMetadataTotal = true;
+            game.ShowMetadataPoints = true;
+            category.ShowMetadataTotal = true;
+            category.ShowMetadataPoints = true;
+
+            Assert.IsTrue(game.Clone().ShowMetadataTotal);
+            Assert.IsTrue(game.Clone().ShowMetadataPoints);
+            Assert.IsTrue(category.Clone().ShowMetadataTotal);
+            Assert.IsTrue(category.Clone().ShowMetadataPoints);
+        }
+
+        [TestMethod]
         public void DesktopThemeGameSummariesOptionEdit_RaisesFlatPropertyChangedOnPersistedSettings()
         {
             var settings = new PersistedSettings();
