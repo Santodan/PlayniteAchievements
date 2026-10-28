@@ -78,6 +78,24 @@ namespace PlayniteAchievements.Services.Images.Tests
         }
 
         [TestMethod]
+        public void BuildMetadataListFolderRelativePath_DecodesPercentEscapesAndStaysShort()
+        {
+            const string encoded = "steinsgate-%e7%b7%9a%e5%bd%a2%e6%8b%98%e6%9d%9f%e3%81%ae%e3%83%95%e3%82%a7%e3%83%8e%e3%82%b0%e3%83%a9%e3%83%a0-ps3";
+
+            var folder = Path.GetFileName(AchievementIconCachePathBuilder.BuildMetadataListFolderRelativePath("PlayStation", encoded));
+            var decodedFolder = Path.GetFileName(AchievementIconCachePathBuilder.BuildMetadataListFolderRelativePath("PlayStation", Uri.UnescapeDataString(encoded)));
+            var longFolder = Path.GetFileName(AchievementIconCachePathBuilder.BuildMetadataListFolderRelativePath("PlayStation", new string('a', 200) + "-ps4"));
+
+            StringAssert.StartsWith(folder, Uri.UnescapeDataString(encoded) + "_");
+            Assert.IsTrue(folder.Length <= 48, folder);
+            Assert.IsTrue(longFolder.Length <= 48, longFolder);
+            Assert.AreNotEqual(decodedFolder, folder, "The hash is of the raw id, so encoded and decoded ids keep their own folders.");
+            Assert.AreEqual(
+                Path.GetFileName(AchievementIconCachePathBuilder.BuildMetadataListFolderRelativePath("PlayStation", "bad-%zz-escape")),
+                Path.GetFileName(AchievementIconCachePathBuilder.BuildMetadataListFolderRelativePath("PlayStation", "bad-%zz-escape")));
+        }
+
+        [TestMethod]
         public void BuildFileStems_AppendsSuffixesForSanitizedCollisions()
         {
             var stems = AchievementIconCachePathBuilder.BuildFileStems(new[] { "boss:win", "boss/win", "CON" });
