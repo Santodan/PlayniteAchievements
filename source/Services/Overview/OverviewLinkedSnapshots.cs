@@ -129,9 +129,9 @@ namespace PlayniteAchievements.Services.Overview
         /// <summary>
         /// <paramref name="snapshot"/> as seen through an achievement filter: only the unlocks
         /// <paramref name="keep"/> accepts count. Achievement totals, rarity and trophy counts,
-        /// the per-day counts and the unlocked rows are rebuilt from those unlocks, with no locked
-        /// remainder (the filters describe unlocks); the game-level totals (games, completions,
-        /// providers) are kept as they were, except that completions drop to zero when
+        /// the per-provider counts, the per-day counts and the unlocked rows are rebuilt from those
+        /// unlocks, with no locked remainder (the filters describe unlocks); the game-level totals
+        /// (games, completions) are kept as they were, except that completions drop to zero when
         /// <paramref name="keepCompletions"/> is false.
         /// </summary>
         public static OverviewDataSnapshot ClipToAchievements(
@@ -174,8 +174,8 @@ namespace PlayniteAchievements.Services.Overview
                     .Where(item => item?.UnlockTimeUtc.HasValue == true && keep(item))
                     .ToList(),
                 CurrentUserIdentities = snapshot.CurrentUserIdentities,
-                UnlockedByProvider = snapshot.UnlockedByProvider,
-                TotalByProvider = snapshot.TotalByProvider,
+                UnlockedByProvider = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase),
+                TotalByProvider = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase),
                 TotalGames = snapshot.TotalGames,
                 CompletedGames = snapshot.CompletedGames,
                 Completions = keepCompletions ? snapshot.Completions : 0,
@@ -188,8 +188,34 @@ namespace PlayniteAchievements.Services.Overview
             clipped.TotalUnlocked = rows.Count;
             clipped.TotalAchievements = rows.Count;
             clipped.TotalLocked = 0;
+
+            // Each unlock counts under its game's platform, the key the games are grouped by.
+            var providerByGame = new Dictionary<Guid, string>();
+            foreach (var game in snapshot.GameSummaries ?? new List<GameSummaryItem>())
+            {
+                if (game?.PlayniteGameId.HasValue == true && !providerByGame.ContainsKey(game.PlayniteGameId.Value))
+                {
+                    providerByGame[game.PlayniteGameId.Value] = game.ProviderKey;
+                }
+            }
+
             foreach (var row in rows)
             {
+                string provider = null;
+                if (row.PlayniteGameId.HasValue)
+                {
+                    providerByGame.TryGetValue(row.PlayniteGameId.Value, out provider);
+                }
+
+                if (string.IsNullOrWhiteSpace(provider))
+                {
+                    provider = string.IsNullOrWhiteSpace(row.ProviderKey) ? "Unknown" : row.ProviderKey;
+                }
+
+                clipped.UnlockedByProvider.TryGetValue(provider, out var providerUnlocked);
+                clipped.UnlockedByProvider[provider] = providerUnlocked + 1;
+                clipped.TotalByProvider[provider] = providerUnlocked + 1;
+
                 switch (row.Rarity)
                 {
                     case Models.Achievements.RarityTier.UltraRare:
