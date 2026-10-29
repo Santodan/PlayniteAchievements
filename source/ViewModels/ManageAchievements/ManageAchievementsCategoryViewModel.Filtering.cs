@@ -15,7 +15,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         /// rebuild and reused by the re-stamp after a push, which must not pay for a full rebuild.
         /// </summary>
         private Dictionary<string, List<string>> _memberApiNamesByLabel =
-            new Dictionary<string, List<string>>(StringComparer.OrdinalIgnoreCase);
+            new Dictionary<string, List<string>>(CategoryPathHelper.LabelComparer);
 
         /// <summary>
         /// The scopes the per-category menu offers, shared with the editor so both surfaces
