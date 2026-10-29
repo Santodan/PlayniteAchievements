@@ -128,8 +128,9 @@ namespace PlayniteAchievements.Views.Showcase
         /// game when it has that data, and the timeline and calendar mark the unlock range they
         /// set rather than narrowing to it. Every other widget follows the range and the rarity
         /// and trophy filters: to the games with matching unlocks, and to those unlocks where it
-        /// counts achievements. The platform and completions pies count whole games, so they keep
-        /// every achievement of the games kept, locked ones included.
+        /// counts achievements. The completions pie, and a platform pie counting completed games,
+        /// count whole games, so they keep every achievement of the games kept, locked ones
+        /// included; a platform pie counting achievements counts only the matching unlocks.
         /// </summary>
         private static (OverviewLinkedFilter Exclude, OverviewLinkedSelection Selection, bool CountsGames) LinkRule(
             ShowcaseWidgetInstanceSettings widget)
@@ -140,7 +141,10 @@ namespace PlayniteAchievements.Views.Showcase
                     switch (ShowcaseWidgetOptions.GetPieMode(widget))
                     {
                         case ShowcasePieMode.Provider:
-                            return (OverviewLinkedFilter.Provider, OverviewLinkedSelection.Ignore, true);
+                            return (
+                                OverviewLinkedFilter.Provider,
+                                OverviewLinkedSelection.Ignore,
+                                !ShowcaseWidgetOptions.CountsAchievements(widget));
                         case ShowcasePieMode.Rarity:
                             return (OverviewLinkedFilter.Rarity, OverviewLinkedSelection.WhenRarityData, false);
                         case ShowcasePieMode.Trophy:
