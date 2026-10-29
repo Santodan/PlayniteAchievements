@@ -704,10 +704,10 @@
 
                 <!-- Countdown bar: depletes over the toast's display duration. A direct child of the
                      content grid (outside the padding border) so it ignores the user's left/right
-                     card padding and spans the card width. A hairline flush with the bottom edge,
-                     so it reads as part of the card's edge rather than a row of its own; the small
-                     side insets keep its ends inside the 8-radius corners, which the content layer
-                     does not clip. A pure bottom overlay that reserves no layout space, so it never
+                     card padding and spans the card width. A hairline just above the bottom edge,
+                     so it reads as part of the card's edge rather than a row of its own while
+                     staying clear of the card border; the small side insets keep its ends inside
+                     the 8-radius corners, which the content layer does not clip. A pure bottom overlay that reserves no layout space, so it never
                      enlarges the card. The service runs PlayAch.Storyboard.ToastCountdown against
                      this ScaleX; the transform is reassigned in code before animating (a frozen
                      template transform can't be animated), so this inline transform is a no-op
@@ -716,7 +716,7 @@
                         VerticalAlignment="Bottom"
                         HorizontalAlignment="Stretch"
                         Height="2"
-                        Margin="6,0,6,0"
+                        Margin="6,0,6,3"
                         CornerRadius="1"
                         Background="{Binding CountdownBarBrush}"
                         Visibility="{Binding ShowCountdownBar, Converter={StaticResource BooleanToVisibilityConverter}}"
