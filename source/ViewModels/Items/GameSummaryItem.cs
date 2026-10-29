@@ -334,7 +334,9 @@ namespace PlayniteAchievements.ViewModels.Items
         public int PlatformScorePoints { get => _platformScorePoints; set => SetValue(ref _platformScorePoints, value); }
 
         // Points of every achievement, unlocked or not: the most PlatformScorePoints can reach.
-        public int PlatformScorePointsTotal { get; set; }
+        // Also shown as the points segment of the Game column's metadata line.
+        private int _platformScorePointsTotal;
+        public int PlatformScorePointsTotal { get => _platformScorePointsTotal; set => SetValue(ref _platformScorePointsTotal, value); }
 
         // The points family PlatformScorePoints count toward (see PointsFamilies.FromProviderKey); null for none.
         public string PointsFamily { get; set; }
