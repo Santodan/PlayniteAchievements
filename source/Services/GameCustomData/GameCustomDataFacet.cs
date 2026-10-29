@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using Newtonsoft.Json;
 using PlayniteAchievements.Models.Settings;
+using PlayniteAchievements.Services.Achievements;
 
 namespace PlayniteAchievements.Services.GameCustomData
 {
@@ -154,9 +155,14 @@ namespace PlayniteAchievements.Services.GameCustomData
 
                 [GameCustomDataFacet.CategoryImageOverrides] = new Definition
                 {
-                    Read = data => CloneMap(data.AchievementCategoryImageOverrides, item => item?.Clone()),
-                    Write = (data, value) => data.AchievementCategoryImageOverrides =
-                        CloneMap((Dictionary<string, CategoryImageOverrideData>)value, item => item?.Clone()),
+                    Read = data => CloneMap(
+                        data.AchievementCategoryImageOverrides,
+                        item => item?.Clone(),
+                        CategoryPathHelper.LabelComparer),
+                    Write = (data, value) => data.AchievementCategoryImageOverrides = CloneMap(
+                        (Dictionary<string, CategoryImageOverrideData>)value,
+                        item => item?.Clone(),
+                        CategoryPathHelper.LabelComparer),
                     // Per entry, not over the whole map: these are rebuilt from the rows, so two
                     // maps holding the same entries in a different insertion order are the same
                     // state, and serializing the map whole would call that a change.
@@ -181,9 +187,14 @@ namespace PlayniteAchievements.Services.GameCustomData
 
                 [GameCustomDataFacet.AchievementOverrides] = new Definition
                 {
-                    Read = data => CloneMap(data.AchievementOverrides, item => item?.Clone()),
-                    Write = (data, value) => data.AchievementOverrides =
-                        CloneMap((Dictionary<string, AchievementOverride>)value, item => item?.Clone()),
+                    Read = data => CloneMap(
+                        data.AchievementOverrides,
+                        item => item?.Clone(),
+                        StringComparer.OrdinalIgnoreCase),
+                    Write = (data, value) => data.AchievementOverrides = CloneMap(
+                        (Dictionary<string, AchievementOverride>)value,
+                        item => item?.Clone(),
+                        StringComparer.OrdinalIgnoreCase),
                     // Per entry, for the same reason as the map above.
                     Equal = (left, right) => MapEquals(
                         (Dictionary<string, AchievementOverride>)left,
@@ -301,14 +312,21 @@ namespace PlayniteAchievements.Services.GameCustomData
                 : null;
         }
 
-        private static Dictionary<string, T> CloneMap<T>(Dictionary<string, T> value, Func<T, T> clone)
+        /// <param name="comparer">
+        /// The key comparer: <see cref="CategoryPathHelper.LabelComparer"/> for a map keyed by
+        /// category label, <see cref="StringComparer.OrdinalIgnoreCase"/> for one keyed by ApiName.
+        /// </param>
+        private static Dictionary<string, T> CloneMap<T>(
+            Dictionary<string, T> value,
+            Func<T, T> clone,
+            IEqualityComparer<string> comparer)
         {
             if (value == null)
             {
                 return null;
             }
 
-            var copy = new Dictionary<string, T>(StringComparer.OrdinalIgnoreCase);
+            var copy = new Dictionary<string, T>(comparer);
             foreach (var pair in value)
             {
                 copy[pair.Key] = clone(pair.Value);
