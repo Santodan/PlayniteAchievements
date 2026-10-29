@@ -124,6 +124,9 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
                 ShowLegend = ShowcaseWidgetOptions.GetShowLegend(Projection?.Instance),
                 LegendPosition = ShowcaseWidgetOptions.GetPieLegendPosition(Projection?.Instance)
             };
+            // Set on a reused chart too: the same options can show a cut view after a whole one.
+            chart.CountsUnlocksOnly = snapshot.IsAchievementClip &&
+                                      ShowcaseWidgetOptions.CountsAchievements(Projection?.Instance);
             switch (mode)
             {
                 case ShowcasePieMode.Provider:
