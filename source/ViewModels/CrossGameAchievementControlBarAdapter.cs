@@ -65,7 +65,7 @@ namespace PlayniteAchievements.ViewModels
 
         // The Category dropdown: the one game's categories, offered while the rows (within the
         // game filter) come from a single game, and empty, so hidden, while they span several.
-        private readonly HashSet<string> _selectedCategories = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        private readonly HashSet<string> _selectedCategories = new HashSet<string>(CategoryPathHelper.LabelComparer);
         private readonly ObservableCollection<string> _categoryOptions = new ObservableCollection<string>();
         private IReadOnlyList<AchievementDisplayItem> _categoryOptionRows;
 
@@ -347,14 +347,14 @@ namespace PlayniteAchievements.ViewModels
                         .Select(item => item.CategoryLabel));
             }
 
-            var changed = !options.SequenceEqual(_categoryOptions, StringComparer.OrdinalIgnoreCase);
+            var changed = !options.SequenceEqual(_categoryOptions, CategoryPathHelper.LabelComparer);
             if (changed)
             {
                 CollectionHelper.SynchronizeCollection(_categoryOptions, options);
             }
 
             // A selection only means something within the game it was made for.
-            var optionSet = new HashSet<string>(options, StringComparer.OrdinalIgnoreCase);
+            var optionSet = new HashSet<string>(options, CategoryPathHelper.LabelComparer);
             changed |= _selectedCategories.RemoveWhere(category => !optionSet.Contains(category)) > 0;
             if (changed)
             {
