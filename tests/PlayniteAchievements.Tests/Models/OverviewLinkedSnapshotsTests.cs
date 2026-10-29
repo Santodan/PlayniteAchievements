@@ -93,6 +93,29 @@ namespace PlayniteAchievements.Tests.Models
         }
 
         [TestMethod]
+        public void ClipToSpan_CountsProvidersFromTheUnlocksInRange()
+        {
+            var source = CreateSource();
+            var inRange = new DateTime(2026, 3, 1, 12, 0, 0, DateTimeKind.Utc);
+            var outOfRange = new DateTime(2026, 6, 1, 12, 0, 0, DateTimeKind.Utc);
+            source.Achievements = new List<PlayniteAchievements.ViewModels.AchievementDisplayItem>
+            {
+                new PlayniteAchievements.ViewModels.AchievementDisplayItem { PlayniteGameId = GameA, Unlocked = true, UnlockTimeUtc = inRange },
+                new PlayniteAchievements.ViewModels.AchievementDisplayItem { PlayniteGameId = GameA, Unlocked = true, UnlockTimeUtc = inRange },
+                new PlayniteAchievements.ViewModels.AchievementDisplayItem { PlayniteGameId = GameA, Unlocked = true, UnlockTimeUtc = outOfRange },
+                new PlayniteAchievements.ViewModels.AchievementDisplayItem { PlayniteGameId = GameB, Unlocked = true, UnlockTimeUtc = outOfRange }
+            };
+            var day = UnlockDayCounts.DayOf(inRange);
+
+            var clipped = OverviewLinkedSnapshots.ClipToSpan(source, new UnlockDaySpan(day.AddDays(-1), day.AddDays(1)));
+
+            CollectionAssert.AreEquivalent(new[] { "Steam" }, clipped.UnlockedByProvider.Keys.ToList());
+            Assert.AreEqual(2, clipped.UnlockedByProvider["Steam"]);
+            Assert.AreEqual(2, clipped.TotalByProvider["Steam"]);
+            Assert.IsFalse(clipped.TotalByProvider.ContainsKey("Epic"));
+        }
+
+        [TestMethod]
         public void NarrowToGames_KeepsAClippedViewClipped()
         {
             var source = CreateSource();
