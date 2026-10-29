@@ -16,7 +16,10 @@ namespace PlayniteAchievements.Views.Converters
 
         internal static bool TryParseDouble(string text, CultureInfo culture, out double value)
         {
-            return double.TryParse(text, NumberStyles.Float | NumberStyles.AllowThousands, culture, out value);
+            // No AllowThousands: in cultures like de-DE it reads "28.5" as 285 instead of falling
+            // through to the invariant parse.
+            return double.TryParse(text, NumberStyles.Float, culture, out value) ||
+                   double.TryParse(text, NumberStyles.Float, CultureInfo.InvariantCulture, out value);
         }
 
         internal static bool TryParseInt(string text, CultureInfo culture, out int value)
