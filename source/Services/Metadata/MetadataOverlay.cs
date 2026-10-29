@@ -896,11 +896,11 @@ namespace PlayniteAchievements.Services.Metadata
                     .ToList(),
                 CategoryNames = found
                     .Where(name => name.Category != null)
-                    .GroupBy(name => name.Category, StringComparer.OrdinalIgnoreCase)
+                    .GroupBy(name => name.Category, CategoryPathHelper.LabelComparer)
                     .ToDictionary(
                         group => group.Key,
                         group => (IReadOnlyList<string>)group.Select(name => name.Title).Distinct(StringComparer.OrdinalIgnoreCase).ToList(),
-                        StringComparer.OrdinalIgnoreCase)
+                        CategoryPathHelper.LabelComparer)
             };
         }
 
@@ -1140,7 +1140,7 @@ namespace PlayniteAchievements.Services.Metadata
             var open = new HashSet<AchievementDetail>(sources.Where(source => source != null));
             var matches = new List<AchievementMatch>();
             var matched = new HashSet<AchievementDetail>();
-            foreach (var category in targets.Where(target => target != null).GroupBy(target => target.Category?.Trim() ?? string.Empty, StringComparer.OrdinalIgnoreCase))
+            foreach (var category in targets.Where(target => target != null).GroupBy(target => target.Category?.Trim() ?? string.Empty, CategoryPathHelper.LabelComparer))
             {
                 var rows = category.ToList();
                 var best = lists
@@ -1308,7 +1308,7 @@ namespace PlayniteAchievements.Services.Metadata
             IReadOnlyDictionary<string, MatchedSet> sets)
         {
             var art = new List<(string Label, string ImageUrl)>();
-            var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var seen = new HashSet<string>(CategoryPathHelper.LabelComparer);
             foreach (var key in keys)
             {
                 if (!sets.TryGetValue(key, out var set))
@@ -1320,11 +1320,14 @@ namespace PlayniteAchievements.Services.Metadata
                     set.Matches
                         .Select(match => AchievementCategoryHelper.NormalizeCategory(match.Target.Category))
                         .Where(label => label != null),
-                    StringComparer.OrdinalIgnoreCase);
+                    CategoryPathHelper.LabelComparer);
                 foreach (var pair in set.Set.CategoryArtUrls)
                 {
-                    var label = AchievementCategoryHelper.NormalizeCategory(pair.Key);
-                    if (label != null && given.Contains(label) && seen.Add(label))
+                    // The source's category name, resolved to the game's own spelling of it.
+                    var label = CategoryPathHelper.ResolveLoose(
+                        AchievementCategoryHelper.NormalizeCategory(pair.Key),
+                        given);
+                    if (label != null && seen.Add(label))
                     {
                         art.Add((label, pair.Value));
                     }
@@ -1361,7 +1364,7 @@ namespace PlayniteAchievements.Services.Metadata
                     .Where(match => rows.Contains(match.Source))
                     .Select(match => AchievementCategoryHelper.NormalizeCategory(match.Target.Category))
                     .Where(category => category != null)
-                    .GroupBy(category => category, StringComparer.OrdinalIgnoreCase)
+                    .GroupBy(category => category, CategoryPathHelper.LabelComparer)
                     .OrderByDescending(group => group.Count())
                     .Select(group => group.Key)
                     .FirstOrDefault();
@@ -1575,7 +1578,7 @@ namespace PlayniteAchievements.Services.Metadata
                 return result;
             }
 
-            var claimed = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var claimed = new HashSet<string>(CategoryPathHelper.LabelComparer);
             foreach (var list in set.Set.Lists)
             {
                 var platinum = list.Rows.FirstOrDefault(IsPlatinumWithArt);
@@ -1587,7 +1590,7 @@ namespace PlayniteAchievements.Services.Metadata
                 var inList = new HashSet<AchievementDetail>(list.Rows);
                 var category = set.Matches
                     .Where(match => inList.Contains(match.Source) && IsCapstoneEligible(match.Target) && !string.IsNullOrWhiteSpace(match.Target.Category))
-                    .GroupBy(match => match.Target.Category.Trim(), StringComparer.OrdinalIgnoreCase)
+                    .GroupBy(match => match.Target.Category.Trim(), CategoryPathHelper.LabelComparer)
                     .OrderByDescending(group => group.Count())
                     .Select(group => group.Key)
                     .FirstOrDefault();
@@ -1603,7 +1606,7 @@ namespace PlayniteAchievements.Services.Metadata
                     Title = string.IsNullOrWhiteSpace(platinum.DisplayName) ? null : platinum.DisplayName.Trim(),
                     Description = string.IsNullOrWhiteSpace(platinum.Description) ? null : platinum.Description.Trim(),
                     MatchApiName = MatchCapstoneIn(set, platinum, targets ?? new List<AchievementDetail>(), target =>
-                        string.Equals(target.Category?.Trim(), category, StringComparison.OrdinalIgnoreCase))
+                        string.Equals(target.Category?.Trim(), category, CategoryPathHelper.LabelComparison))
                 });
             }
 
