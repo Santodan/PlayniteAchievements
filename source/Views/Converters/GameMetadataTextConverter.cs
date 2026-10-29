@@ -7,7 +7,7 @@ using PlayniteAchievements.Services;
 namespace PlayniteAchievements.Views.Converters
 {
     /// <summary>
-    /// Joins the per-game platform, playtime, region, total achievement count and earned points
+    /// Joins the per-game platform, playtime, region, total achievement count and total points
     /// into the secondary metadata line, including only the parts whose corresponding visibility
     /// flag is enabled.
     /// Expects six bound values: platformText, playtimeText, regionText, showPlatform,
