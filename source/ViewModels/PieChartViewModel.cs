@@ -115,7 +115,21 @@ namespace PlayniteAchievements.ViewModels
                 nameof(IsFilled));
         }
 
-        public bool ShowCenterPercentage => _centerMode == PieCenterMode.Percentage && _includeLocked;
+        public bool ShowCenterPercentage =>
+            _centerMode == PieCenterMode.Percentage && _includeLocked && !_countsUnlocksOnly;
+
+        private bool _countsUnlocksOnly;
+
+        /// <summary>
+        /// Whether the data holds only unlocks, as when the overview cuts it to the unlocks its
+        /// filters keep. With no locked remainder the percentage would always read 100%, so the
+        /// centre hides it, as it does when the locked slice is off.
+        /// </summary>
+        public bool CountsUnlocksOnly
+        {
+            get => _countsUnlocksOnly;
+            set => SetValue(ref _countsUnlocksOnly, value, nameof(CountsUnlocksOnly), nameof(ShowCenterPercentage));
+        }
 
         public bool IsFilled => _centerMode == PieCenterMode.Filled;
 
