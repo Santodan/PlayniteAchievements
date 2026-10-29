@@ -21,7 +21,7 @@ namespace PlayniteAchievements.Services.Achievements
     public sealed class CapstoneResolver
     {
         private readonly Dictionary<string, string> _byCategory =
-            new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            new Dictionary<string, string>(CategoryPathHelper.LabelComparer);
         private readonly HashSet<string> _effectiveApiNames =
             new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
