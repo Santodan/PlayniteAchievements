@@ -103,7 +103,7 @@ namespace PlayniteAchievements.Services.ThemeIntegration
                 .Where(item => item != null)
                 .ToList();
 
-            var counts = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+            var counts = new Dictionary<string, int>(CategoryPathHelper.LabelComparer);
             foreach (var item in items)
             {
                 var label = AchievementCategoryHelper.NormalizeCategoryOrDefault(item.Category);
@@ -141,7 +141,7 @@ namespace PlayniteAchievements.Services.ThemeIntegration
                 label,
                 AchievementCategoryHelper.ToCategoryLeafDisplayText(label),
                 counts.TryGetValue(label, out var count) ? count : 0,
-                IsSelected(label, selectedKey),
+                IsSelected(label, selectedKey, CategoryPathHelper.LabelComparison),
                 applyCommand)));
 
             return new ObservableCollection<DynamicThemeOption>(options);
@@ -191,9 +191,12 @@ namespace PlayniteAchievements.Services.ThemeIntegration
             return new ObservableCollection<DynamicThemeOption>(options);
         }
 
-        private static bool IsSelected(string key, string selectedKey)
+        private static bool IsSelected(
+            string key,
+            string selectedKey,
+            StringComparison comparison = StringComparison.OrdinalIgnoreCase)
         {
-            return string.Equals(key ?? string.Empty, selectedKey ?? string.Empty, StringComparison.OrdinalIgnoreCase);
+            return string.Equals(key ?? string.Empty, selectedKey ?? string.Empty, comparison);
         }
     }
 }
