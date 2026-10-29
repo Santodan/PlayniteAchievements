@@ -66,8 +66,10 @@ namespace PlayniteAchievements.Views.Helpers
             }
 
             var culture = FormattingCulture.Current;
-            if (double.TryParse(textBox.Text, NumberStyles.Float | NumberStyles.AllowThousands, culture, out var parsed) ||
-                double.TryParse(textBox.Text, NumberStyles.Float | NumberStyles.AllowThousands, CultureInfo.InvariantCulture, out parsed))
+            // No AllowThousands: in cultures like de-DE it reads "0.5" as 5 instead of falling
+            // through to the invariant parse.
+            if (double.TryParse(textBox.Text, NumberStyles.Float, culture, out var parsed) ||
+                double.TryParse(textBox.Text, NumberStyles.Float, CultureInfo.InvariantCulture, out parsed))
             {
                 var clamped = parsed < 0.0 ? 0.0 : (parsed > 1.0 ? 1.0 : parsed);
                 SetValue(textBox, clamped);
