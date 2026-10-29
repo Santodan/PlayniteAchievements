@@ -179,7 +179,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         {
             return GameCustomDataFile.CloneCategoryKindMap(
                        GameCustomDataLookup.GetAchievementCategoryKinds(_gameId, _settings?.Persisted)) ??
-                   new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+                   new Dictionary<string, string>(CategoryPathHelper.LabelComparer);
         }
 
         /// <summary>
