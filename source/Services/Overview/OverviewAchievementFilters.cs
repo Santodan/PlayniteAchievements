@@ -43,8 +43,11 @@ namespace PlayniteAchievements.Services.Overview
             {
                 TypeOptions = typeOptions,
                 CategoryOptions = categoryOptions,
-                TypeSelectionPruned = PruneSelections(selectedTypeFilters, typeOptions),
-                CategorySelectionPruned = PruneSelections(selectedCategoryFilters, categoryOptions)
+                TypeSelectionPruned = PruneSelections(selectedTypeFilters, typeOptions, StringComparer.OrdinalIgnoreCase),
+                CategorySelectionPruned = PruneSelections(
+                    selectedCategoryFilters,
+                    categoryOptions,
+                    CategoryPathHelper.LabelComparer)
             };
         }
 
@@ -84,7 +87,7 @@ namespace PlayniteAchievements.Services.Overview
                     selectedGameCategoryFilters
                         .Select(AchievementCategoryHelper.NormalizeCategoryOrDefault)
                         .Where(value => !string.IsNullOrWhiteSpace(value)),
-                    StringComparer.OrdinalIgnoreCase);
+                    CategoryPathHelper.LabelComparer);
 
                 filtered = filtered.Where(a =>
                     selectedCategorySet.Contains(
@@ -119,7 +122,10 @@ namespace PlayniteAchievements.Services.Overview
             return filtered.ToList();
         }
 
-        private static bool PruneSelections(HashSet<string> selectedValues, IEnumerable<string> options)
+        private static bool PruneSelections(
+            HashSet<string> selectedValues,
+            IEnumerable<string> options,
+            StringComparer comparer)
         {
             if (selectedValues == null)
             {
@@ -128,7 +134,7 @@ namespace PlayniteAchievements.Services.Overview
 
             var optionSet = new HashSet<string>(
                 (options ?? Enumerable.Empty<string>()).Where(value => !string.IsNullOrWhiteSpace(value)),
-                StringComparer.OrdinalIgnoreCase);
+                comparer);
             return selectedValues.RemoveWhere(value => !optionSet.Contains(value)) > 0;
         }
     }
