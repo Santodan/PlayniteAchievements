@@ -1944,31 +1944,29 @@ namespace PlayniteAchievements.Views
 
         /// <summary>
         /// Edits one header card's options in the showcase widget settings dialog, without the
-        /// title and history rows the header has no use for. Saving replaces the stored card, which
-        /// raises the change the view model reapplies the cards from.
+        /// title and history rows the header has no use for. The dialog gets the stored card itself,
+        /// as the Showcase page's dialog gets its widget, so a type change shows on the header at
+        /// once and its filters list the new type's games; cancelling puts the type back. Saving
+        /// replaces the stored card with a copy, which raises the change the view model reapplies
+        /// the cards from.
         /// </summary>
         private void OpenScoreCardSettings(bool second)
         {
             var persisted = _settings?.Persisted;
-            if (persisted == null)
-            {
-                return;
-            }
-
-            var working = (second ? persisted.OverviewScoreCard2 : persisted.OverviewScoreCard1)?.Clone();
-            if (working == null ||
-                !ShowcaseWidgetSettingsDialog.Show(working, linked: true, overviewHeaderCard: true))
+            var card = second ? persisted?.OverviewScoreCard2 : persisted?.OverviewScoreCard1;
+            if (card == null ||
+                !ShowcaseWidgetSettingsDialog.Show(card, linked: true, overviewHeaderCard: true))
             {
                 return;
             }
 
             if (second)
             {
-                persisted.OverviewScoreCard2 = working;
+                persisted.OverviewScoreCard2 = card.Clone();
             }
             else
             {
-                persisted.OverviewScoreCard1 = working;
+                persisted.OverviewScoreCard1 = card.Clone();
             }
 
             _persistSettingsForUi();
