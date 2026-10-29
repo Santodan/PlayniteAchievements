@@ -25,6 +25,15 @@ namespace PlayniteAchievements.Views.Showcase
             return string.IsNullOrWhiteSpace(key) ? value ?? string.Empty : Localize(key);
         }
 
+        /// <summary>
+        /// A pin collection's name as lists show it. The seeded name "Default" is stored as data,
+        /// so it shows in the current language until the user renames the collection.
+        /// </summary>
+        public static string PinCollectionName(string name) =>
+            string.Equals(name, "Default", StringComparison.Ordinal)
+                ? Localize("LOCPlayAch_Common_Default")
+                : name ?? string.Empty;
+
         public static string GetWidgetName(ShowcaseWidgetKind kind)
         {
             var definition = ShowcaseWidgetCatalog.Get(kind);
