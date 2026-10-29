@@ -182,15 +182,12 @@ namespace PlayniteAchievements.Tests.Views
                 "LOCPlayAch_Showcase_Template_",
                 value => value != ShowcasePageTemplate.Showcase && value != ShowcasePageTemplate.Collection);
             // Values that reuse another feature's label (ShowcaseUiText) are excluded; the
-            // ScreenshotVariant, MosaicContent and GameGridSource enums reuse labels for every value.
+            // ScreenshotVariant, MosaicContent, GameGridSource and PieMode enums reuse labels for
+            // every value.
             AssertEnumKeys<ShowcaseScoreMode>(
                 localization,
                 "LOCPlayAch_Showcase_ScoreMode_",
                 value => value != ShowcaseScoreMode.Dual);
-            AssertEnumKeys<ShowcasePieMode>(
-                localization,
-                "LOCPlayAch_Showcase_PieMode_",
-                value => value != ShowcasePieMode.CompletedGames);
             AssertEnumKeys<ShowcasePointsGrouping>(
                 localization,
                 "LOCPlayAch_Showcase_PointsGrouping_",
