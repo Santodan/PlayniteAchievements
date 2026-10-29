@@ -1,6 +1,7 @@
 using Playnite.SDK.Models;
 using PlayniteAchievements.Models;
 using PlayniteAchievements.Models.Achievements;
+using PlayniteAchievements.Services.Achievements;
 using PlayniteAchievements.Services.GameSearch;
 using System;
 using System.Collections.Generic;
@@ -192,7 +193,7 @@ namespace PlayniteAchievements.Providers.Metadata
         /// games, a DLC listed on its own), by category; searched after the category's own name.
         /// </summary>
         public IReadOnlyDictionary<string, IReadOnlyList<string>> CategoryNames { get; internal set; } =
-            new Dictionary<string, IReadOnlyList<string>>(StringComparer.OrdinalIgnoreCase);
+            new Dictionary<string, IReadOnlyList<string>>(CategoryPathHelper.LabelComparer);
 
         /// <summary>
         /// Other names the game is known by: the servicing provider's own, and the labels of its
@@ -332,7 +333,7 @@ namespace PlayniteAchievements.Providers.Metadata
 
         /// <summary>Category label to image URL, for sources that supply category art.</summary>
         public IDictionary<string, string> CategoryArtUrls { get; } =
-            new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            new Dictionary<string, string>(CategoryPathHelper.LabelComparer);
 
         /// <summary>The game's title on the source, when the source gives one.</summary>
         public string Title { get; set; }
