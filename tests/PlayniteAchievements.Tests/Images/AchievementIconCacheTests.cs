@@ -51,7 +51,7 @@ namespace PlayniteAchievements.Services.Images.Tests
         }
 
         [TestMethod]
-        public void BuildDefaultCategoryRelativePath_IsDeterministicAndCaseStable()
+        public void BuildDefaultCategoryRelativePath_IsDeterministicAndCaseDistinct()
         {
             var first = AchievementIconCachePathBuilder.BuildDefaultCategoryRelativePath(
                 "game-123", "Expansion");
@@ -61,9 +61,17 @@ namespace PlayniteAchievements.Services.Images.Tests
                 "game-123", "EXPANSION");
 
             Assert.AreEqual(first, second);
-            // The hash suffix is case-insensitive so write/read label casing differences
-            // still land on the same file (paths differ only by the sanitized stem casing).
-            StringAssert.EndsWith(upper, first.Substring(first.LastIndexOf('_')));
+            // Labels differing only in case are distinct categories, so the hash suffix tells
+            // them apart even on a file system that ignores case in the stem.
+            Assert.IsFalse(upper.EndsWith(first.Substring(first.LastIndexOf('_')), StringComparison.OrdinalIgnoreCase));
+
+            // All-lowercase labels keep the path the lowercase hash always gave them.
+            Assert.AreEqual(
+                AchievementIconCachePathBuilder.BuildLegacyDefaultCategoryRelativePath("game-123", "expansion"),
+                AchievementIconCachePathBuilder.BuildDefaultCategoryRelativePath("game-123", "expansion"));
+            Assert.AreNotEqual(
+                AchievementIconCachePathBuilder.BuildLegacyDefaultCategoryRelativePath("game-123", "Expansion"),
+                first);
         }
 
         [TestMethod]
@@ -2065,7 +2073,7 @@ namespace PlayniteAchievements.Services.Images.Tests
                 AchievementIconCachePathBuilder.BuildCategoryFileStem("DLC"),
                 AchievementIconCachePathBuilder.BuildCategoryFileStem("DLC"));
 
-            // Trimmed, and case-insensitive in the hash so a casing change keeps the same file.
+            // Trimmed before hashing, so surrounding whitespace keeps the same file.
             Assert.AreEqual(
                 AchievementIconCachePathBuilder.BuildCategoryFileStem("DLC"),
                 AchievementIconCachePathBuilder.BuildCategoryFileStem("  DLC  "));
@@ -2108,10 +2116,12 @@ namespace PlayniteAchievements.Services.Images.Tests
         public void BuildCategoryFileStems_SkipsBlankLabelsAndDeduplicates()
         {
             var stems = AchievementIconCachePathBuilder.BuildCategoryFileStems(
-                new[] { "DLC", "  ", null, "dlc" });
+                new[] { "DLC", "  ", null, "dlc", "DLC" });
 
-            Assert.AreEqual(1, stems.Count);
+            Assert.AreEqual(2, stems.Count);
             Assert.IsTrue(stems.ContainsKey("DLC"));
+            Assert.IsTrue(stems.ContainsKey("dlc"));
+            Assert.AreNotEqual(stems["DLC"].ToLowerInvariant(), stems["dlc"].ToLowerInvariant());
         }
     }
 }
