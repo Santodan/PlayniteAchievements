@@ -1957,7 +1957,7 @@ namespace PlayniteAchievements.Views
 
             var working = (second ? persisted.OverviewScoreCard2 : persisted.OverviewScoreCard1)?.Clone();
             if (working == null ||
-                !ShowcaseWidgetSettingsDialog.Show(working, linked: true, includeScoreHistory: false))
+                !ShowcaseWidgetSettingsDialog.Show(working, linked: true, overviewHeaderCard: true))
             {
                 return;
             }

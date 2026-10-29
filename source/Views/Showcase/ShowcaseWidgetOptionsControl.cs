@@ -30,7 +30,7 @@ namespace PlayniteAchievements.Views.Showcase
         private readonly ShowcaseWidgetInstanceSettings _settings;
         private readonly Action _persist;
         private readonly bool _publishChanges;
-        private readonly bool _includeScoreHistory;
+        private readonly bool _overviewHeaderCard;
         private readonly bool? _backgroundDefault;
         private readonly UIElement _contentAfterSharedRows;
         private readonly ShowcaseWidgetInstanceSettings _liveWidget;
@@ -49,9 +49,10 @@ namespace PlayniteAchievements.Views.Showcase
         // The widget's control bars, whose Game filters a collection choice limits.
         private readonly List<SharedControlBarAdapter> _controlBarAdapters = new List<SharedControlBarAdapter>();
 
-        /// <param name="includeScoreHistory">
-        /// False for a score card with no history chart (the Overview header's cards), which drops
-        /// the history toggle and range.
+        /// <param name="overviewHeaderCard">
+        /// True for an Overview header score card, which has no history chart and no control bar:
+        /// the history toggle and range are dropped, and its filters are offered without the
+        /// switches that show them on a bar.
         /// </param>
         /// <param name="backgroundDefault">
         /// The host's default for the widget background, which adds the title alignment and
@@ -72,14 +73,14 @@ namespace PlayniteAchievements.Views.Showcase
             bool publishChanges = true,
             Thickness? margin = null,
             bool loadStyles = true,
-            bool includeScoreHistory = true,
+            bool overviewHeaderCard = false,
             bool? backgroundDefault = null,
             UIElement contentAfterSharedRows = null,
             ShowcaseWidgetInstanceSettings liveWidget = null)
         {
             _settings = settings ?? throw new ArgumentNullException(nameof(settings));
             _liveWidget = ReferenceEquals(liveWidget, settings) ? null : liveWidget;
-            _includeScoreHistory = includeScoreHistory;
+            _overviewHeaderCard = overviewHeaderCard;
             _backgroundDefault = backgroundDefault;
             _contentAfterSharedRows = contentAfterSharedRows;
             _persist = persist;
@@ -932,7 +933,8 @@ namespace PlayniteAchievements.Views.Showcase
                 return rows;
             }
 
-            if (header)
+            // An Overview header card shows no bar, so it has no switches for one.
+            if (header && !_overviewHeaderCard)
             {
                 AddControlBarHeader(panel);
             }
@@ -1040,6 +1042,11 @@ namespace PlayniteAchievements.Views.Showcase
 
             checkBox.Checked += (_, __) => Commit();
             checkBox.Unchecked += (_, __) => Commit();
+            if (_overviewHeaderCard)
+            {
+                checkBox.Visibility = Visibility.Collapsed;
+            }
+
             controls.Children.Add(checkBox);
             if (editor != null)
             {
@@ -1990,7 +1997,7 @@ namespace PlayniteAchievements.Views.Showcase
                 value => ShowcaseWidgetOptions.SetScoreCardUseCustomColors(_settings, value));
             SyncTypeRows(ShowcaseWidgetOptions.GetScoreCardType(_settings));
 
-            if (!_includeScoreHistory)
+            if (_overviewHeaderCard)
             {
                 return;
             }
