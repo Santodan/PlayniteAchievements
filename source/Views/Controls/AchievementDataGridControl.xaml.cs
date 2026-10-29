@@ -839,7 +839,7 @@ namespace PlayniteAchievements.Views.Controls
         // never cleared on drill, mode, or data changes: a key whose path is gone is inert, and
         // keeping the rest means a drill round-trip or data delta preserves the user's collapses.
         private readonly HashSet<string> _collapsedCategoryPaths =
-            new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            new HashSet<string>(CategoryPathHelper.LabelComparer);
 
         // Whether the full (unfiltered) tree has any nesting; gates the Expand/Collapse All buttons.
         private bool _categoryTreeHasNesting;
@@ -1190,7 +1190,7 @@ namespace PlayniteAchievements.Views.Controls
                 return false;
             }
 
-            var roots = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var roots = new HashSet<string>(CategoryPathHelper.LabelComparer);
             foreach (var item in items)
             {
                 if (item == null)
