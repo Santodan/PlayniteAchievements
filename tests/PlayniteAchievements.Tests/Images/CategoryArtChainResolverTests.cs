@@ -186,6 +186,25 @@ namespace PlayniteAchievements.Tests.Images
         }
 
         [TestMethod]
+        public void FindExistingDefaultCategoryImagePath_AdoptsArtStoredUnderTheLowercaseHashName()
+        {
+            // Default art used to be named from the lowercased label. Reading it moves that file to
+            // the case-sensitive name instead of leaving it behind and downloading it again.
+            var diskImageService = UseRealDefaultArtStore();
+            var legacyPath = Path.Combine(
+                _tempDir,
+                AchievementIconCachePathBuilder.BuildLegacyDefaultCategoryRelativePath(GameId.ToString("D"), "DLC1"));
+            Directory.CreateDirectory(Path.GetDirectoryName(legacyPath));
+            File.WriteAllBytes(legacyPath, new byte[] { 0xFF, 0xD8, 0xFF, 0xD9 });
+
+            var found = diskImageService.FindExistingDefaultCategoryImagePath(GameId.ToString("D"), "DLC1");
+
+            Assert.AreEqual(DefaultArtPath(diskImageService, "DLC1"), found);
+            Assert.IsTrue(File.Exists(found));
+            Assert.IsFalse(File.Exists(legacyPath));
+        }
+
+        [TestMethod]
         public void Resolve_FallsBackToTheProviderLabelWhenTheEffectiveLabelHasNoDefaultArt()
         {
             // A plain rename: the renamed label has no default file of its own, so the provider

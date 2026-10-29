@@ -27,7 +27,7 @@ namespace PlayniteAchievements.Services.Metadata
         {
             var games = (achievements ?? Enumerable.Empty<AchievementDetail>())
                 .Where(row => row != null && !string.IsNullOrWhiteSpace(row.Category))
-                .GroupBy(row => row.Category.Trim(), StringComparer.OrdinalIgnoreCase)
+                .GroupBy(row => row.Category.Trim(), CategoryPathHelper.LabelComparer)
                 .Where(group =>
                 {
                     var kind = group.Select(row => row.CategoryKind).FirstOrDefault(value => !string.IsNullOrWhiteSpace(value));

@@ -1031,7 +1031,7 @@ namespace PlayniteAchievements.Services.Overview
                 return null;
             }
 
-            var result = new Dictionary<string, CategoryImageOverrideData>(StringComparer.OrdinalIgnoreCase);
+            var result = new Dictionary<string, CategoryImageOverrideData>(CategoryPathHelper.LabelComparer);
             foreach (var pair in source)
             {
                 var category = AchievementCategoryHelper.NormalizeCategoryOrDefault(pair.Key);

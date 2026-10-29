@@ -13,7 +13,7 @@ namespace PlayniteAchievements.Services.Achievements
         /// <summary>
         /// The first of "leaf", "leaf (2)", "leaf (3)", ... under <paramref name="parentPath"/>
         /// (null = top level) whose full path collides with nothing in
-        /// <paramref name="existingLabels"/> (case-insensitive over normalized paths). Null when
+        /// <paramref name="existingLabels"/> (exact match over normalized paths). Null when
         /// the base leaf sanitizes away to nothing.
         /// </summary>
         public static string GenerateUniqueLabel(
@@ -31,7 +31,7 @@ namespace PlayniteAchievements.Services.Achievements
                 (existingLabels ?? Enumerable.Empty<string>())
                     .Where(label => !string.IsNullOrWhiteSpace(label))
                     .Select(CategoryPathHelper.NormalizePath),
-                StringComparer.OrdinalIgnoreCase);
+                CategoryPathHelper.LabelComparer);
 
             var candidate = CategoryPathHelper.Join(parentPath, leaf);
             for (var suffix = 2; existing.Contains(candidate); suffix++)

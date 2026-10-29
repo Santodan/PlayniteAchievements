@@ -21,7 +21,7 @@ namespace PlayniteAchievements.Services.Achievements
             Func<T, string> categoryLabelSelector,
             Func<T, string> apiNameSelector)
         {
-            var map = new Dictionary<string, List<string>>(StringComparer.OrdinalIgnoreCase);
+            var map = new Dictionary<string, List<string>>(CategoryPathHelper.LabelComparer);
             if (achievements == null || categoryLabelSelector == null || apiNameSelector == null)
             {
                 return map;

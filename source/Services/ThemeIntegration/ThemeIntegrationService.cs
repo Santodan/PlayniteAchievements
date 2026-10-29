@@ -3633,7 +3633,7 @@ namespace PlayniteAchievements.Services.ThemeIntegration
 
         private static int CountDistinctCategoryLabels(IReadOnlyList<AchievementDisplayItem> items)
         {
-            var labels = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var labels = new HashSet<string>(CategoryPathHelper.LabelComparer);
             foreach (var item in items ?? (IReadOnlyList<AchievementDisplayItem>)Array.Empty<AchievementDisplayItem>())
             {
                 if (item != null)
@@ -4157,7 +4157,7 @@ namespace PlayniteAchievements.Services.ThemeIntegration
             return source.Where(item => string.Equals(
                 AchievementCategoryHelper.NormalizeCategoryOrDefault(item?.Category),
                 categoryLabelKey,
-                StringComparison.OrdinalIgnoreCase));
+                CategoryPathHelper.LabelComparison));
         }
 
         private bool TryNormalizeSelectedGameCategoryLabel(object parameter, out string key)
@@ -4171,12 +4171,13 @@ namespace PlayniteAchievements.Services.ThemeIntegration
             }
 
             // Accept only labels present in the current game so a bad theme binding cannot
-            // pin the list to a permanently empty scope.
+            // pin the list to a permanently empty scope. The key comes from a theme, so it
+            // resolves loosely: an exact label wins, else the one label differing only in case.
             var normalized = AchievementCategoryHelper.NormalizeCategoryOrDefault(raw);
             var achievements = _runtimeState.SelectedGame?.AllAchievements ?? EmptyAchievementList;
-            key = achievements
-                .Select(item => AchievementCategoryHelper.NormalizeCategoryOrDefault(item?.Category))
-                .FirstOrDefault(label => string.Equals(label, normalized, StringComparison.OrdinalIgnoreCase));
+            key = CategoryPathHelper.ResolveLoose(
+                normalized,
+                achievements.Select(item => AchievementCategoryHelper.NormalizeCategoryOrDefault(item?.Category)));
             return key != null;
         }
 
@@ -4193,7 +4194,7 @@ namespace PlayniteAchievements.Services.ThemeIntegration
             var exists = (state?.AllAchievements ?? EmptyAchievementList).Any(item => string.Equals(
                 AchievementCategoryHelper.NormalizeCategoryOrDefault(item?.Category),
                 key,
-                StringComparison.OrdinalIgnoreCase));
+                CategoryPathHelper.LabelComparison));
             if (!exists)
             {
                 viewState.ResetCategoryScope();

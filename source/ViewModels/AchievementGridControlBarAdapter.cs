@@ -21,7 +21,7 @@ namespace PlayniteAchievements.ViewModels
         private readonly HashSet<string> _selectedCategoryTypeFilters =
             new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         private readonly HashSet<string> _selectedCategoryLabelFilters =
-            new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            new HashSet<string>(CategoryPathHelper.LabelComparer);
         private string _searchText = string.Empty;
         private bool _showUnlocked = true;
         private bool _showLocked = true;
@@ -187,7 +187,7 @@ namespace PlayniteAchievements.ViewModels
                     _selectedCategoryLabelFilters
                         .Select(AchievementCategoryHelper.NormalizeCategoryOrDefault)
                         .Where(value => !string.IsNullOrWhiteSpace(value)),
-                    StringComparer.OrdinalIgnoreCase);
+                    CategoryPathHelper.LabelComparer);
                 filtered = filtered.Where(item =>
                     selectedCategorySet.Contains(
                         AchievementCategoryHelper.NormalizeCategoryOrDefault(item.CategoryLabel)));
@@ -552,9 +552,10 @@ namespace PlayniteAchievements.ViewModels
                 return false;
             }
 
+            // Options match the selection's own identity rule: type keys ignore case, category labels do not.
             var optionSet = new HashSet<string>(
                 (options ?? Enumerable.Empty<string>()).Where(value => !string.IsNullOrWhiteSpace(value)),
-                StringComparer.OrdinalIgnoreCase);
+                selectedValues.Comparer);
             return selectedValues.RemoveWhere(value => !optionSet.Contains(value)) > 0;
         }
 

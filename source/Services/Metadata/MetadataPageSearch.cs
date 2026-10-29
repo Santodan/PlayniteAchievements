@@ -1,5 +1,6 @@
 using PlayniteAchievements.Models.Achievements;
 using PlayniteAchievements.Providers.Metadata;
+using PlayniteAchievements.Services.Achievements;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -143,7 +144,7 @@ namespace PlayniteAchievements.Services.Metadata
                 .Select(match => match.Target));
             var categories = targets
                 .Where(row => row != null && !string.IsNullOrWhiteSpace(row.Category))
-                .GroupBy(row => row.Category.Trim(), StringComparer.OrdinalIgnoreCase)
+                .GroupBy(row => row.Category.Trim(), CategoryPathHelper.LabelComparer)
                 .Where(group => group.Count() >= FillCategoryMinimum && group.Count(confirmed.Contains) < CoveredCategoryMinimum)
                 .ToList();
             var total = chosen.Matched;

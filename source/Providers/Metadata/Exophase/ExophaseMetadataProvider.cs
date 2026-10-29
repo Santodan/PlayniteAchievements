@@ -382,7 +382,7 @@ namespace PlayniteAchievements.Providers.Metadata.Exophase
 
             var page = await _pages.GetPageAsync(slug, platformSlug, ct).ConfigureAwait(false);
             var rows = page?.Achievements ?? new List<AchievementDetail>();
-            var categoryArt = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            var categoryArt = new Dictionary<string, string>(CategoryPathHelper.LabelComparer);
             var gameArt = page?.GameArtUrl;
             var baseLabel = request?.BaseCategoryLabel;
             ApplySections(rows, page?.Sections ?? Array.Empty<ExophaseAwardSection>(), categoryArt, baseLabel);

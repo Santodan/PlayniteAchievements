@@ -64,7 +64,7 @@ namespace PlayniteAchievements.Services.Metadata
                     var categories = Values[CustomizationArea.Categories];
                     return categories.Count > 0 &&
                            (categories.Count < RowCount ||
-                            categories.Values.Distinct(StringComparer.OrdinalIgnoreCase).Skip(1).Any());
+                            categories.Values.Distinct(CategoryPathHelper.LabelComparer).Skip(1).Any());
                 }
             }
 

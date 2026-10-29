@@ -90,7 +90,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         private ProviderOverrideChoice _selectedDisplayPlatform;
         private bool _isSyncingDisplayPlatform;
         private readonly HashSet<string> _selectedCategoryFilters =
-            new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            new HashSet<string>(CategoryPathHelper.LabelComparer);
         private readonly HashSet<string> _selectedTypeFilters =
             new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         private readonly HashSet<string> _selectedCustomizationFilters =
@@ -1716,7 +1716,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         /// </summary>
         private bool SelectionCategoriesAreDistinct()
         {
-            var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var seen = new HashSet<string>(CategoryPathHelper.LabelComparer);
             foreach (var row in _selectedRows)
             {
                 if (row == null || string.IsNullOrWhiteSpace(row.OriginalApiName))
@@ -3361,7 +3361,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             var categories = AchievementRows
                 .Where(row => row != null && !string.IsNullOrWhiteSpace(row.OriginalApiName))
                 .Select(row => AchievementCategoryHelper.NormalizeCategoryOrDefault(row.EffectiveCategoryLabel))
-                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .Distinct(CategoryPathHelper.LabelComparer)
                 .OrderBy(label => label, StringComparer.CurrentCultureIgnoreCase)
                 .ToList();
 
@@ -3422,7 +3422,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             return string.Equals(
                 AchievementCategoryHelper.NormalizeCategoryOrDefault(row.EffectiveCategoryLabel),
                 AchievementCategoryHelper.NormalizeCategoryOrDefault(category),
-                StringComparison.OrdinalIgnoreCase);
+                CategoryPathHelper.LabelComparison);
         }
 
         /// <summary>
@@ -4198,7 +4198,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
 
             // The pickers rebuild their option rows once per collection event, so an unchanged
             // label set has to raise none.
-            if (AssignableCategoryOptions.SequenceEqual(ordered, StringComparer.OrdinalIgnoreCase))
+            if (AssignableCategoryOptions.SequenceEqual(ordered, CategoryPathHelper.LabelComparer))
             {
                 return;
             }
@@ -4322,7 +4322,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 Resolver = resolver;
                 ByApiName = byApiName;
                 Materialized = materialized;
-                CategoryDisplayNames = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+                CategoryDisplayNames = new Dictionary<string, string>(CategoryPathHelper.LabelComparer);
             }
 
             public CapstoneResolver Resolver { get; }
@@ -6444,7 +6444,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 .ToList();
 
             var removed = _selectedCategoryFilters
-                .Where(selected => !_categoryFilterOptions.Contains(selected, StringComparer.OrdinalIgnoreCase))
+                .Where(selected => !_categoryFilterOptions.Contains(selected, CategoryPathHelper.LabelComparer))
                 .ToList();
             foreach (var stale in removed)
             {

@@ -860,7 +860,7 @@ namespace PlayniteAchievements.Services.GameCustomData
             }
 
             var normalized = new List<string>();
-            var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var seen = new HashSet<string>(CategoryPathHelper.LabelComparer);
             foreach (var categoryLabel in categoryLabels)
             {
                 var label = CategoryPathHelper.NormalizePath(categoryLabel);
@@ -1277,7 +1277,7 @@ namespace PlayniteAchievements.Services.GameCustomData
                 return null;
             }
 
-            var normalized = new Dictionary<string, CategoryImageOverrideData>(StringComparer.OrdinalIgnoreCase);
+            var normalized = new Dictionary<string, CategoryImageOverrideData>(CategoryPathHelper.LabelComparer);
             foreach (var pair in values)
             {
                 var category = CategoryPathHelper.NormalizePath(pair.Key);
@@ -1714,7 +1714,7 @@ namespace PlayniteAchievements.Services.GameCustomData
                 return null;
             }
 
-            var normalized = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            var normalized = new Dictionary<string, string>(CategoryPathHelper.LabelComparer);
             foreach (var pair in values)
             {
                 var category = AchievementCategoryHelper.NormalizeCategory(pair.Key);

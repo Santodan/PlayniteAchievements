@@ -150,7 +150,7 @@ namespace PlayniteAchievements.Providers.Metadata
             int appId = 0)
         {
             var plan = new List<KeyValuePair<string, int>>();
-            var seenLabels = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var seenLabels = new HashSet<string>(CategoryPathHelper.LabelComparer);
 
             var baseLabel = string.IsNullOrWhiteSpace(gameName) ? null : gameName.Trim();
             if (baseLabel != null && appId > 0 && seenLabels.Add(baseLabel))

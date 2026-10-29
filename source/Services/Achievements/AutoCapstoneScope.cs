@@ -54,7 +54,7 @@ namespace PlayniteAchievements.Services.Achievements
 
                 var before = AchievementCategoryHelper.NormalizeCategoryOrDefault(categoryBefore(apiName));
                 var after = AchievementCategoryHelper.NormalizeCategoryOrDefault(categoryAfter(apiName));
-                if (string.Equals(before, after, StringComparison.OrdinalIgnoreCase))
+                if (string.Equals(before, after, CategoryPathHelper.LabelComparison))
                 {
                     continue;
                 }

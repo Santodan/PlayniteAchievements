@@ -442,14 +442,21 @@ namespace PlayniteAchievements.Steam.Tests
                 new SteamHuntersAchievementGroup
                 {
                     DlcAppId = 222,
+                    Name = "Expansion"
+                },
+                new SteamHuntersAchievementGroup
+                {
+                    DlcAppId = 333,
                     Name = "expansion"
                 }
             };
 
             var plan = SteamHuntersCategoryEnricher.BuildCategoryImagePlan(groups, "dlcandupdate");
 
-            Assert.AreEqual(1, plan.Count);
+            // "expansion" is a category of its own; only the exact repeat is dropped.
+            Assert.AreEqual(2, plan.Count);
             Assert.AreEqual(111, plan[0].Value);
+            Assert.AreEqual(333, plan[1].Value);
         }
 
         [TestMethod]

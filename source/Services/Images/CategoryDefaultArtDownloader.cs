@@ -29,7 +29,7 @@ namespace PlayniteAchievements.Services.Images
             }
 
             var gameIdText = playniteGameId.Value.ToString("D");
-            var seenLabels = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var seenLabels = new HashSet<string>(CategoryPathHelper.LabelComparer);
             foreach (var entry in entries)
             {
                 cancel.ThrowIfCancellationRequested();

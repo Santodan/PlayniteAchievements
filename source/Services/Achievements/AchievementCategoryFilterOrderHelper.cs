@@ -17,8 +17,8 @@ namespace PlayniteAchievements.Services.Achievements
                 return ordered;
             }
 
-            var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-            var sourceLabels = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            var seen = new HashSet<string>(CategoryPathHelper.LabelComparer);
+            var sourceLabels = new Dictionary<string, string>(CategoryPathHelper.LabelComparer);
             foreach (var item in source)
             {
                 var normalized = CategoryPathHelper.NormalizePath(categorySelector(item));
@@ -62,7 +62,7 @@ namespace PlayniteAchievements.Services.Achievements
         /// </summary>
         public static Dictionary<string, int> BuildCategoryOrderIndex(IReadOnlyList<string> categoryOrder)
         {
-            var map = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+            var map = new Dictionary<string, int>(CategoryPathHelper.LabelComparer);
             if (categoryOrder == null)
             {
                 return map;
@@ -119,7 +119,7 @@ namespace PlayniteAchievements.Services.Achievements
                 if (string.Equals(
                     CategoryPathHelper.NormalizePath(categoryOrder[i]),
                     categoryLabel,
-                    StringComparison.OrdinalIgnoreCase))
+                    CategoryPathHelper.LabelComparison))
                 {
                     return i;
                 }
@@ -213,7 +213,7 @@ namespace PlayniteAchievements.Services.Achievements
         private static List<string> ExpandToNodes(IEnumerable<string> labels)
         {
             var nodes = new List<string>();
-            var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var seen = new HashSet<string>(CategoryPathHelper.LabelComparer);
             foreach (var label in labels)
             {
                 foreach (var node in CategoryPathHelper.EnumerateSelfAndAncestors(label))

@@ -343,7 +343,7 @@ namespace PlayniteAchievements.Services.Achievements
         private static MetadataCategoryCapstone CategoryCapstone(IReadOnlyList<MetadataCategoryCapstone> capstones, string category) =>
             string.IsNullOrWhiteSpace(category)
                 ? null
-                : capstones?.FirstOrDefault(capstone => string.Equals(capstone?.Category?.Trim(), category.Trim(), StringComparison.OrdinalIgnoreCase));
+                : capstones?.FirstOrDefault(capstone => string.Equals(capstone?.Category?.Trim(), category.Trim(), CategoryPathHelper.LabelComparison));
 
         /// <summary>Each collection game's borrowed platinum by category, as the last overlay recorded them; empty when none.</summary>
         public IReadOnlyList<MetadataCategoryCapstone> CategoryCapstones(Guid gameId) =>
@@ -531,7 +531,7 @@ namespace PlayniteAchievements.Services.Achievements
                 achievements
                     .Where(achievement => achievement?.IsCapstone == true && !string.IsNullOrWhiteSpace(achievement.Category))
                     .Select(achievement => achievement.Category.Trim()),
-                StringComparer.OrdinalIgnoreCase);
+                CategoryPathHelper.LabelComparer);
             var added = 0;
             foreach (var capstone in pending)
             {

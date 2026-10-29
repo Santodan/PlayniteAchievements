@@ -69,7 +69,7 @@ namespace PlayniteAchievements.Tests.Services
             Assert.IsNull(AutoCapstoneScope.Rescope(
                 new[] { Capstone(wholeGame: true) },
                 Categories("Main"),
-                Categories("main")));
+                Categories("Main")));
         }
 
         [TestMethod]

@@ -50,11 +50,11 @@ namespace PlayniteAchievements.Services.GameCustomData
         public List<string> AchievementCategoryOrder { get; set; } = new List<string>();
 
         public Dictionary<string, CategoryImageOverrideData> AchievementCategoryImageOverrides { get; set; } =
-            new Dictionary<string, CategoryImageOverrideData>(StringComparer.OrdinalIgnoreCase);
+            new Dictionary<string, CategoryImageOverrideData>(CategoryPathHelper.LabelComparer);
 
         /// <inheritdoc cref="Models.Settings.GameCustomDataFile.AchievementCategoryKinds"/>
         public Dictionary<string, string> AchievementCategoryKinds { get; set; } =
-            new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            new Dictionary<string, string>(CategoryPathHelper.LabelComparer);
 
         /// <inheritdoc cref="Models.Settings.GameCustomDataFile.AchievementTags"/>
         public List<AchievementTagDefinition> AchievementTags { get; set; } = new List<AchievementTagDefinition>();
@@ -239,7 +239,7 @@ namespace PlayniteAchievements.Services.GameCustomData
                 AchievementCategoryImageOverrides =
                     CloneCategoryImageOverrideMap(customData.AchievementCategoryImageOverrides),
                 AchievementCategoryKinds = Models.Settings.GameCustomDataFile.CloneCategoryKindMap(customData.AchievementCategoryKinds) ??
-                    new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase),
+                    new Dictionary<string, string>(CategoryPathHelper.LabelComparer),
                 AchievementTags = Models.Settings.GameCustomDataFile.CloneTagList(customData.AchievementTags) ??
                     new List<AchievementTagDefinition>(),
                 GameSummaryCategory =
@@ -290,7 +290,7 @@ namespace PlayniteAchievements.Services.GameCustomData
                         : new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase),
                 AchievementCategoryOrder = new List<string>(),
                 AchievementCategoryImageOverrides =
-                    new Dictionary<string, CategoryImageOverrideData>(StringComparer.OrdinalIgnoreCase),
+                    new Dictionary<string, CategoryImageOverrideData>(CategoryPathHelper.LabelComparer),
                 GameSummaryCategory = null,
                 FilteredAchievementApiNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase),
                 SummaryFilteredAchievementApiNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase),
@@ -1194,7 +1194,7 @@ namespace PlayniteAchievements.Services.GameCustomData
         private static List<string> CloneCategoryOrder(IEnumerable<string> source)
         {
             var result = new List<string>();
-            var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var seen = new HashSet<string>(CategoryPathHelper.LabelComparer);
             if (source == null)
             {
                 return result;
@@ -1215,7 +1215,7 @@ namespace PlayniteAchievements.Services.GameCustomData
         private static Dictionary<string, CategoryImageOverrideData> CloneCategoryImageOverrideMap(
             IReadOnlyDictionary<string, CategoryImageOverrideData> source)
         {
-            var map = new Dictionary<string, CategoryImageOverrideData>(StringComparer.OrdinalIgnoreCase);
+            var map = new Dictionary<string, CategoryImageOverrideData>(CategoryPathHelper.LabelComparer);
             if (source == null)
             {
                 return map;

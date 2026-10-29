@@ -222,7 +222,7 @@ namespace PlayniteAchievements.Services.Achievements
                         string.Equals(
                             ResolveCategory(byApiName, categoryOverrides, assignment.ApiName),
                             category,
-                            StringComparison.OrdinalIgnoreCase))
+                            CategoryPathHelper.LabelComparison))
                     {
                         continue;
                     }
@@ -917,7 +917,7 @@ namespace PlayniteAchievements.Services.Achievements
                 customData =>
                 {
                     var kinds = GameCustomDataFile.CloneCategoryKindMap(customData.AchievementCategoryKinds) ??
-                        new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+                        new Dictionary<string, string>(CategoryPathHelper.LabelComparer);
                     var stored = CategoryKindHelper.NormalizeStored(kind);
                     if (stored == null)
                     {
@@ -1916,7 +1916,7 @@ namespace PlayniteAchievements.Services.Achievements
             }
 
             var result = new List<string>();
-            var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var seen = new HashSet<string>(CategoryPathHelper.LabelComparer);
             foreach (var value in values)
             {
                 var normalized = AchievementCategoryHelper.NormalizeCategoryOrDefault(value);
@@ -2032,7 +2032,7 @@ namespace PlayniteAchievements.Services.Achievements
                 return null;
             }
 
-            var copy = new Dictionary<string, CategoryImageOverrideData>(StringComparer.OrdinalIgnoreCase);
+            var copy = new Dictionary<string, CategoryImageOverrideData>(CategoryPathHelper.LabelComparer);
             foreach (var pair in values)
             {
                 var key = AchievementCategoryHelper.NormalizeCategoryOrDefault(pair.Key);

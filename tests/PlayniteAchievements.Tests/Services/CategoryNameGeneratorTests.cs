@@ -29,14 +29,14 @@ namespace PlayniteAchievements.Tests.Services
         }
 
         [TestMethod]
-        public void GenerateUniqueLabel_CollisionsAreCaseInsensitive()
+        public void GenerateUniqueLabel_CollisionsAreCaseSensitive()
         {
             var label = CategoryNameGenerator.GenerateUniqueLabel(
                 new[] { "new category" },
                 parentPath: null,
                 baseLeafName: "New Category");
 
-            Assert.AreEqual("New Category (2)", label);
+            Assert.AreEqual("New Category", label);
         }
 
         [TestMethod]

@@ -386,7 +386,7 @@ namespace PlayniteAchievements.Providers.ShadPS4
                 var localizedGroupNamesById = BuildGroupNamesDictionary(localizedDoc, ps4Locale);
 
                 // Category label -> trophy group id, first group to use a label wins.
-                var groupIdsByLabel = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+                var groupIdsByLabel = new Dictionary<string, string>(CategoryPathHelper.LabelComparer);
 
                 foreach (var trophyElement in doc.Descendants("trophy"))
                 {

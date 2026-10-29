@@ -1082,7 +1082,7 @@ namespace PlayniteAchievements.Services.Achievements
                 return indexComparison;
             }
 
-            return CompareText(
+            return CompareCategoryLabel(
                 AchievementCategoryHelper.NormalizeCategoryOrDefault(a?.CategoryLabel),
                 AchievementCategoryHelper.NormalizeCategoryOrDefault(b?.CategoryLabel));
         }
@@ -1443,6 +1443,19 @@ namespace PlayniteAchievements.Services.Achievements
         private static int CompareText(string a, string b)
         {
             return string.Compare(a, b, StringComparison.OrdinalIgnoreCase);
+        }
+
+        /// <summary>
+        /// Category labels are case-sensitive, so labels differing only in case are distinct
+        /// categories: they sort together by their case-insensitive text, then by exact text so
+        /// their relative order is stable.
+        /// </summary>
+        private static int CompareCategoryLabel(string a, string b)
+        {
+            var comparison = string.Compare(a, b, StringComparison.OrdinalIgnoreCase);
+            return comparison != 0
+                ? comparison
+                : string.Compare(a, b, CategoryPathHelper.LabelComparison);
         }
     }
 }

@@ -34,7 +34,7 @@ namespace PlayniteAchievements.Services.Tests
         }
 
         [TestMethod]
-        public void BuildOrderedCategoryLabels_NormalizesBlankValuesToDefault_AndDedupesCaseInsensitively()
+        public void BuildOrderedCategoryLabels_NormalizesBlankValuesToDefault_AndKeepsCaseVariantsApart()
         {
             var items = new[]
             {
@@ -50,7 +50,7 @@ namespace PlayniteAchievements.Services.Tests
                 item => item?.CategoryLabel);
 
             CollectionAssert.AreEqual(
-                new[] { "Default", "DLC 1" },
+                new[] { "Default", "DLC 1", "dlc 1" },
                 ordered);
         }
 

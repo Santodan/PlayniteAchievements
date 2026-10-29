@@ -943,7 +943,7 @@ namespace PlayniteAchievements.Services.Achievements
                     : new List<string>(),
                 AchievementCategoryImageOverrides = hasCustomData
                     ? CloneCategoryImageOverrideMap(customData.AchievementCategoryImageOverrides)
-                    : new Dictionary<string, CategoryImageOverrideData>(StringComparer.OrdinalIgnoreCase),
+                    : new Dictionary<string, CategoryImageOverrideData>(CategoryPathHelper.LabelComparer),
                 AchievementNotes = hasCustomData
                     ? CloneNoteMap(customData.AchievementNotes)
                     : EmptyStringMap,
@@ -1055,7 +1055,7 @@ namespace PlayniteAchievements.Services.Achievements
         private static List<string> CloneCategoryOrder(IEnumerable<string> source)
         {
             var result = new List<string>();
-            var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var seen = new HashSet<string>(CategoryPathHelper.LabelComparer);
             foreach (var value in source ?? Enumerable.Empty<string>())
             {
                 var normalized = AchievementCategoryHelper.NormalizeCategoryOrDefault(value);
@@ -1071,7 +1071,7 @@ namespace PlayniteAchievements.Services.Achievements
         private static Dictionary<string, CategoryImageOverrideData> CloneCategoryImageOverrideMap(
             IReadOnlyDictionary<string, CategoryImageOverrideData> source)
         {
-            var map = new Dictionary<string, CategoryImageOverrideData>(StringComparer.OrdinalIgnoreCase);
+            var map = new Dictionary<string, CategoryImageOverrideData>(CategoryPathHelper.LabelComparer);
             if (source == null || source.Count == 0)
             {
                 return map;
