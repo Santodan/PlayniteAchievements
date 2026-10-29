@@ -86,7 +86,7 @@ namespace PlayniteAchievements.Services.Summaries
 
             var item = new GameSummaryItem
             {
-                GameName = presentation.DisplayName ?? gameData.GameName ?? "Unknown",
+                GameName = presentation.DisplayName ?? gameData.GameName ?? ResourceProvider.GetString("LOCPlayAch_Common_Unknown"),
                 SortingName = presentation.SortingName ?? presentation.DisplayName ?? gameData.GameName ?? "Unknown",
                 GameLogo = summaryArt ?? presentation.IconPath,
                 GameCoverPath = summaryArt ?? presentation.CoverPath,
