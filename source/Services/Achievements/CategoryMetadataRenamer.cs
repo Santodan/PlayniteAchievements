@@ -38,7 +38,7 @@ namespace PlayniteAchievements.Services.Achievements
             var normalizedTarget = AchievementCategoryHelper.NormalizeCategoryOrDefault(targetCategory);
             if (string.IsNullOrWhiteSpace(normalizedSource) ||
                 string.IsNullOrWhiteSpace(normalizedTarget) ||
-                string.Equals(normalizedSource, normalizedTarget, StringComparison.OrdinalIgnoreCase))
+                string.Equals(normalizedSource, normalizedTarget, CategoryPathHelper.LabelComparison))
             {
                 return null;
             }
@@ -47,7 +47,7 @@ namespace PlayniteAchievements.Services.Achievements
             // "DLC" to "Extras" has to carry "DLC::Winter" to "Extras::Winter" with it, or the
             // subtree's art and ordering are stranded under a label nothing points at any more.
             var nextOrder = new List<string>();
-            var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var seen = new HashSet<string>(CategoryPathHelper.LabelComparer);
             foreach (var label in currentOrder ?? Enumerable.Empty<string>())
             {
                 var normalized = CategoryPathHelper.NormalizePath(label);
@@ -63,9 +63,9 @@ namespace PlayniteAchievements.Services.Achievements
                 }
             }
 
-            var nextImages = new Dictionary<string, CategoryImageOverrideData>(StringComparer.OrdinalIgnoreCase);
+            var nextImages = new Dictionary<string, CategoryImageOverrideData>(CategoryPathHelper.LabelComparer);
             CategoryImageOverrideData sourceImages = null;
-            foreach (var pair in currentImages ?? new Dictionary<string, CategoryImageOverrideData>(StringComparer.OrdinalIgnoreCase))
+            foreach (var pair in currentImages ?? new Dictionary<string, CategoryImageOverrideData>(CategoryPathHelper.LabelComparer))
             {
                 var key = CategoryPathHelper.NormalizePath(pair.Key);
                 if (string.IsNullOrWhiteSpace(key) || pair.Value == null)
