@@ -2105,7 +2105,10 @@
                                 Visibility="{Binding HasEditTarget, Converter={StaticResource BoolToVis}}">
                             <StackPanel DataContext="{Binding EditTarget}">
                                 <!-- Unlock state and visibility: what the achievement is. -->
+                                <!-- Each glyph and its tick share a panel so the pair wraps as
+                                     one, never leaving a glyph at the end of a line. -->
                                 <WrapPanel Orientation="Horizontal">
+                                    <StackPanel Orientation="Horizontal" Margin="0,0,18,2">
                                     <Path Data="{StaticResource GeoCheck}"
                                           Stroke="{DynamicResource PlayAch.Brush.Glyph}"
                                           StrokeThickness="2"
@@ -2125,8 +2128,9 @@
                                               IsChecked="{Binding UnlockedState, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                               IsEnabled="{Binding CanEditUnlocked}"
                                               MinHeight="{StaticResource PlayAch.Size.Control.Height}"
-                                              Margin="0,0,18,2"
                                               VerticalContentAlignment="Center" />
+                                    </StackPanel>
+                                    <StackPanel Orientation="Horizontal" Margin="0,0,18,2">
                                     <Image Width="14"
                                            Height="14"
                                            Stretch="Uniform"
@@ -2137,8 +2141,9 @@
                                     <CheckBox Content="{DynamicResource LOCPlayAch_Filter_Hidden}"
                                               IsChecked="{Binding HiddenState, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                               MinHeight="{StaticResource PlayAch.Size.Control.Height}"
-                                              Margin="0,0,18,2"
                                               VerticalContentAlignment="Center" />
+                                    </StackPanel>
+                                    <StackPanel Orientation="Horizontal" Margin="0,0,0,2">
                                     <TextBlock Text="&#xf003;"
                                                FontFamily="{DynamicResource PlayAch.FontFamily.Icon}"
                                                FontSize="13"
@@ -2149,8 +2154,8 @@
                                               IsChecked="{Binding IsGoalState, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                               IsEnabled="{Binding CanEditGoal}"
                                               MinHeight="{StaticResource PlayAch.Size.Control.Height}"
-                                              Margin="0,0,0,2"
                                               VerticalContentAlignment="Center" />
+                                    </StackPanel>
                                 </WrapPanel>
 
                                 <!-- A capstone carries how much of the game it stands for, so this
