@@ -750,7 +750,7 @@ namespace PlayniteAchievements.Services.Workshop.Preview
             diff.HasNotificationStyle = manifest?.NotificationAppearanceOverride != null;
             diff.CustomAchievementCount = entries.Count(entry => entry.State.IsCustom);
 
-            var categories = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var categories = new HashSet<string>(CategoryPathHelper.LabelComparer);
             foreach (var category in entries.Select(entry => entry.State.Category)
                          .Concat(manifest?.AchievementCategoryOrder ?? new List<string>()))
             {
