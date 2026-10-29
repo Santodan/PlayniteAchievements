@@ -116,6 +116,37 @@ namespace PlayniteAchievements.Tests.Models
         }
 
         [TestMethod]
+        public void SpanLinkedView_CountsProvidersFromSpanUnlocksNotWholeGames()
+        {
+            // The overview's linked view for a span: the games with unlocks in it, then those
+            // games' unlocks cut to the span.
+            var source = CreateSource();
+            var inRange = new DateTime(2026, 3, 1, 12, 0, 0, DateTimeKind.Utc);
+            var outOfRange = new DateTime(2025, 6, 1, 12, 0, 0, DateTimeKind.Utc);
+            source.Achievements = new List<PlayniteAchievements.ViewModels.AchievementDisplayItem>
+            {
+                new PlayniteAchievements.ViewModels.AchievementDisplayItem { PlayniteGameId = GameA, Unlocked = true, UnlockTimeUtc = inRange },
+                new PlayniteAchievements.ViewModels.AchievementDisplayItem { PlayniteGameId = GameA, Unlocked = true, UnlockTimeUtc = outOfRange },
+                new PlayniteAchievements.ViewModels.AchievementDisplayItem { PlayniteGameId = GameA, Unlocked = true, UnlockTimeUtc = outOfRange },
+                new PlayniteAchievements.ViewModels.AchievementDisplayItem { PlayniteGameId = GameB, Unlocked = true, UnlockTimeUtc = outOfRange }
+            };
+            var day = UnlockDayCounts.DayOf(inRange);
+            var span = new UnlockDaySpan(day, day);
+            var keptIds = new HashSet<Guid>(source.Achievements
+                .Where(item => span.Contains(UnlockDayCounts.DayOf(item.UnlockTimeUtc.Value)))
+                .Select(item => item.PlayniteGameId.Value));
+            var kept = source.GameSummaries.Where(game => keptIds.Contains(game.PlayniteGameId.Value)).ToList();
+
+            var whole = OverviewLinkedSnapshots.Build(source, kept, keptIsAll: false);
+            var linked = OverviewLinkedSnapshots.ClipToSpan(whole, span);
+
+            // The whole-game view counts GameA's four lifetime unlocks; the span view only one.
+            Assert.AreEqual(4, whole.UnlockedByProvider["Steam"]);
+            Assert.AreEqual(1, linked.UnlockedByProvider["Steam"]);
+            Assert.IsFalse(linked.UnlockedByProvider.ContainsKey("Epic"));
+        }
+
+        [TestMethod]
         public void NarrowToGames_KeepsAClippedViewClipped()
         {
             var source = CreateSource();
