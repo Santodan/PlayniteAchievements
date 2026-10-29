@@ -148,23 +148,16 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
     /// </summary>
     public sealed class ScoresWidgetViewModel : ShowcaseWidgetViewModelBase
     {
-        // The widget instance's shared adapter, so the filters survive view model swaps. Only a
-        // points card uses it: one provider's points narrowed to games.
-        private readonly ShowcaseControlBarSlot<ChartControlBarAdapter> _controlBarSlot;
+        private readonly ScoreCardFilter _filter;
         private GridControlBarViewModel _controlBar;
 
-        // The last narrowed view, reused while its source and games hold, so a refresh that keeps
-        // them neither rebuilds the card nor recounts its history. The source is held weakly, as
-        // the built snapshot below is.
-        private WeakReference<OverviewDataSnapshot> _narrowedFrom;
-        private HashSet<GameSummaryItem> _narrowedGames;
-        private OverviewDataSnapshot _narrowed;
+        // The narrowed view's history, recounted only when the view, window or day changes.
         private string _narrowedHistoryKey;
         private IReadOnlyList<ShowcaseScorePoint> _narrowedHistory;
 
         public ScoresWidgetViewModel()
         {
-            _controlBarSlot = new ShowcaseControlBarSlot<ChartControlBarAdapter>(Refresh);
+            _filter = new ScoreCardFilter(Refresh);
         }
 
         /// <summary>A points card's platform, game and progress filters its settings show; null otherwise.</summary>
@@ -209,8 +202,8 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
         public double MaxCardWidth { get => _maxCardWidth; private set => SetValue(ref _maxCardWidth, value); }
 
         /// <summary>
-        /// A points card's snapshot narrowed to the games its control bar keeps; the snapshot
-        /// itself for the other cards, or while the bar keeps every game.
+        /// The snapshot narrowed by the card's filters (see <see cref="ScoreCardFilter.Apply"/>);
+        /// a points card also shows the bar items its settings show.
         /// </summary>
         /// <param name="keptGames">The platform's games the bar keeps; empty for the other cards.</param>
         private OverviewDataSnapshot ApplyControlBarFilter(
@@ -218,73 +211,22 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
             ScoreCardType type,
             out IReadOnlyList<GameSummaryItem> keptGames)
         {
-            _controlBarSlot.Bind(Projection?.Instance?.InstanceId);
-            keptGames = Array.Empty<GameSummaryItem>();
-            if (!type.IsPoints)
+            var instance = Projection?.Instance;
+            var snapshot = _filter.Apply(source, type, instance, out keptGames, out var rebuilt);
+            if (rebuilt)
             {
-                ControlBar = null;
-                return source;
-            }
-
-            _controlBarSlot.UpdateShownBar(Projection?.Instance);
-            ControlBar = _controlBarSlot.ShownBar;
-
-            // Only the card's platform earns its points, so the bar lists and filters that
-            // platform's games alone.
-            var adapter = _controlBarSlot.Adapter;
-            var family = PointsFamilies.Normalize(type.PointsFamily);
-            var games = (source.GameSummaries ?? new List<GameSummaryItem>())
-                .Where(game => game != null &&
-                               string.Equals(PointsFamilies.Normalize(game.PointsFamily), family, StringComparison.OrdinalIgnoreCase))
-                .ToList();
-            adapter.UpdateOptions(games);
-            var kept = adapter.Apply(games);
-            keptGames = kept;
-            adapter.ShownGameCount = kept.Count;
-            if (kept.Count == games.Count)
-            {
-                return source;
-            }
-
-            OverviewDataSnapshot narrowedFrom = null;
-            _narrowedFrom?.TryGetTarget(out narrowedFrom);
-            if (!ReferenceEquals(narrowedFrom, source) || _narrowedGames == null || !_narrowedGames.SetEquals(kept))
-            {
-                _narrowedFrom = new WeakReference<OverviewDataSnapshot>(source);
-                _narrowedGames = new HashSet<GameSummaryItem>(kept);
-                _narrowed = OverviewLinkedSnapshots.NarrowToGames(source, kept);
                 _narrowedHistory = null;
             }
 
-            return _narrowed;
-        }
-
-        // The kept games' unlocks per rarity, summed: only the card's platform, as its points are.
-        private static IReadOnlyList<BadgeCountItem> BuildRarityBadges(IReadOnlyList<GameSummaryItem> games) =>
-            BadgeCountItem.BuildRarity(
-                games.Sum(game => game.UltraRareCount),
-                games.Sum(game => game.RareCount),
-                games.Sum(game => game.UncommonCount),
-                games.Sum(game => game.CommonCount));
-
-        // A card narrowed to one game shows that game's art when the option asks for it; with
-        // several games, or art the game lacks, the platform icon stays.
-        private static string ResolveGameArt(IReadOnlyList<GameSummaryItem> games, ShowcaseScoreCardArt art)
-        {
-            if (games.Count != 1)
+            if (!type.IsPoints)
             {
-                return null;
+                ControlBar = null;
+                return snapshot;
             }
 
-            switch (art)
-            {
-                case ShowcaseScoreCardArt.GameCover:
-                    return games[0].GameCoverPath;
-                case ShowcaseScoreCardArt.GameIcon:
-                    return games[0].GameLogo;
-                default:
-                    return null;
-            }
+            _filter.Slot.UpdateShownBar(instance);
+            ControlBar = _filter.Slot.ShownBar;
+            return snapshot;
         }
 
         // The narrowed view's history over the card's window, counted once per view and day.
@@ -309,10 +251,8 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
             var instance = Projection?.Instance;
             var type = ShowcaseWidgetOptions.GetScoreCardType(instance);
             var snapshot = ApplyControlBarFilter(source, type, out var keptGames);
-            var rarityBadges = ShowcaseWidgetOptions.GetScoreCardShowRarityBadges(instance)
-                ? BuildRarityBadges(keptGames)
-                : null;
-            var gameArt = ResolveGameArt(keptGames, ShowcaseWidgetOptions.GetScoreCardArt(instance));
+            var rarityBadges = ScoreCardFilter.RarityBadgesFor(instance, keptGames);
+            var gameArt = ScoreCardFilter.GameArtFor(instance, keptGames);
 
             Rows = 1;
             Columns = 1;
