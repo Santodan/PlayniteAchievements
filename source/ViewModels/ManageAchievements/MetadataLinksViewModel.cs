@@ -78,7 +78,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
 
             if (Uses(choices.Tags, MetadataField.Tags))
             {
-                fields.Add(ResourceProvider.GetString("LOCTagsLabel"));
+                fields.Add(ResourceProvider.GetString("LOCPlayAch_Common_Tags"));
             }
 
             if (Uses(choices.Rarity, MetadataField.Rarity))

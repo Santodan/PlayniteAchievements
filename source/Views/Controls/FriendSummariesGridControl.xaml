@@ -169,7 +169,7 @@
                                        TextAlignment="Center"
                                        VerticalAlignment="{Binding RelativeSource={RelativeSource AncestorType={x:Type DataGridCell}}, Path=Column.(helpers:DataGridAlignmentBehavior.CellVerticalAlignment)}"
                                        Foreground="{DynamicResource PlayAch.Brush.Text}"
-                                       ToolTip="{DynamicResource LOCGameFavoriteTitle}">
+                                       ToolTip="{DynamicResource LOCPlayAch_Common_Favorite}">
                                 <TextBlock.Style>
                                     <Style TargetType="TextBlock" BasedOn="{StaticResource PlayAch.TextBlock.BaseStyle}">
                                         <Setter Property="Opacity" Value="0"/>

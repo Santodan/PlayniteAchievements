@@ -42,7 +42,7 @@ namespace PlayniteAchievements.Views.Settings.Metadata
                     viewFactory: () => Page(new MetadataSourcesSection(settings, registry), scrolls: false)),
                 new SettingsNavigationItem(
                     "Tags",
-                    ResourceProvider.GetString("LOCTagsLabel"),
+                    ResourceProvider.GetString("LOCPlayAch_Common_Tags"),
                     iconGlyph: "",
                     viewFactory: () => Page(new AchievementTagsSettingsSection(settings, plugin))),
                 new SettingsNavigationItem(

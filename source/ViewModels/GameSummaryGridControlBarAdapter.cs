@@ -151,7 +151,7 @@ namespace PlayniteAchievements.ViewModels
         public string SelectedProviderFilterText =>
             OverviewGameSummaryFilters.BuildProviderFilterText(
                 ProviderFilterGroups,
-                L("LOCPlatformTitle"));
+                L("LOCPlayAch_Common_Platform"));
 
         public ObservableCollection<string> ProgressFilterOptions { get; }
 
@@ -382,7 +382,7 @@ namespace PlayniteAchievements.ViewModels
                 CollapseUnselectedProviderFilters)
             {
                 Id = ShowcaseControlBarItems.Platform,
-                LabelKey = "LOCPlatformTitle",
+                LabelKey = "LOCPlayAch_Common_Platform",
                 Width = 170
             });
             controlBar.Items.Add(GameFilter.Item);

@@ -325,7 +325,7 @@ namespace PlayniteAchievements.ViewModels
                 CollapseUnselectedProviderFilters)
             {
                 Id = ShowcaseControlBarItems.Platform,
-                LabelKey = "LOCPlatformTitle",
+                LabelKey = "LOCPlayAch_Common_Platform",
                 Width = 170
             });
             GameSummariesControlBar.Items.Add(new GridMultiSelectFilter(
@@ -423,7 +423,7 @@ namespace PlayniteAchievements.ViewModels
                 key => Services.Achievements.AchievementTagRegistry.GetName(key))
             {
                 Id = ShowcaseControlBarItems.Tag,
-                LabelKey = "LOCTagsLabel",
+                LabelKey = "LOCPlayAch_Common_Tags",
                 Width = 130,
                 IconKeyOf = key => TagControlBarFilter.IconKey(key, null)
             });
@@ -888,11 +888,11 @@ namespace PlayniteAchievements.ViewModels
             SelectedRefreshMode,
             RefreshModeType.Custom.GetKey(),
             StringComparison.Ordinal)
-            ? ResourceProvider.GetString("LOCConfigure")
+            ? ResourceProvider.GetString("LOCPlayAch_Common_Configure")
             : ResourceProvider.GetString("LOCPlayAch_Button_Refresh");
 
         public string RefreshOrCancelButtonText => IsRefreshing
-            ? ResourceProvider.GetString("LOCCancelLabel")
+            ? ResourceProvider.GetString("LOCPlayAch_Common_Cancel")
             : RefreshActionButtonText;
 
         public string RefreshOrCancelButtonGlyph => IsRefreshing
@@ -3726,7 +3726,7 @@ namespace PlayniteAchievements.ViewModels
         {
             return OverviewGameSummaryFilters.BuildProviderFilterText(
                 ProviderFilterGroups,
-                L("LOCPlatformTitle"));
+                L("LOCPlayAch_Common_Platform"));
         }
 
         private void ApplyRightFilters(bool skipDefaultSort = false)

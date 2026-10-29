@@ -69,7 +69,7 @@ namespace PlayniteAchievements.Tests.Views
             // with it.
             var formerHeaderKeys = new[]
             {
-                "LOCGeneralLabel",
+                "LOCPlayAch_Common_General",
                 "LOCPlayAch_Settings_Appearance",
                 "LOCPlayAch_Settings_Maintenance_Title",
                 "LOCPlayAch_Achievements"

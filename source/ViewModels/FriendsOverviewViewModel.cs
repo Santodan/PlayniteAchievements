@@ -460,11 +460,11 @@ namespace PlayniteAchievements.ViewModels
             SelectedRefreshMode,
             RefreshModeType.FriendsCustom.GetKey(),
             StringComparison.Ordinal)
-            ? ResourceProvider.GetString("LOCConfigure")
+            ? ResourceProvider.GetString("LOCPlayAch_Common_Configure")
             : ResourceProvider.GetString("LOCPlayAch_Button_Refresh");
 
         public string RefreshOrCancelButtonText => IsRefreshing
-            ? ResourceProvider.GetString("LOCCancelLabel")
+            ? ResourceProvider.GetString("LOCPlayAch_Common_Cancel")
             : RefreshActionButtonText;
 
         public string RefreshOrCancelButtonGlyph => IsRefreshing
@@ -548,11 +548,11 @@ namespace PlayniteAchievements.ViewModels
                 : GetSelectedFilterText(
                     _selectedFriendProviderFilters,
                     FriendProviderFilterOptions,
-                    ResourceProvider.GetString("LOCPlatformTitle"));
+                    ResourceProvider.GetString("LOCPlayAch_Common_Platform"));
 
         public string SelectedGamePlatformFilterText => OverviewGameSummaryFilters.BuildProviderFilterText(
             GamePlatformFilterGroups,
-            ResourceProvider.GetString("LOCPlatformTitle"));
+            ResourceProvider.GetString("LOCPlayAch_Common_Platform"));
 
         public string SelectedOwnershipFilterText => GetSelectedFilterText(
             _selectedOwnershipFilters,
@@ -665,7 +665,7 @@ namespace PlayniteAchievements.ViewModels
                 PlayniteAchievements.Providers.ProviderRegistry.GetLocalizedName)
             {
                 Id = PlayniteAchievements.Models.ShowcaseControlBarItems.Platform,
-                LabelKey = "LOCPlatformTitle",
+                LabelKey = "LOCPlayAch_Common_Platform",
                 Width = 118
             });
             return controlBar;
@@ -695,7 +695,7 @@ namespace PlayniteAchievements.ViewModels
                 CollapseUnselectedGamePlatformFilters)
             {
                 Id = PlayniteAchievements.Models.ShowcaseControlBarItems.Platform,
-                LabelKey = "LOCPlatformTitle",
+                LabelKey = "LOCPlayAch_Common_Platform",
                 Width = 170
             });
             controlBar.Items.Add(new GridMultiSelectFilter(

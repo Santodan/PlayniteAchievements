@@ -73,7 +73,7 @@
                                   ScrollViewer.VerticalScrollBarVisibility="Auto"
                                   ScrollViewer.HorizontalScrollBarVisibility="Auto">
                             <DataGrid.Columns>
-                                <DataGridTemplateColumn Header="{DynamicResource LOCPlatformTitle}"
+                                <DataGridTemplateColumn Header="{DynamicResource LOCPlayAch_Common_Platform}"
                                                         Width="*"
                                                         MinWidth="150">
                                     <DataGridTemplateColumn.CellTemplate>
@@ -113,7 +113,7 @@
                                                       MinWidth="86"
                                                       VerticalAlignment="Center"
                                                       Margin="4,2">
-                                                <ComboBoxItem Content="{DynamicResource LOCDefault}" Tag="{x:Static vm:OverrideState.Inherit}" ContentTemplate="{StaticResource PlayAch.ComboBox.InheritedOptionTemplate}"/>
+                                                <ComboBoxItem Content="{DynamicResource LOCPlayAch_Common_Default}" Tag="{x:Static vm:OverrideState.Inherit}" ContentTemplate="{StaticResource PlayAch.ComboBox.InheritedOptionTemplate}"/>
                                                 <ComboBoxItem Content="{DynamicResource LOCPlayAch_Settings_Override_On}" Tag="{x:Static vm:OverrideState.On}"/>
                                                 <ComboBoxItem Content="{DynamicResource LOCPlayAch_Settings_Override_Off}" Tag="{x:Static vm:OverrideState.Off}"/>
                                             </ComboBox>
@@ -132,7 +132,7 @@
                                                       MinWidth="86"
                                                       VerticalAlignment="Center"
                                                       Margin="4,2">
-                                                <ComboBoxItem Content="{DynamicResource LOCDefault}" Tag="{x:Static vm:OverrideState.Inherit}" ContentTemplate="{StaticResource PlayAch.ComboBox.InheritedOptionTemplate}"/>
+                                                <ComboBoxItem Content="{DynamicResource LOCPlayAch_Common_Default}" Tag="{x:Static vm:OverrideState.Inherit}" ContentTemplate="{StaticResource PlayAch.ComboBox.InheritedOptionTemplate}"/>
                                                 <ComboBoxItem Content="{DynamicResource LOCPlayAch_Settings_Override_On}" Tag="{x:Static vm:OverrideState.On}"/>
                                                 <ComboBoxItem Content="{DynamicResource LOCPlayAch_Settings_Override_Off}" Tag="{x:Static vm:OverrideState.Off}"/>
                                             </ComboBox>
@@ -150,7 +150,7 @@
                                                       MinWidth="86"
                                                       VerticalAlignment="Center"
                                                       Margin="4,2">
-                                                <ComboBoxItem Content="{DynamicResource LOCDefault}" Tag="{x:Static vm:OverrideState.Inherit}" ContentTemplate="{StaticResource PlayAch.ComboBox.InheritedOptionTemplate}"/>
+                                                <ComboBoxItem Content="{DynamicResource LOCPlayAch_Common_Default}" Tag="{x:Static vm:OverrideState.Inherit}" ContentTemplate="{StaticResource PlayAch.ComboBox.InheritedOptionTemplate}"/>
                                                 <ComboBoxItem Content="{DynamicResource LOCPlayAch_Settings_Override_On}" Tag="{x:Static vm:OverrideState.On}"/>
                                                 <ComboBoxItem Content="{DynamicResource LOCPlayAch_Settings_Override_Off}" Tag="{x:Static vm:OverrideState.Off}"/>
                                             </ComboBox>
@@ -202,7 +202,7 @@
                                                                       SelectedValuePath="Tag"
                                                                       MinWidth="86"
                                                                       Margin="0,0,0,6">
-                                                                <ComboBoxItem Content="{DynamicResource LOCDefault}" Tag="{x:Static vm:OverrideState.Inherit}" ContentTemplate="{StaticResource PlayAch.ComboBox.InheritedOptionTemplate}"/>
+                                                                <ComboBoxItem Content="{DynamicResource LOCPlayAch_Common_Default}" Tag="{x:Static vm:OverrideState.Inherit}" ContentTemplate="{StaticResource PlayAch.ComboBox.InheritedOptionTemplate}"/>
                                                                 <ComboBoxItem Content="{DynamicResource LOCPlayAch_Settings_Override_On}" Tag="{x:Static vm:OverrideState.On}"/>
                                                                 <ComboBoxItem Content="{DynamicResource LOCPlayAch_Settings_Override_Off}" Tag="{x:Static vm:OverrideState.Off}"/>
                                                             </ComboBox>
@@ -217,7 +217,7 @@
                                                                       SelectedValuePath="Tag"
                                                                       MinWidth="86"
                                                                       Margin="0,0,0,6">
-                                                                <ComboBoxItem Content="{DynamicResource LOCDefault}" Tag="{x:Static vm:OverrideState.Inherit}" ContentTemplate="{StaticResource PlayAch.ComboBox.InheritedOptionTemplate}"/>
+                                                                <ComboBoxItem Content="{DynamicResource LOCPlayAch_Common_Default}" Tag="{x:Static vm:OverrideState.Inherit}" ContentTemplate="{StaticResource PlayAch.ComboBox.InheritedOptionTemplate}"/>
                                                                 <ComboBoxItem Content="{DynamicResource LOCPlayAch_Settings_Override_On}" Tag="{x:Static vm:OverrideState.On}"/>
                                                                 <ComboBoxItem Content="{DynamicResource LOCPlayAch_Settings_Override_Off}" Tag="{x:Static vm:OverrideState.Off}"/>
                                                             </ComboBox>
@@ -231,7 +231,7 @@
                                                                       SelectedValue="{Binding ScreenshotFramed, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Tag="{Binding InheritedScreenshotFramed}"
                                                                       SelectedValuePath="Tag"
                                                                       MinWidth="86">
-                                                                <ComboBoxItem Content="{DynamicResource LOCDefault}" Tag="{x:Static vm:OverrideState.Inherit}" ContentTemplate="{StaticResource PlayAch.ComboBox.InheritedOptionTemplate}"/>
+                                                                <ComboBoxItem Content="{DynamicResource LOCPlayAch_Common_Default}" Tag="{x:Static vm:OverrideState.Inherit}" ContentTemplate="{StaticResource PlayAch.ComboBox.InheritedOptionTemplate}"/>
                                                                 <ComboBoxItem Content="{DynamicResource LOCPlayAch_Settings_Override_On}" Tag="{x:Static vm:OverrideState.On}"/>
                                                                 <ComboBoxItem Content="{DynamicResource LOCPlayAch_Settings_Override_Off}" Tag="{x:Static vm:OverrideState.Off}"/>
                                                             </ComboBox>
@@ -287,7 +287,7 @@
                                                                       SelectedValuePath="Tag"
                                                                       MinWidth="86"
                                                                       Margin="0,0,0,6">
-                                                                <ComboBoxItem Content="{DynamicResource LOCDefault}" Tag="{x:Static vm:OverrideState.Inherit}" ContentTemplate="{StaticResource PlayAch.ComboBox.InheritedOptionTemplate}"/>
+                                                                <ComboBoxItem Content="{DynamicResource LOCPlayAch_Common_Default}" Tag="{x:Static vm:OverrideState.Inherit}" ContentTemplate="{StaticResource PlayAch.ComboBox.InheritedOptionTemplate}"/>
                                                                 <ComboBoxItem Content="{DynamicResource LOCPlayAch_Settings_Override_On}" Tag="{x:Static vm:OverrideState.On}"/>
                                                                 <ComboBoxItem Content="{DynamicResource LOCPlayAch_Settings_Override_Off}" Tag="{x:Static vm:OverrideState.Off}"/>
                                                             </ComboBox>
@@ -302,7 +302,7 @@
                                                                       SelectedValuePath="Tag"
                                                                       MinWidth="86"
                                                                       Margin="0,0,0,6">
-                                                                <ComboBoxItem Content="{DynamicResource LOCDefault}" Tag="{x:Static vm:OverrideState.Inherit}" ContentTemplate="{StaticResource PlayAch.ComboBox.InheritedOptionTemplate}"/>
+                                                                <ComboBoxItem Content="{DynamicResource LOCPlayAch_Common_Default}" Tag="{x:Static vm:OverrideState.Inherit}" ContentTemplate="{StaticResource PlayAch.ComboBox.InheritedOptionTemplate}"/>
                                                                 <ComboBoxItem Content="{DynamicResource LOCPlayAch_Settings_Override_On}" Tag="{x:Static vm:OverrideState.On}"/>
                                                                 <ComboBoxItem Content="{DynamicResource LOCPlayAch_Settings_Override_Off}" Tag="{x:Static vm:OverrideState.Off}"/>
                                                             </ComboBox>
@@ -316,7 +316,7 @@
                                                                       SelectedValue="{Binding RecordingFramed, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Tag="{Binding InheritedRecordingFramed}"
                                                                       SelectedValuePath="Tag"
                                                                       MinWidth="86">
-                                                                <ComboBoxItem Content="{DynamicResource LOCDefault}" Tag="{x:Static vm:OverrideState.Inherit}" ContentTemplate="{StaticResource PlayAch.ComboBox.InheritedOptionTemplate}"/>
+                                                                <ComboBoxItem Content="{DynamicResource LOCPlayAch_Common_Default}" Tag="{x:Static vm:OverrideState.Inherit}" ContentTemplate="{StaticResource PlayAch.ComboBox.InheritedOptionTemplate}"/>
                                                                 <ComboBoxItem Content="{DynamicResource LOCPlayAch_Settings_Override_On}" Tag="{x:Static vm:OverrideState.On}"/>
                                                                 <ComboBoxItem Content="{DynamicResource LOCPlayAch_Settings_Override_Off}" Tag="{x:Static vm:OverrideState.Off}"/>
                                                             </ComboBox>

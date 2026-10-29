@@ -12,7 +12,7 @@ namespace PlayniteAchievements.Services.ThemeIntegration
     {
         private static readonly IReadOnlyDictionary<string, (string ResourceKey, string Fallback)> LabelMap =
             CreateLabelMap(
-                (DynamicThemeViewKeys.All, "LOCAll", DynamicThemeViewKeys.All),
+                (DynamicThemeViewKeys.All, "LOCPlayAch_Common_All", DynamicThemeViewKeys.All),
                 (DynamicThemeViewKeys.Unlocked, "LOCPlayAch_Common_Unlocked", DynamicThemeViewKeys.Unlocked),
                 (DynamicThemeViewKeys.Locked, "LOCPlayAch_Common_Locked", DynamicThemeViewKeys.Locked),
                 (DynamicThemeViewKeys.Visible, "LOCPlayAch_Dynamic_Visible", "Visible"),
@@ -59,10 +59,10 @@ namespace PlayniteAchievements.Services.ThemeIntegration
                 (DynamicThemeViewKeys.Unplayed, "LOCPlayAch_Filter_Unplayed", "Unplayed"),
                 (DynamicThemeViewKeys.HasLastUnlock, "LOCPlayAch_Dynamic_HasLastUnlock", "Has Last Unlock"),
                 (DynamicThemeViewKeys.NoLastUnlock, "LOCPlayAch_Dynamic_NoLastUnlock", "No Last Unlock"),
-                (DynamicThemeViewKeys.Default, "LOCDefault", DynamicThemeViewKeys.Default),
-                (DynamicThemeViewKeys.Name, "LOCNameLabel", DynamicThemeViewKeys.Name),
+                (DynamicThemeViewKeys.Default, "LOCPlayAch_Common_Default", DynamicThemeViewKeys.Default),
+                (DynamicThemeViewKeys.Name, "LOCPlayAch_Common_Name", DynamicThemeViewKeys.Name),
                 (DynamicThemeViewKeys.Game, "LOCPlayAch_Column_Game", DynamicThemeViewKeys.Game),
-                (DynamicThemeViewKeys.Provider, "LOCPlatformTitle", DynamicThemeViewKeys.Provider),
+                (DynamicThemeViewKeys.Provider, "LOCPlayAch_Common_Platform", DynamicThemeViewKeys.Provider),
                 (DynamicThemeViewKeys.Progress, "LOCPlayAch_Progress", DynamicThemeViewKeys.Progress),
                 (DynamicThemeViewKeys.AchievementCount, "LOCPlayAch_Column_Total", "Achievement Count"),
                 (DynamicThemeViewKeys.SharedGamesCount, "LOCPlayAch_Overview_GameSummaries", "Games"),
@@ -72,16 +72,16 @@ namespace PlayniteAchievements.Services.ThemeIntegration
                 (DynamicThemeViewKeys.CollectionScore, "LOCPlayAch_Score_Collection", "Collection Score"),
                 (DynamicThemeViewKeys.PrestigeScore, "LOCPlayAch_Score_Prestige", "Prestige Score"),
                 (DynamicThemeViewKeys.TrophyType, "LOCPlayAch_Column_Trophy", "Trophy Type"),
-                (DynamicThemeViewKeys.CategoryType, "LOCTagsLabel", "Tags"),
-                (DynamicThemeViewKeys.CategoryLabel, "LOCCategoryLabel", "Category"),
+                (DynamicThemeViewKeys.CategoryType, "LOCPlayAch_Common_Tags", "Tags"),
+                (DynamicThemeViewKeys.CategoryLabel, "LOCPlayAch_Common_Category", "Category"),
                 (DynamicThemeViewKeys.Notes, "LOCPlayAch_NotesDialog_ViewTitle", "Notes"),
                 (DynamicThemeViewKeys.UnlockTime, "LOCPlayAch_Common_UnlockTime", DynamicThemeViewKeys.UnlockTime),
                 (DynamicThemeViewKeys.Rarity, "LOCPlayAch_Column_Rarity", DynamicThemeViewKeys.Rarity),
                 (DynamicThemeViewKeys.LastUnlock, "LOCPlayAch_Common_LastUnlock", "Last Unlock"),
-                (DynamicThemeViewKeys.LastPlayed, "LOCLastPlayed", "Last Played"),
+                (DynamicThemeViewKeys.LastPlayed, "LOCPlayAch_Common_LastPlayed", "Last Played"),
                 (DynamicThemeViewKeys.UnlockedCount, "LOCPlayAch_Common_UnlockedCount", "Unlocked Count"),
-                (DynamicThemeViewKeys.Ascending, "LOCMenuSortAscending", DynamicThemeViewKeys.Ascending),
-                (DynamicThemeViewKeys.Descending, "LOCMenuSortDescending", DynamicThemeViewKeys.Descending));
+                (DynamicThemeViewKeys.Ascending, "LOCPlayAch_Common_Ascending", DynamicThemeViewKeys.Ascending),
+                (DynamicThemeViewKeys.Descending, "LOCPlayAch_Common_Descending", DynamicThemeViewKeys.Descending));
 
         public static string GetLabel(string key, string defaultKey)
         {
@@ -112,7 +112,7 @@ namespace PlayniteAchievements.Services.ThemeIntegration
             if (string.IsNullOrWhiteSpace(key) ||
                 string.Equals(key, DynamicThemeViewKeys.All, StringComparison.OrdinalIgnoreCase))
             {
-                return L("LOCAll", DynamicThemeViewKeys.All);
+                return L("LOCPlayAch_Common_All", DynamicThemeViewKeys.All);
             }
 
             return ProviderRegistry.GetLocalizedName(key);

@@ -174,10 +174,10 @@
                     <ComboBox Style="{StaticResource OptionComboBoxStyle}"
                               SelectedValue="{Binding AchievementOptions.NameColor, ElementName=EditorRoot, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                               SelectedValuePath="Tag">
-                        <ComboBoxItem Content="{DynamicResource LOCNone}" Tag="{x:Static settings:AchievementNameColorSource.None}"/>
+                        <ComboBoxItem Content="{DynamicResource LOCPlayAch_Common_None}" Tag="{x:Static settings:AchievementNameColorSource.None}"/>
                         <ComboBoxItem Content="{DynamicResource LOCPlayAch_Column_Rarity}" Tag="{x:Static settings:AchievementNameColorSource.Rarity}"/>
                         <ComboBoxItem Content="{DynamicResource LOCPlayAch_Column_Trophy}" Tag="{x:Static settings:AchievementNameColorSource.Trophy}"/>
-                        <ComboBoxItem Content="{DynamicResource LOCTagLabel}" Tag="{x:Static settings:AchievementNameColorSource.Tag}"/>
+                        <ComboBoxItem Content="{DynamicResource LOCPlayAch_Common_Tag}" Tag="{x:Static settings:AchievementNameColorSource.Tag}"/>
                     </ComboBox>
                 </HeaderedContentControl>
                 <HeaderedContentControl Header="{DynamicResource LOCPlayAch_Settings_ColorRarityTextByRarity}"
@@ -185,7 +185,7 @@
                     <CheckBox Style="{StaticResource OptionCheckBoxStyle}"
                               IsChecked="{Binding AchievementOptions.ColorRarityColumnsByRarity, ElementName=EditorRoot}"/>
                 </HeaderedContentControl>
-                <HeaderedContentControl Header="{DynamicResource LOCTagsLabel}"
+                <HeaderedContentControl Header="{DynamicResource LOCPlayAch_Common_Tags}"
                                         Style="{StaticResource OptionChoiceRowStyle}">
                     <Button x:Name="TagDisplayButton"
                             Style="{StaticResource AchievementSelectorButtonStyle}"
@@ -204,9 +204,9 @@
                     <ComboBox Style="{StaticResource OptionComboBoxStyle}"
                               SelectedValue="{Binding AchievementOptions.StatusColor, ElementName=EditorRoot, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                               SelectedValuePath="Tag">
-                        <ComboBoxItem Content="{DynamicResource LOCNone}" Tag="{x:Static settings:AchievementStatusColorMode.None}"/>
+                        <ComboBoxItem Content="{DynamicResource LOCPlayAch_Common_None}" Tag="{x:Static settings:AchievementStatusColorMode.None}"/>
                         <ComboBoxItem Content="{DynamicResource LOCPlayAch_Settings_StatusColor_MissableUnobtainable}" Tag="{x:Static settings:AchievementStatusColorMode.MissableUnobtainable}"/>
-                        <ComboBoxItem Content="{DynamicResource LOCAll}" Tag="{x:Static settings:AchievementStatusColorMode.AllTags}"/>
+                        <ComboBoxItem Content="{DynamicResource LOCPlayAch_Common_All}" Tag="{x:Static settings:AchievementStatusColorMode.AllTags}"/>
                     </ComboBox>
                 </HeaderedContentControl>
             </StackPanel>
@@ -224,7 +224,7 @@
                                     Style="{StaticResource OptionRowStyle}"
                                     Visibility="{Binding ShowMetadataRows, ElementName=EditorRoot, Converter={StaticResource BoolToVis}}">
                 <StackPanel>
-                    <CheckBox Content="{DynamicResource LOCPlatformTitle}"
+                    <CheckBox Content="{DynamicResource LOCPlayAch_Common_Platform}"
                               Style="{StaticResource OptionCheckBoxStyle}"
                               IsChecked="{Binding GameSummaryOptions.ShowMetadataPlatform, ElementName=EditorRoot}"
                               Margin="{StaticResource PlayAch.Thickness.Bottom.Xs}"/>
@@ -232,7 +232,7 @@
                               Style="{StaticResource OptionCheckBoxStyle}"
                               IsChecked="{Binding GameSummaryOptions.ShowMetadataPlaytime, ElementName=EditorRoot}"
                               Margin="{StaticResource PlayAch.Thickness.Bottom.Xs}"/>
-                    <CheckBox Content="{DynamicResource LOCRegionLabel}"
+                    <CheckBox Content="{DynamicResource LOCPlayAch_Common_Region}"
                               Style="{StaticResource OptionCheckBoxStyle}"
                               IsChecked="{Binding GameSummaryOptions.ShowMetadataRegion, ElementName=EditorRoot}"
                               Margin="{StaticResource PlayAch.Thickness.Bottom.Xs}"/>
@@ -430,7 +430,7 @@
                                Style="{StaticResource OptionUnitTextStyle}"/>
                 </DockPanel>
             </HeaderedContentControl>
-            <HeaderedContentControl Header="{DynamicResource LOCMenuSortByTitle}"
+            <HeaderedContentControl Header="{DynamicResource LOCPlayAch_Common_SortBy}"
                                     Style="{StaticResource OptionChoiceRowStyle}"
                                     ToolTip="{DynamicResource LOCPlayAch_Settings_SortResetHint}"
                                     Visibility="{Binding ShowSortRow, ElementName=EditorRoot, Converter={StaticResource BoolToVis}}">
@@ -456,7 +456,7 @@
                     <ComboBox Style="{StaticResource OptionComboBoxStyle}"
                               SelectedValue="{Binding AchievementOptions.SortMode, ElementName=EditorRoot, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                               SelectedValuePath="Tag">
-                        <ComboBoxItem Content="{DynamicResource LOCDefault}" Tag="{x:Static settings:CompactListSortMode.None}"/>
+                        <ComboBoxItem Content="{DynamicResource LOCPlayAch_Common_Default}" Tag="{x:Static settings:CompactListSortMode.None}"/>
                         <ComboBoxItem Content="{DynamicResource LOCPlayAch_Common_UnlockTime}" Tag="{x:Static settings:CompactListSortMode.UnlockTime}"/>
                         <ComboBoxItem Content="{DynamicResource LOCPlayAch_Column_Rarity}" Tag="{x:Static settings:CompactListSortMode.Rarity}"/>
                     </ComboBox>
@@ -466,7 +466,7 @@
 
         <!-- Game-summary trailing rows: sort -->
         <StackPanel Style="{StaticResource GameSummaryPanelStyle}">
-            <HeaderedContentControl Header="{DynamicResource LOCMenuSortByTitle}"
+            <HeaderedContentControl Header="{DynamicResource LOCPlayAch_Common_SortBy}"
                                     Style="{StaticResource OptionChoiceRowStyle}"
                                     ToolTip="{DynamicResource LOCPlayAch_Settings_SortResetHint}"
                                     Visibility="{Binding ShowSortRow, ElementName=EditorRoot, Converter={StaticResource BoolToVis}}">
@@ -496,10 +496,10 @@
                                       Tag="{x:Static settings:GameSummariesSortMode.PinOrder}"
                                       Visibility="{Binding ShowGameSortPinOrderChoice, ElementName=EditorRoot, Converter={StaticResource BoolToVis}}"/>
                         <ComboBoxItem Content="{DynamicResource LOCPlayAch_Common_LastUnlock}" Tag="{x:Static settings:GameSummariesSortMode.RecentUnlock}"/>
-                        <ComboBoxItem Content="{DynamicResource LOCLastPlayed}" Tag="{x:Static settings:GameSummariesSortMode.LastPlayed}"/>
+                        <ComboBoxItem Content="{DynamicResource LOCPlayAch_Common_LastPlayed}" Tag="{x:Static settings:GameSummariesSortMode.LastPlayed}"/>
                         <ComboBoxItem Content="{DynamicResource LOCPlayAch_Column_Total}" Tag="{x:Static settings:GameSummariesSortMode.TotalAchievements}"/>
                         <ComboBoxItem Content="{DynamicResource LOCPlayAch_Progress}" Tag="{x:Static settings:GameSummariesSortMode.Progress}"/>
-                        <ComboBoxItem Content="{DynamicResource LOCNameLabel}" Tag="{x:Static settings:GameSummariesSortMode.Alphabetical}"/>
+                        <ComboBoxItem Content="{DynamicResource LOCPlayAch_Common_Name}" Tag="{x:Static settings:GameSummariesSortMode.Alphabetical}"/>
                     </ComboBox>
                 </DockPanel>
             </HeaderedContentControl>

@@ -291,7 +291,7 @@
             <!-- Under an icon slot's thumbnail: whether it shows the user's own art. Tag carries
                  the slot's override flag. -->
             <Style x:Key="IconSourceCaptionStyle" TargetType="TextBlock">
-                <Setter Property="Text" Value="{DynamicResource LOCDefault}" />
+                <Setter Property="Text" Value="{DynamicResource LOCPlayAch_Common_Default}" />
                 <Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
                 <Setter Property="Opacity" Value="{StaticResource PlayAch.Opacity.Secondary}" />
                 <Setter Property="FontSize" Value="{DynamicResource PlayAch.FontSize.Caption}" />
@@ -299,7 +299,7 @@
                 <Setter Property="Margin" Value="0,3,0,0" />
                 <Style.Triggers>
                     <DataTrigger Binding="{Binding Tag, RelativeSource={RelativeSource Self}}" Value="True">
-                        <Setter Property="Text" Value="{DynamicResource LOCCustomLabel}" />
+                        <Setter Property="Text" Value="{DynamicResource LOCPlayAch_Common_Custom}" />
                         <Setter Property="Foreground" Value="{DynamicResource PlayAch.Brush.Accent}" />
                         <Setter Property="FontWeight" Value="SemiBold" />
                         <Setter Property="Opacity" Value="1" />
@@ -375,7 +375,7 @@
                     <StackPanel Orientation="Horizontal"
                                 Margin="0,10,0,0"
                                 Visibility="{Binding IsManuallyTrackedGame, Converter={StaticResource BoolToVis}}">
-                        <TextBlock Text="{DynamicResource LOCPlatformTitle}"
+                        <TextBlock Text="{DynamicResource LOCPlayAch_Common_Platform}"
                                    Style="{StaticResource FieldLabelStyle}"
                                    Margin="0,0,8,0"
                                    VerticalAlignment="Center" />
@@ -392,7 +392,7 @@
                     <StackPanel Margin="0,10,0,0"
                                 Visibility="{Binding IsCustomOnlyGame, Converter={StaticResource BoolToVis}}">
                         <StackPanel Orientation="Horizontal">
-                            <TextBlock Text="{DynamicResource LOCPlatformTitle}"
+                            <TextBlock Text="{DynamicResource LOCPlayAch_Common_Platform}"
                                        Style="{StaticResource FieldLabelStyle}"
                                        Margin="0,0,8,0"
                                        VerticalAlignment="Center" />
@@ -424,7 +424,7 @@
                                 </ComboBox.ItemTemplate>
                             </ComboBox>
                             <Button x:Name="AddCustomProviderButton"
-                                    Content="{DynamicResource LOCAddTitle}"
+                                    Content="{DynamicResource LOCPlayAch_Common_Add}"
                                     Command="{Binding AddCustomProviderCommand}"
                                     Style="{StaticResource ToolbarButtonStyle}"
                                     Margin="8,0,0,0" />
@@ -469,7 +469,7 @@
                     <StackPanel Orientation="Horizontal" Margin="0,0,16,0">
                         <Button x:Name="AddButton"
                                 Content="&#xEFC2;"
-                                ToolTip="{DynamicResource LOCAddTitle}"
+                                ToolTip="{DynamicResource LOCPlayAch_Common_Add}"
                                 Command="{Binding AddCommand}"
                                 Style="{StaticResource ToolbarIconButtonStyle}" />
                         <Button x:Name="DuplicateButton"
@@ -491,7 +491,7 @@
                     <StackPanel Orientation="Horizontal">
                         <Button x:Name="ImportFileButton"
                                 Content="&#xEF08;"
-                                ToolTip="{DynamicResource LOCImportLabel}"
+                                ToolTip="{DynamicResource LOCPlayAch_Common_Import}"
                                 Click="ContextMenuButton_Click"
                                 Style="{StaticResource ToolbarIconButtonStyle}">
                             <Button.ContextMenu>
@@ -601,7 +601,7 @@
                                 Height="{StaticResource PlayAch.Size.Control.Height}"
                                 Margin="0,0,6,0"
                                 VerticalAlignment="Center"
-                                ToolTip="{DynamicResource LOCCategoryLabel}">
+                                ToolTip="{DynamicResource LOCPlayAch_Common_Category}">
                             <Button.ContextMenu>
                                 <ContextMenu Style="{StaticResource AchievementSelectorContextMenuStyle}"
                                              ItemContainerStyle="{StaticResource AchievementMultiSelectMenuItemStyle}" />
@@ -616,7 +616,7 @@
                                 Height="{StaticResource PlayAch.Size.Control.Height}"
                                 Margin="0,0,6,0"
                                 VerticalAlignment="Center"
-                                ToolTip="{DynamicResource LOCTagsLabel}">
+                                ToolTip="{DynamicResource LOCPlayAch_Common_Tags}">
                             <Button.ContextMenu>
                                 <ContextMenu Style="{StaticResource AchievementSelectorContextMenuStyle}"
                                              ItemContainerStyle="{StaticResource AchievementMultiSelectMenuItemStyle}" />
@@ -665,13 +665,13 @@
                                 Orientation="Horizontal"
                                 VerticalAlignment="Center">
                         <Button x:Name="SelectAllButton"
-                                Content="{DynamicResource LOCSelectAll}"
+                                Content="{DynamicResource LOCPlayAch_Common_SelectAll}"
                                 Click="SelectAllButton_Click"
                                 Height="{StaticResource PlayAch.Size.Control.Height}"
                                 Padding="10,2"
                                 Margin="{StaticResource PlayAch.Thickness.Right.Sm}" />
                         <Button x:Name="DeselectAllButton"
-                                Content="{DynamicResource LOCDeselectAll}"
+                                Content="{DynamicResource LOCPlayAch_Common_DeselectAll}"
                                 Click="DeselectAllButton_Click"
                                 Height="{StaticResource PlayAch.Size.Control.Height}"
                                 Padding="10,2" />
@@ -864,7 +864,7 @@
                                             MinWidth="32"
                                             MaxWidth="180"
                                             helpers:ColumnVisibilityHelper.ColumnKey="EditorIcon"
-                                            helpers:ColumnVisibilityHelper.ColumnDisplayName="{DynamicResource LOCGameIconTitle}">
+                                            helpers:ColumnVisibilityHelper.ColumnDisplayName="{DynamicResource LOCPlayAch_Common_Icon}">
                         <!-- The column's own toggle, reaching every masked icon on screen at once
                              rather than one click per row. Shown only while something is maskable,
                              like the per-row toggles. -->
@@ -1092,7 +1092,7 @@
                                             helpers:ColumnVisibilityHelper.ColumnKey="EditorDescription"
                                             IsReadOnly="True"
                                             helpers:EditorCellRouting.RoutesToSelection="True"
-                                            helpers:ColumnVisibilityHelper.ColumnDisplayName="{DynamicResource LOCGameDescriptionTitle}">
+                                            helpers:ColumnVisibilityHelper.ColumnDisplayName="{DynamicResource LOCPlayAch_Common_Description}">
                         <DataGridTemplateColumn.Header>
                             <Grid>
                                 <Grid.ColumnDefinitions>
@@ -1108,7 +1108,7 @@
                                         Width="30"
                                         Visibility="{Binding Data.CanRevealAnyDescription, Source={StaticResource EditorTabContext}, Converter={StaticResource BoolToVis}}" />
                                 <TextBlock Grid.Column="1"
-                                           Text="{DynamicResource LOCGameDescriptionTitle}"
+                                           Text="{DynamicResource LOCPlayAch_Common_Description}"
                                            HorizontalAlignment="Center"
                                            VerticalAlignment="Center"
                                            TextTrimming="CharacterEllipsis" />
@@ -1879,7 +1879,7 @@
                          watches the shared category collection and is driven by single fields that
                          cannot stand in for one cell per row. The menu is a superset of it, since
                          clearing the category is offered here too. -->
-                    <DataGridTemplateColumn Header="{DynamicResource LOCCategoryLabel}"
+                    <DataGridTemplateColumn Header="{DynamicResource LOCPlayAch_Common_Category}"
                                             Width="168"
                                             MinWidth="110"
                                             IsReadOnly="True"
@@ -1902,7 +1902,7 @@
                         </DataGridTemplateColumn.CellTemplate>
                     </DataGridTemplateColumn>
 
-                    <DataGridTemplateColumn Header="{DynamicResource LOCTagsLabel}"
+                    <DataGridTemplateColumn Header="{DynamicResource LOCPlayAch_Common_Tags}"
                                             Width="144"
                                             MinWidth="100"
                                             IsReadOnly="True"
@@ -2011,7 +2011,7 @@
                         FontSize="16"
                         FontWeight="SemiBold"
                         Command="{Binding AddCommand}"
-                        ToolTip="{DynamicResource LOCAddTitle}"
+                        ToolTip="{DynamicResource LOCPlayAch_Common_Add}"
                         HorizontalAlignment="Stretch"
                         MinHeight="26"
                         Padding="0"
@@ -2064,7 +2064,7 @@
                         </Button>
 
                         <StackPanel Grid.Column="1">
-                            <TextBlock Text="{DynamicResource LOCGameDetails}"
+                            <TextBlock Text="{DynamicResource LOCPlayAch_Common_Details}"
                                        Foreground="{DynamicResource TextBrush}"
                                        FontWeight="SemiBold"
                                        Visibility="{Binding IsBulkEditing, Converter={StaticResource InverseBoolToVis}}" />
@@ -2657,14 +2657,14 @@
                             <!-- Category and type are ApiName-keyed custom data shared with the
                                  Category tab; they persist immediately. A row gets its ApiName and
                                  first save when it is created, so they are live at once. -->
-                            <TextBlock Text="{DynamicResource LOCCategoryLabel}"
+                            <TextBlock Text="{DynamicResource LOCPlayAch_Common_Category}"
                                        Style="{StaticResource FieldLabelStyle}" />
                             <controls:CategoryPickerBox x:Name="CategoryPicker"
                                                         Categories="{Binding DataContext.AssignableCategoryOptions, RelativeSource={RelativeSource AncestorType=UserControl}}"
                                                         Placeholder="{DynamicResource LOCPlayAch_ManageAchievements_Category_InputPlaceholder}"
                                                         IsEnabled="{Binding CanEditAssignments}" />
 
-                            <TextBlock Text="{DynamicResource LOCTagsLabel}"
+                            <TextBlock Text="{DynamicResource LOCPlayAch_Common_Tags}"
                                        Style="{StaticResource FieldLabelStyle}" />
                             <Button x:Name="TypeSelectionButton"
                                     Style="{StaticResource AchievementSelectorButtonStyle}"

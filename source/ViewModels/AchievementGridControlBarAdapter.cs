@@ -132,7 +132,7 @@ namespace PlayniteAchievements.ViewModels
         public string SelectedCategoryTypeFilterText => GetSelectedFilterText(
             _selectedCategoryTypeFilters,
             CategoryTypeFilterOptions,
-            L("LOCTagsLabel"),
+            L("LOCPlayAch_Common_Tags"),
             GetTypeDisplayName);
 
         // The game every listed row belongs to, so a game's own tags show their names; null for a
@@ -147,7 +147,7 @@ namespace PlayniteAchievements.ViewModels
         public string SelectedCategoryLabelFilterText => GetSelectedFilterText(
             _selectedCategoryLabelFilters,
             CategoryLabelFilterOptions,
-            L("LOCCategoryLabel"),
+            L("LOCPlayAch_Common_Category"),
             AchievementCategoryHelper.ToCategoryLabelDisplayText);
 
         public IReadOnlyList<AchievementDisplayItem> Apply(IEnumerable<AchievementDisplayItem> source)
@@ -399,7 +399,7 @@ namespace PlayniteAchievements.ViewModels
                 GetTypeDisplayName)
             {
                 Id = ShowcaseControlBarItems.Tag,
-                LabelKey = "LOCTagsLabel",
+                LabelKey = "LOCPlayAch_Common_Tags",
                 Width = 120,
                 // A tag's icon; the other classification keys have none, and name themselves.
                 IconKeyOf = key => TagControlBarFilter.IconKey(key, _optionsGameId),
@@ -416,7 +416,7 @@ namespace PlayniteAchievements.ViewModels
                 AchievementCategoryHelper.ToCategoryLabelDisplayText)
             {
                 Id = ShowcaseControlBarItems.Category,
-                LabelKey = "LOCCategoryLabel",
+                LabelKey = "LOCPlayAch_Common_Category",
                 Width = 140,
                 IsCategoryFilter = true,
                 RendersCategoryTree = true,

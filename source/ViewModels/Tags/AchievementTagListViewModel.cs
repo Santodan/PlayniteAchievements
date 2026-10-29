@@ -139,7 +139,7 @@ namespace PlayniteAchievements.ViewModels.Tags
                 new AchievementTagDefinition
                 {
                     Key = AchievementTagHelper.NewUserKey(),
-                    Name = Playnite.SDK.ResourceProvider.GetString("LOCTagLabel")
+                    Name = Playnite.SDK.ResourceProvider.GetString("LOCPlayAch_Common_Tag")
                 });
             Rows.Add(row);
             Commit();

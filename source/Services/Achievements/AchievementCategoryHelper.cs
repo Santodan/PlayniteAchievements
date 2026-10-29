@@ -37,7 +37,7 @@ namespace PlayniteAchievements.Services.Achievements
         {
             var label = CategoryPathHelper.NormalizePath(rawValue);
             return string.Equals(label, DefaultCategoryLabel, StringComparison.OrdinalIgnoreCase)
-                ? L("LOCDefault", DefaultCategoryLabel)
+                ? L("LOCPlayAch_Common_Default", DefaultCategoryLabel)
                 : CategoryPathHelper.ToDisplayPath(label);
         }
 
@@ -50,7 +50,7 @@ namespace PlayniteAchievements.Services.Achievements
         {
             var label = CategoryPathHelper.NormalizePath(rawValue);
             return string.Equals(label, DefaultCategoryLabel, StringComparison.OrdinalIgnoreCase)
-                ? L("LOCDefault", DefaultCategoryLabel)
+                ? L("LOCPlayAch_Common_Default", DefaultCategoryLabel)
                 : CategoryPathHelper.ToDisplayLeaf(label);
         }
 

@@ -149,7 +149,7 @@ namespace PlayniteAchievements.Views.Showcase
 
             var add = new Button
             {
-                Content = Localize("LOCAddTitle"),
+                Content = Localize("LOCPlayAch_Common_Add"),
                 MinWidth = 82
             };
             add.SetResourceReference(MarginProperty, "PlayAch.Thickness.Left.Sm");
@@ -247,7 +247,7 @@ namespace PlayniteAchievements.Views.Showcase
                 AddLinkButton(row, 3, "\uEA5B", "LOCPlayAch_Showcase_MoveLater", index < _links.Count - 1,
                     () => MoveLink(index, 1));
 
-                AddLinkButton(row, 4, "\uEE09", "LOCRemoveLabel", true, () =>
+                AddLinkButton(row, 4, "\uEE09", "LOCPlayAch_Common_Remove", true, () =>
                 {
                     _links.RemoveAt(index);
                     CommitLinks();
@@ -397,7 +397,7 @@ namespace PlayniteAchievements.Views.Showcase
             row.Children.Add(paste);
             var clear = new Button
             {
-                Content = Localize("LOCClearLabel"),
+                Content = Localize("LOCPlayAch_Common_Clear"),
                 MinWidth = 72
             };
             clear.SetResourceReference(MarginProperty, "PlayAch.Thickness.Left.Sm");

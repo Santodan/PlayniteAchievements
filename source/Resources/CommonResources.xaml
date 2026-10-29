@@ -986,7 +986,7 @@
                                                          helpers:SelectorSearch.IsComboBoxSearchBox="True"
                                                          VerticalContentAlignment="Center"/>
                                                 <TextBlock x:Name="PART_SearchPlaceholder"
-                                                           Text="{DynamicResource LOCSearchLabel}"
+                                                           Text="{DynamicResource LOCPlayAch_Common_Search}"
                                                            VerticalAlignment="Center"
                                                            IsHitTestVisible="False"
                                                            Foreground="{DynamicResource PlayAch.Brush.Text}"

@@ -209,9 +209,9 @@
                         <TextBlock Foreground="{DynamicResource PlayAch.Brush.Text.Secondary}" Margin="0,2,0,0" TextWrapping="Wrap">
                             <Run Text="{Binding KindLabel, Mode=OneWay}"/>
                             <Run Text=" · "/>
-                            <Run Text="{DynamicResource LOCAuthorLabel}"/><Run Text=": "/><Run Text="{Binding Author, Mode=OneWay}"/>
+                            <Run Text="{DynamicResource LOCPlayAch_Common_Author}"/><Run Text=": "/><Run Text="{Binding Author, Mode=OneWay}"/>
                             <Run Text=" · "/>
-                            <Run Text="{DynamicResource LOCVersionLabel}"/><Run Text=" "/><Run Text="{Binding Version, Mode=OneWay}"/>
+                            <Run Text="{DynamicResource LOCPlayAch_Common_Version}"/><Run Text=" "/><Run Text="{Binding Version, Mode=OneWay}"/>
                         </TextBlock>
                         <TextBlock Foreground="{DynamicResource PlayAch.Brush.Text.Secondary}" Margin="0,2,0,0" TextWrapping="Wrap"
                                    Visibility="{Binding HasStats, Converter={StaticResource BoolToVis}}">
@@ -227,7 +227,7 @@
                         </TextBlock>
                         <TextBlock Foreground="{DynamicResource PlayAch.Brush.Text.Secondary}" Margin="0,2,0,0" TextWrapping="Wrap"
                                    Visibility="{Binding HasTags, Converter={StaticResource BoolToVis}}">
-                            <Run Text="{DynamicResource LOCTagsLabel}"/><Run Text=": "/><Run Text="{Binding Tags, Mode=OneWay}"/>
+                            <Run Text="{DynamicResource LOCPlayAch_Common_Tags}"/><Run Text=": "/><Run Text="{Binding Tags, Mode=OneWay}"/>
                         </TextBlock>
                         <TextBlock Foreground="{DynamicResource PlayAch.Brush.Text.Secondary}" Margin="0,2,0,0" TextWrapping="Wrap">
                             <Run Text="{DynamicResource LOCPlayAch_Workshop_Contents}"/><Run Text=": "/><Run Text="{Binding ContentsSummary, Mode=OneWay}"/>
@@ -353,11 +353,11 @@
                         <StackPanel Grid.Row="0" Grid.Column="0" Grid.ColumnSpan="3" Orientation="Horizontal" Margin="0,0,0,10">
                             <TextBox Width="240"
                                      Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}"
-                                     ToolTip="{DynamicResource LOCSearchLabel}"/>
+                                     ToolTip="{DynamicResource LOCPlayAch_Common_Search}"/>
                             <Grid Width="180" Margin="8,0,0,0">
                                 <TextBox x:Name="TagFilterTextBox"
                                          Text="{Binding TagFilterText, UpdateSourceTrigger=PropertyChanged, Delay=100}"/>
-                                <TextBlock Text="{DynamicResource LOCTagsLabel}"
+                                <TextBlock Text="{DynamicResource LOCPlayAch_Common_Tags}"
                                            Tag="{Binding Text, ElementName=TagFilterTextBox}"
                                            Style="{StaticResource SearchPlaceholderTextStyle}"
                                            VerticalAlignment="Center"

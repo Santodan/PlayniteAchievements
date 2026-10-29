@@ -135,7 +135,7 @@
                                  Margin="0,0,12,0"/>
 
                         <Button Grid.Column="2"
-                                Content="{DynamicResource LOCAddTitle}"
+                                Content="{DynamicResource LOCPlayAch_Common_Add}"
                                 Command="{Binding AddManualFriendCommand}"
                                 Padding="{StaticResource PlayAch.Thickness.ButtonPadding.Wide}"/>
                     </Grid>
@@ -243,7 +243,7 @@
                                         <CheckBox IsChecked="{Binding DataContext.AreAllVisibleFriendsSelected, RelativeSource={RelativeSource AncestorType=DataGrid}, Mode=TwoWay}"
                                                   HorizontalAlignment="Center"
                                                   VerticalAlignment="Center"
-                                                  ToolTip="{DynamicResource LOCSelectAll}"/>
+                                                  ToolTip="{DynamicResource LOCPlayAch_Common_SelectAll}"/>
                                     </DataTemplate>
                                 </DataGridTemplateColumn.HeaderTemplate>
                                 <DataGridTemplateColumn.CellTemplate>
@@ -256,7 +256,7 @@
                                 </DataGridTemplateColumn.CellTemplate>
                             </DataGridTemplateColumn>
 
-                            <DataGridTemplateColumn Header="{DynamicResource LOCGameFavoriteTitle}"
+                            <DataGridTemplateColumn Header="{DynamicResource LOCPlayAch_Common_Favorite}"
                                                     Width="Auto"
                                                     MinWidth="64"
                                                     IsReadOnly="True">
@@ -270,7 +270,7 @@
                                 </DataGridTemplateColumn.CellTemplate>
                             </DataGridTemplateColumn>
 
-                            <DataGridTemplateColumn Header="{DynamicResource LOCNameLabel}"
+                            <DataGridTemplateColumn Header="{DynamicResource LOCPlayAch_Common_Name}"
                                                     Width="*"
                                                     MinWidth="220">
                                 <DataGridTemplateColumn.CellTemplate>
@@ -407,7 +407,7 @@
                                 </DataGridTemplateColumn.CellTemplate>
                             </DataGridTemplateColumn>
 
-                            <DataGridTemplateColumn Header="{DynamicResource LOCPlatformTitle}"
+                            <DataGridTemplateColumn Header="{DynamicResource LOCPlayAch_Common_Platform}"
                                                     Width="Auto"
                                                     MinWidth="130"
                                                     MaxWidth="180">
@@ -518,7 +518,7 @@
                                                     HorizontalAlignment="Center"
                                                     VerticalAlignment="Center"
                                                     Padding="8,3"/>
-                                            <Button Content="{DynamicResource LOCRemoveLabel}"
+                                            <Button Content="{DynamicResource LOCPlayAch_Common_Remove}"
                                                     Command="{Binding DataContext.RemoveFriendCommand, RelativeSource={RelativeSource AncestorType={x:Type DataGrid}}}"
                                                     CommandParameter="{Binding RemovableAccount}"
                                                     Visibility="{Binding CanRemoveAccount, Converter={StaticResource BoolToVis}}"

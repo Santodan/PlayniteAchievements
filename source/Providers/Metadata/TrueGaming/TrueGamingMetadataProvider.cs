@@ -643,7 +643,7 @@ namespace PlayniteAchievements.Providers.Metadata.TrueGaming
             return pages.Count == 0
                 ? null
                 : string.Join(Environment.NewLine, pages.Select(page =>
-                    $"{page.Site.Title}: {page.PageSlug ?? ResourceProvider.GetString("LOCNone")}"));
+                    $"{page.Site.Title}: {page.PageSlug ?? ResourceProvider.GetString("LOCPlayAch_Common_None")}"));
         }
 
         /// <summary>

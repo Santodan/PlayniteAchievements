@@ -49,7 +49,7 @@
                         <StackPanel Margin="{StaticResource PlayAch.Thickness.SettingRow.Indent}"
                                     Visibility="{Binding Persisted.TaggingSettings.SetCompletionStatus, Converter={StaticResource BooleanToVisibilityConverter}}"
                                     Grid.IsSharedSizeScope="True">
-                            <controls:SettingRow Label="{DynamicResource LOCCompletionStatus}">
+                            <controls:SettingRow Label="{DynamicResource LOCPlayAch_Common_CompletionStatus}">
                                 <ComboBox x:Name="CompletionStatusComboBox"
                                           MinWidth="200"
                                           ItemsSource="{Binding CompletionStatuses, RelativeSource={RelativeSource AncestorType=UserControl}}"
@@ -86,9 +86,9 @@
                                    Foreground="{DynamicResource PlayAch.Brush.Text}"
                                    Margin="{StaticResource PlayAch.Thickness.SubSectionHeading}"/>
                         <local:TagRowsGrid DataContext="{Binding Persisted.TaggingSettings.CustomizationRows}"
-                                           FirstHeader="{DynamicResource LOCPlatformTitle}"
-                                           SecondHeader="{DynamicResource LOCSettingsMetadataLabel}"
-                                           ThirdHeader="{DynamicResource LOCCustomLabel}"/>
+                                           FirstHeader="{DynamicResource LOCPlayAch_Common_Platform}"
+                                           SecondHeader="{DynamicResource LOCPlayAch_Common_Metadata}"
+                                           ThirdHeader="{DynamicResource LOCPlayAch_Common_Custom}"/>
                     </StackPanel>
                 </StackPanel>
             </Border>

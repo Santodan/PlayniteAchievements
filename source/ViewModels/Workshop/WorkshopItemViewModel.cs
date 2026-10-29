@@ -245,7 +245,7 @@ namespace PlayniteAchievements.ViewModels.Workshop
             switch (kind)
             {
                 case WorkshopItemKind.Colors: return ResourceProvider.GetString("LOCPlayAch_Workshop_Kind_Colors");
-                case WorkshopItemKind.NotificationStyle: return ResourceProvider.GetString("LOCNotifications");
+                case WorkshopItemKind.NotificationStyle: return ResourceProvider.GetString("LOCPlayAch_Common_Notifications");
                 case WorkshopItemKind.ScreenshotFrame: return ResourceProvider.GetString("LOCPlayAch_Workshop_Kind_ScreenshotFrame");
                 case WorkshopItemKind.ShowcasePage: return ResourceProvider.GetString("LOCPlayAch_Workshop_Kind_ShowcasePage");
                 case WorkshopItemKind.UnlockSounds: return ResourceProvider.GetString("LOCPlayAch_Workshop_Share_Sounds");

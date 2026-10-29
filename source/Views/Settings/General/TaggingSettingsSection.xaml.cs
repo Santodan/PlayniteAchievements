@@ -53,7 +53,7 @@ namespace PlayniteAchievements.Views.Settings.General
                 new CompletionStatusOption
                 {
                     Id = Guid.Empty,
-                    Name = L("LOCDefault")
+                    Name = L("LOCPlayAch_Common_Default")
                 }
             };
 

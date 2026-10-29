@@ -252,7 +252,7 @@ namespace PlayniteAchievements.Views.Controls
             SetValue(ChipGroupNamePropertyKey, "PlayAch.TimeWindow." + Guid.NewGuid().ToString("N"));
             SetValue(GranularityItemsPropertyKey, new[]
             {
-                new TimelineGranularityChoice(TimelineGranularity.Auto, ResourceProvider.GetString("LOCAutomatic")),
+                new TimelineGranularityChoice(TimelineGranularity.Auto, ResourceProvider.GetString("LOCPlayAch_Common_Automatic")),
                 new TimelineGranularityChoice(TimelineGranularity.Day, ResourceProvider.GetString("LOCPlayAch_Granularity_Day")),
                 new TimelineGranularityChoice(TimelineGranularity.Week, ResourceProvider.GetString("LOCPlayAch_Granularity_Week")),
                 new TimelineGranularityChoice(TimelineGranularity.Month, ResourceProvider.GetString("LOCPlayAch_Granularity_Month"))
@@ -604,7 +604,7 @@ namespace PlayniteAchievements.Views.Controls
         private void UpdateCustomChipText()
         {
             var window = Window ?? TimeWindow.All;
-            var customLabel = ResourceProvider.GetString("LOCCustomLabel");
+            var customLabel = ResourceProvider.GetString("LOCPlayAch_Common_Custom");
             if (window.IsCustom)
             {
                 var range = TimeWindowText.Describe(window, MinDate);

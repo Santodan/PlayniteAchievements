@@ -90,17 +90,17 @@
                               IsChecked="{Binding Surface.ShowHeader}"/>
                     <CheckBox Content="{DynamicResource LOCPlayAch_Column_AchievementName}"
                               IsChecked="{Binding Surface.ShowName}"/>
-                    <CheckBox Content="{DynamicResource LOCGameDescriptionTitle}"
+                    <CheckBox Content="{DynamicResource LOCPlayAch_Common_Description}"
                               IsChecked="{Binding Surface.ShowDescription}"/>
                     <CheckBox Content="{DynamicResource LOCPlayAch_Settings_ToastShowGameName}"
                               IsChecked="{Binding Surface.ShowGameName}"/>
-                    <CheckBox Content="{DynamicResource LOCCategoryLabel}"
+                    <CheckBox Content="{DynamicResource LOCPlayAch_Common_Category}"
                               IsChecked="{Binding Surface.ShowCategory}"/>
                     <CheckBox Content="{DynamicResource LOCPlayAch_Common_UnlockTime}"
                               IsChecked="{Binding Surface.ShowUnlockTime}"/>
-                    <CheckBox Content="{DynamicResource LOCGameIconTitle}"
+                    <CheckBox Content="{DynamicResource LOCPlayAch_Common_Icon}"
                               IsChecked="{Binding Surface.ShowIcon}"/>
-                    <CheckBox Content="{DynamicResource LOCPlatformTitle}"
+                    <CheckBox Content="{DynamicResource LOCPlayAch_Common_Platform}"
                               IsEnabled="{Binding IsProviderIconEnabled}"
                               IsChecked="{Binding Surface.ShowProviderIcon}"/>
                 </UniformGrid>
@@ -145,7 +145,7 @@
                                 Margin="8,0,0,0"
                                 VerticalAlignment="Center"/>
                         <Button Grid.Column="4"
-                                Content="{DynamicResource LOCResetLabel}"
+                                Content="{DynamicResource LOCPlayAch_Common_Reset}"
                                 Click="ResetCountdownColor_Click"
                                 MinWidth="58"
                                 Margin="8,0,0,0"
@@ -280,7 +280,7 @@
                                    RenderOptions.BitmapScalingMode="HighQuality"/>
                         </Border>
                         <Button Tag="Background"
-                                Content="{DynamicResource LOCClearLabel}"
+                                Content="{DynamicResource LOCPlayAch_Common_Clear}"
                                 Click="ImageClear_Click"
                                 VerticalAlignment="Center"/>
                         <Button Content="{DynamicResource LOCPlayAch_Button_Paste}"
@@ -471,7 +471,7 @@
              offset. A blank box uses the surface default. -->
         <Border Style="{StaticResource EditorCardStyle}">
             <StackPanel>
-                <TextBlock Text="{DynamicResource LOCSize}"
+                <TextBlock Text="{DynamicResource LOCPlayAch_Common_Size}"
                            Style="{StaticResource EditorGroupHeaderStyle}"/>
                 <Grid HorizontalAlignment="Left">
                     <Grid.ColumnDefinitions>
@@ -488,7 +488,7 @@
                     </Grid.RowDefinitions>
 
                     <TextBlock Grid.Row="0" Grid.Column="0"
-                               Text="{DynamicResource LOCGameIconTitle}"
+                               Text="{DynamicResource LOCPlayAch_Common_Icon}"
                                Style="{StaticResource EditorRowLabelStyle}"
                                Margin="0,0,8,8"/>
                     <Slider Grid.Row="0" Grid.Column="1"
@@ -536,7 +536,7 @@
                              Margin="0,0,0,8"/>
 
                     <TextBlock Grid.Row="3" Grid.Column="0"
-                               Text="{DynamicResource LOCPlatformTitle}"
+                               Text="{DynamicResource LOCPlayAch_Common_Platform}"
                                Style="{StaticResource EditorRowLabelStyle}"
                                Margin="0,0,8,8"/>
                     <Slider Grid.Row="3" Grid.Column="1"
@@ -584,7 +584,7 @@
                     </Grid.RowDefinitions>
 
                     <TextBlock Grid.Row="0" Grid.Column="0"
-                               Text="{DynamicResource LOCWidth}"
+                               Text="{DynamicResource LOCPlayAch_Common_Width}"
                                Style="{StaticResource EditorRowLabelStyle}"
                                Margin="0,0,8,8"/>
                     <Slider Grid.Row="0" Grid.Column="1"
@@ -600,7 +600,7 @@
                              Margin="0,0,0,8"/>
 
                     <TextBlock Grid.Row="1" Grid.Column="0"
-                               Text="{DynamicResource LOCHeight}"
+                               Text="{DynamicResource LOCPlayAch_Common_Height}"
                                Style="{StaticResource EditorRowLabelStyle}"
                                Margin="0,0,8,8"/>
                     <Slider Grid.Row="1" Grid.Column="1"
@@ -1036,7 +1036,7 @@
                     </Border>
                     <Button Grid.Row="0" Grid.Column="2"
                             Tag="BadgeCommon"
-                            Content="{DynamicResource LOCClearLabel}"
+                            Content="{DynamicResource LOCPlayAch_Common_Clear}"
                             Click="ImageClear_Click"
                             Margin="0,0,0,6"
                             VerticalAlignment="Center"/>
@@ -1083,7 +1083,7 @@
                     </Border>
                     <Button Grid.Row="1" Grid.Column="2"
                             Tag="BadgeUncommon"
-                            Content="{DynamicResource LOCClearLabel}"
+                            Content="{DynamicResource LOCPlayAch_Common_Clear}"
                             Click="ImageClear_Click"
                             Margin="0,0,0,6"
                             VerticalAlignment="Center"/>
@@ -1130,7 +1130,7 @@
                     </Border>
                     <Button Grid.Row="2" Grid.Column="2"
                             Tag="BadgeRare"
-                            Content="{DynamicResource LOCClearLabel}"
+                            Content="{DynamicResource LOCPlayAch_Common_Clear}"
                             Click="ImageClear_Click"
                             Margin="0,0,0,6"
                             VerticalAlignment="Center"/>
@@ -1177,7 +1177,7 @@
                     </Border>
                     <Button Grid.Row="3" Grid.Column="2"
                             Tag="BadgeUltraRare"
-                            Content="{DynamicResource LOCClearLabel}"
+                            Content="{DynamicResource LOCPlayAch_Common_Clear}"
                             Click="ImageClear_Click"
                             Margin="0,0,0,6"
                             VerticalAlignment="Center"/>
@@ -1224,7 +1224,7 @@
                     </Border>
                     <Button Grid.Row="4" Grid.Column="2"
                             Tag="BadgeCompletion"
-                            Content="{DynamicResource LOCClearLabel}"
+                            Content="{DynamicResource LOCPlayAch_Common_Clear}"
                             Click="ImageClear_Click"
                             Margin="0,0,0,0"
                             VerticalAlignment="Center"/>
@@ -1334,7 +1334,7 @@
                         </Border>
                         <Button Grid.Column="1"
                                 Tag="Background"
-                                Content="{DynamicResource LOCClearLabel}"
+                                Content="{DynamicResource LOCPlayAch_Common_Clear}"
                                 Click="ImageClear_Click"
                                 Margin="0,0,0,0"
                                 VerticalAlignment="Center"/>

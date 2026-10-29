@@ -232,11 +232,11 @@ namespace PlayniteAchievements.Views.Helpers
             switch (action)
             {
                 case AchievementMarkerToggle.CapstoneAction.Remove:
-                    return L(resourceOwner, "LOCRemoveLabel");
+                    return L(resourceOwner, "LOCPlayAch_Common_Remove");
                 case AchievementMarkerToggle.CapstoneAction.Replace:
                     return L(resourceOwner, "LOCPlayAch_Button_Replace");
                 default:
-                    return L(resourceOwner, "LOCAddTitle");
+                    return L(resourceOwner, "LOCPlayAch_Common_Add");
             }
         }
 
@@ -310,7 +310,7 @@ namespace PlayniteAchievements.Views.Helpers
         {
             var menu = new MenuItem
             {
-                Header = L(resourceOwner, "LOCCategoryLabel")
+                Header = L(resourceOwner, "LOCPlayAch_Common_Category")
             };
 
             foreach (var option in CategoryPickerResolver.BuildOptions(ResolveGameCategoryLabels(context.GameId)))
@@ -360,7 +360,7 @@ namespace PlayniteAchievements.Views.Helpers
         {
             var typesMenu = new MenuItem
             {
-                Header = L(resourceOwner, "LOCTagsLabel")
+                Header = L(resourceOwner, "LOCPlayAch_Common_Tags")
             };
             var effectiveTypes = AchievementTagHelper.Parse(context.Tags);
             foreach (var tag in AchievementTagRegistry.GetShownKeys(context.GameId))
@@ -472,7 +472,7 @@ namespace PlayniteAchievements.Views.Helpers
 
             var menu = new MenuItem
             {
-                Header = L(resourceOwner, "LOCNotesLabel")
+                Header = L(resourceOwner, "LOCPlayAch_Common_Notes")
             };
 
             var viewItem = CreateMenuItem(

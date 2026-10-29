@@ -181,14 +181,14 @@ namespace PlayniteAchievements.Views.Helpers
             ILogger logger,
             Action openInOverview = null)
         {
-            var openMenu = new MenuItem { Header = ResolveHeader(resourceOwner, "LOCOpen") };
+            var openMenu = new MenuItem { Header = ResolveHeader(resourceOwner, "LOCPlayAch_Common_Open") };
 
             var gameItem = CreateMenuItem(resourceOwner, "LOCPlayAch_Column_Game",
                 () => StartGame(playniteApi, gameId, logger));
             gameItem.IsEnabled = IsGameInstalled(playniteApi, gameId);
             openMenu.Items.Add(gameItem);
 
-            openMenu.Items.Add(CreateMenuItem(resourceOwner, "LOCLibrary", () => openInLibrary?.Invoke()));
+            openMenu.Items.Add(CreateMenuItem(resourceOwner, "LOCPlayAch_Common_Library", () => openInLibrary?.Invoke()));
             if (openInOverview != null)
             {
                 openMenu.Items.Add(CreateMenuItem(resourceOwner, "LOCPlayAch_Common_Overview", openInOverview));

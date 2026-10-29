@@ -40,7 +40,7 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
             _controlBarSlot = new ShowcaseControlBarSlot<TimelineControlBarAdapter>(FeedCounts);
             SplitChoices = new[]
             {
-                new TimelineSplitChoice(this, ShowcaseTimelineSplit.Platform, "LOCPlatformTitle"),
+                new TimelineSplitChoice(this, ShowcaseTimelineSplit.Platform, "LOCPlayAch_Common_Platform"),
                 new TimelineSplitChoice(this, ShowcaseTimelineSplit.Rarity, "LOCPlayAch_Column_Rarity"),
                 new TimelineSplitChoice(this, ShowcaseTimelineSplit.Trophy, "LOCPlayAch_Column_Trophy")
             };

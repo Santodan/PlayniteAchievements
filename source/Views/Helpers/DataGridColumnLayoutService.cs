@@ -2394,9 +2394,9 @@ namespace PlayniteAchievements.Views.Helpers
                 TextAlignment = TextAlignment.Center,
                 VerticalContentAlignment = VerticalAlignment.Center,
                 AcceptsReturn = false,
-                ToolTip = ResourceProvider.GetString("LOCWidth")
+                ToolTip = ResourceProvider.GetString("LOCPlayAch_Common_Width")
             };
-            AutomationProperties.SetName(editor, ResourceProvider.GetString("LOCWidth"));
+            AutomationProperties.SetName(editor, ResourceProvider.GetString("LOCPlayAch_Common_Width"));
             editor.Text = FormatWidthLabel(contextColumn);
 
             var editHandled = new object();
@@ -2930,7 +2930,7 @@ namespace PlayniteAchievements.Views.Helpers
 
             refreshLastColumnGuard();
 
-            menu.Items.Add(CreateSectionHeader(ResourceProvider.GetString("LOCColumns")));
+            menu.Items.Add(CreateSectionHeader(ResourceProvider.GetString("LOCPlayAch_Common_Columns")));
             foreach (var item in visibilityItems)
             {
                 menu.Items.Add(item);

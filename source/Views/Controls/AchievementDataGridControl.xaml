@@ -167,7 +167,7 @@
 
             <!-- Achievement Icon -->
             <DataGridTemplateColumn Width="72" MinWidth="32" MaxWidth="180" CanUserResize="True"
-                                    Header="{DynamicResource LOCGameIconTitle}"
+                                    Header="{DynamicResource LOCPlayAch_Common_Icon}"
                                     helpers:ColumnVisibilityHelper.ColumnKey="Icon"
                                     CellStyle="{StaticResource AchievementGlowIconCellStyle}"
                                     CellTemplate="{StaticResource AchievementIconTemplate}" helpers:DataGridColumnLayoutService.IsHeaderTextHidden="True">
@@ -336,7 +336,7 @@
                                        TextAlignment="Center"
                                        VerticalAlignment="Center"
                                        Foreground="{DynamicResource PlayAch.Brush.Text}"
-                                       ToolTip="{DynamicResource LOCGameFavoriteTitle}">
+                                       ToolTip="{DynamicResource LOCPlayAch_Common_Favorite}">
                                 <TextBlock.Style>
                                     <Style TargetType="TextBlock" BasedOn="{StaticResource PlayAch.TextBlock.BaseStyle}">
                                         <Setter Property="Opacity" Value="0"/>
@@ -380,7 +380,7 @@
                 </DataGridTemplateColumn.CellStyle>
             </DataGridTemplateColumn>
 
-            <DataGridTemplateColumn Width="*" MinWidth="22" CanUserResize="True" Header="{DynamicResource LOCTypeLabel}" SortMemberPath="CategoryKind" helpers:ColumnVisibilityHelper.ColumnKey="CategoryKind">
+            <DataGridTemplateColumn Width="*" MinWidth="22" CanUserResize="True" Header="{DynamicResource LOCPlayAch_Common_Type}" SortMemberPath="CategoryKind" helpers:ColumnVisibilityHelper.ColumnKey="CategoryKind">
                 <DataGridTemplateColumn.CellTemplate>
                     <DataTemplate>
                         <TextBlock Text="{Binding CategoryKindDisplay}"
@@ -391,7 +391,7 @@
                 </DataGridTemplateColumn.CellTemplate>
             </DataGridTemplateColumn>
 
-            <DataGridTemplateColumn Width="*" MinWidth="22" CanUserResize="True" Header="{DynamicResource LOCTagsLabel}" SortMemberPath="CategoryType" helpers:ColumnVisibilityHelper.ColumnKey="CategoryType">
+            <DataGridTemplateColumn Width="*" MinWidth="22" CanUserResize="True" Header="{DynamicResource LOCPlayAch_Common_Tags}" SortMemberPath="CategoryType" helpers:ColumnVisibilityHelper.ColumnKey="CategoryType">
                 <DataGridTemplateColumn.CellStyle>
                     <Style TargetType="DataGridCell" BasedOn="{StaticResource AchievementCellStyle}">
                         <!-- Every tag's name, since icons alone do not say which tags they are. -->
@@ -420,7 +420,7 @@
                 </DataGridTemplateColumn.CellTemplate>
             </DataGridTemplateColumn>
 
-            <DataGridTemplateColumn Width="*" MinWidth="22" CanUserResize="True" Header="{DynamicResource LOCCategoryLabel}" SortMemberPath="CategoryLabel" helpers:ColumnVisibilityHelper.ColumnKey="CategoryLabel">
+            <DataGridTemplateColumn Width="*" MinWidth="22" CanUserResize="True" Header="{DynamicResource LOCPlayAch_Common_Category}" SortMemberPath="CategoryLabel" helpers:ColumnVisibilityHelper.ColumnKey="CategoryLabel">
                 <DataGridTemplateColumn.CellStyle>
                     <Style TargetType="DataGridCell" BasedOn="{StaticResource AchievementCellStyle}">
                         <!-- The cell shows the leaf, so hovering reveals where it sits. -->

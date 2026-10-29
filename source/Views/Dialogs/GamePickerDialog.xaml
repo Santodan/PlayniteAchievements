@@ -27,7 +27,7 @@
                      Padding="8,6"
                      VerticalContentAlignment="Center"
                      Margin="{StaticResource PlayAch.Thickness.Bottom.Md}"
-                     ToolTip="{DynamicResource LOCSearchLabel}"
+                     ToolTip="{DynamicResource LOCPlayAch_Common_Search}"
                      TextChanged="SearchBox_TextChanged"
                      KeyDown="SearchBox_KeyDown"/>
 
@@ -78,13 +78,13 @@
                         Orientation="Horizontal"
                         HorizontalAlignment="Right"
                         Margin="0,12,0,0">
-                <Button Content="{DynamicResource LOCOKLabel}"
+                <Button Content="{DynamicResource LOCPlayAch_Common_OK}"
                         Click="OkButton_Click"
                         Padding="{StaticResource PlayAch.Thickness.ButtonPadding}"
                         MinWidth="88"
                         Margin="{StaticResource PlayAch.Thickness.Right.Sm}"
                         IsDefault="True"/>
-                <Button Content="{DynamicResource LOCCancelLabel}"
+                <Button Content="{DynamicResource LOCPlayAch_Common_Cancel}"
                         Click="CancelButton_Click"
                         Padding="{StaticResource PlayAch.Thickness.ButtonPadding}"
                         MinWidth="88"

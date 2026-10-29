@@ -38,7 +38,7 @@
                                    Style="{StaticResource SectionHeaderStyle}"
                                    Margin="0"/>
                         <CheckBox Grid.Column="1"
-                                  Content="{DynamicResource LOCEnabledTitle}"
+                                  Content="{DynamicResource LOCPlayAch_Common_Enabled}"
                                   IsChecked="{Binding Persisted.EnableAchievementCompactListControl}"
                                   VerticalAlignment="Center"/>
                     </Grid>
@@ -69,13 +69,13 @@
                                     <ColumnDefinition Width="Auto"/>
                                 </Grid.ColumnDefinitions>
                                 <TextBlock Grid.Column="0"
-                                           Text="{DynamicResource LOCMenuSortByTitle}"
+                                           Text="{DynamicResource LOCPlayAch_Common_SortBy}"
                                            VerticalAlignment="Center"
                                            Margin="{StaticResource PlayAch.Thickness.Right.Sm}"/>
                                 <ComboBox Grid.Column="1"
                                           SelectedValue="{Binding Persisted.CompactListSortMode, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                           SelectedValuePath="Tag">
-                                    <ComboBoxItem Content="{DynamicResource LOCDefault}" Tag="{x:Static settings:CompactListSortMode.None}"/>
+                                    <ComboBoxItem Content="{DynamicResource LOCPlayAch_Common_Default}" Tag="{x:Static settings:CompactListSortMode.None}"/>
                                     <ComboBoxItem Content="{DynamicResource LOCPlayAch_Common_UnlockTime}" Tag="{x:Static settings:CompactListSortMode.UnlockTime}"/>
                                     <ComboBoxItem Content="{DynamicResource LOCPlayAch_Column_Rarity}" Tag="{x:Static settings:CompactListSortMode.Rarity}"/>
                                 </ComboBox>

@@ -66,13 +66,13 @@
                             <WrapPanel Orientation="Horizontal"
                                        HorizontalAlignment="Right">
                                 <Button x:Name="AddCategoryButton"
-                                        Content="{DynamicResource LOCAddTitle}"
+                                        Content="{DynamicResource LOCPlayAch_Common_Add}"
                                         Click="AddCategoryButton_Click"
                                         Style="{StaticResource ToolbarButtonStyle}"
                                         IsEnabled="{Binding HasAchievements}"
                                         Margin="{StaticResource PlayAch.Thickness.Right.Sm}" />
                                 <Button x:Name="ResetCategoryMetadataButton"
-                                        Content="{DynamicResource LOCResetLabel}"
+                                        Content="{DynamicResource LOCPlayAch_Common_Reset}"
                                         Click="ResetCategoryMetadataButton_Click"
                                         Style="{StaticResource ToolbarButtonStyle}"
                                         IsEnabled="{Binding HasCustomCategoryMetadata}" />
@@ -217,7 +217,7 @@
                             </DataGridTemplateColumn.CellTemplate>
                         </DataGridTemplateColumn>
 
-                        <DataGridTemplateColumn Width="3*" MinWidth="260" Header="{DynamicResource LOCCategoryLabel}"
+                        <DataGridTemplateColumn Width="3*" MinWidth="260" Header="{DynamicResource LOCPlayAch_Common_Category}"
                                                 CellStyle="{StaticResource PlayAch.TreeGuideDataGridCellStyle}">
                             <DataGridTemplateColumn.CellTemplate>
                                 <DataTemplate>
@@ -394,7 +394,7 @@
                                                 MinWidth="110"
                                                 CanUserResize="False"
                                                 CanUserSort="False"
-                                                Header="{DynamicResource LOCTypeLabel}">
+                                                Header="{DynamicResource LOCPlayAch_Common_Type}">
                             <DataGridTemplateColumn.CellTemplate>
                                 <DataTemplate>
                                     <!-- Built per click like the Filters cell beside it. A kind the

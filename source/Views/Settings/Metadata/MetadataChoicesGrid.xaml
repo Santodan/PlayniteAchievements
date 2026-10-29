@@ -70,7 +70,7 @@
               ScrollViewer.HorizontalScrollBarVisibility="Auto">
         <DataGrid.Columns>
             <DataGridTemplateColumn x:Name="PlatformColumn"
-                                    Header="{DynamicResource LOCPlatformTitle}"
+                                    Header="{DynamicResource LOCPlayAch_Common_Platform}"
                                     Width="Auto"
                                     MinWidth="140">
                 <DataGridTemplateColumn.CellTemplate>
@@ -142,7 +142,7 @@
                 </DataGridTemplateColumn.CellTemplate>
             </DataGridTemplateColumn>
 
-            <DataGridTemplateColumn Header="{DynamicResource LOCTagsLabel}" Width="Auto" IsReadOnly="True">
+            <DataGridTemplateColumn Header="{DynamicResource LOCPlayAch_Common_Tags}" Width="Auto" IsReadOnly="True">
                 <DataGridTemplateColumn.CellTemplate>
                     <DataTemplate>
                         <Grid>

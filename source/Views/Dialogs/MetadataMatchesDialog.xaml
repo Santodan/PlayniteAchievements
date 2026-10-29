@@ -107,7 +107,7 @@
                                         MinWidth="{Binding ActualWidth, ElementName=PickerButton}">
                                     <StackPanel>
                                         <TextBox Text="{Binding Search, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                                 ToolTip="{DynamicResource LOCSearchLabel}"
+                                                 ToolTip="{DynamicResource LOCPlayAch_Common_Search}"
                                                  Padding="6,4"
                                                  Margin="0,0,0,6"
                                                  PreviewKeyDown="PickerSearch_PreviewKeyDown"/>
@@ -144,13 +144,13 @@
                         Orientation="Horizontal"
                         HorizontalAlignment="Right"
                         Margin="0,12,0,0">
-                <Button Content="{DynamicResource LOCSaveLabel}"
+                <Button Content="{DynamicResource LOCPlayAch_Common_Save}"
                         Click="SaveButton_Click"
                         Padding="{StaticResource PlayAch.Thickness.ButtonPadding}"
                         MinWidth="88"
                         Margin="{StaticResource PlayAch.Thickness.Right.Sm}"
                         IsDefault="True"/>
-                <Button Content="{DynamicResource LOCCancelLabel}"
+                <Button Content="{DynamicResource LOCPlayAch_Common_Cancel}"
                         Click="CancelButton_Click"
                         Padding="{StaticResource PlayAch.Thickness.ButtonPadding}"
                         MinWidth="88"

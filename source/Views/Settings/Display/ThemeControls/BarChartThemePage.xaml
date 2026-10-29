@@ -37,7 +37,7 @@
                                    Style="{StaticResource SectionHeaderStyle}"
                                    Margin="0"/>
                         <CheckBox Grid.Column="1"
-                                  Content="{DynamicResource LOCEnabledTitle}"
+                                  Content="{DynamicResource LOCPlayAch_Common_Enabled}"
                                   IsChecked="{Binding Persisted.EnableAchievementBarChartControl}"
                                   VerticalAlignment="Center"/>
                     </Grid>

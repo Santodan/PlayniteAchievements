@@ -75,7 +75,7 @@ namespace PlayniteAchievements.ViewModels
             {
                 var selected = _categoryOptions.Where(_selectedCategories.Contains).ToList();
                 return selected.Count == 0
-                    ? ResourceProvider.GetString("LOCCategoryLabel")
+                    ? ResourceProvider.GetString("LOCPlayAch_Common_Category")
                     : string.Join(", ", selected.Select(AchievementCategoryHelper.ToCategoryLabelDisplayText));
             }
         }
@@ -158,7 +158,7 @@ namespace PlayniteAchievements.ViewModels
         public string SelectedProviderFilterText =>
             OverviewGameSummaryFilters.BuildProviderFilterText(
                 ProviderFilterGroups,
-                ResourceProvider.GetString("LOCPlatformTitle"));
+                ResourceProvider.GetString("LOCPlayAch_Common_Platform"));
 
         /// <summary>
         /// Sets the library's game summaries: rows resolve their provider and platforms from them,
@@ -432,7 +432,7 @@ namespace PlayniteAchievements.ViewModels
                 CollapseUnselectedProviderFilters)
             {
                 Id = ShowcaseControlBarItems.Platform,
-                LabelKey = "LOCPlatformTitle",
+                LabelKey = "LOCPlayAch_Common_Platform",
                 Width = 170
             });
             controlBar.Items.Add(GameFilter.Item);
@@ -446,7 +446,7 @@ namespace PlayniteAchievements.ViewModels
                 AchievementCategoryHelper.ToCategoryLabelDisplayText)
             {
                 Id = ShowcaseControlBarItems.Category,
-                LabelKey = "LOCCategoryLabel",
+                LabelKey = "LOCPlayAch_Common_Category",
                 Width = 140,
                 IsCategoryFilter = true,
                 RendersCategoryTree = true,

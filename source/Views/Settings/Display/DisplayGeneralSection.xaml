@@ -23,7 +23,7 @@
             <Border Style="{StaticResource SectionBorderStyle}"
                     Background="{DynamicResource PlayAch.Brush.Panel}"
                     BorderBrush="{DynamicResource PlayAch.Brush.Border}">
-                <TextBlock Text="{DynamicResource LOCGeneralLabel}"
+                <TextBlock Text="{DynamicResource LOCPlayAch_Common_General}"
                            Style="{StaticResource SectionHeaderStyle}"
                            Margin="0"/>
             </Border>
@@ -47,18 +47,18 @@
                         <ComboBox SelectedValue="{Binding Persisted.GridColumnHeaderAlignment, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                   SelectedValuePath="Tag"
                                   MinWidth="140">
-                            <ComboBoxItem Content="{DynamicResource LOCDockLeft}" Tag="{x:Static settings:GridAlignment.Left}"/>
+                            <ComboBoxItem Content="{DynamicResource LOCPlayAch_Common_Left}" Tag="{x:Static settings:GridAlignment.Left}"/>
                             <ComboBoxItem Content="{DynamicResource LOCPlayAch_Settings_GridAlignment_Center}" Tag="{x:Static settings:GridAlignment.Center}"/>
-                            <ComboBoxItem Content="{DynamicResource LOCDockRight}" Tag="{x:Static settings:GridAlignment.Right}"/>
+                            <ComboBoxItem Content="{DynamicResource LOCPlayAch_Common_Right}" Tag="{x:Static settings:GridAlignment.Right}"/>
                         </ComboBox>
                     </controls:SettingRow>
                     <controls:SettingRow Label="{DynamicResource LOCPlayAch_Settings_GridCellAlignment}">
                         <ComboBox SelectedValue="{Binding Persisted.GridCellAlignment, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                   SelectedValuePath="Tag"
                                   MinWidth="140">
-                            <ComboBoxItem Content="{DynamicResource LOCDockLeft}" Tag="{x:Static settings:GridAlignment.Left}"/>
+                            <ComboBoxItem Content="{DynamicResource LOCPlayAch_Common_Left}" Tag="{x:Static settings:GridAlignment.Left}"/>
                             <ComboBoxItem Content="{DynamicResource LOCPlayAch_Settings_GridAlignment_Center}" Tag="{x:Static settings:GridAlignment.Center}"/>
-                            <ComboBoxItem Content="{DynamicResource LOCDockRight}" Tag="{x:Static settings:GridAlignment.Right}"/>
+                            <ComboBoxItem Content="{DynamicResource LOCPlayAch_Common_Right}" Tag="{x:Static settings:GridAlignment.Right}"/>
                         </ComboBox>
                     </controls:SettingRow>
                     <controls:SettingRow Label="{DynamicResource LOCPlayAch_Settings_GridCellVerticalAlignment}"
@@ -66,9 +66,9 @@
                         <ComboBox SelectedValue="{Binding Persisted.GridCellVerticalAlignment, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                   SelectedValuePath="Tag"
                                   MinWidth="140">
-                            <ComboBoxItem Content="{DynamicResource LOCDockTop}" Tag="{x:Static settings:GridVerticalAlignment.Top}"/>
+                            <ComboBoxItem Content="{DynamicResource LOCPlayAch_Common_Top}" Tag="{x:Static settings:GridVerticalAlignment.Top}"/>
                             <ComboBoxItem Content="{DynamicResource LOCPlayAch_Settings_GridAlignment_Center}" Tag="{x:Static settings:GridVerticalAlignment.Center}"/>
-                            <ComboBoxItem Content="{DynamicResource LOCDockBottom}" Tag="{x:Static settings:GridVerticalAlignment.Bottom}"/>
+                            <ComboBoxItem Content="{DynamicResource LOCPlayAch_Common_Bottom}" Tag="{x:Static settings:GridVerticalAlignment.Bottom}"/>
                         </ComboBox>
                     </controls:SettingRow>
                 </StackPanel>
@@ -117,9 +117,9 @@
                         <ComboBox SelectedValue="{Binding Persisted.CategoryCompletionBadgeMode, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                   SelectedValuePath="Tag"
                                   MinWidth="140">
-                            <ComboBoxItem Content="{DynamicResource LOCAll}" Tag="{x:Static settings:CategoryCompletionBadgeMode.All}"/>
+                            <ComboBoxItem Content="{DynamicResource LOCPlayAch_Common_All}" Tag="{x:Static settings:CategoryCompletionBadgeMode.All}"/>
                             <ComboBoxItem Content="{DynamicResource LOCPlayAch_Settings_CategoryCompletionBadgeMode_First}" Tag="{x:Static settings:CategoryCompletionBadgeMode.First}"/>
-                            <ComboBoxItem Content="{DynamicResource LOCNone}" Tag="{x:Static settings:CategoryCompletionBadgeMode.None}"/>
+                            <ComboBoxItem Content="{DynamicResource LOCPlayAch_Common_None}" Tag="{x:Static settings:CategoryCompletionBadgeMode.None}"/>
                         </ComboBox>
                     </controls:SettingRow>
                 </StackPanel>
@@ -243,7 +243,7 @@
                       Margin="0,16,0,0"
                       Padding="12,10,12,12">
                 <Expander.Header>
-                    <TextBlock Text="{DynamicResource LOCSettingsAdvancedLabel}"
+                    <TextBlock Text="{DynamicResource LOCPlayAch_Common_Advanced}"
                                Foreground="{DynamicResource PlayAch.Brush.Text}"
                                FontWeight="SemiBold"/>
                 </Expander.Header>

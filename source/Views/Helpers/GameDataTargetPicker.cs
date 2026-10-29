@@ -96,7 +96,7 @@ namespace PlayniteAchievements.Views.Helpers
 
             var merge = new MessageBoxOption(ResourceProvider.GetString("LOCPlayAch_Common_Merge"), isDefault: true);
             var replace = new MessageBoxOption(ResourceProvider.GetString("LOCPlayAch_Button_Replace"));
-            var cancel = new MessageBoxOption(ResourceProvider.GetString("LOCCancelLabel"), isCancel: true);
+            var cancel = new MessageBoxOption(ResourceProvider.GetString("LOCPlayAch_Common_Cancel"), isCancel: true);
             var picked = dialogs.ShowMessage(
                 message,
                 ResourceProvider.GetString("LOCPlayAch_Title_PluginName"),

@@ -1510,7 +1510,7 @@ namespace PlayniteAchievements.Views.ManageAchievements
             // Category and type, the same two the Category tab's row menu offers.
             var categoryMenu = new MenuItem
             {
-                Header = ResourceProvider.GetString("LOCCategoryLabel"),
+                Header = ResourceProvider.GetString("LOCPlayAch_Common_Category"),
                 IsEnabled = selection.All(row => row.CanEditAssignments)
             };
 
@@ -1520,7 +1520,7 @@ namespace PlayniteAchievements.Views.ManageAchievements
 
             var typeMenu = new MenuItem
             {
-                Header = ResourceProvider.GetString("LOCTagsLabel"),
+                Header = ResourceProvider.GetString("LOCPlayAch_Common_Tags"),
                 IsEnabled = selection.All(row => row.CanEditAssignments)
             };
             AppendTagItems(typeMenu.Items, selection);

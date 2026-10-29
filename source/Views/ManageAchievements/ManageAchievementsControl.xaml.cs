@@ -688,7 +688,7 @@ namespace PlayniteAchievements.Views.ManageAchievements
             Tuple.Create(Models.Settings.ManageSidebarStatGroups.Goals, "LOCPlayAch_ManageAchievements_Editor_Goal"),
             Tuple.Create(Models.Settings.ManageSidebarStatGroups.Categorized, "LOCPlayAch_ManageAchievements_Overview_Categorized"),
             Tuple.Create(Models.Settings.ManageSidebarStatGroups.Filtered, "LOCPlayAch_Menu_Filters"),
-            Tuple.Create(Models.Settings.ManageSidebarStatGroups.Notes, "LOCNotesLabel")
+            Tuple.Create(Models.Settings.ManageSidebarStatGroups.Notes, "LOCPlayAch_Common_Notes")
         };
 
         private void SidebarStatsHost_MouseRightButtonUp(object sender, MouseButtonEventArgs e)

@@ -351,7 +351,7 @@
             </DataGridTemplateColumn>
 
             <!-- Category surfaces only: game rows have no kind. -->
-            <DataGridTemplateColumn Width="*" MinWidth="22" CanUserResize="True" Header="{DynamicResource LOCTypeLabel}" SortMemberPath="CategoryKindSortKey" helpers:ColumnVisibilityHelper.ColumnKey="CategoryKind">
+            <DataGridTemplateColumn Width="*" MinWidth="22" CanUserResize="True" Header="{DynamicResource LOCPlayAch_Common_Type}" SortMemberPath="CategoryKindSortKey" helpers:ColumnVisibilityHelper.ColumnKey="CategoryKind">
                 <DataGridTemplateColumn.CellTemplate>
                     <DataTemplate>
                         <ContentControl Style="{StaticResource OverviewCellFrameStyle}">
@@ -369,7 +369,7 @@
             </DataGridTemplateColumn>
 
             <DataGridTemplateColumn Width="44" MinWidth="28" MaxWidth="96"
-                                    Header="{DynamicResource LOCPlatformTitle}"
+                                    Header="{DynamicResource LOCPlayAch_Common_Platform}"
                                     CanUserResize="True"
                                     CanUserSort="False"
                                     helpers:ColumnVisibilityHelper.ColumnKey="GameSummaryPlatform" helpers:DataGridColumnLayoutService.IsHeaderTextHidden="True">
@@ -449,7 +449,7 @@
                 </DataGridTemplateColumn.CellTemplate>
             </DataGridTemplateColumn>
 
-            <DataGridTemplateColumn Width="*" MinWidth="22" CanUserResize="True" Header="{DynamicResource LOCLastPlayed}" SortMemberPath="LastPlayed" helpers:ColumnVisibilityHelper.ColumnKey="GameSummaryLastPlayed">
+            <DataGridTemplateColumn Width="*" MinWidth="22" CanUserResize="True" Header="{DynamicResource LOCPlayAch_Common_LastPlayed}" SortMemberPath="LastPlayed" helpers:ColumnVisibilityHelper.ColumnKey="GameSummaryLastPlayed">
                 <DataGridTemplateColumn.CellStyle>
                     <Style TargetType="DataGridCell" BasedOn="{StaticResource GameSummariesGridCellStyle}">
                         <Setter Property="ToolTip">

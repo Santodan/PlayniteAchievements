@@ -238,7 +238,7 @@ namespace PlayniteAchievements.Views.ManageAchievements
 
             var noneItem = new MenuItem
             {
-                Header = L("LOCNone"),
+                Header = L("LOCPlayAch_Common_None"),
                 IsCheckable = true,
                 IsChecked = string.Equals(row.StoredKind, CategoryKindHelper.None, StringComparison.OrdinalIgnoreCase)
             };
@@ -247,7 +247,7 @@ namespace PlayniteAchievements.Views.ManageAchievements
 
             var resetItem = new MenuItem
             {
-                Header = L("LOCResetLabel"),
+                Header = L("LOCPlayAch_Common_Reset"),
                 IsEnabled = row.IsKindStored
             };
             resetItem.Click += (_, __) => viewModel.ApplyCategoryKind(row, null);
@@ -701,7 +701,7 @@ namespace PlayniteAchievements.Views.ManageAchievements
                 ViewModel.HasCustomCategoryOrder || ViewModel.HasCustomCategoryNesting,
                 () => ResetCategoryMetadataAspect(ViewModel.ResetCategoryOrder)));
             menu.Items.Add(CreateResetMenuItem(
-                L("LOCNameLabel"),
+                L("LOCPlayAch_Common_Name"),
                 ViewModel.HasCustomCategoryNames,
                 () => ResetCategoryMetadataAspect(ViewModel.ResetCategoryNames)));
             menu.Items.Add(CreateResetMenuItem(

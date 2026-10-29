@@ -116,7 +116,7 @@
 
                 <Button x:Name="RefreshCancelButton"
                         Grid.Row="3"
-                        Content="{DynamicResource LOCCancelLabel}"
+                        Content="{DynamicResource LOCPlayAch_Common_Cancel}"
                         Command="{Binding CancelRefreshCommand}"
                         IsEnabled="{Binding CanCancelRefresh}"
                         Padding="{StaticResource PlayAch.Thickness.ButtonPadding}"
@@ -170,12 +170,12 @@
                     <!-- Action buttons -->
                     <StackPanel Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Right" Margin="10,0,0,0">
                         <Button x:Name="UnlockAllButton"
-                                Content="{DynamicResource LOCSelectAll}"
+                                Content="{DynamicResource LOCPlayAch_Common_SelectAll}"
                                 Command="{Binding UnlockAllCommand}"
                                 Padding="8,4"
                                 Margin="{StaticResource PlayAch.Thickness.Right.Sm}"/>
                         <Button x:Name="LockAllButton"
-                                Content="{DynamicResource LOCDeselectAll}"
+                                Content="{DynamicResource LOCPlayAch_Common_DeselectAll}"
                                 Command="{Binding LockAllCommand}"
                                 Padding="8,4"/>
                     </StackPanel>
@@ -429,7 +429,7 @@
                                Foreground="{DynamicResource PlayAch.Brush.Text}"
                                Opacity="{StaticResource PlayAch.Opacity.Subtle}"
                                VerticalAlignment="Center" />
-                    <TextBlock Text="{DynamicResource LOCPlatformTitle}"
+                    <TextBlock Text="{DynamicResource LOCPlayAch_Common_Platform}"
                                Foreground="{DynamicResource PlayAch.Brush.Text}"
                                Opacity="{StaticResource PlayAch.Opacity.Hint}"
                                Margin="{StaticResource PlayAch.Thickness.Left.Md}"
@@ -473,14 +473,14 @@
                                 RelativeSource={RelativeSource AncestorType=UserControl},
                                 Converter={StaticResource BooleanToVisibilityConverter}}">
                     <Button x:Name="NextButton"
-                            Content="{DynamicResource LOCNextLabel}"
+                            Content="{DynamicResource LOCPlayAch_Common_Next}"
                             Click="NextButton_Click"
                             Padding="{StaticResource PlayAch.Thickness.ButtonPadding}"
                             MinWidth="80"
                             Margin="{StaticResource PlayAch.Thickness.Right.Sm}"
                             IsDefault="True"/>
                     <Button x:Name="SearchCancelButton"
-                            Content="{DynamicResource LOCCancelLabel}"
+                            Content="{DynamicResource LOCPlayAch_Common_Cancel}"
                             Click="CancelButton_Click"
                             Padding="{StaticResource PlayAch.Thickness.ButtonPadding}"
                             MinWidth="80"
@@ -493,14 +493,14 @@
                                 RelativeSource={RelativeSource AncestorType=UserControl},
                                 Converter={StaticResource BooleanToVisibilityConverter}}">
                     <Button x:Name="SaveButton"
-                            Content="{DynamicResource LOCSaveLabel}"
+                            Content="{DynamicResource LOCPlayAch_Common_Save}"
                             Command="{Binding SaveCommand}"
                             Padding="{StaticResource PlayAch.Thickness.ButtonPadding}"
                             MinWidth="80"
                             Margin="{StaticResource PlayAch.Thickness.Right.Sm}"
                             IsDefault="True"/>
                     <Button x:Name="EditCancelButton"
-                            Content="{DynamicResource LOCCancelLabel}"
+                            Content="{DynamicResource LOCPlayAch_Common_Cancel}"
                             Click="CancelButton_Click"
                             Padding="{StaticResource PlayAch.Thickness.ButtonPadding}"
                             MinWidth="80"/>

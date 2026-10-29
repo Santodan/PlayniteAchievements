@@ -262,7 +262,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         /// <summary>The Kind cell's face: the kind's name, None when set to none, blank otherwise.</summary>
         public string KindDisplayText =>
             string.Equals(_storedKind, CategoryKindHelper.None, StringComparison.OrdinalIgnoreCase)
-                ? ResourceProvider.GetString("LOCNone")
+                ? ResourceProvider.GetString("LOCPlayAch_Common_None")
                 : CategoryKindHelper.ToDisplayText(_kind);
 
         internal void SetKind(string storedKind, string kind)

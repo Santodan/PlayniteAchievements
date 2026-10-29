@@ -58,11 +58,11 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
     /// </summary>
     internal static class ManageOverviewSummaryBuilder
     {
-        public const string CustomAchievementsLabelKey = "LOCCustomLabel";
+        public const string CustomAchievementsLabelKey = "LOCPlayAch_Common_Custom";
         public const string AutoCapstoneLabelKey = "LOCPlayAch_ManageAchievements_Custom_AutoCapstone";
         public const string OrderLabelKey = "LOCPlayAch_ManageAchievements_Tab_AchievementOrder";
         public const string CategoryArtLabelKey = "LOCPlayAch_Column_CategoryArt";
-        public const string NotificationsLabelKey = "LOCNotifications";
+        public const string NotificationsLabelKey = "LOCPlayAch_Common_Notifications";
         public const string ProviderOverrideLabelKey = "LOCPlayAch_ManageAchievements_Overrides_ProviderHeader";
         public const string SeparateLockedIconsLabelKey = "LOCPlayAch_ManageAchievements_Overrides_LockedIconsHeader";
 

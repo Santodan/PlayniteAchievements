@@ -50,7 +50,7 @@
 
             <Button x:Name="SearchButton"
                     Grid.Column="1"
-                    Content="{DynamicResource LOCSearchLabel}"
+                    Content="{DynamicResource LOCPlayAch_Common_Search}"
                     Command="{Binding SearchCommand}"
                     Padding="{StaticResource PlayAch.Thickness.ButtonPadding}"
                     MinWidth="80"
@@ -81,7 +81,7 @@
                             <Button Style="{StaticResource ClearSearchButtonStyle}"
                                     Tag="x"
                                     Margin="{StaticResource PlayAch.Thickness.Left.Sm}"
-                                    ToolTip="{DynamicResource LOCRemoveLabel}"
+                                    ToolTip="{DynamicResource LOCPlayAch_Common_Remove}"
                                     Command="{Binding DataContext.RemovePickCommand, ElementName=Root}"
                                     CommandParameter="{Binding}"/>
                         </StackPanel>
@@ -156,7 +156,7 @@
 
                 <!-- Bound straight to the address: store art comes in any shape, and the plugin's
                      image cache decodes small and squares what it caches. -->
-                <DataGridTemplateColumn Header="{DynamicResource LOCGameIconTitle}" Width="108" IsReadOnly="True"
+                <DataGridTemplateColumn Header="{DynamicResource LOCPlayAch_Common_Icon}" Width="108" IsReadOnly="True"
                                         CellStyle="{StaticResource ManageAchievementsIconCellStyle}">
                     <DataGridTemplateColumn.CellTemplate>
                         <DataTemplate>
@@ -172,7 +172,7 @@
                     </DataGridTemplateColumn.CellTemplate>
                 </DataGridTemplateColumn>
 
-                <DataGridTextColumn Header="{DynamicResource LOCNameLabel}"
+                <DataGridTextColumn Header="{DynamicResource LOCPlayAch_Common_Name}"
                                     Binding="{Binding Name, Mode=OneWay}"
                                     Width="*">
                     <DataGridTextColumn.ElementStyle>
@@ -184,7 +184,7 @@
                 </DataGridTextColumn>
 
                 <DataGridTextColumn x:Name="PlatformColumn"
-                                    Header="{DynamicResource LOCPlatformTitle}"
+                                    Header="{DynamicResource LOCPlayAch_Common_Platform}"
                                     Binding="{Binding Platforms, Mode=OneWay}"
                                     Width="140"
                                     Visibility="Collapsed">
@@ -218,7 +218,7 @@
                      PreviewKeyDown="LinkTextBox_PreviewKeyDown"/>
             <Button x:Name="AddLinkButton"
                     Grid.Column="2"
-                    Content="{DynamicResource LOCAddTitle}"
+                    Content="{DynamicResource LOCPlayAch_Common_Add}"
                     Command="{Binding AddLinkCommand}"
                     Padding="{StaticResource PlayAch.Thickness.ButtonPadding}"
                     MinWidth="80"

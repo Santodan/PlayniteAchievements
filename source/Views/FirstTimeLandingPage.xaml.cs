@@ -127,7 +127,7 @@ namespace PlayniteAchievements.Views
                     }
                     if (!IsEnabled)
                     {
-                        return ResourceProvider.GetString("LOCDisabledTitle");
+                        return ResourceProvider.GetString("LOCPlayAch_Common_Disabled");
                     }
                     return IsAuthenticated
                         ? ResourceProvider.GetString("LOCPlayAch_CustomRefresh_ProviderStatus_Ready")
@@ -172,7 +172,7 @@ namespace PlayniteAchievements.Views
             SelectedRefreshMode,
             RefreshModeType.Custom.GetKey(),
             StringComparison.Ordinal)
-            ? ResourceProvider.GetString("LOCConfigure")
+            ? ResourceProvider.GetString("LOCPlayAch_Common_Configure")
             : ResourceProvider.GetString("LOCPlayAch_Landing_BeginRefresh");
 
         /// <summary>

@@ -128,7 +128,7 @@ namespace PlayniteAchievements.Tests.Services
             Assert.AreEqual(1, counts["LOCPlayAch_ManageAchievements_Notes_Note"]);
             Assert.AreEqual(1, counts["LOCPlayAch_Common_UnlockTime"]);
             Assert.AreEqual(1, counts["LOCPlayAch_Filter_Hidden"]);
-            Assert.IsFalse(counts.ContainsKey("LOCGameDescriptionTitle"));
+            Assert.IsFalse(counts.ContainsKey("LOCPlayAch_Common_Description"));
         }
 
         [TestMethod]
@@ -205,13 +205,13 @@ namespace PlayniteAchievements.Tests.Services
             var counts = ToMap(ManageOverviewSummaryBuilder.BuildCustomizationCounts(data));
 
             Assert.AreEqual(2, counts["LOCPlayAch_Column_AchievementName"]);
-            Assert.AreEqual(2, counts["LOCGameDescriptionTitle"]);
+            Assert.AreEqual(2, counts["LOCPlayAch_Common_Description"]);
             Assert.AreEqual(1, counts["LOCPlayAch_Column_Points"]);
             Assert.AreEqual(1, counts["LOCPlayAch_Column_Trophy"]);
             Assert.AreEqual(1, counts["LOCPlayAch_Filter_Hidden"]);
             Assert.AreEqual(1, counts["LOCPlayAch_Dynamic_Capstone"]);
             Assert.AreEqual(1, counts["LOCPlayAch_Common_UnlockTime"], "A locked custom's stored time is not in effect.");
-            Assert.AreEqual(2, counts["LOCCategoryLabel"]);
+            Assert.AreEqual(2, counts["LOCPlayAch_Common_Category"]);
             Assert.AreEqual(1, counts[AchievementCustomizationFacetLabels.GetLabelKey(AchievementCustomizationFacet.Tags)]);
         }
 

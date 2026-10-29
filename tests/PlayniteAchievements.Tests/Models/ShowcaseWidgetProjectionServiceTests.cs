@@ -91,7 +91,7 @@ namespace PlayniteAchievements.Tests.Models
             Assert.AreEqual(180, providers[0].Value);
             Assert.AreEqual("Other", providers[1].Key);
             Assert.AreEqual(50, providers[1].Value);
-            Assert.AreEqual("LOCOther", providers[1].LabelKey);
+            Assert.AreEqual("LOCPlayAch_Common_Other", providers[1].LabelKey);
 
             instance.SetOption("Grouping", ShowcasePointsGrouping.Game);
             var games = ShowcaseWidgetProjectionService.BuildNativePoints(snapshot, instance);

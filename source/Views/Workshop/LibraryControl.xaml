@@ -162,20 +162,20 @@
                                        TextWrapping="Wrap"/>
                         </StackPanel>
                         <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
-                            <!-- Goes to where the place is configured. LOCOpen is Playnite's own "Open". -->
+                            <!-- Goes to where the place is configured. LOCPlayAch_Common_Open is Playnite's own "Open". -->
                             <Button Content="&#xEF1F;"
                                     Style="{StaticResource PlayAch.Button.ToolbarIconStyle}"
                                     ContentTemplate="{StaticResource LibraryGlyphContentTemplate}"
-                                    ToolTip="{DynamicResource LOCOpen}"
-                                    AutomationProperties.Name="{DynamicResource LOCOpen}"
+                                    ToolTip="{DynamicResource LOCPlayAch_Common_Open}"
+                                    AutomationProperties.Name="{DynamicResource LOCPlayAch_Common_Open}"
                                     Margin="8,0,0,0"
                                     Command="{Binding DataContext.OpenTargetCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
                                     CommandParameter="{Binding}"/>
                             <Button Content="&#xEE0B;"
                                     Style="{StaticResource PlayAch.Button.ToolbarIconStyle}"
                                     ContentTemplate="{StaticResource LibraryGlyphContentTemplate}"
-                                    ToolTip="{DynamicResource LOCResetLabel}"
-                                    AutomationProperties.Name="{DynamicResource LOCResetLabel}"
+                                    ToolTip="{DynamicResource LOCPlayAch_Common_Reset}"
+                                    AutomationProperties.Name="{DynamicResource LOCPlayAch_Common_Reset}"
                                     Margin="4,0,0,0"
                                     Visibility="{Binding CanReset, Converter={StaticResource BoolToVis}}"
                                     Command="{Binding DataContext.ResetCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
@@ -253,7 +253,7 @@
                                 <ColumnDefinition Width="Auto"/>
                                 <ColumnDefinition Width="*"/>
                             </Grid.ColumnDefinitions>
-                            <TextBlock Text="{DynamicResource LOCVersionLabel}"
+                            <TextBlock Text="{DynamicResource LOCPlayAch_Common_Version}"
                                        Foreground="{DynamicResource PlayAch.Brush.Text.Secondary}"
                                        Margin="0,0,14,0"/>
                             <StackPanel Grid.Column="1" Orientation="Horizontal">
@@ -335,8 +335,8 @@
                                     Click="Export_Click"/>
                             <Button Content="&#xEC55;"
                                     Style="{StaticResource LibraryIconButtonStyle}"
-                                    ToolTip="{DynamicResource LOCRenameTitle}"
-                                    AutomationProperties.Name="{DynamicResource LOCRenameTitle}"
+                                    ToolTip="{DynamicResource LOCPlayAch_Common_Rename}"
+                                    AutomationProperties.Name="{DynamicResource LOCPlayAch_Common_Rename}"
                                     Visibility="{Binding HasLibraryCopy, Converter={StaticResource BoolToVis}}"
                                     Command="{Binding DataContext.RenameCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"/>
                             <Button Content="&#xEE09;"
@@ -406,7 +406,7 @@
                          Margin="8,0,0,6"
                          VerticalAlignment="Center"
                          Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}"
-                         ToolTip="{DynamicResource LOCSearchLabel}"/>
+                         ToolTip="{DynamicResource LOCPlayAch_Common_Search}"/>
             </Grid>
 
             <!-- List grouped by kind, and the detail pane. -->

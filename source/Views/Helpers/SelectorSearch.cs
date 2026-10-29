@@ -255,7 +255,7 @@ namespace PlayniteAchievements.Views.Helpers
         private static string PlaceholderText(bool canCreate) =>
             canCreate
                 ? L("LOCPlayAch_Common_SearchOrAdd", "Search or Add")
-                : L("LOCSearchLabel", "Search");
+                : L("LOCPlayAch_Common_Search", "Search");
 
         private static string FormatCreateText(string query) =>
             string.Format(L("LOCPlayAch_Common_AddNamed", "Add \"{0}\""), query);

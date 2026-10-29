@@ -87,7 +87,7 @@
         <Setter Property="FontSize" Value="12"/>
         <Setter Property="FontWeight" Value="SemiBold"/>
         <Setter Property="Opacity" Value="0.72"/>
-        <Setter Property="ToolTip" Value="{DynamicResource LOCClearLabel}"/>
+        <Setter Property="ToolTip" Value="{DynamicResource LOCPlayAch_Common_Clear}"/>
         <Setter Property="Visibility" Value="Visible"/>
         <Setter Property="Template">
             <Setter.Value>

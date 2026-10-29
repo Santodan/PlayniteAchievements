@@ -17,7 +17,7 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
         // The styles in menu order with their labels, the capture settings' own.
         private static readonly (ShowcaseScreenshotVariant Variant, string Key)[] VariantChoices =
         {
-            (ShowcaseScreenshotVariant.All, "LOCAll"),
+            (ShowcaseScreenshotVariant.All, "LOCPlayAch_Common_All"),
             (ShowcaseScreenshotVariant.Clean, "LOCPlayAch_Settings_ScreenshotVariantClean"),
             (ShowcaseScreenshotVariant.Notification, "LOCPlayAch_Settings_Style_ToastTab"),
             (ShowcaseScreenshotVariant.Framed, "LOCPlayAch_Settings_ScreenshotVariantFramed")

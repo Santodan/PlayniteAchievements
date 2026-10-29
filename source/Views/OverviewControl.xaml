@@ -378,7 +378,7 @@
                                 VerticalAlignment="Center"
                                 Margin="18,0,0,0">
                         <Button x:Name="OverviewSubViewButton"
-                                Content="{DynamicResource LOCOverviewLabel}"
+                                Content="{DynamicResource LOCPlayAch_Common_Overview}"
                                 Click="OverviewSubViewButton_Click">
                             <Button.Style>
                                 <Style TargetType="Button" BasedOn="{StaticResource OverviewSubViewSwitchButtonStyle}">

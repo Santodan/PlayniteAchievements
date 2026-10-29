@@ -59,7 +59,7 @@
                                                     MinWidth="58"
                                                     Click="ExportColors_Click"/>
 
-                                            <Button Content="{DynamicResource LOCImportLabel}" ContentTemplate="{DynamicResource PlayAch.ButtonContent.Import}"
+                                            <Button Content="{DynamicResource LOCPlayAch_Common_Import}" ContentTemplate="{DynamicResource PlayAch.ButtonContent.Import}"
                                                     Margin="8,0,0,0"
                                                     MinWidth="58"
                                                     Click="ImportColors_Click"/>
@@ -136,7 +136,7 @@
                                                         Click="PickRarityColor_Click"/>
 
                                                 <Button Grid.Column="2"
-                                                        Content="{DynamicResource LOCResetLabel}"
+                                                        Content="{DynamicResource LOCPlayAch_Common_Reset}"
                                                         Margin="8,0,0,0"
                                                         MinWidth="58"
                                                         Click="ResetRarityColor_Click"/>
@@ -202,7 +202,7 @@
                                                         Click="PickRarityColor_Click"/>
 
                                                 <Button Grid.Column="2"
-                                                        Content="{DynamicResource LOCResetLabel}"
+                                                        Content="{DynamicResource LOCPlayAch_Common_Reset}"
                                                         Margin="8,0,0,0"
                                                         MinWidth="58"
                                                         Click="ResetRarityColor_Click"/>
@@ -268,7 +268,7 @@
                                                         Click="PickRarityColor_Click"/>
 
                                                 <Button Grid.Column="2"
-                                                        Content="{DynamicResource LOCResetLabel}"
+                                                        Content="{DynamicResource LOCPlayAch_Common_Reset}"
                                                         Margin="8,0,0,0"
                                                         MinWidth="58"
                                                         Click="ResetRarityColor_Click"/>
@@ -357,7 +357,7 @@
                                                         Click="PickProviderColor_Click"/>
 
                                                 <Button Grid.Column="2"
-                                                        Content="{DynamicResource LOCResetLabel}"
+                                                        Content="{DynamicResource LOCPlayAch_Common_Reset}"
                                                         Margin="8,0,0,0"
                                                         MinWidth="58"
                                                         Click="ResetProviderColor_Click"/>
@@ -377,7 +377,7 @@
                               Margin="{StaticResource PlayAch.Thickness.Top.Lg}"
                               Padding="12,10,12,12">
                         <Expander.Header>
-                            <TextBlock Text="{DynamicResource LOCSettingsAdvancedLabel}"
+                            <TextBlock Text="{DynamicResource LOCPlayAch_Common_Advanced}"
                                        Foreground="{DynamicResource PlayAch.Brush.Text}"
                                        FontWeight="SemiBold"/>
                         </Expander.Header>
@@ -417,7 +417,7 @@
                                                               SelectedValue="{Binding Mode, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                                               SelectedValuePath="Tag">
                                                         <ComboBoxItem Content="{DynamicResource LOCPlayAch_Settings_Appearance_FollowPlaynite}" Tag="{x:Static settings:ResourceOverrideMode.FollowPlaynite}"/>
-                                                        <ComboBoxItem Content="{DynamicResource LOCCustomLabel}" Tag="{x:Static settings:ResourceOverrideMode.Custom}"/>
+                                                        <ComboBoxItem Content="{DynamicResource LOCPlayAch_Common_Custom}" Tag="{x:Static settings:ResourceOverrideMode.Custom}"/>
                                                         <ComboBoxItem Content="{DynamicResource LOCPlayAch_Common_Transparent}" Tag="{x:Static settings:ResourceOverrideMode.Transparent}">
                                                             <ComboBoxItem.Style>
                                                                 <Style TargetType="ComboBoxItem">

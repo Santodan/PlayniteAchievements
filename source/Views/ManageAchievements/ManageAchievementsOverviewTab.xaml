@@ -91,7 +91,7 @@
                             <WrapPanel Margin="{StaticResource PlayAch.Thickness.Top.Sm}">
                                 <Border Style="{StaticResource MetaChipStyle}">
                                     <TextBlock Style="{StaticResource ChipTextStyle}">
-                                        <Run Text="{DynamicResource LOCPlatformTitle}" /><Run Text=": " /><Run Text="{Binding ProviderName, Mode=OneWay}" />
+                                        <Run Text="{DynamicResource LOCPlayAch_Common_Platform}" /><Run Text=": " /><Run Text="{Binding ProviderName, Mode=OneWay}" />
                                     </TextBlock>
                                 </Border>
                                 <Border Style="{StaticResource MetaChipStyle}">
@@ -132,7 +132,7 @@
                                 <RowDefinition Height="Auto" />
                             </Grid.RowDefinitions>
                             <Button Grid.Row="0" Grid.Column="0"
-                                    Content="{DynamicResource LOCClearLabel}"
+                                    Content="{DynamicResource LOCPlayAch_Common_Clear}"
                                     Click="ContextMenuButton_Click"
                                     Padding="{StaticResource PlayAch.Thickness.ButtonPadding}"
                                     MinWidth="100"
@@ -173,7 +173,7 @@
                                 </Button.ContextMenu>
                             </Button>
                             <Button Grid.Row="1" Grid.Column="1"
-                                    Content="{DynamicResource LOCImportLabel}" ContentTemplate="{DynamicResource PlayAch.ButtonContent.Import}"
+                                    Content="{DynamicResource LOCPlayAch_Common_Import}" ContentTemplate="{DynamicResource PlayAch.ButtonContent.Import}"
                                     Click="ContextMenuButton_Click"
                                     Padding="{StaticResource PlayAch.Thickness.ButtonPadding}"
                                     MinWidth="100"
@@ -265,7 +265,7 @@
                                         Padding="{StaticResource PlayAch.Thickness.ButtonPadding}"
                                         VerticalAlignment="Center"
                                         Margin="{StaticResource PlayAch.Thickness.Left.Sm}" />
-                                <Button Content="{DynamicResource LOCClearLabel}"
+                                <Button Content="{DynamicResource LOCPlayAch_Common_Clear}"
                                         Command="{Binding ClearProviderOverrideCommand}"
                                         Padding="{StaticResource PlayAch.Thickness.ButtonPadding}"
                                         VerticalAlignment="Center"
@@ -395,8 +395,8 @@
                                                  stored link to drop, as for a link the game implies (IcoFont undo). -->
                                             <Button Grid.Column="3"
                                                     Content="&#xEE0B;"
-                                                    ToolTip="{DynamicResource LOCResetLabel}"
-                                                    AutomationProperties.Name="{DynamicResource LOCResetLabel}"
+                                                    ToolTip="{DynamicResource LOCPlayAch_Common_Reset}"
+                                                    AutomationProperties.Name="{DynamicResource LOCPlayAch_Common_Reset}"
                                                     Command="{Binding ClearCommand}"
                                                     VerticalAlignment="Center"
                                                     Margin="{StaticResource PlayAch.Thickness.Left.Sm}">
@@ -509,8 +509,8 @@
                                     Command="{Binding UpdateWorkshopDataCommand}" />
                             <Button Content="&#xEE0B;"
                                     Style="{StaticResource OverviewIconButtonStyle}"
-                                    ToolTip="{DynamicResource LOCResetLabel}"
-                                    AutomationProperties.Name="{DynamicResource LOCResetLabel}"
+                                    ToolTip="{DynamicResource LOCPlayAch_Common_Reset}"
+                                    AutomationProperties.Name="{DynamicResource LOCPlayAch_Common_Reset}"
                                     Command="{Binding ResetWorkshopDataCommand}" />
                             <Button Content="&#xEDF8;"
                                     Style="{StaticResource OverviewIconButtonStyle}"

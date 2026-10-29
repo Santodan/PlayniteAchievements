@@ -119,7 +119,7 @@ namespace PlayniteAchievements.ViewModels.Workshop
 
             KindOptions = new List<WorkshopKindOption>
             {
-                new WorkshopKindOption(null, ResourceProvider.GetString("LOCAll")),
+                new WorkshopKindOption(null, ResourceProvider.GetString("LOCPlayAch_Common_All")),
                 new WorkshopKindOption(WorkshopItemKind.Colors, WorkshopItemViewModel.KindLabelFor(WorkshopItemKind.Colors)),
                 new WorkshopKindOption(WorkshopItemKind.NotificationStyle, WorkshopItemViewModel.KindLabelFor(WorkshopItemKind.NotificationStyle)),
                 new WorkshopKindOption(WorkshopItemKind.ScreenshotFrame, WorkshopItemViewModel.KindLabelFor(WorkshopItemKind.ScreenshotFrame)),
@@ -133,7 +133,7 @@ namespace PlayniteAchievements.ViewModels.Workshop
                 new WorkshopSortOption(WorkshopSort.MostInstalled, ResourceProvider.GetString("LOCPlayAch_Workshop_SortMostInstalled")),
                 new WorkshopSortOption(WorkshopSort.MostLiked, ResourceProvider.GetString("LOCPlayAch_Workshop_SortMostLiked")),
                 new WorkshopSortOption(WorkshopSort.Newest, ResourceProvider.GetString("LOCPlayAch_Workshop_SortNewest")),
-                new WorkshopSortOption(WorkshopSort.Name, ResourceProvider.GetString("LOCNameLabel"))
+                new WorkshopSortOption(WorkshopSort.Name, ResourceProvider.GetString("LOCPlayAch_Common_Name"))
             };
             // Opened from the window that owns one kind (or from a game): that kind alone is
             // offered, bundles carrying the part still list under it, and the selector hides.

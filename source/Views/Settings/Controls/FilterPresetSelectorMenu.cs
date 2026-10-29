@@ -54,7 +54,7 @@ namespace PlayniteAchievements.Views.Settings.Controls
             {
                 menu.Items.Add(new MenuItem
                 {
-                    Header = ResourceProvider.GetString("LOCNone"),
+                    Header = ResourceProvider.GetString("LOCPlayAch_Common_None"),
                     IsEnabled = false
                 });
             }
@@ -70,7 +70,7 @@ namespace PlayniteAchievements.Views.Settings.Controls
                 .Where(preset => selected.Contains(preset.Id))
                 .Select(preset => preset.Name)
                 .ToList();
-            return names.Count > 0 ? string.Join(", ", names) : ResourceProvider.GetString("LOCNone");
+            return names.Count > 0 ? string.Join(", ", names) : ResourceProvider.GetString("LOCPlayAch_Common_None");
         }
 
         private static IEnumerable<FilterPreset> GetPresets(IPlayniteAPI api)

@@ -78,9 +78,9 @@ namespace PlayniteAchievements.Common
             switch (unit)
             {
                 case RelativeDateUnit.Today:
-                    return ResourceProvider.GetString("LOCToday");
+                    return ResourceProvider.GetString("LOCPlayAch_Common_Today");
                 case RelativeDateUnit.Yesterday:
-                    return ResourceProvider.GetString("LOCYesterday");
+                    return ResourceProvider.GetString("LOCPlayAch_Common_Yesterday");
                 case RelativeDateUnit.Days:
                     return Format("LOCPlayAch_Common_Date_DaysAgo", count);
                 case RelativeDateUnit.Weeks:

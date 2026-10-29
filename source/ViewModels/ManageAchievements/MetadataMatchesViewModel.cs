@@ -34,8 +34,8 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             _trophiesByApiName = _trophies
                 .GroupBy(trophy => trophy.Key, StringComparer.OrdinalIgnoreCase)
                 .ToDictionary(group => group.Key, group => group.First(), StringComparer.OrdinalIgnoreCase);
-            Automatic = MatchOption.Special(null, ResourceProvider.GetString("LOCAutomatic"));
-            None = MatchOption.Special(string.Empty, ResourceProvider.GetString("LOCNone"));
+            Automatic = MatchOption.Special(null, ResourceProvider.GetString("LOCPlayAch_Common_Automatic"));
+            None = MatchOption.Special(string.Empty, ResourceProvider.GetString("LOCPlayAch_Common_None"));
 
             var matches = snapshot?.Matches ?? new Dictionary<string, string>();
             pairings = pairings ?? new Dictionary<string, string>();
@@ -155,7 +155,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
 
         /// <summary>The paired trophy's name, None, or blank while unmatched.</summary>
         public string PairingText => Trophy?.Name ?? (_staged == string.Empty
-            ? ResourceProvider.GetString("LOCNone")
+            ? ResourceProvider.GetString("LOCPlayAch_Common_None")
             : string.Empty);
 
         public bool IsPickerOpen

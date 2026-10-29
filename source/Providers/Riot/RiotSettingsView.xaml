@@ -148,7 +148,7 @@
                                                    Margin="{StaticResource PlayAch.Thickness.Top.Sm}"
                                                    TextWrapping="Wrap"/>
 
-                                        <TextBlock Text="{DynamicResource LOCRegionLabel}"
+                                        <TextBlock Text="{DynamicResource LOCPlayAch_Common_Region}"
                                                    Margin="0,12,0,8"/>
                                         <ComboBox x:Name="RegionCombo"
                                                   DisplayMemberPath="Label"
@@ -156,7 +156,7 @@
                                                   SelectedValue="{Binding Settings.PlatformRegion, Mode=TwoWay}"
                                                   Padding="4"/>
 
-                                        <TextBlock Text="{DynamicResource LOCAPIKey}"
+                                        <TextBlock Text="{DynamicResource LOCPlayAch_Common_ApiKey}"
                                                    Margin="0,12,0,8"/>
                                         <TextBox Text="{Binding Settings.RiotApiKey, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                                  Padding="4"/>

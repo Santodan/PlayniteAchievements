@@ -298,8 +298,8 @@ namespace PlayniteAchievements.ViewModels
             _recordingClean == OverrideState.Inherit &&
             _recordingWithToast == OverrideState.Inherit &&
             _recordingFramed == OverrideState.Inherit
-                ? ResourceProvider.GetString("LOCDefault")
-                : ResourceProvider.GetString("LOCCustomLabel");
+                ? ResourceProvider.GetString("LOCPlayAch_Common_Default")
+                : ResourceProvider.GetString("LOCPlayAch_Common_Custom");
 
         /// <summary>
         /// Label for the Screenshots popup toggle: "Default" while all three variant cells
@@ -309,8 +309,8 @@ namespace PlayniteAchievements.ViewModels
             _screenshotClean == OverrideState.Inherit &&
             _screenshotWithToast == OverrideState.Inherit &&
             _screenshotFramed == OverrideState.Inherit
-                ? ResourceProvider.GetString("LOCDefault")
-                : ResourceProvider.GetString("LOCCustomLabel");
+                ? ResourceProvider.GetString("LOCPlayAch_Common_Default")
+                : ResourceProvider.GetString("LOCPlayAch_Common_Custom");
 
         /// <summary>
         /// The row's current cell states as an override entry; all-inherit rows produce an entry

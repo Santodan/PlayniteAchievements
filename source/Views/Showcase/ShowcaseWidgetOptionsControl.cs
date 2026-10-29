@@ -172,7 +172,7 @@ namespace PlayniteAchievements.Views.Showcase
                         ProfileMedalModeName);
                     AddChoice(
                         panel,
-                        Localize("LOCSettingsLayoutLabel"),
+                        Localize("LOCPlayAch_Common_Layout"),
                         new[]
                         {
                             ShowcaseProfileLayout.Left,
@@ -350,7 +350,7 @@ namespace PlayniteAchievements.Views.Showcase
                 case ShowcaseWidgetKind.NativePoints:
                     AddChoice(
                         panel,
-                        Localize("LOCMenuGroupByTitle"),
+                        Localize("LOCPlayAch_Common_GroupBy"),
                         new[] { ShowcasePointsGrouping.Provider, ShowcasePointsGrouping.Game },
                         ShowcaseWidgetOptions.GetPointsGrouping(_settings),
                         value => ShowcaseWidgetOptions.SetPointsGrouping(_settings, value),
@@ -428,7 +428,7 @@ namespace PlayniteAchievements.Views.Showcase
                         value => ShowcaseWidgetOptions.SetMosaicShowRarityBar(_settings, value));
                     achievementSortRows.Add(AddChoice(
                         achievementMosaicPanel,
-                        Localize("LOCMenuSortByTitle"),
+                        Localize("LOCPlayAch_Common_SortBy"),
                         new[]
                         {
                             CompactListSortMode.None,
@@ -447,7 +447,7 @@ namespace PlayniteAchievements.Views.Showcase
                     FrameworkElement finishNextOptions = null;
                     AddChoice(
                         gameMosaicPanel,
-                        Localize("LOCSourceLabel"),
+                        Localize("LOCPlayAch_Common_Source"),
                         new[]
                         {
                             ShowcaseGameMosaicSource.All,
@@ -495,7 +495,7 @@ namespace PlayniteAchievements.Views.Showcase
                         value => ShowcaseWidgetOptions.SetMosaicShowRarityBar(_settings, value));
                     AddChoice(
                         gameMosaicPanel,
-                        Localize("LOCMenuSortByTitle"),
+                        Localize("LOCPlayAch_Common_SortBy"),
                         new[]
                         {
                             GameSummariesSortMode.PinOrder,
@@ -521,12 +521,12 @@ namespace PlayniteAchievements.Views.Showcase
                     // commit, and the box shows the stored value.
                     AddNumberRow(
                         achievementMosaicPanel,
-                        Localize("LOCSize") + " (px)",
+                        Localize("LOCPlayAch_Common_Size") + " (px)",
                         () => ShowcaseWidgetOptions.GetMosaicIconSize(_settings),
                         value => ShowcaseWidgetOptions.SetMosaicIconSize(_settings, value));
                     AddNumberRow(
                         gameMosaicPanel,
-                        Localize("LOCSize") + " (px)",
+                        Localize("LOCPlayAch_Common_Size") + " (px)",
                         () => ShowcaseWidgetOptions.GetMosaicCoverWidth(_settings),
                         value => ShowcaseWidgetOptions.SetMosaicCoverWidth(_settings, value));
                     AddNumberRow(
@@ -638,7 +638,7 @@ namespace PlayniteAchievements.Views.Showcase
                     FrameworkElement gameGridFinishNextOptions = null;
                     AddChoice(
                         panel,
-                        Localize("LOCSourceLabel"),
+                        Localize("LOCPlayAch_Common_Source"),
                         new[]
                         {
                             ShowcaseGameGridSource.Library,
@@ -1056,7 +1056,7 @@ namespace PlayniteAchievements.Views.Showcase
                 var clear = new Button
                 {
                     Content = "\u00D7",
-                    ToolTip = Localize("LOCClearLabel"),
+                    ToolTip = Localize("LOCPlayAch_Common_Clear"),
                     Width = 30,
                     MinHeight = 0,
                     VerticalAlignment = VerticalAlignment.Center,
@@ -1273,7 +1273,7 @@ namespace PlayniteAchievements.Views.Showcase
                     combo.Items.Add(new Choice<string>
                     {
                         Value = null,
-                        Label = Localize("LOCNone")
+                        Label = Localize("LOCPlayAch_Common_None")
                     });
                     foreach (var stat in catalog)
                     {
@@ -1342,7 +1342,7 @@ namespace PlayniteAchievements.Views.Showcase
             var showcase = PlayniteAchievementsPlugin.Instance?.Settings?.Persisted?.Showcase;
             var names = new Dictionary<(ShowcaseCollectionType, string), string>
             {
-                [(ShowcaseCollectionType.None, null)] = Localize("LOCNone")
+                [(ShowcaseCollectionType.None, null)] = Localize("LOCPlayAch_Common_None")
             };
             var choices = new List<(ShowcaseCollectionType, string)> { (ShowcaseCollectionType.None, null) };
             var gameKind = Localize("LOCPlayAch_Showcase_SlideshowSource_GameCollection");
@@ -1507,15 +1507,15 @@ namespace PlayniteAchievements.Views.Showcase
         private Grid AddSortDirectionChoice(Panel panel) =>
             AddChoice(
                 panel,
-                Localize("LOCMenuSortByDirection"),
+                Localize("LOCPlayAch_Common_SortDirection"),
                 new[] { true, false },
                 ShowcaseWidgetOptions.GetMosaicSortDescending(_settings),
                 value => ShowcaseWidgetOptions.SetMosaicSortDescending(_settings, value),
                 SortDirectionLabel);
 
         private static string SortDirectionLabel(bool descending) => descending
-            ? Localize("LOCMenuSortDescending")
-            : Localize("LOCMenuSortAscending");
+            ? Localize("LOCPlayAch_Common_Descending")
+            : Localize("LOCPlayAch_Common_Ascending");
 
         // Both mosaic sort pickers name the mode that keeps the Source's own order "Default",
         // matching how the grid options editor labels CompactListSortMode.None.
@@ -1528,7 +1528,7 @@ namespace PlayniteAchievements.Views.Showcase
                 case CompactListSortMode.Rarity:
                     return Localize("LOCPlayAch_Column_Rarity");
                 default:
-                    return Localize("LOCDefault");
+                    return Localize("LOCPlayAch_Common_Default");
             }
         }
 
@@ -1539,27 +1539,27 @@ namespace PlayniteAchievements.Views.Showcase
                 case GameSummariesSortMode.RecentUnlock:
                     return Localize("LOCPlayAch_Common_LastUnlock");
                 case GameSummariesSortMode.LastPlayed:
-                    return Localize("LOCLastPlayed");
+                    return Localize("LOCPlayAch_Common_LastPlayed");
                 case GameSummariesSortMode.TotalAchievements:
                     return Localize("LOCPlayAch_Column_Total");
                 case GameSummariesSortMode.Progress:
                     return Localize("LOCPlayAch_Progress");
                 case GameSummariesSortMode.Alphabetical:
-                    return Localize("LOCNameLabel");
+                    return Localize("LOCPlayAch_Common_Name");
                 default:
-                    return Localize("LOCDefault");
+                    return Localize("LOCPlayAch_Common_Default");
             }
         }
 
         private static string PieLegendPositionName(PieLegendPosition value) =>
             Localize(value == PieLegendPosition.Left
-                ? "LOCDockLeft"
-                : "LOCDockRight");
+                ? "LOCPlayAch_Common_Left"
+                : "LOCPlayAch_Common_Right");
 
         private static string ScoreBadgePositionName(ScoreCardBadgePosition value) =>
             Localize(value == ScoreCardBadgePosition.Right
-                ? "LOCDockRight"
-                : "LOCDockLeft");
+                ? "LOCPlayAch_Common_Right"
+                : "LOCPlayAch_Common_Left");
 
         private static string PieCenterModeName(PieCenterMode value)
         {
@@ -1631,13 +1631,13 @@ namespace PlayniteAchievements.Views.Showcase
             switch (value)
             {
                 case ShowcaseTimelineSplit.Platform:
-                    return Localize("LOCPlatformTitle");
+                    return Localize("LOCPlayAch_Common_Platform");
                 case ShowcaseTimelineSplit.Rarity:
                     return Localize("LOCPlayAch_Column_Rarity");
                 case ShowcaseTimelineSplit.Trophy:
                     return Localize("LOCPlayAch_Column_Trophy");
                 default:
-                    return Localize("LOCNone");
+                    return Localize("LOCPlayAch_Common_None");
             }
         }
 
@@ -1947,7 +1947,7 @@ namespace PlayniteAchievements.Views.Showcase
 
             AddChoice(
                 panel,
-                Localize("LOCTypeLabel"),
+                Localize("LOCPlayAch_Common_Type"),
                 ScoreCardChoices.Build(ShowcaseWidgetOptions.GetScoreCardType(_settings)).ToArray(),
                 ShowcaseWidgetOptions.GetScoreCardType(_settings),
                 value =>

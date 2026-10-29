@@ -30,7 +30,7 @@ namespace PlayniteAchievements.ViewModels
         public IReadOnlyList<string> TagFilterOptions => AchievementTagRegistry.GetShownKeys(null);
 
         public string SelectedTagFilterText => _selectedTagFilters.Count == 0
-            ? L("LOCTagsLabel")
+            ? L("LOCPlayAch_Common_Tags")
             : string.Join(", ", _selectedTagFilters
                 .Select(key => AchievementTagRegistry.GetName(key))
                 .OrderBy(name => name, StringComparer.CurrentCultureIgnoreCase));

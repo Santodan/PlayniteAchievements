@@ -50,8 +50,8 @@ namespace PlayniteAchievements.Views.Settings.Metadata
             CategoryTemplateItems.ItemsSource = categoryRows;
         }
 
-        private const string NameLabelKey = "LOCNameLabel";
-        private const string DescriptionLabelKey = "LOCGameDescriptionTitle";
+        private const string NameLabelKey = "LOCPlayAch_Common_Name";
+        private const string DescriptionLabelKey = "LOCPlayAch_Common_Description";
 
         public IReadOnlyList<AutoCapstoneTemplateRow> TemplateRows { get; }
 

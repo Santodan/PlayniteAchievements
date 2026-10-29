@@ -121,7 +121,7 @@ namespace PlayniteAchievements.Views.Settings.Metadata
             _inherited = inherited;
             ProviderKey = providerKey;
             IsDefaults = providerKey == null;
-            DisplayName = IsDefaults ? ResourceProvider.GetString("LOCDefault") : ProviderRegistry.GetLocalizedName(providerKey);
+            DisplayName = IsDefaults ? ResourceProvider.GetString("LOCPlayAch_Common_Default") : ProviderRegistry.GetLocalizedName(providerKey);
             if (!IsDefaults)
             {
                 ProviderRegistry.TryResolveProviderVisuals(providerKey, out var iconKey, out _);
@@ -354,7 +354,7 @@ namespace PlayniteAchievements.Views.Settings.Metadata
         {
             return IsDefaults
                 ? options.ToList()
-                : new[] { new ChoiceOption(DefaultKey, ResourceProvider.GetString("LOCDefault")) }.Concat(options).ToList();
+                : new[] { new ChoiceOption(DefaultKey, ResourceProvider.GetString("LOCPlayAch_Common_Default")) }.Concat(options).ToList();
         }
 
         private static MetadataChoices FindOverride(PersistedSettings persisted, string providerKey)

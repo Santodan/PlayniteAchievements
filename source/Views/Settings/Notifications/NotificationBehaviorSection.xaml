@@ -33,7 +33,7 @@
                 <!-- What fires -->
                 <Border Style="{StaticResource SectionBorderStyle}">
                     <StackPanel Grid.IsSharedSizeScope="True">
-                        <TextBlock Text="{DynamicResource LOCNotifications}"
+                        <TextBlock Text="{DynamicResource LOCPlayAch_Common_Notifications}"
                                    Style="{StaticResource SectionHeaderStyle}"
                                    Margin="{StaticResource PlayAch.Thickness.Bottom.Md}"/>
                         <Border Style="{StaticResource SectionAccentRuleStyle}"/>

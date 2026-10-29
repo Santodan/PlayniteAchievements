@@ -293,7 +293,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                     return L("LOCPlayAch_ManageAchievements_Overrides_LockedIcons_StatusSettings");
                 }
 
-                return L("LOCDisabledTitle");
+                return L("LOCPlayAch_Common_Disabled");
             }
         }
 
@@ -550,7 +550,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
 
         public IReadOnlyList<GameExclusionOption> ExclusionModeOptions { get; } = new[]
         {
-            new GameExclusionOption(GameExclusionMode.None, L("LOCNone")),
+            new GameExclusionOption(GameExclusionMode.None, L("LOCPlayAch_Common_None")),
             new GameExclusionOption(GameExclusionMode.Refreshes, L("LOCPlayAch_ManageAchievements_Status_ExcludedFromRefreshes")),
             new GameExclusionOption(GameExclusionMode.Summaries, L("LOCPlayAch_ManageAchievements_Status_ExcludedFromSummaries"))
         };
@@ -851,7 +851,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                     ? capstone.DisplayName.Trim()
                     : !string.IsNullOrWhiteSpace(capstone?.ApiName)
                         ? capstone.ApiName.Trim()
-                        : L("LOCNone");
+                        : L("LOCPlayAch_Common_None");
                 HasAchievementData = (gameData?.HasAchievements ?? false) && list.Count > 0;
 
                 var currentCustomData = TryLoadStoredCustomData(_plugin?.GameCustomDataStore);
@@ -1704,7 +1704,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         internal void NotifyCapstoneChanged(string displayName)
         {
             CurrentCapstoneName = string.IsNullOrWhiteSpace(displayName)
-                ? L("LOCNone")
+                ? L("LOCPlayAch_Common_None")
                 : displayName.Trim();
             RefreshCustomDataState();
             // The sidebar's capstone chip comes from OverviewSummary, which only the shell reload
@@ -2021,7 +2021,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 new ProviderOverrideOption
                 {
                     ProviderKey = ProviderOverrideNoneKey,
-                    DisplayName = L("LOCNone"),
+                    DisplayName = L("LOCPlayAch_Common_None"),
                     Descriptor = null
                 }
             };
@@ -2060,7 +2060,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             var normalizedKey = NormalizeProviderOverrideSelection(providerKey);
             if (string.Equals(normalizedKey, ProviderOverrideNoneKey, StringComparison.OrdinalIgnoreCase))
             {
-                return L("LOCNone");
+                return L("LOCPlayAch_Common_None");
             }
 
             return ProviderRegistry.GetLocalizedName(normalizedKey);

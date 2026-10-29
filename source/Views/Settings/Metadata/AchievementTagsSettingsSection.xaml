@@ -18,7 +18,7 @@
     <!-- Scrolled by the Metadata tab, which shows it as its own page. -->
     <Border Style="{StaticResource SectionBorderStyle}">
         <StackPanel>
-            <TextBlock Text="{DynamicResource LOCTagsLabel}"
+            <TextBlock Text="{DynamicResource LOCPlayAch_Common_Tags}"
                        Style="{StaticResource SectionHeaderStyle}"/>
             <TextBlock Text="{DynamicResource LOCPlayAch_Settings_Tags_Hint}"
                        Style="{StaticResource MutedTextStyle}"

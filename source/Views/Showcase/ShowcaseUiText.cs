@@ -35,7 +35,7 @@ namespace PlayniteAchievements.Views.Showcase
         public static string ScoreCardSlotName(string value) =>
             ScoreCardSlots.TryGetCardType(value, out var type)
                 ? ScoreCardTypeName(type)
-                : Localize("LOCNone");
+                : Localize("LOCPlayAch_Common_None");
 
         /// <summary>The score's name as card pickers show it.</summary>
         public static string ScoreCardTypeName(ScoreCardType value) =>
@@ -53,7 +53,7 @@ namespace PlayniteAchievements.Views.Showcase
                 case ShowcaseProfileLayout.Stacked:
                     return Localize("LOCPlayAch_Showcase_ProfileLayout_Stacked");
                 default:
-                    return Localize("LOCDockLeft");
+                    return Localize("LOCPlayAch_Common_Left");
             }
         }
 
@@ -68,7 +68,7 @@ namespace PlayniteAchievements.Views.Showcase
             value == ShowcaseProfileMedalMode.Both
                 ? Localize("LOCPlayAch_Common_Both")
                 : value == ShowcaseProfileMedalMode.None
-                ? Localize("LOCNone")
+                ? Localize("LOCPlayAch_Common_None")
                 : EnumValueName("LOCPlayAch_Showcase_ProfileMedalMode_", value);
 
         // Completed games reuses the completions stat label.
@@ -149,11 +149,11 @@ namespace PlayniteAchievements.Views.Showcase
             switch (value)
             {
                 case ShowcaseInfoPanelPosition.Left:
-                    return Localize("LOCDockLeft");
+                    return Localize("LOCPlayAch_Common_Left");
                 case ShowcaseInfoPanelPosition.Right:
-                    return Localize("LOCDockRight");
+                    return Localize("LOCPlayAch_Common_Right");
                 case ShowcaseInfoPanelPosition.Bottom:
-                    return Localize("LOCDockBottom");
+                    return Localize("LOCPlayAch_Common_Bottom");
                 default:
                     return Localize("LOCPlayAch_Settings_Override_Off");
             }
@@ -165,9 +165,9 @@ namespace PlayniteAchievements.Views.Showcase
             switch (value)
             {
                 case ShowcaseHorizontalAlignment.Left:
-                    return Localize("LOCDockLeft");
+                    return Localize("LOCPlayAch_Common_Left");
                 case ShowcaseHorizontalAlignment.Right:
-                    return Localize("LOCDockRight");
+                    return Localize("LOCPlayAch_Common_Right");
                 default:
                     return Localize("LOCPlayAch_Settings_GridAlignment_Center");
             }
@@ -178,9 +178,9 @@ namespace PlayniteAchievements.Views.Showcase
             switch (value)
             {
                 case ShowcaseVerticalAlignment.Top:
-                    return Localize("LOCDockTop");
+                    return Localize("LOCPlayAch_Common_Top");
                 case ShowcaseVerticalAlignment.Bottom:
-                    return Localize("LOCDockBottom");
+                    return Localize("LOCPlayAch_Common_Bottom");
                 default:
                     return Localize("LOCPlayAch_Settings_GridAlignment_Center");
             }

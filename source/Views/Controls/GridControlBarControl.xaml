@@ -558,7 +558,7 @@
                                         Width="24"
                                         Height="{StaticResource PlayAch.Size.Control.Height}"
                                         Margin="6,0,0,6"
-                                        ToolTip="{DynamicResource LOCClearLabel}"
+                                        ToolTip="{DynamicResource LOCPlayAch_Common_Clear}"
                                         Visibility="{Binding HasFrom, Converter={StaticResource GridControlBarBoolToVis}}"/>
                                 <TextBlock Grid.Row="1"
                                            Text="{DynamicResource LOCPlayAch_DateRange_To}"
@@ -579,12 +579,12 @@
                                         Width="24"
                                         Height="{StaticResource PlayAch.Size.Control.Height}"
                                         Margin="6,0,0,0"
-                                        ToolTip="{DynamicResource LOCClearLabel}"
+                                        ToolTip="{DynamicResource LOCPlayAch_Common_Clear}"
                                         Visibility="{Binding HasTo, Converter={StaticResource GridControlBarBoolToVis}}"/>
                                 <Button Grid.Row="2"
                                         Grid.ColumnSpan="3"
                                         Style="{StaticResource GridActionButtonStyle}"
-                                        Content="{DynamicResource LOCClearLabel}"
+                                        Content="{DynamicResource LOCPlayAch_Common_Clear}"
                                         Click="DateRangeClear_Click"
                                         HorizontalAlignment="Right"
                                         Height="{StaticResource PlayAch.Size.Control.Height}"

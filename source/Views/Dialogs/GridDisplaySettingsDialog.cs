@@ -274,7 +274,7 @@ namespace PlayniteAchievements.Views.Dialogs
 
             var cancel = new Button
             {
-                Content = Localize("LOCCancelLabel"),
+                Content = Localize("LOCPlayAch_Common_Cancel"),
                 MinWidth = 90,
                 IsCancel = true
             };
@@ -283,7 +283,7 @@ namespace PlayniteAchievements.Views.Dialogs
 
             var save = new Button
             {
-                Content = Localize("LOCSaveLabel"),
+                Content = Localize("LOCPlayAch_Common_Save"),
                 MinWidth = 90,
                 IsDefault = true
             };

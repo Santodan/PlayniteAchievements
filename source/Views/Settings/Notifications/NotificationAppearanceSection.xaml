@@ -375,7 +375,7 @@
                                          or add one to the library. -->
                                     <StackPanel Orientation="Horizontal">
                                         <Button Click="ImportStyle_Click"
-                                                Content="{DynamicResource LOCImportLabel}" ContentTemplate="{DynamicResource PlayAch.ButtonContent.Import}"
+                                                Content="{DynamicResource LOCPlayAch_Common_Import}" ContentTemplate="{DynamicResource PlayAch.ButtonContent.Import}"
                                                 ToolTip="{DynamicResource LOCPlayAch_Settings_Style_ShareHint}"
                                                 Margin="16,0,0,0"/>
                                         <Button Click="ExportStyle_Click"

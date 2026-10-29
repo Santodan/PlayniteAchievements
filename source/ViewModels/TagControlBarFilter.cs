@@ -43,7 +43,7 @@ namespace PlayniteAchievements.ViewModels
                 GetTagName)
             {
                 Id = ShowcaseControlBarItems.Tag,
-                LabelKey = "LOCTagsLabel",
+                LabelKey = "LOCPlayAch_Common_Tags",
                 AutoHideWhenUnavailable = false,
                 Width = 150,
                 IconKeyOf = key => IconKey(key, AchievementTagScope.NamingGame(_pickedGames?.Invoke() ?? Array.Empty<Guid>()))
@@ -66,7 +66,7 @@ namespace PlayniteAchievements.ViewModels
             get
             {
                 var names = _tags.Select(GetTagName).OrderBy(name => name, StringComparer.CurrentCultureIgnoreCase).ToList();
-                return names.Count == 0 ? ResourceProvider.GetString("LOCTagsLabel") : string.Join(", ", names);
+                return names.Count == 0 ? ResourceProvider.GetString("LOCPlayAch_Common_Tags") : string.Join(", ", names);
             }
         }
 

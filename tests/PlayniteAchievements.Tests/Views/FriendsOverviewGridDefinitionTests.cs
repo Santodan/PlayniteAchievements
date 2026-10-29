@@ -252,7 +252,7 @@ namespace PlayniteAchievements.Tests.Views
                 xaml,
                 "x:Name=\"OverviewSubViewButton\"",
                 "x:Name=\"FriendsSubViewButton\"",
-                "LOCOverviewLabel",
+                "LOCPlayAch_Common_Overview",
                 "LOCPlayAch_Settings_Friends",
                 "ActiveRefreshHeader.RefreshModeSelectionText",
                 "ActiveRefreshHeader.RefreshOrCancelCommand",

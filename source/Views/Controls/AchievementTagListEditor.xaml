@@ -197,7 +197,7 @@
                                             Command="{Binding PickColorCommand}"
                                             Margin="8,0,0,0"
                                             MinWidth="58"/>
-                                    <Button Content="{DynamicResource LOCResetLabel}"
+                                    <Button Content="{DynamicResource LOCPlayAch_Common_Reset}"
                                             Command="{Binding ClearColorCommand}"
                                             IsEnabled="{Binding HasColor}"
                                             Margin="8,0,0,0"
@@ -237,7 +237,7 @@
                                         <Button.Style>
                                             <Style TargetType="Button" BasedOn="{StaticResource TagIconButtonStyle}">
                                                 <Setter Property="Content" Value="&#xEC53;"/>
-                                                <Setter Property="ToolTip" Value="{DynamicResource LOCRemoveTitle}"/>
+                                                <Setter Property="ToolTip" Value="{DynamicResource LOCPlayAch_Common_Remove}"/>
                                                 <Style.Triggers>
                                                     <DataTrigger Binding="{Binding IsFetched}" Value="True">
                                                         <Setter Property="Content" Value="&#xEC61;"/>
@@ -285,7 +285,7 @@
             </Popup>
         </Grid>
 
-        <Button Content="{DynamicResource LOCAddTitle}"
+        <Button Content="{DynamicResource LOCPlayAch_Common_Add}"
                 Command="{Binding AddCommand}"
                 HorizontalAlignment="Left"
                 Padding="{StaticResource PlayAch.Thickness.ButtonPadding}"
