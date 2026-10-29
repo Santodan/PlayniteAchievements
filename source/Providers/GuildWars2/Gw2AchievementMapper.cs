@@ -107,7 +107,7 @@ namespace PlayniteAchievements.Providers.GuildWars2
             }
 
             var categoriesById = BuildCategoryIndex(catalog.Categories);
-            var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var seen = new HashSet<string>(CategoryPathHelper.LabelComparer);
 
             foreach (var group in catalog.Groups.Where(g => g != null).OrderBy(g => g.Order))
             {
