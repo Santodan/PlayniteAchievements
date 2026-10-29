@@ -29,7 +29,7 @@ namespace PlayniteAchievements.Providers.RetroAchievements
                 return plan;
             }
 
-            var seenLabels = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var seenLabels = new HashSet<string>(CategoryPathHelper.LabelComparer);
             foreach (var source in sources)
             {
                 var artUrl = NormalizeMediaUrl(source.Info?.ImageIcon);
