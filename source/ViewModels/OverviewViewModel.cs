@@ -26,6 +26,7 @@ using PlayniteAchievements.Services;
 using PlayniteAchievements.Services.Refresh;
 using PlayniteAchievements.Services.Search;
 using PlayniteAchievements.ViewModels.Items;
+using PlayniteAchievements.ViewModels.Showcase.Widgets;
 using PlayniteAchievements.Views;
 using PlayniteAchievements.Views.Helpers;
 using Playnite.SDK;
@@ -932,6 +933,14 @@ namespace PlayniteAchievements.ViewModels
 
         /// <summary>The header's second score card; its options follow <see cref="PersistedSettings.OverviewScoreCard2"/>.</summary>
         public ScoreCardViewModel ScoreCard2 { get; } = new ScoreCardViewModel(ScoreCardType.Prestige);
+
+        // The header cards' filters, edited from each card's settings; a change reapplies both.
+        private ScoreCardFilter _scoreCard1Filter;
+        private ScoreCardFilter _scoreCard2Filter;
+
+        private ScoreCardFilter ScoreCard1Filter => _scoreCard1Filter ?? (_scoreCard1Filter = new ScoreCardFilter(ApplyScoreCards));
+
+        private ScoreCardFilter ScoreCard2Filter => _scoreCard2Filter ?? (_scoreCard2Filter = new ScoreCardFilter(ApplyScoreCards));
 
         public bool EnableFriendsFeatures => _settings?.Persisted?.EnableFriendsFeatures ?? true;
 
@@ -2243,12 +2252,15 @@ namespace PlayniteAchievements.ViewModels
                 CollectorScore = CollectorScore,
                 PrestigeScore = PrestigeScore
             };
-            ApplyScoreCard(ScoreCard1, _settings?.Persisted?.OverviewScoreCard1, snapshot, useUniformRarityBadges);
-            ApplyScoreCard(ScoreCard2, _settings?.Persisted?.OverviewScoreCard2, snapshot, useUniformRarityBadges);
+            ApplyScoreCard(ScoreCard1, ScoreCard1Filter, _settings?.Persisted?.OverviewScoreCard1, snapshot, useUniformRarityBadges);
+            ApplyScoreCard(ScoreCard2, ScoreCard2Filter, _settings?.Persisted?.OverviewScoreCard2, snapshot, useUniformRarityBadges);
         }
 
+        // As the Scores widget applies its card: a points card narrows to the games its filters
+        // keep, which also give it rarity badges and one game's art when its options ask.
         private static void ApplyScoreCard(
             ScoreCardViewModel card,
+            ScoreCardFilter filter,
             ShowcaseWidgetInstanceSettings options,
             OverviewDataSnapshot snapshot,
             bool useUniformRarityBadges)
@@ -2258,9 +2270,13 @@ namespace PlayniteAchievements.ViewModels
                 return;
             }
 
+            var type = ShowcaseWidgetOptions.GetScoreCardType(options);
+            var narrowed = filter.Apply(snapshot, type, options, out var keptGames, out _);
             card.SetUseCustomColors(ShowcaseWidgetOptions.GetScoreCardUseCustomColors(options));
             card.SetShowTotal(ShowcaseWidgetOptions.GetScoreCardShowTotal(options));
-            card.ApplyFor(ShowcaseWidgetOptions.GetScoreCardType(options), snapshot, useUniformRarityBadges);
+            card.ApplyFor(type, narrowed, useUniformRarityBadges);
+            card.SetRarityBadges(ScoreCardFilter.RarityBadgesFor(options, keptGames));
+            card.SetGameArt(ScoreCardFilter.GameArtFor(options, keptGames));
         }
 
         private void NormalizeScoreSnapshot(OverviewDataSnapshot snapshot)
