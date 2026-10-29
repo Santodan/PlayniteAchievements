@@ -71,11 +71,24 @@ namespace PlayniteAchievements.Views.Showcase
                 ? Localize("LOCPlayAch_Common_None")
                 : EnumValueName("LOCPlayAch_Showcase_ProfileMedalMode_", value);
 
-        // Completed games reuses the completions stat label.
-        public static string PieModeName(ShowcasePieMode value) =>
-            value == ShowcasePieMode.CompletedGames
-                ? Localize("LOCPlayAch_Showcase_Stat_CompletedGames")
-                : EnumValueName("LOCPlayAch_Showcase_PieMode_", value);
+        // Every mode reuses a shared label: the completions stat, or the dimension's own name.
+        public static string PieModeName(ShowcasePieMode value)
+        {
+            switch (value)
+            {
+                case ShowcasePieMode.Provider:
+                    return Localize("LOCPlayAch_Common_Platform");
+                case ShowcasePieMode.Rarity:
+                    return Localize("LOCPlayAch_Column_Rarity");
+                case ShowcasePieMode.Trophy:
+                    return Localize("LOCPlayAch_Column_Trophy");
+                case ShowcasePieMode.Tag:
+                    return Localize("LOCPlayAch_Common_Tag");
+                case ShowcasePieMode.CompletedGames:
+                default:
+                    return Localize("LOCPlayAch_Showcase_Stat_CompletedGames");
+            }
+        }
 
         // Game reuses the "Game" column header.
         public static string PointsGroupingName(ShowcasePointsGrouping value) =>
