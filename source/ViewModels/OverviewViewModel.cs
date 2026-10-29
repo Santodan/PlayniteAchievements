@@ -112,6 +112,7 @@ namespace PlayniteAchievements.ViewModels
         private readonly AchievementGridControlBarAdapter _selectedGameControlBar = new AchievementGridControlBarAdapter();
         private List<string> _availableProviders = new List<string>();
         private readonly HashSet<string> _selectedCompletenessFilters = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        private bool _completenessFilterEdited;
         private readonly HashSet<string> _selectedPlayStatusFilters = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
         // Sort state tracking for quick reverse
@@ -186,7 +187,8 @@ namespace PlayniteAchievements.ViewModels
             SelectedGameAllAchievements = new BulkObservableCollection<AchievementDisplayItem>();
             CompletenessFilterOptions = new ObservableCollection<string>();
 
-            // Default the progress dropdown to the full completed + incomplete scope.
+            // Default the progress dropdown to the full completed + incomplete scope. Its label
+            // shows the placeholder until the first edit, then always lists the picks.
             _selectedCompletenessFilters.Add(L("LOCPlayAch_Filter_Complete"));
             _selectedCompletenessFilters.Add(L("LOCPlayAch_Filter_InProgress"));
 
@@ -762,10 +764,12 @@ namespace PlayniteAchievements.ViewModels
             private set => SetValue(ref _completenessFilterOptions, value);
         }
 
-        public string SelectedCompletenessFilterText => GetSelectedFilterText(
-            _selectedCompletenessFilters,
-            CompletenessFilterOptions,
-            L("LOCPlayAch_Progress"));
+        public string SelectedCompletenessFilterText => _completenessFilterEdited
+            ? GetSelectedFilterText(
+                _selectedCompletenessFilters,
+                CompletenessFilterOptions,
+                L("LOCPlayAch_Progress"))
+            : L("LOCPlayAch_Progress");
 
         public bool IsCompletenessFilterSelected(string value)
         {
@@ -779,6 +783,7 @@ namespace PlayniteAchievements.ViewModels
                 return;
             }
 
+            _completenessFilterEdited = true;
             OnPropertyChanged(nameof(SelectedCompletenessFilterText));
             // Defer filter application to avoid interfering with menu click handling.
             ScheduleFilterApply();
@@ -858,6 +863,7 @@ namespace PlayniteAchievements.ViewModels
                 }
             }
 
+            _completenessFilterEdited = true;
             OnPropertyChanged(nameof(SelectedCompletenessFilterText));
             ScheduleFilterApply();
         }
