@@ -129,7 +129,16 @@
 
                         <controls:SettingRow x:Name="VibrationGlobalRow"
                                              Label="{DynamicResource LOCPlayAch_Settings_EnableControllerVibration}">
-                            <CheckBox IsChecked="{Binding Persisted.EnableControllerVibration}"/>
+                            <StackPanel Orientation="Horizontal">
+                                <CheckBox IsChecked="{Binding Persisted.EnableControllerVibration}"
+                                          VerticalAlignment="Center"
+                                          Margin="{StaticResource PlayAch.Thickness.Right.Sm}"/>
+                                <!-- Pulses at the current settings without firing a whole notification
+                                     wave, and logs which controllers were reached. -->
+                                <Button Click="TestVibration_Click"
+                                        Content="{DynamicResource LOCPlayAch_Button_Test}"
+                                        IsEnabled="{Binding Persisted.EnableControllerVibration}"/>
+                            </StackPanel>
                         </controls:SettingRow>
                         <StackPanel x:Name="VibrationGlobalPanel"
                                     Margin="{StaticResource PlayAch.Thickness.SettingRow.Indent}"
@@ -163,12 +172,6 @@
                                              TextAlignment="Right"/>
                                 </StackPanel>
                             </controls:SettingRow>
-                            <!-- Pulses at the current settings without firing a whole notification
-                                 wave, and logs which controllers were reached. -->
-                            <Button Click="TestVibration_Click"
-                                    Content="{DynamicResource LOCPlayAch_Button_Test}"
-                                    HorizontalAlignment="Right"
-                                    Margin="{StaticResource PlayAch.Thickness.Bottom.SettingRow}"/>
                         </StackPanel>
                     </StackPanel>
                 </Border>
