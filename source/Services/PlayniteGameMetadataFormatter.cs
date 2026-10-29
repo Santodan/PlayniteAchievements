@@ -11,6 +11,10 @@ namespace PlayniteAchievements.Services
 {
     public static class PlayniteGameMetadataFormatter
     {
+        // U+1F3C6 TROPHY. WPF on .NET Framework has no color emoji, so it renders the monochrome
+        // fallback glyph (Segoe UI Symbol) in the text's foreground color.
+        private const string TrophyGlyph = "🏆";
+
         public static string GetPlatformText(Game game)
         {
             return JoinDisplayNames(game?.Platforms?.Select(platform => platform?.Name));
@@ -183,10 +187,7 @@ namespace PlayniteAchievements.Services
 
             if (showTotal && totalAchievements > 0)
             {
-                parts.Add(string.Format(
-                    FormattingCulture.Current,
-                    L("LOCPlayAch_Common_AchievementCountFormat"),
-                    totalAchievements.ToString("N0", FormattingCulture.Current)));
+                parts.Add(TrophyGlyph + " " + totalAchievements.ToString("N0", FormattingCulture.Current));
             }
 
             if (showPoints && points > 0)
