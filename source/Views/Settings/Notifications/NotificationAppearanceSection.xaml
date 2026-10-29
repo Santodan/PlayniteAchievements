@@ -163,18 +163,12 @@
                                 </ComboBox.ItemTemplate>
                             </ComboBox>
 
-                            <!-- Fire tests: show the selected sample on screen with the plugin's
-                                 design or the active theme's. -->
+                            <!-- Fire tests: show the selected sample on screen with the design the
+                                 tab's "Use theme's template" checkbox picks. -->
                             <StackPanel Orientation="Horizontal"
                                         Visibility="{Binding IsSelected, ElementName=ToastTabItem, Converter={StaticResource BoolToVis}}">
                                 <Button Click="FireNotification_Click"
-                                        Tag="PluginStyle"
-                                        Content="{DynamicResource LOCPlayAch_Settings_Style_FirePluginStyle}"
-                                        Margin="0,0,8,8"/>
-                                <Button x:Name="NotificationThemeButton"
-                                        Click="FireNotification_Click"
-                                        Tag="ActiveTheme"
-                                        Content="{DynamicResource LOCPlayAch_Settings_Style_FireTheme}"
+                                        Content="{DynamicResource LOCPlayAch_Button_Test}"
                                         Margin="0,0,0,8"/>
                                 <!-- View option, never saved: sit the preview on game art. Starts on
                                      for a blurred background (ApplyPreviewBackdrop). -->
@@ -193,16 +187,8 @@
                             <StackPanel Orientation="Horizontal"
                                         Visibility="{Binding IsSelected, ElementName=FrameTabItem, Converter={StaticResource BoolToVis}}">
                                 <Button Click="FireFrame_Click"
-                                        Tag="PluginStyle"
-                                        Content="{DynamicResource LOCPlayAch_Settings_Style_FirePluginStyle}"
+                                        Content="{DynamicResource LOCPlayAch_Button_Test}"
                                         ToolTip="{DynamicResource LOCPlayAch_Settings_FramePreviewButton}"
-                                        Margin="0,0,8,8"/>
-                                <Button x:Name="FrameThemeButton"
-                                        Click="FireFrame_Click"
-                                        Tag="ActiveTheme"
-                                        Content="{DynamicResource LOCPlayAch_Settings_Style_FireTheme}"
-                                        ToolTip="{DynamicResource LOCPlayAch_Settings_FramePreviewButton}"
-                                        ToolTipService.ShowOnDisabled="True"
                                         Margin="0,0,0,8"/>
                             </StackPanel>
 

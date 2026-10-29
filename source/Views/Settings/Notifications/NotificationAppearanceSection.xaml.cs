@@ -191,7 +191,6 @@ namespace PlayniteAchievements.Views.Settings.Notifications
                 try
                 {
                     UpdateMockups();
-                    RefreshFireButtons();
                     StylePresetPicker.RefreshNow();
                 }
                 catch (Exception ex)
@@ -318,23 +317,6 @@ namespace PlayniteAchievements.Views.Settings.Notifications
                        ?.GetGameAchievementData(_gameId)
                        ?.EffectiveProviderKey ??
                    _gameProviderKey;
-        }
-
-        /// <summary>
-        /// Disables the desktop/fullscreen theme fire-test buttons when the corresponding active
-        /// theme ships no template for the surface (they would just fall back to plugin style).
-        /// </summary>
-        private void RefreshFireButtons()
-        {
-            if (NotificationThemeButton == null)
-            {
-                return;
-            }
-
-            NotificationThemeButton.IsEnabled =
-                _toastTemplateResolver.ThemeProvidesTemplate(NotificationTemplatePreviewSource.ActiveTheme, isFrame: false);
-            FrameThemeButton.IsEnabled =
-                _toastTemplateResolver.ThemeProvidesTemplate(NotificationTemplatePreviewSource.ActiveTheme, isFrame: true);
         }
 
         private List<NotificationStylePlatformOption> BuildPlatformOptions()
@@ -1358,11 +1340,7 @@ namespace PlayniteAchievements.Views.Settings.Notifications
 
         private void FireNotification_Click(object sender, RoutedEventArgs e)
         {
-            if (!TryResolvePreviewSource(sender, out var source))
-            {
-                return;
-            }
-
+            var source = ResolvePreviewSource(_currentToastUseThemeStyling);
             var kind = NotificationSampleSelector?.SelectedValue as string ?? "rare";
 
             // Flush any debounced edits so the real notification pipeline resolves the same
@@ -1386,11 +1364,15 @@ namespace PlayniteAchievements.Views.Settings.Notifications
             PlayniteAchievementsPlugin.NotifyAchievementUnlocked(args);
         }
 
-        private static bool TryResolvePreviewSource(object sender, out NotificationTemplatePreviewSource source)
+        /// <summary>
+        /// The design a test fire uses: the active theme's (falling back as a real notification
+        /// would) when the surface's "Use theme's template" checkbox is on, else the plugin's.
+        /// </summary>
+        private static NotificationTemplatePreviewSource ResolvePreviewSource(bool useThemeStyling)
         {
-            source = NotificationTemplatePreviewSource.PluginStyle;
-            return sender is Button { Tag: string tag } &&
-                   Enum.TryParse(tag, ignoreCase: true, out source);
+            return useThemeStyling
+                ? NotificationTemplatePreviewSource.ActiveTheme
+                : NotificationTemplatePreviewSource.PluginStyle;
         }
 
         /// <summary>
@@ -1399,11 +1381,7 @@ namespace PlayniteAchievements.Views.Settings.Notifications
         /// </summary>
         private void FireFrame_Click(object sender, RoutedEventArgs e)
         {
-            if (!TryResolvePreviewSource(sender, out var source))
-            {
-                return;
-            }
-
+            var source = ResolvePreviewSource(_currentFrameUseThemeStyling);
             var kind = FrameSampleSelector?.SelectedValue as string ?? "rare";
             var persisted = _settings?.Persisted;
             if (persisted == null)
