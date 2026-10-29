@@ -7,6 +7,7 @@ using PlayniteAchievements.Services.Database.Rows;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading;
 
 namespace PlayniteAchievements.Services.Metadata
 {
@@ -57,11 +58,19 @@ namespace PlayniteAchievements.Services.Metadata
         private readonly Func<IMetadataStateDatabase> _database;
         private readonly ILogger _logger;
 
+        // Set when a snapshot is saved or dropped, so the saved lists no snapshot points into are
+        // only looked for after something changed. Starts set: lists left by games removed in an
+        // earlier session are looked for once.
+        private int _changed = 1;
+
         internal MetadataSourceSnapshotStore(Func<IMetadataStateDatabase> database, ILogger logger)
         {
             _database = database;
             _logger = logger;
         }
+
+        /// <summary>True when a snapshot was saved or dropped since the last call; clears the mark.</summary>
+        internal bool TakeChanged() => Interlocked.Exchange(ref _changed, 0) != 0;
 
         /// <summary>The source's snapshot for the game when it was taken from <paramref name="linkId"/>, else null.</summary>
         public MetadataSourceSnapshot Get(Guid gameId, string sourceKey, string linkId)
@@ -200,6 +209,7 @@ namespace PlayniteAchievements.Services.Metadata
                     }
 
                     database.SaveMetadataSourceSnapshot(next);
+                    Interlocked.Exchange(ref _changed, 1);
                 }
             }
             catch (Exception ex)
@@ -267,7 +277,11 @@ namespace PlayniteAchievements.Services.Metadata
             }
         }
 
-        /// <summary>Drops a source's snapshot, for a source the game no longer takes achievement data from.</summary>
+        /// <summary>
+        /// Drops a source's snapshot, for a source the game no longer takes achievement data from.
+        /// Most calls find none (a source used only for the capstone never has one), so the row is
+        /// only deleted when it is there.
+        /// </summary>
         public void Forget(Guid gameId, string sourceKey)
         {
             var database = _database?.Invoke();
@@ -278,7 +292,16 @@ namespace PlayniteAchievements.Services.Metadata
 
             try
             {
-                database.DeleteMetadataSourceSnapshot(gameId.ToString(), sourceKey.Trim());
+                lock (_sync)
+                {
+                    if (database.GetMetadataSourceSnapshot(gameId.ToString(), sourceKey.Trim()) == null)
+                    {
+                        return;
+                    }
+
+                    database.DeleteMetadataSourceSnapshot(gameId.ToString(), sourceKey.Trim());
+                    Interlocked.Exchange(ref _changed, 1);
+                }
             }
             catch (Exception ex)
             {
