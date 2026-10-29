@@ -245,36 +245,39 @@
                                             <!-- The tooltip sits on the TextBox, not the panel: the
                                                  box covers the cell, and a panel's tooltip never
                                                  surfaces from under a child that has its own. -->
+                                            <!-- The box always holds the name, so editing starts from
+                                                 it. While it still reads the provider's name its own
+                                                 text is transparent and the dimmed copy above shows
+                                                 through; the first edit hides the copy and the box
+                                                 draws in full. The caret keeps a real brush. -->
                                             <TextBox x:Name="CategoryRenameTextBox"
-                                                     Text="{Binding RenameOverrideText, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
+                                                     Text="{Binding RenameText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                                      LostKeyboardFocus="CategoryRenameTextBox_LostKeyboardFocus"
                                                      KeyDown="CategoryRenameTextBox_KeyDown"
                                                      IsEnabled="{Binding IsDefaultCategory, Converter={StaticResource InvertBoolConverter}}"
                                                      ToolTip="{Binding CategoryPathDisplay}"
                                                      ToolTipService.ShowOnDisabled="True"
+                                                     CaretBrush="{DynamicResource PlayAch.Brush.Text}"
                                                      Padding="6,4"
-                                                     VerticalContentAlignment="Center" />
-                                            <TextBlock Text="{Binding ProviderCategoryLeafDisplay}"
+                                                     VerticalContentAlignment="Center">
+                                                <TextBox.Style>
+                                                    <Style TargetType="TextBox" BasedOn="{StaticResource {x:Type TextBox}}">
+                                                        <Style.Triggers>
+                                                            <DataTrigger Binding="{Binding IsRenameUntouched}" Value="True">
+                                                                <Setter Property="Foreground" Value="Transparent" />
+                                                            </DataTrigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </TextBox.Style>
+                                            </TextBox>
+                                            <TextBlock Text="{Binding RenameText}"
                                                        VerticalAlignment="Center"
                                                        Margin="9,0,0,0"
                                                        TextTrimming="CharacterEllipsis"
                                                        Foreground="{DynamicResource PlayAch.Brush.Text}"
                                                        Opacity="{StaticResource PlayAch.Opacity.Placeholder}"
-                                                       IsHitTestVisible="False">
-                                                <TextBlock.Style>
-                                                    <Style TargetType="TextBlock">
-                                                        <Setter Property="Visibility" Value="Collapsed" />
-                                                        <Style.Triggers>
-                                                            <DataTrigger Binding="{Binding ElementName=CategoryRenameTextBox, Path=Text}" Value="">
-                                                                <Setter Property="Visibility" Value="Visible" />
-                                                            </DataTrigger>
-                                                            <DataTrigger Binding="{Binding ElementName=CategoryRenameTextBox, Path=Text}" Value="{x:Null}">
-                                                                <Setter Property="Visibility" Value="Visible" />
-                                                            </DataTrigger>
-                                                        </Style.Triggers>
-                                                    </Style>
-                                                </TextBlock.Style>
-                                            </TextBlock>
+                                                       IsHitTestVisible="False"
+                                                       Visibility="{Binding IsRenameUntouched, Converter={StaticResource BoolToVis}}" />
                                         </Grid>
                                         <TextBlock Grid.Row="2"
                                                    Text="{Binding ProgressText}"
