@@ -149,7 +149,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             var normalized = (labels ?? Array.Empty<string>())
                 .Where(label => !string.IsNullOrWhiteSpace(label))
                 .Select(AchievementCategoryHelper.NormalizeCategoryOrDefault)
-                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .Distinct(CategoryPathHelper.LabelComparer)
                 .ToList();
             _sidebarScopeLabels = normalized.Count > 0 ? normalized : null;
             RebuildSidebarStats();
@@ -168,7 +168,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             }
             else
             {
-                var labelSet = new HashSet<string>(labels, StringComparer.OrdinalIgnoreCase);
+                var labelSet = new HashSet<string>(labels, CategoryPathHelper.LabelComparer);
                 var scoped = _sidebarSourceAchievements
                     .Where(achievement => achievement != null &&
                                           labelSet.Contains(AchievementCategoryHelper.NormalizeCategoryOrDefault(achievement.Category)))
