@@ -266,7 +266,23 @@
 
                         <!-- Scope column: every decision about which style the preview and the
                              editor below show, top to bottom from widest to narrowest scope. -->
-                        <StackPanel Grid.Column="1" Margin="24,0,0,0">
+                        <!-- MaxWidth bounds the text measure even when the column is Auto (frame
+                             tab), so the labels wrap instead of squeezing the preview. -->
+                        <StackPanel Grid.Column="1"
+                                    Margin="24,0,0,0"
+                                    MaxWidth="320"
+                                    HorizontalAlignment="Left">
+                            <StackPanel.Resources>
+                                <Style TargetType="CheckBox" BasedOn="{StaticResource PlayAch.CheckBox.BaseStyle}">
+                                    <Setter Property="ContentTemplate">
+                                        <Setter.Value>
+                                            <DataTemplate>
+                                                <TextBlock Text="{Binding}" TextWrapping="Wrap"/>
+                                            </DataTemplate>
+                                        </Setter.Value>
+                                    </Setter>
+                                </Style>
+                            </StackPanel.Resources>
                             <!-- Platform scope. In game mode the game's own override takes its place. -->
                             <!-- The style checkboxes serve the notification and frame tabs, the
                                  sound ones the Sounds tab (ApplySurfaceVisibility). -->
@@ -290,40 +306,48 @@
                                           Visibility="Collapsed"/>
                             </StackPanel>
 
-                            <!-- Per-kind styling. With one of the special kinds selected in the sample
-                                 dropdown, this block opts that kind out of the scope's shared style
-                                 into its own copy, seeded from it. It hides for the plain rarity
-                                 samples, which always follow the shared style. One slot covers both
-                                 surfaces, so the toast and frame tabs show the same state. -->
-                            <StackPanel x:Name="KindStylePanel"
-                                        Visibility="Collapsed"
-                                        Margin="0,0,0,10">
-                                <StackPanel Orientation="Horizontal">
-                                    <CheckBox x:Name="KindStyleCheckBox"
-                                              VerticalAlignment="Center"
-                                              Click="KindStyleCheckBox_Click"/>
-                                    <Button x:Name="ResetKindStyleButton"
-                                            Click="ResetKindStyle_Click"
-                                            Content="&#xEFD1;"
-                                            ToolTip="{DynamicResource LOCPlayAch_Settings_Style_Kind_ResetToBase}"
-                                            Style="{StaticResource PlayAch.Button.ToolbarIconStyle}"
-                                            VerticalAlignment="Center"
-                                            Margin="8,0,0,0"
-                                            Visibility="Collapsed"/>
-                                </StackPanel>
-                            </StackPanel>
-
                             <!-- Design: whether the live notification / saved frame (and the preview)
                                  use the theme's design or the plugin's. Each surface persists its
                                  own flag, so each has its own checkbox. -->
                             <CheckBox x:Name="ToastThemeStylingCheckBox"
                                       Content="{DynamicResource LOCPlayAch_Settings_Style_UseThemeTemplate}"
                                       Click="ThemeStylingCheckBox_Click"
+                                      Margin="0,0,0,10"
                                       Visibility="{Binding IsSelected, ElementName=ToastTabItem, Converter={StaticResource BoolToVis}}"/>
                             <CheckBox x:Name="FrameThemeStylingCheckBox"
                                       Content="{DynamicResource LOCPlayAch_Settings_Style_UseThemeTemplate}"
                                       Click="ThemeStylingCheckBox_Click"
+                                      Margin="0,0,0,10"
                                       Visibility="{Binding IsSelected, ElementName=FrameTabItem, Converter={StaticResource BoolToVis}}"/>
+
+                            <!-- Per-kind styling. With one of the special kinds selected in the sample
+                                 dropdown, this block opts that kind out of the scope's shared style
+                                 into its own copy, seeded from it. It hides for the plain rarity
+                                 samples, which always follow the shared style. One slot covers both
+                                 surfaces, so the toast and frame tabs show the same state. -->
+                            <!-- A Grid rather than a horizontal StackPanel, so the label is measured
+                                 against the column width and wraps beside the reset button. -->
+                            <Grid x:Name="KindStylePanel"
+                                  Visibility="Collapsed"
+                                  Margin="0,0,0,10">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <CheckBox x:Name="KindStyleCheckBox"
+                                          HorizontalAlignment="Left"
+                                          VerticalAlignment="Center"
+                                          Click="KindStyleCheckBox_Click"/>
+                                <Button x:Name="ResetKindStyleButton"
+                                        Grid.Column="1"
+                                        Click="ResetKindStyle_Click"
+                                        Content="&#xEFD1;"
+                                        ToolTip="{DynamicResource LOCPlayAch_Settings_Style_Kind_ResetToBase}"
+                                        Style="{StaticResource PlayAch.Button.ToolbarIconStyle}"
+                                        VerticalAlignment="Center"
+                                        Margin="8,0,0,0"
+                                        Visibility="Collapsed"/>
+                            </Grid>
                         </StackPanel>
                     </Grid>
                 </Grid>
