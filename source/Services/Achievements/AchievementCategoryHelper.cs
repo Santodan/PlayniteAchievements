@@ -20,8 +20,13 @@ namespace PlayniteAchievements.Services.Achievements
 
         public static string NormalizeCategoryOrDefault(string rawValue)
         {
+            // The Default bucket matches in any case and keeps one spelling, as in
+            // CategoryPathHelper.NormalizePath; every other label keeps its case.
             var normalized = NormalizeCategory(rawValue);
-            return string.IsNullOrWhiteSpace(normalized) ? DefaultCategoryLabel : normalized;
+            return string.IsNullOrWhiteSpace(normalized) ||
+                   string.Equals(normalized, DefaultCategoryLabel, StringComparison.OrdinalIgnoreCase)
+                ? DefaultCategoryLabel
+                : normalized;
         }
 
         /// <summary>
