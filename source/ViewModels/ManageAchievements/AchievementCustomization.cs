@@ -204,7 +204,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 facets |= AchievementCustomizationFacet.UnlockTime;
             }
 
-            if (!string.Equals(inputs.Category, inputs.ProviderCategory, StringComparison.OrdinalIgnoreCase))
+            if (!string.Equals(inputs.Category, inputs.ProviderCategory, CategoryPathHelper.LabelComparison))
             {
                 facets |= AchievementCustomizationFacet.Category;
             }
