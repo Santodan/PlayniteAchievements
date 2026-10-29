@@ -690,7 +690,7 @@ namespace PlayniteAchievements.ViewModels
         // Raw friend identity for template composition (e.g. the friend completion header). The
         // completion texts themselves live in the templates as LOC resources, not here.
         public string FriendDisplayName => string.IsNullOrWhiteSpace(_args.FriendDisplayName)
-            ? "Friend"
+            ? ResourceProvider.GetString("LOCPlayAch_Column_Friend")
             : _args.FriendDisplayName;
 
         // Blank when masked rather than the grid's "Click to reveal": a notification cannot be
