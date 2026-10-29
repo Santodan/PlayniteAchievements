@@ -7,6 +7,7 @@ using System.Windows.Media;
 using Playnite.SDK;
 using PlayniteAchievements.Models.Settings;
 using PlayniteAchievements.Services.Showcase;
+using PlayniteAchievements.Views.Showcase;
 
 namespace PlayniteAchievements.Views.Helpers
 {
@@ -35,7 +36,7 @@ namespace PlayniteAchievements.Views.Helpers
                 var captured = collection;
                 parent.Items.Add(CreateCollectionItem(
                     resourceOwner,
-                    captured.Name,
+                    ShowcaseUiText.PinCollectionName(captured.Name),
                     ShowcasePinService.IsAchievementPinned(showcase, captured.CollectionId, gameId, apiName),
                     () =>
                     {
@@ -93,7 +94,7 @@ namespace PlayniteAchievements.Views.Helpers
                 var captured = collection;
                 parent.Items.Add(CreateCollectionItem(
                     resourceOwner,
-                    captured.Name,
+                    ShowcaseUiText.PinCollectionName(captured.Name),
                     ShowcasePinService.IsGamePinned(showcase, captured.CollectionId, gameId),
                     () =>
                     {
