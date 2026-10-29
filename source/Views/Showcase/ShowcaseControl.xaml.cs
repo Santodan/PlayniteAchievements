@@ -2088,17 +2088,20 @@ namespace PlayniteAchievements.Views.Showcase
                 _hostCache.Remove(staleId);
             }
 
-            // Deleted widgets' control bar state goes with them. Start page widgets share the
-            // adapter registry, so their instances stay live too. A strip's widgets carry no
-            // control bar, and its layout cannot vouch for the Showcase page's instances.
+            // Deleted widgets' control bar state goes with them. Start page widgets and the
+            // Overview header's score cards share the adapter registry, so their instances stay
+            // live too. A strip's widgets carry no control bar, and its layout cannot vouch for
+            // the Showcase page's instances.
             if (_host.IsStrip)
             {
                 return;
             }
 
             var liveControlBars = new HashSet<string>(live, StringComparer.OrdinalIgnoreCase);
+            var persisted = _settings.Persisted;
             foreach (var widget in (Layout.StartPageInstances ??
-                new Dictionary<string, ShowcaseWidgetInstanceSettings>()).Values)
+                new Dictionary<string, ShowcaseWidgetInstanceSettings>()).Values
+                .Concat(new[] { persisted?.OverviewScoreCard1, persisted?.OverviewScoreCard2 }))
             {
                 if (!string.IsNullOrWhiteSpace(widget?.InstanceId))
                 {
