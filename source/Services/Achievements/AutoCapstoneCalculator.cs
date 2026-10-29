@@ -186,7 +186,7 @@ namespace PlayniteAchievements.Services.Achievements
                     .Where(achievement => string.Equals(
                         AchievementCategoryHelper.NormalizeCategoryOrDefault(achievement.Category),
                         AchievementCategoryHelper.NormalizeCategoryOrDefault(normalizedCategory),
-                        StringComparison.OrdinalIgnoreCase))
+                        CategoryPathHelper.LabelComparison))
                     .ToList();
             }
 
