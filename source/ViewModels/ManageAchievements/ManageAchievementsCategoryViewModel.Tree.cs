@@ -728,7 +728,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             if (typed != null && CategoryPathHelper.ContainsSeparator(typed))
             {
                 SetCategoryImageStatus(L("LOCPlayAch_ManageAchievements_Category_PathSeparatorNotAllowed"), isError: true);
-                row.ResetRenameOverrideTextFromCurrentCategory();
+                row.ResetRenameTextFromCurrentCategory();
                 return false;
             }
 
@@ -742,14 +742,14 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 string.IsNullOrWhiteSpace(targetCategory) ||
                 CategoryPathHelper.IsSame(sourceCategory, targetCategory))
             {
-                row.ResetRenameOverrideTextFromCurrentCategory();
+                row.ResetRenameTextFromCurrentCategory();
                 return false;
             }
 
             var renamed = RenameCategoryLabel(sourceCategory, targetCategory);
             if (!renamed)
             {
-                row.ResetRenameOverrideTextFromCurrentCategory();
+                row.ResetRenameTextFromCurrentCategory();
             }
 
             return renamed;

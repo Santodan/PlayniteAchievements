@@ -55,7 +55,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         private readonly ManagedCustomIconService _managedCustomIconService;
         private string _baselineArtOverrideValue;
         private string _artOverrideValue;
-        private string _renameOverrideText;
+        private string _renameText;
         private bool _baselineIsSummarySelected;
         private bool _isSummarySelected;
         private AchievementFilterScope _filterScope;
@@ -133,23 +133,35 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
 
         public string ProviderCategoryDisplay => AchievementCategoryHelper.ToCategoryLabelDisplayText(ProviderCategoryLabel);
 
-        /// <summary>Placeholder for the leaf-scoped rename box.</summary>
+        /// <summary>The leaf the providers named this category, which the rename box reverts to.</summary>
         public string ProviderCategoryLeafDisplay => CategoryPathHelper.ToDisplayLeaf(ProviderCategoryLabel);
 
-        public string RenameOverrideText
+        /// <summary>
+        /// The rename box's live text: the current leaf until the user edits it. Pushed on every
+        /// keystroke so <see cref="IsRenameUntouched"/> tracks the box; nothing persists until the
+        /// view commits it on focus loss or Enter.
+        /// </summary>
+        public string RenameText
         {
-            get => _renameOverrideText;
+            get => _renameText;
             set
             {
                 var nextValue = value ?? string.Empty;
-                if (SetValueAndReturn(ref _renameOverrideText, nextValue))
+                if (SetValueAndReturn(ref _renameText, nextValue))
                 {
-                    OnPropertyChanged(nameof(HasRenameOverride));
+                    OnPropertyChanged(nameof(IsRenameUntouched));
                 }
             }
         }
 
-        public bool HasRenameOverride => !string.IsNullOrWhiteSpace(GetNormalizedRenameOverrideValue());
+        /// <summary>
+        /// True while the box holds exactly the provider's name, which the row draws dimmed; any
+        /// edit, including a case-only one, draws it in full.
+        /// </summary>
+        public bool IsRenameUntouched => string.Equals(
+            (_renameText ?? string.Empty).Trim(),
+            ProviderCategoryLeafDisplay,
+            StringComparison.Ordinal);
 
         public string FileStem { get; }
 
@@ -317,7 +329,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
 
             // Leaf-scoped, the same as after an edit: seeding the whole path would put a separator
             // in a box that rejects one.
-            row.ResetRenameOverrideTextFromCurrentCategory();
+            row.ResetRenameTextFromCurrentCategory();
             row._baselineArtOverrideValue = row.ResolveOverrideInputValue(imageOverride?.Art);
             row._artOverrideValue = row._baselineArtOverrideValue ?? string.Empty;
             row._baselineIsSummarySelected = isSummarySelected;
@@ -367,24 +379,18 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
 
         public string GetNormalizedRenameOverrideValue()
         {
-            var normalized = (RenameOverrideText ?? string.Empty).Trim();
+            var normalized = (RenameText ?? string.Empty).Trim();
             return string.IsNullOrWhiteSpace(normalized) ? null : normalized;
         }
 
         // Editing is leaf-scoped: the row's indentation already conveys where it sits, and typing a
         // whole path would be a second way to express nesting alongside indent/outdent.
         //
-        // Which is why the comparison is leaf against leaf. Comparing full paths filled the box on
-        // any indent - the path changes, the name does not - so moving a row read as renaming it,
-        // and the text it left behind could later be applied as a rename nobody asked for.
-        public void ResetRenameOverrideTextFromCurrentCategory()
+        // Which is why the box holds the leaf, never the path: committing the text a row was seeded
+        // with is a no-op, so moving a row cannot read as renaming it.
+        public void ResetRenameTextFromCurrentCategory()
         {
-            RenameOverrideText = string.Equals(
-                CategoryPathHelper.GetLeafName(CategoryLabel),
-                CategoryPathHelper.GetLeafName(ProviderCategoryLabel),
-                StringComparison.OrdinalIgnoreCase)
-                ? string.Empty
-                : CategoryPathHelper.GetLeafName(CategoryLabel);
+            RenameText = CategoryPathHelper.GetLeafName(CategoryLabel);
         }
 
         private string ResolveOverrideInputValue(string value)
