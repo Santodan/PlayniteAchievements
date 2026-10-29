@@ -809,7 +809,7 @@ namespace PlayniteAchievements.Views.ManageAchievements
                 (labels ?? Enumerable.Empty<string>())
                     .Select(AchievementCategoryHelper.NormalizeCategoryOrDefault)
                     .Where(label => !string.IsNullOrWhiteSpace(label)),
-                StringComparer.OrdinalIgnoreCase);
+                CategoryPathHelper.LabelComparer);
             CategoryManagerDataGrid.SelectedItems.Clear();
             if (selectedLabels.Count == 0 || ViewModel?.CategoryRows == null)
             {
