@@ -386,7 +386,10 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Base
                 }
 
                 _moreBadge.Content = $"+{remaining}";
-                _moreBadge.ToolTip = $"{remaining} more";
+                _moreBadge.ToolTip = string.Format(
+                    Common.FormattingCulture.Current,
+                    ResourceProvider.GetString("LOCPlayAch_Common_MoreCountFormat"),
+                    remaining);
                 _moreBadge.SetValue(Grid.ColumnProperty, nbGrid - 1);
             }
             else if (_moreBadge != null)
