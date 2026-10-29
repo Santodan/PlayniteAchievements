@@ -455,6 +455,7 @@ namespace PlayniteAchievements.Services.Tests
                     {
                         " DLC ",
                         "Base",
+                        "DLC",
                         "dlc"
                     },
                     AchievementCategoryImageOverrides = new Dictionary<string, CategoryImageOverrideData>
@@ -476,8 +477,9 @@ namespace PlayniteAchievements.Services.Tests
                 gameId);
 
             CollectionAssert.AreEqual(
-                new[] { "DLC", "Base" },
-                normalized.AchievementCategoryOrder);
+                new[] { "DLC", "Base", "dlc" },
+                normalized.AchievementCategoryOrder,
+                "trimmed repeats fold; a case variant is its own category");
             Assert.AreEqual(2, normalized.AchievementCategoryImageOverrides.Count);
             Assert.AreEqual("https://example.com/art.png", normalized.AchievementCategoryImageOverrides["DLC"].Art);
             Assert.AreEqual("managed://art.png", normalized.AchievementCategoryImageOverrides["Base"].Art);
