@@ -104,6 +104,42 @@ namespace PlayniteAchievements.Tests.Localization
             CollectionAssert.AreEqual(Array.Empty<string>(), missing);
         }
 
+        [TestMethod]
+        public void SourceReferencesOnlyKeysDefinedInEnUs()
+        {
+            var enUsPath = FindRepoFile("source", "Localization", "en_US.xaml");
+            var sourceRoot = Directory.GetParent(Path.GetDirectoryName(enUsPath)).FullName;
+            XNamespace xaml = "http://schemas.microsoft.com/winfx/2006/xaml";
+
+            var keys = new HashSet<string>(
+                XDocument.Load(enUsPath)
+                    .Descendants()
+                    .Select(element => (string)element.Attribute(xaml + "Key"))
+                    .Where(key => !string.IsNullOrWhiteSpace(key)),
+                StringComparer.Ordinal);
+            var skippedDirectories = new[] { "Localization", "bin", "obj" }
+                .Select(name => Path.DirectorySeparatorChar + name + Path.DirectorySeparatorChar)
+                .ToList();
+
+            // Keys contain a lowercase letter, which separates them from identifiers such as
+            // LOCKED; tokens ending in "_" are prefixes composed with an enum value at runtime.
+            var missing = Directory.EnumerateFiles(sourceRoot, "*.*", SearchOption.AllDirectories)
+                .Where(path => path.EndsWith(".cs", StringComparison.OrdinalIgnoreCase) ||
+                               path.EndsWith(".xaml", StringComparison.OrdinalIgnoreCase))
+                .Where(path => !skippedDirectories.Any(directory =>
+                    path.Substring(sourceRoot.Length).IndexOf(directory, StringComparison.OrdinalIgnoreCase) >= 0))
+                .SelectMany(path => Regex.Matches(File.ReadAllText(path), @"\bLOC[A-Z][A-Za-z0-9_]*[a-z][A-Za-z0-9_]*")
+                    .Cast<Match>()
+                    .Select(match => match.Value)
+                    .Where(key => !key.EndsWith("_", StringComparison.Ordinal) && !keys.Contains(key))
+                    .Select(key => key + " (" + Path.GetFileName(path) + ")"))
+                .Distinct(StringComparer.Ordinal)
+                .OrderBy(entry => entry, StringComparer.Ordinal)
+                .ToList();
+
+            CollectionAssert.AreEqual(Array.Empty<string>(), missing, string.Join(Environment.NewLine, missing));
+        }
+
         private static string FindRepoFile(params string[] parts)
         {
             var directory = new DirectoryInfo(AppDomain.CurrentDomain.BaseDirectory);
