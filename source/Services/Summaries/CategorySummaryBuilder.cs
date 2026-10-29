@@ -133,7 +133,7 @@ namespace PlayniteAchievements.Services.Summaries
         private static Dictionary<string, List<AchievementDisplayItem>> GroupByLabel(
             IReadOnlyList<AchievementDisplayItem> source)
         {
-            var groups = new Dictionary<string, List<AchievementDisplayItem>>(StringComparer.OrdinalIgnoreCase);
+            var groups = new Dictionary<string, List<AchievementDisplayItem>>(CategoryPathHelper.LabelComparer);
             foreach (var item in source)
             {
                 if (item == null)
