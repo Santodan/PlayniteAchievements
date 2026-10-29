@@ -521,6 +521,8 @@ namespace PlayniteAchievements.Services.Images
 
         // Absolute path for the provider-supplied default category art file. Deterministic per
         // (gameId, normalized category label); see AchievementIconCachePathBuilder for the layout.
+        // Every reader and downloader resolves the path here, so art stored under the legacy
+        // lowercase-hash name is adopted into this path before anyone probes or writes it.
         internal string GetDefaultCategoryImagePath(
             string gameId,
             string categoryLabel)
@@ -528,7 +530,90 @@ namespace PlayniteAchievements.Services.Images
             var relativePath = AchievementIconCachePathBuilder.BuildDefaultCategoryRelativePath(
                 gameId,
                 categoryLabel);
-            return Path.Combine(_cacheRoot, relativePath);
+            var canonicalPath = Path.Combine(_cacheRoot, relativePath);
+            AdoptLegacyDefaultCategoryImage(gameId, categoryLabel, canonicalPath);
+            return canonicalPath;
+        }
+
+        // Moves default category art stored under the lowercase-hash name into the current
+        // case-sensitive path when the current path holds no art yet. A no-op for all-lowercase
+        // labels, whose two paths coincide.
+        private void AdoptLegacyDefaultCategoryImage(
+            string gameId,
+            string categoryLabel,
+            string canonicalPath)
+        {
+            var trimmedLabel = (categoryLabel ?? string.Empty).Trim();
+            if (string.Equals(trimmedLabel, trimmedLabel.ToLowerInvariant(), StringComparison.Ordinal))
+            {
+                return;
+            }
+
+            var legacyPath = Path.Combine(
+                _cacheRoot,
+                AchievementIconCachePathBuilder.BuildLegacyDefaultCategoryRelativePath(gameId, categoryLabel));
+            if (string.Equals(legacyPath, canonicalPath, StringComparison.Ordinal))
+            {
+                return;
+            }
+
+            var snapshot = PeekDefaultCategoryArtSnapshot(gameId);
+            if (snapshot != null && snapshot.Count == 0)
+            {
+                return;
+            }
+
+            var current = snapshot == null
+                ? ProbeDefaultCategoryImagePath(canonicalPath)
+                : FindDefaultCategoryImageInSnapshot(snapshot, canonicalPath);
+            if (current != null)
+            {
+                return;
+            }
+
+            var legacy = snapshot == null
+                ? ProbeDefaultCategoryImagePath(legacyPath)
+                : FindDefaultCategoryImageInSnapshot(snapshot, legacyPath);
+            if (legacy == null || _failedLegacyDefaultCategoryAdoptions.ContainsKey(legacy))
+            {
+                return;
+            }
+
+            var target = Path.ChangeExtension(canonicalPath, Path.GetExtension(legacy));
+            try
+            {
+                File.Move(legacy, target);
+                InvalidateDefaultCategoryArtSnapshot(gameId);
+            }
+            catch (Exception ex)
+            {
+                // Not retried this session, so a file that cannot move costs one attempt, not one per read.
+                _failedLegacyDefaultCategoryAdoptions[legacy] = 0;
+                _logger?.Warn(ex, $"Failed to move default category image for '{categoryLabel}' from '{legacy}' to '{target}'.");
+            }
+        }
+
+        private readonly ConcurrentDictionary<string, byte> _failedLegacyDefaultCategoryAdoptions =
+            new ConcurrentDictionary<string, byte>(StringComparer.OrdinalIgnoreCase);
+
+        // The stored file for canonicalPath in a directory snapshot, across supported extensions.
+        private static string FindDefaultCategoryImageInSnapshot(HashSet<string> snapshot, string canonicalPath)
+        {
+            if (snapshot.Contains(Path.GetFileName(canonicalPath)))
+            {
+                return canonicalPath;
+            }
+
+            foreach (var extension in SupportedImageExtensions)
+            {
+                var candidate = Path.ChangeExtension(canonicalPath, extension);
+                if (snapshot.Contains(Path.GetFileName(candidate)))
+                {
+                    return candidate;
+                }
+            }
+
+            return null;
         }
 
         // Probes the default category art across supported extensions. Downloads with
@@ -556,21 +641,7 @@ namespace PlayniteAchievements.Services.Images
                 return null;
             }
 
-            if (snapshot.Contains(Path.GetFileName(canonicalPath)))
-            {
-                return canonicalPath;
-            }
-
-            foreach (var extension in SupportedImageExtensions)
-            {
-                var candidate = Path.ChangeExtension(canonicalPath, extension);
-                if (snapshot.Contains(Path.GetFileName(candidate)))
-                {
-                    return candidate;
-                }
-            }
-
-            return null;
+            return FindDefaultCategoryImageInSnapshot(snapshot, canonicalPath);
         }
 
         /// <summary>
@@ -658,6 +729,17 @@ namespace PlayniteAchievements.Services.Images
             }
 
             return snapshot;
+        }
+
+        // The game's snapshot when one is already built, else null. Path resolution must not build
+        // one: a caller resolves the path before writing the file, and a snapshot taken then would
+        // miss it.
+        private HashSet<string> PeekDefaultCategoryArtSnapshot(string gameId)
+        {
+            return _defaultCategoryArtSnapshots.TryGetValue(NormalizeSnapshotGameKey(gameId), out var lazy) &&
+                   lazy.IsValueCreated
+                ? lazy.Value
+                : null;
         }
 
         /// <summary>
