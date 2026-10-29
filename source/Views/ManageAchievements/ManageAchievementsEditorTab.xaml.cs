@@ -2050,7 +2050,7 @@ namespace PlayniteAchievements.Views.ManageAchievements
                     Tag = label,
                     IsCheckable = true,
                     IsChecked = selection.All(row =>
-                        string.Equals(row.EffectiveCategoryLabel, label, StringComparison.OrdinalIgnoreCase))
+                        string.Equals(row.EffectiveCategoryLabel, label, CategoryPathHelper.LabelComparison))
                 };
                 // The click has already flipped the tick: unticking the category every selected
                 // row is in takes them out of it.
