@@ -197,7 +197,7 @@ namespace PlayniteAchievements.Services.Overview
                 var summaryArt = GameSummaryArtResolver.ResolveForGame(game.PlayniteGameId);
                 snapshot.GameSummaries.Add(new GameSummaryItem
                 {
-                    GameName = presentation.DisplayName ?? game.GameName ?? "Unknown",
+                    GameName = presentation.DisplayName ?? game.GameName ?? ResourceProvider.GetString("LOCPlayAch_Common_Unknown"),
                     SortingName = presentation.SortingName ?? presentation.DisplayName ?? game.GameName ?? "Unknown",
                     GameLogo = summaryArt ?? presentation.IconPath,
                     GameCoverPath = summaryArt ?? presentation.CoverPath,
