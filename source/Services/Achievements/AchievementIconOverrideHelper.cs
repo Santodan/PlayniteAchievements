@@ -191,7 +191,7 @@ namespace PlayniteAchievements.Services.Achievements
             Guid gameId,
             ManagedCustomIconService managedCustomIconService)
         {
-            var result = new Dictionary<string, CategoryImageOverrideData>(StringComparer.OrdinalIgnoreCase);
+            var result = new Dictionary<string, CategoryImageOverrideData>(CategoryPathHelper.LabelComparer);
             if (source == null)
             {
                 return result;
