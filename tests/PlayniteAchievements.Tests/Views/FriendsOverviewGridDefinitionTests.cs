@@ -149,11 +149,11 @@ namespace PlayniteAchievements.Tests.Views
 
             AssertContainsAll(
                 builder,
-                "GameName = presentation.DisplayName ?? gameData.GameName ?? \"Unknown\"",
+                "GameName = presentation.DisplayName ?? gameData.GameName ?? ResourceProvider.GetString(\"LOCPlayAch_Common_Unknown\")",
                 "SortingName = presentation.SortingName ?? presentation.DisplayName ?? gameData.GameName ?? \"Unknown\"");
             AssertContainsAll(
                 overview,
-                "GameName = presentation.DisplayName ?? game.GameName ?? \"Unknown\"",
+                "GameName = presentation.DisplayName ?? game.GameName ?? ResourceProvider.GetString(\"LOCPlayAch_Common_Unknown\")",
                 "SortingName = presentation.SortingName ?? presentation.DisplayName ?? game.GameName ?? \"Unknown\"");
         }
 
