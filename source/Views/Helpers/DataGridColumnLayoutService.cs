@@ -2700,7 +2700,7 @@ namespace PlayniteAchievements.Views.Helpers
                 var hasOverride = TryGetColumnHeaderHorizontalAlignmentOverride(key, out var overrideAlignment);
                 var effectiveAlignment = hasOverride ? overrideAlignment : GetDefaultHeaderHorizontalAlignment();
                 var description = CreateHorizontalAlignmentDescription(
-                    "Header horizontal alignment",
+                    ResourceProvider.GetString("LOCPlayAch_Settings_GridAlignment_HeaderHorizontal"),
                     effectiveAlignment,
                     hasOverride);
 
@@ -2720,7 +2720,7 @@ namespace PlayniteAchievements.Views.Helpers
                 var hasOverride = TryGetColumnCellAlignmentOverride(key, out var overrideAlignment);
                 var effectiveAlignment = hasOverride ? overrideAlignment : GetDefaultCellAlignment();
                 var description = CreateHorizontalAlignmentDescription(
-                    "Cell horizontal alignment",
+                    ResourceProvider.GetString("LOCPlayAch_Settings_GridAlignment_CellHorizontal"),
                     effectiveAlignment,
                     hasOverride);
 
@@ -2740,7 +2740,7 @@ namespace PlayniteAchievements.Views.Helpers
                 var hasOverride = TryGetColumnCellVerticalAlignmentOverride(key, out var overrideAlignment);
                 var effectiveAlignment = hasOverride ? overrideAlignment : GetDefaultCellVerticalAlignment();
                 var description = CreateVerticalAlignmentDescription(
-                    "Cell vertical alignment",
+                    ResourceProvider.GetString("LOCPlayAch_Settings_GridAlignment_CellVertical"),
                     effectiveAlignment,
                     hasOverride);
 
@@ -3157,10 +3157,7 @@ namespace PlayniteAchievements.Views.Helpers
             GridAlignment effectiveAlignment,
             bool hasOverride)
         {
-            var alignmentText = AlignmentToText(effectiveAlignment);
-            return hasOverride
-                ? $"{target}: {alignmentText}. Click to change."
-                : $"{target}: Default ({alignmentText}). Click to change.";
+            return CreateAlignmentDescription(target, AlignmentToText(effectiveAlignment), hasOverride);
         }
 
         private static string CreateVerticalAlignmentDescription(
@@ -3168,10 +3165,14 @@ namespace PlayniteAchievements.Views.Helpers
             GridVerticalAlignment effectiveAlignment,
             bool hasOverride)
         {
-            var alignmentText = AlignmentToText(effectiveAlignment);
+            return CreateAlignmentDescription(target, AlignmentToText(effectiveAlignment), hasOverride);
+        }
+
+        private static string CreateAlignmentDescription(string target, string alignmentText, bool hasOverride)
+        {
             return hasOverride
-                ? $"{target}: {alignmentText}. Click to change."
-                : $"{target}: Default ({alignmentText}). Click to change.";
+                ? target + ": " + alignmentText
+                : target + ": " + ResourceProvider.GetString("LOCPlayAch_Common_Default") + " (" + alignmentText + ")";
         }
 
         private static string AlignmentToText(GridAlignment alignment)
@@ -3179,12 +3180,12 @@ namespace PlayniteAchievements.Views.Helpers
             switch (alignment)
             {
                 case GridAlignment.Center:
-                    return "Center";
+                    return ResourceProvider.GetString("LOCPlayAch_Settings_GridAlignment_Center");
                 case GridAlignment.Right:
-                    return "Right";
+                    return ResourceProvider.GetString("LOCPlayAch_Common_Right");
                 case GridAlignment.Left:
                 default:
-                    return "Left";
+                    return ResourceProvider.GetString("LOCPlayAch_Common_Left");
             }
         }
 
@@ -3193,12 +3194,12 @@ namespace PlayniteAchievements.Views.Helpers
             switch (alignment)
             {
                 case GridVerticalAlignment.Top:
-                    return "Top";
+                    return ResourceProvider.GetString("LOCPlayAch_Common_Top");
                 case GridVerticalAlignment.Bottom:
-                    return "Bottom";
+                    return ResourceProvider.GetString("LOCPlayAch_Common_Bottom");
                 case GridVerticalAlignment.Center:
                 default:
-                    return "Center";
+                    return ResourceProvider.GetString("LOCPlayAch_Settings_GridAlignment_Center");
             }
         }
 
