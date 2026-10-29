@@ -131,10 +131,17 @@ namespace PlayniteAchievements.Providers.Metadata.Exophase
                 var slugs = new List<string>();
                 foreach (var title in hints.SetTitles.Where(title => !string.IsNullOrWhiteSpace(title)))
                 {
-                    var slug = await FindPageAsync(new[] { title }, suffixes, searchPlatforms, pagePlatform, hints.RegionHint, ct).ConfigureAwait(false);
+                    var (slug, unreadable) = await FindPageAsync(new[] { title }, suffixes, searchPlatforms, pagePlatform, hints.RegionHint, ct).ConfigureAwait(false);
                     if (slug != null)
                     {
                         slugs.Add(slug);
+                    }
+                    else if (unreadable)
+                    {
+                        // A set left out because its pages went unread would be missing from the
+                        // stored link for good, so the whole link waits for the next refresh.
+                        _logger?.Debug($"[{Key}Metadata] '{request.Game?.Name}': the pages for set '{title}' could not be read; looking again next refresh.");
+                        return MetadataSourceLink.Unavailable();
                     }
                 }
 
@@ -193,9 +200,15 @@ namespace PlayniteAchievements.Providers.Metadata.Exophase
                 return new MetadataSourceLink(linkId, choice.Label ?? request.Game?.Name, foundByName: true) { Trace = choice.Trace, Matched = choice.Matched };
             }
 
-            var found = await FindPageAsync(names, suffixes, searchPlatforms, pagePlatform, hints?.RegionHint, ct).ConfigureAwait(false);
+            var (found, pagesUnread) = await FindPageAsync(names, suffixes, searchPlatforms, pagePlatform, hints?.RegionHint, ct).ConfigureAwait(false);
             if (found == null)
             {
+                if (pagesUnread)
+                {
+                    _logger?.Debug($"[{Key}Metadata] '{request.Game?.Name}': no {pagePlatform} page found, but some pages could not be read; looking again next refresh.");
+                    return MetadataSourceLink.Unavailable();
+                }
+
                 _logger?.Debug($"[{Key}Metadata] '{request.Game?.Name}': no {pagePlatform} page.");
                 return null;
             }
@@ -209,8 +222,12 @@ namespace PlayniteAchievements.Providers.Metadata.Exophase
             return new MetadataSourceLink(found, request.Game?.Name, foundByName: true);
         }
 
-        /// <summary>The first built slug whose page lists awards, else the first search match; null when neither finds one.</summary>
-        private async Task<string> FindPageAsync(
+        /// <summary>
+        /// The first built slug whose page lists awards, else the first search match; null when
+        /// neither finds one. Unreadable is true when a page or search along the way could not be
+        /// read, so finding nothing does not mean the game has no page.
+        /// </summary>
+        private async Task<(string Slug, bool Unreadable)> FindPageAsync(
             IReadOnlyList<string> names,
             IReadOnlyList<string> suffixes,
             IReadOnlyList<string> searchPlatforms,
@@ -218,25 +235,30 @@ namespace PlayniteAchievements.Providers.Metadata.Exophase
             string regionHint,
             CancellationToken ct)
         {
+            var unreadable = false;
             foreach (var slug in CandidateSlugs(names, suffixes))
             {
                 var page = await _pages.GetPageAsync(slug, pagePlatform, ct).ConfigureAwait(false);
                 if (page?.Achievements?.Count > 0)
                 {
-                    return slug;
+                    return (slug, false);
                 }
+
+                unreadable |= ExophasePageSource.IsUnreadable(page);
             }
 
             foreach (var name in names)
             {
-                var slug = await _pages.SearchSlugAsync(name, searchPlatforms, regionHint, ct).ConfigureAwait(false);
+                var (slug, answered) = await _pages.SearchSlugAsync(name, searchPlatforms, regionHint, ct).ConfigureAwait(false);
                 if (!string.IsNullOrWhiteSpace(slug))
                 {
-                    return slug;
+                    return (slug, false);
                 }
+
+                unreadable |= !answered;
             }
 
-            return null;
+            return (null, unreadable);
         }
 
         /// <summary>
