@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using Newtonsoft.Json;
+using PlayniteAchievements.Services.Achievements;
 
 namespace PlayniteAchievements.Models.Settings
 {
@@ -492,7 +493,7 @@ namespace PlayniteAchievements.Models.Settings
                 return null;
             }
 
-            var clone = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            var clone = new Dictionary<string, string>(CategoryPathHelper.LabelComparer);
             foreach (var pair in source)
             {
                 if (!string.IsNullOrWhiteSpace(pair.Key) && !string.IsNullOrWhiteSpace(pair.Value))
@@ -532,7 +533,7 @@ namespace PlayniteAchievements.Models.Settings
                 return null;
             }
 
-            var clone = new Dictionary<string, CategoryImageOverrideData>(StringComparer.OrdinalIgnoreCase);
+            var clone = new Dictionary<string, CategoryImageOverrideData>(CategoryPathHelper.LabelComparer);
             foreach (var pair in source)
             {
                 if (string.IsNullOrWhiteSpace(pair.Key) || pair.Value == null)
