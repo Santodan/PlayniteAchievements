@@ -4,6 +4,7 @@ using System.IO;
 using System.Linq;
 using System.Security.Cryptography;
 using System.Text;
+using PlayniteAchievements.Services.Achievements;
 
 namespace PlayniteAchievements.Services.Images
 {
@@ -273,13 +274,13 @@ namespace PlayniteAchievements.Services.Images
         {
             var normalizedLabel = (categoryLabel ?? string.Empty).Trim();
             var stem = SanitizeApiName(normalizedLabel);
-            var suffix = "_" + GetApiNameHashSuffix(normalizedLabel.ToLowerInvariant());
+            var suffix = "_" + GetApiNameHashSuffix(normalizedLabel);
             return TrimStemForSuffix(stem, suffix.Length) + suffix;
         }
 
         public static IReadOnlyDictionary<string, string> BuildCategoryFileStems(IEnumerable<string> categoryLabels)
         {
-            var result = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            var result = new Dictionary<string, string>(CategoryPathHelper.LabelComparer);
             foreach (var label in categoryLabels ?? Array.Empty<string>())
             {
                 if (string.IsNullOrWhiteSpace(label))
@@ -321,18 +322,39 @@ namespace PlayniteAchievements.Services.Images
         // (enrichment download) and the read side (display probe) agree without persisting anything
         // in the database. Lives outside the custom folder so cache clears wipe defaults but keep
         // user files.
+        // Labels are case-sensitive, so the hash covers the label as written: "dlc1" and "DLC1"
+        // get separate files.
         public static string BuildDefaultCategoryRelativePath(
             string gameId,
             string categoryLabel)
+        {
+            var normalizedLabel = (categoryLabel ?? string.Empty).Trim();
+            return BuildDefaultCategoryRelativePath(gameId, normalizedLabel, normalizedLabel);
+        }
+
+        // The path default category art had when its hash covered the lowercased label. Equal to
+        // BuildDefaultCategoryRelativePath for an all-lowercase label; differs once the label has
+        // capitals, and the reader adopts a file found here into the current path.
+        public static string BuildLegacyDefaultCategoryRelativePath(
+            string gameId,
+            string categoryLabel)
+        {
+            var normalizedLabel = (categoryLabel ?? string.Empty).Trim();
+            return BuildDefaultCategoryRelativePath(gameId, normalizedLabel, normalizedLabel.ToLowerInvariant());
+        }
+
+        private static string BuildDefaultCategoryRelativePath(
+            string gameId,
+            string normalizedLabel,
+            string hashInput)
         {
             if (string.IsNullOrWhiteSpace(gameId))
             {
                 gameId = Guid.Empty.ToString("D");
             }
 
-            var normalizedLabel = (categoryLabel ?? string.Empty).Trim();
             var stem = SanitizeSegment(normalizedLabel);
-            var suffix = "_" + GetApiNameHashSuffix(normalizedLabel.ToLowerInvariant());
+            var suffix = "_" + GetApiNameHashSuffix(hashInput);
             var fileName = "category_" + TrimStemForSuffix(stem, suffix.Length) + suffix + ".jpg";
 
             return Path.Combine(
