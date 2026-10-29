@@ -129,7 +129,7 @@ namespace PlayniteAchievements.Services.Achievements
 
             var count = orderedPaths.Count;
             var depths = new int[count];
-            var indexByPath = new Dictionary<string, int>(count, StringComparer.OrdinalIgnoreCase);
+            var indexByPath = new Dictionary<string, int>(count, CategoryPathHelper.LabelComparer);
             for (var i = 0; i < count; i++)
             {
                 depths[i] = CategoryPathHelper.GetDepth(orderedPaths[i]);
