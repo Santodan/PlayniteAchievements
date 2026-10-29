@@ -195,7 +195,7 @@
                             <!-- Resets the active tab's surface to its built-in default (style edits
                                  and any custom template), after confirmation. -->
                             <Button Click="ResetStyle_Click"
-                                    Content="&#xEFD1;"
+                                    Content="&#xEE0B;"
                                     ToolTip="{DynamicResource LOCPlayAch_Settings_Style_ResetToDefault}"
                                     Style="{StaticResource PlayAch.Button.ToolbarIconStyle}"
                                     Margin="16,0,0,8"
@@ -341,7 +341,7 @@
                                 <Button x:Name="ResetKindStyleButton"
                                         Grid.Column="1"
                                         Click="ResetKindStyle_Click"
-                                        Content="&#xEFD1;"
+                                        Content="&#xEE0B;"
                                         ToolTip="{DynamicResource LOCPlayAch_Settings_Style_Kind_ResetToBase}"
                                         Style="{StaticResource PlayAch.Button.ToolbarIconStyle}"
                                         VerticalAlignment="Center"
