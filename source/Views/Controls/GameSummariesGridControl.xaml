@@ -323,7 +323,7 @@
                                             <Binding Path="ShowMetadataPlaytime" RelativeSource="{RelativeSource AncestorType=controls:GameSummariesGridControl}"/>
                                             <Binding Path="ShowMetadataRegion" RelativeSource="{RelativeSource AncestorType=controls:GameSummariesGridControl}"/>
                                             <Binding Path="TotalAchievements"/>
-                                            <Binding Path="Points"/>
+                                            <Binding Path="PlatformScorePointsTotal"/>
                                             <Binding Path="ShowMetadataTotal" RelativeSource="{RelativeSource AncestorType=controls:GameSummariesGridControl}"/>
                                             <Binding Path="ShowMetadataPoints" RelativeSource="{RelativeSource AncestorType=controls:GameSummariesGridControl}"/>
                                         </MultiBinding>
@@ -337,7 +337,7 @@
                                             <Binding Path="ShowMetadataPlaytime" RelativeSource="{RelativeSource AncestorType=controls:GameSummariesGridControl}"/>
                                             <Binding Path="ShowMetadataRegion" RelativeSource="{RelativeSource AncestorType=controls:GameSummariesGridControl}"/>
                                             <Binding Path="TotalAchievements"/>
-                                            <Binding Path="Points"/>
+                                            <Binding Path="PlatformScorePointsTotal"/>
                                             <Binding Path="ShowMetadataTotal" RelativeSource="{RelativeSource AncestorType=controls:GameSummariesGridControl}"/>
                                             <Binding Path="ShowMetadataPoints" RelativeSource="{RelativeSource AncestorType=controls:GameSummariesGridControl}"/>
                                         </MultiBinding>
