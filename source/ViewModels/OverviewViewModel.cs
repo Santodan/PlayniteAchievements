@@ -1385,7 +1385,9 @@ namespace PlayniteAchievements.ViewModels
         public ICommand RefreshSingleGameCommand { get; }
         public ICommand CloseViewCommand { get; }
         public string CloseViewToolTip =>
-            _launchContext == OverviewLaunchContext.Sidebar ? "Back to Library" : "Close";
+            ResourceProvider.GetString(_launchContext == OverviewLaunchContext.Sidebar
+                ? "LOCPlayAch_Common_BackToLibrary"
+                : "LOCPlayAch_Common_Close");
         public ICommand ClearGameSelectionCommand { get; }
         public ICommand NavigateToGameCommand { get; }
 
