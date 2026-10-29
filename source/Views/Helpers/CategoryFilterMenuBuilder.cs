@@ -69,7 +69,7 @@ namespace PlayniteAchievements.Views.Helpers
         /// </summary>
         public static IReadOnlyList<CategoryMenuRow> BuildRows(IEnumerable<string> options)
         {
-            var present = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            var present = new Dictionary<string, string>(CategoryPathHelper.LabelComparer);
             foreach (var option in options ?? Enumerable.Empty<string>())
             {
                 if (string.IsNullOrWhiteSpace(option))
