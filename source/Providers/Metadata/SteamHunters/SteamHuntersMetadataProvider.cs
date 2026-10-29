@@ -151,9 +151,16 @@ namespace PlayniteAchievements.Providers.Metadata
             var targets = request.Data?.Achievements?.Where(row => row != null).ToList();
             if (targets?.Count > 0)
             {
-                var search = new MetadataPageSearch(StoreCandidatesAsync, SchemaRowsAsync, englishRows: EnglishRowsFor);
+                var health = new MetadataLookupHealth();
+                var search = new MetadataPageSearch((name, token) => StoreCandidatesAsync(name, health, token), SchemaRowsAsync, englishRows: EnglishRowsFor);
                 var names = request.SearchNames.Distinct(StringComparer.OrdinalIgnoreCase).ToList();
                 var choice = await search.ChooseAsync(names, targets, MetadataSubGame.From(targets), ct, request.CategoryNames, sharedNames: request.AlternateNames, englishTitles: request.EnglishTitles).ConfigureAwait(false);
+                if (health.LeavesDoubt(choice))
+                {
+                    _logger?.Debug($"[SteamHuntersMetadata] '{game.Name}': {choice?.Matched ?? 0}/{targets.Count} matched, but the store search did not answer; looking again next refresh.");
+                    return MetadataSourceLink.Unavailable(choice?.Trace);
+                }
+
                 if (choice == null)
                 {
                     _logger?.Debug($"[SteamHuntersMetadata] '{game.Name}': no Steam app matches its achievements.");
@@ -174,9 +181,15 @@ namespace PlayniteAchievements.Providers.Metadata
         private readonly LruCache<string, List<AchievementDetail>> _schemaRows =
             new LruCache<string, List<AchievementDetail>>(64, StringComparer.OrdinalIgnoreCase);
 
-        private async Task<IReadOnlyList<MetadataPageCandidate>> StoreCandidatesAsync(string name, CancellationToken ct)
+        private async Task<IReadOnlyList<MetadataPageCandidate>> StoreCandidatesAsync(string name, MetadataLookupHealth health, CancellationToken ct)
         {
-            var results = await SteamSchema.SearchGamesAsync(name, Language, ct).ConfigureAwait(false) ?? new List<ManualGameSearchResult>();
+            var results = await SteamSchema.SearchGamesAsync(name, Language, ct).ConfigureAwait(false);
+            if (results == null)
+            {
+                health.MarkUnreadable();
+                return Array.Empty<MetadataPageCandidate>();
+            }
+
             return results
                 .Where(result => !string.IsNullOrWhiteSpace(result?.SourceGameId))
                 .GroupBy(result => result.SourceGameId)
@@ -331,6 +344,11 @@ namespace PlayniteAchievements.Providers.Metadata
                     normalized,
                     StringComparison.OrdinalIgnoreCase),
                 ct).ConfigureAwait(false);
+            if (exact == null)
+            {
+                return MetadataSourceLink.Unavailable();
+            }
+
             if (exact.Count == 1)
             {
                 return new MetadataSourceLink(exact[0].SourceGameId, exact[0].Name, foundByName: true);
@@ -347,6 +365,11 @@ namespace PlayniteAchievements.Providers.Metadata
                 loose,
                 result => string.Equals(GameNameNormalizer.ToLooseKey(result), loose, StringComparison.Ordinal),
                 ct).ConfigureAwait(false);
+            if (close == null)
+            {
+                return MetadataSourceLink.Unavailable();
+            }
+
             if (close.Count != 1)
             {
                 _logger?.Debug($"[SteamHuntersMetadata] Name search for '{name}' found {close.Count} close matches; no link.");
@@ -356,10 +379,11 @@ namespace PlayniteAchievements.Providers.Metadata
             return new MetadataSourceLink(close[0].SourceGameId, close[0].Name, foundByName: true);
         }
 
+        /// <summary>The store's results the name test accepts, one per app; null when the store did not answer.</summary>
         private async Task<List<ManualGameSearchResult>> SearchAsync(string query, Func<string, bool> accepts, CancellationToken ct)
         {
             var results = await SteamSchema.SearchGamesAsync(query, Language, ct).ConfigureAwait(false);
-            return (results ?? new List<ManualGameSearchResult>())
+            return results?
                 .Where(result => result != null &&
                                  !string.IsNullOrWhiteSpace(result.SourceGameId) &&
                                  accepts(result.Name))
