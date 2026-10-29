@@ -505,7 +505,7 @@ namespace PlayniteAchievements.Providers.Metadata.TrueGaming
                         found.Add(new TrueGamingFoundPage(site, picked.Slug, page));
                         outcomes.Add((site, picked.Slug));
                     }
-                    else if (page.Loaded)
+                    else if (page.Settles)
                     {
                         outcomes.Add((site, null));
                     }
@@ -530,13 +530,18 @@ namespace PlayniteAchievements.Providers.Metadata.TrueGaming
                     {
                         found.Add(new TrueGamingFoundPage(site, known, page));
                         outcomes.Add((site, known));
-                    }
-                    else
-                    {
-                        failed.Add(site);
+                        continue;
                     }
 
-                    continue;
+                    if (!page.Settles)
+                    {
+                        failed.Add(site);
+                        continue;
+                    }
+
+                    // The stored page now lists nothing (the site moved or renamed it), so the
+                    // site is looked at again as if nothing were stored.
+                    _logger?.Debug($"[TrueGamingMetadata] {site.ListUrl(known)} lists no achievements now; looking for the page again.");
                 }
 
                 var (hit, settled) = await FindPageAsync(site, request, targets, name, ct).ConfigureAwait(false);
@@ -588,7 +593,7 @@ namespace PlayniteAchievements.Providers.Metadata.TrueGaming
                     return (new TrueGamingFoundPage(site, candidate, page), true);
                 }
 
-                settled &= page.Loaded;
+                settled &= page.Settles;
             }
 
             return (null, settled);
@@ -740,6 +745,7 @@ namespace PlayniteAchievements.Providers.Metadata.TrueGaming
                 }, ct).ConfigureAwait(false);
                 page = TrueGamingPageParser.Parse(html);
                 page.Loaded = !string.IsNullOrWhiteSpace(html) && !IsChallenge(html);
+                page.TimedOut = timedOut;
                 if (!page.Loaded)
                 {
                     _logger?.Debug($"[TrueGamingMetadata] {url} could not be read{(string.IsNullOrWhiteSpace(html) ? string.Empty : " (challenge page)")}.");

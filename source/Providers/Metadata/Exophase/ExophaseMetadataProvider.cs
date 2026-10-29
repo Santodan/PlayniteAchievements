@@ -131,10 +131,17 @@ namespace PlayniteAchievements.Providers.Metadata.Exophase
                 var slugs = new List<string>();
                 foreach (var title in hints.SetTitles.Where(title => !string.IsNullOrWhiteSpace(title)))
                 {
-                    var slug = await FindPageAsync(new[] { title }, suffixes, searchPlatforms, pagePlatform, hints.RegionHint, ct).ConfigureAwait(false);
+                    var (slug, unreadable) = await FindPageAsync(new[] { title }, suffixes, searchPlatforms, pagePlatform, hints.RegionHint, ct).ConfigureAwait(false);
                     if (slug != null)
                     {
                         slugs.Add(slug);
+                    }
+                    else if (unreadable)
+                    {
+                        // A set left out because its pages went unread would be missing from the
+                        // stored link for good, so the whole link waits for the next refresh.
+                        _logger?.Debug($"[{Key}Metadata] '{request.Game?.Name}': the pages for set '{title}' could not be read; looking again next refresh.");
+                        return MetadataSourceLink.Unavailable();
                     }
                 }
 
@@ -156,7 +163,7 @@ namespace PlayniteAchievements.Providers.Metadata.Exophase
             {
                 var health = new MetadataLookupHealth();
                 var search = new MetadataPageSearch(
-                    (name, token) => CandidatesAsync(name, suffixes, searchPlatforms, pagePlatform, health, token),
+                    (name, token) => CandidatesAsync(name, suffixes, searchPlatforms, pagePlatform, health, buildSlugs: true, token),
                     async (slug, token) =>
                     {
                         var page = await _pages.GetPageAsync(slug, pagePlatform, token).ConfigureAwait(false);
@@ -167,6 +174,7 @@ namespace PlayniteAchievements.Providers.Metadata.Exophase
 
                         return page?.Achievements;
                     },
+                    variantCandidates: (name, token) => CandidatesAsync(name, suffixes, searchPlatforms, pagePlatform, health, buildSlugs: false, token),
                     englishRows: async (slug, token) => (await _pages.GetPageAsync(slug, pagePlatform, token, english: true).ConfigureAwait(false))?.Achievements);
                 var seeds = await RelatedSeedsAsync(request, ct).ConfigureAwait(false);
                 var choice = await search.ChooseAsync(names, targets, MetadataSubGame.From(targets), ct, request.CategoryNames, seeds, request.AlternateNames, request.EnglishTitles).ConfigureAwait(false);
@@ -193,9 +201,15 @@ namespace PlayniteAchievements.Providers.Metadata.Exophase
                 return new MetadataSourceLink(linkId, choice.Label ?? request.Game?.Name, foundByName: true) { Trace = choice.Trace, Matched = choice.Matched };
             }
 
-            var found = await FindPageAsync(names, suffixes, searchPlatforms, pagePlatform, hints?.RegionHint, ct).ConfigureAwait(false);
+            var (found, pagesUnread) = await FindPageAsync(names, suffixes, searchPlatforms, pagePlatform, hints?.RegionHint, ct).ConfigureAwait(false);
             if (found == null)
             {
+                if (pagesUnread)
+                {
+                    _logger?.Debug($"[{Key}Metadata] '{request.Game?.Name}': no {pagePlatform} page found, but some pages could not be read; looking again next refresh.");
+                    return MetadataSourceLink.Unavailable();
+                }
+
                 _logger?.Debug($"[{Key}Metadata] '{request.Game?.Name}': no {pagePlatform} page.");
                 return null;
             }
@@ -209,8 +223,12 @@ namespace PlayniteAchievements.Providers.Metadata.Exophase
             return new MetadataSourceLink(found, request.Game?.Name, foundByName: true);
         }
 
-        /// <summary>The first built slug whose page lists awards, else the first search match; null when neither finds one.</summary>
-        private async Task<string> FindPageAsync(
+        /// <summary>
+        /// The first built slug whose page lists awards, else the first search match; null when
+        /// neither finds one. Unreadable is true when a page or search along the way could not be
+        /// read, so finding nothing does not mean the game has no page.
+        /// </summary>
+        private async Task<(string Slug, bool Unreadable)> FindPageAsync(
             IReadOnlyList<string> names,
             IReadOnlyList<string> suffixes,
             IReadOnlyList<string> searchPlatforms,
@@ -218,25 +236,30 @@ namespace PlayniteAchievements.Providers.Metadata.Exophase
             string regionHint,
             CancellationToken ct)
         {
+            var unreadable = false;
             foreach (var slug in CandidateSlugs(names, suffixes))
             {
                 var page = await _pages.GetPageAsync(slug, pagePlatform, ct).ConfigureAwait(false);
                 if (page?.Achievements?.Count > 0)
                 {
-                    return slug;
+                    return (slug, false);
                 }
+
+                unreadable |= ExophasePageSource.IsUnreadable(page);
             }
 
             foreach (var name in names)
             {
-                var slug = await _pages.SearchSlugAsync(name, searchPlatforms, regionHint, ct).ConfigureAwait(false);
+                var (slug, answered) = await _pages.SearchSlugAsync(name, searchPlatforms, regionHint, ct).ConfigureAwait(false);
                 if (!string.IsNullOrWhiteSpace(slug))
                 {
-                    return slug;
+                    return (slug, false);
                 }
+
+                unreadable |= !answered;
             }
 
-            return null;
+            return (null, unreadable);
         }
 
         /// <summary>
@@ -288,6 +311,8 @@ namespace PlayniteAchievements.Providers.Metadata.Exophase
         /// The pages to judge for one name: what Exophase search offers on the branch's platforms,
         /// else the slugs built from the name. A built slug costs a page load whether or not the
         /// page exists, while the search names the real pages, so building waits for an empty search.
+        /// A broader form of a name (<see cref="MetadataPageSearch.Variants"/>) is only searched:
+        /// its built slugs, one per word dropped and platform suffix, almost never name a page.
         /// </summary>
         private async Task<IReadOnlyList<MetadataPageCandidate>> CandidatesAsync(
             string name,
@@ -295,6 +320,7 @@ namespace PlayniteAchievements.Providers.Metadata.Exophase
             IReadOnlyList<string> searchPlatforms,
             string pagePlatform,
             MetadataLookupHealth health,
+            bool buildSlugs,
             CancellationToken ct)
         {
             var (found, answered) = await _pages.SearchCandidatesAsync(name, searchPlatforms, SearchCandidatesJudged, ct).ConfigureAwait(false);
@@ -306,6 +332,11 @@ namespace PlayniteAchievements.Providers.Metadata.Exophase
             if (found.Count > 0)
             {
                 return found.Select((page, index) => new MetadataPageCandidate(page.Slug, page.Title, $"search #{index + 1}")).ToList();
+            }
+
+            if (!buildSlugs)
+            {
+                return Array.Empty<MetadataPageCandidate>();
             }
 
             var candidates = new List<MetadataPageCandidate>();

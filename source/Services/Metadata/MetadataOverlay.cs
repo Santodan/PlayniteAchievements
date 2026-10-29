@@ -7,6 +7,7 @@ using PlayniteAchievements.Providers.Metadata;
 using PlayniteAchievements.Services.Achievements;
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -33,7 +34,6 @@ namespace PlayniteAchievements.Services.Metadata
         private readonly Action<IEnumerable<string>> _deleteUnusedSourceIcons;
         private readonly object _runSync = new object();
         private int _openRuns;
-        private bool _sweepDue;
 
         /// <param name="downloadCategoryArt">
         /// Saves a source's category art for the categories it gave a game; null keeps none.
@@ -89,7 +89,6 @@ namespace PlayniteAchievements.Services.Metadata
             lock (_runSync)
             {
                 _openRuns++;
-                _sweepDue |= !keepStored;
             }
 
             return new MetadataOverlayRun(
@@ -109,18 +108,19 @@ namespace PlayniteAchievements.Services.Metadata
         /// <summary>
         /// When the last open run ends, deletes the saved source lists no game's snapshot points
         /// into. It runs under the lock a new run takes, so no run saves a list it would miss.
+        /// Reading every snapshot costs a pass over the whole library, so it only runs when a
+        /// snapshot was saved or dropped since the last sweep.
         /// </summary>
         private void EndRun()
         {
             lock (_runSync)
             {
                 _openRuns = Math.Max(0, _openRuns - 1);
-                if (_openRuns > 0 || !_sweepDue || _deleteUnusedSourceIcons == null)
+                if (_openRuns > 0 || _deleteUnusedSourceIcons == null || _links?.Snapshots?.TakeChanged() != true)
                 {
                     return;
                 }
 
-                _sweepDue = false;
                 var used = _links?.Snapshots?.LoadIconPaths();
                 if (used == null)
                 {
@@ -180,6 +180,8 @@ namespace PlayniteAchievements.Services.Metadata
             new Dictionary<string, Task<bool>>(StringComparer.OrdinalIgnoreCase);
         private readonly System.Collections.Concurrent.ConcurrentDictionary<Guid, Dictionary<string, OwnIconPaths>> _ownIcons =
             new System.Collections.Concurrent.ConcurrentDictionary<Guid, Dictionary<string, OwnIconPaths>>();
+        private readonly MetadataRunTimings _timings = new MetadataRunTimings();
+        private readonly long _runStarted = Stopwatch.GetTimestamp();
 
         internal MetadataOverlayRun(
             IReadOnlyList<IMetadataProvider> providers,
@@ -261,25 +263,35 @@ namespace PlayniteAchievements.Services.Metadata
             var sets = new Dictionary<string, MatchedSet>(StringComparer.OrdinalIgnoreCase);
             var failed = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             ct.ThrowIfCancellationRequested();
+            var started = Stopwatch.GetTimestamp();
             if (KeepsStored || keepStored)
             {
                 failed.UnionWith(plan.AllKeys);
             }
             else
             {
+                _timings.CountGame();
                 await LoadAllAsync(game, data, gameId, request, englishTitles, plan, sets, failed, ct).ConfigureAwait(false);
+                _timings.Add("load", started);
             }
 
             BorrowTitles(gameId, sets, data.Achievements);
+            var step = Stopwatch.GetTimestamp();
             foreach (var pair in sets)
             {
                 await MatchInEnglishAsync(pair.Key, gameId, pair.Value.Set, pair.Value.Matches, pair.Value.LinkId, request, data.Achievements, ct)
                     .ConfigureAwait(false);
             }
 
+            _timings.Add("english", step);
+            step = Stopwatch.GetTimestamp();
             await DownloadSourceIconsAsync(gameId, plan, sets, forceIcons, ct).ConfigureAwait(false);
-
-            return await ApplySetsAsync(gameId, data, plan, sets, failed, ct).ConfigureAwait(false);
+            _timings.Add("icons", step);
+            step = Stopwatch.GetTimestamp();
+            var iconsChanged = await ApplySetsAsync(gameId, data, plan, sets, failed, ct).ConfigureAwait(false);
+            _timings.Add("apply", step);
+            _timings.Add("total", started);
+            return iconsChanged;
         }
 
         /// <summary>
@@ -614,6 +626,13 @@ namespace PlayniteAchievements.Services.Metadata
                 }
             }
 
+            if (_timings.Games > 0)
+            {
+                // Each step's time is summed over the games, which run in parallel.
+                var runMs = (Stopwatch.GetTimestamp() - _runStarted) * 1000 / Stopwatch.Frequency;
+                _logger?.Debug($"[RefreshPerf] phase=metadata.overlay runMs={runMs} summed {_timings.Format()}");
+            }
+
             Interlocked.Exchange(ref _onEnded, null)?.Invoke();
         }
 
@@ -924,7 +943,9 @@ namespace PlayniteAchievements.Services.Metadata
                     return (null, true);
                 }
 
+                var resolveStarted = Stopwatch.GetTimestamp();
                 var (linkId, unconfirmed, unavailable) = await _resolver.ResolveAsync(provider, gameId, request, ct).ConfigureAwait(false);
+                _timings.Add("resolve:" + key, resolveStarted);
                 if (string.IsNullOrWhiteSpace(linkId))
                 {
                     return (null, unavailable);
@@ -935,7 +956,9 @@ namespace PlayniteAchievements.Services.Metadata
                             string.Equals(linkRecord?.Id?.Trim(), linkId.Trim(), StringComparison.OrdinalIgnoreCase)
                     ? linkRecord.Label
                     : null;
+                var fetchStarted = Stopwatch.GetTimestamp();
                 var set = await MetadataListFetch.FetchAsync(provider, request, linkId, _logger, ct, label).ConfigureAwait(false);
+                _timings.Add("fetch:" + key, fetchStarted);
                 // The id the game's link holds after this fetch, which the match list is kept under.
                 var storedId = linkId;
                 if (set == null || set.Achievements.Count == 0)

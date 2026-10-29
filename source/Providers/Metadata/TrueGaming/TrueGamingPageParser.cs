@@ -37,6 +37,15 @@ namespace PlayniteAchievements.Providers.Metadata.TrueGaming
         /// load that failed or a challenge page, which say nothing about whether the page exists.
         /// </summary>
         public bool Loaded { get; set; }
+
+        /// <summary>
+        /// True when the page was still loading at the timeout and was read as it stood, so its
+        /// list may be partial: it shows a page exists, but not that the page is another game's.
+        /// </summary>
+        public bool TimedOut { get; set; }
+
+        /// <summary>True when the page can tell what the site has: it loaded in full.</summary>
+        public bool Settles => Loaded && !TimedOut;
     }
 
     /// <summary>

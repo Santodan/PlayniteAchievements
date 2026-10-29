@@ -542,6 +542,7 @@
     <Compile Include="..\..\source\Services\GameCustomData\CapstoneArtRecordRow.cs" Link="Source\Services\GameCustomData\CapstoneArtRecordRow.cs" />
     <Compile Include="..\..\source\Services\Metadata\MetadataSourceSnapshotStore.cs" Link="Source\Services\Metadata\MetadataSourceSnapshotStore.cs" />
     <Compile Include="..\..\source\Services\Metadata\MetadataOverlay.cs" Link="Source\Services\Metadata\MetadataOverlay.cs" />
+    <Compile Include="..\..\source\Services\Metadata\MetadataRunTimings.cs" Link="Source\Services\Metadata\MetadataRunTimings.cs" />
     <Compile Include="..\..\source\Services\Metadata\DataLayers.cs" Link="Source\Services\Metadata\DataLayers.cs" />
     <Compile Include="..\..\source\Services\Metadata\MetadataListFetch.cs" Link="Source\Services\Metadata\MetadataListFetch.cs" />
     <Compile Include="..\..\source\Services\Metadata\MetadataPageSearch.cs" Link="Source\Services\Metadata\MetadataPageSearch.cs" />

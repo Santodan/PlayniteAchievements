@@ -592,6 +592,14 @@ namespace PlayniteAchievements.Providers.Exophase
                     return ExophaseAwardPage.Missing;
                 }
 
+                // Any other error answer (a rate limit, a server error) says nothing about the
+                // page, so it is a failed load, not a page without awards.
+                if (status.Value is int code && (code < 200 || code >= 300))
+                {
+                    _logger?.Debug($"[Exophase] Award page {achievementUrl} answered HTTP {code}; not read.");
+                    return null;
+                }
+
                 var isChallenge = html.IndexOf("Just a moment", StringComparison.OrdinalIgnoreCase) >= 0 ||
                                   html.IndexOf("cf-chl", StringComparison.OrdinalIgnoreCase) >= 0;
                 var doc = new HtmlDocument();

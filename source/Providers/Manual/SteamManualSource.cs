@@ -52,6 +52,7 @@ namespace PlayniteAchievements.Providers.Manual
             _tokenResolver = tokenResolver ?? throw new ArgumentNullException(nameof(tokenResolver));
         }
 
+        /// <summary>The store's results for the query; empty when it found none, null when the store did not answer.</summary>
         public async Task<List<ManualGameSearchResult>> SearchGamesAsync(string query, string language, CancellationToken ct)
         {
             if (string.IsNullOrWhiteSpace(query))
@@ -77,7 +78,7 @@ namespace PlayniteAchievements.Providers.Manual
                         if (!response.IsSuccessStatusCode)
                         {
                             _logger?.Error($"Steam Store search failed with status {(int)response.StatusCode}");
-                            return new List<ManualGameSearchResult>();
+                            return null;
                         }
 
                         var json = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
@@ -90,7 +91,7 @@ namespace PlayniteAchievements.Providers.Manual
                         if (envelope == null)
                         {
                             _logger?.Warn($"Steam Store search returned unparseable JSON for query: {query}");
-                            return new List<ManualGameSearchResult>();
+                            return null;
                         }
                         var items = envelope?.Items;
 
@@ -142,7 +143,7 @@ namespace PlayniteAchievements.Providers.Manual
             catch (Exception ex)
             {
                 _logger?.Error(ex, "Steam Store search failed");
-                return new List<ManualGameSearchResult>();
+                return null;
             }
         }
 
