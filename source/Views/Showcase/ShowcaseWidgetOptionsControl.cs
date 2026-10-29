@@ -1352,8 +1352,8 @@ namespace PlayniteAchievements.Views.Showcase
                 var choice = (ShowcaseCollectionType.Games, collection.CollectionId);
                 choices.Add(choice);
                 names[choice] = includeAchievementCollections
-                    ? collection.Name + " (" + gameKind + ")"
-                    : collection.Name;
+                    ? PinCollectionName(collection.Name) + " (" + gameKind + ")"
+                    : PinCollectionName(collection.Name);
             }
 
             if (includeAchievementCollections)
@@ -1364,7 +1364,7 @@ namespace PlayniteAchievements.Views.Showcase
                 {
                     var choice = (ShowcaseCollectionType.Achievements, collection.CollectionId);
                     choices.Add(choice);
-                    names[choice] = collection.Name + " (" + achievementKind + ")";
+                    names[choice] = PinCollectionName(collection.Name) + " (" + achievementKind + ")";
                 }
             }
 
