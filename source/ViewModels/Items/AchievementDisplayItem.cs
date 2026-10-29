@@ -1769,7 +1769,7 @@ namespace PlayniteAchievements.ViewModels.Items
             }
 
             private readonly Dictionary<string, Entry> _entries =
-                new Dictionary<string, Entry>(StringComparer.OrdinalIgnoreCase);
+                new Dictionary<string, Entry>(CategoryPathHelper.LabelComparer);
 
             /// <summary>
             /// Shares one art memo across the pass. The entry cache above is keyed per
