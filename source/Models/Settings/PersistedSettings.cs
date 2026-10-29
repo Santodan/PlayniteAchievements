@@ -2349,8 +2349,9 @@ namespace PlayniteAchievements.Models.Settings
         }
 
         /// <summary>
-        /// The overview header's first score card: its type, badge side, show-total and color
-        /// options, stored as a Scores widget's options and edited from the card's right-click
+        /// The overview header's first score card: its type, badge side, show-total, color, rarity
+        /// badge and game art options and a points card's filters, stored as a Scores widget's
+        /// options (the filters under its instance ID) and edited from the card's right-click
         /// menu. Replaced on load so the seeded default is not populated. Profiles saved with the
         /// old card slots are converted by OverviewSettingsMigration.
         /// </summary>
