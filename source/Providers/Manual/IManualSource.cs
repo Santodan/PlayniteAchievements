@@ -85,7 +85,7 @@ namespace PlayniteAchievements.Providers.Manual
         /// <param name="query">Search query (game name).</param>
         /// <param name="language">Language code for results (e.g., "english").</param>
         /// <param name="ct">Cancellation token.</param>
-        /// <returns>List of search results, or empty list if none found or error.</returns>
+        /// <returns>List of search results, empty if none found; a source may return null when the search failed.</returns>
         Task<List<ManualGameSearchResult>> SearchGamesAsync(string query, string language, CancellationToken ct);
 
         /// <summary>
