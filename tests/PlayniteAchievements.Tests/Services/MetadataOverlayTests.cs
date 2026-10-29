@@ -1513,6 +1513,23 @@ namespace PlayniteAchievements.Tests.Services
             }
 
             Assert.AreEqual(1, saver.Sweeps.Count, "a run that asks no source saves nothing to sweep after");
+
+            using (var run = overlay.BeginRun())
+            {
+                data.Achievements = new List<AchievementDetail> { Row("ACH_DRAGON", "Dragon Slayer", icon: "steam.png") };
+                await run.ApplyAsync(data.Game, data, CancellationToken.None);
+            }
+
+            Assert.AreEqual(1, saver.Sweeps.Count, "a run that saved the same snapshot leaves no list unused");
+
+            playstation.Rows.Add(Row("p2", "Hunter", icon: "https://psn/hunter.png"));
+            using (var run = overlay.BeginRun())
+            {
+                data.Achievements = new List<AchievementDetail> { Row("ACH_DRAGON", "Dragon Slayer", icon: "steam.png") };
+                await run.ApplyAsync(data.Game, data, CancellationToken.None);
+            }
+
+            Assert.AreEqual(2, saver.Sweeps.Count, "a changed snapshot may leave a list unused");
         }
 
         [TestMethod]
