@@ -33,7 +33,6 @@ namespace PlayniteAchievements.Services.Metadata
         private readonly Action<IEnumerable<string>> _deleteUnusedSourceIcons;
         private readonly object _runSync = new object();
         private int _openRuns;
-        private bool _sweepDue;
 
         /// <param name="downloadCategoryArt">
         /// Saves a source's category art for the categories it gave a game; null keeps none.
@@ -89,7 +88,6 @@ namespace PlayniteAchievements.Services.Metadata
             lock (_runSync)
             {
                 _openRuns++;
-                _sweepDue |= !keepStored;
             }
 
             return new MetadataOverlayRun(
@@ -109,18 +107,19 @@ namespace PlayniteAchievements.Services.Metadata
         /// <summary>
         /// When the last open run ends, deletes the saved source lists no game's snapshot points
         /// into. It runs under the lock a new run takes, so no run saves a list it would miss.
+        /// Reading every snapshot costs a pass over the whole library, so it only runs when a
+        /// snapshot was saved or dropped since the last sweep.
         /// </summary>
         private void EndRun()
         {
             lock (_runSync)
             {
                 _openRuns = Math.Max(0, _openRuns - 1);
-                if (_openRuns > 0 || !_sweepDue || _deleteUnusedSourceIcons == null)
+                if (_openRuns > 0 || _deleteUnusedSourceIcons == null || _links?.Snapshots?.TakeChanged() != true)
                 {
                     return;
                 }
 
-                _sweepDue = false;
                 var used = _links?.Snapshots?.LoadIconPaths();
                 if (used == null)
                 {
