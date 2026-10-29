@@ -150,7 +150,7 @@ namespace PlayniteAchievements.Services
 
         /// <summary>
         /// Joins the enabled segments in order: platform, playtime, region, total achievement
-        /// count, earned points. Empty text, zero playtime, a zero total and zero points are
+        /// count, total points. Empty text, zero playtime, a zero total and zero points are
         /// left out.
         /// </summary>
         public static string BuildOverviewMetadataText(
