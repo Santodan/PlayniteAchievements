@@ -244,7 +244,7 @@ namespace PlayniteAchievements.Providers.Steam
                 return plan;
             }
 
-            var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var seen = new HashSet<string>(CategoryPathHelper.LabelComparer);
             var baseLabel = string.IsNullOrWhiteSpace(gameName) ? null : gameName.Trim();
             if (baseLabel != null && seen.Add(baseLabel))
             {
