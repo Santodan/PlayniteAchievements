@@ -239,14 +239,15 @@ namespace PlayniteAchievements.Providers.Metadata.Exophase
         /// <summary>
         /// The slug of Exophase's best search match for <paramref name="name"/> on one of
         /// <paramref name="platformSlugs"/>, preferring <paramref name="regionHint"/>'s release; null
-        /// when none matches.
+        /// when none matches. Answered is false when the search could not be read, which is not
+        /// kept, so the next search asks again.
         /// </summary>
-        public async Task<string> SearchSlugAsync(string name, IReadOnlyList<string> platformSlugs, string regionHint, CancellationToken ct)
+        public async Task<(string Slug, bool Answered)> SearchSlugAsync(string name, IReadOnlyList<string> platformSlugs, string regionHint, CancellationToken ct)
         {
             var normalizedName = ExophaseGameNameMatcher.NormalizeGameName(name);
             if (string.IsNullOrWhiteSpace(normalizedName))
             {
-                return null;
+                return (null, true);
             }
 
             var cacheKey = $"{normalizedName}|{string.Join(",", platformSlugs)}|{regionHint}";
@@ -254,13 +255,19 @@ namespace PlayniteAchievements.Providers.Metadata.Exophase
             {
                 if (_searches.TryGetValue(cacheKey, out var cached))
                 {
-                    return cached;
+                    return (cached, true);
                 }
             }
 
             // One search for the name; each platform, newest first, then picks from its results.
             string slug = null;
-            var games = await _client.SearchGamesAsync(normalizedName, null, ct).ConfigureAwait(false);
+            var (found, answered) = await _client.TrySearchGamesAsync(normalizedName, null, ct).ConfigureAwait(false);
+            if (!answered)
+            {
+                return (null, false);
+            }
+
+            var games = found ?? new List<ExophaseGame>();
             foreach (var platformSlug in platformSlugs)
             {
                 var match = ExophaseGameNameMatcher.SelectBestSearchMatch(normalizedName, games, platformSlug, regionHint);
@@ -283,7 +290,7 @@ namespace PlayniteAchievements.Providers.Metadata.Exophase
                 _searches[cacheKey] = slug;
             }
 
-            return slug;
+            return (slug, true);
         }
     }
 }
