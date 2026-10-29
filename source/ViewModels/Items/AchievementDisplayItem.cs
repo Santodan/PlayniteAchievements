@@ -2118,7 +2118,7 @@ namespace PlayniteAchievements.ViewModels.Items
             var item = new AchievementDisplayItem();
             item.SetSource(achievement, notifyChanges: false);
             item.ProviderKey = ResolveDisplayProviderKey(achievement, gameData);
-            item.GameName = gameData?.GameName ?? "Unknown";
+            item.GameName = gameData?.GameName ?? ResourceProvider.GetString("LOCPlayAch_Common_Unknown");
             item.SortingName = gameData?.SortingName ?? gameData?.GameName ?? "Unknown";
             item.PlayniteGameId = playniteGameId;
             item.PointsValue = pointsValue;
