@@ -322,6 +322,11 @@
                 <CheckBox Style="{StaticResource OptionCheckBoxStyle}"
                           IsChecked="{Binding CategorySummaryOptions.ShowNameAboveProgress, ElementName=EditorRoot}"/>
             </HeaderedContentControl>
+            <HeaderedContentControl Header="{DynamicResource LOCPlayAch_Settings_ShowTreeOnly}"
+                                    Style="{StaticResource OptionRowStyle}">
+                <CheckBox Style="{StaticResource OptionCheckBoxStyle}"
+                          IsChecked="{Binding CategorySummaryOptions.ShowTreeOnly, ElementName=EditorRoot}"/>
+            </HeaderedContentControl>
             <HeaderedContentControl Header="{DynamicResource LOCPlayAch_Settings_ShowRarityBadgesBelowProgress}"
                                     Style="{StaticResource OptionRowStyle}">
                 <CheckBox Style="{StaticResource OptionCheckBoxStyle}"
