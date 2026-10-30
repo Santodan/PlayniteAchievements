@@ -680,6 +680,7 @@ namespace PlayniteAchievements.Models.Settings
         private bool _showRarityBadgesBelowProgress = true;
         private bool _showMetadataTotal;
         private bool _showMetadataPoints;
+        private bool _showTreeOnly;
 
         public GridColumnLayoutOptions Columns
         {
@@ -750,6 +751,14 @@ namespace PlayniteAchievements.Models.Settings
             set => SetValue(ref _showMetadataPoints, value);
         }
 
+        // Leaves only the tree guide in the name cell of nested category rows; a row without a
+        // guide (flat, searched or sorted list) keeps its name.
+        public bool ShowTreeOnly
+        {
+            get => _showTreeOnly;
+            set => SetValue(ref _showTreeOnly, value);
+        }
+
         public CategorySummaryGridOptions Clone()
         {
             return new CategorySummaryGridOptions
@@ -763,7 +772,8 @@ namespace PlayniteAchievements.Models.Settings
                 ShowNameAboveProgress = ShowNameAboveProgress,
                 ShowRarityBadgesBelowProgress = ShowRarityBadgesBelowProgress,
                 ShowMetadataTotal = ShowMetadataTotal,
-                ShowMetadataPoints = ShowMetadataPoints
+                ShowMetadataPoints = ShowMetadataPoints,
+                ShowTreeOnly = ShowTreeOnly
             };
         }
     }
