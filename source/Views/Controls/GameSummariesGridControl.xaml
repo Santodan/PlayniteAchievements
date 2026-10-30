@@ -304,7 +304,22 @@
                                                         ToggleHoverBackgroundBrush="{DynamicResource PlayAch.Brush.Grid.RowHoverBackground}"
                                                         LineBrush="{DynamicResource PlayAch.Brush.Text.Secondary}"
                                                         NodeBrush="{DynamicResource PlayAch.Brush.Accent}"/>
-                          <ContentControl Style="{StaticResource OverviewCellFrameStyle}">
+                          <ContentControl>
+                            <!-- Show Tree Only leaves just the guide on nested rows. A row with
+                                 no guide (flat, searched or sorted list) keeps its name, so the
+                                 later trigger wins there and the cell is never blank. -->
+                            <ContentControl.Style>
+                                <Style TargetType="ContentControl" BasedOn="{StaticResource OverviewCellFrameStyle}">
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding ShowTreeOnly, RelativeSource={RelativeSource AncestorType=controls:GameSummariesGridControl}}" Value="True">
+                                            <Setter Property="Visibility" Value="Collapsed"/>
+                                        </DataTrigger>
+                                        <DataTrigger Binding="{Binding TreeShape}" Value="{x:Null}">
+                                            <Setter Property="Visibility" Value="Visible"/>
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </ContentControl.Style>
                             <StackPanel VerticalAlignment="{Binding RelativeSource={RelativeSource AncestorType={x:Type DataGridCell}}, Path=Column.(helpers:DataGridAlignmentBehavior.CellVerticalAlignment)}"
                                         HorizontalAlignment="{Binding RelativeSource={RelativeSource AncestorType={x:Type DataGridCell}}, Path=Column.(helpers:DataGridAlignmentBehavior.CellHorizontalAlignment)}"
                                         Margin="{StaticResource PlayAch.Thickness.Right.Sm}">
