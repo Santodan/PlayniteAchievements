@@ -504,7 +504,11 @@ namespace PlayniteAchievements.Views.Showcase
                             GameSummariesSortMode.LastPlayed,
                             GameSummariesSortMode.TotalAchievements,
                             GameSummariesSortMode.Progress,
-                            GameSummariesSortMode.Alphabetical
+                            GameSummariesSortMode.Alphabetical,
+                            GameSummariesSortMode.DateAdded,
+                            GameSummariesSortMode.ReleaseDate,
+                            GameSummariesSortMode.Playtime,
+                            GameSummariesSortMode.Remaining
                         },
                         ShowcaseWidgetOptions.GetGameMosaicSort(_settings),
                         value => ShowcaseWidgetOptions.SetGameMosaicSort(_settings, value),
@@ -1553,6 +1557,14 @@ namespace PlayniteAchievements.Views.Showcase
                     return Localize("LOCPlayAch_Progress");
                 case GameSummariesSortMode.Alphabetical:
                     return Localize("LOCPlayAch_Common_Name");
+                case GameSummariesSortMode.DateAdded:
+                    return Localize("LOCPlayAch_Common_DateAdded");
+                case GameSummariesSortMode.ReleaseDate:
+                    return Localize("LOCPlayAch_Common_ReleaseDate");
+                case GameSummariesSortMode.Playtime:
+                    return Localize("LOCPlayAch_Common_Label_Playtime");
+                case GameSummariesSortMode.Remaining:
+                    return Localize("LOCPlayAch_Common_Locked");
                 default:
                     return Localize("LOCPlayAch_Common_Default");
             }
