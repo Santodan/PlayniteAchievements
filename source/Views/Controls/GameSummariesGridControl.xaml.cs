@@ -87,7 +87,8 @@ namespace PlayniteAchievements.Views.Controls
             "TotalAchievements",
             "GameSummaryCollectionScore",
             "GameSummaryPrestigeScore",
-            "GameSummaryPoints"
+            "GameSummaryPoints",
+            "GameSummaryRemaining"
         };
 
         // Columns with no per-category meaning; dropped entirely from category-summaries grids.
@@ -99,6 +100,8 @@ namespace PlayniteAchievements.Views.Controls
             "GameSummaryPlatform",
             "GameSummaryPlaytime",
             "GameSummaryLastPlayed",
+            "GameSummaryAdded",
+            "GameSummaryReleaseDate",
             "Captures"
         };
 
@@ -215,8 +218,11 @@ namespace PlayniteAchievements.Views.Controls
             bool lastPlayed = false,
             bool lastUnlock = false,
             bool playtime = false,
+            bool added = false,
+            bool releaseDate = false,
             bool progress = true,
             bool total = true,
+            bool remaining = false,
             bool collectionScore = false,
             bool prestigeScore = false,
             bool points = false,
@@ -232,8 +238,11 @@ namespace PlayniteAchievements.Views.Controls
                 ["GameSummaryLastPlayed"] = lastPlayed,
                 ["GameSummaryLastUnlock"] = lastUnlock,
                 ["GameSummaryPlaytime"] = playtime,
+                ["GameSummaryAdded"] = added,
+                ["GameSummaryReleaseDate"] = releaseDate,
                 ["GameSummaryProgression"] = progress,
                 ["TotalAchievements"] = total,
+                ["GameSummaryRemaining"] = remaining,
                 ["GameSummaryCollectionScore"] = collectionScore,
                 ["GameSummaryPrestigeScore"] = prestigeScore,
                 ["GameSummaryPoints"] = points,
