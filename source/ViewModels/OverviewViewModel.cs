@@ -1904,7 +1904,7 @@ namespace PlayniteAchievements.ViewModels
             }
 
             SetRecentAchievementsSource(
-                snapshot.RecentAchievements,
+                WithUndatedUnlocks(snapshot.RecentAchievements, snapshot.Achievements),
                 recentSearchEntries);
 
             UpdateProviderFilterOptions(_allGameSummaries);
@@ -1961,6 +1961,27 @@ namespace PlayniteAchievements.ViewModels
             }
 
             UpdateAchievementFilterOptions();
+        }
+
+        /// <summary>
+        /// The Achievements grid's rows: the dated unlocks, then the unlocks with no time, which
+        /// the snapshot's recent list leaves out but a tag, rarity or trophy filter still matches.
+        /// </summary>
+        private static List<AchievementDisplayItem> WithUndatedUnlocks(
+            List<AchievementDisplayItem> recent,
+            IEnumerable<AchievementDisplayItem> achievements)
+        {
+            var undated = (achievements ?? Enumerable.Empty<AchievementDisplayItem>())
+                .Where(item => item?.Unlocked == true && !item.UnlockTimeUtc.HasValue)
+                .ToList();
+            if (undated.Count == 0)
+            {
+                return recent;
+            }
+
+            var rows = new List<AchievementDisplayItem>(recent ?? new List<AchievementDisplayItem>());
+            rows.AddRange(undated);
+            return rows;
         }
 
         private bool ApplyFragmentDelta(string key, OverviewGameFragment fragment)
@@ -2043,9 +2064,10 @@ namespace PlayniteAchievements.ViewModels
                 _allGameSummaries.Add(fragment.GameSummary);
             }
 
-            if (fragment.RecentAchievements != null && fragment.RecentAchievements.Count > 0)
+            var fragmentRecent = WithUndatedUnlocks(fragment.RecentAchievements, fragment.Achievements);
+            if (fragmentRecent != null && fragmentRecent.Count > 0)
             {
-                _allRecentAchievements.AddRange(fragment.RecentAchievements);
+                _allRecentAchievements.AddRange(fragmentRecent);
             }
 
             // Only the rows just swapped in need stamping: they are freshly built, so their
@@ -2067,10 +2089,10 @@ namespace PlayniteAchievements.ViewModels
                     fragment.Achievements, _captureLibrary);
             }
 
-            if (fragment.RecentAchievements != null && fragment.RecentAchievements.Count > 0)
+            if (fragmentRecent != null && fragmentRecent.Count > 0)
             {
                 Services.Captures.CapturePresenceMarker.MarkAchievements(
-                    fragment.RecentAchievements, _captureLibrary);
+                    fragmentRecent, _captureLibrary);
             }
 
             return true;
@@ -2100,7 +2122,10 @@ namespace PlayniteAchievements.ViewModels
             {
                 Achievements = _allAchievements ?? new List<AchievementDisplayItem>(),
                 GameSummaries = _allGameSummaries ?? new List<GameSummaryItem>(),
-                RecentAchievements = _allRecentAchievements ?? new List<AchievementDisplayItem>(),
+                // The grid's list also holds undated unlocks; the snapshot's recent list never does.
+                RecentAchievements = (_allRecentAchievements ?? new List<AchievementDisplayItem>())
+                    .Where(item => item?.UnlockTimeUtc.HasValue == true)
+                    .ToList(),
                 GlobalUnlockCountsByDate = new Dictionary<DateTime, int>(),
                 UnlockCountsByDateByGame = new Dictionary<Guid, Dictionary<DateTime, int>>(),
                 UnlockedByProvider = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase),
