@@ -51,13 +51,15 @@ namespace PlayniteAchievements.Providers.Exophase
             IReadOnlyList<ExophaseAwardSection> sections,
             string gameArtUrl,
             IReadOnlyList<ExophaseRelatedPage> relatedPages,
-            bool isChallenge)
+            bool isChallenge,
+            string platformSlug = null)
         {
             Achievements = achievements;
             Sections = sections ?? Array.Empty<ExophaseAwardSection>();
             GameArtUrl = gameArtUrl;
             RelatedPages = relatedPages ?? Array.Empty<ExophaseRelatedPage>();
             IsChallenge = isChallenge;
+            PlatformSlug = platformSlug;
         }
 
         /// <summary>
@@ -65,6 +67,9 @@ namespace PlayniteAchievements.Providers.Exophase
         /// and English addresses answer alike).
         /// </summary>
         public static ExophaseAwardPage Missing { get; } = new ExophaseAwardPage(null, null, null, null, false) { IsMissing = true };
+
+        /// <summary>The page's own platform as Exophase's slug for it ("ps3"); null when the page does not say.</summary>
+        public string PlatformSlug { get; }
 
         public bool IsMissing { get; private set; }
 
@@ -171,6 +176,28 @@ namespace PlayniteAchievements.Providers.Exophase
             }
 
             return sections;
+        }
+
+        /// <summary>
+        /// The page's own platform as Exophase's slug for it, from the award list's
+        /// <c>platform-</c> class ("platform-ps3"), which reads the same in every language; null
+        /// when no list carries one.
+        /// </summary>
+        public static string ParsePagePlatformFrom(HtmlDocument doc)
+        {
+            var lists = doc?.DocumentNode.SelectNodes("//ul[contains(@class,'platform-')]");
+            foreach (var list in lists ?? Enumerable.Empty<HtmlNode>())
+            {
+                var token = list.GetAttributeValue("class", string.Empty)
+                    .Split((char[])null, StringSplitOptions.RemoveEmptyEntries)
+                    .FirstOrDefault(part => part.StartsWith("platform-", StringComparison.OrdinalIgnoreCase) && part.Length > "platform-".Length);
+                if (token != null)
+                {
+                    return token.Substring("platform-".Length).ToLowerInvariant();
+                }
+            }
+
+            return null;
         }
 
         /// <summary>The page's own game image (its <c>og:image</c>); null when it has none.</summary>
