@@ -526,6 +526,21 @@ namespace PlayniteAchievements.Views.Controls
             private set => SetValue(ShowMetadataPointsProperty, value);
         }
 
+        public static readonly DependencyProperty ShowTreeOnlyProperty =
+            DependencyProperty.Register(
+                nameof(ShowTreeOnly),
+                typeof(bool),
+                typeof(GameSummariesGridControl),
+                new PropertyMetadata(false));
+
+        // Resolved per-surface toggle (category surfaces only) that hides the name text of rows
+        // carrying a tree guide; consumed by the GameSummaryName column's cell frame.
+        public bool ShowTreeOnly
+        {
+            get => (bool)GetValue(ShowTreeOnlyProperty);
+            private set => SetValue(ShowTreeOnlyProperty, value);
+        }
+
         public static readonly DependencyProperty PreferTrophyBadgesProperty =
             DependencyProperty.Register(
                 nameof(PreferTrophyBadges),
@@ -767,6 +782,7 @@ namespace PlayniteAchievements.Views.Controls
             UpdateShowRarityBadgesBelowProgress(settings);
             UpdateShowCompletionFrame(settings);
             UpdateShowMetadataCounts(settings);
+            UpdateShowTreeOnly(settings);
             UpdateShowcaseOptionsSubscription(settings);
             // Tracks the current Persisted instance: CancelEdit replaces it, and a direct
             // subscription would leave this grid on the orphan, keeping the reverted
@@ -1285,7 +1301,10 @@ namespace PlayniteAchievements.Views.Controls
                 GetShowMetadataPoints = () => showcaseOptions?.ShowMetadataPoints ??
                     showcaseCategoryOptions?.ShowMetadataPoints ??
                     ResolveSurfaceOptions(persisted, surface, (game, category) =>
-                        game?.ShowMetadataPoints ?? category?.ShowMetadataPoints ?? false)
+                        game?.ShowMetadataPoints ?? category?.ShowMetadataPoints ?? false),
+                GetShowTreeOnly = () => showcaseCategoryOptions?.ShowTreeOnly ??
+                    ResolveSurfaceOptions(persisted, surface, (game, category) =>
+                        category?.ShowTreeOnly ?? false)
             };
         }
 
@@ -1603,6 +1622,7 @@ namespace PlayniteAchievements.Views.Controls
             public Func<bool> GetShowCompletionFrame { get; set; }
             public Func<bool> GetShowMetadataTotal { get; set; }
             public Func<bool> GetShowMetadataPoints { get; set; }
+            public Func<bool> GetShowTreeOnly { get; set; }
         }
 
         private enum GridSurface
@@ -1879,6 +1899,11 @@ namespace PlayniteAchievements.Views.Controls
             {
                 UpdateShowMetadataCounts(PlayniteAchievementsPlugin.Instance?.Settings);
             }
+
+            if (IsShowTreeOnlyChange(e.PropertyName))
+            {
+                UpdateShowTreeOnly(PlayniteAchievementsPlugin.Instance?.Settings);
+            }
         }
 
         private void UpdateLastPlayedDateMode(PlayniteAchievementsSettings settings)
@@ -1953,6 +1978,21 @@ namespace PlayniteAchievements.Views.Controls
                    propertyName.EndsWith(nameof(GameSummaryGridOptions.ShowMetadataPoints), StringComparison.Ordinal);
         }
 
+        private void UpdateShowTreeOnly(PlayniteAchievementsSettings settings)
+        {
+            var surfaceSettings = GetSurfaceSettings(settings);
+            if (surfaceSettings != null)
+            {
+                ShowTreeOnly = surfaceSettings.GetShowTreeOnly();
+            }
+        }
+
+        private static bool IsShowTreeOnlyChange(string propertyName)
+        {
+            return string.IsNullOrEmpty(propertyName) ||
+                   propertyName.EndsWith(nameof(CategorySummaryGridOptions.ShowTreeOnly), StringComparison.Ordinal);
+        }
+
         // Showcase surfaces have no flat compatibility names, so PersistedSettings.PropertyChanged
         // never fires for their edits; the control listens to the surface's option record directly.
         private void UpdateShowcaseOptionsSubscription(PlayniteAchievementsSettings settings)
@@ -2022,6 +2062,11 @@ namespace PlayniteAchievements.Views.Controls
             {
                 UpdateShowMetadataCounts(settings);
             }
+
+            if (IsShowTreeOnlyChange(e.PropertyName))
+            {
+                UpdateShowTreeOnly(settings);
+            }
         }
 
         private static void OnColumnSettingsKeyChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
@@ -2036,6 +2081,7 @@ namespace PlayniteAchievements.Views.Controls
             control.UpdateShowRarityBadgesBelowProgress(settings);
             control.UpdateShowCompletionFrame(settings);
             control.UpdateShowMetadataCounts(settings);
+            control.UpdateShowTreeOnly(settings);
             if (!control._isAttached && control._columnPersistence != null)
             {
                 // The surface restrictions were resolved for the previous key; a pre-attach
@@ -2328,6 +2374,7 @@ namespace PlayniteAchievements.Views.Controls
             UpdateShowRarityBadgesBelowProgress(PlayniteAchievementsPlugin.Instance?.Settings);
             UpdateShowCompletionFrame(PlayniteAchievementsPlugin.Instance?.Settings);
             UpdateShowMetadataCounts(PlayniteAchievementsPlugin.Instance?.Settings);
+            UpdateShowTreeOnly(PlayniteAchievementsPlugin.Instance?.Settings);
             RefreshPlaytimeText();
         }
 
