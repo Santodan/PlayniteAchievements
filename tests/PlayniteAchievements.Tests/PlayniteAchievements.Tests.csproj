@@ -533,6 +533,7 @@
     <Compile Include="..\..\source\Models\Settings\LibraryLink.cs" Link="Source\Models\Settings\LibraryLink.cs" />
     <Compile Include="..\..\source\Models\Settings\PersistedSettings.GridCompatibility.cs" Link="Source\Models\Settings\PersistedSettings.GridCompatibility.cs" />
     <Compile Include="..\..\source\Models\Settings\PersistedSettings.Metadata.cs" Link="Source\Models\Settings\PersistedSettings.Metadata.cs" />
+    <Compile Include="..\..\source\Models\Settings\MetadataConsoleVersion.cs" Link="Source\Models\Settings\MetadataConsoleVersion.cs" />
     <Compile Include="..\..\source\Models\Settings\MetadataLinkData.cs" Link="Source\Models\Settings\MetadataLinkData.cs" />
     <Compile Include="..\..\source\Services\Metadata\MetadataLinkStore.cs" Link="Source\Services\Metadata\MetadataLinkStore.cs" />
     <Compile Include="..\..\source\Services\Metadata\MetadataStateStore.cs" Link="Source\Services\Metadata\MetadataStateStore.cs" />
