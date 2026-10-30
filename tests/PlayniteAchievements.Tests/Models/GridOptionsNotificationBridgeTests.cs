@@ -107,6 +107,30 @@ namespace PlayniteAchievements.Models.Tests
         }
 
         [TestMethod]
+        public void CategoryShowTreeOnlyEdit_RaisesQualifiedNameOnPersistedSettings()
+        {
+            var settings = new PersistedSettings();
+            var raised = new List<string>();
+            settings.PropertyChanged += (sender, e) => raised.Add(e.PropertyName);
+
+            var category = settings.GridOptions.GetCategorySummaries(GridOptionKeys.CategorySummaries.ViewAchievements);
+            category.ShowTreeOnly = true;
+
+            CollectionAssert.Contains(raised, "GridOptions." + nameof(CategorySummaryGridOptions.ShowTreeOnly));
+        }
+
+        [TestMethod]
+        public void CategoryShowTreeOnly_DefaultsOffAndSurvivesClone()
+        {
+            var category = new CategorySummaryGridOptions();
+            Assert.IsFalse(category.ShowTreeOnly);
+
+            category.ShowTreeOnly = true;
+
+            Assert.IsTrue(category.Clone().ShowTreeOnly);
+        }
+
+        [TestMethod]
         public void DesktopThemeGameSummariesOptionEdit_RaisesFlatPropertyChangedOnPersistedSettings()
         {
             var settings = new PersistedSettings();
