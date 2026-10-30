@@ -186,7 +186,7 @@ namespace PlayniteAchievements.Services.Overview
 
         /// <summary>
         /// <paramref name="snapshot"/> as seen through an achievement filter: only the unlocks
-        /// <paramref name="keep"/> accepts count. Achievement totals, rarity and trophy counts,
+        /// <paramref name="keep"/> accepts count, undated ones included (they add no day counts). Achievement totals, rarity and trophy counts,
         /// the per-provider counts, the per-day counts and the unlocked rows are rebuilt from those
         /// unlocks, with no locked remainder (the filters describe unlocks); the game-level totals
         /// (games, completions) are kept as they were, except that completions drop to zero when
@@ -203,11 +203,11 @@ namespace PlayniteAchievements.Services.Overview
             }
 
             var rows = (snapshot.Achievements ?? new List<AchievementDisplayItem>())
-                .Where(item => item?.Unlocked == true && item.UnlockTimeUtc.HasValue && keep(item))
+                .Where(item => item?.Unlocked == true && keep(item))
                 .ToList();
             var byGame = new Dictionary<Guid, Dictionary<DateTime, int>>();
             var global = new Dictionary<DateTime, int>();
-            foreach (var row in rows)
+            foreach (var row in rows.Where(item => item.UnlockTimeUtc.HasValue))
             {
                 var day = UnlockDayCounts.DayOf(row.UnlockTimeUtc.Value);
                 global[day] = global.TryGetValue(day, out var total) ? total + 1 : 1;
