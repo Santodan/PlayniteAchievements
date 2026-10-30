@@ -617,7 +617,8 @@ namespace PlayniteAchievements.Providers.Exophase
                     sections,
                     gameArt,
                     ExophaseGamePageParser.ParseRelatedPagesFrom(doc),
-                    isChallenge);
+                    isChallenge,
+                    ExophaseGamePageParser.ParsePagePlatformFrom(doc));
             }
             catch (OperationCanceledException)
             {
