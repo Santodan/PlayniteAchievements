@@ -104,6 +104,14 @@ namespace PlayniteAchievements.ViewModels.Items
         /// </summary>
         public IReadOnlyList<string> Platforms { get; set; } = Array.Empty<string>();
 
+        /// <summary>
+        /// When the game was added to the Playnite library, and its release date. Set once at
+        /// build time; used only as sort keys.
+        /// </summary>
+        public DateTime? Added { get; set; }
+
+        public DateTime? ReleaseDate { get; set; }
+
         private ulong _playtimeSeconds;
         public ulong PlaytimeSeconds
         {
@@ -596,6 +604,8 @@ namespace PlayniteAchievements.ViewModels.Items
 
 
         public int Progression => AchievementCompletionPercentCalculator.ComputeRoundedPercent(UnlockedAchievements, TotalAchievements);
+
+        public int RemainingAchievements => Math.Max(0, TotalAchievements - UnlockedAchievements);
 
         public string ProgressionText => PercentFormatter.FormatWhole(Progression);
 
