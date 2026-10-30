@@ -178,6 +178,22 @@ namespace PlayniteAchievements.Providers.Metadata.Exophase
             return null;
         }
 
+        // Exophase platform slugs that name one console, as a page's award list class gives them.
+        private static readonly Dictionary<string, string> PlatformNames =
+            new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+            {
+                { "ps3", "PS3" },
+                { "ps4", "PS4" },
+                { "ps5", "PS5" },
+                { "psvita", "PS Vita" },
+                { "xbox-360", "Xbox 360" },
+                { "xbox-one", "Xbox One" }
+            };
+
+        /// <summary>The console an Exophase platform slug names ("PS3" for "ps3"); null when it names none.</summary>
+        public static string PlatformName(string platformSlug) =>
+            platformSlug != null && PlatformNames.TryGetValue(platformSlug.Trim(), out var name) ? name : null;
+
         /// <summary>
         /// The Exophase platform slug of a servicing provider's achievements, for the own-platform
         /// branch; null for a platform Exophase rarity does not cover.
