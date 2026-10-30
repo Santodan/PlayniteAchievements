@@ -36,6 +36,7 @@ namespace PlayniteAchievements.Views.Settings.Metadata
     {
         internal MetadataSourcesViewModel(PlayniteAchievementsSettings settings, ProviderRegistry registry)
         {
+            Settings = settings;
             var providers = registry.GetMetadataProviders() ?? Array.Empty<IMetadataProvider>();
             var defaults = new MetadataChoiceRow(settings, providers, null);
             var rows = new List<MetadataChoiceRow> { defaults };
@@ -55,6 +56,9 @@ namespace PlayniteAchievements.Views.Settings.Metadata
         }
 
         public IReadOnlyList<MetadataChoiceRow> Rows { get; }
+
+        /// <summary>The settings, for the console version choice above the grid.</summary>
+        public PlayniteAchievementsSettings Settings { get; }
     }
 
     /// <summary>

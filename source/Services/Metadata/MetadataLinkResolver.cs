@@ -62,7 +62,8 @@ namespace PlayniteAchievements.Services.Metadata
                 return (implicitId.Trim(), null, false);
             }
 
-            var basis = Basis(gameId, provider.Key, request, withLanguage: true);
+            var preference = (provider as IMetadataLookupPreference)?.LookupPreference;
+            var basis = WithPreference(Basis(gameId, provider.Key, request, withLanguage: true), preference);
             if (_links != null && _links.TryGet(gameId, provider.Key, out var stored))
             {
                 request.LinkIsUserSet = stored.Origin == MetadataLinkOrigin.User;
@@ -70,7 +71,8 @@ namespace PlayniteAchievements.Services.Metadata
                 // A link that found pages keeps them when only the language changed: pairing in
                 // English rescues it at fetch. One that found nothing is looked for again.
                 var sameSearch = recorded == basis ||
-                                 (!stored.IsNoMatch && recorded != null && recorded == Basis(gameId, provider.Key, request, withLanguage: false));
+                                 (!stored.IsNoMatch && recorded != null &&
+                                  recorded == WithPreference(Basis(gameId, provider.Key, request, withLanguage: false), preference));
                 if (request.LinkIsUserSet || recorded == null || sameSearch)
                 {
                     // A link found before its basis was kept takes the current one, without a search.
@@ -84,7 +86,8 @@ namespace PlayniteAchievements.Services.Metadata
 
                 if (!stored.IsNoMatch)
                 {
-                    return await ReviseAsync(provider, gameId, request, stored, basis, ct).ConfigureAwait(false);
+                    var preferenceOnly = recorded != null && SearchPart(recorded) == SearchPart(basis);
+                    return await ReviseAsync(provider, gameId, request, stored, basis, preferenceOnly, ct).ConfigureAwait(false);
                 }
 
                 _logger?.Debug($"[Metadata] {provider.Key}: what '{request.Game?.Name}' is searched by changed since it found no match; looking again.");
@@ -120,8 +123,10 @@ namespace PlayniteAchievements.Services.Metadata
         /// Looks again for a game whose automatic link was found from other search inputs (a
         /// category added or renamed, a link the user set on another source). The new pages
         /// replace the link only when they match more of the game's achievements than the link
-        /// did at the last refresh; otherwise the link stays. Either way the new inputs are
-        /// recorded, so the next refresh does not look again, unless the pages could not be read.
+        /// did at the last refresh, or as many when only the source's lookup preference changed
+        /// (<paramref name="preferenceOnly"/>), since the new pages are the ones it now prefers;
+        /// otherwise the link stays. Either way the new inputs are recorded, so the next refresh
+        /// does not look again, unless the pages could not be read.
         /// </summary>
         private async Task<(string Id, MetadataSourceLink Unconfirmed, bool Unavailable)> ReviseAsync(
             IMetadataProvider provider,
@@ -129,6 +134,7 @@ namespace PlayniteAchievements.Services.Metadata
             MetadataLinkRequest request,
             MetadataLinkRecord stored,
             string basis,
+            bool preferenceOnly,
             CancellationToken ct)
         {
             var resolved = await provider.ResolveLinkAsync(request, ct).ConfigureAwait(false);
@@ -141,7 +147,7 @@ namespace PlayniteAchievements.Services.Metadata
             var before = _links.GetCoverage(gameId, provider.Key)?.Matched ?? 0;
             if (string.IsNullOrWhiteSpace(resolved?.Id) ||
                 MetadataLinkIds.SameIds(resolved.Id, stored.Id) ||
-                !(resolved.Matched > before))
+                !(resolved.Matched > before || (preferenceOnly && resolved.Matched >= before)))
             {
                 _logger?.Debug(
                     $"[Metadata] {provider.Key}: looked again for '{request.Game?.Name}' after its search inputs changed; " +
@@ -162,6 +168,20 @@ namespace PlayniteAchievements.Services.Metadata
         /// and go with those sources' lookups, and what they found is already shared within the
         /// refresh that found it.
         /// </summary>
+        /// <summary>
+        /// The basis followed by the source's lookup preference, left readable so a change of the
+        /// preference alone can be told apart; the basis alone at the preference's default.
+        /// </summary>
+        private static string WithPreference(string basis, string preference) =>
+            string.IsNullOrWhiteSpace(preference) ? basis : basis + "|" + preference.Trim();
+
+        /// <summary>The part of a basis that the game's search inputs make, without a lookup preference.</summary>
+        private static string SearchPart(string basis)
+        {
+            var bar = basis?.IndexOf('|') ?? -1;
+            return bar < 0 ? basis : basis.Substring(0, bar);
+        }
+
         private string Basis(Guid gameId, string sourceKey, MetadataLinkRequest request, bool withLanguage)
         {
             var others = (_links?.GetAll(gameId) ?? new Dictionary<string, MetadataLinkRecord>())

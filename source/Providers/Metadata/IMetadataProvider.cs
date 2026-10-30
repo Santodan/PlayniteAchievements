@@ -96,6 +96,19 @@ namespace PlayniteAchievements.Providers.Metadata
     }
 
     /// <summary>
+    /// A source whose lookup follows a setting besides the game itself, such as which console's
+    /// page it prefers, so automatic links are looked for again when the setting changes.
+    /// </summary>
+    internal interface IMetadataLookupPreference
+    {
+        /// <summary>
+        /// The setting as a short token ("consoles:oldest"); null at its default, so links found
+        /// under the default are not looked for again.
+        /// </summary>
+        string LookupPreference { get; }
+    }
+
+    /// <summary>
     /// A source that some games are linked to by what they already are, such as SteamHunters for a
     /// Steam game by its own appId. That link is never stored, so it adds no custom data to the
     /// game; a link the user sets still replaces it.
