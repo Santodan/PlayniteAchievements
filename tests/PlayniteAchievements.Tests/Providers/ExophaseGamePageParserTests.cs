@@ -110,6 +110,24 @@ namespace PlayniteAchievements.Providers.Tests
         }
 
         [TestMethod]
+        public void ParsePagePlatformFrom_ReadsTheAwardListPlatformClass()
+        {
+            var doc = new HtmlAgilityPack.HtmlDocument();
+            doc.LoadHtml("<ul class=\"row gx-0 justify-content-center list-unordered-base psn trophy platform-ps3\"><li data-master=\"11\"></li></ul>");
+
+            Assert.AreEqual("ps3", ExophaseGamePageParser.ParsePagePlatformFrom(doc));
+        }
+
+        [TestMethod]
+        public void ParsePagePlatformFrom_IsNullWithoutAPlatformClass()
+        {
+            var doc = new HtmlAgilityPack.HtmlDocument();
+            doc.LoadHtml(GameInfoHtml + "<ul class=\"list-unordered-base psn trophy\"><li data-master=\"11\"></li></ul>");
+
+            Assert.IsNull(ExophaseGamePageParser.ParsePagePlatformFrom(doc));
+        }
+
+        [TestMethod]
         public void LocalizeAwardPageUrl_AppendsTheLanguagePathToEitherList()
         {
             Assert.AreEqual(
