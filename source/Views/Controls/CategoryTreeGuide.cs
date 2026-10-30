@@ -46,6 +46,9 @@ namespace PlayniteAchievements.Views.Controls
         /// </summary>
         private const double MaxCellWidthShare = 0.5d;
 
+        /// <summary>Stroke of a leaf's outlined bead; the lines stop at its outer edge.</summary>
+        private const double LeafOutlineThickness = 1.5d;
+
         static CategoryTreeGuide()
         {
             // Guide lines are decoration over an already-hit-testable row: clicks belong to the row.
@@ -293,12 +296,11 @@ namespace PlayniteAchievements.Views.Controls
             var effectiveHasChildren = shape.HasChildren || (ShowCollapseToggle && IsCollapsed);
             var beadRadius = CategoryTreeGuideMetrics.GetBeadRadius(shape.Depth, effectiveHasChildren);
 
-            // A leaf's bead is an outline with the row showing through it, so the arm has to stop at
-            // its edge - anything drawn under it shows through the middle. A parent's bead is solid
-            // and hides what it covers, so its arm runs the whole way in.
-            var armEndX = effectiveHasChildren
-                ? dotX
-                : Math.Max(CategoryTreeGuideMetrics.GetLaneCentre(shape.Depth - 1), dotX - beadRadius);
+            // Lines stop at the bead's outer edge, never under it: a leaf's bead is an outline with
+            // the row showing through, and a parent's solid bead can be painted with a translucent
+            // brush, so anything beneath shows either way. The leaf's edge includes half its stroke.
+            var beadEdge = beadRadius + (effectiveHasChildren ? 0d : LeafOutlineThickness / 2d);
+            var armEndX = Math.Max(CategoryTreeGuideMetrics.GetLaneCentre(shape.Depth - 1), dotX - beadEdge);
 
             var hasToggle = TryGetToggleGeometry(out var toggleCentre, out var toggleRadius);
             var hasToggleAbove = TryGetBoundaryToggleAboveGeometry(out var aboveCentre, out var aboveRadius);
@@ -356,12 +358,16 @@ namespace PlayniteAchievements.Views.Controls
                     // The glyph circle's interior is transparent, so the descender stops at its
                     // top; below the boundary the next row's stem (gapped under the glyph) or
                     // nothing at all continues the line.
-                    drawingContext.DrawLine(
-                        pen, new Point(dotX, mid), new Point(dotX, toggleCentre.Y - toggleRadius));
+                    var descenderBottom = toggleCentre.Y - toggleRadius;
+                    if (descenderBottom > mid + beadEdge)
+                    {
+                        drawingContext.DrawLine(
+                            pen, new Point(dotX, mid + beadEdge), new Point(dotX, descenderBottom));
+                    }
                 }
                 else if (shape.HasChildren)
                 {
-                    drawingContext.DrawLine(pen, new Point(dotX, mid), new Point(dotX, height));
+                    drawingContext.DrawLine(pen, new Point(dotX, mid + beadEdge), new Point(dotX, height));
                 }
             }
             finally
@@ -655,7 +661,7 @@ namespace PlayniteAchievements.Views.Controls
                 return;
             }
 
-            var outline = CreateGuidePen(beadBrush, 1.5d);
+            var outline = CreateGuidePen(beadBrush, LeafOutlineThickness);
             drawingContext.DrawEllipse(null, outline, centre, beadRadius, beadRadius);
         }
 
