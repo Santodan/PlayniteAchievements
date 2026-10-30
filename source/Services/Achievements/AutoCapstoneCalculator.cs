@@ -16,7 +16,8 @@ namespace PlayniteAchievements.Services.Achievements
             double? globalPercentUnlocked,
             string rarity,
             string category,
-            string categoryKind = null)
+            string categoryKind = null,
+            string tags = null)
         {
             Unlocked = unlocked;
             UnlockTimeUtc = unlockTimeUtc;
@@ -24,6 +25,7 @@ namespace PlayniteAchievements.Services.Achievements
             Rarity = rarity;
             Category = category;
             CategoryKind = categoryKind;
+            Tags = tags;
         }
 
         /// <summary>True once every achievement the capstone stands for is unlocked.</summary>
@@ -58,6 +60,13 @@ namespace PlayniteAchievements.Services.Achievements
         /// share none.
         /// </summary>
         public string CategoryKind { get; }
+
+        /// <summary>
+        /// Every tag on the achievements the capstone stands for, so it shows under each tag they
+        /// do. The derived Softcore/Hardcore are left out: they say how one achievement was earned.
+        /// Null when they carry none.
+        /// </summary>
+        public string Tags { get; }
     }
 
     /// <summary>
@@ -219,7 +228,10 @@ namespace PlayniteAchievements.Services.Achievements
                 rarest,
                 rarest.HasValue ? PercentRarityHelper.GetRarityTier(rarest.Value).ToString() : null,
                 ResolveSharedCategory(scope, categoryOrder),
-                ResolveSharedKind(scope));
+                ResolveSharedKind(scope),
+                AchievementTagHelper.Combine(scope
+                    .SelectMany(achievement => AchievementTagHelper.GetComponents(achievement.Tags))
+                    .Where(key => !AchievementTagHelper.IsDerivedTag(key))));
         }
 
         /// <summary>
