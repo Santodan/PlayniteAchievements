@@ -125,8 +125,11 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
                 LegendPosition = ShowcaseWidgetOptions.GetPieLegendPosition(Projection?.Instance)
             };
             // Set on a reused chart too: the same options can show a cut view after a whole one.
-            chart.CountsUnlocksOnly = snapshot.IsAchievementClip &&
-                                      ShowcaseWidgetOptions.CountsAchievements(Projection?.Instance);
+            // A pie counting games is cut when its completions are cut to a span.
+            var countsAchievements = ShowcaseWidgetOptions.CountsAchievements(Projection?.Instance);
+            chart.CountsUnlocksOnly = countsAchievements
+                ? snapshot.IsAchievementClip
+                : snapshot.CompletionSpan.HasValue;
             switch (mode)
             {
                 case ShowcasePieMode.Provider:
@@ -151,15 +154,24 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
                     if (ShowcaseWidgetOptions.GetPieCount(Projection?.Instance) == ShowcasePieCount.CompletedGames)
                     {
                         // Games rather than achievements: each platform's completed games, then
-                        // every game not completed yet.
+                        // every game not completed yet. Cut to a span, only the games completed
+                        // in it count, with no remainder.
+                        var completedInSpan = snapshot.CompletionSpan is UnlockDaySpan span
+                            ? OverviewLinkedSnapshots.GamesCompletedDuring(snapshot, span)
+                            : null;
+                        Func<GameSummaryItem, bool> isCompleted = completedInSpan == null
+                            ? (Func<GameSummaryItem, bool>)(game => game.IsCompleted)
+                            : game => game.PlayniteGameId is Guid id && completedInSpan.Contains(id);
                         var completed = providerGroups.ToDictionary(
                             group => group.Key,
-                            group => group.Count(game => game.IsCompleted),
+                            group => group.Count(isCompleted),
                             StringComparer.OrdinalIgnoreCase);
-                        var gameCounts = providerGroups.ToDictionary(
-                            group => group.Key,
-                            group => group.Count(),
-                            StringComparer.OrdinalIgnoreCase);
+                        var gameCounts = completedInSpan == null
+                            ? providerGroups.ToDictionary(
+                                group => group.Key,
+                                group => group.Count(),
+                                StringComparer.OrdinalIgnoreCase)
+                            : completed;
                         chart.SetProviderData(
                             completed.Where(pair => pair.Value > 0).ToDictionary(pair => pair.Key, pair => pair.Value, StringComparer.OrdinalIgnoreCase),
                             gameCounts,
