@@ -127,6 +127,64 @@ namespace PlayniteAchievements.Services.Overview
         }
 
         /// <summary>
+        /// Games whose completion (see <see cref="TimelinePlatformSeries.CompletionCountsByGame"/>)
+        /// falls on a day inside <paramref name="span"/>.
+        /// </summary>
+        public static HashSet<Guid> GamesCompletedDuring(OverviewDataSnapshot snapshot, UnlockDaySpan span)
+        {
+            return new HashSet<Guid>(TimelinePlatformSeries.CompletionCountsByGame(snapshot)
+                .Where(game => game.Value.Keys.Any(span.Contains))
+                .Select(game => game.Key));
+        }
+
+        /// <summary>
+        /// <paramref name="snapshot"/> with its completions cut to those finished inside
+        /// <paramref name="span"/>, by the same rule the whole count uses: a game with capstones
+        /// counts each capstone unlocked in the span, one without counts once when it was
+        /// completed in the span. No completion is left over as possible, so the cut view holds
+        /// only completions. Everything else is as <see cref="Build"/> copies it.
+        /// </summary>
+        public static OverviewDataSnapshot ClipCompletionsToSpan(OverviewDataSnapshot snapshot, UnlockDaySpan span)
+        {
+            if (snapshot == null)
+            {
+                return null;
+            }
+
+            var games = (snapshot.GameSummaries ?? new List<GameSummaryItem>()).Where(game => game != null).ToList();
+            var clipped = Build(snapshot, games, keptIsAll: false);
+            var completedGames = GamesCompletedDuring(snapshot, span);
+            var capstonesByGame = new Dictionary<Guid, int>();
+            foreach (var row in snapshot.Achievements ?? new List<AchievementDisplayItem>())
+            {
+                if (row?.Unlocked == true && row.IsCapstone && row.UnlockTimeUtc.HasValue &&
+                    row.PlayniteGameId is Guid gameId && span.Contains(UnlockDayCounts.DayOf(row.UnlockTimeUtc.Value)))
+                {
+                    capstonesByGame[gameId] = capstonesByGame.TryGetValue(gameId, out var count) ? count + 1 : 1;
+                }
+            }
+
+            var completions = 0;
+            foreach (var game in games)
+            {
+                if (!(game.PlayniteGameId is Guid gameId))
+                {
+                    continue;
+                }
+
+                completions += game.CapstoneTotal > 0
+                    ? (capstonesByGame.TryGetValue(gameId, out var capstones) ? capstones : 0)
+                    : (completedGames.Contains(gameId) ? 1 : 0);
+            }
+
+            clipped.CompletionSpan = span;
+            clipped.Completions = completions;
+            clipped.PossibleCompletions = completions;
+            clipped.CompletedGames = completedGames.Count;
+            return clipped;
+        }
+
+        /// <summary>
         /// <paramref name="snapshot"/> as seen through an achievement filter: only the unlocks
         /// <paramref name="keep"/> accepts count. Achievement totals, rarity and trophy counts,
         /// the per-provider counts, the per-day counts and the unlocked rows are rebuilt from those
@@ -455,13 +513,19 @@ namespace PlayniteAchievements.Services.Overview
         /// <summary>
         /// A linked view narrowed further to <paramref name="kept"/>, as a widget's own control
         /// bar does. A view cut to the unlocks an achievement filter keeps stays cut: its rows
-        /// are exactly those unlocks, so the narrowed view is cut again from its own rows.
+        /// are exactly those unlocks, so the narrowed view is cut again from its own rows. A view
+        /// whose completions were cut to a span is cut to that span again.
         /// </summary>
         public static OverviewDataSnapshot NarrowToGames(
             OverviewDataSnapshot linked,
             IReadOnlyList<GameSummaryItem> kept)
         {
             var narrowed = Build(linked, kept, keptIsAll: false);
+            if (linked?.CompletionSpan is UnlockDaySpan span)
+            {
+                return ClipCompletionsToSpan(narrowed, span);
+            }
+
             return linked?.IsAchievementClip == true
                 ? ClipToAchievements(narrowed, _ => true)
                 : narrowed;
