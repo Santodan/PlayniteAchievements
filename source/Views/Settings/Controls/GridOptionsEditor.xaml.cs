@@ -231,7 +231,7 @@ namespace PlayniteAchievements.Views.Settings.Controls
             editor.ShowDateModeRow = rows.ShowDateModeRow;
             editor.ShowMetadataRows = rows.ShowMetadataRows;
             editor.ShowCompletionGlowRow = rows.ShowCompletionGlowRow;
-            editor.ShowGameSortPinOrderChoice = rows.ShowGameSortPinOrderChoice;
+            editor.ShowWidgetGameSortChoices = rows.ShowWidgetGameSortChoices;
         }
 
         // The Tags selector's checkable menu. Each toggle reads the record fresh, because the menu
@@ -310,9 +310,9 @@ namespace PlayniteAchievements.Views.Settings.Controls
         public static readonly DependencyProperty ShowCompletionGlowRowProperty = RegisterFlag(nameof(ShowCompletionGlowRow), true);
         public bool ShowCompletionGlowRow { get => (bool)GetValue(ShowCompletionGlowRowProperty); set => SetValue(ShowCompletionGlowRowProperty, value); }
 
-        // Offers the order-preserving PinOrder game sort choice; only surfaces whose source
-        // order is user-controlled (the showcase pinned-games grid) enable it.
-        public static readonly DependencyProperty ShowGameSortPinOrderChoiceProperty = RegisterFlag(nameof(ShowGameSortPinOrderChoice), false);
-        public bool ShowGameSortPinOrderChoice { get => (bool)GetValue(ShowGameSortPinOrderChoiceProperty); set => SetValue(ShowGameSortPinOrderChoiceProperty, value); }
+        // Offers the showcase widget game sort choices: the order-preserving PinOrder (the
+        // widget's source order is user-controlled) and the library and remaining-count sorts.
+        public static readonly DependencyProperty ShowWidgetGameSortChoicesProperty = RegisterFlag(nameof(ShowWidgetGameSortChoices), false);
+        public bool ShowWidgetGameSortChoices { get => (bool)GetValue(ShowWidgetGameSortChoicesProperty); set => SetValue(ShowWidgetGameSortChoicesProperty, value); }
     }
 }
