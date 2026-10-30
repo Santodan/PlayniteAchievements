@@ -243,7 +243,8 @@ namespace PlayniteAchievements.ViewModels
 
         /// <summary>
         /// The Achievements grid's filters, less those in <paramref name="exclude"/>, as one test
-        /// on an achievement row. Only unlocked rows with a time pass: the filters describe unlocks.
+        /// on an achievement row. Only unlocked rows pass: the filters describe unlocks. An unlock
+        /// with no time passes unless the date range is set, which it cannot fall inside.
         /// </summary>
         private Func<AchievementDisplayItem, bool> AchievementFilter(OverviewLinkedFilter exclude)
         {
@@ -266,8 +267,8 @@ namespace PlayniteAchievements.ViewModels
 
             return item =>
                 item?.Unlocked == true &&
-                item.UnlockTimeUtc.HasValue &&
-                (!span.HasValue || span.Value.Contains(UnlockDayCounts.DayOf(item.UnlockTimeUtc.Value))) &&
+                (!span.HasValue ||
+                 (item.UnlockTimeUtc.HasValue && span.Value.Contains(UnlockDayCounts.DayOf(item.UnlockTimeUtc.Value)))) &&
                 (rarities == null || rarities.Contains(item.Rarity)) &&
                 (trophies == null || trophies.Contains((item.TrophyType ?? string.Empty).Trim())) &&
                 (tags == null || tags.Any(tag => AchievementTagHelper.Contains(item.Tags, tag)));
