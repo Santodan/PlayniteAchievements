@@ -177,6 +177,7 @@ namespace PlayniteAchievements.Models.Settings
         private Dictionary<string, MetadataChoices> _metadataPlatformChoices =
             new Dictionary<string, MetadataChoices>(StringComparer.OrdinalIgnoreCase);
         private bool _metadataChoicesSeeded = true;
+        private MetadataConsoleVersion _metadataConsoleVersion = MetadataConsoleVersion.Newest;
 
         public MetadataChoices MetadataDefaults
         {
@@ -189,6 +190,16 @@ namespace PlayniteAchievements.Models.Settings
         {
             get => _metadataPlatformChoices;
             set => SetValue(ref _metadataPlatformChoices, NormalizePlatformChoices(value));
+        }
+
+        /// <summary>
+        /// Which console's list the PlayStation and Xbox sources take for a game on several
+        /// consoles of the same family.
+        /// </summary>
+        public MetadataConsoleVersion MetadataConsoleVersion
+        {
+            get => _metadataConsoleVersion;
+            set => SetValue(ref _metadataConsoleVersion, value);
         }
 
         /// <summary>
