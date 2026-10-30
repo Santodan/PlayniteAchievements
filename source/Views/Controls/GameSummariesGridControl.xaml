@@ -707,7 +707,7 @@
                             <Grid>
                                 <TextBlock Style="{StaticResource GameSummaryGridTextStyle}"
                                            Text="{Binding RemainingAchievements, Mode=OneWay, StringFormat={}{0:N0}}"
-                                           Visibility="{Binding TotalAchievements, Converter={StaticResource IntToVis}}"/>
+                                           Visibility="{Binding RemainingAchievements, Converter={StaticResource IntToVis}}"/>
                             </Grid>
                         </ContentControl>
                     </DataTemplate>
