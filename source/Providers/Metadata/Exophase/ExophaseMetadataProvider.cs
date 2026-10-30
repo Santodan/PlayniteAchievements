@@ -2,6 +2,7 @@ using Playnite.SDK;
 using PlayniteAchievements.Common;
 using PlayniteAchievements.Models;
 using PlayniteAchievements.Models.Achievements;
+using PlayniteAchievements.Models.Settings;
 using PlayniteAchievements.Providers.Exophase;
 using PlayniteAchievements.Services.Achievements;
 using PlayniteAchievements.Services.GameSearch;
@@ -24,7 +25,8 @@ namespace PlayniteAchievements.Providers.Metadata.Exophase
         {
             var pages = new ExophasePageSource(api, settings, logger);
             Providers = ExophaseMetadataBranch.All
-                .Select(branch => (IMetadataProvider)new ExophaseMetadataProvider(branch, pages, logger))
+                .Select(branch => (IMetadataProvider)new ExophaseMetadataProvider(
+                    branch, pages, logger, () => settings?.Persisted?.MetadataConsoleVersion ?? MetadataConsoleVersion.Newest))
                 .ToList();
         }
 
@@ -34,12 +36,12 @@ namespace PlayniteAchievements.Providers.Metadata.Exophase
     /// <summary>
     /// A metadata source read from Exophase's public award pages, in the plugin's language where
     /// Exophase translates them. A borrowing branch links a game to the borrowed platform's page,
-    /// replaced by its newest version when the page links one; the own-platform branch to its own
-    /// platform's page. Both find it the same way: slugs built from the game's names, then
+    /// replaced by its version on the console the settings prefer when the page links one; the
+    /// own-platform branch to its own platform's page. Both find it the same way: slugs built from the game's names, then
     /// Exophase search, with the scan's hints (the platform's title for the game, a collection's
     /// trophy set titles, a region).
     /// </summary>
-    internal sealed class ExophaseMetadataProvider : IMetadataProvider, IMetadataPageLinks, IMetadataLinkSearch, IMetadataLinkPlatform
+    internal sealed class ExophaseMetadataProvider : IMetadataProvider, IMetadataPageLinks, IMetadataLinkSearch, IMetadataLinkPlatform, IMetadataLookupPreference
     {
         // Search results judged per name; each costs a page load the first time in a run.
         private const int SearchCandidatesJudged = 6;
@@ -50,13 +52,27 @@ namespace PlayniteAchievements.Providers.Metadata.Exophase
         private readonly ExophaseMetadataBranch _branch;
         private readonly ExophasePageSource _pages;
         private readonly ILogger _logger;
+        private readonly Func<MetadataConsoleVersion> _consoleVersion;
 
-        internal ExophaseMetadataProvider(ExophaseMetadataBranch branch, ExophasePageSource pages, ILogger logger)
+        internal ExophaseMetadataProvider(
+            ExophaseMetadataBranch branch,
+            ExophasePageSource pages,
+            ILogger logger,
+            Func<MetadataConsoleVersion> consoleVersion = null)
         {
             _branch = branch ?? throw new ArgumentNullException(nameof(branch));
             _pages = pages;
             _logger = logger;
+            _consoleVersion = consoleVersion;
         }
+
+        private MetadataConsoleVersion ConsoleVersion => _consoleVersion?.Invoke() ?? MetadataConsoleVersion.Newest;
+
+        /// <summary>The console version a borrowing branch looks for, when it is not the default.</summary>
+        public string LookupPreference =>
+            _branch.HasConsoles && ConsoleVersion != MetadataConsoleVersion.Newest
+                ? "consoles:" + ConsoleVersion.ToString().ToLowerInvariant()
+                : null;
 
         public string Key => _branch.Key;
 
@@ -77,7 +93,7 @@ namespace PlayniteAchievements.Providers.Metadata.Exophase
 
             var ownPlatform = ExophaseMetadataBranch.OwnPlatformSlug(servicingProviderKey);
             var platforms = !_branch.OwnPlatform
-                ? _branch.SearchPlatforms
+                ? _branch.SearchPlatforms(ConsoleVersion)
                 : ownPlatform == null ? Array.Empty<string>() : PlatformCandidates(ownPlatform);
             return new ExophaseLinkSearch(_pages, platforms, ResourceProvider.GetString(DisplayNameKey));
         }
@@ -124,8 +140,9 @@ namespace PlayniteAchievements.Providers.Metadata.Exophase
             }
 
             var hints = request.Data?.MetadataHints;
-            var suffixes = _branch.OwnPlatform ? OwnPageSuffixes(pagePlatform) : _branch.PageSuffixes;
-            var searchPlatforms = _branch.OwnPlatform ? PlatformCandidates(pagePlatform) : _branch.SearchPlatforms;
+            var consoleVersion = ConsoleVersion;
+            var suffixes = _branch.OwnPlatform ? OwnPageSuffixes(pagePlatform) : _branch.PageSuffixes(consoleVersion);
+            var searchPlatforms = _branch.OwnPlatform ? PlatformCandidates(pagePlatform) : _branch.SearchPlatforms(consoleVersion);
             if (_branch.OwnPlatform && hints?.SetTitles?.Count > 0)
             {
                 var slugs = new List<string>();
@@ -193,7 +210,7 @@ namespace PlayniteAchievements.Providers.Metadata.Exophase
                 var chosen = new List<string>();
                 foreach (var slug in choice.Ids)
                 {
-                    chosen.Add(_branch.OwnPlatform ? slug : await PreferredVersionAsync(slug, ct).ConfigureAwait(false));
+                    chosen.Add(_branch.OwnPlatform ? slug : await PreferredVersionAsync(slug, consoleVersion, ct).ConfigureAwait(false));
                 }
 
                 var linkId = MetadataLinkIds.Join(chosen);
@@ -216,7 +233,7 @@ namespace PlayniteAchievements.Providers.Metadata.Exophase
 
             if (!_branch.OwnPlatform)
             {
-                found = await PreferredVersionAsync(found, ct).ConfigureAwait(false);
+                found = await PreferredVersionAsync(found, consoleVersion, ct).ConfigureAwait(false);
             }
 
             _logger?.Debug($"[{Key}Metadata] '{request.Game?.Name}' -> {found}.");
@@ -356,25 +373,28 @@ namespace PlayniteAchievements.Providers.Metadata.Exophase
             return candidates;
         }
 
-        /// <summary>The preferred platform's version of a borrowed page (the PS5 page of a PS4 game), when the page links one that lists awards.</summary>
-        private async Task<string> PreferredVersionAsync(string slug, CancellationToken ct)
+        /// <summary>
+        /// A borrowed page's version on the console the settings prefer (the PS5 page of a PS4
+        /// game for the newest, the PS3 page for the oldest), when the page links one that lists awards.
+        /// </summary>
+        private async Task<string> PreferredVersionAsync(string slug, MetadataConsoleVersion consoleVersion, CancellationToken ct)
         {
-            if (_branch.PreferredPlatform == null)
+            if (!_branch.HasConsoles)
             {
                 return slug;
             }
 
             var page = await _pages.GetPageAsync(slug, _branch.PlatformHint, ct).ConfigureAwait(false);
-            var preferred = (page?.RelatedPages ?? Array.Empty<ExophaseRelatedPage>())
-                .FirstOrDefault(related => string.Equals(related.Platform, _branch.PreferredPlatform, StringComparison.OrdinalIgnoreCase))
-                ?.Slug;
-            if (string.IsNullOrWhiteSpace(preferred) || string.Equals(preferred, slug, StringComparison.OrdinalIgnoreCase))
+            foreach (var preferred in _branch.PreferredVersions(slug, page?.RelatedPages, consoleVersion))
             {
-                return slug;
+                var preferredPage = await _pages.GetPageAsync(preferred.Slug, _branch.PlatformHint, ct).ConfigureAwait(false);
+                if (preferredPage?.Achievements?.Count > 0)
+                {
+                    return preferred.Slug;
+                }
             }
 
-            var preferredPage = await _pages.GetPageAsync(preferred, _branch.PlatformHint, ct).ConfigureAwait(false);
-            return preferredPage?.Achievements?.Count > 0 ? preferred : slug;
+            return slug;
         }
 
         /// <summary>
