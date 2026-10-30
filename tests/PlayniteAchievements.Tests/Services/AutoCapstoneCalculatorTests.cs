@@ -437,6 +437,81 @@ namespace PlayniteAchievements.Tests.Services
             Assert.IsNull(derived.CategoryKind);
         }
 
+        [TestMethod]
+        public void Derive_TagsAreTheUnionOfWhatItStandsFor()
+        {
+            var derived = AutoCapstoneCalculator.Derive(new[]
+            {
+                Tagged("a", "Missable|Collectable"),
+                Tagged("b", "collectible|Challenge"),
+                Tagged("c", null)
+            });
+
+            CollectionAssert.AreEquivalent(
+                new[] { "Missable", "Collectable", "Challenge" },
+                new List<string>(AchievementTagHelper.GetComponents(derived.Tags)));
+        }
+
+        [TestMethod]
+        public void Derive_TagsLeaveOutDerivedKeys()
+        {
+            var derived = AutoCapstoneCalculator.Derive(new[]
+            {
+                Tagged("a", "Hardcore|Challenge"),
+                Tagged("b", "Softcore")
+            });
+
+            Assert.AreEqual("Challenge", derived.Tags);
+        }
+
+        [TestMethod]
+        public void Derive_NoTagsYieldsNull()
+        {
+            Assert.IsNull(AutoCapstoneCalculator.Derive(new[] { Achievement("a"), Achievement("b") }).Tags);
+        }
+
+        [TestMethod]
+        public void Derive_TagsComeOnlyFromTheScope()
+        {
+            var dlc = Tagged("dlc", "Multiplayer");
+            dlc.CategoryKind = CategoryKindHelper.Dlc;
+            var filtered = Tagged("filtered", "Miscellaneous");
+            filtered.IsFiltered = true;
+
+            var derived = AutoCapstoneCalculator.Derive(new[] { Tagged("a", "Challenge"), dlc, filtered });
+
+            Assert.AreEqual("Challenge", derived.Tags);
+        }
+
+        [TestMethod]
+        public void Derive_CategoryCapstoneTakesOnlyItsCategorysTags()
+        {
+            var main = Tagged("a", "Challenge");
+            main.Category = "Main";
+            var extra = Tagged("b", "PostGame");
+            extra.Category = "Extra";
+
+            Assert.AreEqual("PostGame", AutoCapstoneCalculator.Derive(new[] { main, extra }, "Extra").Tags);
+        }
+
+        [TestMethod]
+        public void DeriveForCapstone_IgnoresTheCapstonesOwnTags()
+        {
+            var derived = AutoCapstoneCalculator.DeriveForCapstone(
+                new[] { Tagged("a", "Challenge"), Tagged("capstone", "Missable") },
+                "capstone",
+                isWholeGame: true);
+
+            Assert.AreEqual("Challenge", derived.Tags);
+        }
+
+        private static AchievementDetail Tagged(string apiName, string tags)
+        {
+            var achievement = Achievement(apiName);
+            achievement.Tags = tags;
+            return achievement;
+        }
+
         private static AchievementDetail Achievement(
             string apiName,
             bool unlocked = false,
