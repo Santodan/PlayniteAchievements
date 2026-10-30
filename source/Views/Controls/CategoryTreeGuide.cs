@@ -41,7 +41,8 @@ namespace PlayniteAchievements.Views.Controls
         /// <summary>
         /// Never take more than this share of the cell. The name column can be dragged down to its
         /// MinWidth, and a guide sized purely by depth would leave nothing for the name; past this
-        /// the guide clips instead, losing outer lanes rather than the label.
+        /// the guide clips instead, losing outer lanes rather than the label. Lifted by
+        /// <see cref="FillsCell"/>, when the cell has no label to protect.
         /// </summary>
         private const double MaxCellWidthShare = 0.5d;
 
@@ -67,6 +68,23 @@ namespace PlayniteAchievements.Views.Controls
         {
             get => (CategoryTreeShape)GetValue(ShapeProperty);
             set => SetValue(ShapeProperty, value);
+        }
+
+        /// <summary>
+        /// Lets the guide take the whole cell rather than <see cref="MaxCellWidthShare"/> of it,
+        /// for a cell that shows the guide without a name.
+        /// </summary>
+        public static readonly DependencyProperty FillsCellProperty =
+            DependencyProperty.Register(
+                nameof(FillsCell),
+                typeof(bool),
+                typeof(CategoryTreeGuide),
+                new FrameworkPropertyMetadata(false, FrameworkPropertyMetadataOptions.AffectsMeasure));
+
+        public bool FillsCell
+        {
+            get => (bool)GetValue(FillsCellProperty);
+            set => SetValue(FillsCellProperty, value);
         }
 
         public static readonly DependencyProperty LineBrushProperty =
@@ -248,7 +266,7 @@ namespace PlayniteAchievements.Views.Controls
             if (!double.IsInfinity(availableSize.Width) && availableSize.Width > 0d)
             {
                 // The width cap protects the name label from a deep guide.
-                width = Math.Min(width, availableSize.Width * MaxCellWidthShare);
+                width = Math.Min(width, availableSize.Width * (FillsCell ? 1d : MaxCellWidthShare));
             }
 
             // Zero desired height: the row decides how tall it is, and the guide stretches into it.
