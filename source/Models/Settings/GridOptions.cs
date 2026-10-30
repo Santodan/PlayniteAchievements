@@ -751,8 +751,7 @@ namespace PlayniteAchievements.Models.Settings
             set => SetValue(ref _showMetadataPoints, value);
         }
 
-        // Leaves only the tree guide in the name cell of nested category rows; a row without a
-        // guide (flat, searched or sorted list) keeps its name.
+        // Leaves only the tree guide in the category name cell, so a row without one is blank.
         public bool ShowTreeOnly
         {
             get => _showTreeOnly;
