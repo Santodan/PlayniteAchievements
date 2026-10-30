@@ -79,6 +79,7 @@
       "ShowMetadataTotal": "value",
       "ShowNameAboveProgress": "value",
       "ShowRarityBadgesBelowProgress": "value",
+      "ShowTreeOnly": "value",
       "UseCoverImages": "value"
     },
     "ColorPackFile": {
