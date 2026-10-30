@@ -9199,6 +9199,9 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 Hidden = Hidden,
                 IsAutoCapstone = IsAutoCapstone,
                 IsWholeGameAutoCapstone = IsAutoCapstone && IsWholeGameAutoCapstone,
+                // The definition's own tags, which the row reads as its provider's; the user's tag
+                // edits are stored as overrides on top, so dropping these would blank them.
+                Tags = AchievementTagHelper.Normalize(ProviderTagsValue),
                 // A stored definition always carries a rarity, whichever row built it.
                 Rarity = ManageAchievements.AchievementEditorFieldRules.NormalizeAuthoredRarity(Rarity, isBulkRow: false)
             };
