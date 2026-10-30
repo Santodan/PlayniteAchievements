@@ -238,6 +238,8 @@ namespace PlayniteAchievements.Services.Overview
                     TrophyBronzeTotal = game.TrophyBronzeTotal,
                     Tallies = game.Tallies,
                     LastPlayed = presentation.LastPlayed,
+                    Added = presentation.Game?.Added,
+                    ReleaseDate = presentation.Game?.ReleaseDate?.Date,
                     LastUnlockUtc = game.LastUnlockUtc,
                     IsCompleted = game.IsCompleted,
                     CapstoneTotal = game.CapstoneTotal,
