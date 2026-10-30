@@ -351,8 +351,14 @@ namespace PlayniteAchievements.ViewModels
                 OverviewLinkedFilter.UnlockSpan | OverviewLinkedFilter.Rarity | OverviewLinkedFilter.Trophy |
                 OverviewLinkedFilter.Tag;
             var key = (narrowTo.HasValue ? exclude & achievementFilters : exclude, narrowTo, countsGames);
-            // Whole games are not cut, so for them the filters matter only through the games kept.
-            var filterKey = countsGames ? string.Empty : AchievementFilterKey(exclude);
+            // Whole games are not cut, so for them the filters matter only through the games kept,
+            // except the unlock range, which cuts their completions to the ones finished in it.
+            var completionSpan = countsGames && !narrowTo.HasValue && (exclude & OverviewLinkedFilter.UnlockSpan) == 0
+                ? UnlockSpanFilter
+                : null;
+            var filterKey = countsGames
+                ? (completionSpan.HasValue ? completionSpan.Value.Start.Ticks + "-" + completionSpan.Value.End.Ticks : string.Empty)
+                : AchievementFilterKey(exclude);
             _linkedSnapshots.TryGetValue(key, out var entry);
             if (entry != null && entry.IsCurrent)
             {
@@ -394,7 +400,11 @@ namespace PlayniteAchievements.ViewModels
                 context: exclude + (countsGames ? " games" : string.Empty)))
             {
                 snapshot = OverviewLinkedSnapshots.Build(source, kept, keptIsAll);
-                if (filterKey.Length > 0)
+                if (completionSpan.HasValue)
+                {
+                    snapshot = OverviewLinkedSnapshots.ClipCompletionsToSpan(snapshot, completionSpan.Value);
+                }
+                else if (!countsGames && filterKey.Length > 0)
                 {
                     snapshot = OverviewLinkedSnapshots.ClipToAchievements(snapshot, AchievementFilter(exclude));
                 }
