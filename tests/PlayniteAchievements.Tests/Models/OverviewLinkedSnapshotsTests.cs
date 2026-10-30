@@ -191,6 +191,35 @@ namespace PlayniteAchievements.Tests.Models
         }
 
         [TestMethod]
+        public void ClipToAchievements_CountsUndatedUnlocksWithoutDayCounts()
+        {
+            var source = CreateSource();
+            var when = new DateTime(2026, 3, 1, 12, 0, 0, DateTimeKind.Utc);
+            source.Achievements = new List<PlayniteAchievements.ViewModels.AchievementDisplayItem>
+            {
+                new PlayniteAchievements.ViewModels.AchievementDisplayItem
+                {
+                    PlayniteGameId = GameA, Unlocked = true, UnlockTimeUtc = when, Tags = "Unobtainable"
+                },
+                new PlayniteAchievements.ViewModels.AchievementDisplayItem
+                {
+                    PlayniteGameId = GameB, Unlocked = true, Tags = "Unobtainable"
+                },
+                new PlayniteAchievements.ViewModels.AchievementDisplayItem
+                {
+                    PlayniteGameId = GameB, Unlocked = false, Tags = "Unobtainable"
+                }
+            };
+
+            var clipped = OverviewLinkedSnapshots.ClipToAchievements(source, item => item.Tags == "Unobtainable");
+
+            Assert.AreEqual(2, clipped.TotalUnlocked);
+            Assert.AreEqual(1, clipped.GlobalUnlockCountsByDate.Values.Sum());
+            Assert.IsFalse(clipped.UnlockCountsByDateByGame.ContainsKey(GameB));
+            Assert.AreEqual(1, clipped.UnlockedByProvider["Epic"]);
+        }
+
+        [TestMethod]
         public void ClipCompletionsToSpan_CountsOnlyCompletionsFinishedInRangeWithNoRemainder()
         {
             var (source, span, _, inRangeGame, _) = CreateCompletionSource();
