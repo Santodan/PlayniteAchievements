@@ -306,17 +306,12 @@
                                                         LineBrush="{DynamicResource PlayAch.Brush.Text.Secondary}"
                                                         NodeBrush="{DynamicResource PlayAch.Brush.Accent}"/>
                           <ContentControl>
-                            <!-- Show Tree Only leaves just the guide on nested rows. A row with
-                                 no guide (flat, searched or sorted list) keeps its name, so the
-                                 later trigger wins there and the cell is never blank. -->
+                            <!-- Show Tree Only leaves just the guide; a row without one is blank. -->
                             <ContentControl.Style>
                                 <Style TargetType="ContentControl" BasedOn="{StaticResource OverviewCellFrameStyle}">
                                     <Style.Triggers>
                                         <DataTrigger Binding="{Binding ShowTreeOnly, RelativeSource={RelativeSource AncestorType=controls:GameSummariesGridControl}}" Value="True">
                                             <Setter Property="Visibility" Value="Collapsed"/>
-                                        </DataTrigger>
-                                        <DataTrigger Binding="{Binding TreeShape}" Value="{x:Null}">
-                                            <Setter Property="Visibility" Value="Visible"/>
                                         </DataTrigger>
                                     </Style.Triggers>
                                 </Style>
