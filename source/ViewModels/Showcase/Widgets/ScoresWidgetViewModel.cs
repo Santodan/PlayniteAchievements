@@ -27,6 +27,15 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
             value => value.ToString("N0", FormattingCulture.Current);
 
         private ScoreCardBadgePosition _badgePosition;
+        private ChartValues<int> _historyValues;
+        private IList<string> _historyLabels;
+        private bool _showChart;
+        private string _historyCaption;
+        private string _historyStartText;
+        private string _historyEndText;
+        private double _historyMinValue;
+        private double _historyAxisMax;
+        private SectionsCollection _tierSections;
 
         public ScoreCardWithHistoryViewModel(
             ScoreCardViewModel card,
@@ -39,25 +48,52 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
             string historyEndText)
         {
             Card = card;
-            HistoryValues = historyValues;
-            HistoryLabels = historyLabels;
+            Update(currentScore, historyValues, historyLabels, showChart, historyCaption, historyStartText, historyEndText);
+        }
+
+        public ScoreCardViewModel Card { get; }
+
+        /// <summary>
+        /// Shows a new score and history on the same card, so a refresh updates the card in place
+        /// rather than swapping it out. Null <paramref name="historyValues"/> and
+        /// <paramref name="historyLabels"/> keep the series the chart already plots.
+        /// </summary>
+        public void Update(
+            int currentScore,
+            ChartValues<int> historyValues,
+            IList<string> historyLabels,
+            bool showChart,
+            string historyCaption,
+            string historyStartText,
+            string historyEndText)
+        {
+            if (historyValues != null)
+            {
+                HistoryValues = historyValues;
+            }
+
+            if (historyLabels != null)
+            {
+                HistoryLabels = historyLabels;
+            }
+
             ShowChart = showChart;
             HistoryCaption = historyCaption;
             HistoryStartText = historyStartText;
             HistoryEndText = historyEndText;
-            var hasHistory = historyValues != null && historyValues.Count > 0;
-            var windowMin = hasHistory ? historyValues.Min() : currentScore;
-            var windowMax = hasHistory ? historyValues.Max() : currentScore;
+
+            var values = HistoryValues;
+            var hasHistory = values != null && values.Count > 0;
+            var windowMin = hasHistory ? values.Min() : currentScore;
+            var windowMax = hasHistory ? values.Max() : currentScore;
             // Points cards have no tiers, so their chart has no tier lines.
-            var frame = card?.ScoreType.IsPoints == true
+            var frame = Card?.ScoreType.IsPoints == true
                 ? ScoreHistoryAxis.FrameWithoutTiers(currentScore, windowMin, windowMax)
                 : ScoreHistoryAxis.Frame(currentScore, windowMin, windowMax);
             HistoryMinValue = frame.Min;
             HistoryAxisMax = frame.Max;
-            TierSections = BuildSections(frame, card?.AccentBrush, card?.NextTierAccentBrush);
+            TierSections = BuildSections(frame, Card?.AccentBrush, Card?.NextTierAccentBrush);
         }
-
-        public ScoreCardViewModel Card { get; }
 
         /// <summary>
         /// Set in place by the widget, so flipping a side re-binds the card instead of
@@ -69,14 +105,22 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
             set => SetValue(ref _badgePosition, value);
         }
 
-        public ChartValues<int> HistoryValues { get; }
+        public ChartValues<int> HistoryValues
+        {
+            get => _historyValues;
+            private set => SetValue(ref _historyValues, value);
+        }
 
         /// <summary>
         /// Bottom of the mini chart's Y axis: the window's first value, so the chart height is
         /// spent on score gained inside the window rather than on the already-earned total. When
         /// nothing was earned it drops to the current tier's start instead.
         /// </summary>
-        public double HistoryMinValue { get; }
+        public double HistoryMinValue
+        {
+            get => _historyMinValue;
+            private set => SetValue(ref _historyMinValue, value);
+        }
 
         /// <summary>
         /// Top of the mini chart's Y axis: the window's last value plus headroom, so the line
@@ -84,14 +128,22 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
         /// tier's start when that lies within the headroom, and frames the whole tier when
         /// nothing was earned. NaN (auto) only when no next tier exists.
         /// </summary>
-        public double HistoryAxisMax { get; }
+        public double HistoryAxisMax
+        {
+            get => _historyAxisMax;
+            private set => SetValue(ref _historyAxisMax, value);
+        }
 
         /// <summary>
         /// At most two horizontal reference lines: a solid hairline in the card's accent where the
         /// current tier began, and a dashed line in the next tier's accent at the next tier when the
         /// ceiling snapped to it. See <see cref="ScoreHistoryAxis"/>.
         /// </summary>
-        public SectionsCollection TierSections { get; }
+        public SectionsCollection TierSections
+        {
+            get => _tierSections;
+            private set => SetValue(ref _tierSections, value);
+        }
 
         public Func<double, string> YLabelFormatter => AxisLabelFormatter;
 
@@ -128,15 +180,35 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
         }
 
         /// <summary>Per-point date labels; hidden on the axis, surfaced by the hover tooltip.</summary>
-        public IList<string> HistoryLabels { get; }
+        public IList<string> HistoryLabels
+        {
+            get => _historyLabels;
+            private set => SetValue(ref _historyLabels, value);
+        }
 
-        public bool ShowChart { get; }
+        public bool ShowChart
+        {
+            get => _showChart;
+            private set => SetValue(ref _showChart, value);
+        }
 
-        public string HistoryCaption { get; }
+        public string HistoryCaption
+        {
+            get => _historyCaption;
+            private set => SetValue(ref _historyCaption, value);
+        }
 
-        public string HistoryStartText { get; }
+        public string HistoryStartText
+        {
+            get => _historyStartText;
+            private set => SetValue(ref _historyStartText, value);
+        }
 
-        public string HistoryEndText { get; }
+        public string HistoryEndText
+        {
+            get => _historyEndText;
+            private set => SetValue(ref _historyEndText, value);
+        }
     }
 
     /// <summary>
@@ -287,6 +359,7 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
                 return;
             }
 
+            var historyChanged = !ReferenceEquals(_builtHistory, history) || _builtType != type;
             _builtHistory = history;
             _builtSnapshot = new WeakReference<OverviewDataSnapshot>(snapshot);
             _builtType = type;
@@ -304,6 +377,24 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
 
             var uniformBadges = PlayniteAchievementsPlugin.Instance?.Settings?.Persisted?
                 .UseUniformRarityBadges ?? false;
+
+            // A new snapshot (every refresh tick) updates the card already shown, so its numbers
+            // move in place and its chart re-plots only when the history itself changed.
+            if (Cards.Count == 1)
+            {
+                var shown = Cards[0];
+                shown.Card.ApplyFor(type, snapshot, uniformBadges);
+                shown.Update(
+                    snapshot.GetScore(type),
+                    historyChanged ? new ChartValues<int>(history.Select(point => point.GetScore(type))) : null,
+                    historyChanged ? historyLabels : null,
+                    showChart,
+                    rangeCaption,
+                    historyStart,
+                    historyEnd);
+                return;
+            }
+
             var card = new ScoreCardViewModel(type);
             card.SetUseCustomColors(useCustomColors);
             card.SetShowTotal(showTotal);
