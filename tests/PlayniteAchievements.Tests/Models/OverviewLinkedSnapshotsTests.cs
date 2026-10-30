@@ -191,6 +191,40 @@ namespace PlayniteAchievements.Tests.Models
         }
 
         [TestMethod]
+        public void ClipCompletionsToSpan_CountsOnlyCompletionsFinishedInRangeWithNoRemainder()
+        {
+            var (source, span, _, inRangeGame, _) = CreateCompletionSource();
+
+            var clipped = OverviewLinkedSnapshots.ClipCompletionsToSpan(source, span);
+
+            // One of the capstone game's two capstones, plus the game that reached 100% in range.
+            Assert.AreEqual(2, clipped.Completions);
+            Assert.AreEqual(2, clipped.PossibleCompletions);
+            Assert.AreEqual(1, clipped.CompletedGames);
+            Assert.AreEqual(span, clipped.CompletionSpan);
+            Assert.AreEqual(3, clipped.TotalGames);
+            Assert.IsNull(source.CompletionSpan);
+            CollectionAssert.AreEquivalent(
+                new[] { inRangeGame },
+                OverviewLinkedSnapshots.GamesCompletedDuring(source, span).ToList());
+        }
+
+        [TestMethod]
+        public void NarrowToGames_KeepsACompletionClipCut()
+        {
+            var (source, span, capstoneGame, _, _) = CreateCompletionSource();
+            var clipped = OverviewLinkedSnapshots.ClipCompletionsToSpan(source, span);
+            var kept = clipped.GameSummaries.Where(game => game.PlayniteGameId == capstoneGame).ToList();
+
+            var narrowed = OverviewLinkedSnapshots.NarrowToGames(clipped, kept);
+
+            Assert.AreEqual(span, narrowed.CompletionSpan);
+            Assert.AreEqual(1, narrowed.Completions);
+            Assert.AreEqual(1, narrowed.PossibleCompletions);
+            Assert.AreEqual(0, narrowed.CompletedGames);
+        }
+
+        [TestMethod]
         public void UnlockDaySpan_OrdersItsEndsAndIgnoresTimeOfDay()
         {
             var span = new UnlockDaySpan(March20.AddHours(15), March1.AddHours(9));
@@ -215,6 +249,63 @@ namespace PlayniteAchievements.Tests.Models
             Assert.IsTrue(OverviewLinkedSnapshots.NarrowsTo(rarity, OverviewLinkedSelection.WhenRarityData));
             Assert.IsFalse(OverviewLinkedSnapshots.NarrowsTo(rarity, OverviewLinkedSelection.WhenTrophyData));
             Assert.IsTrue(OverviewLinkedSnapshots.NarrowsTo(trophy, OverviewLinkedSelection.WhenTrophyData));
+        }
+
+        // A game finished by two capstones, one unlocked in range and the last after it; a game
+        // without capstones that reached 100% in range; and one that reached it before.
+        private static (OverviewDataSnapshot Source, UnlockDaySpan Span, Guid CapstoneGame, Guid InRangeGame, Guid OutOfRangeGame)
+            CreateCompletionSource()
+        {
+            var capstoneGame = Guid.NewGuid();
+            var inRangeGame = Guid.NewGuid();
+            var outOfRangeGame = Guid.NewGuid();
+            var inRange = new DateTime(2026, 3, 1, 12, 0, 0, DateTimeKind.Utc);
+            var after = new DateTime(2026, 6, 1, 12, 0, 0, DateTimeKind.Utc);
+            var before = new DateTime(2025, 6, 1, 12, 0, 0, DateTimeKind.Utc);
+            var games = new List<GameSummaryItem>
+            {
+                new GameSummaryItem
+                {
+                    PlayniteGameId = capstoneGame, ProviderKey = "Steam", IsCompleted = true,
+                    CapstoneTotal = 2, CapstoneUnlocked = 2, TotalAchievements = 5, UnlockedAchievements = 4
+                },
+                new GameSummaryItem
+                {
+                    PlayniteGameId = inRangeGame, ProviderKey = "Epic", IsCompleted = true,
+                    TotalAchievements = 2, UnlockedAchievements = 2
+                },
+                new GameSummaryItem
+                {
+                    PlayniteGameId = outOfRangeGame, ProviderKey = "Epic", IsCompleted = true,
+                    TotalAchievements = 1, UnlockedAchievements = 1
+                }
+            };
+            var snapshot = OverviewDataSnapshot.FromGameSummaries(games);
+            snapshot.Achievements = new List<PlayniteAchievements.ViewModels.AchievementDisplayItem>
+            {
+                new PlayniteAchievements.ViewModels.AchievementDisplayItem
+                {
+                    PlayniteGameId = capstoneGame, ApiName = "c1", Unlocked = true, IsCapstone = true, UnlockTimeUtc = inRange
+                },
+                new PlayniteAchievements.ViewModels.AchievementDisplayItem
+                {
+                    PlayniteGameId = capstoneGame, ApiName = "c2", Unlocked = true, IsCapstone = true, UnlockTimeUtc = after
+                },
+                new PlayniteAchievements.ViewModels.AchievementDisplayItem
+                {
+                    PlayniteGameId = inRangeGame, ApiName = "a", Unlocked = true, UnlockTimeUtc = before
+                },
+                new PlayniteAchievements.ViewModels.AchievementDisplayItem
+                {
+                    PlayniteGameId = inRangeGame, ApiName = "b", Unlocked = true, UnlockTimeUtc = inRange
+                },
+                new PlayniteAchievements.ViewModels.AchievementDisplayItem
+                {
+                    PlayniteGameId = outOfRangeGame, ApiName = "a", Unlocked = true, UnlockTimeUtc = before
+                }
+            };
+            var day = UnlockDayCounts.DayOf(inRange);
+            return (snapshot, new UnlockDaySpan(day.AddDays(-1), day.AddDays(1)), capstoneGame, inRangeGame, outOfRangeGame);
         }
 
         private static OverviewDataSnapshot CreateSource()
