@@ -358,6 +358,8 @@ namespace PlayniteAchievements.Services.Database
             public string IconPath { get; set; }
             public string CoverPath { get; set; }
             public DateTime? LastPlayed { get; set; }
+            public DateTime? Added { get; set; }
+            public DateTime? ReleaseDate { get; set; }
             public string PlatformText { get; set; }
             public IReadOnlyList<string> Platforms { get; set; } = Array.Empty<string>();
             public string RegionText { get; set; }
@@ -979,6 +981,8 @@ namespace PlayniteAchievements.Services.Database
                     ? ResolvePlayniteAssetPath(playniteGame.CoverImage)
                     : null,
                 LastPlayed = playniteGame?.LastActivity,
+                Added = playniteGame?.Added,
+                ReleaseDate = playniteGame?.ReleaseDate?.Date,
                 PlatformText = PlayniteGameMetadataFormatter.GetPlatformText(playniteGame),
                 Platforms = PlayniteGameMetadataFormatter.GetPlatformNames(playniteGame),
                 RegionText = PlayniteGameMetadataFormatter.GetRegionText(playniteGame),
@@ -4762,7 +4766,9 @@ namespace PlayniteAchievements.Services.Database
                         RegionText = presentation.RegionText,
                         PlaytimeSeconds = presentation.PlaytimeSeconds,
                         LastPlayed = presentation.LastPlayed,
-                        FriendCount = (int)Math.Max(0, row.FriendCount),
+                        Added = presentation.Added,
+                        ReleaseDate = presentation.ReleaseDate,
+                        FriendCount =(int)Math.Max(0, row.FriendCount),
                         FriendsWithUnlocksCount = (int)Math.Max(0, row.FriendsWithUnlocksCount),
                         FriendUnlockedAchievementsCount = (int)Math.Max(0, row.UnlockedAchievementsCount),
                         UniqueFriendUnlockedAchievementsCount = (int)Math.Max(0, row.UniqueUnlockedAchievementsCount),
