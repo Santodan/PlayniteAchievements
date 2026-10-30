@@ -302,6 +302,7 @@
                                                         Shape="{Binding TreeShape}"
                                                         IsCollapsed="{Binding IsCollapsed}"
                                                         ShowCollapseToggle="{Binding ShowCategoryCollapseToggles, RelativeSource={RelativeSource AncestorType=controls:GameSummariesGridControl}}"
+                                                        FillsCell="{Binding ShowTreeOnly, RelativeSource={RelativeSource AncestorType=controls:GameSummariesGridControl}}"
                                                         ToggleHoverBackgroundBrush="{DynamicResource PlayAch.Brush.Grid.RowHoverBackground}"
                                                         LineBrush="{DynamicResource PlayAch.Brush.Text.Secondary}"
                                                         NodeBrush="{DynamicResource PlayAch.Brush.Accent}"/>
