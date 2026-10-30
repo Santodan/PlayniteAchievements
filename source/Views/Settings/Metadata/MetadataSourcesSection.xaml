@@ -2,6 +2,8 @@
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:local="clr-namespace:PlayniteAchievements.Views.Settings.Metadata"
+             xmlns:controls="clr-namespace:PlayniteAchievements.Views.Controls"
+             xmlns:settings="clr-namespace:PlayniteAchievements.Models.Settings"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              mc:Ignorable="d"
@@ -20,6 +22,18 @@
         <!-- The Metadata tab's Sources page: the grid fills the page and scrolls itself. -->
                 <Border Style="{StaticResource SectionBorderStyle}">
                     <DockPanel LastChildFill="True">
+                        <controls:SettingRow DockPanel.Dock="Top"
+                                             Label="{DynamicResource LOCPlayAch_Settings_Metadata_ConsoleVersion}"
+                                             Hint="{DynamicResource LOCPlayAch_Settings_Metadata_ConsoleVersionHint}"
+                                             Margin="{StaticResource PlayAch.Thickness.Bottom.Md}">
+                            <ComboBox SelectedValue="{Binding Settings.Persisted.MetadataConsoleVersion, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                      SelectedValuePath="Tag"
+                                      MinWidth="140">
+                                <ComboBoxItem Content="{DynamicResource LOCPlayAch_Workshop_SortNewest}" Tag="{x:Static settings:MetadataConsoleVersion.Newest}"/>
+                                <ComboBoxItem Content="{DynamicResource LOCPlayAch_Common_Oldest}" Tag="{x:Static settings:MetadataConsoleVersion.Oldest}"/>
+                            </ComboBox>
+                        </controls:SettingRow>
+
                         <TextBlock DockPanel.Dock="Top"
                                    Text="{DynamicResource LOCPlayAch_Settings_Metadata_Sources}"
                                    Style="{StaticResource SectionHeaderStyle}"
