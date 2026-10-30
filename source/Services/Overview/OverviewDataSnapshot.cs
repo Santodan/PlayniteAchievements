@@ -42,6 +42,13 @@ namespace PlayniteAchievements.Services.Overview
         public bool IsAchievementClip { get; set; }
 
         /// <summary>
+        /// Set when this snapshot's completions count only those finished inside this span
+        /// (see <see cref="OverviewLinkedSnapshots.ClipCompletionsToSpan"/>), with no remainder of
+        /// completions still possible; null when completions are counted whole.
+        /// </summary>
+        public UnlockDaySpan? CompletionSpan { get; set; }
+
+        /// <summary>
         /// The widget achievement filter this snapshot's achievement totals were counted through
         /// (see <see cref="OverviewLinkedSnapshots.FilterAchievements"/>); null when every
         /// achievement counts. A count over the games' tallies applies it too.
