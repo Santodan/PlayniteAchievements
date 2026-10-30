@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using PlayniteAchievements.Models;
 using PlayniteAchievements.Models.Achievements;
+using PlayniteAchievements.Models.Achievements.Scoring;
 using PlayniteAchievements.Providers;
 using PlayniteAchievements.Services;
 using PlayniteAchievements.Services.Achievements;
@@ -108,6 +109,7 @@ namespace PlayniteAchievements.Services.Summaries
                 CapstonesMatchPlatinums = capstoneCounts.CapstonesMatchPlatinums,
                 Provider = providerName,
                 ProviderKey = providerKey,
+                PointsFamily = PointsFamilies.FromProviderKey(providerKey),
                 ProviderIconKey = providerMetadata.iconKey,
                 ProviderColorHex = providerMetadata.colorHex
             };
