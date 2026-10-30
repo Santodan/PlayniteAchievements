@@ -99,6 +99,8 @@ namespace PlayniteAchievements.Services.Summaries
                 ProviderGameKey = gameData.ProviderGameKey,
                 PlayniteGameId = gameData.PlayniteGameId,
                 LastPlayed = presentation.LastPlayed,
+                Added = presentation.Game?.Added,
+                ReleaseDate = presentation.Game?.ReleaseDate?.Date,
                 IsCompleted = gameData.IsCompleted,
                 ShowsRarity = gameData.ShowsRarity,
                 CapstoneTotal = capstoneCounts.Total,
