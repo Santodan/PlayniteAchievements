@@ -3305,6 +3305,7 @@ namespace PlayniteAchievements.Models.Settings
                 MetadataDefaults = (this.MetadataDefaults ?? MetadataChoices.CreateDefaults()).Clone(),
                 MetadataPlatformChoices = ClonePlatformChoices(this.MetadataPlatformChoices),
                 MetadataChoicesSeeded = this.MetadataChoicesSeeded,
+                MetadataConsoleVersion = this.MetadataConsoleVersion,
                 InGamePollIntervalSeconds = this.InGamePollIntervalSeconds,
                 InGamePollRefreshFriends = this.InGamePollRefreshFriends,
                 InGameFriendRefreshMultiplier = this.InGameFriendRefreshMultiplier,
