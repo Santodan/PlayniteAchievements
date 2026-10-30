@@ -37,7 +37,7 @@ namespace PlayniteAchievements.Views.Settings.Controls
             bool showDateModeRow = true,
             bool showMetadataRows = true,
             bool showCompletionGlowRow = true,
-            bool showGameSortPinOrderChoice = false)
+            bool showWidgetGameSortChoices = false)
         {
             ShowColumnHeadersRow = showColumnHeadersRow;
             ShowControlBarRow = showControlBarRow;
@@ -52,7 +52,7 @@ namespace PlayniteAchievements.Views.Settings.Controls
             ShowDateModeRow = showDateModeRow;
             ShowMetadataRows = showMetadataRows;
             ShowCompletionGlowRow = showCompletionGlowRow;
-            ShowGameSortPinOrderChoice = showGameSortPinOrderChoice;
+            ShowWidgetGameSortChoices = showWidgetGameSortChoices;
         }
 
         public bool ShowColumnHeadersRow { get; }
@@ -68,7 +68,7 @@ namespace PlayniteAchievements.Views.Settings.Controls
         public bool ShowDateModeRow { get; }
         public bool ShowMetadataRows { get; }
         public bool ShowCompletionGlowRow { get; }
-        public bool ShowGameSortPinOrderChoice { get; }
+        public bool ShowWidgetGameSortChoices { get; }
     }
 
     /// <summary>
@@ -172,11 +172,12 @@ namespace PlayniteAchievements.Views.Settings.Controls
 
                 // Showcase and start page widget game grids, matched on their base key. This is the
                 // one surface whose source order is user-controlled (a pinned-games grid), so it
-                // offers the order-preserving PinOrder sort choice. Control bar items are shown
-                // per item from the widget's settings.
+                // offers the order-preserving PinOrder sort choice, along with the widget-only
+                // library and remaining-count sorts. Control bar items are shown per item from
+                // the widget's settings.
                 [ShowcaseGridSurfaces.GameSummaries] = new GridDisplayRowCapabilities(
                     showControlBarRow: false,
-                    showGameSortPinOrderChoice: true)
+                    showWidgetGameSortChoices: true)
             };
 
         private static readonly Dictionary<string, GridDisplayRowCapabilities> FriendSummarySurfaces =
