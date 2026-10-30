@@ -56,6 +56,18 @@ namespace PlayniteAchievements.Tests.Providers
         }
 
         [DataTestMethod]
+        [DataRow("ps3", "PS3")]
+        [DataRow("PSVITA", "PS Vita")]
+        [DataRow("xbox-360", "Xbox 360")]
+        [DataRow("psn", null)]
+        [DataRow("steam", null)]
+        [DataRow(null, null)]
+        public void ExophasePlatformName_NamesOnlyOneConsoleSlugs(string platformSlug, string platform)
+        {
+            Assert.AreEqual(platform, PlayniteAchievements.Providers.Metadata.Exophase.ExophaseMetadataBranch.PlatformName(platformSlug));
+        }
+
+        [DataTestMethod]
         [DataRow("Fallout-4", "Fallout-4")]
         [DataRow(" /game/Fallout-4/achievements ", "Fallout-4")]
         [DataRow("https://www.truetrophies.com/game/Elden-Ring-PS5/trophies", "Elden-Ring")]
