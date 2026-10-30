@@ -215,6 +215,10 @@ namespace PlayniteAchievements.Services.Achievements
                 updated.GlobalPercentUnlocked = derived.GlobalPercentUnlocked;
                 updated.Rarity = derived.Rarity ?? updated.Rarity;
 
+                // The tags of what it stands for, as its own baseline: a tag the user set on the
+                // capstone itself is an override and still wins over these.
+                updated.Tags = derived.Tags;
+
                 // Capstones authored, or imported, before they carried a kind sat without one beside a
                 // game of kind Base. A kind of their own is left alone.
                 if (derived.CategoryKind != null && CategoryKindHelper.Normalize(current.CategoryKind) == null)
@@ -303,7 +307,11 @@ namespace PlayniteAchievements.Services.Achievements
                    !Nullable.Equals(current.UnlockTimeUtc, updated.UnlockTimeUtc) ||
                    !Nullable.Equals(current.GlobalPercentUnlocked, updated.GlobalPercentUnlocked) ||
                    !string.Equals(current.Rarity, updated.Rarity, StringComparison.OrdinalIgnoreCase) ||
-                   !string.Equals(current.CategoryKind, updated.CategoryKind, StringComparison.OrdinalIgnoreCase);
+                   !string.Equals(current.CategoryKind, updated.CategoryKind, StringComparison.OrdinalIgnoreCase) ||
+                   !string.Equals(
+                       AchievementTagHelper.Normalize(current.Tags),
+                       AchievementTagHelper.Normalize(updated.Tags),
+                       StringComparison.OrdinalIgnoreCase);
         }
 
         /// <summary>
