@@ -21,12 +21,12 @@ namespace PlayniteAchievements.Providers.Metadata.Exophase
     /// </summary>
     internal sealed class ExophaseMetadataProviders : IMetadataProviderFamily
     {
-        public ExophaseMetadataProviders(IPlayniteAPI api, PlayniteAchievementsSettings settings, ILogger logger)
+        public ExophaseMetadataProviders(IPlayniteAPI api, PlayniteAchievementsSettings settings, ILogger logger, MetadataStateStore state)
         {
             var pages = new ExophasePageSource(api, settings, logger);
             Providers = ExophaseMetadataBranch.All
                 .Select(branch => (IMetadataProvider)new ExophaseMetadataProvider(
-                    branch, pages, logger, () => settings?.Persisted?.MetadataConsoleVersion ?? MetadataConsoleVersion.Newest))
+                    branch, pages, logger, () => settings?.Persisted?.MetadataConsoleVersion ?? MetadataConsoleVersion.Newest, state?.Pages(branch.Key)))
                 .ToList();
         }
 
@@ -53,17 +53,22 @@ namespace PlayniteAchievements.Providers.Metadata.Exophase
         private readonly ExophasePageSource _pages;
         private readonly ILogger _logger;
         private readonly Func<MetadataConsoleVersion> _consoleVersion;
+        // Each page's own platform, by page slug, for pages whose slug does not name it.
+        private readonly MetadataSourcePageStore _pagePlatforms;
+        private const string PagePlatformsName = "platform";
 
         internal ExophaseMetadataProvider(
             ExophaseMetadataBranch branch,
             ExophasePageSource pages,
             ILogger logger,
-            Func<MetadataConsoleVersion> consoleVersion = null)
+            Func<MetadataConsoleVersion> consoleVersion = null,
+            MetadataSourcePageStore pagePlatforms = null)
         {
             _branch = branch ?? throw new ArgumentNullException(nameof(branch));
             _pages = pages;
             _logger = logger;
             _consoleVersion = consoleVersion;
+            _pagePlatforms = pagePlatforms;
         }
 
         private MetadataConsoleVersion ConsoleVersion => _consoleVersion?.Invoke() ?? MetadataConsoleVersion.Newest;
@@ -432,6 +437,11 @@ namespace PlayniteAchievements.Providers.Metadata.Exophase
             }
 
             var page = await _pages.GetPageAsync(slug, platformSlug, ct).ConfigureAwait(false);
+            if (!string.IsNullOrWhiteSpace(page?.PlatformSlug))
+            {
+                _pagePlatforms?.Set(request?.Game?.Id ?? Guid.Empty, PagePlatformsName, slug, page.PlatformSlug);
+            }
+
             var rows = page?.Achievements ?? new List<AchievementDetail>();
             var categoryArt = new Dictionary<string, string>(CategoryPathHelper.LabelComparer);
             var gameArt = page?.GameArtUrl;
@@ -551,9 +561,23 @@ namespace PlayniteAchievements.Providers.Metadata.Exophase
                 .Distinct(StringComparer.OrdinalIgnoreCase);
         }
 
-        /// <summary>The console the list's page slug names, for a borrowed platform's list; the own platform's needs none.</summary>
-        public string ShownPlatform(Guid gameId, string linkId) =>
-            _branch.OwnPlatform ? null : ExophaseMetadataBranch.PlatformOfSlug(PageSlug(linkId));
+        /// <summary>
+        /// The console of a borrowed platform's list: the page's own, as recorded when it was last
+        /// read, else the one its slug names. The own platform's list needs none.
+        /// </summary>
+        public string ShownPlatform(Guid gameId, string linkId)
+        {
+            if (_branch.OwnPlatform)
+            {
+                return null;
+            }
+
+            var slug = PageSlug(linkId);
+            var recorded = slug != null && _pagePlatforms != null && _pagePlatforms.TryGet(gameId, PagePlatformsName, slug, out var platformSlug)
+                ? ExophaseMetadataBranch.PlatformName(platformSlug)
+                : null;
+            return recorded ?? ExophaseMetadataBranch.PlatformOfSlug(slug);
+        }
 
         /// <summary>The page slug one list of a link names; a full page address is accepted. Null when blank.</summary>
         internal static string PageSlug(string linkId)
