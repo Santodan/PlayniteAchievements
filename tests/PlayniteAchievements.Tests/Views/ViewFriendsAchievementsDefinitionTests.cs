@@ -157,11 +157,11 @@ namespace PlayniteAchievements.Tests.Views
             Assert.AreSame(gameBase, gameInstance);
 
             // The pinned-games grid is the one surface whose order the user controls, so it is the
-            // only one offering the order-preserving sort choice.
-            Assert.IsTrue(gameInstance.ShowGameSortPinOrderChoice);
+            // only one offering the order-preserving and widget-only sort choices.
+            Assert.IsTrue(gameInstance.ShowWidgetGameSortChoices);
             Assert.IsFalse(GridDisplaySurfaces
                 .Resolve(GridOptionKind.GameSummaries, GridOptionKeys.GameSummaries.Overview)
-                .ShowGameSortPinOrderChoice);
+                .ShowWidgetGameSortChoices);
 
             var achievementInstance = GridDisplaySurfaces.Resolve(
                 GridOptionKind.Achievement,
