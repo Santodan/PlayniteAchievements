@@ -4,6 +4,7 @@
              xmlns:controls="clr-namespace:PlayniteAchievements.Views.Controls"
              xmlns:converters="clr-namespace:PlayniteAchievements.Views.Converters"
              xmlns:helpers="clr-namespace:PlayniteAchievements.Views.Helpers"
+             xmlns:settings="clr-namespace:PlayniteAchievements.Models.Settings"
              UseLayoutRounding="True"
              SnapsToDevicePixels="True"
              helpers:CompletionBadge.PreferTrophyBadges="{Binding PreferTrophyBadges, RelativeSource={RelativeSource Self}}"
@@ -551,6 +552,57 @@
                 </DataGridTemplateColumn.CellTemplate>
             </DataGridTemplateColumn>
 
+            <DataGridTemplateColumn Width="*" MinWidth="22" CanUserResize="True" Header="{DynamicResource LOCPlayAch_Common_DateAdded}" SortMemberPath="Added" helpers:ColumnVisibilityHelper.ColumnKey="GameSummaryAdded">
+                <DataGridTemplateColumn.CellStyle>
+                    <Style TargetType="DataGridCell" BasedOn="{StaticResource GameSummariesGridCellStyle}">
+                        <Setter Property="ToolTip">
+                            <Setter.Value>
+                                <MultiBinding Converter="{StaticResource DateDisplayMode}" ConverterParameter="Exact">
+                                    <Binding Path="AddedLocal"/>
+                                    <Binding Path="LastPlayedDateMode" RelativeSource="{RelativeSource AncestorType=controls:GameSummariesGridControl}"/>
+                                </MultiBinding>
+                            </Setter.Value>
+                        </Setter>
+                    </Style>
+                </DataGridTemplateColumn.CellStyle>
+                <DataGridTemplateColumn.CellTemplate>
+                    <DataTemplate>
+                        <ContentControl Style="{StaticResource OverviewCellFrameStyle}">
+                            <Grid>
+                                <TextBlock Style="{StaticResource GameSummaryGridTextStyle}">
+                                    <TextBlock.Text>
+                                        <MultiBinding Converter="{StaticResource DateDisplayMode}">
+                                            <Binding Path="AddedLocal"/>
+                                            <Binding Path="LastPlayedDateMode" RelativeSource="{RelativeSource AncestorType=controls:GameSummariesGridControl}"/>
+                                        </MultiBinding>
+                                    </TextBlock.Text>
+                                </TextBlock>
+                            </Grid>
+                        </ContentControl>
+                    </DataTemplate>
+                </DataGridTemplateColumn.CellTemplate>
+            </DataGridTemplateColumn>
+
+            <!-- A release date is a calendar date, so it always shows exactly. -->
+            <DataGridTemplateColumn Width="*" MinWidth="22" CanUserResize="True" Header="{DynamicResource LOCPlayAch_Common_ReleaseDate}" SortMemberPath="ReleaseDate" helpers:ColumnVisibilityHelper.ColumnKey="GameSummaryReleaseDate">
+                <DataGridTemplateColumn.CellTemplate>
+                    <DataTemplate>
+                        <ContentControl Style="{StaticResource OverviewCellFrameStyle}">
+                            <Grid>
+                                <TextBlock Style="{StaticResource GameSummaryGridTextStyle}">
+                                    <TextBlock.Text>
+                                        <MultiBinding Converter="{StaticResource DateDisplayMode}">
+                                            <Binding Path="ReleaseDate"/>
+                                            <Binding Source="{x:Static settings:DateDisplayMode.DateOnly}"/>
+                                        </MultiBinding>
+                                    </TextBlock.Text>
+                                </TextBlock>
+                            </Grid>
+                        </ContentControl>
+                    </DataTemplate>
+                </DataGridTemplateColumn.CellTemplate>
+            </DataGridTemplateColumn>
+
             <DataGridTemplateColumn Width="*" MinWidth="22" CanUserResize="True" Header="{DynamicResource LOCPlayAch_Progress}" SortMemberPath="Progression" helpers:ColumnVisibilityHelper.ColumnKey="GameSummaryProgression">
                 <DataGridTemplateColumn.CellStyle>
                     <Style TargetType="DataGridCell" BasedOn="{StaticResource GameSummariesGridCellStyle}">
@@ -642,6 +694,20 @@
                                            Visibility="{Binding TotalAchievements, Converter={StaticResource IntToVis}}">
                                     <TextBlock.Inlines><Run Text="{Binding UnlockedAchievements, Mode=OneWay, StringFormat={}{0:N0}}" FontWeight="Bold"/><Run Text="/" Foreground="{DynamicResource PlayAch.Brush.Text}"/><Run Text="{Binding TotalAchievements, Mode=OneWay, StringFormat={}{0:N0}}" Foreground="{DynamicResource PlayAch.Brush.Text}"/></TextBlock.Inlines>
                                 </TextBlock>
+                            </Grid>
+                        </ContentControl>
+                    </DataTemplate>
+                </DataGridTemplateColumn.CellTemplate>
+            </DataGridTemplateColumn>
+
+            <DataGridTemplateColumn Width="*" MinWidth="22" CanUserResize="True" Header="{DynamicResource LOCPlayAch_Common_Locked}" SortMemberPath="RemainingAchievements" helpers:ColumnVisibilityHelper.ColumnKey="GameSummaryRemaining">
+                <DataGridTemplateColumn.CellTemplate>
+                    <DataTemplate>
+                        <ContentControl Style="{StaticResource OverviewCellFrameStyle}">
+                            <Grid>
+                                <TextBlock Style="{StaticResource GameSummaryGridTextStyle}"
+                                           Text="{Binding RemainingAchievements, Mode=OneWay, StringFormat={}{0:N0}}"
+                                           Visibility="{Binding TotalAchievements, Converter={StaticResource IntToVis}}"/>
                             </Grid>
                         </ContentControl>
                     </DataTemplate>
