@@ -106,9 +106,11 @@ namespace PlayniteAchievements.ViewModels.Items
 
         /// <summary>
         /// When the game was added to the Playnite library, and its release date. Set once at
-        /// build time; used only as sort keys.
+        /// build time.
         /// </summary>
         public DateTime? Added { get; set; }
+
+        public DateTime? AddedLocal => Added?.ToLocalTime();
 
         public DateTime? ReleaseDate { get; set; }
 
@@ -150,6 +152,7 @@ namespace PlayniteAchievements.ViewModels.Items
                 if (_totalAchievements != value)
                 {
                     SetValue(ref _totalAchievements, value);
+                    OnPropertyChanged(nameof(RemainingAchievements));
                     OnPropertyChanged(nameof(Progression));
                     OnPropertyChanged(nameof(ProgressionText));
                     OnPropertyChanged(nameof(ProgressionCountText));
@@ -166,6 +169,7 @@ namespace PlayniteAchievements.ViewModels.Items
                 if (_unlockedAchievements != value)
                 {
                     SetValue(ref _unlockedAchievements, value);
+                    OnPropertyChanged(nameof(RemainingAchievements));
                     OnPropertyChanged(nameof(Progression));
                     OnPropertyChanged(nameof(ProgressionText));
                     OnPropertyChanged(nameof(ProgressionCountText));
