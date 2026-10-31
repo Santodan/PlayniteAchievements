@@ -113,6 +113,8 @@ The entries below are fork-side changes, grouped by date. When a date includes a
 
 ## Next release - TBD
 
+- Fixed the `Memories` wildcards fetching the incorrect values
+
 ## 2026-10-25 - v4.1.1.1
 
 - v4.1.1 merge

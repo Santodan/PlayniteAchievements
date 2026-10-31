@@ -174,7 +174,8 @@ namespace PlayniteAchievements.Services.UI
             int number,
             int total,
             string variantSuffix = null,
-            bool isTestFire = false)
+            bool isTestFire = false,
+            DateTime? unlockTimeUtc = null)
         {
             if (bitmap == null || settings == null)
             {
@@ -185,7 +186,7 @@ namespace PlayniteAchievements.Services.UI
             {
                 var path = BuildCustomScreenshotPath(
                     settings, game, providerKey, achievementName, number, total,
-                    variantSuffix, isTestFire);
+                    variantSuffix, isTestFire, unlockTimeUtc);
                 bitmap.Save(path, ImageFormat.Png);
                 ForkLog.Wrap(_logger)?.Info($"[Screenshot] Saved custom unlock screenshot: {path}");
             }
@@ -204,7 +205,8 @@ namespace PlayniteAchievements.Services.UI
             int number,
             int total,
             string variantSuffix = null,
-            bool isTestFire = false)
+            bool isTestFire = false,
+            DateTime? unlockTimeUtc = null)
         {
             if (source == null || settings == null)
             {
@@ -215,7 +217,7 @@ namespace PlayniteAchievements.Services.UI
             {
                 var path = BuildCustomScreenshotPath(
                     settings, game, providerKey, achievementName, number, total,
-                    variantSuffix, isTestFire);
+                    variantSuffix, isTestFire, unlockTimeUtc);
                 var encoder = new System.Windows.Media.Imaging.PngBitmapEncoder();
                 encoder.Frames.Add(System.Windows.Media.Imaging.BitmapFrame.Create(source));
                 using (var stream = new FileStream(path, FileMode.CreateNew, FileAccess.Write, FileShare.None))
@@ -238,9 +240,10 @@ namespace PlayniteAchievements.Services.UI
             int number,
             int total,
             string variantSuffix,
-            bool isTestFire)
+            bool isTestFire,
+            DateTime? unlockTimeUtc)
         {
-            var timestamp = DateTime.Now;
+            var timestamp = PlayniteAchievements.Common.DateTimeUtilities.AsLocalFromUtc(unlockTimeUtc) ?? DateTime.Now;
             var directory = LocalAchievementScreenshotService.ReplaceTokens(
                 settings.EffectiveScreenshotSaveFolder,
                 game,

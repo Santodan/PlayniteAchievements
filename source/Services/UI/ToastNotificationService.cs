@@ -495,16 +495,6 @@ namespace PlayniteAchievements.Services.UI
                 return directory;
             }
 
-            // The Memories writer accepts a tokenized per-game directory. The upstream writer
-            // receives a library root and appends the sanitized game folder itself, so remove the
-            // final game token instead of passing an illegal '<gameName>' path to Path.Combine.
-            const string gameToken = "<gameName>";
-            if (directory.EndsWith(gameToken, StringComparison.OrdinalIgnoreCase))
-            {
-                directory = directory.Substring(0, directory.Length - gameToken.Length)
-                    .TrimEnd(System.IO.Path.DirectorySeparatorChar, System.IO.Path.AltDirectorySeparatorChar);
-            }
-
             return directory;
         }
 
@@ -3408,6 +3398,10 @@ namespace PlayniteAchievements.Services.UI
             public List<(AchievementToastViewModel Vm, ScreenshotVariants Variants)> Items { get; } =
                 new List<(AchievementToastViewModel, ScreenshotVariants)>();
 
+            public Providers.Local.LocalSettings MemoriesSettings { get; set; }
+
+            public bool UseTestFolder { get; set; }
+
             public string BaseDirectory { get; set; }
 
             // The wave's game's own capture folder, saved into as is; null uses BaseDirectory\Game.
@@ -3466,7 +3460,8 @@ namespace PlayniteAchievements.Services.UI
             // unlock — re-capturing a moment is the point of the shortcut. Opting into the test
             // folder diverts it to a shared "Test" subfolder the capture library hides, which is
             // what makes the shortcut usable for throwaway testing instead.
-            if (first.IsTestFire && persisted.EnableCaptureTestFolder)
+            if (first.IsTestFire && persisted.EnableCaptureTestFolder &&
+                Providers.ProviderRegistry.Settings<Providers.Local.LocalSettings>()?.EnableUnlockScreenshots != true)
             {
                 baseDir = System.IO.Path.Combine(
                     string.IsNullOrWhiteSpace(baseDir) ? gameDir : baseDir,
@@ -3476,6 +3471,9 @@ namespace PlayniteAchievements.Services.UI
 
             var plan = new WaveScreenshotPlan
             {
+                MemoriesSettings = Providers.ProviderRegistry.Settings<Providers.Local.LocalSettings>()?.EnableUnlockScreenshots == true
+                    ? (Providers.Local.LocalSettings)Providers.ProviderRegistry.Settings<Providers.Local.LocalSettings>().Clone() : null,
+                UseTestFolder = first.IsTestFire && persisted.EnableCaptureTestFolder,
                 BaseDirectory = baseDir,
                 GameDirectory = gameDir,
                 CleanSuffix = NormalizeSuffix(persisted.UnlockScreenshotSuffixClean),
@@ -3756,30 +3754,60 @@ namespace PlayniteAchievements.Services.UI
                                 : clean;
                             if ((item.Variants & ScreenshotVariants.Clean) != 0 && itemClean != null)
                             {
-                                _screenshotService.Save(
+                                if (plan.MemoriesSettings != null)
+                                {
+                                    _screenshotService.SaveUsingCustomSettings(
+                                        itemClean, plan.MemoriesSettings, _api?.Database?.Games?.Get(vm.PlayniteGameId),
+                                        vm.ProviderKey, vm.AchievementName, vm.AchievementNumber, vm.TotalCount,
+                                        plan.CleanSuffix, plan.UseTestFolder, vm.SourceEventArgs.UnlockTimeUtc);
+                                }
+                                else
+                                {
+                                    _screenshotService.Save(
                                     itemClean, baseDir, vm.ProviderKey, vm.GameName, vm.AchievementName,
                                     vm.AchievementNumber, vm.TotalCount,
                                     plan.CleanSuffix,
                                     plan.GameDirectory);
+                                }
                             }
 
                             if ((item.Variants & ScreenshotVariants.WithToast) != 0 &&
                                 toasts != null && toasts.TryGetValue(vm, out var toastShot) && toastShot != null)
                             {
-                                _screenshotService.Save(
+                                if (plan.MemoriesSettings != null)
+                                {
+                                    _screenshotService.SaveUsingCustomSettings(
+                                        toastShot, plan.MemoriesSettings, _api?.Database?.Games?.Get(vm.PlayniteGameId),
+                                        vm.ProviderKey, vm.AchievementName, vm.AchievementNumber, vm.TotalCount,
+                                        plan.WithToastSuffix, plan.UseTestFolder, vm.SourceEventArgs.UnlockTimeUtc);
+                                }
+                                else
+                                {
+                                    _screenshotService.Save(
                                     toastShot, baseDir, vm.ProviderKey, vm.GameName, vm.AchievementName,
                                     vm.AchievementNumber, vm.TotalCount,
                                     plan.WithToastSuffix,
                                     plan.GameDirectory);
+                                }
                             }
 
                             if (framedByVm.TryGetValue(vm, out var framed))
                             {
-                                _screenshotService.Save(
+                                if (plan.MemoriesSettings != null)
+                                {
+                                    _screenshotService.SaveUsingCustomSettings(
+                                        framed, plan.MemoriesSettings, _api?.Database?.Games?.Get(vm.PlayniteGameId),
+                                        vm.ProviderKey, vm.AchievementName, vm.AchievementNumber, vm.TotalCount,
+                                        plan.FramedSuffix, plan.UseTestFolder, vm.SourceEventArgs.UnlockTimeUtc);
+                                }
+                                else
+                                {
+                                    _screenshotService.Save(
                                     framed, baseDir, vm.ProviderKey, vm.GameName, vm.AchievementName,
                                     vm.AchievementNumber, vm.TotalCount,
                                     plan.FramedSuffix,
                                     plan.GameDirectory);
+                                }
                             }
                         }
 

@@ -2507,7 +2507,8 @@ namespace PlayniteAchievements.Services.Recording
                 if (request?.Session?.UsesCustomSettings == true && custom != null)
                 {
                     var game = _api?.Database?.Games?.Get(request.PlayniteGameId);
-                    var timestamp = DateTime.Now;
+                    var timestamp = PlayniteAchievements.Common.DateTimeUtilities.AsLocalFromUtc(request.ReportedUnlockUtc)
+                        ?? PlayniteAchievements.Common.DateTimeUtilities.AsLocalFromUtc(request.ObservedUtc);
                     var directoryTemplate = string.IsNullOrWhiteSpace(custom.RecordingSaveFolder)
                         ? custom.EffectiveScreenshotSaveFolder
                         : custom.RecordingSaveFolder;
