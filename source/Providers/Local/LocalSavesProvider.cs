@@ -864,6 +864,24 @@ namespace PlayniteAchievements.Providers.Local
                 return data;
             }
 
+            // Optional web metadata must never hold up live unlock detection. A cold
+            // SteamHunters request can retry for a minute before this poll can publish
+            // any progress. Normal/manual refreshes populate the persisted categories.
+            if (PlayniteAchievements.Services.Logging.RealtimePollingLogScope.IsActive)
+            {
+                if (data.PlayniteGameId.HasValue)
+                {
+                    var cached = PlayniteAchievementsPlugin.Instance?.CacheManager?
+                        .LoadGameData(data.PlayniteGameId.Value.ToString());
+                    if (cached != null && cached.AppId == data.AppId &&
+                        string.Equals(cached.ProviderKey, "Local", StringComparison.OrdinalIgnoreCase))
+                    {
+                        SteamHuntersCategoryEnricher.ApplyCachedCategories(data.Achievements, cached.Achievements);
+                    }
+                }
+                return data;
+            }
+
             var steamProvider = ProviderRegistry.Instance?.GetProvider("Steam") as SteamDataProvider;
             if (steamProvider == null)
             {
@@ -886,6 +904,7 @@ namespace PlayniteAchievements.Providers.Local
             // If we are in 'None' library, the plugin usually sends 0 games.
             // We override this to check every game in your library.
             var targetGames = (games != null && games.Count > 0) ? games : _api.Database.Games.ToList();
+            var summary = new RebuildSummary();
             
             foreach (var game in targetGames)
             {
@@ -901,12 +920,18 @@ namespace PlayniteAchievements.Providers.Local
                     ProviderRegistry.Write(localSettings);
                     
                     await onAchievementsUpdated(game, data);
+                    // Report only completed writes, so refresh completion can invalidate
+                    // these games rather than clearing every notification summary.
+                    summary.RefreshedGameIds.Add(game.Id);
+                    summary.GamesRefreshed++;
+                    if (data.HasAchievements) summary.GamesWithAchievements++;
+                    else summary.GamesWithoutAchievements++;
                     Log($"DATABASE: Submitted {game.Name} (Count: {data.Achievements.Count})");
                 }
                 
                 if (games?.Count > 0) onGameProcessed(game);
             }
-            return new RebuildPayload();
+            return new RebuildPayload { Summary = summary };
         }
 
         internal bool TryGetActiveMonitorSourceFingerprint(Game game, out string fingerprint)

@@ -8094,10 +8094,16 @@ if ({JsBool(settings?.OverlayCustomAutoResizeToContent == true)} && !sanProgress
                 var gameData = game != null && game.Id != Guid.Empty
                     ? dataService?.GetVisibleGameAchievementData(game.Id)
                     : null;
-                var allData = dataService?.GetAllVisibleGameAchievementDataForTheme() ?? new List<GameAchievementData>();
-                gameData = gameData ?? allData.FirstOrDefault(data =>
+                // Reuse library totals and patch only changed games after polling writes.
+                // Only the notified game needs full achievement objects.
+                var summaries = dataService?.GetNotificationGameSummaries();
+                var namedGame = summaries?.FirstOrDefault(data =>
                     !string.IsNullOrWhiteSpace(gameName) &&
                     string.Equals(data?.GameName, gameName, StringComparison.OrdinalIgnoreCase));
+                if (gameData == null && namedGame?.PlayniteGameId.HasValue == true)
+                {
+                    gameData = dataService?.GetVisibleGameAchievementData(namedGame.PlayniteGameId.Value);
+                }
                 var achievement = gameData?.Achievements?.FirstOrDefault(item =>
                     string.Equals(item?.DisplayName, achievementName, StringComparison.OrdinalIgnoreCase) ||
                     string.Equals(item?.ApiName, achievementName, StringComparison.OrdinalIgnoreCase));
@@ -8119,22 +8125,17 @@ if ({JsBool(settings?.OverlayCustomAutoResizeToContent == true)} && !sanProgress
                 context.AchievementCategory = achievement?.Category ?? string.Empty;
                 PopulateGameNotificationScores(context, gameData);
 
-                var libraryScores = AchievementScoreCalculator.CalculateModernScores(allData);
-                if (context.TotalCollectionScore <= 0 && libraryScores.CollectorScore > 0)
+                var collectionScore = SumNotificationValues(summaries?.Where(item => item != null).Select(item => item.CollectionScore));
+                var prestigeScore = SumNotificationValues(summaries?.Where(item => item != null).Select(item => item.PrestigeScore));
+                if (context.TotalCollectionScore <= 0)
                 {
-                    context.TotalCollectionScore = libraryScores.CollectorScore;
-                    context.CollectionLevel = libraryScores.CollectorLevel?.DisplayLevel ?? 0;
-                    context.CollectionTier = AchievementRankPresentation.FormatRank(libraryScores.CollectorLevel?.RankValue ?? AchievementRank.Bronze5);
+                    context.TotalCollectionScore = collectionScore;
                 }
-                if (context.TotalPrestigeScore <= 0 && libraryScores.PrestigeScore > 0)
+                if (context.TotalPrestigeScore <= 0)
                 {
-                    context.TotalPrestigeScore = libraryScores.PrestigeScore;
-                    context.PrestigeLevel = libraryScores.PrestigeLevel?.DisplayLevel ?? 0;
-                    context.PrestigeTier = AchievementRankPresentation.FormatRank(libraryScores.PrestigeLevel?.RankValue ?? AchievementRank.Bronze5);
+                    context.TotalPrestigeScore = prestigeScore;
                 }
-                context.TotalPoints = SumNotificationPoints(
-                    allData.SelectMany(data => data?.Achievements ?? Enumerable.Empty<AchievementDetail>())
-                        .Where(item => item?.Unlocked == true));
+                context.TotalPoints = SumNotificationValues(summaries?.Where(item => item != null).Select(item => item.Points));
             }
             catch
             {

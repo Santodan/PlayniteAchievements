@@ -56,6 +56,9 @@ namespace PlayniteAchievements.Providers.Steam
         private readonly SteamSessionManager _sessionManager;
         private readonly SteamWebApiTokenResolver _tokenResolver;
         private readonly SteamHuntersCategoryEnricher _steamHuntersCategoryEnricher;
+        // Local-provider metadata survives frequent in-game refresh contexts. Keep it separate
+        // from the upstream scanner's per-refresh cache so its refresh behavior is unchanged.
+        private readonly SteamHuntersCategoryEnricher _localSteamHuntersCategoryEnricher;
         private readonly IFriendsProvider _friendsProvider;
         private readonly SteamLocalStatsReader _localStatsReader = new SteamLocalStatsReader();
         private readonly ILogger _logger;
@@ -94,6 +97,10 @@ namespace PlayniteAchievements.Providers.Steam
                 () => PlayniteAchievementsPlugin.Instance?.DiskImageService,
                 logger);
             _steamHuntersCategoryEnricher = new SteamHuntersCategoryEnricher(
+                steamHuntersApiClient,
+                logger,
+                categoryArtDownloader);
+            _localSteamHuntersCategoryEnricher = new SteamHuntersCategoryEnricher(
                 steamHuntersApiClient,
                 logger,
                 categoryArtDownloader);
@@ -313,14 +320,14 @@ namespace PlayniteAchievements.Providers.Steam
             Guid? playniteGameId,
             CancellationToken cancel)
         {
-            if (_steamHuntersCategoryEnricher == null)
+            if (_localSteamHuntersCategoryEnricher == null)
             {
                 return;
             }
 
             using (_sessionManager.BeginOffscreenViewLease())
             {
-                await _steamHuntersCategoryEnricher
+                await _localSteamHuntersCategoryEnricher
                     .EnrichAsync(appId, gameName, achievements, playniteGameId, cancel)
                     .ConfigureAwait(false);
             }
@@ -507,6 +514,12 @@ namespace PlayniteAchievements.Providers.Steam
         public void BeginRefreshAuthContext(RefreshAuthContext context)
         {
             _steamHuntersCategoryEnricher?.ClearCache();
+            // Manual/periodic refreshes and the game-close refresh revalidate metadata.
+            // Polling only needs fresh unlock/progress values, not fresh category definitions.
+            if (!Services.Logging.RealtimePollingLogScope.IsActive)
+            {
+                _localSteamHuntersCategoryEnricher?.ClearCache();
+            }
             _tokenResolver?.BeginRefreshAuthContext(context);
         }
 

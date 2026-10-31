@@ -771,6 +771,70 @@ namespace PlayniteAchievements.Steam.Tests
             Assert.AreEqual(3, calls);
         }
 
+        [TestMethod]
+        public void ApplyCachedCategories_PreservesFreshProgressAndMatchesApiNames()
+        {
+            var current = new AchievementDetail { ApiName = "ACH_1", ProgressNum = 7, ProgressDenom = 10 };
+            var unmatched = new AchievementDetail { ApiName = "new_ach", Category = "New category" };
+            var cached = new AchievementDetail
+            {
+                ApiName = " ach_1 ", Category = "Expansion", CategoryType = "DLC|Unobtainable",
+                ProgressNum = 1, ProgressDenom = 10
+            };
+            SteamHuntersCategoryEnricher.ApplyCachedCategories(
+                new List<AchievementDetail> { current, unmatched, null },
+                new List<AchievementDetail> { cached, null });
+            Assert.AreEqual("Expansion", current.Category);
+            Assert.AreEqual("DLC|Unobtainable", current.CategoryType);
+            Assert.AreEqual(7, current.ProgressNum);
+            Assert.AreEqual(10, current.ProgressDenom);
+            Assert.AreEqual("New category", unmatched.Category);
+            Assert.IsFalse(current.Unlocked);
+        }
+
+        [TestMethod]
+        public void ApplyCachedCategories_EmptyCacheLeavesNewAchievementsIntact()
+        {
+            var current = new AchievementDetail { ApiName = "ach_1", Category = "Base", ProgressNum = 5 };
+            SteamHuntersCategoryEnricher.ApplyCachedCategories(new[] { current }, null);
+            Assert.AreEqual("Base", current.Category);
+            Assert.AreEqual(5, current.ProgressNum);
+        }
+
+        [TestMethod]
+        public async Task EnrichAsync_ReusesMetadataForFreshProgressUntilCacheCleared()
+        {
+            var calls = 0;
+            var enricher = CreateEnricher(url =>
+            {
+                calls++;
+                return url.Contains("GetAchievementGroups")
+                    ? "{\"groupBy\":\"dlcandupdate\",\"groups\":[{\"dlcAppId\":2561440,\"dlcAppName\":\"The Pale Reach\",\"achievementApiNames\":[\"ach_1\"]}]}"
+                    : "[]";
+            });
+
+            for (var poll = 0; poll < 3; poll++)
+            {
+                // Each Local refresh creates new achievement objects; metadata must be
+                // reapplied without fetching it again or replacing fresh progress values.
+                var achievements = new List<AchievementDetail>
+                {
+                    new AchievementDetail { ApiName = "ach_1", ProgressNum = poll, ProgressDenom = 3 }
+                };
+                Assert.IsTrue(await enricher.EnrichAsync(1562430, "DREDGE", achievements, null, CancellationToken.None));
+                Assert.AreEqual("The Pale Reach", achievements[0].Category);
+                Assert.AreEqual("DLC", achievements[0].CategoryType);
+                Assert.AreEqual(poll, achievements[0].ProgressNum);
+            }
+            Assert.AreEqual(2, calls, "Groups and obtainability should each be fetched once.");
+
+            enricher.ClearCache();
+            await enricher.EnrichAsync(1562430, "DREDGE",
+                new List<AchievementDetail> { new AchievementDetail { ApiName = "ach_1" } },
+                null, CancellationToken.None);
+            Assert.AreEqual(4, calls, "A normal refresh must be able to reload both metadata responses.");
+        }
+
         private static SteamHuntersCategoryEnricher CreateEnricher(System.Func<string, string> respond)
         {
             return new SteamHuntersCategoryEnricher(

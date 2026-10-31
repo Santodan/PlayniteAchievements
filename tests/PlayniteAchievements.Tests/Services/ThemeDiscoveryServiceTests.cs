@@ -14,6 +14,62 @@ namespace PlayniteAchievements.ThemeMigration.Tests
     public class ThemeDiscoveryServiceTests
     {
         [TestMethod]
+        public void DiscoverThemes_CachedScanDetectsSameLengthEditAndRevertAcrossInstances()
+        {
+            var themesRoot = CreateThemesRoot();
+            try
+            {
+                var themePath = Path.Combine(themesRoot, "Desktop", "ContentCacheTest");
+                Directory.CreateDirectory(themePath);
+                File.WriteAllText(Path.Combine(themePath, "theme.yaml"), "Name: Cache Test\nVersion: 1.0\n");
+                var viewPath = Path.Combine(themePath, "View.xaml");
+                var original = "<TextBlock Text=\"SuccessStory\" />";
+                var edited = original.Replace("SuccessStory", "PlainContent");
+                File.WriteAllText(viewPath, original);
+                var timestamp = File.GetLastWriteTimeUtc(viewPath);
+                Assert.IsTrue(new ThemeDiscoveryService(new FakeLogger(), new FakePlayniteApi())
+                    .DiscoverThemes(themesRoot).Single().NeedsMigration);
+
+                File.WriteAllText(viewPath, edited);
+                File.SetLastWriteTimeUtc(viewPath, timestamp);
+                Assert.AreEqual(original.Length, edited.Length);
+                Assert.IsFalse(new ThemeDiscoveryService(new FakeLogger(), new FakePlayniteApi())
+                    .DiscoverThemes(themesRoot).Single().NeedsMigration);
+
+                File.WriteAllText(viewPath, original);
+                File.SetLastWriteTimeUtc(viewPath, timestamp);
+                Assert.IsTrue(new ThemeDiscoveryService(new FakeLogger(), new FakePlayniteApi())
+                    .DiscoverThemes(themesRoot).Single().NeedsMigration);
+            }
+            finally { DeleteDirectory(themesRoot); }
+        }
+
+        [TestMethod]
+        public void AnalyzeThemeContent_RepeatedLargeScanReusesResults()
+        {
+            var prefix = Guid.NewGuid().ToString();
+            var contents = Enumerable.Range(0, 700)
+                .Select(i => "<Grid /> <!-- " + prefix + i + " -->").ToList();
+            foreach (var content in contents) ThemeDiscoveryService.AnalyzeThemeContent(content);
+            var misses = ThemeDiscoveryService.ContentScanMisses;
+            foreach (var content in contents) ThemeDiscoveryService.AnalyzeThemeContent(content);
+            Assert.AreEqual(misses, ThemeDiscoveryService.ContentScanMisses,
+                "Revisiting a theme library larger than the old 512-file limit must reuse its scan results.");
+        }
+
+        [TestMethod]
+        public void AnalyzeThemeContent_EvictionPreservesMixedThemeDetection()
+        {
+            var mixed = "PlayniteAchievementsSantodan SuccessStory";
+            Assert.AreEqual((true, true), ThemeDiscoveryService.AnalyzeThemeContent(mixed));
+            for (var i = 0; i < 4100; i++)
+            {
+                Assert.AreEqual((false, false), ThemeDiscoveryService.AnalyzeThemeContent("<Grid /> <!-- " + i + " -->"));
+            }
+            Assert.AreEqual((true, true), ThemeDiscoveryService.AnalyzeThemeContent(mixed));
+        }
+
+        [TestMethod]
         public async Task MigrateThemeAsync_RepairsAlreadyMigratedPs5RanksAndRestoresBackup()
         {
             var themesRoot=CreateThemesRoot();

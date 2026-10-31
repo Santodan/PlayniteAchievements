@@ -82,6 +82,7 @@ namespace PlayniteAchievements.Services.Achievements
 
         private readonly Dictionary<int, OverviewSummaryMemoEntry> _overviewSummaryCacheByLimit =
             new Dictionary<int, OverviewSummaryMemoEntry>();
+        private readonly NotificationGameSummaryCache _notificationGameSummaries = new NotificationGameSummaryCache();
 
         // Bumped on every invalidation; a summary loaded before an invalidation must not be
         // memoized after it (it may have been built against since-replaced filter mirror rows).
@@ -499,6 +500,21 @@ namespace PlayniteAchievements.Services.Achievements
         internal CachedSummaryData GetCachedSummaryDataForTheme(int recentAchievementDetailLimit = 0)
         {
             return GetCachedSummaryDataForOverview(recentAchievementDetailLimit);
+        }
+
+        internal IReadOnlyList<CachedGameSummaryData> GetNotificationGameSummaries()
+        {
+            return _notificationGameSummaries.Get(
+                () =>
+                {
+                    var data = GetCachedSummaryData(1);
+                    return data == null ? null : ApplyOverviewSummaryHydration(data, 1);
+                },
+                gameId =>
+                {
+                    var data = _cacheReadOptimizations?.LoadCachedSummaryDataForGameFast(gameId);
+                    return data == null ? null : ApplyOverviewSummaryHydration(data, 0, new[] { gameId });
+                });
         }
 
         /// <summary>
@@ -1558,9 +1574,12 @@ namespace PlayniteAchievements.Services.Achievements
             }
         }
 
-        private void OnOverviewProjectionSourceChanged(object sender, EventArgs e)
+        private void OnOverviewProjectionSourceChanged(object sender, CacheDeltaEventArgs e)
         {
-            InvalidateOverviewProjectionCaches();
+            // A normal write already names its game. Preserve that scope for notification
+            // totals while retaining the existing overview invalidation behavior.
+            _notificationGameSummaries.InvalidateDelta(e);
+            InvalidateOverviewProjectionCaches(invalidateNotificationSummaries: false);
         }
 
         // Ordering invariant: the filter mirror is written BEFORE the summary memo is cleared,
@@ -1762,9 +1781,11 @@ namespace PlayniteAchievements.Services.Achievements
         /// a settings change, a full cache invalidation, a library-wide filter resync -- keeps
         /// the wholesale behaviour.
         /// </summary>
-        private void InvalidateOverviewProjectionCaches(IReadOnlyList<Guid> changedGameIds = null)
+        private void InvalidateOverviewProjectionCaches(IReadOnlyList<Guid> changedGameIds = null,
+            bool invalidateNotificationSummaries = true)
         {
             var scoped = changedGameIds?.Where(id => id != Guid.Empty).ToList();
+            if (invalidateNotificationSummaries) _notificationGameSummaries.Invalidate(scoped);
             if (scoped == null ||
                 scoped.Count == 0 ||
                 scoped.Count > Models.CacheInvalidatedEventArgs.MaxScopedGames)

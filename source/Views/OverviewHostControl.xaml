@@ -26,9 +26,6 @@
                            FontWeight="SemiBold"
                            Foreground="{DynamicResource PlayAch.Brush.Text}"
                            Margin="{StaticResource PlayAch.Thickness.Bottom.Compact}" />
-                <ProgressBar Height="4"
-                             IsIndeterminate="True"
-                             Style="{StaticResource PlayAch.ProgressBar.BaseStyle}" />
             </StackPanel>
         </Border>
     </Grid>
