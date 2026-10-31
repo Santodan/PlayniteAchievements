@@ -9681,6 +9681,17 @@ namespace PlayniteAchievements.Providers.Local
                 var doc = new HtmlDocument();
                 doc.LoadHtml(html);
 
+                var embeddedSchema = ParseSteamCommunityEmbeddedSchema(doc, appId);
+                if (embeddedSchema.Count > 0)
+                {
+                    Log($"STEAM COMMUNITY SCHEMA: appId={appId} format=ssr usable={embeddedSchema.Count} hidden={embeddedSchema.Count(achievement => achievement.Hidden == 1)}");
+                    return new SchemaAndPercentages
+                    {
+                        Achievements = embeddedSchema,
+                        GlobalPercentages = new Dictionary<string, double>(StringComparer.OrdinalIgnoreCase)
+                    };
+                }
+
                 var rows = doc.DocumentNode.SelectNodes("//div[contains(@class,'achieveRow')]") ??
                            doc.DocumentNode.SelectNodes("//div[contains(@class,'achieveTxtHolder')]");
                 if (rows == null || rows.Count == 0)
@@ -9851,6 +9862,63 @@ namespace PlayniteAchievements.Providers.Local
                 Log($"COMPLETIONIST SCHEMA ERROR: appId={appId} msg={ex.Message}");
                 return null;
             }
+        }
+
+        private static List<SchemaAchievement> ParseSteamCommunityEmbeddedSchema(HtmlDocument doc, int appId)
+        {
+            var result = new List<SchemaAchievement>();
+            var script = doc.DocumentNode.SelectSingleNode("//script[@id='valve-ssr-data']");
+            if (script == null)
+            {
+                return result;
+            }
+
+            var root = JObject.Parse(script.InnerText);
+            var queryText = root["renderContext"]?["queryData"]?.Value<string>();
+            if (string.IsNullOrWhiteSpace(queryText))
+            {
+                return result;
+            }
+
+            var queries = JObject.Parse(queryText)["queries"] as JArray;
+            foreach (var query in queries ?? new JArray())
+            {
+                var data = query["state"]?["data"] as JObject;
+                if (data?["appid"]?.Value<int?>() != appId || !(data["groups"] is JArray groups))
+                {
+                    continue;
+                }
+
+                foreach (var group in groups.OfType<JObject>())
+                {
+                    if (group["developeronly"]?.Value<bool?>() == true || group["ispublic"]?.Value<bool?>() == false)
+                    {
+                        continue;
+                    }
+
+                    foreach (var item in (group["achievements"] as JArray ?? new JArray()).OfType<JObject>())
+                    {
+                        var apiName = item["api_name"]?.Value<string>()?.Trim();
+                        if (string.IsNullOrWhiteSpace(apiName))
+                        {
+                            continue;
+                        }
+
+                        result.Add(new SchemaAchievement
+                        {
+                            Name = apiName,
+                            DisplayName = item["name"]?.Value<string>() ?? apiName,
+                            Description = item["description"]?.Value<string>() ?? string.Empty,
+                            Icon = BuildSteamAchievementIconUrl(appId, item["icon_achieved"]?.Value<string>()),
+                            IconGray = BuildSteamAchievementIconUrl(appId, item["icon_unachieved"]?.Value<string>()),
+                            Hidden = item["hidden"]?.Value<bool?>() == true ? 1 : 0
+                        });
+                    }
+                }
+            }
+
+            return result.GroupBy(achievement => achievement.Name, StringComparer.OrdinalIgnoreCase)
+                .Select(group => group.First()).ToList();
         }
 
         private static void SplitCompletionistTitleAndDescription(string text, out string displayName, out string description)
