@@ -1,6 +1,6 @@
 {
     "schemaVersion":  1,
-    "generatedUtc":  "2026-11-01T08:29:27.5845235Z",
+    "generatedUtc":  "2026-11-01T14:47:00.3478329Z",
     "baselineRef":  "upstream/main",
     "baselineCommit":  "002eaa8b2cdcc5df4c6f4bf2d886c5fbbc2390b2",
     "protectedPaths":  [
@@ -15,9 +15,9 @@
               },
     "localizationRecipes":  {
                                 "path":  "localization-recipes.json",
-                                "sha256":  "57A4F5E4756780564B94987908329C2109843AAA79DEAEA78F4EF1FB48586EA0",
-                                "fileCount":  1,
-                                "entryCount":  383
+                                "sha256":  "893DC8CD3E85A517C6E9FC42B3FD8BBC6DDFEFCF7D564D2442E3E3910ED5538D",
+                                "fileCount":  2,
+                                "entryCount":  449
                             },
     "overlayFiles":  [
                          {

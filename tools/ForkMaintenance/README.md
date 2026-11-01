@@ -1,5 +1,19 @@
 # Fork maintenance bundle
 
+## Missing English labels - 2026-11-01
+
+The localization recipes now preserve the Default sort label and 55 additional
+labels missing from US English. Four Epic local-save labels were also added to
+British English. Existing British English labels and source fallback text supply
+the English wording. The source scan found no remaining missing complete literal
+plugin keys; both English dictionaries passed XML, duplicate-key, and empty-label
+checks. The Release rebuild passed with zero errors and two existing warnings.
+
+The localization-only bundle update passed clean three-way preflight and actual
+replay onto upstream v4.1.1 (002eaa8b2), with 174 overlays and two localization
+recipes. The existing patch and overlays are preserved. Live Playnite label
+verification remains pending.
+
 ## Steam Community achievement icons and hidden flags - 2026-11-01
 
 The Local provider now reads the embedded `valve-ssr-data` schema on Steam's

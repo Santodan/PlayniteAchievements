@@ -824,4 +824,9 @@ This removes per-game exclusions, manual links, capstones, custom icon links, or
     <sys:String x:Key="LOCPlayniteAchievementsUltraRare">Ultra-rare</sys:String>
     <sys:String x:Key="LOCPlayniteAchievementsUserStats">User statistics</sys:String>
 
+
+    <sys:String x:Key="LOCPlayAch_GameOptions_LocalEpicId_Invalid">Please enter a 32-character Epic artifact or namespace ID.</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_LocalEpicPath_NotFound">The selected Epic achievement JSON file does not exist.</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_Status_LocalEpicSaveAuto">Not detected: matching save under %APPDATA%\NemirtingasEpicEmu</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_Status_LocalEpicSchemaAuto">Not detected: game install folder\nepice_settings\achievements_db.json</sys:String>
 </ResourceDictionary>
