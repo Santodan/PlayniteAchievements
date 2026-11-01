@@ -23,6 +23,7 @@
                  grid's UseCoverImages and PreserveImageResolution settings. -->
             <Style x:Key="GameImageStyle" TargetType="Image">
                 <Setter Property="Stretch" Value="Uniform"/>
+                <Setter Property="helpers:AsyncImage.CapAtOwnSize" Value="{DynamicResource PlayAch.Image.CapAtOwnSize}"/>
                 <Setter Property="helpers:AsyncImage.Uri" Value="{Binding GameLogo, Converter={StaticResource DefaultGameImage}, ConverterParameter=icon}"/>
                 <Setter Property="helpers:AsyncImage.DecodePixel" Value="160"/>
                 <Style.Triggers>

@@ -625,6 +625,7 @@
             <Image Stretch="Uniform">
                 <Image.Style>
                     <Style TargetType="Image">
+                        <Setter Property="helpers:AsyncImage.CapAtOwnSize" Value="{DynamicResource PlayAch.Image.CapAtOwnSize}"/>
                         <Setter Property="helpers:AsyncImage.Uri" Value="{Binding GameIconPath, Converter={StaticResource DefaultGameImage}, ConverterParameter=icon}"/>
                         <Setter Property="helpers:AsyncImage.DecodePixel" Value="96"/>
                         <Style.Triggers>
@@ -655,6 +656,7 @@
             <Image Stretch="Uniform">
                 <Image.Style>
                     <Style TargetType="Image">
+                        <Setter Property="helpers:AsyncImage.CapAtOwnSize" Value="{DynamicResource PlayAch.Image.CapAtOwnSize}"/>
                         <Setter Property="helpers:AsyncImage.Uri" Value="{Binding CategoryIconDisplayPath, Converter={StaticResource DefaultGameImage}, ConverterParameter=icon}"/>
                         <Setter Property="helpers:AsyncImage.DecodePixel" Value="-1"/>
                         <Style.Triggers>
@@ -748,7 +750,8 @@
                        RenderOptions.BitmapScalingMode="HighQuality"
                        IsHitTestVisible="False"
                        helpers:AsyncImage.Uri="{Binding DisplayIcon}"
-                       helpers:AsyncImage.DecodePixel="128">
+                       helpers:AsyncImage.DecodePixel="128"
+                       helpers:AsyncImage.CapAtOwnSize="{DynamicResource PlayAch.Image.CapAtOwnSize}">
                     <Image.Style>
                         <Style TargetType="Image">
                             <Setter Property="Visibility" Value="Collapsed"/>
@@ -803,7 +806,8 @@
                        RenderOptions.BitmapScalingMode="HighQuality"
                        IsHitTestVisible="False"
                        helpers:AsyncImage.Uri="{Binding DisplayIcon}"
-                       helpers:AsyncImage.DecodePixel="128">
+                       helpers:AsyncImage.DecodePixel="128"
+                       helpers:AsyncImage.CapAtOwnSize="{DynamicResource PlayAch.Image.CapAtOwnSize}">
                     <Image.Style>
                         <Style TargetType="Image">
                             <Setter Property="Visibility" Value="Collapsed"/>
@@ -849,7 +853,8 @@
                    Margin="2"
                    RenderOptions.BitmapScalingMode="HighQuality"
                    helpers:AsyncImage.Uri="{Binding DisplayIcon}"
-                   helpers:AsyncImage.DecodePixel="128">
+                   helpers:AsyncImage.DecodePixel="128"
+                   helpers:AsyncImage.CapAtOwnSize="{DynamicResource PlayAch.Image.CapAtOwnSize}">
                 <Image.Style>
                     <Style TargetType="Image">
                         <Style.Triggers>

@@ -54,6 +54,29 @@ namespace PlayniteAchievements.Views.Helpers
         public static void SetGray(DependencyObject element, bool value) => element.SetValue(GrayProperty, value);
         public static bool GetGray(DependencyObject element) => (bool)element.GetValue(GrayProperty);
 
+        /// <summary>
+        /// When true, the Image decodes at the file's native resolution and its MaxWidth/MaxHeight
+        /// are set to the loaded bitmap's pixel size, one pixel per DIP, so it can shrink to fit
+        /// its container but never grows past its own size. Bound to the
+        /// PlayAch.Image.CapAtOwnSize resource by the resizable grid columns.
+        /// </summary>
+        public static readonly DependencyProperty CapAtOwnSizeProperty = DependencyProperty.RegisterAttached(
+            "CapAtOwnSize",
+            typeof(bool),
+            typeof(AsyncImage),
+            new PropertyMetadata(false, OnCapAtOwnSizeChanged));
+
+        public static void SetCapAtOwnSize(DependencyObject element, bool value) => element.SetValue(CapAtOwnSizeProperty, value);
+        public static bool GetCapAtOwnSize(DependencyObject element) => (bool)element.GetValue(CapAtOwnSizeProperty);
+
+        // Whether UpdateOwnSizeCap wrote the current MaxWidth/MaxHeight, so clearing the cap
+        // never removes limits set by XAML.
+        private static readonly DependencyProperty OwnSizeCapAppliedProperty = DependencyProperty.RegisterAttached(
+            "OwnSizeCapApplied",
+            typeof(bool),
+            typeof(AsyncImage),
+            new PropertyMetadata(false));
+
         // When true (default), retained-frame WebP animations phase-lock to the process-wide epoch
         // so recreated elements resume mid-cycle. GIFs intentionally ignore this value and start at
         // frame one; the settings background preview preserves continuity by sharing one persistent
@@ -864,7 +887,40 @@ namespace PlayniteAchievements.Views.Helpers
 
         private static void RaiseSourceReady(System.Windows.Controls.Image image)
         {
+            UpdateOwnSizeCap(image);
             image?.RaiseEvent(new RoutedEventArgs(SourceReadyEvent, image));
+        }
+
+        private static void OnCapAtOwnSizeChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
+        {
+            UpdateOwnSizeCap(d as System.Windows.Controls.Image);
+
+            // Reload through the Uri path so the decode moves between the capped size and native
+            // resolution. A native GIF already plays at native size and ignores the reload.
+            OnUriChanged(d, e);
+        }
+
+        private static void UpdateOwnSizeCap(System.Windows.Controls.Image image)
+        {
+            if (image == null)
+            {
+                return;
+            }
+
+            if (GetCapAtOwnSize(image) && image.Source is BitmapSource bitmap && bitmap.PixelWidth > 0 && bitmap.PixelHeight > 0)
+            {
+                image.MaxWidth = bitmap.PixelWidth;
+                image.MaxHeight = bitmap.PixelHeight;
+                image.SetValue(OwnSizeCapAppliedProperty, true);
+                return;
+            }
+
+            if ((bool)image.GetValue(OwnSizeCapAppliedProperty))
+            {
+                image.ClearValue(FrameworkElement.MaxWidthProperty);
+                image.ClearValue(FrameworkElement.MaxHeightProperty);
+                image.ClearValue(OwnSizeCapAppliedProperty);
+            }
         }
 
         // GIF-candidate URIs whose chosen playback path has already been reported, so the line is
@@ -935,11 +991,11 @@ namespace PlayniteAchievements.Views.Helpers
         private static int ResolveDecodePixel(DependencyObject d)
         {
             var explicitDecode = GetDecodePixel(d);
-            if (explicitDecode < 0)
+            if (explicitDecode < 0 || GetCapAtOwnSize(d))
             {
-                // Negative opt-out: decode at native resolution (no DecodePixelWidth
-                // downscale and no size-inferred reloads). Passed through negative so
-                // MemoryImageService can distinguish it from "unset".
+                // Negative opt-out, or an image capped at its own size: decode at native
+                // resolution (no DecodePixelWidth downscale and no size-inferred reloads).
+                // Passed through negative so MemoryImageService can distinguish it from "unset".
                 return -1;
             }
 
@@ -979,6 +1035,7 @@ namespace PlayniteAchievements.Views.Helpers
             {
                 image.Source = firstFrame;
                 image.ApplyAnimationClock(System.Windows.Controls.Image.SourceProperty, clock, HandoffBehavior.SnapshotAndReplace);
+                UpdateOwnSizeCap(image);
                 return;
             }
 

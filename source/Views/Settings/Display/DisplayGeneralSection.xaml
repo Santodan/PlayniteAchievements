@@ -112,14 +112,23 @@
                         </ComboBox>
                     </controls:SettingRow>
                     <controls:SettingRow Label="{DynamicResource LOCPlayAch_Settings_CategoryCompletionBadge}"
-                                         Hint="{DynamicResource LOCPlayAch_Settings_CategoryCompletionBadge_Help}"
-                                         Margin="0">
+                                         Hint="{DynamicResource LOCPlayAch_Settings_CategoryCompletionBadge_Help}">
                         <ComboBox SelectedValue="{Binding Persisted.CategoryCompletionBadgeMode, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                   SelectedValuePath="Tag"
                                   MinWidth="140">
                             <ComboBoxItem Content="{DynamicResource LOCPlayAch_Common_All}" Tag="{x:Static settings:CategoryCompletionBadgeMode.All}"/>
                             <ComboBoxItem Content="{DynamicResource LOCPlayAch_Settings_CategoryCompletionBadgeMode_First}" Tag="{x:Static settings:CategoryCompletionBadgeMode.First}"/>
                             <ComboBoxItem Content="{DynamicResource LOCPlayAch_Common_None}" Tag="{x:Static settings:CategoryCompletionBadgeMode.None}"/>
+                        </ComboBox>
+                    </controls:SettingRow>
+                    <controls:SettingRow Label="{DynamicResource LOCPlayAch_Settings_IconScaleMode}"
+                                         Hint="{DynamicResource LOCPlayAch_Settings_IconScaleMode_Help}"
+                                         Margin="0">
+                        <ComboBox SelectedValue="{Binding Persisted.IconScaleMode, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                  SelectedValuePath="Tag"
+                                  MinWidth="140">
+                            <ComboBoxItem Content="{DynamicResource LOCPlayAch_Settings_IconScaleMode_Stretch}" Tag="{x:Static settings:IconScaleMode.Stretch}"/>
+                            <ComboBoxItem Content="{DynamicResource LOCPlayAch_Settings_IconScaleMode_UpToOwnSize}" Tag="{x:Static settings:IconScaleMode.OwnSizeMax}"/>
                         </ComboBox>
                     </controls:SettingRow>
                 </StackPanel>
