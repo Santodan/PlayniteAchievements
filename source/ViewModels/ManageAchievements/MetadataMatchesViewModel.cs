@@ -99,10 +99,17 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             var pairedWith = Rows
                 .Where(target => target.Trophy != null)
                 .GroupBy(target => target.Trophy)
-                .ToDictionary(group => group.Key, group => string.Join(", ", group.Select(target => target.Name)));
+                .ToDictionary(group => group.Key, group => group.ToList());
             foreach (var trophy in _trophies)
             {
-                trophy.SetPairedWith(pairedWith.TryGetValue(trophy, out var names) ? names : null);
+                if (pairedWith.TryGetValue(trophy, out var targets))
+                {
+                    trophy.SetPairedWith(string.Join(", ", targets.Select(target => target.Name)), targets[0].Icon);
+                }
+                else
+                {
+                    trophy.SetPairedWith(null, null);
+                }
             }
         }
     }
@@ -247,22 +254,25 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
     /// </summary>
     public sealed class MatchOption : ObservableObject
     {
+        private readonly string _ownIcon;
         private string _pairedWith;
+        private string _pairedIcon;
 
-        private MatchOption(string key, string name, string description, string list, bool isSpecial)
+        private MatchOption(string key, string name, string description, string ownIcon, string list, bool isSpecial)
         {
             Key = key;
             Name = name;
             Description = description;
+            _ownIcon = ownIcon;
             List = list;
             IsSpecial = isSpecial;
         }
 
         internal static MatchOption ForRow(MetadataSourceRow row) =>
-            new MatchOption(row.ApiName, row.Name, row.Description, row.List, isSpecial: false);
+            new MatchOption(row.ApiName, row.Name, row.Description, MetadataSourceSnapshotStore.LocalIconPath(row.Icon), row.List, isSpecial: false);
 
         internal static MatchOption Special(string key, string name) =>
-            new MatchOption(key, name, null, null, isSpecial: true);
+            new MatchOption(key, name, null, null, null, isSpecial: true);
 
         /// <summary>The list it comes from when the link names several (a collection's game), else null.</summary>
         public string List { get; }
@@ -282,16 +292,25 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
 
         public bool IsPaired => _pairedWith != null;
 
-        internal void SetPairedWith(string names)
+        /// <summary>
+        /// The icon of the first achievement paired with it, so both sides of a pairing show the
+        /// same icon; while unpaired, its own icon when the source has one on disk, else null.
+        /// </summary>
+        public string Icon => _pairedIcon ?? _ownIcon;
+
+        internal void SetPairedWith(string names, string icon)
         {
-            if (string.Equals(_pairedWith, names, StringComparison.Ordinal))
+            if (string.Equals(_pairedWith, names, StringComparison.Ordinal) &&
+                string.Equals(_pairedIcon, icon, StringComparison.Ordinal))
             {
                 return;
             }
 
             _pairedWith = names;
+            _pairedIcon = string.IsNullOrWhiteSpace(icon) ? null : icon;
             OnPropertyChanged(nameof(PairedWith));
             OnPropertyChanged(nameof(IsPaired));
+            OnPropertyChanged(nameof(Icon));
         }
     }
 }
