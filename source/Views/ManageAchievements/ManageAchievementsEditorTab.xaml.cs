@@ -2082,8 +2082,6 @@ namespace PlayniteAchievements.Views.ManageAchievements
                 var captured = tags[i];
                 var typeItem = new MenuItem
                 {
-                    Header = SelectorContextMenuHelper.TagHeader(
-                        iconKeys, i, ManageAchievementsCategoryViewModel.GetTagDisplayName(captured, viewModel.GameId)),
                     IsCheckable = true,
                     StaysOpenOnClick = true,
                     Tag = captured,
@@ -2094,6 +2092,8 @@ namespace PlayniteAchievements.Views.ManageAchievements
                         AchievementTagHelper.Parse(row.EffectiveTagsValue)
                             .Any(value => string.Equals(value, captured, StringComparison.OrdinalIgnoreCase)))
                 };
+                SelectorContextMenuHelper.SetTagHeader(
+                    typeItem, iconKeys, i, ManageAchievementsCategoryViewModel.GetTagDisplayName(captured, viewModel.GameId));
                 typeItem.Click += (_, __) => viewModel.SetTagsForSelection(
                     typeItems.Where(item => item.IsChecked).Select(item => item.Tag as string));
                 typeItems.Add(typeItem);
