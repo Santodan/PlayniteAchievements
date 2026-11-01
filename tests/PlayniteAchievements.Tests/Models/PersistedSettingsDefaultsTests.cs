@@ -584,6 +584,22 @@ namespace PlayniteAchievements.Models.Tests
         }
 
         [TestMethod]
+        public void IconScaleMode_DefaultsToStretchAndSurvivesCloneCopyAndReset()
+        {
+            Assert.AreEqual(IconScaleMode.Stretch, new PersistedSettings().IconScaleMode);
+
+            var source = new PersistedSettings { IconScaleMode = IconScaleMode.OwnSizeMax };
+            var target = new PersistedSettings();
+            target.CopyFrom(source);
+
+            Assert.AreEqual(IconScaleMode.OwnSizeMax, source.Clone().IconScaleMode);
+            Assert.AreEqual(IconScaleMode.OwnSizeMax, target.IconScaleMode);
+
+            source.ResetDisplaySettingsToDefaults();
+            Assert.AreEqual(IconScaleMode.Stretch, source.IconScaleMode);
+        }
+
+        [TestMethod]
         public void CategoryColumnDisplay_DefaultsToSubcategoryAndSurvivesCloneCopyAndReset()
         {
             Assert.AreEqual(CategoryColumnDisplay.Subcategory, new PersistedSettings().CategoryColumnDisplay);
