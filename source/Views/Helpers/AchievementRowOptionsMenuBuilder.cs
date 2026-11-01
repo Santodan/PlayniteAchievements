@@ -363,17 +363,20 @@ namespace PlayniteAchievements.Views.Helpers
                 Header = L(resourceOwner, "LOCPlayAch_Common_Tags")
             };
             var effectiveTypes = AchievementTagHelper.Parse(context.Tags);
-            foreach (var tag in AchievementTagRegistry.GetShownKeys(context.GameId))
+            var tags = AchievementTagRegistry.GetShownKeys(context.GameId).ToList();
+            var iconKeys = SelectorContextMenuHelper.TagIconKeys(tags, context.GameId);
+            for (var i = 0; i < tags.Count; i++)
             {
-                var capturedType = tag;
+                var capturedType = tags[i];
                 var typeItem = new MenuItem
                 {
-                    Header = AchievementTagRegistry.GetName(capturedType, context.GameId),
                     IsCheckable = true,
                     StaysOpenOnClick = true,
                     IsChecked = effectiveTypes.Any(value =>
                         string.Equals(value, capturedType, StringComparison.OrdinalIgnoreCase))
                 };
+                SelectorContextMenuHelper.SetTagHeader(
+                    typeItem, iconKeys, i, AchievementTagRegistry.GetName(capturedType, context.GameId));
                 typeItem.Click += (_, __) =>
                 {
                     if (typeItem.IsChecked)
