@@ -66,7 +66,6 @@ namespace PlayniteAchievements.Views.Helpers
                 var option = shown[i];
                 var item = new MenuItem
                 {
-                    Header = TagHeader(iconKeys, i, option.DisplayName),
                     IsCheckable = true,
                     StaysOpenOnClick = true,
                     IsChecked = option.IsSelected
@@ -75,6 +74,8 @@ namespace PlayniteAchievements.Views.Helpers
                 {
                     item.Style = itemStyle;
                 }
+
+                SetTagHeader(item, iconKeys, i, option.DisplayName);
 
                 item.Click += (_, __) => option.IsSelected = item.IsChecked;
                 menu.Items.Add(item);
@@ -99,10 +100,12 @@ namespace PlayniteAchievements.Views.Helpers
         }
 
         /// <summary>
-        /// A tag menu item's header: its icon before its label when the menu has an icon gutter
+        /// Sets a tag menu item's header: its icon before its label when the menu has an icon gutter
         /// (a tag without an icon keeps the gutter's width so labels align), else the label.
         /// </summary>
-        public static object TagHeader(IReadOnlyList<string> iconKeys, int index, string label) =>
-            iconKeys == null ? (object)label : MultiSelectFilterMenu.BuildIconHeader(iconKeys[index], label);
+        public static void SetTagHeader(MenuItem item, IReadOnlyList<string> iconKeys, int index, string label) =>
+            MultiSelectFilterMenu.SetHeader(
+                item,
+                iconKeys == null ? (object)label : MultiSelectFilterMenu.BuildIconHeader(iconKeys[index], label));
     }
 }
