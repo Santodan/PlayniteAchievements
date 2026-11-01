@@ -1,5 +1,39 @@
 # Fork maintenance bundle
 
+## Steam Community achievement icons and hidden flags - 2026-11-01
+
+The Local provider now reads the embedded `valve-ssr-data` schema on Steam's
+new Community achievement pages. It preserves API names, unlocked and locked
+icons, and explicit hidden flags, while retaining the existing legacy parser.
+The bundled LocalSavesProvider overlay and its manifest hash match the source.
+
+The Release rebuild and packaging passed. Parsing the captured Phantom Blade
+Zero page recovered 66 achievements, 66 icon pairs, and 31 hidden flags;
+wrong-app rejection and legacy-page fallback checks also passed. In-app refresh
+verification remains pending.
+
+Bundle validation passed clean three-way preflight and actual replay onto upstream
+v4.1.1 (002eaa8b2), including 174 overlays, localization, component hashes, and
+protected-file checks. The replayed Local provider matches the source byte for
+byte. Validation used a temporary checkout.
+
+## Memories folder and filename wildcards - 2026-11-01
+
+Live Memories screenshots now use the wildcard writer for clean, notification,
+and framed variants instead of the standard achievement-index filename writer.
+Folder and filename tokens expand independently. Date/time tokens use the
+reported unlock time converted to local time; recording templates use the same
+reported time, falling back to the observed unlock time when unavailable.
+The screenshot test-folder option expands tokens before appending the Test folder.
+
+The refreshed bundle includes the three changed services and the new
+MemoriesWildcardTests regression test. The fix passed its Release rebuild and
+focused test. Bundle validation passed clean three-way preflight and actual
+replay onto upstream v4.1.1 (002eaa8b2), including 174 overlays, localization,
+component hashes, and protected-file checks. All four fix files match the replay
+after newline normalization. Replay used a temporary checkout. Live capture
+verification in Playnite remains pending.
+
 ## Upstream notification template and General sections - 2026-10-25
 
 Santodan-Fork > Achievement Notifications > General offers **Use upstream

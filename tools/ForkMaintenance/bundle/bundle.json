@@ -1,6 +1,6 @@
 {
     "schemaVersion":  1,
-    "generatedUtc":  "2026-10-25T08:21:10.8920096Z",
+    "generatedUtc":  "2026-11-01T08:29:27.5845235Z",
     "baselineRef":  "upstream/main",
     "baselineCommit":  "002eaa8b2cdcc5df4c6f4bf2d886c5fbbc2390b2",
     "protectedPaths":  [
@@ -11,7 +11,7 @@
                        ],
     "patch":  {
                   "path":  "fork-changes.patch",
-                  "sha256":  "1EA83FBF10C2857DA33E5B154BF950DB3067E0C21D23E00AAAC937C48133B975"
+                  "sha256":  "CDF243A4880294E6EB2B1D561D27AF2C7F215FEEAA6F216B5623A07F1B6990FC"
               },
     "localizationRecipes":  {
                                 "path":  "localization-recipes.json",
@@ -142,7 +142,7 @@
                          },
                          {
                              "path":  "source/Providers/Local/LocalSavesProvider.cs",
-                             "sha256":  "E760FA7C1495F7A09C64C05EC49ECCE105CE43BFB94B3160A44DCE30CCA9380F"
+                             "sha256":  "9AC2C7187CEE2751BA1F0C1621A3C70B31FAA1783D8B919C7C0558200937C29C"
                          },
                          {
                              "path":  "source/Providers/Local/LocalSettings.cs",
@@ -439,6 +439,10 @@
                          {
                              "path":  "tests/PlayniteAchievements.Tests/Services/InGameSessionUnlocksTests.cs",
                              "sha256":  "2A5DA8F6E1D6DC1D60D90AF9C5381491DFDE555887EE6174EC75B37870217771"
+                         },
+                         {
+                             "path":  "tests/PlayniteAchievements.Tests/Services/MemoriesWildcardTests.cs",
+                             "sha256":  "FCC7060AF13544BE24155C41B5BEDD93A756AA71A4092DD2701FE2679FA03808"
                          },
                          {
                              "path":  "tests/PlayniteAchievements.Tests/Services/NewGameAutoRefreshPolicyTests.cs",
