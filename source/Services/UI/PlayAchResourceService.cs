@@ -162,6 +162,35 @@ namespace PlayniteAchievements.Services.UI
             RarityAppearanceHelper.ApplyCompletedGameBrushResource(resources, settings);
             RarityAppearanceHelper.ApplyCompletedGlowEffectResources(resources, settings);
             RarityAppearanceHelper.ApplyCompletedProgressFillResource(resources, settings);
+            ApplyIconScaleResource(resources, settings);
+        }
+
+        /// <summary>
+        /// Resource key for whether column art stops at its own pixel size, consumed through
+        /// AsyncImage.CapAtOwnSize. Left unwritten without settings, so a staged pass keeps the
+        /// last value and an unresolved reference falls back to the property's false default.
+        /// </summary>
+        public const string CapAtOwnSizeResourceKey = "PlayAch.Image.CapAtOwnSize";
+
+        /// <summary>Publishes the icon scale mode at application scope.</summary>
+        public static void ApplyIconScaleToApplication(PersistedSettings settings)
+        {
+            if (settings == null)
+            {
+                return;
+            }
+
+            PlayAchRuntimeResources.Update(resources => ApplyIconScaleResource(resources, settings));
+        }
+
+        private static void ApplyIconScaleResource(ResourceDictionary resources, PersistedSettings settings)
+        {
+            if (resources == null || settings == null)
+            {
+                return;
+            }
+
+            resources[CapAtOwnSizeResourceKey] = settings.IconScaleMode == IconScaleMode.OwnSizeMax;
         }
 
         private static TokenDefinition Brush(
