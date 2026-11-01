@@ -1134,7 +1134,7 @@ Files are rewritten in place and this cannot be undone. Continue?</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_RarityGlowPulseMinOpacity">Minimales Leuchten</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_RarityGlowPulseMaxOpacity">Maximales Leuchten</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_NameColor">Titel einfärben</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_StatusColor">Statusfärbung</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_StatusColor">Status einfärben</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_StatusColor_MissableUnobtainable">Verfehl- und unerreichbar</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_ColorRarityTextByRarity">Seltenheitswerte einfärben</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_ShowNameAboveProgress">Titel über Fortschrittsleiste anzeigen</sys:String>
