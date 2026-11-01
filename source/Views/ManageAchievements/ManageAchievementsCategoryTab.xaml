@@ -339,7 +339,8 @@
                                             </Border.Style>
                                             <Image Stretch="Uniform"
                                                    helpers:AsyncImage.Uri="{Binding ArtPreviewPath}"
-                                                   helpers:AsyncImage.DecodePixel="-1" />
+                                                   helpers:AsyncImage.DecodePixel="-1"
+                                                   helpers:AsyncImage.CapAtOwnSize="{DynamicResource PlayAch.Image.CapAtOwnSize}" />
                                         </Border>
 
                                         <Button Grid.Column="0"
