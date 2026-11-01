@@ -150,10 +150,8 @@ namespace PlayniteAchievements.Views.Helpers
             CategoryTreeShape treeShape = null,
             string toolTip = null)
         {
-            var header = BuildMultiSelectHeader(filter, value, label, showMarkerGutter, showIconGutter);
             var item = new CategoryTreeMenuItem
             {
-                Header = header,
                 ToolTip = toolTip,
                 TreeShape = treeShape,
                 IsCheckable = true,
@@ -166,13 +164,7 @@ namespace PlayniteAchievements.Views.Helpers
                 item.Style = itemStyle;
             }
 
-            // The shared menu-item style forces a string HeaderTemplate (TextBlock Text={Binding}),
-            // which would ToString() a UIElement header. Clear it locally so the star-gutter panel
-            // renders directly (a directly-set property beats the style setter).
-            if (!(header is string))
-            {
-                item.HeaderTemplate = null;
-            }
+            SetHeader(item, BuildMultiSelectHeader(filter, value, label, showMarkerGutter, showIconGutter));
 
             item.Click += (_, __) =>
             {
@@ -234,6 +226,20 @@ namespace PlayniteAchievements.Views.Helpers
                 TextWrapping = TextWrapping.NoWrap
             });
             return panel;
+        }
+
+        /// <summary>
+        /// Sets a menu item's header. The multi-select menu-item style forces a string
+        /// HeaderTemplate (TextBlock Text={Binding}), which would ToString() a UIElement header, so
+        /// a panel header clears it locally (a directly-set property beats the style setter).
+        /// </summary>
+        internal static void SetHeader(MenuItem item, object header)
+        {
+            item.Header = header;
+            if (!(header is string))
+            {
+                item.HeaderTemplate = null;
+            }
         }
 
         // The option's badge before its label; an option without one keeps the badge's width so
