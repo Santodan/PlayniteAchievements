@@ -933,6 +933,7 @@
                                                RenderOptions.BitmapScalingMode="HighQuality"
                                                helpers:AsyncImage.Uri="{Binding DisplayIcon}"
                                                helpers:AsyncImage.DecodePixel="128"
+                                               helpers:AsyncImage.CapAtOwnSize="{DynamicResource PlayAch.Image.CapAtOwnSize}"
                                                PreviewMouseLeftButtonDown="IconImage_PreviewMouseLeftButtonDown">
                                             <Image.Style>
                                                 <Style TargetType="Image">
