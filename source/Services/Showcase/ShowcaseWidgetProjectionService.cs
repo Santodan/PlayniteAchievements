@@ -600,6 +600,38 @@ namespace PlayniteAchievements.Services.Showcase
             }
         }
 
+        /// <summary>The statistics that count games; a single counted game makes them trivial.</summary>
+        public static readonly IReadOnlyCollection<string> GameCountStatisticKeys = new HashSet<string>(
+            new[] { "trackedGames", "playedGames", "completedGames" },
+            StringComparer.Ordinal);
+
+        /// <summary>
+        /// The statistics a Statistics widget shows: the chosen keys in the chosen order, or every
+        /// statistic when <paramref name="chosenKeys"/> is null, less the game counts while it
+        /// counts a single game.
+        /// </summary>
+        public static IReadOnlyList<ShowcaseStatistic> SelectStatistics(
+            IReadOnlyList<ShowcaseStatistic> all,
+            IReadOnlyList<string> chosenKeys,
+            int gameCount)
+        {
+            IEnumerable<ShowcaseStatistic> items = (all ?? Array.Empty<ShowcaseStatistic>()).Where(item => item != null);
+            if (chosenKeys != null)
+            {
+                var byKey = items.Where(item => item.Key != null)
+                    .GroupBy(item => item.Key, StringComparer.Ordinal)
+                    .ToDictionary(group => group.Key, group => group.First(), StringComparer.Ordinal);
+                items = chosenKeys.Where(byKey.ContainsKey).Select(key => byKey[key]);
+            }
+
+            if (gameCount == 1)
+            {
+                items = items.Where(item => item.Key == null || !GameCountStatisticKeys.Contains(item.Key));
+            }
+
+            return items.ToList();
+        }
+
         public static IReadOnlyList<ShowcaseStatistic> BuildStatistics(
             OverviewDataSnapshot snapshot,
             DateTime now)
