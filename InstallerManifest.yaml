@@ -1,6 +1,27 @@
 AddonId: PlayniteAchievements
 Packages:
 
+  - Version: 4.2.0
+    RequiredApiVersion: 6.14.0
+    ReleaseDate: 2026-11-02
+    PackageUrl: https://github.com/justin-delano/PlayniteAchievements/releases/download/v4.2.0/PlayniteAchievements_4_2_0.pext
+    Changelog:
+    - "[New] Metadata: fill in data from other platforms. For each platform, choose where icons, rarity, categories, trophy types, points and text come from, using Exophase or SteamHunters, and whether to prefer the newest or oldest console version of a game."
+    - "[New] Sharper achievement icons from other sites, PlayStation trophy types and Xbox gamerscore for games without their own, and an option for names and descriptions in your language."
+    - "[New] Auto capstones can use the game's platinum trophy, with its art, title and description."
+    - "[New] Achievement tags: label achievements with your own tags, each with an icon and color, or get tags like Missable and Collectible from TrueAchievements and TrueTrophies."
+    - "[New] Blurred backgrounds for achievement notifications, shown in screenshots and clips."
+    - "[New] Progress notifications every set percentage, and an option to skip the 100% notification when a capstone already completes the game."
+    - "[New] Optional Playnite library tags for which parts of a game you've customized."
+    - "[Adjusted] Categories can be marked Base, DLC, Update or Subset."
+    - "[Adjusted] Choose which control bar items each list and widget shows, and limit any Showcase widget to a game collection."
+    - "[Adjusted] The timeline and activity calendar can count completed games, and the timeline can split by rarity or trophy."
+    - "[Adjusted] Hide a column's header text from the column menu while keeping its width and sorting."
+    - "[Adjusted] Exophase metadata and manual tracking no longer need an Exophase sign-in."
+    - "[Fixed] Issues with GOG achievements not loading, PlayStation sign-in expiring silently, and World of Warcraft rarity."
+    - "[Fixed] Rarity disappearing after a refresh, and start page widgets forgetting their filter choices."
+    - "As always, many additional improvements and fixes behind the scenes."
+
   - Version: 4.1.1
     RequiredApiVersion: 6.14.0
     ReleaseDate: 2026-10-19
