@@ -4,6 +4,7 @@ using System.Linq;
 using Playnite.SDK;
 using PlayniteAchievements.Common;
 using PlayniteAchievements.Models;
+using PlayniteAchievements.Models.Settings;
 using PlayniteAchievements.Services.Showcase;
 using PlayniteAchievements.ViewModels.Items;
 
