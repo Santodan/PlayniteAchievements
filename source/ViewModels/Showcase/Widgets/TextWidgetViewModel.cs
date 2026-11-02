@@ -65,11 +65,7 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
             var horizontal = ShowcaseWidgetOptions.GetHorizontalAlignment(instance);
             HorizontalAlignment = ImageWidgetViewModel.ToHorizontal(horizontal);
             VerticalAlignment = ImageWidgetViewModel.ToVertical(ShowcaseWidgetOptions.GetVerticalAlignment(instance));
-            TextAlignment = horizontal == ShowcaseHorizontalAlignment.Left
-                ? TextAlignment.Left
-                : horizontal == ShowcaseHorizontalAlignment.Right
-                    ? TextAlignment.Right
-                    : TextAlignment.Center;
+            TextAlignment = ImageWidgetViewModel.ToTextAlignment(horizontal);
             TextSize = ShowcaseWidgetOptions.GetTextSize(instance);
             PixelSize = ShowcaseWidgetOptions.GetTextPixelSize(instance);
 
