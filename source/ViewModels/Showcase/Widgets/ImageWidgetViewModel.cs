@@ -66,6 +66,19 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
             }
         }
 
+        internal static TextAlignment ToTextAlignment(ShowcaseHorizontalAlignment value)
+        {
+            switch (value)
+            {
+                case ShowcaseHorizontalAlignment.Left:
+                    return TextAlignment.Left;
+                case ShowcaseHorizontalAlignment.Right:
+                    return TextAlignment.Right;
+                default:
+                    return TextAlignment.Center;
+            }
+        }
+
         internal static VerticalAlignment ToVertical(ShowcaseVerticalAlignment value)
         {
             switch (value)
