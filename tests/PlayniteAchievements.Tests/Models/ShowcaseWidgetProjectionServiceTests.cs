@@ -16,6 +16,46 @@ namespace PlayniteAchievements.Tests.Models
     public class ShowcaseWidgetProjectionServiceTests
     {
         [TestMethod]
+        public void SelectStatistics_OneGameDropsGameCounts()
+        {
+            var all = ShowcaseWidgetProjectionService.BuildStatistics(null, DateTime.Now);
+
+            var keys = ShowcaseWidgetProjectionService.SelectStatistics(all, null, 1).Select(stat => stat.Key).ToList();
+
+            Assert.AreEqual(all.Count - 3, keys.Count);
+            CollectionAssert.DoesNotContain(keys, "trackedGames");
+            CollectionAssert.DoesNotContain(keys, "playedGames");
+            CollectionAssert.DoesNotContain(keys, "completedGames");
+            CollectionAssert.Contains(keys, "completion");
+        }
+
+        [TestMethod]
+        public void SelectStatistics_SeveralGamesKeepGameCounts()
+        {
+            var all = ShowcaseWidgetProjectionService.BuildStatistics(null, DateTime.Now);
+
+            Assert.AreEqual(all.Count, ShowcaseWidgetProjectionService.SelectStatistics(all, null, 2).Count);
+            Assert.AreEqual(all.Count, ShowcaseWidgetProjectionService.SelectStatistics(all, null, 0).Count);
+        }
+
+        [TestMethod]
+        public void SelectStatistics_KeepsChosenOrderAndDropsGameCountsForOneGame()
+        {
+            var all = ShowcaseWidgetProjectionService.BuildStatistics(null, DateTime.Now);
+            var chosen = new[] { "longestStreak", "trackedGames", "unlocked", "missing" };
+
+            CollectionAssert.AreEqual(
+                new[] { "longestStreak", "trackedGames", "unlocked" },
+                ShowcaseWidgetProjectionService.SelectStatistics(all, chosen, 2).Select(stat => stat.Key).ToList());
+            CollectionAssert.AreEqual(
+                new[] { "longestStreak", "unlocked" },
+                ShowcaseWidgetProjectionService.SelectStatistics(all, chosen, 1).Select(stat => stat.Key).ToList());
+            Assert.AreEqual(
+                0,
+                ShowcaseWidgetProjectionService.SelectStatistics(all, new[] { "playedGames", "completedGames" }, 1).Count);
+        }
+
+        [TestMethod]
         public void Statistics_CalculateRatesPlaytimeAndStreaksFromSharedSnapshot()
         {
             var today = new DateTime(2026, 7, 31);
