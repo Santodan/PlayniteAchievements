@@ -1,5 +1,6 @@
 using Playnite.SDK;
 using PlayniteAchievements.Models.Settings;
+using PlayniteAchievements.Services.Images;
 using PlayniteAchievements.Services.Workshop;
 using PlayniteAchievements.Services.Workshop.Preview;
 using PlayniteAchievements.Views.Dialogs;
@@ -494,7 +495,9 @@ namespace PlayniteAchievements.Views.Workshop
                     }
 
                     var path = database.GetFullFilePath(image);
-                    if (!string.IsNullOrWhiteSpace(path) && File.Exists(path) && new FileInfo(path).Length <= MaxCoverBytes)
+                    // Intake refuses a cover it cannot read as PNG, JPEG, GIF or WebP.
+                    if (!string.IsNullOrWhiteSpace(path) && File.Exists(path) && new FileInfo(path).Length <= MaxCoverBytes &&
+                        PackageImageFormat.IsPortableFile(path))
                     {
                         return path;
                     }
