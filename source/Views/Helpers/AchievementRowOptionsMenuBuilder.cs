@@ -313,32 +313,18 @@ namespace PlayniteAchievements.Views.Helpers
                 Header = L(resourceOwner, "LOCPlayAch_Common_Category")
             };
 
-            foreach (var option in CategoryPickerResolver.BuildOptions(ResolveGameCategoryLabels(context.GameId)))
-            {
-                var label = option.Label;
-                if (string.IsNullOrWhiteSpace(label))
+            CategoryFilterMenuBuilder.AppendSingleChoice(
+                resourceOwner,
+                menu.Items,
+                ResolveGameCategoryLabels(context.GameId),
+                label => CategoryPathHelper.IsSame(context.CategoryLabel, label),
+                label =>
                 {
-                    continue;
-                }
-
-                var categoryItem = new MenuItem
-                {
-                    Header = option.LeafDisplay,
-                    ToolTip = option.PathDisplay,
-                    Tag = label,
-                    IsCheckable = true,
-                    IsChecked = CategoryPathHelper.IsSame(context.CategoryLabel, label)
-                };
-                // The click has already flipped the tick.
-                categoryItem.Click += (_, __) =>
-                {
-                    if (SetCategory(context, categoryItem.IsChecked ? label : null))
+                    if (SetCategory(context, label))
                     {
                         onChanged?.Invoke();
                     }
-                };
-                menu.Items.Add(categoryItem);
-            }
+                });
 
             CategoryMenuSearch.Attach(menu, name =>
             {
