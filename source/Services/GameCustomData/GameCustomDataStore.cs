@@ -986,6 +986,12 @@ namespace PlayniteAchievements.Services.GameCustomData
             portable.CustomProvider = string.IsNullOrWhiteSpace(portable.CustomProviderId)
                 ? null
                 : _tryGetCustomProvider?.Invoke(portable.CustomProviderId)?.Clone();
+            if (portable.CustomProvider != null && !IsHttpUrl(portable.CustomProvider.IconSource))
+            {
+                // A local SVG path names the sharer's folders; the icon itself is IconPathData.
+                portable.CustomProvider.IconSource = null;
+            }
+
             portable.Kind = GameCustomDataPortableFile.GameCustomDataKind;
             var keys = SafeResolveGameKeys(playniteGameId);
             portable.GameKeys = keys.Count == 0 ? null : keys;
