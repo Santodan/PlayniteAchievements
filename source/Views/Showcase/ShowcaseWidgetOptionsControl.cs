@@ -345,6 +345,18 @@ namespace PlayniteAchievements.Views.Showcase
                     break;
                 case ShowcaseWidgetKind.Statistics:
                     AddStatisticsSlots(panel);
+                    AddChoice(
+                        panel,
+                        Localize("LOCPlayAch_Showcase_HorizontalAlignment"),
+                        new[]
+                        {
+                            ShowcaseHorizontalAlignment.Left,
+                            ShowcaseHorizontalAlignment.Center,
+                            ShowcaseHorizontalAlignment.Right
+                        },
+                        ShowcaseWidgetOptions.GetHorizontalAlignment(_settings, ShowcaseHorizontalAlignment.Left),
+                        value => ShowcaseWidgetOptions.SetHorizontalAlignment(_settings, value),
+                        HorizontalAlignmentName);
                     AddCollectionChoice(panel, includeAchievementCollections: false);
                     AddControlBarRows<StatisticsControlBarAdapter>(panel);
                     break;
