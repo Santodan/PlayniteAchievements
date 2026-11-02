@@ -40,8 +40,8 @@
     <sys:String x:Key="LOCPlayAch_Common_Label_Level">Stufe</sys:String>
     <sys:String x:Key="LOCPlayAch_Common_Label_Playtime">Spielzeit</sys:String>
     <sys:String x:Key="LOCPlayAch_Common_LastUnlock">Freischaltung</sys:String>
-    <sys:String x:Key="LOCPlayAch_Common_DateAdded">Date Added</sys:String>
-    <sys:String x:Key="LOCPlayAch_Common_ReleaseDate">Release Date</sys:String>
+    <sys:String x:Key="LOCPlayAch_Common_DateAdded">Hinzugefügt</sys:String>
+    <sys:String x:Key="LOCPlayAch_Common_ReleaseDate">Veröffentlicht</sys:String>
     <sys:String x:Key="LOCPlayAch_Common_Locked">Offen</sys:String>
     <sys:String x:Key="LOCPlayAch_Common_Merge">Zusammenführen</sys:String>
     <sys:String x:Key="LOCPlayAch_Common_NoCachedAchievementsForGame">Keine zwischengespeicherten Erfolge für dieses Spiel vorhanden.</sys:String>
@@ -74,7 +74,7 @@
     <sys:String x:Key="LOCPlayAch_Common_View">Betrachten</sys:String>
     <sys:String x:Key="LOCPlayAch_Common_Manage">Verwalten</sys:String>
     <sys:String x:Key="LOCPlayAch_Common_Overview">Übersicht</sys:String>
-    <sys:String x:Key="LOCPlayAch_Common_Oldest">Oldest</sys:String>
+    <sys:String x:Key="LOCPlayAch_Common_Oldest">Älteste</sys:String>
     <sys:String x:Key="LOCPlayAch_Completed">Vollendet</sys:String>
     <!-- DateRange: tooltips of the From/To date pickers -->
     <sys:String x:Key="LOCPlayAch_DateRange_From">Von</sys:String>
@@ -925,9 +925,9 @@ Files are rewritten in place and this cannot be undone. Continue?</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_GridCellAlignment">Horizontale Zellenausrichtung</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_GridCellVerticalAlignment">Vertikale Zellenausrichtung</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_GridAlignment_Center">Zentriert</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_GridAlignment_HeaderHorizontal">Header horizontal alignment</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_GridAlignment_CellHorizontal">Cell horizontal alignment</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_GridAlignment_CellVertical">Cell vertical alignment</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_GridAlignment_HeaderHorizontal">Ausrichtung der Überschrift</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_GridAlignment_CellHorizontal">Horizontale Zellenausrichtung</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_GridAlignment_CellVertical">Vertikale Zellenausrichtung</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_DateDisplayMode_DateAndTime">Datum und Uhrzeit</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_DateDisplayMode_DateOnly">Datum</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_DateDisplayMode_Relative">Relativ</sys:String>
@@ -947,9 +947,9 @@ Files are rewritten in place and this cannot be undone. Continue?</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_CategoryColumn_FullPath">Vollständiger Pfad</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_CategoryColumn_Help">Which part of a nested category the Category column shows. Hover a cell to see the full path.</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_CategoryCompletionBadge_Help">Which category rows show the completed badge under their progress bar in category mode. First uses the first category in your configured category order, so it stays with that category when you sort the grid by a column.</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_IconScaleMode">Image scaling in columns</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_IconScaleMode_Stretch">Stretch to fill</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_IconScaleMode_UpToOwnSize">Up to own size</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_IconScaleMode">Bildskalierung</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_IconScaleMode_Stretch">Ausfüllen</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_IconScaleMode_UpToOwnSize">Bis auf Bildgröße</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_IconScaleMode_Help">How art sizes in resizable grid columns, such as the achievement icon, category and game columns, the Overview game list and the Manage Achievements editor. Stretch to fill grows art to fill the cell; Up to own size grows it no larger than its own pixel size. Both shrink art to fit a narrower column.</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_PixelsAutomaticUnit">Pixel (leer = automatisch)</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_RowsUnlimitedUnit">(leer = unbegrenzt)</sys:String>
@@ -1101,7 +1101,7 @@ Files are rewritten in place and this cannot be undone. Continue?</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_ScanningHashing">Scanning &amp; Hashing</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_SetCompletionStatus">Status für vollendete Spiele setzen</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_ShowCompactListRarityBar">Seltenheitsleiste anzeigen</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_RevealWhen">Reveal when</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_RevealWhen">Enthüllen wenn</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Spoilers">Spielverderber</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_SortDirection_Tooltip">Sortierrichtung wechseln</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_GameSummariesSort_PinOrder">Anheftreihenfolge</sys:String>
@@ -1145,7 +1145,7 @@ Files are rewritten in place and this cannot be undone. Continue?</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_ColorRarityTextByRarity">Seltenheitswerte einfärben</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_ShowNameAboveProgress">Titel über Fortschrittsleiste anzeigen</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_ShowRarityBadgesBelowProgress">Seltenheitsabzeichen unter Fortschrittsleiste anzeigen</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_ShowTreeOnly">Show Tree Only</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_ShowTreeOnly">Nur Baumstruktur anzeigen</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_PieIncludeLocked">Segment für Offene anzeigen</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_OverviewPieSmallSliceMode">Kleine Segmente</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_OverviewPieSmallSliceMode_Exact">Exakt darstellen</sys:String>
@@ -1193,7 +1193,7 @@ Files are rewritten in place and this cannot be undone. Continue?</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Appearance_Resource_BodyFont">Schriftart</sys:String>
 
     <!-- Metadata tab (tab title reuses Playnite's LOCSettingsMetadataLabel) -->
-    <sys:String x:Key="LOCPlayAch_Settings_Metadata_ConsoleVersion">Console version</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_Metadata_ConsoleVersion">Konsolenversion</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Metadata_ConsoleVersionHint">When a game is on several PlayStation or Xbox consoles, take its list from the newest or the oldest.</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Metadata_Sources">Quellen</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Metadata_SourcesHint">Default follows the top row. Set a game's own sources and matches in Manage Achievements.</sys:String>
@@ -1337,25 +1337,25 @@ Daten für in Besitz befindliche Spiele bleiben erhalten.</sys:String>
     <!-- Whole tag names, one per tag, written after the [PA] prefix. Platform = from the game's
          own platform, Metadata = from a metadata source, Custom = edited by the user,
          No = from no source. -->
-    <sys:String x:Key="LOCPlayAch_Tagging_Tag_PlatformIcons">Platform Icons</sys:String>
-    <sys:String x:Key="LOCPlayAch_Tagging_Tag_MetadataIcons">Metadata Icons</sys:String>
+    <sys:String x:Key="LOCPlayAch_Tagging_Tag_PlatformIcons">Plattformsymbole</sys:String>
+    <sys:String x:Key="LOCPlayAch_Tagging_Tag_MetadataIcons">Metadatensymbole</sys:String>
     <sys:String x:Key="LOCPlayAch_Tagging_Tag_CustomIcons">Angepasste Symbole</sys:String>
     <sys:String x:Key="LOCPlayAch_Tagging_Tag_NoIcons">Keine Symbole</sys:String>
-    <sys:String x:Key="LOCPlayAch_Tagging_Tag_PlatformTrophies">Platform Trophies</sys:String>
-    <sys:String x:Key="LOCPlayAch_Tagging_Tag_MetadataTrophies">Metadata Trophies</sys:String>
+    <sys:String x:Key="LOCPlayAch_Tagging_Tag_PlatformTrophies">Plattformtrophäen</sys:String>
+    <sys:String x:Key="LOCPlayAch_Tagging_Tag_MetadataTrophies">Metadatentrophäen</sys:String>
     <sys:String x:Key="LOCPlayAch_Tagging_Tag_CustomTrophies">Angepasste Trophäen</sys:String>
-    <sys:String x:Key="LOCPlayAch_Tagging_Tag_NoTrophies">No Trophies</sys:String>
-    <sys:String x:Key="LOCPlayAch_Tagging_Tag_PlatformPoints">Platform Points</sys:String>
-    <sys:String x:Key="LOCPlayAch_Tagging_Tag_MetadataPoints">Metadata Points</sys:String>
+    <sys:String x:Key="LOCPlayAch_Tagging_Tag_NoTrophies">Keine Trophäen</sys:String>
+    <sys:String x:Key="LOCPlayAch_Tagging_Tag_PlatformPoints">Plattformpunkte</sys:String>
+    <sys:String x:Key="LOCPlayAch_Tagging_Tag_MetadataPoints">Metadatenpunkte</sys:String>
     <sys:String x:Key="LOCPlayAch_Tagging_Tag_CustomPoints">Angepasste Punkte</sys:String>
-    <sys:String x:Key="LOCPlayAch_Tagging_Tag_NoPoints">No Points</sys:String>
-    <sys:String x:Key="LOCPlayAch_Tagging_Tag_PlatformText">Platform Text</sys:String>
-    <sys:String x:Key="LOCPlayAch_Tagging_Tag_MetadataText">Metadata Text</sys:String>
+    <sys:String x:Key="LOCPlayAch_Tagging_Tag_NoPoints">Keine Punkte</sys:String>
+    <sys:String x:Key="LOCPlayAch_Tagging_Tag_PlatformText">Plattformtext</sys:String>
+    <sys:String x:Key="LOCPlayAch_Tagging_Tag_MetadataText">Metadatentext</sys:String>
     <sys:String x:Key="LOCPlayAch_Tagging_Tag_CustomText">Angepasste Texte</sys:String>
-    <sys:String x:Key="LOCPlayAch_Tagging_Tag_PlatformCategories">Platform Categories</sys:String>
-    <sys:String x:Key="LOCPlayAch_Tagging_Tag_MetadataCategories">Metadata Categories</sys:String>
+    <sys:String x:Key="LOCPlayAch_Tagging_Tag_PlatformCategories">Plattformkategorien</sys:String>
+    <sys:String x:Key="LOCPlayAch_Tagging_Tag_MetadataCategories">Metadatenkategorien</sys:String>
     <sys:String x:Key="LOCPlayAch_Tagging_Tag_CustomCategories">Angepasste Kategorien</sys:String>
-    <sys:String x:Key="LOCPlayAch_Tagging_Tag_NoCategories">No Categories</sys:String>
+    <sys:String x:Key="LOCPlayAch_Tagging_Tag_NoCategories">Keine Kategorien</sys:String>
     <sys:String x:Key="LOCPlayAch_Tagging_Tag_PlatformTags">Plattformschlagworte</sys:String>
     <sys:String x:Key="LOCPlayAch_Tagging_Tag_MetadataTags">Metadatenschlagworte</sys:String>
     <sys:String x:Key="LOCPlayAch_Tagging_Tag_CustomTags">Angepasste Schlagworte</sys:String>
@@ -1365,11 +1365,11 @@ Daten für in Besitz befindliche Spiele bleiben erhalten.</sys:String>
     <sys:String x:Key="LOCPlayAch_Tagging_Tag_CustomCapstones">Angepasste Vollendungserfolge</sys:String>
     <sys:String x:Key="LOCPlayAch_Tagging_Tag_NoCapstones">No Capstones</sys:String>
     <sys:String x:Key="LOCPlayAch_Tagging_Tag_CustomNotes">Angepasste Anmerkungen</sys:String>
-    <sys:String x:Key="LOCPlayAch_Tagging_Tag_NoNotes">No Notes</sys:String>
+    <sys:String x:Key="LOCPlayAch_Tagging_Tag_NoNotes">Keine Anmerkungen</sys:String>
     <sys:String x:Key="LOCPlayAch_Tagging_Tag_CustomOrder">Angepasste Reihenfolge</sys:String>
-    <sys:String x:Key="LOCPlayAch_Tagging_Tag_PlatformOrder">Platform Order</sys:String>
+    <sys:String x:Key="LOCPlayAch_Tagging_Tag_PlatformOrder">Plattformreihenfolge</sys:String>
     <sys:String x:Key="LOCPlayAch_Tagging_Tag_CustomGoals">Angepasste Ziele</sys:String>
-    <sys:String x:Key="LOCPlayAch_Tagging_Tag_NoGoals">No Goals</sys:String>
+    <sys:String x:Key="LOCPlayAch_Tagging_Tag_NoGoals">Keine Ziele</sys:String>
     <sys:String x:Key="LOCPlayAch_Tagging_Tag_CustomNotifications">Angepasste Benachrichtigungen</sys:String>
     <sys:String x:Key="LOCPlayAch_Tagging_Tag_CustomSource">Übersteuerte Quelle</sys:String>
     <sys:String x:Key="LOCPlayAch_Tagging_Tag_CustomManualTracking">Manuelle Verfolgung</sys:String>
@@ -1453,8 +1453,8 @@ Details sind in der Log-Datei aufgezeichnet.</sys:String>
          Riot's game data exposes only as untranslated codes -->
     <sys:String x:Key="LOCPlayAch_Riot_ChallengeCategory_Expertise">Expertise</sys:String>
     <sys:String x:Key="LOCPlayAch_Riot_ChallengeCategory_Imagination">Imagination</sys:String>
-    <sys:String x:Key="LOCPlayAch_Riot_ChallengeCategory_Teamwork">Teamwork &amp; Strategy</sys:String>
-    <sys:String x:Key="LOCPlayAch_Riot_ChallengeCategory_Veterancy">Veterancy</sys:String>
+    <sys:String x:Key="LOCPlayAch_Riot_ChallengeCategory_Teamwork">Teamwork &amp; Strategie</sys:String>
+    <sys:String x:Key="LOCPlayAch_Riot_ChallengeCategory_Veterancy">Dienstalter</sys:String>
     <sys:String x:Key="LOCPlayAch_Tooltip_RightClickShowHide">Rechtsklick für Spalteneinstellungen</sys:String>
 
     <!-- ================================================================= -->
@@ -1567,7 +1567,7 @@ Fortfahren?</sys:String>
     <sys:String x:Key="LOCPlayAch_Showcase_ScoreCardArt_GameIcon">Symbol</sys:String>
     <sys:String x:Key="LOCPlayAch_Showcase_ProfileAvatarWidth">Avatarbreite</sys:String>
     <sys:String x:Key="LOCPlayAch_Showcase_ProfileAvatarHeight">Avatarhöhe</sys:String>
-    <sys:String x:Key="LOCPlayAch_Showcase_ProfileLinkIconSize">Link icon size</sys:String>
+    <sys:String x:Key="LOCPlayAch_Showcase_ProfileLinkIconSize">Link-Symbolgröße</sys:String>
     <sys:String x:Key="LOCPlayAch_Showcase_PointsGrouping_Provider">Anbieter oder Dienst</sys:String>
     <sys:String x:Key="LOCPlayAch_Showcase_MosaicSource_UnlockNext">Nächste Freischaltung</sys:String>
     <sys:String x:Key="LOCPlayAch_Showcase_GameMosaicSource_Completed">Vollendete Spiele</sys:String>
@@ -1832,7 +1832,7 @@ Wenn deaktiviert: Keine Anmeldung erforderlich, jedoch können Texte in Englisch
     <sys:String x:Key="LOCPlayAch_Settings_UseExophaseForMetadata_Help">Abgleich fehlender Erfolgsmetadaten mit Exohpase. Die nativen Erfolgsdaten bleiben erhalten. Benötigt Exophase-Anmeldung.</sys:String>
     <sys:String x:Key="LOCPlayAch_Showcase_AchievementGridSource_Pinned">Angeheftete Sammlung</sys:String>
     <sys:String x:Key="LOCPlayAch_Showcase_GameMosaicSource_Pinned">Angeheftete Spiele</sys:String>
-    <sys:String x:Key="LOCPlayAch_Showcase_HideCompleted">Hide completed games</sys:String>
+    <sys:String x:Key="LOCPlayAch_Showcase_HideCompleted">Vollendete Spiele verbergen</sys:String>
     <sys:String x:Key="LOCPlayAch_Showcase_MosaicSource_Capstones">Vollendungserfolge</sys:String>
     <sys:String x:Key="LOCPlayAch_Showcase_MosaicSource_Pinned">Angeheftete Erfolge</sys:String>
     <sys:String x:Key="LOCPlayAch_Showcase_MosaicSource_Rarest">Seltenste Erfolge</sys:String>
