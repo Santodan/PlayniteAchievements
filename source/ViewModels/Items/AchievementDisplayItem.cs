@@ -2028,6 +2028,7 @@ namespace PlayniteAchievements.ViewModels.Items
             OnPropertyChanged(nameof(ProgressPercent));
             OnPropertyChanged(nameof(TrophyType));
             OnPropertyChanged(nameof(HasTrophyType));
+            NotifyTrophyDisplayChanged();
             NotifyRevealStateChanged();
             OnPropertyChanged(nameof(IsIconHidden));
             OnPropertyChanged(nameof(IsLockedIconHidden));

@@ -22,6 +22,8 @@
     <LangVersion>preview</LangVersion>
     <AutoGenerateBindingRedirects>false</AutoGenerateBindingRedirects>
     <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
+    <!-- Embedded so the Volume Mixer row for this process carries the plugin's icon. -->
+    <ApplicationIcon>helper.ico</ApplicationIcon>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
     <DebugSymbols>true</DebugSymbols>
@@ -51,6 +53,7 @@
     <Compile Include="Program.cs" />
     <Compile Include="SoundRole.cs" />
     <Compile Include="SoundEngine.cs" />
+    <Compile Include="Properties\AssemblyInfo.cs" />
     <!-- Single source of truth for the line protocol, compiled into both the plugin and this exe. -->
     <Compile Include="..\Services\Sound\SoundHostProtocol.cs">
       <Link>SoundHostProtocol.cs</Link>
