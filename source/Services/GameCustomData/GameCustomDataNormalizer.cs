@@ -94,6 +94,10 @@ namespace PlayniteAchievements.Services.GameCustomData
             normalized.AchievementNotes = AchievementNoteHelper.NormalizeNoteMap(normalized.AchievementNotes);
             // Schema 8 fold: the parallel maps above become one record per achievement. Both
             // shapes are then kept in sync, so a writer targeting either is still correct.
+            var legacyTypesByCategory = CollectLegacyTypesByCategory(
+                splitLegacyTypes ? normalized.AchievementOverrides : null,
+                normalized.AchievementCategoryOverrides,
+                normalized.AchievementCategoryTypeOverrides);
             normalized.AchievementOverrides = NormalizeAchievementOverrides(MergeLegacyAchievementMaps(
                 NormalizeAchievementOverrides(splitLegacyTypes
                     ? SplitLegacyCategoryTypes(normalized.AchievementOverrides)
@@ -106,6 +110,7 @@ namespace PlayniteAchievements.Services.GameCustomData
                 normalized.AchievementLockedIconOverrides));
             normalized.AchievementCategoryOverrides = ProjectOverrideField(normalized.AchievementOverrides, o => o.Category);
             normalized.AchievementCategoryTypeOverrides = null;
+            normalized.AchievementCategoryKinds = LegacyCategoryTypes.PromoteKinds(normalized.AchievementCategoryKinds, legacyTypesByCategory);
             normalized.AchievementNotes = ProjectOverrideField(normalized.AchievementOverrides, o => o.Note);
             normalized.AchievementUnlockedIconOverrides = ProjectOverrideField(normalized.AchievementOverrides, o => o.UnlockedIconPath);
             normalized.AchievementLockedIconOverrides = ProjectOverrideField(normalized.AchievementOverrides, o => o.LockedIconPath);
@@ -158,6 +163,10 @@ namespace PlayniteAchievements.Services.GameCustomData
             normalized.AchievementNotes = AchievementNoteHelper.NormalizeNoteMap(normalized.AchievementNotes);
             // Schema 8 fold, matching NormalizeInternal, so an imported schema-7 package lands on
             // the record and an exported package carries both shapes.
+            var legacyTypesByCategory = CollectLegacyTypesByCategory(
+                splitLegacyTypes ? normalized.AchievementOverrides : null,
+                normalized.AchievementCategoryOverrides,
+                normalized.AchievementCategoryTypeOverrides);
             normalized.AchievementOverrides = NormalizeAchievementOverrides(MergeLegacyAchievementMaps(
                 NormalizeAchievementOverrides(splitLegacyTypes
                     ? SplitLegacyCategoryTypes(normalized.AchievementOverrides)
@@ -170,6 +179,7 @@ namespace PlayniteAchievements.Services.GameCustomData
                 normalized.AchievementLockedIconOverrides));
             normalized.AchievementCategoryOverrides = ProjectOverrideField(normalized.AchievementOverrides, o => o.Category);
             normalized.AchievementCategoryTypeOverrides = null;
+            normalized.AchievementCategoryKinds = LegacyCategoryTypes.PromoteKinds(normalized.AchievementCategoryKinds, legacyTypesByCategory);
             normalized.AchievementNotes = ProjectOverrideField(normalized.AchievementOverrides, o => o.Note);
             normalized.AchievementUnlockedIconOverrides = ProjectOverrideField(normalized.AchievementOverrides, o => o.UnlockedIconPath);
             normalized.AchievementLockedIconOverrides = ProjectOverrideField(normalized.AchievementOverrides, o => o.LockedIconPath);
@@ -1681,6 +1691,69 @@ namespace PlayniteAchievements.Services.GameCustomData
         /// Copies of <paramref name="values"/> with each pre-v9 type override's tags moved to
         /// <see cref="AchievementOverride.Tags"/> (see <see cref="LegacyCategoryTypes.ApplyTo"/>).
         /// </summary>
+        /// <summary>
+        /// Each overridden achievement's curated category with its legacy type value, read before
+        /// the fold clears them, for <see cref="LegacyCategoryTypes.PromoteKinds"/>. The record's
+        /// own values win over the schema-7 maps, as in the fold. Achievements without a curated
+        /// category are left out: their category is the provider's, which is unknown here.
+        /// </summary>
+        private static List<KeyValuePair<string, string>> CollectLegacyTypesByCategory(
+            Dictionary<string, AchievementOverride> overridesWithLegacyTypes,
+            Dictionary<string, string> categoryOverrides,
+            Dictionary<string, string> categoryTypeOverrides)
+        {
+            var result = new List<KeyValuePair<string, string>>();
+            var apiNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            if (overridesWithLegacyTypes != null)
+            {
+                apiNames.UnionWith(overridesWithLegacyTypes.Keys.Where(key => key != null));
+            }
+
+            if (categoryTypeOverrides != null)
+            {
+                apiNames.UnionWith(categoryTypeOverrides.Keys.Where(key => key != null));
+            }
+
+            foreach (var apiName in apiNames)
+            {
+                AchievementOverride entry = null;
+                overridesWithLegacyTypes?.TryGetValue(apiName, out entry);
+                var legacyValue = entry?.LegacyCategoryType;
+                if (string.IsNullOrWhiteSpace(legacyValue))
+                {
+                    legacyValue = LookupIgnoreCase(categoryTypeOverrides, apiName);
+                }
+
+                var category = entry?.Category;
+                if (string.IsNullOrWhiteSpace(category))
+                {
+                    category = LookupIgnoreCase(categoryOverrides, apiName);
+                }
+
+                if (!string.IsNullOrWhiteSpace(legacyValue) && !string.IsNullOrWhiteSpace(category))
+                {
+                    result.Add(new KeyValuePair<string, string>(category, legacyValue));
+                }
+            }
+
+            return result;
+        }
+
+        private static string LookupIgnoreCase(Dictionary<string, string> map, string key)
+        {
+            if (map == null)
+            {
+                return null;
+            }
+
+            if (map.TryGetValue(key, out var value))
+            {
+                return value;
+            }
+
+            return map.FirstOrDefault(pair => string.Equals(pair.Key, key, StringComparison.OrdinalIgnoreCase)).Value;
+        }
+
         private static Dictionary<string, AchievementOverride> SplitLegacyCategoryTypes(
             Dictionary<string, AchievementOverride> values)
         {
