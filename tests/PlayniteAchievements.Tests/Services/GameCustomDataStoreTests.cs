@@ -24,6 +24,20 @@ namespace PlayniteAchievements.Services.Tests
     public class GameCustomDataStoreTests
     {
         [TestMethod]
+        public void PackageImageEntryNames_NeverContainDotDot()
+        {
+            // Readers refuse ".." in an entry name; an API name or category label can carry it.
+            Assert.AreEqual("images/Act I_Begin_ab12.png",
+                GameCustomDataStore.BuildPackageImageEntryName("Act I...Begin_ab12", AchievementIconVariant.Unlocked));
+            Assert.AreEqual("images/a_b.locked.png",
+                GameCustomDataStore.BuildPackageImageEntryName("a..b", AchievementIconVariant.Locked));
+            Assert.AreEqual("images/category_Part 1_ Done.png",
+                GameCustomDataStore.BuildPackageCategoryImageEntryName("Part 1.. Done"));
+            Assert.AreEqual("images/v1.2.png",
+                GameCustomDataStore.BuildPackageImageEntryName("v1.2", AchievementIconVariant.Unlocked));
+        }
+
+        [TestMethod]
         public void Save_BlankPayloadDoesNotCreateDatabase()
         {
             var tempDir = CreateTempDirectory();
