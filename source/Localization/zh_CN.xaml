@@ -40,6 +40,8 @@
     <sys:String x:Key="LOCPlayAch_Common_Label_Level">等级</sys:String>
     <sys:String x:Key="LOCPlayAch_Common_Label_Playtime">运行时间</sys:String>
     <sys:String x:Key="LOCPlayAch_Common_LastUnlock">最后解锁</sys:String>
+    <sys:String x:Key="LOCPlayAch_Common_DateAdded">Date Added</sys:String>
+    <sys:String x:Key="LOCPlayAch_Common_ReleaseDate">Release Date</sys:String>
     <sys:String x:Key="LOCPlayAch_Common_Locked">未解锁</sys:String>
     <sys:String x:Key="LOCPlayAch_Common_Merge">合并</sys:String>
     <sys:String x:Key="LOCPlayAch_Common_NoCachedAchievementsForGame">此游戏没有可用的缓存成就。</sys:String>
@@ -72,6 +74,7 @@
     <sys:String x:Key="LOCPlayAch_Common_View">查看</sys:String>
     <sys:String x:Key="LOCPlayAch_Common_Manage">Manage</sys:String>
     <sys:String x:Key="LOCPlayAch_Common_Overview">Overview</sys:String>
+    <sys:String x:Key="LOCPlayAch_Common_Oldest">Oldest</sys:String>
     <sys:String x:Key="LOCPlayAch_Completed">已完成</sys:String>
     <!-- DateRange: tooltips of the From/To date pickers -->
     <sys:String x:Key="LOCPlayAch_DateRange_From">自</sys:String>
@@ -765,7 +768,6 @@
     <sys:String x:Key="LOCPlayAch_Settings_Style_ImageKeyframeHint">指定截图中显示动画背景和徽章图片的哪个时刻。需要使用动画图片。</sys:String>
     <sys:String x:Key="LOCPlayAch_Notification_ThemePreviewUnavailable">当前主题的通知模板无法渲染。它可能引用当前无法获得的资源。</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Style_SampleUnlock">示例解锁</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_Style_FirePluginStyle">插件</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Style_FireTheme">主题</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Style_UseThemeTemplate">可用时使用当前主题的模板</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Style_TextLines">文本行</sys:String>
@@ -943,6 +945,10 @@
     <sys:String x:Key="LOCPlayAch_Settings_CategoryColumn_FullPath">Full path</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_CategoryColumn_Help">Which part of a nested category the Category column shows. Hover a cell to see the full path.</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_CategoryCompletionBadge_Help">在类别模式中，哪些类别行的进度条下方显示已完成的徽章？首先在配置的分类顺序中使用第一个类别，这样当你按列排序网格时，它会保持在该类别。</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_IconScaleMode">Image scaling in columns</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_IconScaleMode_Stretch">Stretch to fill</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_IconScaleMode_UpToOwnSize">Up to own size</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_IconScaleMode_Help">How art sizes in resizable grid columns, such as the achievement icon, category and game columns, the Overview game list and the Manage Achievements editor. Stretch to fill grows art to fill the cell; Up to own size grows it no larger than its own pixel size. Both shrink art to fit a narrower column.</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_PixelsAutomaticUnit">像素（空=自动）</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_RowsUnlimitedUnit">行（空=无限制）</sys:String>
 
@@ -1137,6 +1143,7 @@
     <sys:String x:Key="LOCPlayAch_Settings_ColorRarityTextByRarity">按稀有度为稀有度文本着色</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_ShowNameAboveProgress">在进度栏上方显示名称</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_ShowRarityBadgesBelowProgress">在进度条下方显示稀有徽章</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_ShowTreeOnly">Show Tree Only</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_PieIncludeLocked">显示锁定切片</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_OverviewPieSmallSliceMode">小切片处理</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_OverviewPieSmallSliceMode_Exact">精确</sys:String>
@@ -1184,6 +1191,8 @@
     <sys:String x:Key="LOCPlayAch_Settings_Appearance_Resource_BodyFont">文字字体</sys:String>
 
     <!-- Metadata tab (tab title reuses Playnite's LOCSettingsMetadataLabel) -->
+    <sys:String x:Key="LOCPlayAch_Settings_Metadata_ConsoleVersion">Console version</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_Metadata_ConsoleVersionHint">When a game is on several PlayStation or Xbox consoles, take its list from the newest or the oldest.</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Metadata_Sources">Sources</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Metadata_SourcesHint">Default follows the top row. Set a game's own sources and matches in Manage Achievements.</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Metadata_OfficialSources">PlayStation and Xbox read the official trophy and achievement lists from Exophase, or from TrueGaming when its page is already loaded.</sys:String>
@@ -1808,6 +1817,7 @@
     <sys:String x:Key="LOCPlayAch_Settings_SteamHuntersCategories">使用 SteamHunters 作为分类</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_SteamHuntersCategories_Help">刷新 Steam 时，从 SteamHunters 补充成就分类及本体/DLC 类型。分类图片默认使用 Steam 商店横幅（可在“管理成就”中为各游戏修改）。</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_SteamHuntersCategories_Override">覆盖</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_Style_FirePluginStyle">插件</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_TaggingSection">标签配置</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_UseExophaseForMetadata">使用 Exophase 补充元数据</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_UseExophaseForMetadata_Help">从 Exophase 补充缺失的成就元数据，同时保留平台原生成就数据。需要登录 Exophase。</sys:String>
