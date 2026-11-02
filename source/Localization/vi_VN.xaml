@@ -40,6 +40,8 @@
     <sys:String x:Key="LOCPlayAch_Common_Label_Level">Cấp độ</sys:String>
     <sys:String x:Key="LOCPlayAch_Common_Label_Playtime">Thời gian chơi</sys:String>
     <sys:String x:Key="LOCPlayAch_Common_LastUnlock">Mở khoá lần cuối</sys:String>
+    <sys:String x:Key="LOCPlayAch_Common_DateAdded">Date Added</sys:String>
+    <sys:String x:Key="LOCPlayAch_Common_ReleaseDate">Release Date</sys:String>
     <sys:String x:Key="LOCPlayAch_Common_Locked">Đã khoá</sys:String>
     <sys:String x:Key="LOCPlayAch_Common_Merge">Hợp nhất</sys:String>
     <sys:String x:Key="LOCPlayAch_Common_NoCachedAchievementsForGame">Không có thành tựu được lưu vào bộ nhớ đệm nào khả dụng cho trò chơi này.</sys:String>
@@ -72,6 +74,7 @@
     <sys:String x:Key="LOCPlayAch_Common_View">Xem</sys:String>
     <sys:String x:Key="LOCPlayAch_Common_Manage">Manage</sys:String>
     <sys:String x:Key="LOCPlayAch_Common_Overview">Overview</sys:String>
+    <sys:String x:Key="LOCPlayAch_Common_Oldest">Oldest</sys:String>
     <sys:String x:Key="LOCPlayAch_Completed">Đã hoàn thành</sys:String>
     <!-- DateRange: tooltips of the From/To date pickers -->
     <sys:String x:Key="LOCPlayAch_DateRange_From">Từ</sys:String>
@@ -765,7 +768,6 @@ Các tệp sẽ được ghi đè trực tiếp và thao tác này không thể 
     <sys:String x:Key="LOCPlayAch_Settings_Style_ImageKeyframeHint">The moment of animated background and badge images that screenshots show. Needs an animated image.</sys:String>
     <sys:String x:Key="LOCPlayAch_Notification_ThemePreviewUnavailable">Không thể hiển thị mẫu thông báo của giao diện đang hoạt động. Mẫu có thể tham chiếu đến các tài nguyên hiện không khả dụng.</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Style_SampleUnlock">Mở khóa mẫu</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_Style_FirePluginStyle">Phần bổ trợ</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Style_FireTheme">Chủ đề</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Style_UseThemeTemplate">Use my theme's template when available</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Style_TextLines">Các dòng văn bản</sys:String>
@@ -943,6 +945,10 @@ Các tệp sẽ được ghi đè trực tiếp và thao tác này không thể 
     <sys:String x:Key="LOCPlayAch_Settings_CategoryColumn_FullPath">Full path</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_CategoryColumn_Help">Which part of a nested category the Category column shows. Hover a cell to see the full path.</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_CategoryCompletionBadge_Help">Hiển thị huy hiệu đã hoàn thành bên dưới thanh tiến độ của các hàng danh mục trong chế độ danh mục. Mục đầu tiên sử dụng danh mục đầu tiên trong thứ tự danh mục đã cấu hình, vì vậy mục này vẫn thuộc danh mục đó khi bạn sắp xếp lưới theo một cột.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_IconScaleMode">Image scaling in columns</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_IconScaleMode_Stretch">Stretch to fill</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_IconScaleMode_UpToOwnSize">Up to own size</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_IconScaleMode_Help">How art sizes in resizable grid columns, such as the achievement icon, category and game columns, the Overview game list and the Manage Achievements editor. Stretch to fill grows art to fill the cell; Up to own size grows it no larger than its own pixel size. Both shrink art to fit a narrower column.</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_PixelsAutomaticUnit">điểm ảnh (để trống = tự động)</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_RowsUnlimitedUnit">hàng (để trống = không giới hạn)</sys:String>
 
@@ -1137,6 +1143,7 @@ Các tệp sẽ được ghi đè trực tiếp và thao tác này không thể 
     <sys:String x:Key="LOCPlayAch_Settings_ColorRarityTextByRarity">Tô màu văn bản độ hiếm theo độ hiếm</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_ShowNameAboveProgress">Hiển thị tên bên trên thanh tiến độ</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_ShowRarityBadgesBelowProgress">Hiển thị huy hiệu độ hiếm bên dưới thanh tiến độ</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_ShowTreeOnly">Show Tree Only</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_PieIncludeLocked">Hiển thị múi đã khoá</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_OverviewPieSmallSliceMode">Xử lí các múi nhỏ</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_OverviewPieSmallSliceMode_Exact">Chính xác</sys:String>
@@ -1184,6 +1191,8 @@ Các tệp sẽ được ghi đè trực tiếp và thao tác này không thể 
     <sys:String x:Key="LOCPlayAch_Settings_Appearance_Resource_BodyFont">Phông chữ văn bản</sys:String>
 
     <!-- Metadata tab (tab title reuses Playnite's LOCSettingsMetadataLabel) -->
+    <sys:String x:Key="LOCPlayAch_Settings_Metadata_ConsoleVersion">Console version</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_Metadata_ConsoleVersionHint">When a game is on several PlayStation or Xbox consoles, take its list from the newest or the oldest.</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Metadata_Sources">Sources</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Metadata_SourcesHint">Default follows the top row. Set a game's own sources and matches in Manage Achievements.</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Metadata_OfficialSources">PlayStation and Xbox read the official trophy and achievement lists from Exophase, or from TrueGaming when its page is already loaded.</sys:String>
@@ -1808,6 +1817,7 @@ Bạn có muốn tiếp tục không?</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_SteamHuntersCategories">SteamHunters Categories</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_SteamHuntersCategories_Help">Danh mục và Thể loại Bản gốc/DLC được lấy từ các bộ thành tựu của Steam. Tùy chọn Kết hợp sẽ giữ lại các dữ liệu đó và điền phần còn lại từ SteamHunters, ghi đè sử dụng SteamHunters cho mọi thành tựu. Tuỳ chọn Tắt chỉ dùng các bộ thành tựu của Steam. Hình minh hoạ danh mục mặc định là banner cửa hàng Steam (có thể thay đổi cho từng trò chơi trong mục Quản lý Thành tựu).</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_SteamHuntersCategories_Override">Override</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_Style_FirePluginStyle">Phần bổ trợ</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_TaggingSection">Tuỳ chỉnh thẻ</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_UseExophaseForMetadata">Dùng Exphase cho siêu dữ liệu</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_UseExophaseForMetadata_Help">Bổ sung siêu dữ liệu thành tựu còn thiếu từ Exophase mà vẫn giữ nguyên dữ liệu thành tựu gốc. Yêu cầu đăng nhập Exophase.</sys:String>
