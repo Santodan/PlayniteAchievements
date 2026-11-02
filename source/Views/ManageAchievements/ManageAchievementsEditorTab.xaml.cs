@@ -2035,29 +2035,16 @@ namespace PlayniteAchievements.Views.ManageAchievements
                 return;
             }
 
-            foreach (var option in viewModel.AssignableCategoryPickerOptions.Where(option => option.IsSelectable))
-            {
-                var label = option.Label;
-                if (string.IsNullOrWhiteSpace(label))
-                {
-                    continue;
-                }
-
-                var categoryItem = new MenuItem
-                {
-                    Header = option.LeafDisplay,
-                    ToolTip = option.PathDisplay,
-                    Tag = label,
-                    IsCheckable = true,
-                    IsChecked = selection.All(row =>
-                        string.Equals(row.EffectiveCategoryLabel, label, CategoryPathHelper.LabelComparison))
-                };
-                // The click has already flipped the tick: unticking the category every selected
-                // row is in takes them out of it.
-                categoryItem.Click += (_, __) =>
-                    viewModel.SetCategoryForSelection(categoryItem.IsChecked ? label : null);
-                items.Add(categoryItem);
-            }
+            // Unticking the category every selected row is in takes them out of it.
+            var options = viewModel.AssignableCategoryOptions.ToList();
+            CategoryFilterMenuBuilder.AppendSingleChoice(
+                this,
+                items,
+                options,
+                label => selection.All(row =>
+                    string.Equals(row.EffectiveCategoryLabel, label, CategoryPathHelper.LabelComparison)),
+                viewModel.SetCategoryForSelection,
+                options);
         }
 
         /// <summary>
