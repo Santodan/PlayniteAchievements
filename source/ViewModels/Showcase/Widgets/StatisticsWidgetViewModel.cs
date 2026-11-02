@@ -77,18 +77,12 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
         {
             _scope.Apply(Projection);
             ControlBar = _scope.ShownBar;
-            IEnumerable<ShowcaseStatistic> items = _scope.Statistics;
-            // The widget's chosen statistics, in the chosen order; every one when none were chosen.
-            var keys = ShowcaseWidgetOptions.GetStatisticsKeys(Projection?.Instance);
-            if (keys != null)
-            {
-                var byKey = items.Where(item => item?.Key != null)
-                    .GroupBy(item => item.Key, StringComparer.Ordinal)
-                    .ToDictionary(group => group.Key, group => group.First(), StringComparer.Ordinal);
-                items = keys.Where(byKey.ContainsKey).Select(key => byKey[key]).ToList();
-            }
-
-            var list = items.Where(item => item != null).ToList();
+            // The widget's chosen statistics, in the chosen order, without the game counts while
+            // it counts one game.
+            var list = ShowcaseWidgetProjectionService.SelectStatistics(
+                _scope.Statistics,
+                ShowcaseWidgetOptions.GetStatisticsKeys(Projection?.Instance),
+                _scope.Snapshot?.GameSummaries?.Count(game => game != null) ?? 0);
             Columns = Orientation == WidgetViewportOrientation.Tall ? 1 : 2;
 
             // The same statistics in the same order only change their values; replacing the
