@@ -38,6 +38,29 @@ namespace PlayniteAchievements.Services.Tests
         }
 
         [TestMethod]
+        public void Load_Schema8Baseline_IsUpgradedToTheCurrentSchema()
+        {
+            WithTemp(dir =>
+            {
+                // A baseline 4.1.x wrote: the type override still on the record and in its mirror map.
+                var path = Path.Combine(dir, "old.json");
+                File.WriteAllText(path,
+                    "{\"SchemaVersion\":8," +
+                    "\"AchievementOverrides\":{\"ach_one\":{\"Category\":\"Expansion\",\"CategoryType\":\"DLC|Missable\"}}," +
+                    "\"AchievementCategoryTypeOverrides\":{\"ach_one\":\"DLC|Missable\"}}");
+
+                var loaded = new WorkshopBaselineStore(dir, logger: null).Load(path);
+
+                Assert.IsNotNull(loaded);
+                Assert.AreEqual(9, loaded.SchemaVersion);
+                Assert.IsNull(loaded.AchievementCategoryTypeOverrides);
+                Assert.IsNull(loaded.AchievementOverrides["ach_one"].LegacyCategoryType);
+                Assert.AreEqual("Missable", loaded.AchievementOverrides["ach_one"].Tags);
+                Assert.AreEqual("DLC", loaded.AchievementCategoryKinds["Expansion"]);
+            });
+        }
+
+        [TestMethod]
         public void Load_MissingOrUnreadable_ReturnsNull()
         {
             WithTemp(dir =>
