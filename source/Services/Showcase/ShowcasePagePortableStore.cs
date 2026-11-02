@@ -1,6 +1,7 @@
 using Newtonsoft.Json;
 using PlayniteAchievements.Models;
 using PlayniteAchievements.Models.Settings;
+using PlayniteAchievements.Services.Images;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -230,10 +231,9 @@ namespace PlayniteAchievements.Services.Showcase
                         }
 
                         var imageEntry = archive.CreateEntry(pair.Key, CompressionLevel.Optimal);
-                        using (var source = File.OpenRead(pair.Value))
                         using (var destination = imageEntry.Open())
                         {
-                            source.CopyTo(destination);
+                            PackageImageFormat.CopyPortable(pair.Value, destination);
                         }
                     }
                 }
@@ -440,7 +440,9 @@ namespace PlayniteAchievements.Services.Showcase
 
             // Stored images are named by content, so equal names are the same file; a raw path
             // that happens to share a name with a different file gets a numbered entry.
-            var fileName = Path.GetFileName(path);
+            // Images go out as PNG when their format is not one every reader accepts.
+            var fileName = Path.GetFileNameWithoutExtension(path) +
+                           PackageImageFormat.EntryExtension(path, Path.GetExtension(path));
             var entryName = ImagesFolderName + "/" + fileName;
             for (var suffix = 2;
                  portable.BundledImages.TryGetValue(entryName, out var existing) &&
