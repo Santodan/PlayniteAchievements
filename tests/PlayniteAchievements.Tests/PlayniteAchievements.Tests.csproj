@@ -9,6 +9,8 @@
 
   <ItemGroup>
     <Compile Include="..\..\source\Services\Logging\ForkLogger.cs" Link="Source\Services\Logging\ForkLogger.cs" />
+    <Compile Include="..\..\source\Services\Logging\PollingDebugLog.cs" Link="Source\Services\Logging\PollingDebugLog.cs" />
+    <Compile Include="..\..\source\Services\Logging\FileLogger.cs" Link="Source\Services\Logging\FileLogger.cs" />
     <Compile Include="..\..\source\Services\Logging\NamedLoggerWrapper.cs" Link="Source\Services\Logging\NamedLoggerWrapper.cs" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.11.1" />
     <PackageReference Include="MSTest.TestAdapter" Version="3.6.4" />

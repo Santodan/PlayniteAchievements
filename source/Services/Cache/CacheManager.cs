@@ -333,6 +333,8 @@ namespace PlayniteAchievements.Services.Cache
 
         private void RaiseCacheInvalidatedEvent(CacheInvalidatedEventArgs args = null)
         {
+            using var pollingStage = PlayniteAchievements.Services.Logging.PollingDebugLog.Stage("cache.invalidation-callbacks");
+            PlayniteAchievements.Services.Logging.PollingDebugLog.Write("invalidation full=" + (args?.IsFull != false));
             try { CacheInvalidated?.Invoke(this, args ?? CacheInvalidatedEventArgs.FullInvalidation); }
             catch (Exception ex)
             {
@@ -993,6 +995,7 @@ namespace PlayniteAchievements.Services.Cache
 
         public CacheWriteResult SaveGameData(string key, GameAchievementData data, bool allowLocalRelock = false)
         {
+            using var pollingStage = PlayniteAchievements.Services.Logging.PollingDebugLog.Stage("cache.write-and-delta");
             using (PerfScope.Start(_logger, "Cache.SaveGameData", thresholdMs: 25, context: key))
             {
                 if (string.IsNullOrWhiteSpace(key))
@@ -1037,7 +1040,8 @@ namespace PlayniteAchievements.Services.Cache
                             toWrite.PlayniteGameId = parsedId;
                         }
 
-                        renamedApiNames = _store.SaveCurrentUserGameData(normalizedKey, toWrite, allowLocalRelock);
+                        using (PlayniteAchievements.Services.Logging.PollingDebugLog.Stage("cache.sql-write"))
+                            renamedApiNames = _store.SaveCurrentUserGameData(normalizedKey, toWrite, allowLocalRelock);
                         renamedPlayniteGameId = toWrite.PlayniteGameId;
 
                         scopeChanged = RefreshScopeToken_Locked(clearMemoryOnChange: true);

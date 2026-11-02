@@ -1081,6 +1081,7 @@ namespace PlayniteAchievements.Services
 
         private bool ConfigureState(GamePollState state, bool preservePrimeWhenEquivalent)
         {
+            using var pollingStage = PollingDebugLog.Stage("monitor.configure");
             if (state?.Game == null)
             {
                 return false;
@@ -1316,6 +1317,7 @@ namespace PlayniteAchievements.Services
                 {
                     token.ThrowIfCancellationRequested();
                     var batch = providerGroup.ToList();
+                    using var pollingDiagnostics = PollingDebugLog.BeginPoll(string.Join(",", batch.Select(state => state.Game.Id)));
                     var beforeByGame = batch.ToDictionary(
                         state => state.Game.Id,
                         state => _cacheManager?.LoadGameData(state.Game.Id.ToString()));
@@ -1370,6 +1372,9 @@ namespace PlayniteAchievements.Services
 
                         var before = beforeByGame[state.Game.Id];
                         var after = _cacheManager?.LoadGameData(state.Game.Id.ToString());
+                        PollingDebugLog.Write("game=" + state.Game.Id + " unlockedBefore=" +
+                            (before?.Achievements?.Count(item => item?.Unlocked == true) ?? 0) + " unlockedAfter=" +
+                            (after?.Achievements?.Count(item => item?.Unlocked == true) ?? 0));
                         // Read the baseline flag before MarkPrimed below sets it.
                         var primed = state.Schedule.ShouldEmitUnlocks();
                         var keys = _differ.DiffUserUnlocks(before, after)

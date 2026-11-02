@@ -446,6 +446,7 @@ namespace PlayniteAchievements.Providers.Local
         private LocalUnlockOverlayPosition _unlockOverlayPosition = LocalUnlockOverlayPosition.TopRight;
         private bool _showOverlayOnActiveGameMonitor = false;
         private bool _enableOverlayDebugLogging;
+        private bool _enablePollingDebugLogging;
         private int _unlockOverlayDurationMilliseconds = 3400;
         private int _unlockOverlayFadeInMilliseconds = 180;
         private int _unlockOverlayFadeOutMilliseconds = 280;
@@ -931,6 +932,12 @@ namespace PlayniteAchievements.Providers.Local
         {
             get => _enableOverlayDebugLogging;
             set => SetValue(ref _enableOverlayDebugLogging, value);
+        }
+
+        public bool EnablePollingDebugLogging
+        {
+            get => _enablePollingDebugLogging;
+            set => SetValue(ref _enablePollingDebugLogging, value);
         }
 
         public int UnlockOverlayDurationMilliseconds

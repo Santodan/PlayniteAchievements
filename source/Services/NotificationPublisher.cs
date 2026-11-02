@@ -8064,6 +8064,7 @@ if ({JsBool(settings?.OverlayCustomAutoResizeToContent == true)} && !sanProgress
 
         private static NotificationScoreContext GetNotificationScoreContext(Game game, string gameName, string achievementName, string achievementRarity)
         {
+            using var pollingStage = PollingDebugLog.Stage("notification.scores");
             var cacheKey = $"{game?.Id.ToString() ?? gameName ?? string.Empty}|{achievementName ?? string.Empty}|{achievementRarity ?? string.Empty}";
             lock (NotificationScoreCacheLock)
             {

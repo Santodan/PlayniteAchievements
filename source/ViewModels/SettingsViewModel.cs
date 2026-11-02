@@ -236,6 +236,7 @@ namespace PlayniteAchievements.ViewModels
             AchievementNotificationDebugLog.Initialize(_plugin.GetPluginUserDataPath());
             var localSettings = Providers.ProviderRegistry.Settings<Providers.Local.LocalSettings>();
             AchievementNotificationDebugLog.SetEnabled(localSettings?.EnableOverlayDebugLogging == true);
+            PollingDebugLog.Configure(_plugin.GetPluginUserDataPath(), localSettings?.EnablePollingDebugLogging == true);
             AchievementNotificationDebugLog.LogSettingsSnapshot(
                 localSettings,
                 Settings?.Persisted,

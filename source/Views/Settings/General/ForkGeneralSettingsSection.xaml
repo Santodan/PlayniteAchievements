@@ -23,6 +23,12 @@
             <Border Style="{StaticResource SettingGroupCardStyle}">
                 <StackPanel>
                     <TextBlock Text="Logs" Style="{StaticResource SubSectionHeaderStyle}"/>
+                    <controls:SettingRow Label="Debug mode"
+                                         Hint="Record detailed performance diagnostics during polling, including thread activity, CPU timings, and memory statistics, in PollingDebug.log. Enable only while investigating a problem.">
+                        <CheckBox x:Name="DebugModeCheckBox"
+                                  IsChecked="{Binding EnablePollingDebugLogging, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                  Checked="DebugMode_Changed" Unchecked="DebugMode_Changed"/>
+                    </controls:SettingRow>
                     <WrapPanel Margin="0,8,0,0">
                         <Button Content="Open logs" Click="OpenLogs_Click" MinWidth="130" Margin="0,0,8,8"
                                 Padding="{StaticResource PlayAch.Thickness.ButtonPadding.Wide}"/>

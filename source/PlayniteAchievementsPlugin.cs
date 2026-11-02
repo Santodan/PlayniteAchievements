@@ -1048,6 +1048,7 @@ namespace PlayniteAchievements
                 AchievementNotificationDebugLog.Initialize(pluginUserDataPath);
                 var startupNotificationSettings = ProviderRegistry.Settings<Providers.Local.LocalSettings>();
                 AchievementNotificationDebugLog.SetEnabled(startupNotificationSettings?.EnableOverlayDebugLogging == true);
+                PollingDebugLog.Configure(pluginUserDataPath, startupNotificationSettings?.EnablePollingDebugLogging == true);
                 AchievementNotificationDebugLog.LogSettingsSnapshot(
                     startupNotificationSettings,
                     settings.Persisted,
@@ -2470,6 +2471,7 @@ namespace PlayniteAchievements
 
             // Shutdown logging system
             try { AchievementNotificationDebugLog.Shutdown(); } catch (Exception ex) { System.Diagnostics.Trace.TraceError($"Failed to shutdown achievement notification debug logger: {ex}"); }
+            try { PollingDebugLog.Configure(null, false); } catch (Exception ex) { System.Diagnostics.Trace.TraceError($"Failed to shutdown polling debug logger: {ex}"); }
             try { PluginLogger.Shutdown(); } catch (Exception ex) { System.Diagnostics.Trace.TraceError($"Failed to shutdown logger: {ex}"); }
         }
 
