@@ -6408,16 +6408,6 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         /// </summary>
         public object FilterOptionsChanged => null;
 
-        /// <summary>
-        /// This game's categories as the tree the assignment pickers draw, for the row context
-        /// menu's category submenu. Built on demand: it is read once when that menu opens.
-        /// </summary>
-        public IReadOnlyList<CategoryPickerOption> AssignableCategoryPickerOptions =>
-            CategoryPickerResolver.BuildOptions(
-                AssignableCategoryOptions.ToList(),
-                AssignableCategoryOptions.ToList(),
-                synthesizedAreSelectable: false);
-
         private void NotifyFilterChanged()
         {
             OnPropertyChanged(nameof(IsFiltering));
