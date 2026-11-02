@@ -287,6 +287,30 @@ namespace PlayniteAchievements.Tests.Models
         }
 
         [TestMethod]
+        public void Write_BitmapPicture_IsBundledAsPng()
+        {
+            var (settings, grids, page, _, _) = BuildSource();
+            var picture = Path.Combine(_tempDirectory, "picture.bmp");
+            PlayniteAchievements.Services.Tests.NotificationStylePortableStoreTests.WriteBmpFile(picture);
+            var image = AddWidget(settings, page, ShowcaseWidgetKind.Image);
+            ShowcaseWidgetOptions.SetImagePath(image, picture);
+            var path = Path.Combine(_tempDirectory, "page.pashowcase");
+
+            var built = ShowcasePagePortableStore.BuildPortable(settings, grids, page.PageId);
+            Assert.AreEqual("images/picture.png", ShowcaseWidgetOptions.GetImagePath(
+                built.Widgets.Single(w => w.Kind == ShowcaseWidgetKind.Image)));
+            ShowcasePagePortableStore.Write(path, built);
+
+            using (var archive = ZipFile.OpenRead(path))
+            using (var stream = archive.GetEntry("images/picture.png").Open())
+            {
+                var head = new byte[16];
+                Array.Resize(ref head, stream.Read(head, 0, head.Length));
+                Assert.IsTrue(PlayniteAchievements.Services.Images.PackageImageFormat.IsPortable(head));
+            }
+        }
+
+        [TestMethod]
         public void Export_DropsAnImageWidgetsPictureWhoseFileIsGone()
         {
             var (settings, grids, page, _, _) = BuildSource();
