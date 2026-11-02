@@ -649,8 +649,10 @@
                                         ShowControlBar="{Binding ShowControlBar}"/>
         <ScrollViewer VerticalScrollBarVisibility="Auto"
                       HorizontalScrollBarVisibility="Disabled">
+            <!-- TextBlock.TextAlignment inherits, so every tile's value and label follow it. -->
             <ItemsControl ItemsSource="{Binding Tiles}"
-                          ItemTemplate="{StaticResource ShowcaseStatTileTemplate}">
+                          ItemTemplate="{StaticResource ShowcaseStatTileTemplate}"
+                          TextBlock.TextAlignment="{Binding TextAlignment}">
                 <ItemsControl.ItemsPanel>
                     <ItemsPanelTemplate>
                         <UniformGrid Columns="{Binding Columns}"/>
