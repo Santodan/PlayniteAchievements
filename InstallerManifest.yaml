@@ -1,6 +1,14 @@
 AddonId: PlayniteAchievements
 Packages:
 
+  - Version: 4.2.1
+    RequiredApiVersion: 6.14.0
+    ReleaseDate: 2026-11-02
+    PackageUrl: https://github.com/justin-delano/PlayniteAchievements/releases/download/v4.2.1/PlayniteAchievements_4_2_1.pext
+    Changelog:
+    - "[Fixed] Trophy types from other platforms not showing until Playnite was restarted."
+    - "[Fixed] Achievement sounds now appear with the plugin's name and icon in the Windows Volume Mixer."
+
   - Version: 4.2.0
     RequiredApiVersion: 6.14.0
     ReleaseDate: 2026-11-02
