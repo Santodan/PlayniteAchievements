@@ -2282,17 +2282,25 @@ namespace PlayniteAchievements.Services.GameCustomData
             throw new InvalidOperationException("Managed custom icon service is not available.");
         }
 
-        private static string BuildPackageImageEntryName(string fileStem, AchievementIconVariant variant)
+        internal static string BuildPackageImageEntryName(string fileStem, AchievementIconVariant variant)
         {
+            var entryStem = PackageEntryStem(fileStem);
             var fileName = variant == AchievementIconVariant.Locked
-                ? fileStem + ".locked.png"
-                : fileStem + ".png";
+                ? entryStem + ".locked.png"
+                : entryStem + ".png";
             return PortablePackageImagesFolderName + "/" + fileName;
         }
 
-        private static string BuildPackageCategoryImageEntryName(string fileStem)
+        internal static string BuildPackageCategoryImageEntryName(string fileStem)
         {
-            return PortablePackageImagesFolderName + "/category_" + fileStem + ".png";
+            return PortablePackageImagesFolderName + "/category_" + PackageEntryStem(fileStem) + ".png";
+        }
+
+        // Readers refuse an entry name containing "..", which an API name or category label can
+        // carry ("Act I...Begin"), so each run of dots becomes one underscore.
+        private static string PackageEntryStem(string fileStem)
+        {
+            return System.Text.RegularExpressions.Regex.Replace(fileStem ?? string.Empty, @"\.{2,}", "_");
         }
 
         private static bool TryParseImageOnlyPackageEntry(
