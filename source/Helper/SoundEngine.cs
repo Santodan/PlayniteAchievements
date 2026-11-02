@@ -25,6 +25,9 @@ namespace PlayniteAchievements.Helper
     internal sealed class SoundEngine : IDisposable
     {
         private const int LatencyMs = 30;
+
+        /// <summary>Product name shown for this process in the Windows Volume Mixer; not UI text.</summary>
+        private const string SessionDisplayName = "Playnite Achievements";
         /// <summary>
         /// How long the stream stays open after the voice goes idle, and how often that is checked.
         ///
@@ -233,6 +236,7 @@ namespace PlayniteAchievements.Helper
                 var output = new WasapiOut(device, AudioClientShareMode.Shared, true, LatencyMs);
                 output.PlaybackStopped += OnPlaybackStopped;
                 output.Init(_voice);
+                LabelSession(device);
                 _output = output;
                 _outputClient = TryGetAudioClient(output);
                 _voice.AudibleDelayMs = MeasureAudibleDelayMs;
@@ -244,6 +248,29 @@ namespace PlayniteAchievements.Helper
                 _emit(SoundHostProtocol.EncodeError(-1, "Open failed: " + ex.Message));
                 Close();
                 return false;
+            }
+        }
+
+        /// <summary>
+        /// Names this process's audio session and gives it the exe's icon, so the Volume Mixer
+        /// row for unlock sounds is recognizable. Runs on every open because a reopened stream can
+        /// land on a different device, whose session is unnamed. Best effort: a failure here only
+        /// leaves the row unnamed and must never block playback.
+        /// </summary>
+        private static void LabelSession(MMDevice device)
+        {
+            try
+            {
+                var session = device.AudioSessionManager.AudioSessionControl;
+                session.DisplayName = SessionDisplayName;
+                var exePath = Process.GetCurrentProcess().MainModule?.FileName;
+                if (!string.IsNullOrEmpty(exePath))
+                {
+                    session.IconPath = exePath + ",0";
+                }
+            }
+            catch (Exception)
+            {
             }
         }
 
