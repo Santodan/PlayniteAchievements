@@ -87,6 +87,42 @@ namespace PlayniteAchievements.Services.Tests
         }
 
         [TestMethod]
+        public void ExportSurfacePackage_BitmapImage_IsWrittenAsPng()
+        {
+            var tempDir = CreateTempDirectory();
+            try
+            {
+                var store = CreateStore(tempDir, out _);
+                var bitmap = Path.Combine(tempDir, "badge.bmp");
+                WriteBmpFile(bitmap);
+
+                var style = NotificationStyleSettings.CreateDefault();
+                style.Toast.BadgeImages.CommonPath = bitmap;
+
+                var packagePath = Path.Combine(tempDir, "pack.panotif");
+                store.ExportSurfacePackage(isFrame: false, style, packagePath);
+
+                using (var archive = ZipFile.OpenRead(packagePath))
+                {
+                    // The Workshop takes PNG, JPEG, GIF, WebP and WebM only.
+                    var entry = archive.GetEntry("images/badge_common.png");
+                    Assert.IsNotNull(entry);
+                    Assert.IsNull(archive.GetEntry("images/badge_common.bmp"));
+                    using (var stream = entry.Open())
+                    {
+                        var head = new byte[16];
+                        Array.Resize(ref head, stream.Read(head, 0, head.Length));
+                        Assert.IsTrue(PackageImageFormat.IsPortable(head));
+                    }
+                }
+            }
+            finally
+            {
+                DeleteDirectory(tempDir);
+            }
+        }
+
+        [TestMethod]
         public void ExportSurfacePackage_CarriesEachKindStyleAndItsOwnImages()
         {
             var tempDir = CreateTempDirectory();
@@ -684,6 +720,18 @@ namespace PlayniteAchievements.Services.Tests
             var pngBytes = Convert.FromBase64String(
                 "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVQIW2NkYGD4DwABBAEAgh8sXQAAAABJRU5ErkJggg==");
             File.WriteAllBytes(path, pngBytes);
+        }
+
+        internal static void WriteBmpFile(string path)
+        {
+            var pixels = System.Windows.Media.Imaging.BitmapSource.Create(
+                2, 2, 96, 96, System.Windows.Media.PixelFormats.Bgr32, null, new byte[16], 8);
+            var encoder = new System.Windows.Media.Imaging.BmpBitmapEncoder();
+            encoder.Frames.Add(System.Windows.Media.Imaging.BitmapFrame.Create(pixels));
+            using (var stream = File.Create(path))
+            {
+                encoder.Save(stream);
+            }
         }
 
         private static string CreateTempDirectory()
