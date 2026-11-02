@@ -1870,6 +1870,12 @@ namespace PlayniteAchievements.Models
         public static ShowcaseHorizontalAlignment GetHorizontalAlignment(ShowcaseWidgetInstanceSettings settings) =>
             GetEnum(settings, HorizontalAlign, ShowcaseHorizontalAlignment.Center);
 
+        /// <summary>The widget's horizontal alignment, or <paramref name="fallback"/> while unset.</summary>
+        public static ShowcaseHorizontalAlignment GetHorizontalAlignment(
+            ShowcaseWidgetInstanceSettings settings,
+            ShowcaseHorizontalAlignment fallback) =>
+            GetEnum(settings, HorizontalAlign, fallback);
+
         public static void SetHorizontalAlignment(
             ShowcaseWidgetInstanceSettings settings,
             ShowcaseHorizontalAlignment value) => settings?.SetOption(HorizontalAlign, value);
