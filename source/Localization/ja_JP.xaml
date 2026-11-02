@@ -1488,7 +1488,7 @@ Continue?</sys:String>
     <sys:String x:Key="LOCPlayAch_Showcase_ResetPage">Reset page</sys:String>
     <sys:String x:Key="LOCPlayAch_Showcase_ResetPageConfirm">Reset this page? Its current widgets and layout will be deleted.</sys:String>
     <sys:String x:Key="LOCPlayAch_Showcase_DeletePage">Delete page</sys:String>
-    <sys:String x:Key="LOCPlayAch_Showcase_DeletePageConfirm">Delete this page and all widgets on it?</sys:String>
+    <sys:String x:Key="LOCPlayAch_Showcase_DeletePageConfirm">このページと、そのページにあるすべてのウィジェットを削除しますか？</sys:String>
     <sys:String x:Key="LOCPlayAch_Showcase_Template_Blank">Blank</sys:String>
     <sys:String x:Key="LOCPlayAch_Showcase_Template_Analytics">Analytics</sys:String>
     <sys:String x:Key="LOCPlayAch_Showcase_Template_UpNext">Up Next</sys:String>
@@ -1661,7 +1661,7 @@ Continue?</sys:String>
     <sys:String x:Key="LOCPlayAch_Workshop_SavedAsPreset">Saved as preset &quot;{0}&quot;. Choose it in the preset list to apply it.</sys:String>
     <sys:String x:Key="LOCPlayAch_Workshop_UpdatesAvailable">Workshop updates available: {0}</sys:String>
     <sys:String x:Key="LOCPlayAch_Workshop_UpdateKeptEdits">編集内容を保持しました：{0}。それ以外はすべて更新されました。</sys:String>
-    <sys:String x:Key="LOCPlayAch_Workshop_UpdateKeptPreset">Your edited preset &quot;{0}&quot; was kept; the new version was saved as &quot;{1}&quot;.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Workshop_UpdateKeptPreset">編集したプリセット「{0}」は保持されました。新しいバージョンは「{1}」として保存されました。</sys:String>
     <sys:String x:Key="LOCPlayAch_Workshop_Account">Account</sys:String>
     <sys:String x:Key="LOCPlayAch_Workshop_SubmitterKey">Submitter key</sys:String>
     <sys:String x:Key="LOCPlayAch_Workshop_SubmitterKeyHint">Identifies your submissions so you can update or remove them later. Copy it to use the same identity on another Playnite install, or paste a key from one.</sys:String>
