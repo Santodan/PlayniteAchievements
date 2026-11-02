@@ -52,7 +52,7 @@ namespace PlayniteAchievements.Views.Settings.Display
             {
                 new SettingsNavigationItem(
                     "General",
-                    ResourceProvider.GetString("LOCGeneralLabel"),
+                    ResourceProvider.GetString("LOCPlayAch_Common_General"),
                     iconGlyph: "\uEF3A",
                     viewFactory: () => _generalSection =
                         new DisplayGeneralSection(settings, plugin, logger, OnDisplaySettingsReset)),

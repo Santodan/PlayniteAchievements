@@ -122,6 +122,93 @@ namespace PlayniteAchievements.Tests.ViewModels
         }
 
         [TestMethod]
+        public void PickedPlatforms_LimitTheGameListAndUnpickOtherGames()
+        {
+            var adapter = CreateAdapter(Rows());
+            adapter.GameFilter.Item.SetSelected(SteamDeckId.ToString("D"), true);
+            adapter.GameFilter.Item.SetSelected(XboxId.ToString("D"), true);
+
+            adapter.ProviderFilterGroups.Single(group => group.ProviderKey == "Steam").SetAll(true);
+
+            CollectionAssert.AreEquivalent(
+                new[] { SteamPcId.ToString("D"), SteamDeckId.ToString("D") },
+                adapter.GameFilter.Item.Options.ToArray());
+            CollectionAssert.AreEquivalent(new[] { SteamDeckId }, adapter.GameFilter.SelectedGameIds.ToArray());
+
+            adapter.ProviderFilterGroups.Single(group => group.ProviderKey == "Steam").SetAll(false);
+            Assert.AreEqual(3, adapter.GameFilter.Item.Options.Count(), "no platform picks list every game");
+        }
+
+        [TestMethod]
+        public void Collection_UnpicksGamesOutsideIt()
+        {
+            var adapter = CreateAdapter(Rows());
+            adapter.RestoreState(new ControlBarFilterState
+            {
+                Games = new[] { SteamPcId.ToString("D"), XboxId.ToString("D") }.ToList()
+            });
+
+            adapter.GameFilter.SetScope(null);
+            Assert.AreEqual(2, adapter.GameFilter.SelectedGameIds.Count, "no collection keeps every pick");
+
+            adapter.GameFilter.SetScope(new[] { SteamPcId, SteamDeckId });
+            CollectionAssert.AreEquivalent(new[] { SteamPcId }, adapter.GameFilter.SelectedGameIds.ToArray());
+            CollectionAssert.AreEqual(new[] { SteamPcId.ToString("D") }, adapter.CaptureState().Games);
+        }
+
+        [TestMethod]
+        public void ClearSelection_ResetsEachEntryOnItsOwn()
+        {
+            var rows = Rows();
+            var adapter = CreateAdapter(rows);
+            adapter.RestoreState(new ControlBarFilterState
+            {
+                SearchText = "summit",
+                Games = new[] { SteamPcId.ToString("D"), Guid.NewGuid().ToString("D") }.ToList(),
+                UnlockedFrom = new DateTime(2026, 1, 1),
+                Rarities = new[] { 2 }.ToList()
+            });
+            adapter.UpdateGames(Games());
+            var entries = adapter.Entries.ToDictionary(entry => entry.Id);
+
+            entries[PlayniteAchievements.Models.ShowcaseControlBarItems.Search].ClearSelection();
+            Assert.AreEqual(string.Empty, adapter.SearchText);
+            Assert.IsTrue(adapter.GameFilter.HasSelection, "only the search box clears");
+
+            entries[PlayniteAchievements.Models.ShowcaseControlBarItems.Game].ClearSelection();
+            Assert.IsFalse(adapter.GameFilter.HasSelection, "unlisted games clear too");
+
+            entries[PlayniteAchievements.Models.ShowcaseControlBarItems.UnlockDate].ClearSelection();
+            Assert.IsNull(adapter.UnlockedFrom);
+
+            entries[PlayniteAchievements.Models.ShowcaseControlBarItems.Rarity].ClearSelection();
+            Assert.IsNull(adapter.CaptureState().Rarities);
+
+            adapter.ProviderFilterGroups.Single(group => group.ProviderKey == "Xbox").SetAll(true);
+            entries[PlayniteAchievements.Models.ShowcaseControlBarItems.Platform].ClearSelection();
+            Assert.IsFalse(adapter.ProviderFilterGroups.Any(group => group.HasAnySelected));
+        }
+
+        [TestMethod]
+        public void LocksRows_LeavesLockedRowsToTheUnlockRangeAndHidesItsItem()
+        {
+            var adapter = new CrossGameAchievementControlBarAdapter();
+            adapter.RestoreState(new ControlBarFilterState { UnlockedFrom = new DateTime(2026, 1, 1) });
+            var locked = new[] { new AchievementDisplayItem { DisplayName = "Next", Unlocked = false } };
+            var dateItem = adapter.ControlBar.Items.Single(item => item.Id == PlayniteAchievements.Models.ShowcaseControlBarItems.UnlockDate);
+
+            Assert.AreEqual(0, adapter.Apply(locked).Count, "the range keeps unlocked rows only");
+
+            adapter.LocksRows = true;
+            Assert.AreEqual(1, adapter.Apply(locked).Count);
+            Assert.IsFalse(dateItem.IsVisible);
+            Assert.AreEqual(new DateTime(2026, 1, 1), adapter.UnlockedFrom, "the range is kept");
+
+            adapter.LocksRows = false;
+            Assert.IsTrue(dateItem.IsVisible);
+        }
+
+        [TestMethod]
         public void CapturedState_RestoresIntoAFreshAdapter()
         {
             var rows = Rows();

@@ -15,7 +15,7 @@ namespace PlayniteAchievements.Services.Achievements
     /// <see cref="DisplaySeparator"/>.
     ///
     /// Every member degenerates to today's flat behavior for a separator-free label:
-    /// <see cref="NormalizePath"/> matches AchievementCategoryTypeHelper.NormalizeCategoryOrDefault,
+    /// <see cref="NormalizePath"/> matches AchievementCategoryHelper.NormalizeCategoryOrDefault,
     /// the ancestor walks are empty, and <see cref="IsDescendantOf"/> is false.
     /// </summary>
     internal static class CategoryPathHelper
@@ -29,6 +29,16 @@ namespace PlayniteAchievements.Services.Achievements
         /// in a parent. Unreachable in practice - nesting is one level per explicit gesture.
         /// </summary>
         public const int MaxDepth = 8;
+
+        /// <summary>
+        /// Label identity is exact: "dlc1" and "DLC1" are two categories. Every set, map and
+        /// equality check keyed on a category label goes through this, so the rule lives in one
+        /// place. The Default bucket is the one exception, and <see cref="NormalizePath"/> folds it
+        /// to its canonical spelling before any comparison sees it.
+        /// </summary>
+        public static readonly StringComparer LabelComparer = StringComparer.Ordinal;
+
+        public const StringComparison LabelComparison = StringComparison.Ordinal;
 
         private const int PathCacheCapacity = 512;
 
@@ -75,16 +85,16 @@ namespace PlayniteAchievements.Services.Achievements
 
             if (segments.Count == 0)
             {
-                return AchievementCategoryTypeHelper.DefaultCategoryLabel;
+                return AchievementCategoryHelper.DefaultCategoryLabel;
             }
 
             // The Default bucket is a root-only sentinel: CategoryDefaultImageResolver treats it as
             // having no provider art, and rename/merge refuse it, so a child under it would be
-            // unreachable. Keep the root's own text so existing casing is untouched.
-            if (segments.Count > 1 &&
-                string.Equals(segments[0], AchievementCategoryTypeHelper.DefaultCategoryLabel, StringComparison.OrdinalIgnoreCase))
+            // unreachable. It is matched in any case and stored in one spelling, so a "default"
+            // root cannot become a second key that only looks like the Default bucket.
+            if (string.Equals(segments[0], AchievementCategoryHelper.DefaultCategoryLabel, StringComparison.OrdinalIgnoreCase))
             {
-                return segments[0];
+                return AchievementCategoryHelper.DefaultCategoryLabel;
             }
 
             if (segments.Count > MaxDepth)
@@ -120,7 +130,7 @@ namespace PlayniteAchievements.Services.Achievements
         {
             if (segments == null)
             {
-                return AchievementCategoryTypeHelper.DefaultCategoryLabel;
+                return AchievementCategoryHelper.DefaultCategoryLabel;
             }
 
             return NormalizePath(string.Join(Separator, segments));
@@ -196,6 +206,12 @@ namespace PlayniteAchievements.Services.Achievements
             return segments[segments.Count - 1];
         }
 
+        /// <summary>The first segment - the top-level category a nested label sits under.</summary>
+        public static string GetRootName(string rawValue)
+        {
+            return Split(rawValue)[0];
+        }
+
         /// <summary>The parent path, or null for a root label.</summary>
         public static string GetParentPath(string rawValue)
         {
@@ -232,7 +248,45 @@ namespace PlayniteAchievements.Services.Achievements
 
         public static bool IsSame(string a, string b)
         {
-            return string.Equals(NormalizePath(a), NormalizePath(b), StringComparison.OrdinalIgnoreCase);
+            return string.Equals(NormalizePath(a), NormalizePath(b), LabelComparison);
+        }
+
+        /// <summary>
+        /// Matches a name from outside this game's own data - a metadata site, a theme - to one of
+        /// <paramref name="candidates"/>: the exact label when present, else the one label that
+        /// differs only in case. Null when nothing matches or the loose match is ambiguous, so
+        /// case twins never resolve to the wrong one.
+        /// </summary>
+        public static string ResolveLoose(string label, IEnumerable<string> candidates)
+        {
+            if (string.IsNullOrWhiteSpace(label) || candidates == null)
+            {
+                return null;
+            }
+
+            var normalized = NormalizePath(label);
+            var loose = new List<string>();
+            foreach (var candidate in candidates)
+            {
+                if (string.IsNullOrWhiteSpace(candidate))
+                {
+                    continue;
+                }
+
+                var normalizedCandidate = NormalizePath(candidate);
+                if (string.Equals(normalizedCandidate, normalized, LabelComparison))
+                {
+                    return candidate;
+                }
+
+                if (string.Equals(normalizedCandidate, normalized, StringComparison.OrdinalIgnoreCase) &&
+                    !loose.Any(existing => IsSame(existing, normalizedCandidate)))
+                {
+                    loose.Add(candidate);
+                }
+            }
+
+            return loose.Count == 1 ? loose[0] : null;
         }
 
         /// <summary>
@@ -246,7 +300,7 @@ namespace PlayniteAchievements.Services.Achievements
             var prefix = string.Concat(normalizedAncestor, Separator);
 
             return normalizedCandidate.Length > prefix.Length &&
-                   normalizedCandidate.StartsWith(prefix, StringComparison.OrdinalIgnoreCase);
+                   normalizedCandidate.StartsWith(prefix, LabelComparison);
         }
 
         public static bool IsSelfOrDescendantOf(string candidate, string ancestor)
@@ -271,7 +325,7 @@ namespace PlayniteAchievements.Services.Achievements
             var normalizedSource = NormalizePath(sourcePath);
             var normalizedTarget = NormalizePath(targetPath);
 
-            if (string.Equals(normalizedPath, normalizedSource, StringComparison.OrdinalIgnoreCase))
+            if (string.Equals(normalizedPath, normalizedSource, LabelComparison))
             {
                 return normalizedTarget;
             }
@@ -299,7 +353,7 @@ namespace PlayniteAchievements.Services.Achievements
                 return result;
             }
 
-            var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var seen = new HashSet<string>(LabelComparer);
             var isRootLevel = string.IsNullOrWhiteSpace(parentPath);
             var parentDepth = isRootLevel ? 0 : GetDepth(parentPath);
 

@@ -460,7 +460,7 @@ namespace PlayniteAchievements.Tests.ViewModels
         [TestMethod]
         public void ARecordStep_CarriesTheArtItOverwrote()
         {
-            var import = EditorEditIntent.Command("ImportCsv", "LOCImportLabel");
+            var import = EditorEditIntent.Command("ImportCsv", "LOCPlayAch_Common_Import");
             var journal = new EditorUndoJournal();
             journal.Record(Order("a"), Order("b"), true, true, import, new[] { "one" });
             journal.RecordArtRestore("one", "UnlockedIconPath", "old-copy.png", "new-copy.png");

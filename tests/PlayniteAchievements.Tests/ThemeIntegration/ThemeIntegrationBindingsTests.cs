@@ -1688,7 +1688,7 @@ namespace PlayniteAchievements.ThemeIntegration.Tests
             using var context = CreateServiceContext(
                 friendCache: new FakeFriendCache(friendData),
                 resolveRunningGameTarget: () => AchievementHotkeyTargetResolution.NoTarget);
-            WaitForFriendThemeData(context.Settings);
+            WaitForFriendThemeData(context);
             var gameData = new GameAchievementData
             {
                 PlayniteGameId = gameId,
@@ -1775,7 +1775,7 @@ namespace PlayniteAchievements.ThemeIntegration.Tests
 
             var friendData = CreateFriendOverviewData();
             using var context = CreateServiceContext(friendCache: new FakeFriendCache(friendData));
-            WaitForFriendThemeData(context.Settings);
+            WaitForFriendThemeData(context);
             var firstGameId = Guid.NewGuid();
             var secondGameId = Guid.NewGuid();
             var firstData = new GameAchievementData
@@ -1869,6 +1869,7 @@ namespace PlayniteAchievements.ThemeIntegration.Tests
                 .ApplyCommand.Execute(null);
             Assert.AreEqual(aliceKey, context.Settings.DynamicFriendScopeUserKey);
             Assert.AreEqual(gameOneKey, context.Settings.DynamicFriendScopeGameKey);
+            WaitForPairFetch(context);
             AssertFriendGameNames(context.Settings.DynamicFriendGameSummaries, "Game One");
             AssertOptionSelected(context.Settings.DynamicFriendScopeUserOptions, aliceKey);
             AssertOptionSelected(context.Settings.DynamicFriendScopeGameOptions, gameOneKey);
@@ -2241,7 +2242,7 @@ namespace PlayniteAchievements.ThemeIntegration.Tests
             var constructionThreadId = Thread.CurrentThread.ManagedThreadId;
 
             using var context = CreateServiceContext(friendCache: cache);
-            WaitForFriendThemeData(context.Settings);
+            WaitForFriendThemeData(context);
 
             Assert.AreEqual(1, cache.LoadFriendsOverviewDataCalls);
             Assert.AreNotEqual(constructionThreadId, cache.FirstLoadThreadId);
@@ -2260,7 +2261,7 @@ namespace PlayniteAchievements.ThemeIntegration.Tests
             Assert.AreEqual(0, cache.LoadFriendsOverviewDataCalls);
 
             // The first read registers demand and builds once, even after the invalidation.
-            WaitForFriendThemeData(context.Settings);
+            WaitForFriendThemeData(context);
             Assert.AreEqual(1, cache.LoadFriendsOverviewDataCalls);
         }
 
@@ -2270,7 +2271,7 @@ namespace PlayniteAchievements.ThemeIntegration.Tests
             var cache = new FakeFriendCache(CreateFriendOverviewData());
             using var context = CreateServiceContext(friendCache: cache);
 
-            WaitForFriendThemeData(context.Settings);
+            WaitForFriendThemeData(context);
             Assert.AreEqual(1, cache.LoadFriendsOverviewDataCalls);
 
             cache.RaiseFriendCacheInvalidated();
@@ -2284,7 +2285,7 @@ namespace PlayniteAchievements.ThemeIntegration.Tests
         {
             var data = CreateFriendOverviewData();
             using var context = CreateServiceContext(friendCache: new FakeFriendCache(data));
-            WaitForFriendThemeData(context.Settings);
+            WaitForFriendThemeData(context);
             var settings = context.Settings;
 
             AssertFriendNames(settings.DynamicFriendSummaries, "Alice", "Bob", "Cora");
@@ -2353,7 +2354,7 @@ namespace PlayniteAchievements.ThemeIntegration.Tests
         {
             var data = CreateFriendOverviewData();
             using var context = CreateServiceContext(friendCache: new FakeFriendCache(data));
-            WaitForFriendThemeData(context.Settings);
+            WaitForFriendThemeData(context);
             var settings = context.Settings;
 
             Assert.IsNull(typeof(ModernThemeBindings).GetProperty("DynamicFriendGameSummaryRows"));
@@ -2395,7 +2396,7 @@ namespace PlayniteAchievements.ThemeIntegration.Tests
         {
             var data = CreateFriendOverviewData();
             using var context = CreateServiceContext(friendCache: new FakeFriendCache(data));
-            WaitForFriendThemeData(context.Settings);
+            WaitForFriendThemeData(context);
             var settings = context.Settings;
             var aliceKey = FriendOverviewProjection.GetFriendScopeKey(data.Friends[0]);
             var gogGameKey = FriendOverviewProjection.GetGameScopeKey(data.Games[2]);
@@ -2425,7 +2426,7 @@ namespace PlayniteAchievements.ThemeIntegration.Tests
             data.Friends[1].SharedGamesCount = 3;
             data.Friends[2].SharedGamesCount = 2;
             using var context = CreateServiceContext(friendCache: new FakeFriendCache(data));
-            WaitForFriendThemeData(context.Settings);
+            WaitForFriendThemeData(context);
             var settings = context.Settings;
 
             var sortKeys = settings.DynamicFriendSummariesSortOptions
@@ -2450,7 +2451,7 @@ namespace PlayniteAchievements.ThemeIntegration.Tests
         {
             var data = CreateFriendOverviewData();
             using var context = CreateServiceContext(friendCache: new FakeFriendCache(data));
-            WaitForFriendThemeData(context.Settings);
+            WaitForFriendThemeData(context);
             var settings = context.Settings;
 
             settings.SetDynamicFriendScopeProviderCommand.Execute("GOG");
@@ -2486,7 +2487,7 @@ namespace PlayniteAchievements.ThemeIntegration.Tests
             using var context = CreateServiceContext(
                 friendCache: new FakeFriendCache(data),
                 resolveRunningGameTarget: () => AchievementHotkeyTargetResolution.ForGame(runningGameId));
-            WaitForFriendThemeData(context.Settings);
+            WaitForFriendThemeData(context);
             var settings = context.Settings;
             var coraKey = FriendOverviewProjection.GetFriendScopeKey(data.Friends[2]);
             var gameOneKey = FriendOverviewProjection.GetGameScopeKey(data.Games[0]);
@@ -2550,7 +2551,7 @@ namespace PlayniteAchievements.ThemeIntegration.Tests
             var data = CreateFriendOverviewData();
             var friendCache = new FakeFriendCache(data);
             using var context = CreateServiceContext(friendCache: friendCache);
-            WaitForFriendThemeData(context.Settings);
+            WaitForFriendThemeData(context);
             var settings = context.Settings;
 
             settings.SetDynamicFriendScopeUserCommand.Execute(FriendOverviewProjection.GetFriendScopeKey(data.Friends[0]));
@@ -2928,11 +2929,26 @@ namespace PlayniteAchievements.ThemeIntegration.Tests
             Assert.IsTrue(condition(), "Timed out waiting for asynchronous theme binding update.");
         }
 
-        private static void WaitForFriendThemeData(PlayniteAchievementsSettings settings, string expectedFriendName = "Alice")
+        // Without a dispatcher the friend refresh applies on a pool thread and writes several lists in
+        // turn, so the first list being populated does not mean the apply has finished. Waits for the
+        // refresh task to complete before reading, so no assertion enumerates a list mid-write.
+        private static void WaitForFriendThemeData(ServiceTestContext context, string expectedFriendName = "Alice")
         {
             WaitForConditionAsync(
-                () => settings.DynamicFriendSummaries.Any(item => item.DisplayName == expectedFriendName),
+                () => context.Service.FriendRefreshTaskForTests.IsCompleted &&
+                      context.Settings.DynamicFriendSummaries.Any(item => item.DisplayName == expectedFriendName),
                 timeoutMs: 3000).GetAwaiter().GetResult();
+        }
+
+        // Selecting a friend and a game starts a pair-row fetch whose apply rewrites the friend lists
+        // on a pool thread when there is no dispatcher.
+        private static void WaitForPairFetch(ServiceTestContext context)
+        {
+            var fetch = context.Service.DynamicFriendPairFetchTask;
+            if (fetch != null)
+            {
+                Assert.IsTrue(fetch.Wait(3000), "Pair fetch did not complete.");
+            }
         }
 
         private static HashSet<string> TrackPropertyChanges(INotifyPropertyChanged source)

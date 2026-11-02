@@ -67,6 +67,12 @@ namespace PlayniteAchievements.Views.Showcase
         public ShowcaseGameGridControl()
         {
             InitializeComponent();
+            // The key binds to this control directly: an ancestor binding in XAML only resolves
+            // once the grid joins the visual tree, after it has prepared its columns under the
+            // default key, writing into that surface's record.
+            InnerGrid.SetBinding(
+                Controls.GameSummariesGridControl.ColumnSettingsKeyProperty,
+                new System.Windows.Data.Binding(nameof(ColumnSettingsKey)) { Source = this });
         }
 
         protected override FrameworkElement GridElement => InnerGrid;

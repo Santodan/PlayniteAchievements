@@ -6,10 +6,10 @@
              xmlns:vm="clr-namespace:PlayniteAchievements.ViewModels"
              xmlns:helpers="clr-namespace:PlayniteAchievements.Views.Helpers"
              xmlns:converters="clr-namespace:PlayniteAchievements.Views.Converters"
+             xmlns:controls="clr-namespace:PlayniteAchievements.Views.Controls"
              mc:Ignorable="d"
              d:DesignHeight="600" d:DesignWidth="800"
-             d:DataContext="{d:DesignInstance vm:ManualAchievementsViewModel}"
-             FocusManager.FocusedElement="{Binding ElementName=SearchTextBox}">
+             d:DataContext="{d:DesignInstance vm:ManualAchievementsViewModel}">
 
     <UserControl.Resources>
         <ResourceDictionary>
@@ -71,148 +71,14 @@
                               HorizontalAlignment="Left"/>
                 </Grid>
 
-                <!-- Search bar -->
-                <Grid Grid.Row="2" Margin="{StaticResource PlayAch.Thickness.Bottom.Md}">
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="*"/>
-                        <ColumnDefinition Width="Auto"/>
-                    </Grid.ColumnDefinitions>
-
-                    <Grid Grid.Column="0">
-                        <TextBox x:Name="SearchTextBox"
-                                 Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged, Mode=TwoWay}"
-                                 Style="{StaticResource ManageAchievementsSearchTextBoxStyle}"
-                                 KeyDown="SearchTextBox_KeyDown"/>
-                        <TextBlock Text="{DynamicResource LOCPlayAch_Filter_Games}"
-                                   Tag="{Binding Text, ElementName=SearchTextBox}"
-                                   Style="{StaticResource ManageAchievementsSearchPlaceholderTextStyle}"/>
-                        <Button x:Name="ClearSearchTextButton"
-                                Tag="{Binding Text, ElementName=SearchTextBox}"
-                                Click="ClearSearchTextButton_Click"
-                                Style="{StaticResource ClearSearchButtonStyle}"/>
-                    </Grid>
-
-                    <Button x:Name="SearchButton"
-                            Grid.Column="1"
-                            Content="{DynamicResource LOCSearchLabel}"
-                            Command="{Binding SearchCommand}"
-                            Padding="{StaticResource PlayAch.Thickness.ButtonPadding}"
-                            MinWidth="80"
-                            Margin="{StaticResource PlayAch.Thickness.Left.Sm}"/>
-                </Grid>
-
-                <!-- Results grid -->
-                <Border Grid.Row="3"
-                        Background="Transparent"
-                        BorderBrush="Transparent"
-                        BorderThickness="0"
-                        Margin="{StaticResource PlayAch.Thickness.Bottom.Md}">
-                    <DataGrid x:Name="SearchResultsDataGrid"
-                              Style="{StaticResource PlayAch.DataGrid.BaseStyle}"
-                              ItemsSource="{Binding SearchResults}"
-                              SelectedItem="{Binding SelectedResult, Mode=TwoWay}"
-                              AutoGenerateColumns="False"
-                              IsReadOnly="True"
-                              SelectionMode="Single"
-                              SelectionUnit="FullRow"
-                              KeyboardNavigation.DirectionalNavigation="Continue"
-                              CanUserAddRows="False"
-                              CanUserDeleteRows="False"
-                              CanUserResizeRows="False"
-                              CanUserReorderColumns="True"
-                              CanUserResizeColumns="True"
-                              CanUserSortColumns="True"
-                              RowHeight="68"
-                              EnableRowVirtualization="True"
-                              EnableColumnVirtualization="True"
-                              VirtualizingStackPanel.VirtualizationMode="Recycling"
-                              VirtualizingStackPanel.ScrollUnit="Pixel"
-                              ScrollViewer.CanContentScroll="True"
-                              ScrollViewer.HorizontalScrollBarVisibility="Disabled"
-                              GridLinesVisibility="None"
-                              HeadersVisibility="Column"
-                              BorderThickness="0"
-                              Background="{DynamicResource PlayAch.Brush.Grid.Background}"
-                              RowBackground="{DynamicResource PlayAch.Brush.Grid.RowBackground}"
-                              Foreground="{DynamicResource PlayAch.Brush.Text}"
-                              ColumnHeaderStyle="{StaticResource ManageAchievementsColumnHeaderStyle}"
-                              helpers:DataGridHoverScrollBarBehavior.IsEnabled="True"
-                              helpers:DataGridAlignmentBehavior.IsEnabled="True"
-                              PreviewMouseLeftButtonDown="SearchDataGrid_PreviewMouseLeftButtonDown"
-                              Tag="ControllerCellFocus"
-                              MouseDoubleClick="SearchDataGrid_MouseDoubleClick">
-                        <DataGrid.CellStyle>
-                            <Style TargetType="DataGridCell" BasedOn="{StaticResource ManageAchievementsControllerCellStyle}"/>
-                        </DataGrid.CellStyle>
-
-                        <DataGrid.RowStyle>
-                            <Style TargetType="DataGridRow" BasedOn="{StaticResource ManageAchievementsDataGridRowStyle}">
-                                <Setter Property="MinHeight" Value="64"/>
-                                <Setter Property="ClipToBounds" Value="True"/>
-                            </Style>
-                        </DataGrid.RowStyle>
-
-                        <DataGrid.Columns>
-                            <DataGridTemplateColumn Header="{DynamicResource LOCGameIconTitle}" Width="80" IsReadOnly="True"
-                                                    CellStyle="{StaticResource ManageAchievementsIconCellStyle}">
-                                <DataGridTemplateColumn.CellTemplate>
-                                    <DataTemplate>
-                                        <Grid HorizontalAlignment="Center"
-                                              VerticalAlignment="Center"
-                                              Width="72"
-                                              Height="44">
-                                            <Image Source="{Binding IconUrl}"
-                                                   Stretch="Uniform"
-                                                   RenderOptions.BitmapScalingMode="HighQuality"/>
-                                        </Grid>
-                                    </DataTemplate>
-                                </DataGridTemplateColumn.CellTemplate>
-                            </DataGridTemplateColumn>
-
-                            <DataGridTextColumn Header="{DynamicResource LOCNameLabel}"
-                                                Binding="{Binding Name}"
-                                                Width="*">
-                                <DataGridTextColumn.ElementStyle>
-                                    <Style TargetType="TextBlock" BasedOn="{StaticResource EllipsisWrappedDataGridTextStyle}">
-                                        <Setter Property="Foreground" Value="{DynamicResource PlayAch.Brush.Text}"/>
-                                        <Setter Property="ToolTip" Value="{Binding Name}"/>
-                                    </Style>
-                                </DataGridTextColumn.ElementStyle>
-                            </DataGridTextColumn>
-
-                            <DataGridTextColumn Header="{DynamicResource LOCPlatformTitle}"
-                                                Binding="{Binding Platforms}"
-                                                Width="120"
-                                                Visibility="{Binding DataContext.ShowPlatformColumn, RelativeSource={RelativeSource AncestorType=UserControl}, Converter={StaticResource BooleanToVisibilityConverter}}">
-                                <DataGridTextColumn.ElementStyle>
-                                    <Style TargetType="TextBlock" BasedOn="{StaticResource EllipsisWrappedDataGridTextStyle}">
-                                        <Setter Property="Foreground" Value="{DynamicResource PlayAch.Brush.Text}"/>
-                                        <Setter Property="ToolTip" Value="{Binding Platforms}"/>
-                                    </Style>
-                                </DataGridTextColumn.ElementStyle>
-                            </DataGridTextColumn>
-
-                            <DataGridTextColumn Header="{DynamicResource LOCPlayAch_Column_AppId}"
-                                                Binding="{Binding SourceGameId}"
-                                                Width="*">
-                                <DataGridTextColumn.ElementStyle>
-                                    <Style TargetType="TextBlock" BasedOn="{StaticResource EllipsisWrappedDataGridTextStyle}">
-                                        <Setter Property="Foreground" Value="{DynamicResource PlayAch.Brush.Text}"/>
-                                        <Setter Property="ToolTip" Value="{Binding SourceGameId}"/>
-                                    </Style>
-                                </DataGridTextColumn.ElementStyle>
-                            </DataGridTextColumn>
-                        </DataGrid.Columns>
-                    </DataGrid>
-                </Border>
-
-                <!-- Status -->
-                <TextBlock Grid.Row="4"
-                           Text="{Binding SearchStatusMessage}"
-                           Foreground="{DynamicResource PlayAch.Brush.Text}"
-                           Opacity="{StaticResource PlayAch.Opacity.Hint}"
-                           TextWrapping="Wrap"
-                           Margin="{StaticResource PlayAch.Thickness.Bottom.Md}"/>
+                <!-- Search: a name, or an id or address the source recognizes. -->
+                <controls:GameSearchPanel x:Name="SearchPanel"
+                                          Grid.Row="2"
+                                          Grid.RowSpan="3"
+                                          DataContext="{Binding Search}"
+                                          Margin="{StaticResource PlayAch.Thickness.Bottom.Md}"
+                                          Accepted="SearchPanel_Accepted"
+                                          Cancelled="SearchPanel_Cancelled"/>
             </Grid>
 
             <!-- Stage 2: Refreshing -->
@@ -250,7 +116,7 @@
 
                 <Button x:Name="RefreshCancelButton"
                         Grid.Row="3"
-                        Content="{DynamicResource LOCCancelLabel}"
+                        Content="{DynamicResource LOCPlayAch_Common_Cancel}"
                         Command="{Binding CancelRefreshCommand}"
                         IsEnabled="{Binding CanCancelRefresh}"
                         Padding="{StaticResource PlayAch.Thickness.ButtonPadding}"
@@ -304,12 +170,12 @@
                     <!-- Action buttons -->
                     <StackPanel Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Right" Margin="10,0,0,0">
                         <Button x:Name="UnlockAllButton"
-                                Content="{DynamicResource LOCSelectAll}"
+                                Content="{DynamicResource LOCPlayAch_Common_SelectAll}"
                                 Command="{Binding UnlockAllCommand}"
                                 Padding="8,4"
                                 Margin="{StaticResource PlayAch.Thickness.Right.Sm}"/>
                         <Button x:Name="LockAllButton"
-                                Content="{DynamicResource LOCDeselectAll}"
+                                Content="{DynamicResource LOCPlayAch_Common_DeselectAll}"
                                 Command="{Binding LockAllCommand}"
                                 Padding="8,4"/>
                     </StackPanel>
@@ -563,7 +429,7 @@
                                Foreground="{DynamicResource PlayAch.Brush.Text}"
                                Opacity="{StaticResource PlayAch.Opacity.Subtle}"
                                VerticalAlignment="Center" />
-                    <TextBlock Text="{DynamicResource LOCPlatformTitle}"
+                    <TextBlock Text="{DynamicResource LOCPlayAch_Common_Platform}"
                                Foreground="{DynamicResource PlayAch.Brush.Text}"
                                Opacity="{StaticResource PlayAch.Opacity.Hint}"
                                Margin="{StaticResource PlayAch.Thickness.Left.Md}"
@@ -607,14 +473,14 @@
                                 RelativeSource={RelativeSource AncestorType=UserControl},
                                 Converter={StaticResource BooleanToVisibilityConverter}}">
                     <Button x:Name="NextButton"
-                            Content="{DynamicResource LOCNextLabel}"
+                            Content="{DynamicResource LOCPlayAch_Common_Next}"
                             Click="NextButton_Click"
                             Padding="{StaticResource PlayAch.Thickness.ButtonPadding}"
                             MinWidth="80"
                             Margin="{StaticResource PlayAch.Thickness.Right.Sm}"
                             IsDefault="True"/>
                     <Button x:Name="SearchCancelButton"
-                            Content="{DynamicResource LOCCancelLabel}"
+                            Content="{DynamicResource LOCPlayAch_Common_Cancel}"
                             Click="CancelButton_Click"
                             Padding="{StaticResource PlayAch.Thickness.ButtonPadding}"
                             MinWidth="80"
@@ -627,14 +493,14 @@
                                 RelativeSource={RelativeSource AncestorType=UserControl},
                                 Converter={StaticResource BooleanToVisibilityConverter}}">
                     <Button x:Name="SaveButton"
-                            Content="{DynamicResource LOCSaveLabel}"
+                            Content="{DynamicResource LOCPlayAch_Common_Save}"
                             Command="{Binding SaveCommand}"
                             Padding="{StaticResource PlayAch.Thickness.ButtonPadding}"
                             MinWidth="80"
                             Margin="{StaticResource PlayAch.Thickness.Right.Sm}"
                             IsDefault="True"/>
                     <Button x:Name="EditCancelButton"
-                            Content="{DynamicResource LOCCancelLabel}"
+                            Content="{DynamicResource LOCPlayAch_Common_Cancel}"
                             Click="CancelButton_Click"
                             Padding="{StaticResource PlayAch.Thickness.ButtonPadding}"
                             MinWidth="80"/>

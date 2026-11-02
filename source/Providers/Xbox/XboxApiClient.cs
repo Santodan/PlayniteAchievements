@@ -33,13 +33,14 @@ namespace PlayniteAchievements.Providers.Xbox
 
         /// <summary>
         /// Gets achievements for Xbox One/Series X|S games.
-        /// Uses contract version 2.
+        /// Uses contract version 2. <paramref name="locale"/> replaces the plugin-language locale when given.
         /// </summary>
         public async Task<XboxOneAchievementResponse> GetXboxOneAchievementsAsync(
             string xuid,
             string titleId,
             AuthorizationData auth,
-            CancellationToken ct)
+            CancellationToken ct,
+            string locale = null)
         {
             if (auth == null) throw new ArgumentNullException(nameof(auth));
             if (string.IsNullOrWhiteSpace(xuid)) throw new ArgumentNullException(nameof(xuid));
@@ -63,7 +64,7 @@ namespace PlayniteAchievements.Providers.Xbox
 
                 using (var request = new HttpRequestMessage(HttpMethod.Get, url))
                 {
-                    XboxSessionManager.SetAuthenticationHeaders(request.Headers, auth, "2", GetLocale());
+                    XboxSessionManager.SetAuthenticationHeaders(request.Headers, auth, "2", locale ?? GetLocale());
 
                     var response = await _httpClient.SendAsync(request, ct).ConfigureAwait(false);
                     var content = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
@@ -90,13 +91,14 @@ namespace PlayniteAchievements.Providers.Xbox
 
         /// <summary>
         /// Gets unlocked achievements for Xbox 360 games.
-        /// Uses contract version 1.
+        /// Uses contract version 1. <paramref name="locale"/> replaces the plugin-language locale when given.
         /// </summary>
         public async Task<Xbox360AchievementResponse> GetXbox360UnlockedAsync(
             string xuid,
             string titleId,
             AuthorizationData auth,
-            CancellationToken ct)
+            CancellationToken ct,
+            string locale = null)
         {
             if (auth == null) throw new ArgumentNullException(nameof(auth));
             if (string.IsNullOrWhiteSpace(xuid)) throw new ArgumentNullException(nameof(xuid));
@@ -112,7 +114,7 @@ namespace PlayniteAchievements.Providers.Xbox
 
                 using (var request = new HttpRequestMessage(HttpMethod.Get, url))
                 {
-                    XboxSessionManager.SetAuthenticationHeaders(request.Headers, auth, "1", GetLocale());
+                    XboxSessionManager.SetAuthenticationHeaders(request.Headers, auth, "1", locale ?? GetLocale());
 
                     var response = await _httpClient.SendAsync(request, ct).ConfigureAwait(false);
                     var content = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
@@ -139,13 +141,14 @@ namespace PlayniteAchievements.Providers.Xbox
 
         /// <summary>
         /// Gets all achievements (locked and unlocked) for Xbox 360 games.
-        /// Uses contract version 1.
+        /// Uses contract version 1. <paramref name="locale"/> replaces the plugin-language locale when given.
         /// </summary>
         public async Task<Xbox360AchievementResponse> GetXbox360AllAsync(
             string xuid,
             string titleId,
             AuthorizationData auth,
-            CancellationToken ct)
+            CancellationToken ct,
+            string locale = null)
         {
             if (auth == null) throw new ArgumentNullException(nameof(auth));
             if (string.IsNullOrWhiteSpace(xuid)) throw new ArgumentNullException(nameof(xuid));
@@ -161,7 +164,7 @@ namespace PlayniteAchievements.Providers.Xbox
 
                 using (var request = new HttpRequestMessage(HttpMethod.Get, url))
                 {
-                    XboxSessionManager.SetAuthenticationHeaders(request.Headers, auth, "1", GetLocale());
+                    XboxSessionManager.SetAuthenticationHeaders(request.Headers, auth, "1", locale ?? GetLocale());
 
                     var response = await _httpClient.SendAsync(request, ct).ConfigureAwait(false);
                     var content = await response.Content.ReadAsStringAsync().ConfigureAwait(false);

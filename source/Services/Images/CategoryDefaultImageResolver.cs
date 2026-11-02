@@ -20,10 +20,10 @@ namespace PlayniteAchievements.Services.Images
                 return null;
             }
 
-            var normalizedLabel = AchievementCategoryTypeHelper.NormalizeCategoryOrDefault(categoryLabel);
+            var normalizedLabel = AchievementCategoryHelper.NormalizeCategoryOrDefault(categoryLabel);
             if (string.Equals(
                 normalizedLabel,
-                AchievementCategoryTypeHelper.DefaultCategoryLabel,
+                AchievementCategoryHelper.DefaultCategoryLabel,
                 StringComparison.OrdinalIgnoreCase))
             {
                 return null;

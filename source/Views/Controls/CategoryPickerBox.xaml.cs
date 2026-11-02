@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Collections.Specialized;
+using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
@@ -9,13 +10,14 @@ using PlayniteAchievements.Services.Achievements;
 namespace PlayniteAchievements.Views.Controls
 {
     /// <summary>
-    /// Picks one of a game's categories, and optionally offers a row that asks the host to create a
-    /// new one.
+    /// Picks one of a game's categories, and, when the host handles <see cref="CreateRequested"/>,
+    /// offers to create the one a search found nothing for.
     ///
     /// The box is select-only. Naming a category by typing into it was both the slow path - WPF runs
     /// its text-search pipeline over every option on each keystroke of an editable ComboBox - and a
     /// silent one, since anything that did not match an existing leaf became a new root category. A
-    /// category is now either picked from the list or created deliberately through the create row.
+    /// category is now either picked from the list or created deliberately through the drop-down's
+    /// search, whose create result names it.
     ///
     /// Selection is still read on demand through <see cref="ResolveSelection"/>: the host decides
     /// when a pick is worth committing, and there is no intermediate state any caller wants.
@@ -31,6 +33,8 @@ namespace PlayniteAchievements.Views.Controls
         {
             InitializeComponent();
             PickerComboBox.SelectionChanged += PickerComboBox_SelectionChanged;
+            Helpers.SelectorSearch.SetCreateAction(PickerComboBox, RequestCreate);
+            Helpers.SelectorSearch.SetSearchHandler(PickerComboBox, ShowSearchResults);
 
             // A TabControl unloads the tab this box sits on, so the watcher has to come back with
             // it: the bound collection is delivered once and never replaced, which left a box that
@@ -47,10 +51,10 @@ namespace PlayniteAchievements.Views.Controls
         public event EventHandler SelectionCommitted;
 
         /// <summary>
-        /// Raised when the user picks the create row. The host names and creates the category; the
-        /// box has already put the previous pick back, so a cancelled prompt changes nothing.
+        /// Raised with the name the user searched for when they pick the create result. Without a
+        /// handler the result is not offered.
         /// </summary>
-        public event EventHandler CreateRequested;
+        public event EventHandler<string> CreateRequested;
 
         /// <summary>Raised when the user commits with Enter, so a hosting dialog can accept.</summary>
         public event EventHandler Committed;
@@ -85,37 +89,6 @@ namespace PlayniteAchievements.Views.Controls
             set => SetValue(PlaceholderProperty, value);
         }
 
-        public static readonly DependencyProperty AllowCreateNewProperty =
-            DependencyProperty.Register(
-                nameof(AllowCreateNew),
-                typeof(bool),
-                typeof(CategoryPickerBox),
-                new PropertyMetadata(false, OnCreateRowChanged));
-
-        /// <summary>
-        /// Whether the list opens with a row that requests a new category. Off by default: a picker
-        /// whose host cannot create one would offer a row nothing answers.
-        /// </summary>
-        public bool AllowCreateNew
-        {
-            get => (bool)GetValue(AllowCreateNewProperty);
-            set => SetValue(AllowCreateNewProperty, value);
-        }
-
-        public static readonly DependencyProperty CreateNewTextProperty =
-            DependencyProperty.Register(
-                nameof(CreateNewText),
-                typeof(string),
-                typeof(CategoryPickerBox),
-                new PropertyMetadata(string.Empty, OnCreateRowChanged));
-
-        /// <summary>What the create row reads.</summary>
-        public string CreateNewText
-        {
-            get => (string)GetValue(CreateNewTextProperty);
-            set => SetValue(CreateNewTextProperty, value);
-        }
-
         private static void OnCategoriesChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
         {
             if (d is CategoryPickerBox box)
@@ -125,9 +98,60 @@ namespace PlayniteAchievements.Views.Controls
             }
         }
 
-        private static void OnCreateRowChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
+        // Read when the search finds nothing, so a host that subscribes later is still offered.
+        private void RequestCreate(string name)
         {
-            (d as CategoryPickerBox)?.RebuildOptions();
+            CreateRequested?.Invoke(this, name);
+        }
+
+        /// <summary>
+        /// Lists the categories whose name holds <paramref name="query"/>, each under the categories
+        /// above it, as a tree of its own so the connectors join what is shown; "" puts the full
+        /// list back. Returns whether any category matched.
+        /// </summary>
+        private bool ShowSearchResults(string query)
+        {
+            List<CategoryPickerOption> shown;
+            var matched = true;
+            if (string.IsNullOrEmpty(query))
+            {
+                shown = _options;
+            }
+            else
+            {
+                var labels = _options
+                    .Where(option => option.IsSelectable &&
+                                     (option.LeafDisplay ?? string.Empty).IndexOf(query, StringComparison.OrdinalIgnoreCase) >= 0)
+                    .Select(option => option.Label)
+                    .ToList();
+                matched = labels.Count > 0;
+
+                // The parents come back from the tree build; the full list's order keeps them where
+                // they were.
+                shown = CategoryPickerResolver.BuildOptions(
+                    labels,
+                    _options.Select(option => option.Label).ToList(),
+                    synthesizedAreSelectable: true);
+            }
+
+            if (!ReferenceEquals(PickerComboBox.ItemsSource, shown))
+            {
+                var carriedLabel = _lastPickedOption?.Label;
+                _isSyncingSelection = true;
+                try
+                {
+                    PickerComboBox.ItemsSource = shown;
+                    PickerComboBox.SelectedItem = carriedLabel == null
+                        ? null
+                        : shown.FirstOrDefault(option => CategoryPathHelper.IsSame(option.Label, carriedLabel));
+                }
+                finally
+                {
+                    _isSyncingSelection = false;
+                }
+            }
+
+            return matched;
         }
 
         /// <summary>
@@ -178,7 +202,7 @@ namespace PlayniteAchievements.Views.Controls
             CategoryPickerOption match = null;
             foreach (var option in _options)
             {
-                if (!option.IsCreateNew && CategoryPathHelper.IsSame(option.Label, normalized))
+                if (CategoryPathHelper.IsSame(option.Label, normalized))
                 {
                     match = option;
                     break;
@@ -195,7 +219,7 @@ namespace PlayniteAchievements.Views.Controls
         public string ResolveSelection()
         {
             var picked = PickerComboBox.SelectedItem as CategoryPickerOption;
-            return picked == null || picked.IsCreateNew ? null : picked.Label;
+            return picked?.Label;
         }
 
         public void FocusInput()
@@ -211,11 +235,6 @@ namespace PlayniteAchievements.Views.Controls
             var options = CategoryPickerResolver.BuildOptions(
                 Categories,
                 synthesizedAreSelectable: true);
-
-            if (AllowCreateNew)
-            {
-                options.Insert(0, CategoryPickerOption.CreateNewRow(CreateNewText));
-            }
 
             // Nothing to do when the list is the same one: swapping an identical ItemsSource still
             // costs the drop-down every container it had realized, and every assignment refreshes
@@ -259,8 +278,7 @@ namespace PlayniteAchievements.Views.Controls
 
             for (var i = 0; i < left.Count; i++)
             {
-                if (left[i].IsCreateNew != right[i].IsCreateNew ||
-                    left[i].IsSelectable != right[i].IsSelectable ||
+                if (left[i].IsSelectable != right[i].IsSelectable ||
                     !string.Equals(left[i].Label, right[i].Label, StringComparison.Ordinal) ||
                     !string.Equals(left[i].LeafDisplay, right[i].LeafDisplay, StringComparison.Ordinal))
                 {
@@ -302,16 +320,6 @@ namespace PlayniteAchievements.Views.Controls
                 // fact, once the guard around the rebuild has closed, so the pick that was showing
                 // is put back here rather than being read as the user clearing the category.
                 SetInitialCategory(_lastPickedOption?.Label);
-                return;
-            }
-
-            if (selected.IsCreateNew)
-            {
-                // The create row is an action, not a category: the previous pick goes back before
-                // the host is asked, so cancelling the prompt leaves the box as it was.
-                SelectWithoutCommitting(_lastPickedOption);
-                PickerComboBox.IsDropDownOpen = false;
-                CreateRequested?.Invoke(this, EventArgs.Empty);
                 return;
             }
 

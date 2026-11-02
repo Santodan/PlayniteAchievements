@@ -22,7 +22,87 @@ namespace PlayniteAchievements.Views.Controls
                 nameof(ControlBar),
                 typeof(GridControlBarViewModel),
                 typeof(GridControlBarControl),
-                new PropertyMetadata(null, OnVisibilityPropertyChanged));
+                new PropertyMetadata(null, OnControlBarChanged));
+
+        /// <summary>
+        /// The grid options whose hidden items this bar leaves out; null shows every item. Set by
+        /// the grid that hosts the bar, from the surface its Display Settings edit.
+        /// </summary>
+        public static readonly DependencyProperty GridOptionsProperty =
+            DependencyProperty.Register(
+                nameof(GridOptions),
+                typeof(PlayniteAchievements.Models.Settings.GridCommonOptions),
+                typeof(GridControlBarControl),
+                new PropertyMetadata(null, OnGridOptionsChanged));
+
+        public PlayniteAchievements.Models.Settings.GridCommonOptions GridOptions
+        {
+            get => (PlayniteAchievements.Models.Settings.GridCommonOptions)GetValue(GridOptionsProperty);
+            set => SetValue(GridOptionsProperty, value);
+        }
+
+        private static readonly DependencyPropertyKey ShownItemsPropertyKey =
+            DependencyProperty.RegisterReadOnly(
+                nameof(ShownItems),
+                typeof(System.ComponentModel.ICollectionView),
+                typeof(GridControlBarControl),
+                new PropertyMetadata(null));
+
+        /// <summary>The bar's items less the ones its grid options hide.</summary>
+        public System.ComponentModel.ICollectionView ShownItems => (System.ComponentModel.ICollectionView)GetValue(ShownItemsPropertyKey.DependencyProperty);
+
+        private static readonly DependencyPropertyKey ShownSearchPropertyKey =
+            DependencyProperty.RegisterReadOnly(
+                nameof(ShownSearch),
+                typeof(GridSearchControl),
+                typeof(GridControlBarControl),
+                new PropertyMetadata(null));
+
+        /// <summary>The bar's search box, or null while its grid options hide it.</summary>
+        public GridSearchControl ShownSearch => (GridSearchControl)GetValue(ShownSearchPropertyKey.DependencyProperty);
+
+        /// <summary>Raised when the grid options change which items show.</summary>
+        public event EventHandler ShownItemsChanged;
+
+        /// <summary>
+        /// The search box the bar holds outside the category list, which swaps its own in; null
+        /// while the bar's search is that one.
+        /// </summary>
+        public GridSearchControl BaseSearch { get; set; }
+
+        /// <summary>
+        /// The items a grid's Display Settings list under Show Control Bar: the search box and
+        /// every item with an id, in bar order.
+        /// </summary>
+        public IReadOnlyList<IGridControlBarEntry> GetSettingsEntries()
+        {
+            var entries = new List<IGridControlBarEntry>();
+            var bar = ControlBar;
+            if (bar == null)
+            {
+                return entries;
+            }
+
+            var search = BaseSearch ?? bar.Search;
+            if (!string.IsNullOrWhiteSpace(search?.Id))
+            {
+                entries.Add(search);
+            }
+
+            foreach (var item in bar.LeadingItems.Concat(bar.Items))
+            {
+                if (!string.IsNullOrWhiteSpace(item?.Id) && !entries.Contains(item))
+                {
+                    entries.Add(item);
+                }
+            }
+
+            return entries;
+        }
+
+        /// <summary>Whether the grid options hide <paramref name="entry"/>.</summary>
+        public bool IsItemHidden(IGridControlBarEntry entry) =>
+            entry != null && GridOptions?.IsControlBarItemHidden(entry.Id) == true;
 
         public static readonly DependencyProperty ShowControlBarProperty =
             DependencyProperty.Register(
@@ -53,6 +133,23 @@ namespace PlayniteAchievements.Views.Controls
         {
             get => (bool)GetValue(WrapItemsProperty);
             set => SetValue(WrapItemsProperty, value);
+        }
+
+        /// <summary>
+        /// Whether each item spans the bar's width instead of keeping its own, for a bar holding
+        /// one item, such as a row of a widget's settings.
+        /// </summary>
+        public static readonly DependencyProperty FillsWidthProperty =
+            DependencyProperty.Register(
+                nameof(FillsWidth),
+                typeof(bool),
+                typeof(GridControlBarControl),
+                new PropertyMetadata(false));
+
+        public bool FillsWidth
+        {
+            get => (bool)GetValue(FillsWidthProperty);
+            set => SetValue(FillsWidthProperty, value);
         }
 
         public GridControlBarControl()
@@ -117,9 +214,98 @@ namespace PlayniteAchievements.Views.Controls
             }
         }
 
+        private static void OnControlBarChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
+        {
+            if (!(d is GridControlBarControl control))
+            {
+                return;
+            }
+
+            if (e.OldValue is GridControlBarViewModel oldBar)
+            {
+                oldBar.PropertyChanged -= control.ControlBar_PropertyChanged;
+                oldBar.Items.CollectionChanged -= control.ControlBarItems_CollectionChanged;
+            }
+
+            if (e.NewValue is GridControlBarViewModel newBar)
+            {
+                newBar.PropertyChanged += control.ControlBar_PropertyChanged;
+                newBar.Items.CollectionChanged += control.ControlBarItems_CollectionChanged;
+            }
+
+            var view = e.NewValue is GridControlBarViewModel bar
+                ? new ListCollectionView(bar.Items) { Filter = control.IsShown }
+                : null;
+            control.SetValue(ShownItemsPropertyKey, view);
+            control.UpdateShownSearch();
+            control.UpdateVisibility();
+        }
+
+        private static void OnGridOptionsChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
+        {
+            if (!(d is GridControlBarControl control))
+            {
+                return;
+            }
+
+            if (e.OldValue is System.ComponentModel.INotifyPropertyChanged oldOptions)
+            {
+                oldOptions.PropertyChanged -= control.GridOptions_PropertyChanged;
+            }
+
+            if (e.NewValue is System.ComponentModel.INotifyPropertyChanged newOptions)
+            {
+                newOptions.PropertyChanged += control.GridOptions_PropertyChanged;
+            }
+
+            control.ApplyHiddenItems();
+        }
+
+        private void GridOptions_PropertyChanged(object sender, System.ComponentModel.PropertyChangedEventArgs e)
+        {
+            if (string.IsNullOrEmpty(e.PropertyName) ||
+                e.PropertyName == nameof(PlayniteAchievements.Models.Settings.GridCommonOptions.HiddenControlBarItems))
+            {
+                ApplyHiddenItems();
+            }
+        }
+
+        // The category list swaps the bar's search box, so the shown one follows it.
+        private void ControlBar_PropertyChanged(object sender, System.ComponentModel.PropertyChangedEventArgs e)
+        {
+            if (string.IsNullOrEmpty(e.PropertyName) || e.PropertyName == nameof(GridControlBarViewModel.Search))
+            {
+                UpdateShownSearch();
+            }
+        }
+
+        // Items added later (the category mode toggle) can make a fully hidden bar show again.
+        private void ControlBarItems_CollectionChanged(object sender, System.Collections.Specialized.NotifyCollectionChangedEventArgs e) =>
+            UpdateVisibility();
+
+        private void ApplyHiddenItems()
+        {
+            ShownItems?.Refresh();
+            UpdateShownSearch();
+            UpdateVisibility();
+            ShownItemsChanged?.Invoke(this, EventArgs.Empty);
+        }
+
+        private bool IsShown(object item) => !(item is IGridControlBarEntry entry) || !IsItemHidden(entry);
+
+        private void UpdateShownSearch()
+        {
+            var search = ControlBar?.Search;
+            SetValue(ShownSearchPropertyKey, IsItemHidden(search) ? null : search);
+        }
+
         private void UpdateVisibility()
         {
-            Visibility = ShowControlBar && ControlBar != null
+            // A bar whose grid options hide everything it holds shows nothing at all.
+            var bar = ControlBar;
+            var anyShown = bar != null &&
+                (bar.LeadingItems.Count > 0 || ShownSearch != null || bar.Items.Any(item => IsShown(item)));
+            Visibility = ShowControlBar && anyShown
                 ? Visibility.Visible
                 : Visibility.Collapsed;
         }

@@ -37,23 +37,33 @@ namespace PlayniteAchievements.Providers.GOG.Models
         public string ResolvedClientId =>
             !string.IsNullOrWhiteSpace(ClientId) ? ClientId : ClientIdCamel;
 
+        /// <summary>
+        /// Maximum number of build metadata links tried when resolving a client_id.
+        /// </summary>
+        internal const int MaxBuildMetaCandidates = 5;
+
+        /// <summary>
+        /// Build metadata links to try for a client_id, listed builds first, then newest published.
+        /// All builds of a product share one client_id, so later links back up a failing one.
+        /// </summary>
         [IgnoreDataMember]
-        public string PreferredBuildMetaUrl
+        public IReadOnlyList<string> CandidateBuildMetaUrls
         {
             get
             {
                 if (Builds == null || Builds.Count == 0)
                 {
-                    return null;
+                    return new List<string>();
                 }
 
-                var preferred = Builds
+                return Builds
                     .Where(b => b != null && !string.IsNullOrWhiteSpace(b.Link))
                     .OrderByDescending(b => b.Listed)
                     .ThenByDescending(b => b.PublishedUtc ?? DateTime.MinValue)
-                    .FirstOrDefault();
-
-                return preferred?.Link;
+                    .Select(b => b.Link.Trim())
+                    .Distinct(StringComparer.OrdinalIgnoreCase)
+                    .Take(MaxBuildMetaCandidates)
+                    .ToList();
             }
         }
     }

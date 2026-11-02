@@ -75,11 +75,11 @@ namespace PlayniteAchievements.SqlNado.Tests
                     3L,
                     db.ExecuteScalar<long>("SELECT COUNT(*) FROM AchievementDefinitions;"));
                 Assert.AreEqual(
-                    "Old Name|old-unlocked.png|old-locked.png|12.5|Base",
+                    "Old Name|old-unlocked.png|old-locked.png|12.5|Missable",
                     db.ExecuteScalar<string>(
                         @"SELECT DisplayName || '|' || UnlockedIconPath || '|' ||
                                  LockedIconPath || '|' || GlobalPercentUnlocked || '|' ||
-                                 CategoryType
+                                 Tags
                           FROM AchievementDefinitions
                           WHERE ApiName = 'ACH_OLD';"));
                 Assert.AreEqual(
@@ -138,7 +138,7 @@ namespace PlayniteAchievements.SqlNado.Tests
                     "UPDATE Games SET ProviderKey = 'RetroAchievements' WHERE Id = 10;");
                 db.ExecuteNonQuery(
                     @"UPDATE AchievementDefinitions
-                      SET CategoryType = 'Subset|Softcore'
+                      SET Tags = 'Progression|Softcore'
                       WHERE ApiName = 'ACH_NEW';");
 
                 var result = InGameProgressSqlWriter.Apply(
@@ -156,14 +156,14 @@ namespace PlayniteAchievements.SqlNado.Tests
                     });
 
                 Assert.IsTrue(result.Success);
-                var categoryType = db.ExecuteScalar<string>(
-                    @"SELECT CategoryType
+                var tags = db.ExecuteScalar<string>(
+                    @"SELECT Tags
                       FROM AchievementDefinitions
                       WHERE ApiName = 'ACH_NEW';");
-                StringAssert.Contains(categoryType, "Subset");
-                StringAssert.Contains(categoryType, "Hardcore");
+                StringAssert.Contains(tags, "Progression");
+                StringAssert.Contains(tags, "Hardcore");
                 Assert.IsFalse(
-                    categoryType.IndexOf(
+                    tags.IndexOf(
                         "Softcore",
                         StringComparison.OrdinalIgnoreCase) >= 0);
             });
@@ -211,7 +211,7 @@ namespace PlayniteAchievements.SqlNado.Tests
                     fromLog.NewlyUnlockedKeys.ToArray());
 
                 var categoryAfterLog = db.ExecuteScalar<string>(
-                    @"SELECT CategoryType FROM AchievementDefinitions WHERE ApiName = 'ACH_NEW';");
+                    @"SELECT Tags FROM AchievementDefinitions WHERE ApiName = 'ACH_NEW';");
 
                 var fromFeed = InGameProgressSqlWriter.Apply(
                     db,
@@ -242,7 +242,7 @@ namespace PlayniteAchievements.SqlNado.Tests
                 Assert.AreEqual(
                     categoryAfterLog,
                     db.ExecuteScalar<string>(
-                        @"SELECT CategoryType FROM AchievementDefinitions WHERE ApiName = 'ACH_NEW';"));
+                        @"SELECT Tags FROM AchievementDefinitions WHERE ApiName = 'ACH_NEW';"));
                 Assert.AreEqual(
                     2L,
                     db.ExecuteScalar<long>(
@@ -351,7 +351,7 @@ namespace PlayniteAchievements.SqlNado.Tests
                     UnlockedIconPath TEXT,
                     LockedIconPath TEXT,
                     GlobalPercentUnlocked REAL,
-                    CategoryType TEXT,
+                    Tags TEXT,
                     UpdatedUtc TEXT
                   );");
             db.ExecuteNonQuery(
@@ -381,14 +381,14 @@ namespace PlayniteAchievements.SqlNado.Tests
             db.ExecuteNonQuery(
                 @"INSERT INTO AchievementDefinitions
                     (Id, GameId, ApiName, DisplayName, UnlockedIconPath, LockedIconPath,
-                     GlobalPercentUnlocked, CategoryType, UpdatedUtc)
+                     GlobalPercentUnlocked, Tags, UpdatedUtc)
                   VALUES
                     (100, 10, 'ACH_OLD', 'Old Name', 'old-unlocked.png', 'old-locked.png',
-                     12.5, 'Base', 'old'),
+                     12.5, 'Missable', 'old'),
                     (101, 10, 'ACH_NEW', 'New Name', 'new-unlocked.png', 'new-locked.png',
-                     33.3, 'DLC', 'old'),
+                     33.3, 'Progression', 'old'),
                     (102, 10, 'ACH_PROGRESS', 'Progress Name', 'progress-unlocked.png',
-                     'progress-locked.png', 50.0, 'Base', 'old');");
+                     'progress-locked.png', 50.0, 'Missable', 'old');");
             db.ExecuteNonQuery(
                 @"INSERT INTO UserAchievements
                     (Id, UserGameProgressId, AchievementDefinitionId, Unlocked, UnlockTimeUtc,

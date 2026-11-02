@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System;
 using System.Linq;
+using Playnite.SDK;
 using Playnite.SDK.Data;
 using PlayniteAchievements.Common;
 using PlayniteAchievements.Models.Achievements;
@@ -618,7 +619,7 @@ namespace PlayniteAchievements.Models.ThemeIntegration
             foreach (var achievement in _allAchievements)
             {
                 var item = new AchievementDisplayItem();
-                var gameName = achievement.Game?.Name ?? "Unknown";
+                var gameName = achievement.Game?.Name ?? ResourceProvider.GetString("LOCPlayAch_Common_Unknown");
                 var gameId = achievement.Game?.Id;
                 var perGame = CloneWithSeparateLockedIcons(
                     resolved,

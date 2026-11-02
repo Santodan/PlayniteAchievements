@@ -18,11 +18,11 @@ namespace PlayniteAchievements.Providers.GuildWars2
         private const string HiddenFlag = "Hidden";
 
         /// <summary>
-        /// Group ids that carry a canonical category classification. Group *names* are localized -
+        /// Group ids that carry a canonical tag. Group *names* are localized -
         /// "Historical" is served as "Historisch" to a German client - so the mapping keys on the
         /// group GUIDs, which are the same in every language.
         /// </summary>
-        private static readonly Dictionary<string, string> CategoryTypeByGroupId =
+        private static readonly Dictionary<string, string> TagByGroupId =
             new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
             {
                 // Historical: content that has been retired and can no longer be earned.
@@ -68,7 +68,7 @@ namespace PlayniteAchievements.Providers.GuildWars2
                     }
 
                     var categoryPath = CategoryPathHelper.JoinRaw(group.Name, category.Name);
-                    var categoryType = ResolveCategoryType(group.Id);
+                    var tag = ResolveTag(group.Id);
 
                     foreach (var achievementId in category.Achievements)
                     {
@@ -84,7 +84,7 @@ namespace PlayniteAchievements.Providers.GuildWars2
                             achievement,
                             category,
                             categoryPath,
-                            categoryType,
+                            tag,
                             progress));
                     }
                 }
@@ -107,7 +107,7 @@ namespace PlayniteAchievements.Providers.GuildWars2
             }
 
             var categoriesById = BuildCategoryIndex(catalog.Categories);
-            var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var seen = new HashSet<string>(CategoryPathHelper.LabelComparer);
 
             foreach (var group in catalog.Groups.Where(g => g != null).OrderBy(g => g.Order))
             {
@@ -140,7 +140,7 @@ namespace PlayniteAchievements.Providers.GuildWars2
             Gw2Achievement achievement,
             Gw2Category category,
             string categoryPath,
-            string categoryType,
+            string tag,
             Gw2AccountAchievement progress)
         {
             var tiers = NormalizeTiers(achievement.Tiers);
@@ -191,7 +191,7 @@ namespace PlayniteAchievements.Providers.GuildWars2
                     UnlockTimeUtc = null,
 
                     Category = categoryPath,
-                    CategoryType = categoryType,
+                    Tags = tag,
                     Hidden = hidden,
 
                     // No global completion rate is published, and no third-party source carries one.
@@ -299,7 +299,7 @@ namespace PlayniteAchievements.Providers.GuildWars2
                 .OrderBy(category => category.Order);
         }
 
-        private static string ResolveCategoryType(string groupId)
+        private static string ResolveTag(string groupId)
         {
             if (string.IsNullOrWhiteSpace(groupId))
             {
@@ -308,7 +308,7 @@ namespace PlayniteAchievements.Providers.GuildWars2
 
             // Null rather than a sentinel label: the hydrator supplies the default classification,
             // and a hardcoded English string would bypass it and render untranslated.
-            return CategoryTypeByGroupId.TryGetValue(groupId.Trim(), out var type) ? type : null;
+            return TagByGroupId.TryGetValue(groupId.Trim(), out var type) ? type : null;
         }
 
         private static Dictionary<int, Gw2Achievement> BuildAchievementIndex(List<Gw2Achievement> achievements)

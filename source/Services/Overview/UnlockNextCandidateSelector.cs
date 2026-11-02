@@ -12,9 +12,10 @@ namespace PlayniteAchievements.Services.Overview
     /// the pool - locked rows are excluded from the overview snapshot for memory reasons - and
     /// they are worth testing without a cache, a Playnite API, or a snapshot build.
     ///
-    /// The pool is deliberately config-independent: it is a superset that dominates every
-    /// per-widget combination of criterion, window, and per-game cap, because editing a widget
-    /// option re-projects from the existing snapshot rather than rebuilding it.
+    /// The pool is a superset that dominates every per-widget combination of criterion and
+    /// window, because editing those options re-projects from the existing snapshot rather than
+    /// rebuilding it. Its depth per game follows the largest Max per game a widget asks for, so
+    /// raising that option is the one edit that rebuilds.
     /// </summary>
     public static class UnlockNextCandidateSelector
     {
@@ -24,11 +25,15 @@ namespace PlayniteAchievements.Services.Overview
         /// <summary>Games taken from each of the two candidate rankings before they are merged.</summary>
         public const int GamesPerRanking = 20;
 
-        /// <summary>Locked rows retained per game from each of the two within-game rankings.</summary>
+        /// <summary>Fewest locked rows retained per game from each of the two within-game rankings.</summary>
         public const int PerGameSlice = 10;
 
-        /// <summary>Ceiling on the whole pool, so a large library cannot grow it without bound.</summary>
-        public const int PoolCap = 600;
+        /// <summary>
+        /// Locked rows to retain per game from each ranking so a widget's Max per game is
+        /// honoured, never fewer than <see cref="PerGameSlice"/>. The pool holds at most
+        /// <see cref="GameCap"/> games of twice this many rows.
+        /// </summary>
+        public static int SliceFor(int maxPerGame) => Math.Max(PerGameSlice, maxPerGame);
 
         /// <summary>
         /// Unfinished games worth hydrating, merged from the two rankings the widget criteria care
@@ -68,7 +73,14 @@ namespace PlayniteAchievements.Services.Overview
         /// opts in.
         /// </summary>
         public static IReadOnlyList<AchievementDetail> SelectAchievements(
-            IEnumerable<AchievementDetail> achievements)
+            IEnumerable<AchievementDetail> achievements) =>
+            SelectAchievements(achievements, PerGameSlice);
+
+        /// <inheritdoc cref="SelectAchievements(IEnumerable{AchievementDetail})"/>
+        /// <param name="slice">Rows taken from each ranking; see <see cref="SliceFor"/>.</param>
+        public static IReadOnlyList<AchievementDetail> SelectAchievements(
+            IEnumerable<AchievementDetail> achievements,
+            int slice)
         {
             var locked = (achievements ?? new List<AchievementDetail>())
                 .Where(detail => detail != null && !detail.Unlocked)
@@ -77,7 +89,7 @@ namespace PlayniteAchievements.Services.Overview
             var byOrder = locked
                 .OrderBy(detail => detail.DefaultOrderIndex)
                 .ThenBy(detail => detail.ApiName, StringComparer.OrdinalIgnoreCase)
-                .Take(PerGameSlice);
+                .Take(slice);
 
             // An achievement with no global percentage is not known to be easy, so it never takes
             // a slot in the commonness slice; the order slice still carries it.
@@ -85,7 +97,7 @@ namespace PlayniteAchievements.Services.Overview
                 .Where(detail => detail.GlobalPercentUnlocked.HasValue)
                 .OrderByDescending(detail => detail.GlobalPercentUnlocked.Value)
                 .ThenBy(detail => detail.ApiName, StringComparer.OrdinalIgnoreCase)
-                .Take(PerGameSlice);
+                .Take(slice);
 
             return byOrder.Concat(byCommonness).Distinct().ToList();
         }

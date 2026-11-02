@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using Playnite.SDK;
 using PlayniteAchievements.Models.Tagging;
 using PlayniteAchievements.Services.Localization;
@@ -24,15 +25,28 @@ namespace PlayniteAchievements.Services.Tagging
         public static readonly IReadOnlyDictionary<TagType, string> StatusResourceKeys =
             new Dictionary<TagType, string>
             {
-                [TagType.HasAchievements] = "LOCPlayAch_Tagging_HasAchievements",
+                [TagType.HasAchievements] = "LOCPlayAch_Tagging_PlatformAchievements",
                 [TagType.InProgress] = "LOCPlayAch_Filter_InProgress",
                 [TagType.Completed] = "LOCPlayAch_Completed",
                 [TagType.NoAchievements] = "LOCPlayAch_Tagging_NoAchievements",
+                [TagType.CustomAchievements] = "LOCPlayAch_Tagging_CustomAchievements",
                 [TagType.Customized] = "LOCPlayAch_Tagging_Customized",
                 [TagType.NotCustomized] = "LOCPlayAch_Tagging_NotCustomized",
                 [TagType.Excluded] = "LOCPlayAch_ManageAchievements_Status_Excluded",
                 [TagType.ExcludedFromSummaries] = "LOCPlayAch_ManageAchievements_Status_ExcludedFromSummaries"
             };
+
+        /// <summary>
+        /// Names a kind's default had before it was renamed, in every language, so a tag still
+        /// called by one counts as un-customized and is renamed to the current default.
+        /// </summary>
+        private static readonly IReadOnlyDictionary<TagType, (string ResourceKey, string English)> FormerResourceKeys =
+            new Dictionary<TagType, (string ResourceKey, string English)>
+            {
+                [TagType.HasAchievements] = ("LOCPlayAch_Tagging_HasAchievements", "[PA] Has Achievements")
+            };
+
+        private static string FormerId(TagType tagType) => tagType + ".Former";
 
         private readonly LocalizedDefaultStringCatalog _catalog;
 
@@ -55,7 +69,52 @@ namespace PlayniteAchievements.Services.Tagging
                 });
             }
 
+            foreach (var tagType in CustomizationTagAreas.All.SelectMany(area => area.TagTypes))
+            {
+                definitions.Add(BuildAreaDefinition(tagType));
+            }
+
+            foreach (var kvp in FormerResourceKeys)
+            {
+                definitions.Add(new LocalizedDefaultDefinition
+                {
+                    Id = FormerId(kvp.Key),
+                    ResourceKeys = new[] { PrefixFormatKey, kvp.Value.ResourceKey },
+                    Compose = values => string.Format(values[0], values[1]),
+                    ExtraHardcodedDefaults = new[] { kvp.Value.English }
+                });
+            }
+
             _catalog = new LocalizedDefaultStringCatalog(localizationDirectory, definitions, logger);
+        }
+
+        /// <summary>
+        /// Resource keys of a customization area kind's name, in composition order: the tag
+        /// prefix and the kind's own whole name (never a format around a shared noun, which
+        /// cannot agree in gender or case across languages).
+        /// </summary>
+        public static string[] GetAreaResourceKeys(TagType tagType)
+        {
+            return CustomizationTagAreas.TryGetArea(tagType, out _, out _)
+                ? new[] { PrefixFormatKey, CustomizationTagAreas.NameResourceKey(tagType) }
+                : null;
+        }
+
+        /// <summary>Composes an area kind's name from the values of <see cref="GetAreaResourceKeys"/>.</summary>
+        public static string ComposeAreaName(IReadOnlyList<string> values)
+        {
+            return string.Format(values[0], values[1]);
+        }
+
+        private static LocalizedDefaultDefinition BuildAreaDefinition(TagType tagType)
+        {
+            return new LocalizedDefaultDefinition
+            {
+                Id = tagType.ToString(),
+                ResourceKeys = GetAreaResourceKeys(tagType),
+                Compose = ComposeAreaName,
+                ExtraHardcodedDefaults = null
+            };
         }
 
         /// <summary>
@@ -64,7 +123,8 @@ namespace PlayniteAchievements.Services.Tagging
         /// </summary>
         public bool IsKnownDefault(TagType tagType, string name)
         {
-            return _catalog.IsKnownDefault(tagType.ToString(), name);
+            return _catalog.IsKnownDefault(tagType.ToString(), name) ||
+                   FormerResourceKeys.ContainsKey(tagType) && _catalog.IsKnownDefault(FormerId(tagType), name);
         }
 
         /// <summary>
@@ -74,7 +134,10 @@ namespace PlayniteAchievements.Services.Tagging
         /// </summary>
         public string GetRelocalizedName(TagType tagType, string currentName, string currentDefault)
         {
-            return _catalog.GetRelocalizedText(tagType.ToString(), currentName, currentDefault);
+            return _catalog.GetRelocalizedText(tagType.ToString(), currentName, currentDefault) ??
+                   (FormerResourceKeys.ContainsKey(tagType)
+                       ? _catalog.GetRelocalizedText(FormerId(tagType), currentName, currentDefault)
+                       : null);
         }
     }
 }

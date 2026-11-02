@@ -1,0 +1,180 @@
+<UserControl x:Class="PlayniteAchievements.Views.Dialogs.MetadataMatchesDialog"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:helpers="clr-namespace:PlayniteAchievements.Views.Helpers"
+             mc:Ignorable="d"
+             d:DesignHeight="600" d:DesignWidth="760">
+
+    <UserControl.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceDictionary Source="pack://application:,,,/PlayniteAchievements;component/Resources/PlayAchImplicitControlStyles.xaml"/>
+            </ResourceDictionary.MergedDictionaries>
+
+            <Style x:Key="MatchIconStyle" TargetType="Image">
+                <Setter Property="Width" Value="32"/>
+                <Setter Property="Height" Value="32"/>
+                <Setter Property="Margin" Value="0,0,8,0"/>
+                <Setter Property="VerticalAlignment" Value="Center"/>
+                <Setter Property="RenderOptions.BitmapScalingMode" Value="HighQuality"/>
+                <Setter Property="helpers:AsyncImage.DecodePixel" Value="64"/>
+            </Style>
+
+            <Style x:Key="MatchNameStyle" TargetType="TextBlock">
+                <Setter Property="Foreground" Value="{DynamicResource PlayAch.Brush.Text}"/>
+                <Setter Property="FontSize" Value="{DynamicResource PlayAch.FontSize.Body}"/>
+                <Setter Property="TextTrimming" Value="CharacterEllipsis"/>
+                <Setter Property="VerticalAlignment" Value="Center"/>
+            </Style>
+
+            <Style x:Key="MatchDetailStyle" TargetType="TextBlock">
+                <Setter Property="Foreground" Value="{DynamicResource PlayAch.Brush.Text.Secondary}"/>
+                <Setter Property="FontSize" Value="{DynamicResource PlayAch.FontSize.Caption}"/>
+                <Setter Property="TextTrimming" Value="CharacterEllipsis"/>
+            </Style>
+        </ResourceDictionary>
+    </UserControl.Resources>
+
+    <Border Background="{DynamicResource PlayAch.Brush.Window.Background}" Padding="16">
+        <Grid>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="*"/>
+                <RowDefinition Height="Auto"/>
+            </Grid.RowDefinitions>
+
+            <CheckBox Grid.Row="0"
+                      Content="{DynamicResource LOCPlayAch_ManageAchievements_Overview_MetadataMatches_UnmatchedOnly}"
+                      IsChecked="{Binding UnmatchedOnly, Mode=TwoWay}"
+                      Margin="{StaticResource PlayAch.Thickness.Bottom.Md}"/>
+
+            <!-- One row per achievement: the achievement, then its searchable pairing dropdown. -->
+            <ItemsControl Grid.Row="1"
+                          ItemsSource="{Binding Targets}"
+                          Focusable="False"
+                          VirtualizingPanel.IsVirtualizing="True"
+                          VirtualizingPanel.ScrollUnit="Pixel"
+                          ScrollViewer.CanContentScroll="True">
+                <ItemsControl.Template>
+                    <ControlTemplate TargetType="ItemsControl">
+                        <ScrollViewer Focusable="False" HorizontalScrollBarVisibility="Disabled">
+                            <ItemsPresenter/>
+                        </ScrollViewer>
+                    </ControlTemplate>
+                </ItemsControl.Template>
+                <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate>
+                        <VirtualizingStackPanel/>
+                    </ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate>
+                        <Grid Margin="0,3">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="16"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+
+                            <StackPanel Grid.Column="0" Orientation="Horizontal" ToolTip="{Binding Description}">
+                                <Image Style="{StaticResource MatchIconStyle}" helpers:AsyncImage.Uri="{Binding Icon}"/>
+                                <TextBlock Style="{StaticResource MatchNameStyle}" Text="{Binding Name, Mode=OneWay}"/>
+                            </StackPanel>
+
+                            <!-- Ignores clicks while open, so a click on it closes the dropdown
+                                 (StaysOpen=False) instead of closing and reopening it. -->
+                            <ToggleButton x:Name="PickerButton"
+                                          Grid.Column="2"
+                                          Style="{StaticResource PlayAch.ToggleButton.ComboBoxLookStyle}"
+                                          IsChecked="{Binding IsPickerOpen, Mode=TwoWay}"
+                                          IsHitTestVisible="{Binding IsPickerOpen, Converter={StaticResource InvertBoolConverter}}">
+                                <!-- The achievement's own icon while paired, so both sides of a
+                                     pairing show the same one. -->
+                                <StackPanel Orientation="Horizontal">
+                                    <Image Style="{StaticResource MatchIconStyle}"
+                                           Width="24" Height="24"
+                                           helpers:AsyncImage.Uri="{Binding Icon}"
+                                           Visibility="{Binding IsMatched, Converter={StaticResource BoolToVis}}"/>
+                                    <TextBlock Style="{StaticResource MatchNameStyle}" Text="{Binding PairingText, Mode=OneWay}"/>
+                                </StackPanel>
+                            </ToggleButton>
+
+                            <Popup Grid.Column="2"
+                                   IsOpen="{Binding IsPickerOpen, Mode=TwoWay}"
+                                   PlacementTarget="{Binding ElementName=PickerButton}"
+                                   Placement="Bottom"
+                                   StaysOpen="False"
+                                   AllowsTransparency="True"
+                                   Opened="PickerPopup_Opened">
+                                <Border Background="{DynamicResource PlayAch.Brush.PopupSurface}"
+                                        BorderBrush="{DynamicResource PlayAch.Brush.PopupBorder}"
+                                        BorderThickness="1"
+                                        Padding="6"
+                                        MinWidth="{Binding ActualWidth, ElementName=PickerButton}">
+                                    <StackPanel>
+                                        <TextBox Text="{Binding Search, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                 ToolTip="{DynamicResource LOCPlayAch_Common_Search}"
+                                                 Padding="6,4"
+                                                 Margin="0,0,0,6"
+                                                 PreviewKeyDown="PickerSearch_PreviewKeyDown"/>
+                                        <ListBox ItemsSource="{Binding Options}"
+                                                 MaxHeight="360"
+                                                 HorizontalContentAlignment="Stretch"
+                                                 ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                                                 VirtualizingPanel.IsVirtualizing="True"
+                                                 PreviewMouseLeftButtonUp="PickerList_PreviewMouseLeftButtonUp">
+                                            <ListBox.ItemTemplate>
+                                                <DataTemplate>
+                                                    <Grid Margin="2" ToolTip="{Binding Description}">
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="Auto"/>
+                                                            <ColumnDefinition Width="*"/>
+                                                        </Grid.ColumnDefinitions>
+                                                        <!-- A blank image keeps the gutter, so names stay aligned. -->
+                                                        <Image Grid.Column="0"
+                                                               Style="{StaticResource MatchIconStyle}"
+                                                               helpers:AsyncImage.Uri="{Binding Icon}"
+                                                               Visibility="{Binding IsSpecial, Converter={StaticResource InverseBoolToVis}}"/>
+                                                        <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                                            <TextBlock Style="{StaticResource MatchNameStyle}" Text="{Binding Name, Mode=OneWay}"/>
+                                                            <!-- Which game of a collection the row is from. -->
+                                                            <TextBlock Style="{StaticResource MatchDetailStyle}"
+                                                                       Text="{Binding List, Mode=OneWay}"
+                                                                       Visibility="{Binding HasList, Converter={StaticResource BoolToVis}}"/>
+                                                            <TextBlock Style="{StaticResource MatchDetailStyle}"
+                                                                       Text="{Binding PairedWith, Mode=OneWay}"
+                                                                       Visibility="{Binding IsPaired, Converter={StaticResource BoolToVis}}"/>
+                                                        </StackPanel>
+                                                    </Grid>
+                                                </DataTemplate>
+                                            </ListBox.ItemTemplate>
+                                        </ListBox>
+                                    </StackPanel>
+                                </Border>
+                            </Popup>
+                        </Grid>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+
+            <StackPanel Grid.Row="2"
+                        Orientation="Horizontal"
+                        HorizontalAlignment="Right"
+                        Margin="0,12,0,0">
+                <Button Content="{DynamicResource LOCPlayAch_Common_Save}"
+                        Click="SaveButton_Click"
+                        Padding="{StaticResource PlayAch.Thickness.ButtonPadding}"
+                        MinWidth="88"
+                        Margin="{StaticResource PlayAch.Thickness.Right.Sm}"
+                        IsDefault="True"/>
+                <Button Content="{DynamicResource LOCPlayAch_Common_Cancel}"
+                        Click="CancelButton_Click"
+                        Padding="{StaticResource PlayAch.Thickness.ButtonPadding}"
+                        MinWidth="88"
+                        IsCancel="True"/>
+            </StackPanel>
+        </Grid>
+    </Border>
+</UserControl>

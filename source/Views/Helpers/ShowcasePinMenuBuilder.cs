@@ -7,6 +7,7 @@ using System.Windows.Media;
 using Playnite.SDK;
 using PlayniteAchievements.Models.Settings;
 using PlayniteAchievements.Services.Showcase;
+using PlayniteAchievements.Views.Showcase;
 
 namespace PlayniteAchievements.Views.Helpers
 {
@@ -35,7 +36,7 @@ namespace PlayniteAchievements.Views.Helpers
                 var captured = collection;
                 parent.Items.Add(CreateCollectionItem(
                     resourceOwner,
-                    captured.Name,
+                    ShowcaseUiText.PinCollectionName(captured.Name),
                     ShowcasePinService.IsAchievementPinned(showcase, captured.CollectionId, gameId, apiName),
                     () =>
                     {
@@ -53,12 +54,12 @@ namespace PlayniteAchievements.Views.Helpers
                     ShowcasePinService.IsDefaultAchievementCollection(showcase, captured.CollectionId)));
             }
 
-            parent.Items.Add(new Separator());
-            parent.Items.Add(CreateLocalizedMenuItem(resourceOwner, "LOCPlayAch_Showcase_NewCollection", () =>
+            // A collection is created from the menu's search, named what was searched for.
+            AttachSearch(parent, name =>
             {
-                var collection = PromptForNewAchievementCollection(resourceOwner);
-                if (collection == null)
+                if (!ShowcasePinService.TryCreateAchievementCollection(CurrentSettings, name, out var collection))
                 {
+                    ShowInvalidName(resourceOwner);
                     return;
                 }
 
@@ -70,7 +71,7 @@ namespace PlayniteAchievements.Views.Helpers
                     gameName,
                     achievementName);
                 ShowcaseConfigurationCommit.Commit();
-            }));
+            });
             menu.Items.Add(parent);
         }
 
@@ -93,7 +94,7 @@ namespace PlayniteAchievements.Views.Helpers
                 var captured = collection;
                 parent.Items.Add(CreateCollectionItem(
                     resourceOwner,
-                    captured.Name,
+                    ShowcaseUiText.PinCollectionName(captured.Name),
                     ShowcasePinService.IsGamePinned(showcase, captured.CollectionId, gameId),
                     () =>
                     {
@@ -105,26 +106,36 @@ namespace PlayniteAchievements.Views.Helpers
                     ShowcasePinService.IsDefaultGameCollection(showcase, captured.CollectionId)));
             }
 
-            parent.Items.Add(new Separator());
-            parent.Items.Add(CreateLocalizedMenuItem(resourceOwner, "LOCPlayAch_Showcase_NewCollection", () =>
+            AttachSearch(parent, name =>
             {
-                var collection = PromptForNewGameCollection(resourceOwner);
-                if (collection == null)
+                if (!ShowcasePinService.TryCreateGameCollection(CurrentSettings, name, out var collection))
                 {
+                    ShowInvalidName(resourceOwner);
                     return;
                 }
 
                 ShowcasePinService.ToggleGame(showcase, collection.CollectionId, gameId);
                 ShowcaseConfigurationCommit.Commit();
-            }));
+            });
             menu.Items.Add(parent);
         }
 
         private static ShowcaseSettings CurrentSettings =>
             PlayniteAchievementsPlugin.Instance?.Settings?.Persisted?.Showcase;
 
+        /// <summary>
+        /// Searches the collections by name (each option's header also holds its rename and delete
+        /// buttons) and creates one when nothing matches.
+        /// </summary>
+        private static void AttachSearch(MenuItem parent, Action<string> create)
+        {
+            SelectorSearch.SetCreateAction(parent, create);
+            SelectorSearch.SetMenuMatcher(parent, query => item =>
+                (item.Tag as string ?? string.Empty).IndexOf(query, StringComparison.OrdinalIgnoreCase) >= 0);
+        }
+
         private static MenuItem CreateParent(FrameworkElement resourceOwner) =>
-            new MenuItem { Header = L(resourceOwner, "LOCPlayAch_Showcase_PinToShowcase") };
+            new MenuItem { Header = L(resourceOwner, "LOCPlayAch_Showcase_Title") };
 
         private static MenuItem CreateCollectionItem(
             FrameworkElement resourceOwner,
@@ -137,6 +148,7 @@ namespace PlayniteAchievements.Views.Helpers
         {
             var item = new MenuItem
             {
+                Tag = name,
                 IsCheckable = true,
                 IsChecked = isPinned,
                 Header = CreateCollectionHeader(
@@ -217,62 +229,13 @@ namespace PlayniteAchievements.Views.Helpers
             return button;
         }
 
-        private static MenuItem CreateLocalizedMenuItem(
-            FrameworkElement resourceOwner,
-            string key,
-            Action action)
-        {
-            var item = new MenuItem { Header = L(resourceOwner, key) };
-            item.Click += (_, __) => action?.Invoke();
-            return item;
-        }
-
-        private static PinnedAchievementCollection PromptForNewAchievementCollection(
-            FrameworkElement resourceOwner)
-        {
-            while (true)
-            {
-                var name = PromptForName(resourceOwner, null, newCollection: true);
-                if (name == null)
-                {
-                    return null;
-                }
-
-                if (ShowcasePinService.TryCreateAchievementCollection(CurrentSettings, name, out var collection))
-                {
-                    return collection;
-                }
-
-                ShowInvalidName(resourceOwner);
-            }
-        }
-
-        private static PinnedGameCollection PromptForNewGameCollection(FrameworkElement resourceOwner)
-        {
-            while (true)
-            {
-                var name = PromptForName(resourceOwner, null, newCollection: true);
-                if (name == null)
-                {
-                    return null;
-                }
-
-                if (ShowcasePinService.TryCreateGameCollection(CurrentSettings, name, out var collection))
-                {
-                    return collection;
-                }
-
-                ShowInvalidName(resourceOwner);
-            }
-        }
-
         private static void RenameAchievementCollection(
             FrameworkElement resourceOwner,
             PinnedAchievementCollection collection)
         {
             while (collection != null)
             {
-                var name = PromptForName(resourceOwner, collection.Name, newCollection: false);
+                var name = PromptForName(resourceOwner, collection.Name);
                 if (name == null)
                 {
                     return;
@@ -297,7 +260,7 @@ namespace PlayniteAchievements.Views.Helpers
         {
             while (collection != null)
             {
-                var name = PromptForName(resourceOwner, collection.Name, newCollection: false);
+                var name = PromptForName(resourceOwner, collection.Name);
                 if (name == null)
                 {
                     return;
@@ -381,22 +344,11 @@ namespace PlayniteAchievements.Views.Helpers
                 MessageBoxImage.Warning) == MessageBoxResult.Yes;
         }
 
-        private static string PromptForName(
-            FrameworkElement resourceOwner,
-            string currentName,
-            bool newCollection)
+        private static string PromptForName(FrameworkElement resourceOwner, string currentName)
         {
             var result = API.Instance?.Dialogs?.SelectString(
-                L(
-                    resourceOwner,
-                    newCollection
-                        ? "LOCPlayAch_Showcase_RenameCollectionPrompt"
-                        : "LOCPlayAch_Showcase_RenameCollectionPrompt"),
-                L(
-                    resourceOwner,
-                    newCollection
-                        ? "LOCPlayAch_Showcase_NewCollection"
-                        : "LOCPlayAch_Showcase_RenameCollection"),
+                L(resourceOwner, "LOCPlayAch_Showcase_RenameCollectionPrompt"),
+                L(resourceOwner, "LOCPlayAch_Showcase_RenameCollection"),
                 currentName ?? string.Empty);
             return result?.Result == true ? result.SelectedString : null;
         }

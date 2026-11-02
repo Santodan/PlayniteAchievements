@@ -274,39 +274,6 @@ namespace PlayniteAchievements.Services.UI
         }
 
         /// <summary>
-        /// True when the given preview source can supply its own template: the plugin style
-        /// always can; the active theme only when it actually ships the surface override. Lets
-        /// the UI disable a theme fire-test button that would just fall back to the plugin
-        /// template.
-        /// </summary>
-        public bool ThemeProvidesTemplate(NotificationTemplatePreviewSource source, bool isFrame)
-        {
-            if (source == NotificationTemplatePreviewSource.PluginStyle)
-            {
-                return true;
-            }
-
-            var key = isFrame ? FrameTemplateKey : TemplateKey;
-            var overrideRelativePath = isFrame ? FrameThemeOverrideRelativePath : ThemeOverrideRelativePath;
-
-            try
-            {
-                if (TryFindLoadedThemeResource<DataTemplate>(Application.Current?.Resources, key, out _))
-                {
-                    return true;
-                }
-
-                var dictionary = LoadActiveThemeDictionary(Application.Current?.Resources, overrideRelativePath);
-                return dictionary != null && TryGetDirectResource(dictionary, key, out DataTemplate _);
-            }
-            catch (Exception ex)
-            {
-                _logger?.Debug(ex, $"Failed to probe active theme template for '{key}'.");
-                return false;
-            }
-        }
-
-        /// <summary>
         /// Resolves one of the toast animation storyboards (slide-in/out, countdown) using the same
         /// theme-override precedence as the toast template: an already-loaded theme resource, then
         /// the active theme's AchievementToast.xaml, then the bundled plugin default. Returns null

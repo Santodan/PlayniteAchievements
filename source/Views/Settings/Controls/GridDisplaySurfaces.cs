@@ -37,7 +37,8 @@ namespace PlayniteAchievements.Views.Settings.Controls
             bool showDateModeRow = true,
             bool showMetadataRows = true,
             bool showCompletionGlowRow = true,
-            bool showGameSortPinOrderChoice = false)
+            bool showGameSortPinOrderChoice = false,
+            bool showLibraryGameSortChoices = false)
         {
             ShowColumnHeadersRow = showColumnHeadersRow;
             ShowControlBarRow = showControlBarRow;
@@ -53,6 +54,7 @@ namespace PlayniteAchievements.Views.Settings.Controls
             ShowMetadataRows = showMetadataRows;
             ShowCompletionGlowRow = showCompletionGlowRow;
             ShowGameSortPinOrderChoice = showGameSortPinOrderChoice;
+            ShowLibraryGameSortChoices = showLibraryGameSortChoices;
         }
 
         public bool ShowColumnHeadersRow { get; }
@@ -69,6 +71,7 @@ namespace PlayniteAchievements.Views.Settings.Controls
         public bool ShowMetadataRows { get; }
         public bool ShowCompletionGlowRow { get; }
         public bool ShowGameSortPinOrderChoice { get; }
+        public bool ShowLibraryGameSortChoices { get; }
     }
 
     /// <summary>
@@ -135,8 +138,11 @@ namespace PlayniteAchievements.Views.Settings.Controls
 
                 // Showcase and start page widget grids, matched on their base key because the live
                 // surfaces carry a per-instance suffix. The sort combo's default keeps the
-                // projection order (unlock recency), so sorting stays offered.
-                [ShowcaseGridSurfaces.RecentAchievements] = AllRows,
+                // projection order (unlock recency), so sorting stays offered. The widget's
+                // settings show or hide each control bar item, so there is no whole-bar row.
+                [ShowcaseGridSurfaces.RecentAchievements] = new GridDisplayRowCapabilities(
+                    showControlBarRow: false,
+                    showCategoryModeRow: true),
                 // Sort stays off (the control sorts externally) and cover images do not apply,
                 // but the appearance rows now reach this grid's own record rather than the
                 // legacy Achievement[Default] one, so they are offered here.
@@ -152,7 +158,9 @@ namespace PlayniteAchievements.Views.Settings.Controls
         private static readonly Dictionary<string, GridDisplayRowCapabilities> GameSummarySurfaces =
             new Dictionary<string, GridDisplayRowCapabilities>(StringComparer.OrdinalIgnoreCase)
             {
-                [GridOptionKeys.GameSummaries.Overview] = AllRows,
+                // The user's own library grid also sorts by library dates, playtime and remaining.
+                [GridOptionKeys.GameSummaries.Overview] = new GridDisplayRowCapabilities(
+                    showLibraryGameSortChoices: true),
                 [GridOptionKeys.GameSummaries.StartPage] = AllRows,
                 [GridOptionKeys.GameSummaries.ViewAchievements] = new GridDisplayRowCapabilities(
                     showControlBarRow: false,
@@ -169,9 +177,12 @@ namespace PlayniteAchievements.Views.Settings.Controls
 
                 // Showcase and start page widget game grids, matched on their base key. This is the
                 // one surface whose source order is user-controlled (a pinned-games grid), so it
-                // offers the order-preserving PinOrder sort choice.
+                // offers the order-preserving PinOrder sort choice, along with the library sorts.
+                // Control bar items are shown per item from the widget's settings.
                 [ShowcaseGridSurfaces.GameSummaries] = new GridDisplayRowCapabilities(
-                    showGameSortPinOrderChoice: true)
+                    showControlBarRow: false,
+                    showGameSortPinOrderChoice: true,
+                    showLibraryGameSortChoices: true)
             };
 
         private static readonly Dictionary<string, GridDisplayRowCapabilities> FriendSummarySurfaces =
@@ -191,7 +202,8 @@ namespace PlayniteAchievements.Views.Settings.Controls
                 [GridOptionKeys.CategorySummaries.FriendsOverview] = AllRows,
                 [GridOptionKeys.CategorySummaries.ViewFriendsAchievements] = AllRows,
                 [GridOptionKeys.CategorySummaries.DesktopTheme] = AllRows,
-                [GridOptionKeys.CategorySummaries.WorkshopPreview] = AllRows
+                [GridOptionKeys.CategorySummaries.WorkshopPreview] = AllRows,
+                [ShowcaseGridSurfaces.AchievementCategories] = AllRows
             };
 
         private static readonly Dictionary<string, string> AchievementTitleKeys =

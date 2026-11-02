@@ -73,12 +73,17 @@ namespace PlayniteAchievements.Models.Settings
             target.AutoCapstoneCategoryDescriptionTemplate = source.AutoCapstoneCategoryDescriptionTemplate;
             target.AutoCapstoneTemplateHistory = new List<string>(source.AutoCapstoneTemplateHistory ?? new List<string>());
             target.AutoCapstoneAppliedTemplates = source.AutoCapstoneAppliedTemplates;
+            target.MetadataDefaults = (source.MetadataDefaults ?? MetadataChoices.CreateDefaults()).Clone();
+            target.MetadataPlatformChoices = PersistedSettings.ClonePlatformChoices(source.MetadataPlatformChoices);
+            target.MetadataChoicesSeeded = source.MetadataChoicesSeeded;
+            target.MetadataConsoleVersion = source.MetadataConsoleVersion;
             target.InGamePollIntervalSeconds = source.InGamePollIntervalSeconds;
             target.InGamePollRefreshFriends = source.InGamePollRefreshFriends;
             target.InGameFriendRefreshMultiplier = source.InGameFriendRefreshMultiplier;
             target.InGameFriendBatchSize = source.InGameFriendBatchSize;
             target.RecentRefreshGamesCount = source.RecentRefreshGamesCount;
             target.DefaultOverviewRefreshMode = source.DefaultOverviewRefreshMode;
+            target.AchievementTags = Services.Achievements.AchievementTagHelper.NormalizeDefinitions(source.AchievementTags, ensureSystemTags: true);
             target.CustomRefreshPresets = source.CustomRefreshPresets != null
                 ? new List<CustomRefreshPreset>(CustomRefreshPreset.NormalizePresets(source.CustomRefreshPresets))
                 : new List<CustomRefreshPreset>();
@@ -109,6 +114,8 @@ namespace PlayniteAchievements.Models.Settings
             target.EnableUnlockToasts = source.EnableUnlockToasts;
             target.EnableFriendUnlockToasts = source.EnableFriendUnlockToasts;
             target.EnableProgressToasts = source.EnableProgressToasts;
+            target.SkipCompletionNotificationAfterCapstone = source.SkipCompletionNotificationAfterCapstone;
+            target.ProgressToastIntervalPercent = source.ProgressToastIntervalPercent;
             target.NotificationStyle = source.NotificationStyle?.Clone() ?? NotificationStyleSettings.CreateDefault();
             target.ToastUseThemeStyling = source.ToastUseThemeStyling;
             target.FrameUseThemeStyling = source.FrameUseThemeStyling;
@@ -222,7 +229,6 @@ namespace PlayniteAchievements.Models.Settings
             target.ShowOverviewScoreCard2 = source.ShowOverviewScoreCard2;
             target.ShowTopMenuBarButton = source.ShowTopMenuBarButton;
             target.ShowCompletedProgressColoring = source.ShowCompletedProgressColoring;
-            target.TintMissableLocks = source.TintMissableLocks;
             target.UseExophaseForSteamFriendOwnership = source.UseExophaseForSteamFriendOwnership;
             target.ShowFriendSpoilers = source.ShowFriendSpoilers;
             target.FriendsOverviewRecentUnlockLimit = source.FriendsOverviewRecentUnlockLimit;
@@ -237,6 +243,8 @@ namespace PlayniteAchievements.Models.Settings
             target.UnlockDateDisplayMode = source.UnlockDateDisplayMode;
             target.PlaytimeDisplayMode = source.PlaytimeDisplayMode;
             target.CategoryCompletionBadgeMode = source.CategoryCompletionBadgeMode;
+            target.IconScaleMode = source.IconScaleMode;
+            target.CategoryColumnDisplay = source.CategoryColumnDisplay;
             target.ProgressBadgeSource = source.ProgressBadgeSource;
             target.FriendNameDisplayMode = source.FriendNameDisplayMode;
             target.EnableAchievementCompactListControl = source.EnableAchievementCompactListControl;

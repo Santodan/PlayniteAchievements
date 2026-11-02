@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using PlayniteAchievements.Models;
 using PlayniteAchievements.Models.Achievements;
+using PlayniteAchievements.Models.Achievements.Scoring;
 using PlayniteAchievements.Providers;
 using PlayniteAchievements.Services;
 using PlayniteAchievements.Services.Achievements;
@@ -86,7 +87,7 @@ namespace PlayniteAchievements.Services.Summaries
 
             var item = new GameSummaryItem
             {
-                GameName = presentation.DisplayName ?? gameData.GameName ?? "Unknown",
+                GameName = presentation.DisplayName ?? gameData.GameName ?? ResourceProvider.GetString("LOCPlayAch_Common_Unknown"),
                 SortingName = presentation.SortingName ?? presentation.DisplayName ?? gameData.GameName ?? "Unknown",
                 GameLogo = summaryArt ?? presentation.IconPath,
                 GameCoverPath = summaryArt ?? presentation.CoverPath,
@@ -99,6 +100,8 @@ namespace PlayniteAchievements.Services.Summaries
                 ProviderGameKey = gameData.ProviderGameKey,
                 PlayniteGameId = gameData.PlayniteGameId,
                 LastPlayed = presentation.LastPlayed,
+                Added = presentation.Game?.Added,
+                ReleaseDate = presentation.Game?.ReleaseDate?.Date,
                 IsCompleted = gameData.IsCompleted,
                 ShowsRarity = gameData.ShowsRarity,
                 CapstoneTotal = capstoneCounts.Total,
@@ -106,6 +109,7 @@ namespace PlayniteAchievements.Services.Summaries
                 CapstonesMatchPlatinums = capstoneCounts.CapstonesMatchPlatinums,
                 Provider = providerName,
                 ProviderKey = providerKey,
+                PointsFamily = PointsFamilies.FromProviderKey(providerKey),
                 ProviderIconKey = providerMetadata.iconKey,
                 ProviderColorHex = providerMetadata.colorHex
             };

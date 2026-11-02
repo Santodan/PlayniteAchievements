@@ -1,8 +1,10 @@
 using System;
+using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Media;
 using Playnite.SDK;
 
 namespace PlayniteAchievements.Views.Settings.General
@@ -51,7 +53,7 @@ namespace PlayniteAchievements.Views.Settings.General
                 new CompletionStatusOption
                 {
                     Id = Guid.Empty,
-                    Name = L("LOCDefault")
+                    Name = L("LOCPlayAch_Common_Default")
                 }
             };
 
@@ -80,28 +82,33 @@ namespace PlayniteAchievements.Views.Settings.General
         }
 
         /// <summary>
-        /// Commits pending tag name changes from text boxes to the source.
+        /// Commits pending tag name changes from text boxes to the source. Walks the section's
+        /// tree so the templated per-area rows are covered along with the named boxes; every
+        /// TextBox in this section holds a tag name.
         /// </summary>
         private void CommitTagNameBindings()
         {
-            var textBoxes = new TextBox[]
+            foreach (var textBox in FindTextBoxes(this))
             {
-                HasAchievementsTagTextBox,
-                InProgressTagTextBox,
-                CompletedTagTextBox,
-                NoAchievementsTagTextBox,
-                CustomizedTagTextBox,
-                NotCustomizedTagTextBox,
-                ExcludedTagTextBox,
-                ExcludedFromSummariesTagTextBox
-            };
+                textBox.GetBindingExpression(TextBox.TextProperty)?.UpdateSource();
+            }
+        }
 
-            foreach (var textBox in textBoxes)
+        private static IEnumerable<TextBox> FindTextBoxes(DependencyObject parent)
+        {
+            var count = VisualTreeHelper.GetChildrenCount(parent);
+            for (var i = 0; i < count; i++)
             {
-                var binding = textBox?.GetBindingExpression(TextBox.TextProperty);
-                if (binding != null)
+                var child = VisualTreeHelper.GetChild(parent, i);
+                if (child is TextBox textBox)
                 {
-                    binding.UpdateSource();
+                    yield return textBox;
+                    continue;
+                }
+
+                foreach (var nested in FindTextBoxes(child))
+                {
+                    yield return nested;
                 }
             }
         }

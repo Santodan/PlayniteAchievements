@@ -373,7 +373,7 @@ namespace PlayniteAchievements.Tests.Views
 
             // The Advanced expander and its reset action stay on the General page.
             Assert.IsTrue(
-                general.IndexOf("LOCSettingsAdvancedLabel", StringComparison.Ordinal) >= 0,
+                general.IndexOf("LOCPlayAch_Common_Advanced", StringComparison.Ordinal) >= 0,
                 "Advanced expander missing from the General page.");
         }
 

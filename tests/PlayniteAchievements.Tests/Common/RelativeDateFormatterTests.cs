@@ -1,6 +1,4 @@
 using System;
-using System.Globalization;
-using System.Threading;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using PlayniteAchievements.Common;
 
@@ -9,100 +7,92 @@ namespace PlayniteAchievements.Tests.Common
     [TestClass]
     public class RelativeDateFormatterTests
     {
-        // Wednesday. The chosen sample dates resolve identically under Sunday- and Monday-start weeks,
-        // but the culture is pinned for determinism regardless of the host machine.
         private static readonly DateTime Now = new DateTime(2026, 6, 24, 12, 0, 0, DateTimeKind.Local);
 
-        private CultureInfo _originalCulture;
-
-        [TestInitialize]
-        public void Setup()
+        private static void AssertRelative(RelativeDateUnit unit, int count, DateTime value, DateTime now)
         {
-            _originalCulture = Thread.CurrentThread.CurrentCulture;
-            Thread.CurrentThread.CurrentCulture = CultureInfo.InvariantCulture;
-        }
-
-        [TestCleanup]
-        public void Cleanup()
-        {
-            Thread.CurrentThread.CurrentCulture = _originalCulture;
+            var actual = RelativeDateFormatter.GetRelative(value, now);
+            Assert.AreEqual(unit, actual.Unit);
+            Assert.AreEqual(count, actual.Count);
         }
 
         [TestMethod]
-        public void GetBucket_SameDay_ReturnsToday()
+        public void GetRelative_SameDay_ReturnsToday()
         {
-            Assert.AreEqual(RelativeDateBucket.Today, RelativeDateFormatter.GetBucket(Now.AddHours(-3), Now));
+            AssertRelative(RelativeDateUnit.Today, 0, Now.AddHours(-3), Now);
         }
 
         [TestMethod]
-        public void GetBucket_FutureValue_ReturnsToday()
+        public void GetRelative_FutureValue_ReturnsToday()
         {
-            Assert.AreEqual(RelativeDateBucket.Today, RelativeDateFormatter.GetBucket(Now.AddDays(1), Now));
+            AssertRelative(RelativeDateUnit.Today, 0, Now.AddDays(1), Now);
         }
 
         [TestMethod]
-        public void GetBucket_PreviousCalendarDay_ReturnsYesterday()
+        public void GetRelative_PreviousCalendarDay_ReturnsYesterday()
         {
-            Assert.AreEqual(RelativeDateBucket.Yesterday, RelativeDateFormatter.GetBucket(new DateTime(2026, 6, 23), Now));
+            AssertRelative(RelativeDateUnit.Yesterday, 1, new DateTime(2026, 6, 23, 23, 59, 0), Now);
         }
 
         [TestMethod]
-        public void GetBucket_EarlierThisWeek_ReturnsThisWeek()
+        public void GetRelative_AcrossYearBoundary_ReturnsYesterday()
         {
-            // Monday of the current week; within the week but older than yesterday.
-            Assert.AreEqual(RelativeDateBucket.ThisWeek, RelativeDateFormatter.GetBucket(new DateTime(2026, 6, 22), Now));
+            AssertRelative(RelativeDateUnit.Yesterday, 1, new DateTime(2025, 12, 31), new DateTime(2026, 1, 1));
         }
 
         [TestMethod]
-        public void GetBucket_EarlierThisMonthPriorWeek_ReturnsThisMonth()
+        public void GetRelative_TwoToSixDays_ReturnsDays()
         {
-            Assert.AreEqual(RelativeDateBucket.ThisMonth, RelativeDateFormatter.GetBucket(new DateTime(2026, 6, 10), Now));
+            AssertRelative(RelativeDateUnit.Days, 2, Now.AddDays(-2), Now);
+            AssertRelative(RelativeDateUnit.Days, 6, Now.AddDays(-6), Now);
         }
 
         [TestMethod]
-        public void GetBucket_PreviousCalendarWeek_ReturnsLastWeek()
+        public void GetRelative_SevenToTwentySevenDays_ReturnsWeeks()
         {
-            Assert.AreEqual(RelativeDateBucket.LastWeek, RelativeDateFormatter.GetBucket(new DateTime(2026, 6, 15), Now));
+            AssertRelative(RelativeDateUnit.Weeks, 1, Now.AddDays(-7), Now);
+            AssertRelative(RelativeDateUnit.Weeks, 1, Now.AddDays(-13), Now);
+            AssertRelative(RelativeDateUnit.Weeks, 2, Now.AddDays(-14), Now);
+            AssertRelative(RelativeDateUnit.Weeks, 3, Now.AddDays(-27), Now);
         }
 
         [TestMethod]
-        public void GetBucket_PreviousCalendarMonth_ReturnsLastMonth()
+        public void GetRelative_TwentyEightDays_ReturnsOneMonth()
         {
-            Assert.AreEqual(RelativeDateBucket.LastMonth, RelativeDateFormatter.GetBucket(new DateTime(2026, 5, 15), Now));
+            AssertRelative(RelativeDateUnit.Months, 1, Now.AddDays(-28), Now);
         }
 
         [TestMethod]
-        public void GetBucket_EarlierThisYearPriorMonth_ReturnsThisYear()
+        public void GetRelative_ThirtyDaysShortOfCalendarMonth_ReturnsOneMonth()
         {
-            Assert.AreEqual(RelativeDateBucket.ThisYear, RelativeDateFormatter.GetBucket(new DateTime(2026, 4, 15), Now));
+            // Jan 31 -> Mar 2 is 30 days but not yet a whole calendar month by day-of-month.
+            AssertRelative(RelativeDateUnit.Months, 1, new DateTime(2026, 1, 31), new DateTime(2026, 3, 2));
         }
 
         [TestMethod]
-        public void GetBucket_LastMonthAcrossYearBoundary_ReturnsLastMonth()
+        public void GetRelative_ElevenMonths_ReturnsMonths()
         {
-            Assert.AreEqual(
-                RelativeDateBucket.LastMonth,
-                RelativeDateFormatter.GetBucket(new DateTime(2025, 12, 15), new DateTime(2026, 1, 15)));
+            AssertRelative(RelativeDateUnit.Months, 11, new DateTime(2025, 7, 24), Now);
+            AssertRelative(RelativeDateUnit.Months, 11, new DateTime(2025, 6, 25), Now);
         }
 
         [TestMethod]
-        public void GetBucket_PriorYear_ReturnsLongAgo()
+        public void GetRelative_TwelveMonths_ReturnsOneYear()
         {
-            Assert.AreEqual(RelativeDateBucket.LongAgo, RelativeDateFormatter.GetBucket(new DateTime(2025, 6, 15), Now));
+            AssertRelative(RelativeDateUnit.Years, 1, new DateTime(2025, 6, 24), Now);
         }
 
         [TestMethod]
-        public void GetYearsAgo_PriorCalendarYear_ReturnsOne()
+        public void GetRelative_TwentyThreeMonths_ReturnsOneYear()
         {
-            // Calendar-year difference, consistent with the bucketing: late December of the
-            // prior year is still "1 year ago" in early January.
-            Assert.AreEqual(1, RelativeDateFormatter.GetYearsAgo(new DateTime(2025, 12, 31), new DateTime(2026, 1, 1)));
+            AssertRelative(RelativeDateUnit.Years, 1, new DateTime(2024, 7, 24), Now);
         }
 
         [TestMethod]
-        public void GetYearsAgo_SeveralYearsBack_ReturnsCalendarYearDifference()
+        public void GetRelative_SeveralYears_ReturnsWholeYears()
         {
-            Assert.AreEqual(8, RelativeDateFormatter.GetYearsAgo(new DateTime(2018, 6, 15), Now));
+            AssertRelative(RelativeDateUnit.Years, 8, new DateTime(2018, 6, 15), Now);
+            AssertRelative(RelativeDateUnit.Years, 7, new DateTime(2018, 6, 25), Now);
         }
     }
 }

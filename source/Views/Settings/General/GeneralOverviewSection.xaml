@@ -69,12 +69,12 @@
                     <Button Grid.Column="1" Style="{StaticResource ProminentLinkButtonStyle}"
                             Click="JumpToTab_Click"
                             CommandParameter="Providers"
-                            ToolTip="{DynamicResource LOCPlatformsTitle}"
-                            AutomationProperties.Name="{DynamicResource LOCPlatformsTitle}">
+                            ToolTip="{DynamicResource LOCPlayAch_Common_Platforms}"
+                            AutomationProperties.Name="{DynamicResource LOCPlayAch_Common_Platforms}">
                         <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
                             <controls:GlyphIcon FontFamily="{DynamicResource PlayAch.FontFamily.Icon}"
                                        Size="20" Margin="0,0,10,0" VerticalAlignment="Center" Glyph="&#xEA30;" Foreground="{DynamicResource PlayAch.Brush.Accent}"/>
-                            <TextBlock Text="{DynamicResource LOCPlatformsTitle}" VerticalAlignment="Center" FontWeight="SemiBold"/>
+                            <TextBlock Text="{DynamicResource LOCPlayAch_Common_Platforms}" VerticalAlignment="Center" FontWeight="SemiBold"/>
                         </StackPanel>
                     </Button>
 

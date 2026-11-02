@@ -20,9 +20,21 @@ namespace PlayniteAchievements.Tests.Services
 
             var resolved = ShowcaseProfileResolver.Resolve(null, identities);
 
-            Assert.AreEqual("SteamName", resolved.DisplayName);
             Assert.AreEqual(@"C:\steam.png", resolved.AvatarPath);
             Assert.IsTrue(resolved.FromProviderIdentity);
+        }
+
+        [TestMethod]
+        public void Resolve_BlankNameShowsNoNameEvenWithAnIdentity()
+        {
+            var identities = new List<FriendIdentity>
+            {
+                new FriendIdentity { ProviderKey = "Steam", DisplayName = "SteamName", ProviderNickname = "SteamNick" }
+            };
+
+            Assert.IsNull(ShowcaseProfileResolver.Resolve(null, identities).DisplayName);
+            Assert.IsNull(ShowcaseProfileResolver.Resolve(
+                new ShowcaseProfileSettings { DisplayName = "  " }, identities).DisplayName);
         }
 
         [TestMethod]
@@ -31,12 +43,12 @@ namespace PlayniteAchievements.Tests.Services
             var identities = new List<FriendIdentity>
             {
                 new FriendIdentity { ProviderKey = "Exophase" },
-                new FriendIdentity { ProviderKey = "RetroAchievements", ProviderNickname = "RetroNick" }
+                new FriendIdentity { ProviderKey = "RetroAchievements", ProviderNickname = "RetroNick", AvatarUrl = "https://ra/avatar.png" }
             };
 
             var resolved = ShowcaseProfileResolver.Resolve(null, identities);
 
-            Assert.AreEqual("RetroNick", resolved.DisplayName);
+            Assert.AreEqual("https://ra/avatar.png", resolved.AvatarPath);
         }
 
         [TestMethod]
@@ -59,7 +71,8 @@ namespace PlayniteAchievements.Tests.Services
             Assert.AreEqual("Completionist", resolved.Subtitle);
             Assert.AreEqual(@"C:\steam.png", resolved.AvatarPath);
             Assert.AreEqual(@"C:\bg.png", resolved.BackgroundPath);
-            Assert.IsFalse(resolved.FromProviderIdentity);
+            // The avatar still comes from the identity.
+            Assert.IsTrue(resolved.FromProviderIdentity);
         }
 
         [TestMethod]

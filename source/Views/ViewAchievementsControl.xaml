@@ -254,7 +254,6 @@
                                                  CategoryColumnSettingsKey="ViewAchievementsCategorySummaries"
                                                  DataGridMaxHeight="{x:Static sys:Double.NaN}"
                                                  ShowRarityGlow="{Binding ShowRarityGlow}"
-                                                 ColorNamesByRarity="{Binding ColorNamesByRarity}"
                                                  ColorRarityColumnsByRarity="{Binding ColorRarityColumnsByRarity}"
                                                  ShowsRarity="{Binding ShowsRarity}"
                                                  FixedRowHeight="{Binding SingleGameGridRowHeight}"

@@ -500,7 +500,8 @@ namespace PlayniteAchievements.ViewModels
                 .Select(item => new TimelineSegment(item, TimelineBucketing.SumIntoBuckets(plan, item.CountsByDate)))
                 .Select(segment => new { Segment = segment, Total = segment.Values.Sum() })
                 .Where(entry => entry.Total > 0)
-                .OrderByDescending(entry => entry.Total)
+                .OrderBy(entry => entry.Segment.Source.Order ?? int.MaxValue)
+                .ThenByDescending(entry => entry.Total)
                 .ThenBy(entry => entry.Segment.Source.Title, StringComparer.CurrentCultureIgnoreCase)
                 .Select(entry => entry.Segment)
                 .ToList();

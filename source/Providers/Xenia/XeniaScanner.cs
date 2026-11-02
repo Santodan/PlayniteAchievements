@@ -63,36 +63,32 @@ namespace PlayniteAchievements.Providers.Xenia
                 return new RebuildPayload { Summary = new RebuildSummary() };
             }
 
-            var rarityEnricher = await CreateRarityEnricherAsync(cancel).ConfigureAwait(false);
+            return await ProviderRefreshExecutor.RunProviderGamesAsync(
+                gamesToRefresh,
+                onGameStarting,
+                (game, token) =>
+                {
+                    var data = GetAchievementData(game, out var gpdTitle);
+                    if (data != null)
+                    {
+                        // The GPD's title is searched before the Playnite name; the achievements are Xbox 360's.
+                        data.MetadataHints = new MetadataHints { SearchName = gpdTitle, PlatformSlug = "xbox-360" };
+                    }
 
-            try
-            {
-                return await ProviderRefreshExecutor.RunProviderGamesAsync(
-                    gamesToRefresh,
-                    onGameStarting,
-                    async (game, token) =>
+                    return Task.FromResult(new ProviderRefreshExecutor.ProviderGameResult
                     {
-                        var data = GetAchievementData(game, out var gpdTitle);
-                        await EnrichRarityAsync(game, data, gpdTitle, rarityEnricher, token).ConfigureAwait(false);
-                        return new ProviderRefreshExecutor.ProviderGameResult
-                        {
-                            Data = data
-                        };
-                    },
-                    onGameCompleted,
-                    isAuthRequiredException: _ => false,
-                    onGameError: (game, ex, consecutiveErrors) =>
-                    {
-                        _logger?.Warn(ex, $"[Xenia] Failed to scan game '{game?.Name}'");
-                    },
-                    delayBetweenGamesAsync: null,
-                    delayAfterErrorAsync: null,
-                    cancel).ConfigureAwait(false);
-            }
-            finally
-            {
-                rarityEnricher?.Dispose();
-            }
+                        Data = data
+                    });
+                },
+                onGameCompleted,
+                isAuthRequiredException: _ => false,
+                onGameError: (game, ex, consecutiveErrors) =>
+                {
+                    _logger?.Warn(ex, $"[Xenia] Failed to scan game '{game?.Name}'");
+                },
+                delayBetweenGamesAsync: null,
+                delayAfterErrorAsync: null,
+                cancel).ConfigureAwait(false);
         }
 
         /// <param name="gpdTitle">
@@ -215,40 +211,6 @@ namespace PlayniteAchievements.Providers.Xenia
             SaveTitleIdCache();
 
             return data;
-        }
-
-        private async Task<ExophaseMetadataEnricher> CreateRarityEnricherAsync(CancellationToken cancel)
-        {
-            if (_providerSettings?.UseExophaseForRarity != true)
-            {
-                return null;
-            }
-
-            var enricher = new ExophaseMetadataEnricher(_playniteApi, _logger, _settings, _pluginUserDataPath);
-            await enricher.InitializeAsync(cancel).ConfigureAwait(false);
-            return enricher;
-        }
-
-        /// <param name="gpdTitle">The GPD's title, searched before the Playnite name.</param>
-        private static async Task EnrichRarityAsync(
-            Game game,
-            GameAchievementData data,
-            string gpdTitle,
-            ExophaseMetadataEnricher rarityEnricher,
-            CancellationToken cancel)
-        {
-            if (rarityEnricher == null || data?.Achievements == null || data.Achievements.Count == 0)
-            {
-                return;
-            }
-
-            await rarityEnricher.EnrichAsync(
-                game,
-                data.Achievements,
-                "xbox-360",
-                "Xbox",
-                cancel,
-                searchName: gpdTitle).ConfigureAwait(false);
         }
 
         /// <summary>

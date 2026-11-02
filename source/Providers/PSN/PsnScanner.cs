@@ -6,6 +6,7 @@ using PlayniteAchievements.Providers.PSN.Models;
 using PlayniteAchievements.Services;
 using PlayniteAchievements.Services.Achievements;
 using PlayniteAchievements.Services.GameCustomData;
+using PlayniteAchievements.Services.Images;
 using PlayniteAchievements.Services.Refresh;
 using Playnite.SDK;
 using Playnite.SDK.Models;
@@ -164,6 +165,97 @@ namespace PlayniteAchievements.Providers.PSN
             };
         }
 
+        /// <summary>
+        /// The trophy names and details of the sets the last refresh resolved (its ProviderGameKey),
+        /// read with an en-US Accept-Language and keyed as FetchSetAchievementsAsync keys them.
+        /// No user progress is requested. Null when the sets are unknown or the session is missing.
+        /// </summary>
+        public async Task<List<AchievementDetail>> GetEnglishTrophyTitlesAsync(Game game, GameAchievementData data, CancellationToken cancel)
+        {
+            var npCommIds = ResolveStoredNpCommIds(game, data);
+            if (npCommIds.Count == 0)
+            {
+                return null;
+            }
+
+            string token;
+            try
+            {
+                token = await _sessionManager.GetAccessTokenAsync(cancel).ConfigureAwait(false);
+            }
+            catch (PsnAuthRequiredException)
+            {
+                return null;
+            }
+
+            using (var http = new HttpClient())
+            {
+                http.Timeout = TimeSpan.FromSeconds(45);
+                SetAuthorizationHeader(http, token);
+                http.DefaultRequestHeaders.TryAddWithoutValidation("Accept-Language", "en-US");
+
+                var serviceSuffixCandidates = PsnSuffixRetryHelper.BuildSuffixCandidates(NormalizeGameId(game?.GameId));
+                var isCollection = npCommIds.Count > 1;
+                var achievements = new List<AchievementDetail>();
+                foreach (var npCommId in npCommIds)
+                {
+                    cancel.ThrowIfCancellationRequested();
+                    var detailsJson = await PsnSuffixRetryHelper.GetStringWithSuffixRetryAsync(
+                        suffix => GetStringWithAuthRetryAsync(
+                            http,
+                            string.Format(UrlTrophiesDetailsAll, npCommId) + suffix,
+                            $"English trophy details for '{game?.Name}' ({npCommId})",
+                            cancel),
+                        serviceSuffixCandidates).ConfigureAwait(false);
+
+                    var details = JsonConvert.DeserializeObject<PsnTrophiesDetailResponse>(detailsJson);
+                    achievements.AddRange((details?.Trophies ?? new List<PsnTrophyDetail>())
+                        .GroupBy(PsnTrophyMatchHelper.GetTrophyKey)
+                        .Select(group => group.First())
+                        .Select(detail => new AchievementDetail
+                        {
+                            ApiName = PsnTrophySetResolutionHelper.BuildApiName(
+                                isCollection, npCommId, PsnTrophyMatchHelper.GetTrophyKey(detail)),
+                            DisplayName = detail.TrophyName,
+                            Description = detail.TrophyDetail
+                        }));
+                }
+
+                return achievements.Count > 0 ? achievements : null;
+            }
+        }
+
+        /// <summary>
+        /// The set ids the last refresh stored as the ProviderGameKey; for rows stored without one,
+        /// the ids an override or an NPWR GameId supply directly. No lookup request is made.
+        /// </summary>
+        private static List<string> ResolveStoredNpCommIds(Game game, GameAchievementData data)
+        {
+            if (!string.IsNullOrWhiteSpace(data?.ProviderGameKey))
+            {
+                return data.ProviderGameKey
+                    .Split(new[] { '+' }, StringSplitOptions.RemoveEmptyEntries)
+                    .Select(id => id.Trim())
+                    .Where(id => id.Length > 0)
+                    .ToList();
+            }
+
+            if (game != null &&
+                GameCustomDataLookup.TryGetProviderOverrideValue(game.Id, "PSN", out var overrideValue))
+            {
+                var overrideSets = PsnTrophySetResolutionHelper.ParseOverrideSets(overrideValue);
+                if (overrideSets.Count > 0)
+                {
+                    return overrideSets.Select(set => set.NpCommunicationId).ToList();
+                }
+            }
+
+            var normalized = NormalizeGameId(game?.GameId);
+            return normalized.IndexOf("NPWR", StringComparison.OrdinalIgnoreCase) >= 0
+                ? new List<string> { normalized }
+                : new List<string>();
+        }
+
         private sealed class PsnSetFetchResult
         {
             public List<AchievementDetail> Achievements { get; set; }
@@ -311,7 +403,7 @@ namespace PlayniteAchievements.Providers.PSN
                     DisplayName = detail.TrophyName,
                     Description = detail.TrophyDetail,
                     UnlockedIconPath = detail.TrophyIconUrl,
-                    CategoryType = PsnTrophyCategoryHelper.MapTrophyGroupToCategoryType(detail.TrophyGroupId),
+                    CategoryKind = PsnTrophyCategoryHelper.MapTrophyGroupToCategoryKind(detail.TrophyGroupId),
                     Category = isCollection
                         ? PsnTrophyCategoryHelper.ResolveCollectionCategory(detail.TrophyGroupId, groupNameById, setTitle)
                         : PsnTrophyCategoryHelper.ResolveCategory(detail.TrophyGroupId, groupNameById),
@@ -357,58 +449,18 @@ namespace PlayniteAchievements.Providers.PSN
         }
 
         // Downloads each set's title icon as default category art for its category label, so a
-        // collection's category groups render with per-game art. Uses the shared provider-default
-        // convention read by CategoryDefaultImageResolver: existing art is kept and user overrides
-        // win over defaults. Best-effort: failures never fail the scan, and existing targets are
-        // skipped so re-scans cost nothing.
-        private async Task DownloadCategoryImagesAsync(
+        // collection's category groups render with per-game art.
+        private Task DownloadCategoryImagesAsync(
             Guid? playniteGameId,
             IReadOnlyList<(string Label, string IconUrl)> entries,
             CancellationToken cancel)
         {
-            if (entries == null || entries.Count == 0 ||
-                playniteGameId == null || playniteGameId.Value == Guid.Empty)
-            {
-                return;
-            }
-
-            var diskImageService = PlayniteAchievementsPlugin.Instance?.DiskImageService;
-            if (diskImageService == null)
-            {
-                return;
-            }
-
-            var gameIdText = playniteGameId.Value.ToString("D");
-            var seenLabels = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-            foreach (var entry in entries)
-            {
-                cancel.ThrowIfCancellationRequested();
-                var label = AchievementCategoryTypeHelper.NormalizeCategoryOrDefault(entry.Label);
-                if (string.Equals(
-                        label,
-                        AchievementCategoryTypeHelper.DefaultCategoryLabel,
-                        StringComparison.OrdinalIgnoreCase) ||
-                    !seenLabels.Add(label))
-                {
-                    continue;
-                }
-
-                try
-                {
-                    var artTarget = diskImageService.GetDefaultCategoryImagePath(gameIdText, label);
-                    // decodeSize 0 stores the original bytes: no square crop, original aspect.
-                    await diskImageService.GetOrDownloadIconToPathAsync(entry.IconUrl, artTarget, decodeSize: 0, cancel)
-                        .ConfigureAwait(false);
-                }
-                catch (OperationCanceledException) when (cancel.IsCancellationRequested)
-                {
-                    throw;
-                }
-                catch (Exception ex)
-                {
-                    _logger?.Debug(ex, $"[PSNAch] Default category image download failed for category '{entry.Label}'.");
-                }
-            }
+            return CategoryDefaultArtDownloader.DownloadAsync(
+                PlayniteAchievementsPlugin.Instance?.DiskImageService,
+                playniteGameId,
+                entries,
+                _logger,
+                cancel);
         }
 
         private void SetAuthorizationHeader(HttpClient http, string token)
@@ -503,7 +555,7 @@ namespace PlayniteAchievements.Providers.PSN
         /// Fetches the trophy-group metadata (base group plus each DLC group) and returns a
         /// normalized groupId -> group title map. Non-fatal: any failure (private profile, missing
         /// metadata) yields an empty map so categorization degrades to the base/DLC
-        /// <see cref="MapTrophyGroupToCategoryType"/> classification without a named label.
+        /// <see cref="MapTrophyGroupToCategoryKind"/> classification without a named label.
         /// </summary>
         private async Task<IReadOnlyDictionary<string, string>> FetchGroupNamesAsync(
             HttpClient http,

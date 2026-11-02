@@ -1025,6 +1025,8 @@ namespace PlayniteAchievements.Services.Friends
                 RegionText = source.RegionText,
                 PlaytimeSeconds = ToPlaytimeSeconds(playtimeMinutes),
                 LastPlayed = lastPlayedUtc,
+                Added = source.Added,
+                ReleaseDate = source.ReleaseDate,
                 TotalAchievements = source.TotalAchievements > 0
                     ? source.TotalAchievements
                     : allAchievements

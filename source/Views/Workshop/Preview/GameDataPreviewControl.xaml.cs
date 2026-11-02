@@ -47,7 +47,7 @@ namespace PlayniteAchievements.Views.Workshop.Preview
 
         private static readonly HashSet<string> NeutralColumns = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
         {
-            "Status", "Icon", "Achievement", "CategoryType", "CategoryLabel", "Trophy", "Rarity", "Points"
+            "Status", "Icon", "Achievement", "CategoryKind", "CategoryType", "CategoryLabel", "Trophy", "Rarity", "Points"
         };
 
         // Shown in the published image whatever the rows hold; the rest of the fixed set is shown
@@ -79,7 +79,7 @@ namespace PlayniteAchievements.Views.Workshop.Preview
         // Columns a package's own entries can leave empty; the live grid hides each one none fills.
         private static readonly string[] PackageOptionalColumns =
         {
-            "CategoryType", "CategoryLabel", "CategoryIcon", "Note", "Trophy", "Points", "Rarity", "RarityTier",
+            "CategoryKind", "CategoryType", "CategoryLabel", "CategoryIcon", "Note", "Trophy", "Points", "Rarity", "RarityTier",
             "RarityPercent", "UnlockDate", "CollectionScore", "PrestigeScore"
         };
 
@@ -315,8 +315,10 @@ namespace PlayniteAchievements.Views.Workshop.Preview
         {
             switch (key)
             {
+                case "CategoryKind":
+                    return !string.IsNullOrWhiteSpace(item.CategoryKindDisplay);
                 case "CategoryType":
-                    return !string.IsNullOrWhiteSpace(item.CategoryTypeDisplay);
+                    return !string.IsNullOrWhiteSpace(item.TagsDisplay);
                 case "CategoryLabel":
                 case "CategoryIcon":
                     return !string.IsNullOrWhiteSpace(item.CategoryLabelDisplay);
@@ -364,7 +366,7 @@ namespace PlayniteAchievements.Views.Workshop.Preview
                     UnlockedIconPath = row.After.UnlockedIcon as string,
                     LockedIconPath = row.After.LockedIcon as string,
                     Category = row.After.Category,
-                    CategoryType = row.After.CategoryType,
+                    Tags = row.After.Tags,
                     IsCapstone = row.After.IsCapstone,
                     IsGoal = row.After.IsGoal,
                     AchievementNote = row.After.Note,
@@ -499,7 +501,8 @@ namespace PlayniteAchievements.Views.Workshop.Preview
                 grid.AllowLayoutPersistence = false;
                 grid.AllowColumnVisibilityMenu = false;
                 grid.ShowRarityGlow = false;
-                grid.ColorNamesByRarity = false;
+                // A fresh record: plain names and tags, whatever the sharer's grids use.
+                grid.AppearanceOptions = new AchievementGridOptions { TagDisplay = AchievementTagDisplay.None };
                 grid.ColorRarityColumnsByRarity = false;
                 grid.FixedRowHeight = null;
                 grid.ShowColumnHeaders = true;
@@ -561,7 +564,7 @@ namespace PlayniteAchievements.Views.Workshop.Preview
             var persisted = PlayniteAchievementsPlugin.Instance?.Settings?.Persisted;
             grid.ColumnSettingsKey = LiveColumnSettingsKey;
             grid.ShowRarityGlow = persisted?.ViewAchievementsAchievementGridShowRarityGlow ?? true;
-            grid.ColorNamesByRarity = persisted?.ViewAchievementsAchievementGridColorNamesByRarity ?? false;
+            grid.AppearanceOptions = persisted?.GridOptions.GetAchievement(GridOptionKeys.Achievement.SingleGame);
             grid.ColorRarityColumnsByRarity = persisted?.ViewAchievementsAchievementGridColorRarityColumnsByRarity ?? false;
             grid.FixedRowHeight = persisted?.SingleGameGridRowHeight;
             grid.ShowColumnHeaders = persisted?.ShowViewAchievementsAchievementGridColumnHeaders ?? true;

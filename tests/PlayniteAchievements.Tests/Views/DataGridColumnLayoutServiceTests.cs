@@ -8,6 +8,8 @@ using System.Windows.Documents;
 using System.Windows.Media;
 using System.Windows.Threading;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
+using PlayniteAchievements.Models.Settings;
+using PlayniteAchievements.Tests.TestInfrastructure;
 using PlayniteAchievements.Views.Helpers;
 
 namespace PlayniteAchievements.Tests.Views
@@ -18,7 +20,7 @@ namespace PlayniteAchievements.Tests.Views
         [TestMethod]
         public void Attach_WithEmptyWidthsUsesStarFallbackUntilMeasuredWithoutPersisting()
         {
-            RunOnStaThread(() =>
+            StaTestHost.Run(() =>
             {
                 var order = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
                 var saveCount = 0;
@@ -41,7 +43,7 @@ namespace PlayniteAchievements.Tests.Views
         [TestMethod]
         public void WidthChange_DoesNotPersistColumnOrder()
         {
-            RunOnStaThread(() =>
+            StaTestHost.Run(() =>
             {
                 var order = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
                 var saveCount = 0;
@@ -61,7 +63,7 @@ namespace PlayniteAchievements.Tests.Views
         [TestMethod]
         public void ForcedCollapsedColumn_DoesNotLoseWidthWhenVisibleAgain()
         {
-            RunOnStaThread(() =>
+            StaTestHost.Run(() =>
             {
                 var order = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
                 var widths = new Dictionary<string, double>(StringComparer.OrdinalIgnoreCase)
@@ -105,7 +107,7 @@ namespace PlayniteAchievements.Tests.Views
         [TestMethod]
         public void Attach_WithDelayedInitialRenderRestoresGridAfterSuccessfulNormalization()
         {
-            RunOnStaThread(() =>
+            StaTestHost.Run(() =>
             {
                 var order = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
                 var saveCount = 0;
@@ -115,18 +117,12 @@ namespace PlayniteAchievements.Tests.Views
                 grid.Opacity = 0.42d;
                 grid.IsHitTestVisible = true;
 
-                var window = new Window
-                {
-                    Width = 420,
-                    Height = 220,
-                    Content = grid,
-                    ShowActivated = false
-                };
+                Window window = null;
 
                 DataGridColumnLayoutService service = null;
                 try
                 {
-                    window.Show();
+                    window = StaTestHost.ShowOffscreen(grid, 420, 220);
                     grid.UpdateLayout();
 
                     service = CreateService(grid, order, () => saveCount++);
@@ -145,7 +141,7 @@ namespace PlayniteAchievements.Tests.Views
                 finally
                 {
                     service?.Detach();
-                    window.Close();
+                    window?.Close();
                 }
             });
         }
@@ -153,7 +149,7 @@ namespace PlayniteAchievements.Tests.Views
         [TestMethod]
         public void Attach_WithDelayedInitialRenderRetriesFailedNormalizationWithoutSaving()
         {
-            RunOnStaThread(() =>
+            StaTestHost.Run(() =>
             {
                 var order = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
                 var saveCount = 0;
@@ -177,7 +173,7 @@ namespace PlayniteAchievements.Tests.Views
         [TestMethod]
         public void Attach_WithEmptyWidthsUsesDefaultSeedProportionsWithoutPersisting()
         {
-            RunOnStaThread(() =>
+            StaTestHost.Run(() =>
             {
                 var order = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
                 var defaultSeeds = new Dictionary<string, double>(StringComparer.OrdinalIgnoreCase)
@@ -191,18 +187,12 @@ namespace PlayniteAchievements.Tests.Views
                 grid.Width = 600;
                 grid.Height = 160;
 
-                var window = new Window
-                {
-                    Width = 640,
-                    Height = 220,
-                    Content = grid,
-                    ShowActivated = false
-                };
+                Window window = null;
 
                 DataGridColumnLayoutService service = null;
                 try
                 {
-                    window.Show();
+                    window = StaTestHost.ShowOffscreen(grid, 640, 220);
                     grid.UpdateLayout();
 
                     service = CreateService(grid, order, () => saveCount++, defaultWidthSeeds: defaultSeeds);
@@ -216,7 +206,7 @@ namespace PlayniteAchievements.Tests.Views
                 finally
                 {
                     service?.Detach();
-                    window.Close();
+                    window?.Close();
                 }
             });
         }
@@ -224,25 +214,19 @@ namespace PlayniteAchievements.Tests.Views
         [TestMethod]
         public void Detach_ClearsInitialRetryAndScrollViewerHandlers()
         {
-            RunOnStaThread(() =>
+            StaTestHost.Run(() =>
             {
                 var order = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
                 var grid = CreateGrid();
                 grid.Width = 360;
                 grid.Height = 160;
 
-                var window = new Window
-                {
-                    Width = 420,
-                    Height = 220,
-                    Content = grid,
-                    ShowActivated = false
-                };
+                Window window = null;
 
                 DataGridColumnLayoutService service = null;
                 try
                 {
-                    window.Show();
+                    window = StaTestHost.ShowOffscreen(grid, 420, 220);
                     grid.UpdateLayout();
 
                     service = CreateService(grid, order, () => { });
@@ -262,7 +246,7 @@ namespace PlayniteAchievements.Tests.Views
                 finally
                 {
                     service?.Detach();
-                    window.Close();
+                    window?.Close();
                 }
             });
         }
@@ -270,7 +254,7 @@ namespace PlayniteAchievements.Tests.Views
         [TestMethod]
         public void ExplicitColumnReorder_PersistsCurrentDisplayIndexes()
         {
-            RunOnStaThread(() =>
+            StaTestHost.Run(() =>
             {
                 var order = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
                 var saveCount = 0;
@@ -297,7 +281,7 @@ namespace PlayniteAchievements.Tests.Views
         [TestMethod]
         public void LiveResize_ExpandingColumnShrinksPreferredNeighbor()
         {
-            RunOnStaThread(() =>
+            StaTestHost.Run(() =>
             {
                 var order = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
                 var grid = CreateGrid();
@@ -316,7 +300,7 @@ namespace PlayniteAchievements.Tests.Views
         [TestMethod]
         public void Normalization_CrampedViewportLowersResizableColumnMinimums()
         {
-            RunOnStaThread(() =>
+            StaTestHost.Run(() =>
             {
                 var grid = CreateGrid();
                 foreach (var column in grid.Columns)
@@ -344,7 +328,7 @@ namespace PlayniteAchievements.Tests.Views
         [TestMethod]
         public void PersistPendingResizeWidths_ClearsInteractiveResizeContext()
         {
-            RunOnStaThread(() =>
+            StaTestHost.Run(() =>
             {
                 var order = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
                 var saveCount = 0;
@@ -375,7 +359,7 @@ namespace PlayniteAchievements.Tests.Views
         [TestMethod]
         public void PinnedColumns_StayLeadingAgainstHostilePersistedOrder()
         {
-            RunOnStaThread(() =>
+            StaTestHost.Run(() =>
             {
                 // A map that puts a customizable column first and names two columns that no longer
                 // exist: what a layout saved by an older build looks like.
@@ -405,7 +389,7 @@ namespace PlayniteAchievements.Tests.Views
         [TestMethod]
         public void PinnedColumns_ClampAfterReorderAndPersistTheClampedLayout()
         {
-            RunOnStaThread(() =>
+            StaTestHost.Run(() =>
             {
                 var order = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
                 var grid = CreateGridWithPinnedColumns();
@@ -443,7 +427,7 @@ namespace PlayniteAchievements.Tests.Views
         [TestMethod]
         public void PinnedColumns_AreExcludedFromTheVisibilityMenu()
         {
-            RunOnStaThread(() =>
+            StaTestHost.Run(() =>
             {
                 var order = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
                 var grid = CreateGridWithPinnedColumns();
@@ -476,7 +460,7 @@ namespace PlayniteAchievements.Tests.Views
         [TestMethod]
         public void EmptyOrderMap_ClampsPinnedColumnsWithoutPersisting()
         {
-            RunOnStaThread(() =>
+            StaTestHost.Run(() =>
             {
                 var order = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
                 var saveCount = 0;
@@ -503,7 +487,7 @@ namespace PlayniteAchievements.Tests.Views
         [TestMethod]
         public void ResolveColumnDisplayName_PrefersTheDeclaredNameOverAControlHeader()
         {
-            RunOnStaThread(() =>
+            StaTestHost.Run(() =>
             {
                 var column = new DataGridTextColumn { Header = new Grid() };
                 ColumnVisibilityHelper.SetColumnKey(column, "EditorName");
@@ -521,7 +505,7 @@ namespace PlayniteAchievements.Tests.Views
         [TestMethod]
         public void ResolveColumnDisplayName_FallsBackToTheHeaderWhenNoNameIsDeclared()
         {
-            RunOnStaThread(() =>
+            StaTestHost.Run(() =>
             {
                 var column = new DataGridTextColumn { Header = "Points" };
                 ColumnVisibilityHelper.SetColumnKey(column, "EditorPoints");
@@ -538,7 +522,7 @@ namespace PlayniteAchievements.Tests.Views
         [TestMethod]
         public void SetColumnLocked_FreezesTheColumnAndPersistsItsWidthAndLock()
         {
-            RunOnStaThread(() =>
+            StaTestHost.Run(() =>
             {
                 var order = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
                 var saveCount = 0;
@@ -584,9 +568,113 @@ namespace PlayniteAchievements.Tests.Views
         }
 
         [TestMethod]
+        public void SetColumnHeaderTextHidden_FlagsTheColumnAndPersistsTheExplicitChoice()
+        {
+            StaTestHost.Run(() =>
+            {
+                var order = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+                var saveCount = 0;
+                var maps = new PersistedMaps();
+                var grid = CreateGrid();
+                var service = CreateService(grid, order, () => saveCount++, maps: maps);
+                service.Attach();
+                DrainDispatcher();
+
+                var column = ColumnByKey(grid, "B");
+                Assert.IsFalse(service.IsColumnHeaderTextHidden(column));
+
+                service.SetColumnHeaderTextHidden(column, true);
+
+                Assert.IsTrue(DataGridColumnLayoutService.GetIsHeaderTextHidden(column));
+                Assert.IsTrue(maps.HiddenHeaders.TryGetValue("B", out var hidden) && hidden);
+                Assert.AreEqual(1, saveCount);
+
+                service.SetColumnHeaderTextHidden(column, false);
+
+                Assert.IsFalse(DataGridColumnLayoutService.GetIsHeaderTextHidden(column));
+                // An explicit false, so a grid that defaults the column to hidden keeps it shown.
+                Assert.IsTrue(maps.HiddenHeaders.TryGetValue("B", out var shownHidden) && !shownHidden);
+                Assert.AreEqual(2, saveCount);
+
+                service.Detach();
+            });
+        }
+
+        [TestMethod]
+        public void Attach_WithPersistedHiddenHeaderFlagsOnlyThatColumn()
+        {
+            StaTestHost.Run(() =>
+            {
+                var order = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+                var maps = new PersistedMaps();
+                maps.HiddenHeaders["C"] = true;
+                var grid = CreateGrid();
+                var service = CreateService(grid, order, () => { }, maps: maps);
+                service.Attach();
+                DrainDispatcher();
+
+                Assert.IsTrue(DataGridColumnLayoutService.GetIsHeaderTextHidden(ColumnByKey(grid, "C")));
+                Assert.IsFalse(DataGridColumnLayoutService.GetIsHeaderTextHidden(ColumnByKey(grid, "A")));
+                Assert.IsFalse(DataGridColumnLayoutService.GetIsHeaderTextHidden(ColumnByKey(grid, "B")));
+
+                service.Detach();
+            });
+        }
+
+        [TestMethod]
+        public void Attach_HonorsAMarkupHiddenHeaderUntilASurfaceChoosesOtherwise()
+        {
+            StaTestHost.Run(() =>
+            {
+                var order = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+                var grid = CreateGrid();
+                var column = ColumnByKey(grid, "A");
+                // As markup declares it: hidden until a surface says otherwise.
+                DataGridColumnLayoutService.SetIsHeaderTextHidden(column, true);
+
+                var untouched = CreateService(grid, order, () => { });
+                untouched.Attach();
+                DrainDispatcher();
+                Assert.IsTrue(DataGridColumnLayoutService.GetIsHeaderTextHidden(column));
+
+                untouched.SetColumnHeaderTextHidden(column, false);
+                Assert.IsFalse(DataGridColumnLayoutService.GetIsHeaderTextHidden(column));
+                untouched.Detach();
+
+                // A service recreated for another surface reads the markup default, not the
+                // previous surface's choice left on the column.
+                var otherSurface = CreateService(grid, order, () => { });
+                otherSurface.Attach();
+                DrainDispatcher();
+                Assert.IsTrue(DataGridColumnLayoutService.GetIsHeaderTextHidden(column));
+                otherSurface.Detach();
+
+                var shownMaps = new PersistedMaps();
+                shownMaps.HiddenHeaders["A"] = false;
+                var shown = CreateService(grid, order, () => { }, maps: shownMaps);
+                shown.Attach();
+                DrainDispatcher();
+                Assert.IsFalse(DataGridColumnLayoutService.GetIsHeaderTextHidden(column));
+                shown.Detach();
+            });
+        }
+
+        [TestMethod]
+        public void GridColumnLayoutOptionsClone_CopiesHiddenHeaders()
+        {
+            var options = new GridColumnLayoutOptions();
+            options.HiddenHeaders = new Dictionary<string, bool> { ["Progress"] = true };
+
+            var clone = options.Clone();
+
+            Assert.IsTrue(clone.HiddenHeaders.TryGetValue("progress", out var hidden) && hidden);
+            Assert.AreNotSame(options.HiddenHeaders, clone.HiddenHeaders);
+        }
+
+        [TestMethod]
         public void Attach_WithPersistedLockRestoresTheLockAndTheSavedWidth()
         {
-            RunOnStaThread(() =>
+            StaTestHost.Run(() =>
             {
                 var order = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
                 var widths = new Dictionary<string, double>(StringComparer.OrdinalIgnoreCase)
@@ -619,7 +707,7 @@ namespace PlayniteAchievements.Tests.Views
         [TestMethod]
         public void CanLockColumn_IsFalseForTheLastUnlockedColumn()
         {
-            RunOnStaThread(() =>
+            StaTestHost.Run(() =>
             {
                 var order = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
                 var grid = CreateGrid();
@@ -640,25 +728,19 @@ namespace PlayniteAchievements.Tests.Views
         [TestMethod]
         public void LockedColumn_StillRescalesWhenTheGridWidthChanges()
         {
-            RunOnStaThread(() =>
+            StaTestHost.Run(() =>
             {
                 var order = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
                 var grid = CreateGrid();
                 grid.Width = 360;
                 grid.Height = 160;
 
-                var window = new Window
-                {
-                    Width = 480,
-                    Height = 220,
-                    Content = grid,
-                    ShowActivated = false
-                };
+                Window window = null;
 
                 DataGridColumnLayoutService service = null;
                 try
                 {
-                    window.Show();
+                    window = StaTestHost.ShowOffscreen(grid, 480, 220);
                     grid.UpdateLayout();
 
                     service = CreateService(grid, order, () => { });
@@ -697,7 +779,7 @@ namespace PlayniteAchievements.Tests.Views
                 finally
                 {
                     service?.Detach();
-                    window.Close();
+                    window?.Close();
                 }
             });
         }
@@ -705,25 +787,19 @@ namespace PlayniteAchievements.Tests.Views
         [TestMethod]
         public void SetColumnWidthFromInput_NeverTakesSpaceFromALockedColumn()
         {
-            RunOnStaThread(() =>
+            StaTestHost.Run(() =>
             {
                 var order = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
                 var grid = CreateGrid();
                 grid.Width = 360;
                 grid.Height = 160;
 
-                var window = new Window
-                {
-                    Width = 420,
-                    Height = 220,
-                    Content = grid,
-                    ShowActivated = false
-                };
+                Window window = null;
 
                 DataGridColumnLayoutService service = null;
                 try
                 {
-                    window.Show();
+                    window = StaTestHost.ShowOffscreen(grid, 420, 220);
                     grid.UpdateLayout();
 
                     service = CreateService(grid, order, () => { });
@@ -753,7 +829,7 @@ namespace PlayniteAchievements.Tests.Views
                 finally
                 {
                     service?.Detach();
-                    window.Close();
+                    window?.Close();
                 }
             });
         }
@@ -761,7 +837,7 @@ namespace PlayniteAchievements.Tests.Views
         [TestMethod]
         public void BuildColumnVisibilityMenu_WithoutAlignmentDelegates_NamesTheColumnAboveAWidthRow()
         {
-            RunOnStaThread(() =>
+            StaTestHost.Run(() =>
             {
                 var order = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
                 var grid = CreateGrid();
@@ -784,7 +860,59 @@ namespace PlayniteAchievements.Tests.Views
                 Assert.IsInstanceOfType(widthRow.Children[1], typeof(Button));
                 Assert.IsTrue(((Button)widthRow.Children[1]).IsEnabled);
 
-                Assert.IsInstanceOfType(menu.Items[2], typeof(Separator));
+                // With no alignment delegates, the button row holds only the header text eye.
+                var buttonRow = (menu.Items[2] as MenuItem)?.Header as StackPanel;
+                Assert.IsNotNull(buttonRow);
+                Assert.AreEqual(1, buttonRow.Children.Count);
+                Assert.IsInstanceOfType(buttonRow.Children[0], typeof(Button));
+
+                Assert.IsInstanceOfType(menu.Items[3], typeof(Separator));
+
+                service.Detach();
+            });
+        }
+
+        [TestMethod]
+        public void BuildColumnVisibilityMenu_WidthRowSpansTheButtonRow()
+        {
+            StaTestHost.Run(() =>
+            {
+                var maps = new PersistedMaps();
+                var cellAlignments = new Dictionary<string, GridAlignment>(StringComparer.OrdinalIgnoreCase);
+                var cellVerticalAlignments = new Dictionary<string, GridVerticalAlignment>(StringComparer.OrdinalIgnoreCase);
+                var headerAlignments = new Dictionary<string, GridAlignment>(StringComparer.OrdinalIgnoreCase);
+                var grid = CreateGrid();
+                var service = new DataGridColumnLayoutService(
+                    grid,
+                    logger: null,
+                    getWidths: () => maps.Widths,
+                    setWidths: map => maps.Widths = map,
+                    getVisibility: () => maps.Visibility,
+                    setVisibility: map => maps.Visibility = map,
+                    saveSettings: () => { },
+                    getCellAlignments: () => cellAlignments,
+                    setCellAlignments: map => cellAlignments = map,
+                    getCellVerticalAlignments: () => cellVerticalAlignments,
+                    setCellVerticalAlignments: map => cellVerticalAlignments = map,
+                    getHeaderHorizontalAlignments: () => headerAlignments,
+                    setHeaderHorizontalAlignments: map => headerAlignments = map,
+                    getLocks: () => maps.Locks,
+                    setLocks: map => maps.Locks = map,
+                    getHiddenHeaders: () => maps.HiddenHeaders,
+                    setHiddenHeaders: map => maps.HiddenHeaders = map);
+                service.Attach();
+
+                var menu = service.BuildColumnVisibilityMenu(ColumnByKey(grid, "B"));
+                var widthRow = (menu.Items[1] as MenuItem)?.Header as StackPanel;
+                var buttonRow = (menu.Items[2] as MenuItem)?.Header as StackPanel;
+                Assert.IsNotNull(widthRow);
+                Assert.IsNotNull(buttonRow);
+                Assert.AreEqual(4, buttonRow.Children.Count);
+
+                var infinite = new Size(double.PositiveInfinity, double.PositiveInfinity);
+                widthRow.Measure(infinite);
+                buttonRow.Measure(infinite);
+                Assert.AreEqual(buttonRow.DesiredSize.Width, widthRow.DesiredSize.Width, 0.01);
 
                 service.Detach();
             });
@@ -793,25 +921,19 @@ namespace PlayniteAchievements.Tests.Views
         [TestMethod]
         public void SetColumnWidthFromInput_OnAnUnlockedColumnMovesTheBoundaryAndKeepsTheTotal()
         {
-            RunOnStaThread(() =>
+            StaTestHost.Run(() =>
             {
                 var order = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
                 var grid = CreateGrid();
                 grid.Width = 360;
                 grid.Height = 160;
 
-                var window = new Window
-                {
-                    Width = 420,
-                    Height = 220,
-                    Content = grid,
-                    ShowActivated = false
-                };
+                Window window = null;
 
                 DataGridColumnLayoutService service = null;
                 try
                 {
-                    window.Show();
+                    window = StaTestHost.ShowOffscreen(grid, 420, 220);
                     grid.UpdateLayout();
 
                     service = CreateService(grid, order, () => { });
@@ -843,7 +965,7 @@ namespace PlayniteAchievements.Tests.Views
                 finally
                 {
                     service?.Detach();
-                    window.Close();
+                    window?.Close();
                 }
             });
         }
@@ -851,25 +973,19 @@ namespace PlayniteAchievements.Tests.Views
         [TestMethod]
         public void LiveResize_ShowsWidthPillsOverBothBoundaryColumnsUntilTheDragEnds()
         {
-            RunOnStaThread(() =>
+            StaTestHost.Run(() =>
             {
                 var order = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
                 var grid = CreateGrid();
                 grid.Width = 360;
                 grid.Height = 160;
 
-                var window = new Window
-                {
-                    Width = 420,
-                    Height = 220,
-                    Content = grid,
-                    ShowActivated = false
-                };
+                Window window = null;
 
                 DataGridColumnLayoutService service = null;
                 try
                 {
-                    window.Show();
+                    window = StaTestHost.ShowOffscreen(grid, 420, 220);
                     grid.UpdateLayout();
 
                     service = CreateService(grid, order, () => { });
@@ -907,7 +1023,7 @@ namespace PlayniteAchievements.Tests.Views
                 finally
                 {
                     service?.Detach();
-                    window.Close();
+                    window?.Close();
                 }
             });
         }
@@ -993,6 +1109,7 @@ namespace PlayniteAchievements.Tests.Views
             public Dictionary<string, double> Widths = new Dictionary<string, double>(StringComparer.OrdinalIgnoreCase);
             public Dictionary<string, bool> Visibility = new Dictionary<string, bool>(StringComparer.OrdinalIgnoreCase);
             public Dictionary<string, bool> Locks = new Dictionary<string, bool>(StringComparer.OrdinalIgnoreCase);
+            public Dictionary<string, bool> HiddenHeaders = new Dictionary<string, bool>(StringComparer.OrdinalIgnoreCase);
         }
 
         private static DataGridColumnLayoutService CreateService(
@@ -1045,7 +1162,9 @@ namespace PlayniteAchievements.Tests.Views
                     }
                 },
                 getLocks: () => maps.Locks,
-                setLocks: map => maps.Locks = map);
+                setLocks: map => maps.Locks = map,
+                getHiddenHeaders: () => maps.HiddenHeaders,
+                setHiddenHeaders: map => maps.HiddenHeaders = map);
         }
 
         private static DataGrid CreateGrid()
@@ -1106,32 +1225,6 @@ namespace PlayniteAchievements.Tests.Views
             var dispatcher = Dispatcher.CurrentDispatcher;
             dispatcher.Invoke(new Action(() => { }), DispatcherPriority.Background);
             dispatcher.Invoke(new Action(() => { }), DispatcherPriority.ApplicationIdle);
-        }
-
-        private static void RunOnStaThread(Action action)
-        {
-            Exception error = null;
-            var thread = new Thread(() =>
-            {
-                try
-                {
-                    action();
-                }
-                catch (Exception ex)
-                {
-                    error = ex is TargetInvocationException invocationException && invocationException.InnerException != null
-                        ? invocationException.InnerException
-                        : ex;
-                }
-            });
-            thread.SetApartmentState(ApartmentState.STA);
-            thread.Start();
-            thread.Join();
-
-            if (error != null)
-            {
-                throw new AssertFailedException(error.ToString());
-            }
         }
     }
 }

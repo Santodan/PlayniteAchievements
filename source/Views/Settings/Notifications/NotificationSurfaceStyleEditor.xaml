@@ -90,17 +90,17 @@
                               IsChecked="{Binding Surface.ShowHeader}"/>
                     <CheckBox Content="{DynamicResource LOCPlayAch_Column_AchievementName}"
                               IsChecked="{Binding Surface.ShowName}"/>
-                    <CheckBox Content="{DynamicResource LOCGameDescriptionTitle}"
+                    <CheckBox Content="{DynamicResource LOCPlayAch_Common_Description}"
                               IsChecked="{Binding Surface.ShowDescription}"/>
                     <CheckBox Content="{DynamicResource LOCPlayAch_Settings_ToastShowGameName}"
                               IsChecked="{Binding Surface.ShowGameName}"/>
-                    <CheckBox Content="{DynamicResource LOCCategoryLabel}"
+                    <CheckBox Content="{DynamicResource LOCPlayAch_Common_Category}"
                               IsChecked="{Binding Surface.ShowCategory}"/>
                     <CheckBox Content="{DynamicResource LOCPlayAch_Common_UnlockTime}"
                               IsChecked="{Binding Surface.ShowUnlockTime}"/>
-                    <CheckBox Content="{DynamicResource LOCGameIconTitle}"
+                    <CheckBox Content="{DynamicResource LOCPlayAch_Common_Icon}"
                               IsChecked="{Binding Surface.ShowIcon}"/>
-                    <CheckBox Content="{DynamicResource LOCPlatformTitle}"
+                    <CheckBox Content="{DynamicResource LOCPlayAch_Common_Platform}"
                               IsEnabled="{Binding IsProviderIconEnabled}"
                               IsChecked="{Binding Surface.ShowProviderIcon}"/>
                 </UniformGrid>
@@ -145,7 +145,7 @@
                                 Margin="8,0,0,0"
                                 VerticalAlignment="Center"/>
                         <Button Grid.Column="4"
-                                Content="{DynamicResource LOCResetLabel}"
+                                Content="{DynamicResource LOCPlayAch_Common_Reset}"
                                 Click="ResetCountdownColor_Click"
                                 MinWidth="58"
                                 Margin="8,0,0,0"
@@ -280,7 +280,7 @@
                                    RenderOptions.BitmapScalingMode="HighQuality"/>
                         </Border>
                         <Button Tag="Background"
-                                Content="{DynamicResource LOCClearLabel}"
+                                Content="{DynamicResource LOCPlayAch_Common_Clear}"
                                 Click="ImageClear_Click"
                                 VerticalAlignment="Center"/>
                         <Button Content="{DynamicResource LOCPlayAch_Button_Paste}"
@@ -428,7 +428,7 @@
                                 Orientation="Horizontal">
                         <ComboBox ItemsSource="{Binding RarityFontFamilyOptions}"
                                   SelectedItem="{Binding SelectedRarityFontFamilyOption, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                  helpers:FontPickerBehavior.EnableSearch="True"
+                                  helpers:FontPickerBehavior.PreviewSelectedFont="True"
                                   MinWidth="190"
                                   MaxDropDownHeight="360"
                                   VerticalAlignment="Center"
@@ -471,7 +471,7 @@
              offset. A blank box uses the surface default. -->
         <Border Style="{StaticResource EditorCardStyle}">
             <StackPanel>
-                <TextBlock Text="{DynamicResource LOCSize}"
+                <TextBlock Text="{DynamicResource LOCPlayAch_Common_Size}"
                            Style="{StaticResource EditorGroupHeaderStyle}"/>
                 <Grid HorizontalAlignment="Left">
                     <Grid.ColumnDefinitions>
@@ -488,7 +488,7 @@
                     </Grid.RowDefinitions>
 
                     <TextBlock Grid.Row="0" Grid.Column="0"
-                               Text="{DynamicResource LOCGameIconTitle}"
+                               Text="{DynamicResource LOCPlayAch_Common_Icon}"
                                Style="{StaticResource EditorRowLabelStyle}"
                                Margin="0,0,8,8"/>
                     <Slider Grid.Row="0" Grid.Column="1"
@@ -536,7 +536,7 @@
                              Margin="0,0,0,8"/>
 
                     <TextBlock Grid.Row="3" Grid.Column="0"
-                               Text="{DynamicResource LOCPlatformTitle}"
+                               Text="{DynamicResource LOCPlayAch_Common_Platform}"
                                Style="{StaticResource EditorRowLabelStyle}"
                                Margin="0,0,8,8"/>
                     <Slider Grid.Row="3" Grid.Column="1"
@@ -584,7 +584,7 @@
                     </Grid.RowDefinitions>
 
                     <TextBlock Grid.Row="0" Grid.Column="0"
-                               Text="{DynamicResource LOCWidth}"
+                               Text="{DynamicResource LOCPlayAch_Common_Width}"
                                Style="{StaticResource EditorRowLabelStyle}"
                                Margin="0,0,8,8"/>
                     <Slider Grid.Row="0" Grid.Column="1"
@@ -600,7 +600,7 @@
                              Margin="0,0,0,8"/>
 
                     <TextBlock Grid.Row="1" Grid.Column="0"
-                               Text="{DynamicResource LOCHeight}"
+                               Text="{DynamicResource LOCPlayAch_Common_Height}"
                                Style="{StaticResource EditorRowLabelStyle}"
                                Margin="0,0,8,8"/>
                     <Slider Grid.Row="1" Grid.Column="1"
@@ -695,7 +695,7 @@
                                Style="{StaticResource EditorRowLabelStyle}"/>
                     <ComboBox ItemsSource="{Binding FontFamilyOptions}"
                               SelectedItem="{Binding SelectedFontFamilyOption, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                              helpers:FontPickerBehavior.EnableSearch="True"
+                              helpers:FontPickerBehavior.PreviewSelectedFont="True"
                               MinWidth="260"
                               MaxDropDownHeight="360"
                               VirtualizingPanel.IsVirtualizing="True">
@@ -785,7 +785,7 @@
                                     <DataTemplate>
                                         <ComboBox ItemsSource="{Binding FontFamilyOptions}"
                                                   SelectedItem="{Binding SelectedFontFamilyOption, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                                  helpers:FontPickerBehavior.EnableSearch="True"
+                                                  helpers:FontPickerBehavior.PreviewSelectedFont="True"
                                                   MaxDropDownHeight="360"
                                                   VerticalAlignment="Center"
                                                   Margin="4,2"
@@ -1036,7 +1036,7 @@
                     </Border>
                     <Button Grid.Row="0" Grid.Column="2"
                             Tag="BadgeCommon"
-                            Content="{DynamicResource LOCClearLabel}"
+                            Content="{DynamicResource LOCPlayAch_Common_Clear}"
                             Click="ImageClear_Click"
                             Margin="0,0,0,6"
                             VerticalAlignment="Center"/>
@@ -1083,7 +1083,7 @@
                     </Border>
                     <Button Grid.Row="1" Grid.Column="2"
                             Tag="BadgeUncommon"
-                            Content="{DynamicResource LOCClearLabel}"
+                            Content="{DynamicResource LOCPlayAch_Common_Clear}"
                             Click="ImageClear_Click"
                             Margin="0,0,0,6"
                             VerticalAlignment="Center"/>
@@ -1130,7 +1130,7 @@
                     </Border>
                     <Button Grid.Row="2" Grid.Column="2"
                             Tag="BadgeRare"
-                            Content="{DynamicResource LOCClearLabel}"
+                            Content="{DynamicResource LOCPlayAch_Common_Clear}"
                             Click="ImageClear_Click"
                             Margin="0,0,0,6"
                             VerticalAlignment="Center"/>
@@ -1177,7 +1177,7 @@
                     </Border>
                     <Button Grid.Row="3" Grid.Column="2"
                             Tag="BadgeUltraRare"
-                            Content="{DynamicResource LOCClearLabel}"
+                            Content="{DynamicResource LOCPlayAch_Common_Clear}"
                             Click="ImageClear_Click"
                             Margin="0,0,0,6"
                             VerticalAlignment="Center"/>
@@ -1224,7 +1224,7 @@
                     </Border>
                     <Button Grid.Row="4" Grid.Column="2"
                             Tag="BadgeCompletion"
-                            Content="{DynamicResource LOCClearLabel}"
+                            Content="{DynamicResource LOCPlayAch_Common_Clear}"
                             Click="ImageClear_Click"
                             Margin="0,0,0,0"
                             VerticalAlignment="Center"/>
@@ -1253,71 +1253,124 @@
             <StackPanel>
                 <TextBlock Text="{DynamicResource LOCPlayAch_Settings_Style_BackgroundImage}"
                            Style="{StaticResource EditorGroupHeaderStyle}"/>
-                <TextBlock Text="{DynamicResource LOCPlayAch_Settings_Style_BackgroundImageHint}"
-                           Style="{StaticResource MutedTextStyle}"
-                           TextWrapping="Wrap"
-                           Margin="0,0,0,6"/>
-                <Grid Margin="0,0,0,6">
+
+                <!-- Blurred background: a live blur of the game behind the card (Strength) under a
+                     tint of the theme surface (Opacity); replaces the image while on. The preview
+                     has no game behind it, so it shows the card's surface under the tint. -->
+                <CheckBox Content="{DynamicResource LOCPlayAch_Settings_Style_BlurBackground}"
+                          IsChecked="{Binding Surface.BlurBackground}"
+                          Margin="0,0,0,6"/>
+                <Grid HorizontalAlignment="Left"
+                      MinWidth="360"
+                      Margin="0,0,0,6"
+                      Visibility="{Binding Surface.BlurBackground, Converter={StaticResource BoolToVis}}">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="Auto"/>
-                        <ColumnDefinition Width="Auto"/>
-                        <ColumnDefinition Width="Auto"/>
-                        <ColumnDefinition Width="Auto"/>
                         <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
                     </Grid.ColumnDefinitions>
-                    <Border x:Name="ToastBackgroundSlot"
-                            Grid.Column="0"
-                            Tag="Background"
-                            Style="{DynamicResource PlayAch.FilePickTarget.Style}"
-                            helpers:FilePickTarget.IsEnabled="True"
-                            helpers:FilePickTarget.Picked="ImagePickTarget_Picked"
-                            Width="192"
-                            Height="108"
-                            Background="{DynamicResource PlayAch.Brush.Surface}"
-                            Margin="0,0,8,0">
-                        <Image helpers:AsyncImage.Uri="{Binding BackgroundThumbnailUri}"
-                               helpers:AsyncImage.DecodePixel="384"
-                               Stretch="Uniform"
-                               RenderOptions.BitmapScalingMode="HighQuality"/>
-                    </Border>
-                    <Button Grid.Column="1"
-                            Tag="Background"
-                            Content="{DynamicResource LOCClearLabel}"
-                            Click="ImageClear_Click"
-                            Margin="0,0,0,0"
-                            VerticalAlignment="Center"/>
-                    <Button Grid.Column="3"
-                            Tag="Background"
-                            Content="..."
-                            ToolTip="{DynamicResource LOCPlayAch_Button_Browse}"
-                            Click="ImageBrowse_Click"
-                            Margin="8,0,0,0"
-                            VerticalAlignment="Center"/>
-                    <Button Grid.Column="2"
-                            Content="{DynamicResource LOCPlayAch_Button_Paste}"
-                            ContentTemplate="{DynamicResource PlayAch.ButtonContent.Paste}"
-                            ToolTip="{DynamicResource LOCPlayAch_Button_Paste}"
-                            helpers:FilePickTarget.PasteTarget="{Binding ElementName=ToastBackgroundSlot}"
-                            Margin="8,0,0,0"
-                            VerticalAlignment="Center"/>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+                    <TextBlock Grid.Row="0" Grid.Column="0"
+                               Text="{DynamicResource LOCPlayAch_Settings_Style_VignetteStrength}"
+                               Style="{StaticResource EditorRowLabelStyle}"
+                               Margin="0,0,8,6"/>
+                    <Slider Grid.Row="0" Grid.Column="1"
+                            Minimum="0" Maximum="100"
+                            SmallChange="1" LargeChange="10" TickFrequency="1" IsSnapToTickEnabled="True"
+                            Value="{Binding BlurStrengthSlider, Mode=TwoWay}"
+                            VerticalAlignment="Center"
+                            Margin="0,0,8,6"/>
+                    <TextBox Grid.Row="0" Grid.Column="2"
+                             Text="{Binding BlurStrengthText, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
+                             Width="70"
+                             TextAlignment="Right"
+                             Margin="0,0,0,6"/>
+                    <TextBlock Grid.Row="1" Grid.Column="0"
+                               Text="{DynamicResource LOCPlayAch_Settings_Style_TextShadowOpacity}"
+                               Style="{StaticResource EditorRowLabelStyle}"
+                               Margin="0,0,8,0"/>
+                    <Slider Grid.Row="1" Grid.Column="1"
+                            Minimum="0" Maximum="100"
+                            SmallChange="1" LargeChange="10" TickFrequency="1" IsSnapToTickEnabled="True"
+                            Value="{Binding BlurTintOpacitySlider, Mode=TwoWay}"
+                            VerticalAlignment="Center"
+                            Margin="0,0,8,0"/>
+                    <TextBox Grid.Row="1" Grid.Column="2"
+                             Text="{Binding BlurTintOpacityText, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
+                             Width="70"
+                             TextAlignment="Right"/>
                 </Grid>
-                <!-- Image size + one-click fit so users don't have to guess card dimensions to
-                     match a chosen background (the card crops to its own aspect via UniformToFill). -->
-                <Grid Visibility="{Binding HasBackgroundImage, Converter={StaticResource BoolToVis}}">
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="Auto"/>
-                        <ColumnDefinition Width="*"/>
-                        <ColumnDefinition Width="Auto"/>
-                    </Grid.ColumnDefinitions>
-                    <TextBlock Grid.Column="0"
-                               Text="{Binding BackgroundImageDimensionsText}"
+
+                <StackPanel Visibility="{Binding ShowBackgroundImagePicker, Converter={StaticResource BoolToVis}}">
+                    <TextBlock Text="{DynamicResource LOCPlayAch_Settings_Style_BackgroundImageHint}"
                                Style="{StaticResource MutedTextStyle}"
-                               VerticalAlignment="Center"/>
-                    <Button Grid.Column="2"
-                            Content="{DynamicResource LOCPlayAch_Settings_Style_FitCardToImage}"
-                            Click="FitCardToImage_Click"
-                            VerticalAlignment="Center"/>
-                </Grid>
+                               TextWrapping="Wrap"
+                               Margin="0,0,0,6"/>
+                    <Grid Margin="0,0,0,6">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+                        <Border x:Name="ToastBackgroundSlot"
+                                Grid.Column="0"
+                                Tag="Background"
+                                Style="{DynamicResource PlayAch.FilePickTarget.Style}"
+                                helpers:FilePickTarget.IsEnabled="True"
+                                helpers:FilePickTarget.Picked="ImagePickTarget_Picked"
+                                Width="192"
+                                Height="108"
+                                Background="{DynamicResource PlayAch.Brush.Surface}"
+                                Margin="0,0,8,0">
+                            <Image helpers:AsyncImage.Uri="{Binding BackgroundThumbnailUri}"
+                                   helpers:AsyncImage.DecodePixel="384"
+                                   Stretch="Uniform"
+                                   RenderOptions.BitmapScalingMode="HighQuality"/>
+                        </Border>
+                        <Button Grid.Column="1"
+                                Tag="Background"
+                                Content="{DynamicResource LOCPlayAch_Common_Clear}"
+                                Click="ImageClear_Click"
+                                Margin="0,0,0,0"
+                                VerticalAlignment="Center"/>
+                        <Button Grid.Column="3"
+                                Tag="Background"
+                                Content="..."
+                                ToolTip="{DynamicResource LOCPlayAch_Button_Browse}"
+                                Click="ImageBrowse_Click"
+                                Margin="8,0,0,0"
+                                VerticalAlignment="Center"/>
+                        <Button Grid.Column="2"
+                                Content="{DynamicResource LOCPlayAch_Button_Paste}"
+                                ContentTemplate="{DynamicResource PlayAch.ButtonContent.Paste}"
+                                ToolTip="{DynamicResource LOCPlayAch_Button_Paste}"
+                                helpers:FilePickTarget.PasteTarget="{Binding ElementName=ToastBackgroundSlot}"
+                                Margin="8,0,0,0"
+                                VerticalAlignment="Center"/>
+                    </Grid>
+                    <!-- Image size + one-click fit so users don't have to guess card dimensions to
+                         match a chosen background (the card crops to its own aspect via UniformToFill). -->
+                    <Grid Visibility="{Binding HasBackgroundImage, Converter={StaticResource BoolToVis}}">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Grid.Column="0"
+                                   Text="{Binding BackgroundImageDimensionsText}"
+                                   Style="{StaticResource MutedTextStyle}"
+                                   VerticalAlignment="Center"/>
+                        <Button Grid.Column="2"
+                                Content="{DynamicResource LOCPlayAch_Settings_Style_FitCardToImage}"
+                                Click="FitCardToImage_Click"
+                                VerticalAlignment="Center"/>
+                    </Grid>
+                </StackPanel>
             </StackPanel>
         </Border>
 
@@ -1338,6 +1391,7 @@
                         <ColumnDefinition Width="*"/>
                     </Grid.ColumnDefinitions>
                     <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
                         <RowDefinition Height="Auto"/>
                         <RowDefinition Height="Auto"/>
                         <RowDefinition Height="Auto"/>
@@ -1383,14 +1437,27 @@
                              PreviewKeyDown="HeaderTextBox_PreviewKeyDown"
                              Margin="0,0,0,6"/>
 
+                    <!-- The completion title line; {0} is the game's name. -->
                     <TextBlock Grid.Row="3" Grid.Column="0"
+                               Text="{DynamicResource LOCPlayAch_Toast_GameComplete}"
+                               Foreground="{DynamicResource PlayAch.Brush.Text}"
+                               VerticalAlignment="Center"
+                               Margin="0,0,12,6"/>
+                    <TextBox x:Name="CompletionTitleTextBox"
+                             Grid.Row="3" Grid.Column="1"
+                             Text="{Binding CompletionTitleText, Mode=TwoWay, UpdateSourceTrigger=Explicit}"
+                             LostFocus="HeaderTextBox_LostFocus"
+                             PreviewKeyDown="HeaderTextBox_PreviewKeyDown"
+                             Margin="0,0,0,6"/>
+
+                    <TextBlock Grid.Row="4" Grid.Column="0"
                                Text="{DynamicResource LOCPlayAch_Settings_Style_HeaderFriendCompleted}"
                                Foreground="{DynamicResource PlayAch.Brush.Text}"
                                VerticalAlignment="Center"
                                Margin="0,0,12,6"
                                Visibility="{Binding IsToastSurface, Converter={StaticResource BoolToVis}}"/>
                     <TextBox x:Name="FriendCompletionHeaderTextBox"
-                             Grid.Row="3" Grid.Column="1"
+                             Grid.Row="4" Grid.Column="1"
                              Text="{Binding FriendCompletionHeaderText, Mode=TwoWay, UpdateSourceTrigger=Explicit}"
                              LostFocus="HeaderTextBox_LostFocus"
                              PreviewKeyDown="HeaderTextBox_PreviewKeyDown"
@@ -1398,14 +1465,14 @@
                              Visibility="{Binding IsToastSurface, Converter={StaticResource BoolToVis}}"/>
 
                     <!-- Progress notifications are toast-only (never screenshotted). -->
-                    <TextBlock Grid.Row="4" Grid.Column="0"
+                    <TextBlock Grid.Row="5" Grid.Column="0"
                                Text="{DynamicResource LOCPlayAch_Toast_AchievementProgress}"
                                Foreground="{DynamicResource PlayAch.Brush.Text}"
                                VerticalAlignment="Center"
                                Margin="0,0,12,0"
                                Visibility="{Binding IsToastSurface, Converter={StaticResource BoolToVis}}"/>
                     <TextBox x:Name="ProgressHeaderTextBox"
-                             Grid.Row="4" Grid.Column="1"
+                             Grid.Row="5" Grid.Column="1"
                              Text="{Binding ProgressHeaderText, Mode=TwoWay, UpdateSourceTrigger=Explicit}"
                              LostFocus="HeaderTextBox_LostFocus"
                              PreviewKeyDown="HeaderTextBox_PreviewKeyDown"

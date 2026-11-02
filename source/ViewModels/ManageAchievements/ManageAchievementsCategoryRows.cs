@@ -27,11 +27,11 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
 {
     public sealed class ManageAchievementsCategoryItem : AchievementDisplayItem
     {
-        private bool _isSelected;
-
         public string ProviderCategory { get; set; }
 
-        public string ProviderCategoryType { get; set; }
+        public string ProviderTags { get; set; }
+
+        public string ProviderCategoryKind { get; set; }
 
         public string Category
         {
@@ -43,16 +43,10 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             }
         }
 
-        public bool IsSelected
-        {
-            get => _isSelected;
-            set => SetValue(ref _isSelected, value);
-        }
-
-        public string CategoryDisplay => AchievementCategoryTypeHelper.ToCategoryLeafDisplayText(Category);
+        public string CategoryDisplay => AchievementCategoryHelper.ToCategoryLeafDisplayText(Category);
 
         /// <summary>Full path for the category cell's tooltip; the cell itself shows the leaf.</summary>
-        public string CategoryPathDisplay => AchievementCategoryTypeHelper.ToCategoryLabelDisplayText(Category);
+        public string CategoryPathDisplay => AchievementCategoryHelper.ToCategoryLabelDisplayText(Category);
     }
 
     public sealed class ManageAchievementsCategoryMetadataItem : ObservableObject
@@ -61,7 +55,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         private readonly ManagedCustomIconService _managedCustomIconService;
         private string _baselineArtOverrideValue;
         private string _artOverrideValue;
-        private string _renameOverrideText;
+        private string _renameText;
         private bool _baselineIsSummarySelected;
         private bool _isSummarySelected;
         private AchievementFilterScope _filterScope;
@@ -79,7 +73,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
 
         public string CategoryLabel { get; private set; }
 
-        public string CategoryDisplay => AchievementCategoryTypeHelper.ToCategoryLabelDisplayText(CategoryLabel);
+        public string CategoryDisplay => AchievementCategoryHelper.ToCategoryLabelDisplayText(CategoryLabel);
 
         /// <summary>
         /// Depth of this row's category path, 1 for a root. The grid is a flat list, so nesting is
@@ -132,30 +126,42 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         /// </summary>
         public bool IsDefaultCategory => string.Equals(
             CategoryLabel,
-            AchievementCategoryTypeHelper.DefaultCategoryLabel,
+            AchievementCategoryHelper.DefaultCategoryLabel,
             StringComparison.OrdinalIgnoreCase);
 
         public string ProviderCategoryLabel { get; private set; }
 
-        public string ProviderCategoryDisplay => AchievementCategoryTypeHelper.ToCategoryLabelDisplayText(ProviderCategoryLabel);
+        public string ProviderCategoryDisplay => AchievementCategoryHelper.ToCategoryLabelDisplayText(ProviderCategoryLabel);
 
-        /// <summary>Placeholder for the leaf-scoped rename box.</summary>
+        /// <summary>The leaf the providers named this category, which the rename box reverts to.</summary>
         public string ProviderCategoryLeafDisplay => CategoryPathHelper.ToDisplayLeaf(ProviderCategoryLabel);
 
-        public string RenameOverrideText
+        /// <summary>
+        /// The rename box's live text: the current leaf until the user edits it. Pushed on every
+        /// keystroke so <see cref="IsRenameUntouched"/> tracks the box; nothing persists until the
+        /// view commits it on focus loss or Enter.
+        /// </summary>
+        public string RenameText
         {
-            get => _renameOverrideText;
+            get => _renameText;
             set
             {
                 var nextValue = value ?? string.Empty;
-                if (SetValueAndReturn(ref _renameOverrideText, nextValue))
+                if (SetValueAndReturn(ref _renameText, nextValue))
                 {
-                    OnPropertyChanged(nameof(HasRenameOverride));
+                    OnPropertyChanged(nameof(IsRenameUntouched));
                 }
             }
         }
 
-        public bool HasRenameOverride => !string.IsNullOrWhiteSpace(GetNormalizedRenameOverrideValue());
+        /// <summary>
+        /// True while the box holds exactly the provider's name, which the row draws dimmed; any
+        /// edit, including a case-only one, draws it in full.
+        /// </summary>
+        public bool IsRenameUntouched => string.Equals(
+            (_renameText ?? string.Empty).Trim(),
+            ProviderCategoryLeafDisplay,
+            StringComparison.Ordinal);
 
         public string FileStem { get; }
 
@@ -239,6 +245,44 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         /// <summary>False for a category holding no achievements of its own, so there is nothing to push to.</summary>
         public bool CanEditFilterScope => _memberAchievementCount > 0;
 
+        private string _storedKind;
+        private string _kind;
+
+        /// <summary>
+        /// The kind the user set on this category: a kind, <see cref="CategoryKindHelper.None"/>, or
+        /// null when the providers decide.
+        /// </summary>
+        public string StoredKind => _storedKind;
+
+        /// <summary>The category's kind: the stored one, else what its achievements all agree on.</summary>
+        public string Kind => _kind;
+
+        public bool IsKindStored => _storedKind != null;
+
+        /// <summary>The Kind cell's face: the kind's name, None when set to none, blank otherwise.</summary>
+        public string KindDisplayText =>
+            string.Equals(_storedKind, CategoryKindHelper.None, StringComparison.OrdinalIgnoreCase)
+                ? ResourceProvider.GetString("LOCPlayAch_Common_None")
+                : CategoryKindHelper.ToDisplayText(_kind);
+
+        internal void SetKind(string storedKind, string kind)
+        {
+            var stored = CategoryKindHelper.NormalizeStored(storedKind);
+            var normalized = CategoryKindHelper.Normalize(kind);
+            if (string.Equals(_storedKind, stored, StringComparison.Ordinal) &&
+                string.Equals(_kind, normalized, StringComparison.Ordinal))
+            {
+                return;
+            }
+
+            _storedKind = stored;
+            _kind = normalized;
+            OnPropertyChanged(nameof(StoredKind));
+            OnPropertyChanged(nameof(Kind));
+            OnPropertyChanged(nameof(IsKindStored));
+            OnPropertyChanged(nameof(KindDisplayText));
+        }
+
         /// <summary>
         /// Stamps the scope this row's own achievements agree on.
         /// <paramref name="summaryEffectiveCount"/> includes the fully filtered, matching how the
@@ -264,8 +308,8 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             bool isSummarySelected = false,
             IReadOnlyList<ManageAchievementsCategoryItem> artFallbackSource = null)
         {
-            var normalizedLabel = AchievementCategoryTypeHelper.NormalizeCategoryOrDefault(categoryLabel);
-            var normalizedProviderLabel = AchievementCategoryTypeHelper.NormalizeCategoryOrDefault(providerCategoryLabel);
+            var normalizedLabel = AchievementCategoryHelper.NormalizeCategoryOrDefault(categoryLabel);
+            var normalizedProviderLabel = AchievementCategoryHelper.NormalizeCategoryOrDefault(providerCategoryLabel);
             var playniteGameId = Guid.TryParse(gameIdText, out var parsedGameId) ? parsedGameId : (Guid?)null;
             // An empty bucket (the always-listed Default row) still resolves game art
             // from the fallback source so its preview matches the other rows.
@@ -285,7 +329,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
 
             // Leaf-scoped, the same as after an edit: seeding the whole path would put a separator
             // in a box that rejects one.
-            row.ResetRenameOverrideTextFromCurrentCategory();
+            row.ResetRenameTextFromCurrentCategory();
             row._baselineArtOverrideValue = row.ResolveOverrideInputValue(imageOverride?.Art);
             row._artOverrideValue = row._baselineArtOverrideValue ?? string.Empty;
             row._baselineIsSummarySelected = isSummarySelected;
@@ -335,24 +379,18 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
 
         public string GetNormalizedRenameOverrideValue()
         {
-            var normalized = (RenameOverrideText ?? string.Empty).Trim();
+            var normalized = (RenameText ?? string.Empty).Trim();
             return string.IsNullOrWhiteSpace(normalized) ? null : normalized;
         }
 
         // Editing is leaf-scoped: the row's indentation already conveys where it sits, and typing a
         // whole path would be a second way to express nesting alongside indent/outdent.
         //
-        // Which is why the comparison is leaf against leaf. Comparing full paths filled the box on
-        // any indent - the path changes, the name does not - so moving a row read as renaming it,
-        // and the text it left behind could later be applied as a rename nobody asked for.
-        public void ResetRenameOverrideTextFromCurrentCategory()
+        // Which is why the box holds the leaf, never the path: committing the text a row was seeded
+        // with is a no-op, so moving a row cannot read as renaming it.
+        public void ResetRenameTextFromCurrentCategory()
         {
-            RenameOverrideText = string.Equals(
-                CategoryPathHelper.GetLeafName(CategoryLabel),
-                CategoryPathHelper.GetLeafName(ProviderCategoryLabel),
-                StringComparison.OrdinalIgnoreCase)
-                ? string.Empty
-                : CategoryPathHelper.GetLeafName(CategoryLabel);
+            RenameText = CategoryPathHelper.GetLeafName(CategoryLabel);
         }
 
         private string ResolveOverrideInputValue(string value)
@@ -471,19 +509,67 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         }
     }
 
-    public sealed class CategoryTypeSelectionOption : ObservableObject
+    public sealed class TagSelectionOption : ObservableObject
     {
         private bool _isSelected;
 
-        public CategoryTypeSelectionOption(string value, string displayName)
+        private string _displayName;
+
+        public TagSelectionOption(string value, string displayName)
         {
             Value = value;
-            DisplayName = displayName;
+            _displayName = displayName;
         }
 
         public string Value { get; }
 
-        public string DisplayName { get; }
+        public string DisplayName
+        {
+            get => _displayName;
+            private set => SetValue(ref _displayName, value);
+        }
+
+        /// <summary>
+        /// Brings <paramref name="options"/> in line with <paramref name="keys"/> after the tag lists
+        /// changed: options for kept keys stay (and keep their selection) under their current names,
+        /// new keys get an option passed through <paramref name="attach"/>, removed keys go.
+        /// </summary>
+        public static void Sync(
+            ObservableCollection<TagSelectionOption> options,
+            IReadOnlyList<string> keys,
+            Func<string, string> getName,
+            Action<TagSelectionOption> attach)
+        {
+            if (options == null || keys == null)
+            {
+                return;
+            }
+
+            var existing = options.ToDictionary(option => option.Value, StringComparer.OrdinalIgnoreCase);
+            var ordered = keys.Select(key =>
+            {
+                if (existing.TryGetValue(key, out var option))
+                {
+                    option.DisplayName = getName(key);
+                    return option;
+                }
+
+                var created = new TagSelectionOption(key, getName(key));
+                attach?.Invoke(created);
+                return created;
+            }).ToList();
+
+            if (ordered.SequenceEqual(options))
+            {
+                return;
+            }
+
+            options.Clear();
+            foreach (var option in ordered)
+            {
+                options.Add(option);
+            }
+        }
 
         public bool IsSelected
         {

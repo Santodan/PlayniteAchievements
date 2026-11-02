@@ -21,7 +21,7 @@ namespace PlayniteAchievements.Providers.Manual
     /// Manual source implementation for Steam.
     /// Uses Steam Store API for search and Steam Web API for achievement schema.
     /// </summary>
-    internal sealed class SteamManualSource : IManualSource, IRefreshAuthContextReceiver
+    internal sealed class SteamManualSource : IManualSource, IManualSourceGameLookup, IRefreshAuthContextReceiver
     {
         private const string StoreSearchUrl = "https://store.steampowered.com/api/storesearch/";
         private const string AppDetailsUrl = "https://store.steampowered.com/api/appdetails";
@@ -52,6 +52,7 @@ namespace PlayniteAchievements.Providers.Manual
             _tokenResolver = tokenResolver ?? throw new ArgumentNullException(nameof(tokenResolver));
         }
 
+        /// <summary>The store's results for the query; empty when it found none, null when the store did not answer.</summary>
         public async Task<List<ManualGameSearchResult>> SearchGamesAsync(string query, string language, CancellationToken ct)
         {
             if (string.IsNullOrWhiteSpace(query))
@@ -77,7 +78,7 @@ namespace PlayniteAchievements.Providers.Manual
                         if (!response.IsSuccessStatusCode)
                         {
                             _logger?.Error($"Steam Store search failed with status {(int)response.StatusCode}");
-                            return new List<ManualGameSearchResult>();
+                            return null;
                         }
 
                         var json = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
@@ -90,7 +91,7 @@ namespace PlayniteAchievements.Providers.Manual
                         if (envelope == null)
                         {
                             _logger?.Warn($"Steam Store search returned unparseable JSON for query: {query}");
-                            return new List<ManualGameSearchResult>();
+                            return null;
                         }
                         var items = envelope?.Items;
 
@@ -142,7 +143,60 @@ namespace PlayniteAchievements.Providers.Manual
             catch (Exception ex)
             {
                 _logger?.Error(ex, "Steam Store search failed");
-                return new List<ManualGameSearchResult>();
+                return null;
+            }
+        }
+
+        public string TryParseGameId(string text) =>
+            SteamAppIds.TryParse(text)?.ToString(System.Globalization.CultureInfo.InvariantCulture);
+        /// <summary>The app's store name and header art; null when the store does not answer for it.</summary>
+        public async Task<ManualGameSearchResult> DescribeGameAsync(string sourceGameId, string language, CancellationToken ct)
+        {
+            if (!(SteamAppIds.TryParse(sourceGameId) is int appId))
+            {
+                return null;
+            }
+
+            try
+            {
+                var url = $"{AppDetailsUrl}?appids={appId}&l={Uri.EscapeDataString(MapLanguageToSteam(language))}";
+                using (var request = new HttpRequestMessage(HttpMethod.Get, url))
+                {
+                    request.Headers.TryAddWithoutValidation("User-Agent", DefaultUserAgent);
+                    request.Headers.TryAddWithoutValidation("Accept", "application/json");
+                    using (var response = await _httpClient.SendAsync(request, ct).ConfigureAwait(false))
+                    {
+                        if (!response.IsSuccessStatusCode)
+                        {
+                            return null;
+                        }
+
+                        var json = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
+                        var details = JsonConvert.DeserializeObject<Dictionary<string, AppDetailsEnvelope>>(json);
+                        if (details?.TryGetValue(appId.ToString(), out var envelope) != true ||
+                            envelope?.Success != true ||
+                            string.IsNullOrWhiteSpace(envelope.Data?.Name))
+                        {
+                            return null;
+                        }
+
+                        return new ManualGameSearchResult
+                        {
+                            SourceGameId = appId.ToString(),
+                            Name = envelope.Data.Name,
+                            IconUrl = SteamImageUrls.Header(appId)
+                        };
+                    }
+                }
+            }
+            catch (OperationCanceledException)
+            {
+                throw;
+            }
+            catch (Exception ex)
+            {
+                _logger?.Debug($"[SteamManualSource] AppDetails for appId={appId} failed: {ex.Message}");
+                return null;
             }
         }
 
@@ -524,6 +578,9 @@ namespace PlayniteAchievements.Providers.Manual
         {
             [DataMember(Name = "type")]
             public string Type { get; set; }
+
+            [DataMember(Name = "name")]
+            public string Name { get; set; }
         }
 
         #endregion

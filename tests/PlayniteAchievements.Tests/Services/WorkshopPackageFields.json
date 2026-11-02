@@ -12,9 +12,13 @@
       "ColorNamesByRarity": "value",
       "ColorRarityColumnsByRarity": "value",
       "Columns": "GridColumnLayoutOptions",
+      "HiddenControlBarItems": {
+        "list": "value"
+      },
       "HideCategorySummaryRow": "value",
       "MaxHeight": "value",
       "MaxRows": "value",
+      "NameColor": "value",
       "RowHeight": "value",
       "ShowColumnHeaders": "value",
       "ShowControlBar": "value",
@@ -22,6 +26,8 @@
       "SortDescending": "value",
       "SortMode": "value",
       "StartInCategoryMode": "value",
+      "StatusColor": "value",
+      "TagDisplay": "value",
       "UnlockDateMode": "value",
       "UseCoverImages": "value"
     },
@@ -29,6 +35,7 @@
       "Category": "value",
       "CategoryType": "value",
       "ClearDescription": "value",
+      "ClearTags": "value",
       "ClearTrophyType": "value",
       "ClearUnlockTime": "value",
       "Description": "value",
@@ -37,9 +44,17 @@
       "LockedIconPath": "value",
       "Note": "value",
       "Points": "value",
+      "Tags": "value",
       "TrophyType": "value",
       "UnlockTimeUtc": "value",
       "UnlockedIconPath": "value"
+    },
+    "AchievementTagDefinition": {
+      "Color": "value",
+      "Hidden": "value",
+      "Icon": "value",
+      "Key": "value",
+      "Name": "value"
     },
     "BundleFile": {
       "Kind": "value",
@@ -53,6 +68,19 @@
     },
     "CategoryImageOverrideData": {
       "Art": "value"
+    },
+    "CategorySummaryGridOptions": {
+      "ColorRarityColumnsByRarity": "value",
+      "Columns": "GridColumnLayoutOptions",
+      "RowHeight": "value",
+      "ShowColumnHeaders": "value",
+      "ShowCompletionGlow": "value",
+      "ShowMetadataPoints": "value",
+      "ShowMetadataTotal": "value",
+      "ShowNameAboveProgress": "value",
+      "ShowRarityBadgesBelowProgress": "value",
+      "ShowTreeOnly": "value",
+      "UseCoverImages": "value"
     },
     "ColorPackFile": {
       "Kind": "value",
@@ -82,6 +110,7 @@
       "ProgressNum": "value",
       "Rarity": "value",
       "ScaledPoints": "value",
+      "Tags": "value",
       "TrophyType": "value",
       "UnlockTimeUtc": "value",
       "Unlocked": "value",
@@ -97,6 +126,9 @@
     "GameCustomDataPortableFile": {
       "AchievementCategoryImageOverrides": {
         "map": "CategoryImageOverrideData"
+      },
+      "AchievementCategoryKinds": {
+        "map": "value"
       },
       "AchievementCategoryOrder": {
         "list": "value"
@@ -118,6 +150,9 @@
       },
       "AchievementOverrides": {
         "map": "AchievementOverride"
+      },
+      "AchievementTags": {
+        "list": "AchievementTagDefinition"
       },
       "AchievementUnlockedIconOverrides": {
         "map": "value"
@@ -148,6 +183,10 @@
       "Kind": "value",
       "ManualCapstoneApiName": "value",
       "ManualLink": "ManualAchievementLink",
+      "MetadataChoices": "MetadataChoices",
+      "MetadataLinks": {
+        "map": "MetadataLinkData"
+      },
       "NotificationAppearanceOverride": "GameNotificationAppearanceOverride",
       "PlayniteGameId": "value",
       "ProviderOverride": "ProviderOverrideData",
@@ -172,6 +211,9 @@
     "GameSummaryGridOptions": {
       "ColorRarityColumnsByRarity": "value",
       "Columns": "GridColumnLayoutOptions",
+      "HiddenControlBarItems": {
+        "list": "value"
+      },
       "LastPlayedDateMode": "value",
       "MaxRows": "value",
       "RowHeight": "value",
@@ -181,7 +223,9 @@
       "ShowControlBar": "value",
       "ShowMetadataPlatform": "value",
       "ShowMetadataPlaytime": "value",
+      "ShowMetadataPoints": "value",
       "ShowMetadataRegion": "value",
+      "ShowMetadataTotal": "value",
       "ShowNameAboveProgress": "value",
       "ShowRarityBadgesBelowProgress": "value",
       "SortDescending": "value",
@@ -196,6 +240,9 @@
         "map": "value"
       },
       "HeaderAlignments": {
+        "map": "value"
+      },
+      "HiddenHeaders": {
         "map": "value"
       },
       "Locked": {
@@ -225,6 +272,24 @@
         "map": "value"
       }
     },
+    "MetadataChoices": {
+      "CapstoneArt": "value",
+      "Categories": "value",
+      "Icons": "value",
+      "Points": "value",
+      "Rarity": "value",
+      "Tags": "value",
+      "Text": "value",
+      "TrophyTypes": "value"
+    },
+    "MetadataLinkData": {
+      "Id": "value",
+      "IsUserSet": "value",
+      "Label": "value",
+      "Pairings": {
+        "map": "value"
+      }
+    },
     "NotificationBadgeImageSet": {
       "CommonPath": "value",
       "CompletionPath": "value",
@@ -234,6 +299,7 @@
     },
     "NotificationHeaderTextSettings": {
       "CompletionHeader": "value",
+      "CompletionTitle": "value",
       "FriendCompletionHeaderFormat": "value",
       "FriendUnlockHeaderFormat": "value",
       "ProgressHeader": "value",
@@ -257,6 +323,9 @@
     },
     "NotificationSurfaceStyle": {
       "BadgeImages": "NotificationBadgeImageSet",
+      "BlurBackground": "value",
+      "BlurStrength": "value",
+      "BlurTintOpacity": "value",
       "BodyEmphasis": "value",
       "BodyFontFamily": "value",
       "BodyFontSize": "value",
@@ -361,6 +430,9 @@
     "ShowcasePagePortableFile": {
       "AchievementGridSurfaces": {
         "map": "AchievementGridOptions"
+      },
+      "CategoryGridSurfaces": {
+        "map": "CategorySummaryGridOptions"
       },
       "GameGridSurfaces": {
         "map": "GameSummaryGridOptions"

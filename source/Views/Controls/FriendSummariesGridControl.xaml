@@ -129,12 +129,7 @@
             <DataGridTemplateColumn Width="44" MinWidth="32" MaxWidth="96" CanUserResize="True"
                                     Header="{DynamicResource LOCPlayAch_Column_Avatar}"
                                     CanUserSort="False"
-                                    helpers:ColumnVisibilityHelper.ColumnKey="Avatar">
-                <DataGridTemplateColumn.HeaderTemplate>
-                    <DataTemplate>
-                        <TextBlock Text="{Binding}" Opacity="0"/>
-                    </DataTemplate>
-                </DataGridTemplateColumn.HeaderTemplate>
+                                    helpers:ColumnVisibilityHelper.ColumnKey="Avatar" helpers:DataGridColumnLayoutService.IsHeaderTextHidden="True">
                 <DataGridTemplateColumn.CellStyle>
                     <Style TargetType="DataGridCell" BasedOn="{StaticResource GameSummariesImageCellStyle}">
                         <Setter Property="ToolTip" Value="{Binding DisplayName}"/>
@@ -174,7 +169,7 @@
                                        TextAlignment="Center"
                                        VerticalAlignment="{Binding RelativeSource={RelativeSource AncestorType={x:Type DataGridCell}}, Path=Column.(helpers:DataGridAlignmentBehavior.CellVerticalAlignment)}"
                                        Foreground="{DynamicResource PlayAch.Brush.Text}"
-                                       ToolTip="{DynamicResource LOCGameFavoriteTitle}">
+                                       ToolTip="{DynamicResource LOCPlayAch_Common_Favorite}">
                                 <TextBlock.Style>
                                     <Style TargetType="TextBlock" BasedOn="{StaticResource PlayAch.TextBlock.BaseStyle}">
                                         <Setter Property="Opacity" Value="0"/>

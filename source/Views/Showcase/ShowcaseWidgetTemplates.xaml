@@ -87,14 +87,21 @@
             </Image>
             <Grid Margin="{Binding ContentPadding}">
                 <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
                     <RowDefinition Height="*"/>
                     <RowDefinition Height="Auto"/>
                 </Grid.RowDefinitions>
+                <!-- Platform, game, tag and progress filters over the games the medals and stats
+                     count; inside the padded foreground so a full-bleed banner still reaches the
+                     card edge. -->
+                <controls:GridControlBarControl Margin="0,0,0,8"
+                                                ControlBar="{Binding ControlBar}"
+                                                ShowControlBar="{Binding ShowControlBar}"/>
                 <!-- Beside (default): avatar left, text right. Centered: avatar stacked over the
                      text, both spanning the width. Layout properties the triggers change live in
                      style setters, since a local attribute would outrank the trigger. -->
                 <!-- Centered layout: the same row, sized to its content and centered. -->
-                <Grid VerticalAlignment="Center">
+                <Grid Grid.Row="1" VerticalAlignment="Center">
                     <Grid.Style>
                         <Style TargetType="Grid">
                             <Style.Triggers>
@@ -133,8 +140,8 @@
                                IsHitTestVisible="False"
                                helpers:AsyncImage.Uri="{Binding AvatarPath}"
                                helpers:AsyncImage.DecodePixel="{Binding AvatarDecodePixel}"/>
-                        <Border Width="{Binding AvatarSize}"
-                                Height="{Binding AvatarSize}"
+                        <Border Width="{Binding AvatarWidth}"
+                                Height="{Binding AvatarHeight}"
                                 CornerRadius="{Binding AvatarCornerRadius}"
                                 SnapsToDevicePixels="True">
                             <Border.Background>
@@ -172,7 +179,8 @@
                                    FontWeight="Bold"
                                    FontSize="{DynamicResource PlayAch.FontSize.SectionHeader}"
                                    TextAlignment="{Binding TextAlignment}"
-                                   TextWrapping="Wrap"/>
+                                   TextWrapping="Wrap"
+                                   Visibility="{Binding ShowDisplayName, Converter={StaticResource BoolToVis}}"/>
                         <TextBlock Text="{Binding Subtitle}"
                                    TextAlignment="{Binding TextAlignment}"
                                    Foreground="{DynamicResource PlayAch.Brush.Text}"
@@ -212,8 +220,8 @@
                                                 <Border x:Name="LinkBorder"
                                                         Background="Transparent"
                                                         Opacity="0.85">
-                                                    <Image Width="18"
-                                                           Height="18"
+                                                    <Image Width="{Binding DataContext.LinkIconSize, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                           Height="{Binding DataContext.LinkIconSize, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
                                                            SnapsToDevicePixels="True"
                                                            RenderOptions.BitmapScalingMode="HighQuality">
                                                         <Image.Source>
@@ -284,7 +292,7 @@
                 </Grid>
                 <!-- Open value/label columns under a hairline, instead of the Statistics widget's
                      boxed tiles, so the strip reads as part of the card. -->
-                <StackPanel Grid.Row="1"
+                <StackPanel Grid.Row="2"
                             Margin="0,8,0,0"
                             Visibility="{Binding ShowStatStrip, Converter={StaticResource BoolToVis}}">
                     <StackPanel.Effect>
@@ -346,7 +354,16 @@
          cumulative score-over-time line under each card outside compact. -->
     <DataTemplate DataType="{x:Type widgets:ScoresWidgetViewModel}">
       <Grid>
-        <ItemsControl ItemsSource="{Binding Cards}">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+        <!-- A points card's platform, game and progress filters over the games it sums. -->
+        <controls:GridControlBarControl Margin="0,0,0,8"
+                                        ControlBar="{Binding ControlBar}"
+                                        ShowControlBar="{Binding ShowControlBar}"/>
+        <ItemsControl Grid.Row="1"
+                      ItemsSource="{Binding Cards}">
             <ItemsControl.ItemsPanel>
                 <ItemsPanelTemplate>
                     <UniformGrid Rows="{Binding Rows}"
@@ -468,12 +485,13 @@
          the View Achievements window on the achievement, as the compact lists do. -->
     <DataTemplate DataType="{x:Type widgets:IconMosaicWidgetViewModel}">
       <DockPanel>
-        <controls:GridControlBarControl DockPanel.Dock="Bottom"
-                                        Margin="0,8,0,0"
+        <controls:GridControlBarControl DockPanel.Dock="Top"
+                                        Margin="0,0,0,8"
                                         ControlBar="{Binding ControlBar}"
                                         ShowControlBar="{Binding ShowControlBar}"/>
         <ListBox ItemsSource="{Binding Items}"
                  showcase:ShowcaseMosaicClickBehavior.IsEnabled="True"
+                 helpers:DataGridHoverScrollBarBehavior.IsEnabled="True"
                  Cursor="Hand"
                  Background="Transparent"
                  BorderThickness="0"
@@ -484,6 +502,11 @@
                  ScrollViewer.CanContentScroll="True"
                  VirtualizingPanel.IsVirtualizing="True"
                  VirtualizingPanel.VirtualizationMode="Recycling">
+            <ListBox.Resources>
+                <!-- Reaches the ScrollViewer inside the ListBox template: the bar floats over
+                     the tiles and the hover behavior hides it until needed. -->
+                <Style TargetType="ScrollViewer" BasedOn="{StaticResource PlayAch.ScrollViewer.OverlayStyle}"/>
+            </ListBox.Resources>
             <ListBox.ItemsPanel>
                 <ItemsPanelTemplate>
                     <!-- Packs the tiles at the spacing option's gap and centers them. -->
@@ -545,23 +568,42 @@
 
     <!-- Timeline: the reused LiveCharts column chart with range buttons, identical at every size. -->
     <DataTemplate DataType="{x:Type widgets:TimelineWidgetViewModel}">
-        <!-- The window, bar width and platform split are widget settings; with Show Control Bar
-             on they are also set here, above the chart, and saved back to the widget. -->
+        <!-- The window, bar width and split are widget settings; the controls the widget's
+             settings show also set them here, below the chart, and save them back. -->
         <DockPanel>
         <DockPanel DockPanel.Dock="Bottom"
                    LastChildFill="True"
                    Margin="0,8,0,0"
                    Visibility="{Binding ShowControls, Converter={StaticResource BoolToVis}}">
-            <!-- IcoFont "layers": stacked per-platform segments, drawn as vector geometry like
-                 the plugin's other icon glyphs, in the button's own foreground. -->
+            <!-- IcoFont "layers": stacked segments, drawn as vector geometry like the plugin's
+                 other icon glyphs, in the button's own foreground. A click opens the split menu;
+                 the button shows checked while the bars are split. -->
             <ToggleButton DockPanel.Dock="Right"
                           Style="{DynamicResource PlayAch.ToggleButton.BaseStyle}"
-                          IsChecked="{Binding SplitByPlatform, Mode=TwoWay}"
+                          IsChecked="{Binding IsSplit, Mode=OneWay}"
+                          helpers:ContextMenuButtonBehavior.OpensMenu="True"
+                          Visibility="{Binding ShowSplitControl, Converter={StaticResource BoolToVis}}"
                           Width="34"
                           Padding="0"
                           Margin="{DynamicResource PlayAch.Thickness.Left.Xs}"
                           VerticalAlignment="Center"
-                          ToolTip="{DynamicResource LOCPlayAch_Timeline_SplitByPlatform}">
+                          ToolTip="{DynamicResource LOCPlayAch_Timeline_SplitBy}">
+                <ToggleButton.ContextMenu>
+                    <ContextMenu>
+                        <MenuItem Header="{Binding SplitChoices[0].Label}"
+                                  IsChecked="{Binding SplitChoices[0].IsSelected, Mode=OneWay}"
+                                  IsEnabled="{Binding SplitChoices[0].IsEnabled}"
+                                  Command="{Binding SplitChoices[0].PickCommand}"/>
+                        <MenuItem Header="{Binding SplitChoices[1].Label}"
+                                  IsChecked="{Binding SplitChoices[1].IsSelected, Mode=OneWay}"
+                                  IsEnabled="{Binding SplitChoices[1].IsEnabled}"
+                                  Command="{Binding SplitChoices[1].PickCommand}"/>
+                        <MenuItem Header="{Binding SplitChoices[2].Label}"
+                                  IsChecked="{Binding SplitChoices[2].IsSelected, Mode=OneWay}"
+                                  IsEnabled="{Binding SplitChoices[2].IsEnabled}"
+                                  Command="{Binding SplitChoices[2].PickCommand}"/>
+                    </ContextMenu>
+                </ToggleButton.ContextMenu>
                 <controls:GlyphIcon Glyph="&#xEF5C;"
                                     Size="16"
                                     FontFamily="{DynamicResource PlayAch.FontFamily.Icon}"
@@ -574,8 +616,14 @@
                                        Granularity="{Binding Timeline.Granularity, Mode=TwoWay}"
                                        UnavailableGranularities="{Binding Timeline.UnavailableGranularities}"
                                        ShowGranularity="True"
-                                       MinDate="{Binding Timeline.EarliestDate}"/>
+                                       MinDate="{Binding Timeline.EarliestDate}"
+                                       Visibility="{Binding ShowTimeWindowControl, Converter={StaticResource BoolToVis}}"/>
         </DockPanel>
+        <!-- Platform, game and progress filters over the games the bars count. -->
+        <controls:GridControlBarControl DockPanel.Dock="Top"
+                                        Margin="0,0,0,8"
+                                        ControlBar="{Binding ControlBar}"
+                                        ShowControlBar="{Binding ShowControlBar}"/>
         <controls:UnlockTimelineChart Series="{Binding Timeline.TimelineSeries}"
                                       Labels="{Binding Timeline.TimelineLabels}"
                                       TooltipLabels="{Binding Timeline.TooltipLabels}"
@@ -591,12 +639,20 @@
         </DockPanel>
     </DataTemplate>
 
-    <!-- Statistics: scrolling grid of value/label tiles. -->
+    <!-- Statistics: scrolling grid of value/label tiles, under platform, game, tag and progress
+         filters over the games they count. -->
     <DataTemplate DataType="{x:Type widgets:StatisticsWidgetViewModel}">
+      <DockPanel>
+        <controls:GridControlBarControl DockPanel.Dock="Top"
+                                        Margin="0,0,0,8"
+                                        ControlBar="{Binding ControlBar}"
+                                        ShowControlBar="{Binding ShowControlBar}"/>
         <ScrollViewer VerticalScrollBarVisibility="Auto"
                       HorizontalScrollBarVisibility="Disabled">
+            <!-- TextBlock.TextAlignment inherits, so every tile's value and label follow it. -->
             <ItemsControl ItemsSource="{Binding Tiles}"
-                          ItemTemplate="{StaticResource ShowcaseStatTileTemplate}">
+                          ItemTemplate="{StaticResource ShowcaseStatTileTemplate}"
+                          TextBlock.TextAlignment="{Binding TextAlignment}">
                 <ItemsControl.ItemsPanel>
                     <ItemsPanelTemplate>
                         <UniformGrid Columns="{Binding Columns}"/>
@@ -604,6 +660,7 @@
                 </ItemsControl.ItemsPanel>
             </ItemsControl>
         </ScrollViewer>
+      </DockPanel>
     </DataTemplate>
 
     <!-- Image: one stored picture across the whole card (the host drops its inset and clips to
@@ -741,14 +798,14 @@
                                                  ColumnSettingsKey="{Binding ColumnSettingsKey}"
                                                  PinCollectionId="{Binding PinCollectionId}"
                                                  ControlBar="{Binding ControlBar}"
-                                                 ShowControlBar="{Binding GridOptions.ShowControlBar, FallbackValue=False}"
+                                                 ShowControlBar="{Binding ShowControlBar}"
                                                  EnablePinReorder="True"
                                                  ShowColumnHeaders="{Binding GridOptions.ShowColumnHeaders, FallbackValue=True}"
                                                  FixedRowHeight="{Binding GridOptions.RowHeight, FallbackValue={x:Null}}"
                                                  UseCoverImages="{Binding GridOptions.UseCoverImages, FallbackValue=False}"
                                                  ShowRarityGlow="{Binding GridOptions.ShowRarityGlow, FallbackValue=True}"
-                                                 ColorNamesByRarity="{Binding GridOptions.ColorNamesByRarity, FallbackValue=False}"
-                                                 ColorRarityColumnsByRarity="{Binding GridOptions.ColorRarityColumnsByRarity, FallbackValue=False}"/>
+                                                 ColorRarityColumnsByRarity="{Binding GridOptions.ColorRarityColumnsByRarity, FallbackValue=False}"
+                                                 AppearanceOptions="{Binding GridOptions, FallbackValue={x:Null}}"/>
     </DataTemplate>
 
     <!-- Pinned games: the shared game-summaries grid over pinned (or favorite) games. -->
@@ -757,7 +814,7 @@
                                           ColumnSettingsKey="{Binding ColumnSettingsKey}"
                                           PinCollectionId="{Binding PinCollectionId}"
                                           ControlBar="{Binding ControlBar}"
-                                          ShowControlBar="{Binding GridOptions.ShowControlBar, FallbackValue=False}"
+                                          ShowControlBar="{Binding ShowControlBar}"
                                           EnablePinReorder="{Binding PinReorderEnabled}"
                                           ShowColumnHeaders="{Binding GridOptions.ShowColumnHeaders, FallbackValue=True}"
                                           FixedRowHeight="{Binding GridOptions.RowHeight, FallbackValue={x:Null}}"
@@ -771,15 +828,17 @@
     <!-- RecentAchievements: the shared achievement grid over the latest unlocks. -->
     <DataTemplate DataType="{x:Type widgets:RecentAchievementsWidgetViewModel}">
         <showcase:ShowcaseAchievementGridControl ItemsSource="{Binding Items}"
+                                                 CategoryItemsSource="{Binding CategoryItems}"
+                                                 CategoryOptions="{Binding CategoryGridOptions}"
                                                  ColumnSettingsKey="{Binding ColumnSettingsKey}"
                                                  ControlBar="{Binding ControlBar}"
-                                                 ShowControlBar="{Binding GridOptions.ShowControlBar, FallbackValue=False}"
+                                                 ShowControlBar="{Binding ShowControlBar}"
                                                  ShowColumnHeaders="{Binding GridOptions.ShowColumnHeaders, FallbackValue=True}"
                                                  FixedRowHeight="{Binding GridOptions.RowHeight, FallbackValue={x:Null}}"
                                                  UseCoverImages="{Binding GridOptions.UseCoverImages, FallbackValue=False}"
                                                  ShowRarityGlow="{Binding GridOptions.ShowRarityGlow, FallbackValue=True}"
-                                                 ColorNamesByRarity="{Binding GridOptions.ColorNamesByRarity, FallbackValue=False}"
-                                                 ColorRarityColumnsByRarity="{Binding GridOptions.ColorRarityColumnsByRarity, FallbackValue=False}"/>
+                                                 ColorRarityColumnsByRarity="{Binding GridOptions.ColorRarityColumnsByRarity, FallbackValue=False}"
+                                                 AppearanceOptions="{Binding GridOptions, FallbackValue={x:Null}}"/>
     </DataTemplate>
 
     <!-- GameSummaries: the shared game-summaries grid over the whole library. -->
@@ -787,7 +846,7 @@
         <showcase:ShowcaseGameGridControl ItemsSource="{Binding Items}"
                                           ColumnSettingsKey="{Binding ColumnSettingsKey}"
                                           ControlBar="{Binding ControlBar}"
-                                          ShowControlBar="{Binding GridOptions.ShowControlBar, FallbackValue=False}"
+                                          ShowControlBar="{Binding ShowControlBar}"
                                           ShowColumnHeaders="{Binding GridOptions.ShowColumnHeaders, FallbackValue=True}"
                                           FixedRowHeight="{Binding GridOptions.RowHeight, FallbackValue={x:Null}}"
                                           UseCoverImages="{Binding GridOptions.UseCoverImages, FallbackValue=False}"
@@ -802,12 +861,13 @@
          tiles, reorder/unpin. -->
     <DataTemplate DataType="{x:Type widgets:GameMosaicWidgetViewModel}">
       <DockPanel>
-        <controls:GridControlBarControl DockPanel.Dock="Bottom"
-                                        Margin="0,8,0,0"
+        <controls:GridControlBarControl DockPanel.Dock="Top"
+                                        Margin="0,0,0,8"
                                         ControlBar="{Binding ControlBar}"
                                         ShowControlBar="{Binding ShowControlBar}"/>
         <ListBox ItemsSource="{Binding Tiles}"
                  showcase:ShowcaseMosaicClickBehavior.IsEnabled="True"
+                 helpers:DataGridHoverScrollBarBehavior.IsEnabled="True"
                  Cursor="Hand"
                  Background="Transparent"
                  BorderThickness="0"
@@ -818,6 +878,11 @@
                  ScrollViewer.CanContentScroll="True"
                  VirtualizingPanel.IsVirtualizing="True"
                  VirtualizingPanel.VirtualizationMode="Recycling">
+            <ListBox.Resources>
+                <!-- Reaches the ScrollViewer inside the ListBox template: the bar floats over
+                     the tiles and the hover behavior hides it until needed. -->
+                <Style TargetType="ScrollViewer" BasedOn="{StaticResource PlayAch.ScrollViewer.OverlayStyle}"/>
+            </ListBox.Resources>
             <ListBox.ItemsPanel>
                 <ItemsPanelTemplate>
                     <!-- Packs the tiles at the spacing option's gap and centers them. Covers keep
@@ -990,32 +1055,6 @@
     </DataTemplate>
 
     <!-- ActivityCalendar: contributions-style heatmap of unlocks per day. -->
-    <!-- Legend swatches only; the calendar grid itself is drawn by ActivityCalendarHeatmap,
-         which owns the matching intensity ramp. -->
-    <DataTemplate x:Key="ShowcaseActivityCellTemplate" DataType="{x:Type widgets:ActivityCalendarDayViewModel}">
-        <Border Width="10" Height="10" CornerRadius="2" Margin="1">
-            <Border.Style>
-                <Style TargetType="Border">
-                    <Setter Property="Background" Value="{DynamicResource PlayAch.Brush.Accent}"/>
-                    <Style.Triggers>
-                        <DataTrigger Binding="{Binding Intensity}" Value="0">
-                            <Setter Property="Background" Value="{DynamicResource PlayAch.Brush.Overlay.Tint.08}"/>
-                        </DataTrigger>
-                        <DataTrigger Binding="{Binding Intensity}" Value="1">
-                            <Setter Property="Opacity" Value="0.30"/>
-                        </DataTrigger>
-                        <DataTrigger Binding="{Binding Intensity}" Value="2">
-                            <Setter Property="Opacity" Value="0.55"/>
-                        </DataTrigger>
-                        <DataTrigger Binding="{Binding Intensity}" Value="3">
-                            <Setter Property="Opacity" Value="0.78"/>
-                        </DataTrigger>
-                    </Style.Triggers>
-                </Style>
-            </Border.Style>
-        </Border>
-    </DataTemplate>
-
     <!-- Rows of the day popup: a text list, so unlike the mosaic tiles the container keeps a
          hover highlight; the heatmap's mosaic click behavior resolves rows through this
          container's DataContext. -->
@@ -1128,10 +1167,14 @@
     <DataTemplate DataType="{x:Type widgets:ActivityCalendarWidgetViewModel}">
         <Grid>
             <Grid.RowDefinitions>
-                <RowDefinition Height="*"/>
                 <RowDefinition Height="Auto"/>
+                <RowDefinition Height="*"/>
             </Grid.RowDefinitions>
-            <TextBlock Grid.RowSpan="2"
+            <!-- Platform, game and progress filters over the games whose unlocks fill the days. -->
+            <controls:GridControlBarControl Margin="0,0,0,8"
+                                            ControlBar="{Binding ControlBar}"
+                                            ShowControlBar="{Binding ShowControlBar}"/>
+            <TextBlock Grid.Row="1"
                        Text="{DynamicResource LOCPlayAch_Showcase_NoData}"
                        Foreground="{DynamicResource PlayAch.Brush.Text}"
                        Opacity="{StaticResource PlayAch.Opacity.Placeholder}"
@@ -1145,66 +1188,71 @@
                  with the mouse wheel mapped to horizontal scrolling. The weekday gutter
                  and the legend sit outside the scroll area so they stay put while the
                  calendar scrolls, and the gutter shares the heatmap's metrics so its
-                 rows line up. -->
-            <Grid TextElement.FontSize="{DynamicResource PlayAch.FontSize.Title}"
+                 rows line up. The calendar and its legend line center as one group, so
+                 spare height never opens a gap between them. -->
+            <Grid Grid.Row="1"
                   VerticalAlignment="Center">
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="Auto"/>
-                    <ColumnDefinition Width="*"/>
-                </Grid.ColumnDefinitions>
-                <showcase:ActivityCalendarDayGutter Labels="{Binding WeekdayLabels}"
-                                                    ShowMonthBand="True"
-                                                    VerticalAlignment="Top"/>
-                <ScrollViewer Grid.Column="1"
-                              HorizontalScrollBarVisibility="Auto"
-                              VerticalScrollBarVisibility="Disabled"
-                              showcase:ActivityCalendarScrollBehavior.Enabled="True">
-                    <!-- Single custom-drawn visual: one element for the whole grid of cells,
-                         with tooltips and the day popup (ShowcaseActivityDayPopupTemplate)
-                         served from hit tests. -->
-                    <showcase:ActivityCalendarHeatmap Weeks="{Binding Weeks}"
-                                                      SelectsDays="{Binding IsLinked}"
-                                                      HighlightedDay="{Binding HighlightedDay}"
-                                                      ShowMonthLabels="True"
-                                                      HorizontalAlignment="Left"
-                                                      VerticalAlignment="Top"/>
-                </ScrollViewer>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                </Grid.RowDefinitions>
+                <Grid TextElement.FontSize="{DynamicResource PlayAch.FontSize.Title}">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+                    <showcase:ActivityCalendarDayGutter Labels="{Binding WeekdayLabels}"
+                                                        ShowMonthBand="True"
+                                                        VerticalAlignment="Top"/>
+                    <!-- The default template keeps the bar in its own row under the cells, so it
+                         never covers the bottom row; the hover behavior still hides it at rest. -->
+                    <ScrollViewer Grid.Column="1"
+                                  HorizontalScrollBarVisibility="Auto"
+                                  VerticalScrollBarVisibility="Disabled"
+                                  helpers:DataGridHoverScrollBarBehavior.IsEnabled="True"
+                                  showcase:ActivityCalendarScrollBehavior.Enabled="True">
+                        <!-- Single custom-drawn visual: one element for the whole grid of cells,
+                             with tooltips and the day popup (ShowcaseActivityDayPopupTemplate)
+                             served from hit tests. -->
+                        <showcase:ActivityCalendarHeatmap Weeks="{Binding Weeks}"
+                                                          SelectsDays="{Binding IsLinked}"
+                                                          HighlightedDay="{Binding HighlightedDay}"
+                                                          CellColor="{Binding CellColor}"
+                                                          ShowMonthLabels="True"
+                                                          HorizontalAlignment="Left"
+                                                          VerticalAlignment="Top"/>
+                    </ScrollViewer>
+                </Grid>
+                <!-- When the widget's settings show it, the calendar's window is set here, on the
+                     legend's line, and saved back to the widget. -->
+                <controls:TimeWindowPicker Grid.Row="1"
+                                           Margin="0,4,8,0"
+                                           HorizontalAlignment="Left"
+                                           VerticalAlignment="Center"
+                                           Window="{Binding Window, Mode=TwoWay}"
+                                           Visibility="{Binding ShowControls, Converter={StaticResource BoolToVis}}"/>
+                <StackPanel Grid.Row="1"
+                            Orientation="Horizontal"
+                            HorizontalAlignment="Right"
+                            VerticalAlignment="Center"
+                            Margin="0,4,0,0"
+                            Visibility="{Binding ShowLegend, Converter={StaticResource BoolToVis}}">
+                    <TextBlock Text="{DynamicResource LOCPlayAch_Showcase_ActivityLegend_Less}"
+                               Foreground="{DynamicResource PlayAch.Brush.Text}"
+                               Opacity="{StaticResource PlayAch.Opacity.Subtle}"
+                               FontSize="{DynamicResource PlayAch.FontSize.Caption}"
+                               Margin="0,0,4,0"
+                               VerticalAlignment="Center"/>
+                    <showcase:ActivityCalendarLegendSwatches CellColor="{Binding CellColor}"
+                                                             VerticalAlignment="Center"/>
+                    <TextBlock Text="{DynamicResource LOCPlayAch_Showcase_ActivityLegend_More}"
+                               Foreground="{DynamicResource PlayAch.Brush.Text}"
+                               Opacity="{StaticResource PlayAch.Opacity.Subtle}"
+                               FontSize="{DynamicResource PlayAch.FontSize.Caption}"
+                               Margin="4,0,0,0"
+                               VerticalAlignment="Center"/>
+                </StackPanel>
             </Grid>
-            <!-- With Show Control Bar on, the calendar's window is set here, on the legend's
-                 line, and saved back to the widget. -->
-            <controls:TimeWindowPicker Grid.Row="1"
-                                       Margin="0,4,8,0"
-                                       HorizontalAlignment="Left"
-                                       VerticalAlignment="Center"
-                                       Window="{Binding Window, Mode=TwoWay}"
-                                       Visibility="{Binding ShowControls, Converter={StaticResource BoolToVis}}"/>
-            <StackPanel Grid.Row="1"
-                        Orientation="Horizontal"
-                        HorizontalAlignment="Right"
-                        VerticalAlignment="Center"
-                        Margin="0,4,0,0">
-                <TextBlock Text="{DynamicResource LOCPlayAch_Showcase_ActivityLegend_Less}"
-                           Foreground="{DynamicResource PlayAch.Brush.Text}"
-                           Opacity="{StaticResource PlayAch.Opacity.Subtle}"
-                           FontSize="{DynamicResource PlayAch.FontSize.Caption}"
-                           Margin="0,0,4,0"
-                           VerticalAlignment="Center"/>
-                <ItemsControl ItemsSource="{Binding LegendCells}"
-                              ItemTemplate="{StaticResource ShowcaseActivityCellTemplate}"
-                              VerticalAlignment="Center">
-                    <ItemsControl.ItemsPanel>
-                        <ItemsPanelTemplate>
-                            <StackPanel Orientation="Horizontal"/>
-                        </ItemsPanelTemplate>
-                    </ItemsControl.ItemsPanel>
-                </ItemsControl>
-                <TextBlock Text="{DynamicResource LOCPlayAch_Showcase_ActivityLegend_More}"
-                           Foreground="{DynamicResource PlayAch.Brush.Text}"
-                           Opacity="{StaticResource PlayAch.Opacity.Subtle}"
-                           FontSize="{DynamicResource PlayAch.FontSize.Caption}"
-                           Margin="4,0,0,0"
-                           VerticalAlignment="Center"/>
-            </StackPanel>
         </Grid>
     </DataTemplate>
 

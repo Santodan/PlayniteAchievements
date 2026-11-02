@@ -16,16 +16,21 @@ namespace PlayniteAchievements.Views.Helpers
     internal sealed class CategoryMenuRow
     {
         public CategoryMenuRow(
+            string path,
             string option,
             string leafDisplay,
             string pathDisplay,
             CategoryTreeShape treeShape)
         {
+            Path = path;
             Option = option;
             LeafDisplay = leafDisplay;
             PathDisplay = pathDisplay;
             TreeShape = treeShape;
         }
+
+        /// <summary>The normalized path, set for synthesised rows too.</summary>
+        public string Path { get; }
 
         /// <summary>
         /// The caller's own string, not the path rebuilt from its segments, so selections stay
@@ -67,9 +72,11 @@ namespace PlayniteAchievements.Views.Helpers
         /// The rows for a set of category options, in tree order: siblings contiguous, each node
         /// immediately followed by its own subtree.
         /// </summary>
-        public static IReadOnlyList<CategoryMenuRow> BuildRows(IEnumerable<string> options)
+        public static IReadOnlyList<CategoryMenuRow> BuildRows(
+            IEnumerable<string> options,
+            IReadOnlyList<string> preferredOrder = null)
         {
-            var present = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            var present = new Dictionary<string, string>(CategoryPathHelper.LabelComparer);
             foreach (var option in options ?? Enumerable.Empty<string>())
             {
                 if (string.IsNullOrWhiteSpace(option))
@@ -92,10 +99,12 @@ namespace PlayniteAchievements.Views.Helpers
 
             foreach (var built in CategoryPickerResolver.BuildOptions(
                 present.Values,
+                preferredOrder,
                 synthesizedAreSelectable: false))
             {
                 present.TryGetValue(built.Label, out var option);
                 rows.Add(new CategoryMenuRow(
+                    built.Label,
                     built.IsSelectable ? option : null,
                     built.LeafDisplay,
                     built.PathDisplay,
@@ -148,6 +157,38 @@ namespace PlayniteAchievements.Views.Helpers
             }
 
             return menu.Items.Count > 0;
+        }
+
+        /// <summary>
+        /// Appends one row per category for choosing the single category a selection is in. A click
+        /// on a row closes the menu and picks it, or picks no category when it unticks the current
+        /// one. Each row, synthesised ones included, carries its path in Tag for
+        /// <see cref="CategoryMenuSearch"/>. A flat list leaves the item style to the host menu.
+        /// </summary>
+        public static void AppendSingleChoice(
+            FrameworkElement resourceOwner,
+            ItemCollection items,
+            IEnumerable<string> options,
+            Func<string, bool> isSelected,
+            Action<string> onPick,
+            IReadOnlyList<string> preferredOrder = null)
+        {
+            if (items == null || isSelected == null || onPick == null)
+            {
+                return;
+            }
+
+            var rows = BuildRows(options, preferredOrder);
+            var itemStyle = rows.Any(row => row.TreeShape != null)
+                ? resourceOwner?.TryFindResource(TreeItemStyleKey) as Style
+                : null;
+            foreach (var row in rows)
+            {
+                var item = CreateItem(row, itemStyle, isSelected, (option, isChecked) => onPick(isChecked ? option : null));
+                item.Tag = row.Path;
+                item.StaysOpenOnClick = !row.IsSelectable;
+                items.Add(item);
+            }
         }
 
         /// <summary>

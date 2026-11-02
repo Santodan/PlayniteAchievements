@@ -21,7 +21,7 @@ namespace PlayniteAchievements.Services.Achievements
     public sealed class CapstoneResolver
     {
         private readonly Dictionary<string, string> _byCategory =
-            new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            new Dictionary<string, string>(CategoryPathHelper.LabelComparer);
         private readonly HashSet<string> _effectiveApiNames =
             new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
@@ -52,7 +52,7 @@ namespace PlayniteAchievements.Services.Achievements
             // Root-first from the helper, walked backwards: the nearest ancestor with a capstone
             // wins, so a subcategory only inherits what nothing closer already answers.
             var candidates = CategoryPathHelper.EnumerateSelfAndAncestors(
-                AchievementCategoryTypeHelper.NormalizeCategoryOrDefault(categoryPath));
+                AchievementCategoryHelper.NormalizeCategoryOrDefault(categoryPath));
             for (var i = candidates.Count - 1; i >= 0; i--)
             {
                 if (_byCategory.TryGetValue(candidates[i], out var apiName))
@@ -68,7 +68,7 @@ namespace PlayniteAchievements.Services.Achievements
         public bool HasOwnCapstone(string categoryPath)
         {
             return _byCategory.ContainsKey(
-                AchievementCategoryTypeHelper.NormalizeCategoryOrDefault(categoryPath));
+                AchievementCategoryHelper.NormalizeCategoryOrDefault(categoryPath));
         }
 
         /// <summary>
@@ -118,7 +118,7 @@ namespace PlayniteAchievements.Services.Achievements
                 // Later entries win, so re-nominating within a category moves the capstone rather
                 // than duplicating it.
                 resolver._byCategory[
-                    AchievementCategoryTypeHelper.NormalizeCategoryOrDefault(achievement.Category)] = entry;
+                    AchievementCategoryHelper.NormalizeCategoryOrDefault(achievement.Category)] = entry;
             }
 
             return resolver;

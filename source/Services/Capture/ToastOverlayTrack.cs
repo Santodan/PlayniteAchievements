@@ -80,6 +80,13 @@ namespace PlayniteAchievements.Services.Capture
         public List<TimedLayer> RayLayers { get; } = new List<TimedLayer>();
 
         /// <summary>
+        /// Where the card sits in each frame and how far its blur reaches when it shows a blurred
+        /// background, so export can blur the clip under it (the recorded pixels leave the live
+        /// background out). Null for a card without one.
+        /// </summary>
+        public ToastBlurPatch Blur { get; set; }
+
+        /// <summary>
         /// The screenshot frame's chrome for this achievement, rendered at the clip's frame size
         /// when the unlock asked for a framed clip. Null otherwise, or when it could not be
         /// rendered, which leaves the framed clip out.

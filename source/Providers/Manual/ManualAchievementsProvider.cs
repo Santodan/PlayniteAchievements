@@ -21,7 +21,7 @@ namespace PlayniteAchievements.Providers.Manual
     /// Data provider for manually linked achievements.
     /// Implements IDataProvider to integrate with the achievement refresh system.
     /// </summary>
-    public sealed class ManualAchievementsProvider : DataProviderBase<ManualSettings>, IDataProvider, IRefreshAuthContextReceiver
+    public sealed class ManualAchievementsProvider : DataProviderBase<ManualSettings>, IDataProvider, IRefreshAuthContextReceiver, IEnglishTitleSource
     {
         private readonly ILogger _logger;
         private readonly PlayniteAchievementsSettings _settings;
@@ -146,7 +146,7 @@ namespace PlayniteAchievements.Providers.Manual
                 return null;
             }
 
-            await EnsureManualSourceAuthenticatedAsync(source, link, cancel).ConfigureAwait(false);
+            await EnsureManualSourceAuthenticatedAsync(source, cancel).ConfigureAwait(false);
 
             // Prefers the user's display platform override, else derives it from the source game id.
             // Null when neither resolves a platform; the game then displays as Manual.
@@ -193,6 +193,37 @@ namespace PlayniteAchievements.Providers.Manual
             };
         }
 
+        /// <summary>
+        /// The linked source's achievements fetched again in English. The refresh keeps the source's
+        /// ApiNames unchanged, so the rows key the same way.
+        /// </summary>
+        async Task<IList<AchievementDetail>> IEnglishTitleSource.GetEnglishTitlesAsync(Game game, GameAchievementData data, CancellationToken ct)
+        {
+            if (game == null ||
+                !TryGetManualLink(game.Id, out var link) ||
+                string.IsNullOrWhiteSpace(link?.SourceGameId))
+            {
+                return null;
+            }
+
+            var source = _manualSourceRegistry.GetSourceByKey(link.SourceKey);
+            if (source == null)
+            {
+                return null;
+            }
+
+            var achievements = await source.GetAchievementsAsync(link.SourceGameId, "english", ct).ConfigureAwait(false);
+            return achievements?
+                .Where(achievement => !string.IsNullOrWhiteSpace(achievement?.ApiName))
+                .Select(achievement => new AchievementDetail
+                {
+                    ApiName = achievement.ApiName,
+                    DisplayName = achievement.DisplayName,
+                    Description = achievement.Description
+                })
+                .ToList();
+        }
+
         /// <inheritdoc />
         public ProviderSettingsViewBase CreateSettingsView() => new ManualSettingsView(_playniteApi, _logger, _settings);
 
@@ -230,17 +261,8 @@ namespace PlayniteAchievements.Providers.Manual
 
         private async Task EnsureManualSourceAuthenticatedAsync(
             IManualSource source,
-            ManualAchievementLink link,
             CancellationToken ct)
         {
-            if (!ManualSourceAuthentication.ShouldRequireAuthentication(
-                    source,
-                    ProviderSettings.RequireExophaseAuthentication,
-                    link))
-            {
-                return;
-            }
-
             var sourceKey = string.IsNullOrWhiteSpace(source.SourceKey)
                 ? source.GetType().FullName
                 : source.SourceKey.Trim();

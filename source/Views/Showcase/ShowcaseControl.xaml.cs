@@ -79,6 +79,9 @@ namespace PlayniteAchievements.Views.Showcase
         // The selected empty block's in-block + button, hidden while an overlay copy takes
         // hit-test priority over the cut lines; restored on the next handle rebuild.
         private Button _suppressedAddButton;
+
+        // The selected empty block's overlay + button, while there is one.
+        private Button _overlayAddButton;
         private int _cutCandidate;
         private double _cutPixels;
 
@@ -169,9 +172,16 @@ namespace PlayniteAchievements.Views.Showcase
                 ContextMenuOpening += StripContextMenuOpening;
             }
 
-            // Widgets' control bar choices are saved in their own options across restarts.
-            PlayniteAchievements.ViewModels.Showcase.Widgets.ShowcaseControlBarStates.Store =
-                ShowcaseControlBarStateStore.Instance;
+            // Every widget's right-click menu opens its settings through here.
+            ShowcaseWidgetSettingsMenu.SetOpener(this, instanceId =>
+            {
+                var widget = FindWidget(instanceId);
+                if (widget != null)
+                {
+                    OpenWidgetSettings(widget);
+                }
+            });
+
             _snapshotRefreshTimer = new System.Windows.Threading.DispatcherTimer
             {
                 Interval = TimeSpan.FromMilliseconds(1000)
@@ -185,7 +195,11 @@ namespace PlayniteAchievements.Views.Showcase
                 Interval = TrackRulerInterval
             };
             _trackRulerTimer.Tick += TrackRulerTimer_Tick;
-            DashboardGrid.SizeChanged += (_, __) => ScheduleTrackRulerUpdate();
+            DashboardGrid.SizeChanged += (_, __) =>
+            {
+                InvalidateGridLayers();
+                ScheduleTrackRulerUpdate();
+            };
             _host.DataChanged += Host_DataChanged;
             ShowcaseConfigurationEvents.Changed += ShowcaseConfigurationEvents_Changed;
             // Rolling windows (the Timeline, Scores, Activity Calendar and played-within filters)
@@ -296,7 +310,8 @@ namespace PlayniteAchievements.Views.Showcase
         public event EventHandler EditingChanged;
 
         // A strip has no header bar, so its right-click menu is how edit mode is entered and
-        // left. It offers only that: whether the strip shows at all is a main settings choice.
+        // left, after the settings of the widget clicked on. Whether the strip shows at all is a
+        // main settings choice.
         private void StripContextMenuOpening(object sender, ContextMenuEventArgs e)
         {
             if (_disposed || !(ContextMenu is ContextMenu menu))
@@ -306,6 +321,13 @@ namespace PlayniteAchievements.Views.Showcase
             }
 
             menu.Items.Clear();
+            var widgetItem = ShowcaseWidgetSettingsMenu.TryCreateItem(this, e.OriginalSource as DependencyObject);
+            if (widgetItem != null)
+            {
+                menu.Items.Add(widgetItem);
+                menu.Items.Add(new Separator());
+            }
+
             var editing = IsEditing;
             menu.Items.Add(MenuItem(
                 Localize(editing ? "LOCPlayAch_Common_View" : "LOCPlayAch_Common_Edit"),
@@ -392,16 +414,9 @@ namespace PlayniteAchievements.Views.Showcase
                     new ColumnDefinition { Width = new GridLength(weight, GridUnitType.Star) });
             }
 
-            if (EditLayoutButton.IsChecked == true &&
-                !CurrentPage.Blocks.Any(block => string.Equals(
-                    block.BlockId,
-                    _selectedBlockId,
-                    StringComparison.OrdinalIgnoreCase)))
-            {
-                _selectedBlockId = CurrentPage.Blocks.FirstOrDefault()?.BlockId;
-            }
-
-            foreach (var block in CurrentPage.Blocks)
+            ReconcileSelection();
+            AddGridLayers(rowCount, columnCount);
+            foreach (var block in ContainerBlocks())
             {
                 var container = CreateBlockContainer(block);
                 Grid.SetRow(container, block.Row);
@@ -421,6 +436,7 @@ namespace PlayniteAchievements.Views.Showcase
 
             UpdateLayoutHandles();
             ApplyPendingCutVisual();
+            RefreshGridLayers();
 
             // A rebuild destroys the focused block container, and with it the keyboard focus
             // the editor shortcuts need: PreviewKeyDown only fires while focus is inside this
@@ -772,6 +788,59 @@ namespace PlayniteAchievements.Views.Showcase
             {
                 UpdateTrackRulerText(_rowRulerTexts[index], ReadTrackSize(vertical: false, index));
             }
+
+            FitTrackChrome();
+        }
+
+        // The track whose edge strip is under the pointer (or whose menu is open), if any.
+        private (bool Vertical, int Index)? _litTrack;
+
+        // The length of a track gripper's grab pad along its axis (see CreateTrackGripper).
+        private const double TrackGripperLength = 22;
+
+        // On narrow tracks the edit chrome would bury the page: a size label longer than its
+        // track hides, and so does a gripper whose two tracks are both shorter than it, except
+        // around the highlighted track, whose strip brings them back for typing or dragging.
+        // Hidden rather than collapsed, so the labels keep their measured length.
+        private void FitTrackChrome()
+        {
+            FitTrackRulers(_columnRulerTexts, vertical: true);
+            FitTrackRulers(_rowRulerTexts, vertical: false);
+            foreach (var gripper in _trackGrippers)
+            {
+                if (!(gripper.Tag is ValueTuple<bool, int> track))
+                {
+                    continue;
+                }
+
+                var (vertical, boundary) = track;
+                var lit = _litTrack.HasValue &&
+                    _litTrack.Value.Vertical == vertical &&
+                    (_litTrack.Value.Index == boundary || _litTrack.Value.Index == boundary + 1);
+                var narrow = ReadTrackSize(vertical, boundary) < TrackGripperLength &&
+                    ReadTrackSize(vertical, boundary + 1) < TrackGripperLength;
+                gripper.Visibility = narrow && !lit ? Visibility.Hidden : Visibility.Visible;
+            }
+        }
+
+        private void FitTrackRulers(IReadOnlyList<TextBox> boxes, bool vertical)
+        {
+            for (var index = 0; index < boxes.Count; index++)
+            {
+                if (!(boxes[index].Parent is FrameworkElement ruler) || boxes[index].IsKeyboardFocusWithin)
+                {
+                    continue;
+                }
+
+                var lit = _litTrack.HasValue &&
+                    _litTrack.Value.Vertical == vertical &&
+                    _litTrack.Value.Index == index;
+                // Row labels are turned by a layout transform, so their length is their height.
+                var length = vertical ? ruler.DesiredSize.Width : ruler.DesiredSize.Height;
+                ruler.Visibility = lit || length <= ReadTrackSize(vertical, index)
+                    ? Visibility.Visible
+                    : Visibility.Hidden;
+            }
         }
 
         // A box being typed in keeps what the user typed.
@@ -829,6 +898,7 @@ namespace PlayniteAchievements.Views.Showcase
             }
 
             Panel.SetZIndex(thumb, 40);
+            thumb.Tag = (vertical, boundary);
             thumb.DragDelta += (_, args) => AdjustTrackWeights(
                 vertical,
                 boundary,
@@ -871,7 +941,7 @@ namespace PlayniteAchievements.Views.Showcase
             // First entry into edit mode on this dashboard: build the chrome now. AddTrackGrippers
             // re-enters here once the lists are populated (a one-track page has no grippers but
             // still gets rulers, so both lists gate the re-entry).
-            if (editing && _blockVisuals.Count > 0 && _trackGrippers.Count == 0 && _trackRulers.Count == 0)
+            if (editing && IsDashboardBuilt && _trackGrippers.Count == 0 && _trackRulers.Count == 0)
             {
                 AddTrackGrippers();
                 return;
@@ -911,18 +981,11 @@ namespace PlayniteAchievements.Views.Showcase
             }
 
             // Convert the pixel drag into star units and move weight between the two tracks
-            // that meet at this boundary, clamping both while keeping their total unchanged.
+            // that meet at this boundary.
             var deltaStars = pixelDelta / (totalPixels / sum);
-            var pairSum = weights[boundary] + weights[boundary + 1];
-            var lower = Math.Max(
-                ShowcaseLayoutService.MinTrackWeight,
-                pairSum - ShowcaseLayoutService.MaxTrackWeight);
-            var upper = Math.Min(
-                ShowcaseLayoutService.MaxTrackWeight,
-                pairSum - ShowcaseLayoutService.MinTrackWeight);
-            var first = Math.Min(upper, Math.Max(lower, weights[boundary] + deltaStars));
-            weights[boundary] = first;
-            weights[boundary + 1] = pairSum - first;
+            // MinTrackPixels in star units, so neither track of the pair can be dragged below it.
+            var minWeight = ShowcaseLayoutService.MinTrackPixels / (totalPixels / sum);
+            weights = ShowcaseLayoutService.TransferTrackWeight(weights, boundary, deltaStars, minWeight);
             ApplyTrackWeights(vertical, weights);
             ScheduleTrackRulerUpdate();
         }
@@ -949,6 +1012,16 @@ namespace PlayniteAchievements.Views.Showcase
                         new GridLength(weights[index], GridUnitType.Star);
                 }
             }
+
+            // The layers keep their size when only the tracks move, so they would not redraw.
+            InvalidateGridLayers();
+        }
+
+        private void InvalidateGridLayers()
+        {
+            _cellLayer?.InvalidateVisual();
+            _latticeLayer?.InvalidateVisual();
+            ScheduleAddButtonSizing();
         }
 
         // The drag already resized the live definitions, so persist and refresh the signature
@@ -987,6 +1060,7 @@ namespace PlayniteAchievements.Views.Showcase
             }
 
             _layoutHandles.Clear();
+            _overlayAddButton = null;
             HideCutGhost();
             ClearMergePreviewGlow();
             if (_suppressedAddButton != null)
@@ -998,14 +1072,7 @@ namespace PlayniteAchievements.Views.Showcase
             }
 
             var block = SelectedBlock;
-            if (EditLayoutButton.IsChecked != true)
-            {
-                return;
-            }
-
-            AddLatticeLines();
-
-            if (block == null)
+            if (EditLayoutButton.IsChecked != true || block == null)
             {
                 return;
             }
@@ -1027,9 +1094,11 @@ namespace PlayniteAchievements.Views.Showcase
             // at 39 — nesting can't outrank them. So the selected block's + is re-hosted in
             // the overlay layer (above lines and grippers, below the non-hit-testable ghost)
             // and the in-block one is hidden until selection moves on.
-            if (string.IsNullOrWhiteSpace(block.WidgetInstanceId))
+            // A block too small for the + keeps only its chevrons, which the + would cover.
+            if (string.IsNullOrWhiteSpace(block.WidgetInstanceId) && AddButtonSizeFor(block) > 0)
             {
                 var overlayAdd = CreateAddWidgetButton(block);
+                _overlayAddButton = overlayAdd;
                 overlayAdd.Visibility = Visibility.Visible;
                 Grid.SetRow(overlayAdd, block.Row);
                 Grid.SetColumn(overlayAdd, block.Column);
@@ -1047,66 +1116,70 @@ namespace PlayniteAchievements.Views.Showcase
             }
         }
 
-        // The page-wide cell lattice, drawn only while editing. Blocks tile the grid and
-        // span whole cells, so the lattice is the only thing that shows where a block could be
-        // cut before one is selected. Deliberately quieter than the accent dashed cut lines and
-        // below them in ZIndex: this is orientation, not an affordance, and it never takes a hit.
-        private void AddLatticeLines()
-        {
-            for (var line = 1; line < PageColumnCount; line++)
-            {
-                AddLayoutHandle(CreateLatticeLine(vertical: true, line, PageRowCount));
-            }
+        // The grid's two drawn layers. The cell layer sits behind the block containers and draws
+        // every implicit empty cell that has no container. The lattice, drawn only while
+        // editing, is the only thing that shows where a block could be cut before one is
+        // selected; it sits below the cut lines (39) and grippers (40), quieter than both, as
+        // orientation rather than an affordance.
+        private ShowcaseCellLayer _cellLayer;
+        private ShowcaseLatticeLayer _latticeLayer;
 
-            for (var line = 1; line < PageRowCount; line++)
+        private void AddGridLayers(int rowCount, int columnCount)
+        {
+            _cellLayer = new ShowcaseCellLayer();
+            _cellLayer.CellClicked += CellLayer_CellClicked;
+            _cellLayer.PreviewDragOver += CellLayer_DragOver;
+            _cellLayer.PreviewDrop += CellLayer_Drop;
+            Panel.SetZIndex(_cellLayer, -1);
+            _latticeLayer = new ShowcaseLatticeLayer();
+            Panel.SetZIndex(_latticeLayer, 38);
+            // Added directly rather than through AddOverlay: both measure to zero, so they never
+            // raise a track's size, and they need the grid as their visual parent to read its
+            // definitions.
+            foreach (var layer in new FrameworkElement[] { _cellLayer, _latticeLayer })
             {
-                AddLayoutHandle(CreateLatticeLine(vertical: false, line, PageColumnCount));
+                Grid.SetRowSpan(layer, rowCount);
+                Grid.SetColumnSpan(layer, columnCount);
+                DashboardGrid.Children.Add(layer);
             }
         }
 
-        // crossCount is the number of tracks the line runs across: rows for a vertical line.
-        private static System.Windows.Shapes.Rectangle CreateLatticeLine(
-            bool vertical,
-            int boundary,
-            int crossCount)
+        // Points both layers at the current page: its implicit cells without a container, the
+        // edit state, and the track counts they span.
+        private void RefreshGridLayers()
         {
-            var line = new System.Windows.Shapes.Rectangle
+            if (_cellLayer == null || _latticeLayer == null)
             {
-                IsHitTestVisible = false,
-                SnapsToDevicePixels = true,
-                Opacity = 0.5
-            };
-            // Accent rather than the border brush: PlayAch.Brush.Border follows the theme's
-            // NormalBorderBrush, which in several themes is too low-contrast to see as a
-            // hairline. Solid and thin still reads as secondary next to the dashed 2px cut lines.
-            line.SetResourceReference(System.Windows.Shapes.Shape.FillProperty, "PlayAch.Brush.Accent");
-
-            // Straddles the track edge by half its width so the line sits on the boundary
-            // rather than inside the cell before it.
-            if (vertical)
-            {
-                line.Width = 1;
-                line.HorizontalAlignment = HorizontalAlignment.Right;
-                line.VerticalAlignment = VerticalAlignment.Stretch;
-                line.Margin = new Thickness(0, 0, -0.5, 0);
-                Grid.SetColumn(line, boundary - 1);
-                Grid.SetRow(line, 0);
-                Grid.SetRowSpan(line, crossCount);
-            }
-            else
-            {
-                line.Height = 1;
-                line.HorizontalAlignment = HorizontalAlignment.Stretch;
-                line.VerticalAlignment = VerticalAlignment.Bottom;
-                line.Margin = new Thickness(0, 0, 0, -0.5);
-                Grid.SetRow(line, boundary - 1);
-                Grid.SetColumn(line, 0);
-                Grid.SetColumnSpan(line, crossCount);
+                return;
             }
 
-            // Below the cut lines (39) and grippers (40) so both keep visual and hit priority.
-            Panel.SetZIndex(line, 38);
-            return line;
+            var editing = EditLayoutButton.IsChecked == true;
+            foreach (var layer in new FrameworkElement[] { _cellLayer, _latticeLayer })
+            {
+                Grid.SetRowSpan(layer, PageRowCount);
+                Grid.SetColumnSpan(layer, PageColumnCount);
+            }
+
+            var coverage = ShowcaseLayoutService.CoverageOf(CurrentPage);
+            var cells = new List<(int Row, int Column)>();
+            for (var row = 0; row < coverage.GetLength(0); row++)
+            {
+                for (var column = 0; column < coverage.GetLength(1); column++)
+                {
+                    var stored = coverage[row, column];
+                    var id = stored == null || stored.IsImplicit
+                        ? stored?.BlockId ?? ShowcaseLayoutService.CellBlockId(CurrentPage.PageId, row, column)
+                        : null;
+                    if (id != null && !_blockVisuals.ContainsKey(id))
+                    {
+                        cells.Add((row, column));
+                    }
+                }
+            }
+
+            _cellLayer.Update(cells, editing);
+            _latticeLayer.Visibility = editing ? Visibility.Visible : Visibility.Collapsed;
+            _latticeLayer.InvalidateVisual();
         }
 
         private void AddLayoutHandle(FrameworkElement handle)
@@ -1796,7 +1869,18 @@ namespace PlayniteAchievements.Views.Showcase
 
             var current = CurrentPage;
             builder.Append('#').Append(current.PageId);
-            foreach (var block in current.Blocks)
+            var kinds = new Dictionary<string, ShowcaseWidgetKind>(StringComparer.OrdinalIgnoreCase);
+            foreach (var instance in Layout.WidgetInstances)
+            {
+                if (!string.IsNullOrWhiteSpace(instance?.InstanceId) && !kinds.ContainsKey(instance.InstanceId))
+                {
+                    kinds[instance.InstanceId] = instance.Kind;
+                }
+            }
+
+            // Implicit cells follow from the other blocks and the track counts, which are both
+            // part of the signature.
+            foreach (var block in current.Blocks.Where(block => !block.IsImplicit))
             {
                 builder.Append('#')
                     .Append(block.BlockId).Append(',')
@@ -1805,11 +1889,9 @@ namespace PlayniteAchievements.Views.Showcase
                     .Append(block.RowSpan).Append(',')
                     .Append(block.ColumnSpan).Append(',')
                     .Append(block.WidgetInstanceId ?? string.Empty);
-                var widget = Layout.WidgetInstances.FirstOrDefault(instance =>
-                    string.Equals(instance.InstanceId, block.WidgetInstanceId, StringComparison.OrdinalIgnoreCase));
-                if (widget != null)
+                if (block.WidgetInstanceId != null && kinds.TryGetValue(block.WidgetInstanceId, out var kind))
                 {
-                    builder.Append(',').Append((int)widget.Kind);
+                    builder.Append(',').Append((int)kind);
                 }
             }
 
@@ -2006,17 +2088,20 @@ namespace PlayniteAchievements.Views.Showcase
                 _hostCache.Remove(staleId);
             }
 
-            // Deleted widgets' control bar state goes with them. Start page widgets share the
-            // adapter registry, so their instances stay live too. A strip's widgets carry no
-            // control bar, and its layout cannot vouch for the Showcase page's instances.
+            // Deleted widgets' control bar state goes with them. Start page widgets and the
+            // Overview header's score cards share the adapter registry, so their instances stay
+            // live too. A strip's widgets carry no control bar, and its layout cannot vouch for
+            // the Showcase page's instances.
             if (_host.IsStrip)
             {
                 return;
             }
 
             var liveControlBars = new HashSet<string>(live, StringComparer.OrdinalIgnoreCase);
+            var persisted = _settings.Persisted;
             foreach (var widget in (Layout.StartPageInstances ??
-                new Dictionary<string, ShowcaseWidgetInstanceSettings>()).Values)
+                new Dictionary<string, ShowcaseWidgetInstanceSettings>()).Values
+                .Concat(new[] { persisted?.OverviewScoreCard1, persisted?.OverviewScoreCard2 }))
             {
                 if (!string.IsNullOrWhiteSpace(widget?.InstanceId))
                 {
@@ -2326,14 +2411,13 @@ namespace PlayniteAchievements.Views.Showcase
             };
             addGlyph.SetResourceReference(TextBlock.FontFamilyProperty, "PlayAch.FontFamily.Icon");
             addGlyph.SetResourceReference(TextBlock.ForegroundProperty, "PlayAch.Brush.Accent");
-            // A fixed-size centered target instead of a block-filling one: clicking anywhere
-            // else in the empty block only selects it, keeping the cut lines reachable.
+            // A centered target instead of a block-filling one: clicking anywhere else in the
+            // empty block only selects it, keeping the cut lines reachable. Sized as the cell
+            // layer draws it, so it shrinks with small blocks and is absent from tiny ones.
             var add = new Button
             {
                 Content = addGlyph,
                 Tag = block,
-                Width = 68,
-                Height = 68,
                 HorizontalAlignment = HorizontalAlignment.Center,
                 VerticalAlignment = VerticalAlignment.Center,
                 BorderThickness = new Thickness(0),
@@ -2343,7 +2427,83 @@ namespace PlayniteAchievements.Views.Showcase
             };
             add.SetResourceReference(Control.BackgroundProperty, "PlayAch.Brush.Overlay.Tint.08");
             add.Click += AddWidgetButton_Click;
+            SizeAddButton(add);
             return add;
+        }
+
+        private bool _addButtonSizingQueued;
+
+        // After a window or track resize has been laid out, resizes every add button on the page
+        // to its block's new size.
+        private void ScheduleAddButtonSizing()
+        {
+            if (_addButtonSizingQueued || _disposed)
+            {
+                return;
+            }
+
+            _addButtonSizingQueued = true;
+            Dispatcher.BeginInvoke(
+                new Action(() =>
+                {
+                    _addButtonSizingQueued = false;
+                    if (_disposed)
+                    {
+                        return;
+                    }
+
+                    foreach (var add in _blockVisuals.Values.Select(state => state.AddButton)
+                                 .Concat(new[] { _overlayAddButton })
+                                 .Where(button => button != null))
+                    {
+                        SizeAddButton(add);
+                    }
+                }),
+                System.Windows.Threading.DispatcherPriority.Loaded);
+        }
+
+        private void SizeAddButton(Button add)
+        {
+            var size = AddButtonSizeFor(add.Tag as ShowcaseBlockSettings);
+            add.Width = size;
+            add.Height = size;
+            if (add.Content is TextBlock glyph && size > 0)
+            {
+                glyph.FontSize = 34 * size / ShowcaseCellLayer.AddButtonSize;
+            }
+        }
+
+        // The add button's side for a block at the grid's current track sizes; full size before
+        // the grid is laid out.
+        private double AddButtonSizeFor(ShowcaseBlockSettings block)
+        {
+            if (block == null ||
+                block.Column + block.ColumnSpan > DashboardGrid.ColumnDefinitions.Count ||
+                block.Row + block.RowSpan > DashboardGrid.RowDefinitions.Count)
+            {
+                return ShowcaseCellLayer.AddButtonSize;
+            }
+
+            var width = 0d;
+            for (var column = block.Column; column < block.Column + block.ColumnSpan; column++)
+            {
+                width += DashboardGrid.ColumnDefinitions[column].ActualWidth;
+            }
+
+            var height = 0d;
+            for (var row = block.Row; row < block.Row + block.RowSpan; row++)
+            {
+                height += DashboardGrid.RowDefinitions[row].ActualHeight;
+            }
+
+            if (width <= 0 || height <= 0)
+            {
+                return ShowcaseCellLayer.AddButtonSize;
+            }
+
+            return ShowcaseCellLayer.AddButtonSizeFor(
+                width - 2 * ShowcaseCellLayer.Inset,
+                height - 2 * ShowcaseCellLayer.Inset);
         }
 
         // Small glyph button pinned to a top corner of a widget block in edit mode.
@@ -2401,10 +2561,6 @@ namespace PlayniteAchievements.Views.Showcase
 
                         SaveAndApplyBlocks();
                     });
-                item.IsEnabled = !captured.SingleInstancePerPage ||
-                    !CurrentPage.Blocks
-                        .Select(candidate => FindWidget(candidate.WidgetInstanceId))
-                        .Any(candidate => candidate?.Kind == captured.Kind);
                 menu.Items.Add(item);
             }
 
@@ -2505,7 +2661,14 @@ namespace PlayniteAchievements.Views.Showcase
                 return;
             }
 
-            _selectedBlockId = block.BlockId;
+            var previous = SelectedBlock;
+            SetSelection(block);
+            if (block.IsImplicit || previous?.IsImplicit == true)
+            {
+                // An implicit cell gains or loses its container with the selection.
+                SyncContainers();
+            }
+
             foreach (var state in _blockVisuals.Values)
             {
                 RefreshBlockChrome(state);
@@ -2744,6 +2907,19 @@ namespace PlayniteAchievements.Views.Showcase
         private void ClearDragVisuals()
         {
             _dragSourceBlockId = null;
+            if (_dropCellBlockId != null)
+            {
+                // Deferred: a drop is still applying its own layout change when this runs.
+                _dropCellBlockId = null;
+                Dispatcher.BeginInvoke(new Action(() =>
+                {
+                    if (!_disposed)
+                    {
+                        SyncContainers();
+                    }
+                }));
+            }
+
             foreach (var state in _blockVisuals.Values)
             {
                 state.Status.Text = string.Empty;
@@ -2865,7 +3041,7 @@ namespace PlayniteAchievements.Views.Showcase
         // can fall back to a full rebuild.
         private bool TryApplyBlocksInPlace()
         {
-            if (_disposed || _blockVisuals.Count == 0)
+            if (_disposed || !IsDashboardBuilt)
             {
                 return false;
             }
@@ -2886,7 +3062,8 @@ namespace PlayniteAchievements.Views.Showcase
                 ResizeTrackDefinitions(rowCount, columnCount);
             }
 
-            var blocks = CurrentPage.Blocks;
+            ReconcileSelection();
+            var blocks = ContainerBlocks();
             ApplyTrackWeights(vertical: false, ShowcaseLayoutService.NormalizeTrackWeights(CurrentPage.RowWeights, rowCount));
             ApplyTrackWeights(vertical: true, ShowcaseLayoutService.NormalizeTrackWeights(CurrentPage.ColumnWeights, columnCount));
             ClearMergePreviewGlow();
@@ -2909,11 +3086,6 @@ namespace PlayniteAchievements.Views.Showcase
                 LayersOf(removed.Container)?.Children.Clear();
                 DashboardGrid.Children.Remove(removed.Container);
                 _blockVisuals.Remove(removedId);
-            }
-
-            if (EditLayoutButton.IsChecked == true && !liveIds.Contains(_selectedBlockId ?? string.Empty))
-            {
-                _selectedBlockId = blocks.FirstOrDefault()?.BlockId;
             }
 
             foreach (var block in blocks)
@@ -3012,6 +3184,7 @@ namespace PlayniteAchievements.Views.Showcase
 
             UpdateLayoutHandles();
             ApplyPendingCutVisual();
+            RefreshGridLayers();
             FocusSelectedBlock();
             _layoutSignature = ComputeLayoutSignature();
             return true;
@@ -3129,13 +3302,9 @@ namespace PlayniteAchievements.Views.Showcase
                     _cutInstanceId = null;
                 }
 
-                if (FindWidget(SelectedBlock?.WidgetInstanceId) == null &&
-                    CurrentPage.Blocks.All(block => !string.Equals(
-                        block.BlockId,
-                        _selectedBlockId,
-                        StringComparison.OrdinalIgnoreCase)))
+                if (SelectedBlock == null)
                 {
-                    _selectedBlockId = CurrentPage.Blocks.FirstOrDefault()?.BlockId;
+                    SetSelection(FirstBlock());
                 }
 
                 _historyBaseline = Layout.Clone();
@@ -3168,7 +3337,7 @@ namespace PlayniteAchievements.Views.Showcase
         {
             // The constructor already built the dashboard; rebuilding here would re-project
             // every widget a second time before the first paint.
-            if (_blockVisuals.Count == 0)
+            if (!IsDashboardBuilt)
             {
                 Rebuild();
             }
@@ -3247,23 +3416,24 @@ namespace PlayniteAchievements.Views.Showcase
                 return;
             }
 
-            if (_blockVisuals.Count == 0)
+            if (!IsDashboardBuilt)
             {
                 BuildDashboard();
                 return;
             }
 
             var queued = new HashSet<ShowcaseWidgetControl>();
-            foreach (var block in CurrentPage.Blocks.OrderBy(block => block.Row).ThenBy(block => block.Column))
+            foreach (var visual in _blockVisuals.Values
+                         .Where(visual => visual?.Block != null)
+                         .OrderBy(visual => visual.Block.Row)
+                         .ThenBy(visual => visual.Block.Column))
             {
-                if (!_blockVisuals.TryGetValue(block.BlockId, out var visual) ||
-                    visual?.Host == null ||
-                    visual.Widget == null)
+                if (visual.Host == null || visual.Widget == null)
                 {
                     continue;
                 }
 
-                QueueWidgetApply(visual.Host, visual.Widget, block.BlockId, snapshotOnly: includeCachedHosts);
+                QueueWidgetApply(visual.Host, visual.Widget, visual.Block.BlockId, snapshotOnly: includeCachedHosts);
                 queued.Add(visual.Host);
             }
 
@@ -3335,7 +3505,8 @@ namespace PlayniteAchievements.Views.Showcase
         // Every other widget option re-projects from the snapshot already in hand. Unlock Next is
         // the exception: its locked achievements are not in the snapshot at all, and the overview
         // builder only hydrates them when a widget asks. Switching a mosaic to that source is
-        // therefore the one option edit that needs the snapshot rebuilt.
+        // therefore an option edit that needs the snapshot rebuilt, as is raising Max per game
+        // past the depth the pool was built to.
         //
         // A new achievement pin is the same case: the snapshot only holds unlocked rows plus the
         // locked pinned rows hydrated at build time, so a pin the build never saw would render as
@@ -3343,8 +3514,10 @@ namespace PlayniteAchievements.Views.Showcase
         private void EnsureSnapshotCoversLayout()
         {
             var snapshot = _overview.LatestSnapshot;
-            var needsUnlockNextPool = ShowcaseWidgetOptions.RequiresUnlockNextPool(Layout) &&
-                                      snapshot?.UnlockNextPoolBuilt != true;
+            var maxPerGame = ShowcaseWidgetOptions.GetUnlockNextMaxPerGame(Layout);
+            var needsUnlockNextPool = maxPerGame > 0 &&
+                                      (snapshot?.UnlockNextPoolBuilt != true ||
+                                       snapshot.UnlockNextPoolSlice < UnlockNextCandidateSelector.SliceFor(maxPerGame));
             var needsPinHydration = snapshot != null && !snapshot.HasSeenAchievementPins(Layout);
             if (!needsUnlockNextPool && !needsPinHydration)
             {
@@ -3461,19 +3634,23 @@ namespace PlayniteAchievements.Views.Showcase
                 : "LOCPlayAch_Common_View");
             if (EditLayoutButton.IsChecked == true && string.IsNullOrWhiteSpace(_selectedBlockId))
             {
-                _selectedBlockId = CurrentPage.Blocks.FirstOrDefault()?.BlockId;
+                SetSelection(FirstBlock());
             }
 
-            if (_blockVisuals.Count == 0)
+            if (!IsDashboardBuilt)
             {
                 BuildDashboard();
                 EditingChanged?.Invoke(this, EventArgs.Empty);
                 return;
             }
 
+            // The selected implicit cell has a container only while editing.
+            SyncContainers();
+
             // Toggling edit mode only changes block chrome and affordances; a full rebuild would
             // recreate every widget control (including the embedded data grids) and stall the click.
             UpdateTrackGripperVisibility();
+            RefreshGridLayers();
             var editing = EditLayoutButton.IsChecked == true;
             foreach (var state in _blockVisuals.Values)
             {
@@ -3498,8 +3675,163 @@ namespace PlayniteAchievements.Views.Showcase
             EditingChanged?.Invoke(this, EventArgs.Empty);
         }
 
-        private ShowcaseBlockSettings SelectedBlock => CurrentPage.Blocks.FirstOrDefault(block =>
-            string.Equals(block.BlockId, _selectedBlockId, StringComparison.OrdinalIgnoreCase));
+        // Implicit cells are made on request, so these return a new object for one each call;
+        // compare blocks by id, never by reference.
+        private ShowcaseBlockSettings SelectedBlock =>
+            ShowcaseLayoutService.ResolveBlock(CurrentPage, _selectedBlockId);
+
+        private ShowcaseBlockSettings FirstBlock() => BlockAt(0, 0);
+
+        private bool IsDashboardBuilt => _builtPageId != null;
+
+        // Where the selection was, so a selection whose block comes back under another id (an
+        // empty cell split off a merged block, or merged away) stays on the same spot.
+        private int _selectedRow = -1;
+        private int _selectedColumn = -1;
+
+        // The implicit cell a widget drag is over: it gets a container for the drop status.
+        private string _dropCellBlockId;
+
+        private void SetSelection(ShowcaseBlockSettings block)
+        {
+            _selectedBlockId = block?.BlockId;
+            if (block != null)
+            {
+                _selectedRow = block.Row;
+                _selectedColumn = block.Column;
+            }
+        }
+
+        // Before containers are built: a selection whose block is gone moves to whichever block
+        // now covers its cell, and to the first block when nothing does.
+        private void ReconcileSelection()
+        {
+            if (EditLayoutButton.IsChecked != true)
+            {
+                return;
+            }
+
+            var selected = SelectedBlock;
+            SetSelection(selected ?? BlockAt(_selectedRow, _selectedColumn) ?? FirstBlock());
+        }
+
+        private ShowcaseBlockSettings BlockAt(int row, int column) =>
+            ShowcaseLayoutService.ResolveCell(CurrentPage, row, column);
+
+        // The blocks that get a container: every stored block, and while editing the selected
+        // implicit cell (it carries the +, chevrons and keyboard focus) and the one a widget drag
+        // is over (it shows the drop status). Other implicit cells are drawn by the cell layer.
+        private List<ShowcaseBlockSettings> ContainerBlocks()
+        {
+            var blocks = CurrentPage.Blocks.Where(block => !block.IsImplicit).ToList();
+            if (EditLayoutButton.IsChecked != true)
+            {
+                return blocks;
+            }
+
+            foreach (var id in new[] { _selectedBlockId, _dropCellBlockId })
+            {
+                var block = ShowcaseLayoutService.ResolveBlock(CurrentPage, id);
+                if (block != null &&
+                    block.IsImplicit &&
+                    !blocks.Any(other => string.Equals(other.BlockId, block.BlockId, StringComparison.OrdinalIgnoreCase)))
+                {
+                    blocks.Add(block);
+                }
+            }
+
+            return blocks;
+        }
+
+        // Brings the containers in line with ContainerBlocks after the selection or drop cell moved.
+        private void SyncContainers()
+        {
+            if (!IsDashboardBuilt)
+            {
+                return;
+            }
+
+            var wanted = ContainerBlocks();
+            if (wanted.Count == _blockVisuals.Count &&
+                wanted.All(block => _blockVisuals.ContainsKey(block.BlockId)))
+            {
+                return;
+            }
+
+            if (!TryApplyBlocksInPlace())
+            {
+                Rebuild();
+            }
+        }
+
+        private void CellLayer_CellClicked(int row, int column, bool onAddButton)
+        {
+            var block = BlockAt(row, column);
+            if (block == null)
+            {
+                return;
+            }
+
+            SelectBlock(block);
+            FocusSelectedBlock();
+            if (onAddButton)
+            {
+                OpenWidgetPicker(block, DashboardSurface);
+            }
+        }
+
+        // A drag over a cell the layer draws: give the cell a container, which takes the rest of
+        // the drag (and the drop) through the ordinary block handlers.
+        private void CellLayer_DragOver(object sender, DragEventArgs e)
+        {
+            var target = DropCellContainer(e);
+            if (target == null)
+            {
+                e.Effects = DragDropEffects.None;
+                e.Handled = true;
+                return;
+            }
+
+            Block_DragOver(target, e);
+        }
+
+        private void CellLayer_Drop(object sender, DragEventArgs e)
+        {
+            var target = DropCellContainer(e);
+            if (target == null)
+            {
+                e.Effects = DragDropEffects.None;
+                e.Handled = true;
+                return;
+            }
+
+            Block_Drop(target, e);
+        }
+
+        private Border DropCellContainer(DragEventArgs e)
+        {
+            if (EditLayoutButton.IsChecked != true || _cellLayer == null)
+            {
+                return null;
+            }
+
+            var (row, column) = _cellLayer.CellAt(e.GetPosition(_cellLayer));
+            var block = row < 0 ? null : BlockAt(row, column);
+            if (block == null)
+            {
+                return null;
+            }
+
+            if (!string.Equals(block.BlockId, _dropCellBlockId, StringComparison.OrdinalIgnoreCase))
+            {
+                _dropCellBlockId = block.BlockId;
+                SyncContainers();
+            }
+
+            return _blockVisuals.TryGetValue(block.BlockId, out var state)
+                ? state.Container as Border
+                : null;
+        }
 
         private void SplitBlock(
             string pageId,
@@ -3567,8 +3899,27 @@ namespace PlayniteAchievements.Views.Showcase
                 return new List<ShowcaseBlockSettings>();
             }
 
-            return CurrentPage.Blocks
-                .Where(candidate => candidate != null && !ReferenceEquals(candidate, block))
+            // The blocks covering the strip of cells just past the edge, implicit cells included.
+            var rowStart = rowDirection < 0 ? block.Row - 1 : rowDirection > 0 ? block.Row + block.RowSpan : block.Row;
+            var rowEnd = rowDirection == 0 ? block.Row + block.RowSpan : rowStart + 1;
+            var columnStart = columnDirection < 0 ? block.Column - 1 : columnDirection > 0 ? block.Column + block.ColumnSpan : block.Column;
+            var columnEnd = columnDirection == 0 ? block.Column + block.ColumnSpan : columnStart + 1;
+            var candidates = new Dictionary<string, ShowcaseBlockSettings>(StringComparer.OrdinalIgnoreCase);
+            for (var row = rowStart; row < rowEnd; row++)
+            {
+                for (var column = columnStart; column < columnEnd; column++)
+                {
+                    var candidate = BlockAt(row, column);
+                    if (candidate != null && !candidates.ContainsKey(candidate.BlockId))
+                    {
+                        candidates[candidate.BlockId] = candidate;
+                    }
+                }
+            }
+
+            return candidates.Values
+                .Where(candidate => candidate != null &&
+                    !string.Equals(candidate.BlockId, block.BlockId, StringComparison.OrdinalIgnoreCase))
                 .Where(candidate =>
                     rowDirection < 0
                         ? candidate.Row + candidate.RowSpan == block.Row &&
@@ -3997,20 +4348,6 @@ namespace PlayniteAchievements.Views.Showcase
                 return;
             }
 
-            var definition = ShowcaseWidgetCatalog.Get(_clipboardWidget.Kind);
-            if (definition != null &&
-                definition.SingleInstancePerPage &&
-                CurrentPage.Blocks
-                    .Where(candidate => !string.Equals(
-                        candidate.BlockId,
-                        block.BlockId,
-                        StringComparison.OrdinalIgnoreCase))
-                    .Select(candidate => FindWidget(candidate.WidgetInstanceId))
-                    .Any(candidate => candidate?.Kind == _clipboardWidget.Kind))
-            {
-                return;
-            }
-
             if (!ConfirmReplacingWidgetIn(block))
             {
                 return;
@@ -4090,7 +4427,7 @@ namespace PlayniteAchievements.Views.Showcase
 
         private void SelectBlockAfterPaste(ShowcaseBlockSettings block)
         {
-            _selectedBlockId = block?.BlockId;
+            SetSelection(block);
         }
 
         // The pending cut is shown by fading its block, so a cut that is never pasted is
@@ -4113,10 +4450,8 @@ namespace PlayniteAchievements.Views.Showcase
                     continue;
                 }
 
-                var block = CurrentPage.Blocks.FirstOrDefault(candidate => string.Equals(
-                    candidate.BlockId,
-                    state.Block?.BlockId,
-                    StringComparison.OrdinalIgnoreCase));
+                // Every apply points the visual at the page's current block object.
+                var block = state.Block;
                 var isCut = block != null &&
                     !string.IsNullOrWhiteSpace(instanceId) &&
                     string.Equals(block.WidgetInstanceId, instanceId, StringComparison.OrdinalIgnoreCase);

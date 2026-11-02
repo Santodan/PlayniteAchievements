@@ -334,8 +334,8 @@ namespace PlayniteAchievements.Views
 
             var favoriteItem = CreateMenuItem(
                 friend.IsFavorite
-                    ? "LOCRemoveFavoriteGame"
-                    : "LOCFavoriteGame",
+                    ? "LOCPlayAch_Common_RemoveFromFavorites"
+                    : "LOCPlayAch_Common_AddToFavorites",
                 friend.IsFavorite ? "Remove from Favorites" : "Add to Favorites",
                 () =>
                 {

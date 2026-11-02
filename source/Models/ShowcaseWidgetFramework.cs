@@ -58,10 +58,6 @@ namespace PlayniteAchievements.Models
 
         public string NameKey { get; set; }
 
-        public bool AllowMultipleInstances { get; set; }
-
-        public bool SingleInstancePerPage { get; set; }
-
         /// <summary>
         /// Hidden kinds are omitted from the add-widget pickers but keep rendering already-placed
         /// widgets. NativePoints is parked here as underbaked rather than deleted.
@@ -74,19 +70,19 @@ namespace PlayniteAchievements.Models
         private static readonly IReadOnlyList<ShowcaseWidgetDefinition> DefinitionsValue =
             new List<ShowcaseWidgetDefinition>
             {
-                Define(ShowcaseWidgetKind.Profile, "LOCPlayAch_Showcase_Widget_Profile", false, true),
-                Define(ShowcaseWidgetKind.Scores, "LOCPlayAch_Showcase_Widget_Scores", true, false),
-                Define(ShowcaseWidgetKind.Pie, "LOCPlayAch_Showcase_Widget_Pie", true, false),
-                Define(ShowcaseWidgetKind.Timeline, "LOCPlayAch_Showcase_Widget_Timeline", true, false),
-                Define(ShowcaseWidgetKind.Statistics, "LOCPlayAch_Showcase_Widget_Statistics", true, false),
-                Define(ShowcaseWidgetKind.NativePoints, "LOCPlayAch_Showcase_Widget_NativePoints", true, false, hidden: true),
-                Define(ShowcaseWidgetKind.IconMosaic, "LOCPlayAch_Showcase_Widget_IconMosaic", true, false),
-                Define(ShowcaseWidgetKind.ScreenshotSlideshow, "LOCPlayAch_Showcase_Widget_ScreenshotSlideshow", true, false),
-                Define(ShowcaseWidgetKind.RecentAchievements, "LOCPlayAch_Showcase_Widget_RecentAchievements", true, false),
-                Define(ShowcaseWidgetKind.GameSummaries, "LOCPlayAch_Showcase_Widget_GameSummaries", true, false),
-                Define(ShowcaseWidgetKind.ActivityCalendar, "LOCPlayAch_Showcase_Widget_ActivityCalendar", true, false),
-                Define(ShowcaseWidgetKind.Image, "LOCPlayAch_Showcase_Widget_Image", true, false),
-                Define(ShowcaseWidgetKind.Text, "LOCPlayAch_Showcase_Widget_Text", true, false)
+                Define(ShowcaseWidgetKind.Profile, "LOCPlayAch_Showcase_Widget_Profile"),
+                Define(ShowcaseWidgetKind.Scores, "LOCPlayAch_Showcase_Widget_Scores"),
+                Define(ShowcaseWidgetKind.Pie, "LOCPlayAch_Showcase_Widget_Pie"),
+                Define(ShowcaseWidgetKind.Timeline, "LOCPlayAch_Showcase_Widget_Timeline"),
+                Define(ShowcaseWidgetKind.Statistics, "LOCPlayAch_Showcase_Widget_Statistics"),
+                Define(ShowcaseWidgetKind.NativePoints, "LOCPlayAch_Showcase_Widget_NativePoints", hidden: true),
+                Define(ShowcaseWidgetKind.IconMosaic, "LOCPlayAch_Showcase_Widget_IconMosaic"),
+                Define(ShowcaseWidgetKind.ScreenshotSlideshow, "LOCPlayAch_Showcase_Widget_ScreenshotSlideshow"),
+                Define(ShowcaseWidgetKind.RecentAchievements, "LOCPlayAch_Showcase_Widget_RecentAchievements"),
+                Define(ShowcaseWidgetKind.GameSummaries, "LOCPlayAch_Showcase_Widget_GameSummaries"),
+                Define(ShowcaseWidgetKind.ActivityCalendar, "LOCPlayAch_Showcase_Widget_ActivityCalendar"),
+                Define(ShowcaseWidgetKind.Image, "LOCPlayAch_Showcase_Widget_Image"),
+                Define(ShowcaseWidgetKind.Text, "LOCPlayAch_Showcase_Widget_Text")
             };
 
         public static IReadOnlyList<ShowcaseWidgetDefinition> Definitions => DefinitionsValue;
@@ -99,16 +95,12 @@ namespace PlayniteAchievements.Models
         private static ShowcaseWidgetDefinition Define(
             ShowcaseWidgetKind kind,
             string nameKey,
-            bool allowMultipleInstances,
-            bool singleInstancePerPage,
             bool hidden = false)
         {
             return new ShowcaseWidgetDefinition
             {
                 Kind = kind,
                 NameKey = nameKey,
-                AllowMultipleInstances = allowMultipleInstances,
-                SingleInstancePerPage = singleInstancePerPage,
                 Hidden = hidden
             };
         }
@@ -122,6 +114,9 @@ namespace PlayniteAchievements.Models
     {
         public const string RecentAchievements = "ShowcaseRecentAchievements";
         public const string GameSummaries = "ShowcaseGameSummaries";
+
+        /// <summary>An achievement grid widget's category list, which category mode shows.</summary>
+        public const string AchievementCategories = "ShowcaseAchievementCategories";
 
         private const char InstanceSeparator = ':';
 
@@ -157,6 +152,44 @@ namespace PlayniteAchievements.Models
                 GetBaseKey(columnSettingsKey),
                 GameSummaries,
                 StringComparison.OrdinalIgnoreCase);
+        }
+
+        public static bool IsAchievementCategorySurface(string columnSettingsKey)
+        {
+            return string.Equals(
+                GetBaseKey(columnSettingsKey),
+                AchievementCategories,
+                StringComparison.OrdinalIgnoreCase);
+        }
+
+        /// <summary>
+        /// The category list surface of the achievement grid widget whose surface is
+        /// <paramref name="achievementSurfaceKey"/>, or null for any other surface.
+        /// </summary>
+        public static string ResolveCategorySurface(string achievementSurfaceKey)
+        {
+            if (!IsAchievementSurface(achievementSurfaceKey))
+            {
+                return null;
+            }
+
+            var separator = achievementSurfaceKey.IndexOf(InstanceSeparator);
+            return ForInstance(
+                AchievementCategories,
+                separator < 0 ? null : achievementSurfaceKey.Substring(separator + 1));
+        }
+
+        /// <summary>The widget instance a per-instance surface key belongs to, or null for a bare base key.</summary>
+        public static string GetInstanceId(string columnSettingsKey)
+        {
+            var separator = columnSettingsKey?.IndexOf(InstanceSeparator) ?? -1;
+            if (separator < 0)
+            {
+                return null;
+            }
+
+            var instanceId = columnSettingsKey.Substring(separator + 1).Trim();
+            return instanceId.Length > 0 ? instanceId : null;
         }
 
         /// <summary>
@@ -201,6 +234,9 @@ namespace PlayniteAchievements.Models
             if (IsAchievementSurface(sourceKey) && IsAchievementSurface(targetKey))
             {
                 catalog.SetAchievement(targetKey, catalog.GetAchievement(sourceKey));
+                catalog.SetCategorySummaries(
+                    ResolveCategorySurface(targetKey),
+                    catalog.GetCategorySummaries(ResolveCategorySurface(sourceKey)));
             }
             else if (IsGameSurface(sourceKey) && IsGameSurface(targetKey))
             {
@@ -250,6 +286,13 @@ namespace PlayniteAchievements.Models
             {
                 catalog.RemoveGameSummaries(key);
             }
+
+            foreach (var key in catalog.CategorySummaries.Keys
+                .Where(key => IsOrphanedInstanceKey(key, IsAchievementCategorySurface, live))
+                .ToList())
+            {
+                catalog.RemoveCategorySummaries(key);
+            }
         }
 
         private static bool IsOrphanedInstanceKey(
@@ -262,14 +305,8 @@ namespace PlayniteAchievements.Models
                 return false;
             }
 
-            var separator = key.IndexOf(InstanceSeparator);
-            if (separator < 0)
-            {
-                return false;
-            }
-
-            var instanceId = key.Substring(separator + 1).Trim();
-            return instanceId.Length > 0 && !liveInstanceIds.Contains(instanceId);
+            var instanceId = GetInstanceId(key);
+            return instanceId != null && !liveInstanceIds.Contains(instanceId);
         }
     }
 
@@ -332,14 +369,97 @@ namespace PlayniteAchievements.Models
         public static void SetGranularity(ShowcaseWidgetInstanceSettings instance, TimelineGranularity value) =>
             instance?.SetOption(GranularityOption, value);
 
-        /// <summary>Splits each Timeline bar into one stacked segment per platform.</summary>
-        public static bool GetSplitByPlatform(ShowcaseWidgetInstanceSettings instance) =>
-            instance?.GetOption(SplitByPlatformOption, false) ?? false;
+        /// <summary>
+        /// What each Timeline bar is split into. A widget saved with the former split-by-platform
+        /// switch on splits by platform.
+        /// </summary>
+        public static ShowcaseTimelineSplit GetSplit(ShowcaseWidgetInstanceSettings instance)
+        {
+            if (instance?.Options?.ContainsKey(SplitOption) == true)
+            {
+                var value = instance.GetOption(SplitOption, ShowcaseTimelineSplit.None);
+                return Enum.IsDefined(typeof(ShowcaseTimelineSplit), value) ? value : ShowcaseTimelineSplit.None;
+            }
 
-        public static void SetSplitByPlatform(ShowcaseWidgetInstanceSettings instance, bool value) =>
-            instance?.SetOption(SplitByPlatformOption, value);
+            return instance?.GetOption(LegacySplitByPlatformOption, false) == true
+                ? ShowcaseTimelineSplit.Platform
+                : ShowcaseTimelineSplit.None;
+        }
 
-        public const string SplitByPlatformOption = "TimelineSplitByPlatform";
+        public static void SetSplit(ShowcaseWidgetInstanceSettings instance, ShowcaseTimelineSplit value)
+        {
+            if (instance == null)
+            {
+                return;
+            }
+
+            instance.SetOption(SplitOption, value);
+            instance.Options?.Remove(LegacySplitByPlatformOption);
+        }
+
+        public const string SplitOption = "TimelineSplit";
+
+        private const string LegacySplitByPlatformOption = "TimelineSplitByPlatform";
+
+        /// <summary>What a Timeline's bars count: unlocks, or games completed.</summary>
+        public static ShowcaseTimelineCount GetCount(ShowcaseWidgetInstanceSettings instance)
+        {
+            var value = instance?.GetOption(CountOption, ShowcaseTimelineCount.Unlocks) ?? ShowcaseTimelineCount.Unlocks;
+            return Enum.IsDefined(typeof(ShowcaseTimelineCount), value) ? value : ShowcaseTimelineCount.Unlocks;
+        }
+
+        public static void SetCount(ShowcaseWidgetInstanceSettings instance, ShowcaseTimelineCount value) =>
+            instance?.SetOption(CountOption, value);
+
+        private const string CountOption = "TimelineCount";
+    }
+
+    /// <summary>
+    /// Control bar item IDs, which name an item's visibility option. Stable: persisted per widget.
+    /// </summary>
+    public static class ShowcaseControlBarItems
+    {
+        public const string Search = "Search";
+        public const string Platform = "Platform";
+        public const string Game = "Game";
+        public const string Tag = "Tag";
+
+        /// <summary>The Screenshot Slideshow's screenshot style.</summary>
+        public const string ScreenshotStyle = "ScreenshotStyle";
+        public const string UnlockDate = "UnlockDate";
+        public const string Rarity = "Rarity";
+        public const string Trophy = "Trophy";
+        public const string Progress = "Progress";
+        public const string Activity = "Activity";
+
+        /// <summary>The Timeline and Activity Calendar time window picker.</summary>
+        public const string TimeWindow = "TimeWindow";
+
+        /// <summary>The Timeline's split menu.</summary>
+        public const string SplitByPlatform = "SplitByPlatform";
+
+        // The single-game achievement grids' items (Overview selected game, View Achievements,
+        // the friends achievement grids) and the friends lists'.
+        public const string Category = "Category";
+        public const string Compare = "Compare";
+        public const string Unlocked = "Unlocked";
+        public const string Locked = "Locked";
+        public const string Hidden = "Hidden";
+        public const string CategoryMode = "CategoryMode";
+        public const string Favorites = "Favorites";
+        public const string Ownership = "Ownership";
+
+        /// <summary>Every item a Timeline's control bar offers.</summary>
+        public static readonly IReadOnlyList<string> TimelineItems = new[]
+        {
+            TimeWindow,
+            SplitByPlatform,
+            Platform,
+            Game,
+            Tag,
+            Rarity,
+            Trophy
+        };
     }
 
     /// <summary>
@@ -361,7 +481,9 @@ namespace PlayniteAchievements.Models
         private const string HideCompleted = "HideCompleted";
         private const string ShowRarityGlow = "ShowRarityGlow";
         private const string ShowRarityBar = "ShowRarityBar";
+        // The whole-bar option per-item visibility replaced; read only as the per-item fallback.
         private const string ShowControlBar = "ShowControlBar";
+        private const string ControlBarItemPrefix = "ShowControlBarItem.";
         private const string UseCoverImages = "UseCoverImages";
         private const string ShowCompletionGlow = "ShowCompletionGlow";
         private const string ShowCompletionFrame = "ShowCompletionFrame";
@@ -378,10 +500,14 @@ namespace PlayniteAchievements.Models
         private const string ScoreHistoryShown = "ScoreHistoryShown";
         private const string ScoreCardUseCustomColors = "ScoreCardUseCustomColors";
         private const string ScoreCardShowTotal = "ScoreCardShowTotal";
+        private const string ScoreCardShowRarityBadges = "ScoreCardShowRarityBadges";
+        private const string ScoreCardArt = "ScoreCardArt";
         private const string IncludeLocked = "IncludeLocked";
         private const string SmallSliceMode = "SmallSliceMode";
         private const string ActivityScope = "ActivityScope";
         internal const string PinCollectionId = "PinCollectionId";
+        private const string CollectionType = "CollectionType";
+        private const string LegacyPinnedSource = "Pinned";
         private const string Content = "Content";
         private const string ProfileStats = "ProfileStats";
         private const string StatisticsStats = "StatisticsStats";
@@ -390,6 +516,9 @@ namespace PlayniteAchievements.Models
         private const string ProfileLayoutOption = "ProfileLayout";
         private const string ProfileLinks = "ProfileLinks";
         private const string MosaicIconSize = "MosaicIconSize";
+        private const string ProfileAvatarWidth = "ProfileAvatarWidth";
+        private const string ProfileAvatarHeight = "ProfileAvatarHeight";
+        private const string ProfileLinkIconSize = "ProfileLinkIconSize";
         private const string MosaicCoverWidth = "MosaicCoverWidth";
         private const string MosaicSpacing = "MosaicSpacing";
         private const string Sort = "Sort";
@@ -405,6 +534,7 @@ namespace PlayniteAchievements.Models
         private const string InfoPanel = "InfoPanel";
         private const string ImagePath = "ImagePath";
         private const string TextContent = "Text";
+        private const string ActivityColor = "ActivityColor";
         private const string HorizontalAlign = "HorizontalAlignment";
         private const string TitleAlign = "TitleAlignment";
         private const string ShowBackground = "ShowBackground";
@@ -492,6 +622,117 @@ namespace PlayniteAchievements.Models
                 string.Join(",", (keys ?? Enumerable.Empty<string>())
                     .Where(key => !string.IsNullOrWhiteSpace(key))
                     .Select(key => key.Trim())));
+        }
+
+        /// <summary>
+        /// Which kind of pin collection the widget is limited to; the collection itself is
+        /// <see cref="GetPinCollectionId"/>. Only achievement widgets take achievement
+        /// collections, and only widgets with a game or achievement list take one at all. A widget
+        /// saved with the former Pinned source reads as limited to that source's collection.
+        /// </summary>
+        public static ShowcaseCollectionType GetCollectionType(ShowcaseWidgetInstanceSettings settings)
+        {
+            if (settings == null)
+            {
+                return ShowcaseCollectionType.None;
+            }
+
+            var type = settings.Options?.ContainsKey(CollectionType) == true
+                ? GetEnum(settings, CollectionType, ShowcaseCollectionType.None)
+                : LegacyCollectionType(settings);
+            switch (type)
+            {
+                case ShowcaseCollectionType.Achievements:
+                    return OffersAchievementCollections(settings) ? type : ShowcaseCollectionType.None;
+                case ShowcaseCollectionType.Games:
+                    return OffersCollections(settings) ? type : ShowcaseCollectionType.None;
+                default:
+                    return ShowcaseCollectionType.None;
+            }
+        }
+
+        public static void SetCollectionType(
+            ShowcaseWidgetInstanceSettings settings,
+            ShowcaseCollectionType value) => settings?.SetOption(CollectionType, value);
+
+        /// <summary>Whether the widget lists achievements, so it can take an achievement collection.</summary>
+        public static bool OffersAchievementCollections(ShowcaseWidgetInstanceSettings settings)
+        {
+            switch (settings?.Kind)
+            {
+                case ShowcaseWidgetKind.RecentAchievements:
+                case ShowcaseWidgetKind.ScreenshotSlideshow:
+                    return true;
+                case ShowcaseWidgetKind.IconMosaic:
+                    return GetMosaicContent(settings) == ShowcaseMosaicContent.Achievements;
+                default:
+                    return false;
+            }
+        }
+
+        /// <summary>Whether the widget lists or counts games, so it can take a game collection.</summary>
+        public static bool OffersCollections(ShowcaseWidgetInstanceSettings settings)
+        {
+            switch (settings?.Kind)
+            {
+                case ShowcaseWidgetKind.RecentAchievements:
+                case ShowcaseWidgetKind.GameSummaries:
+                case ShowcaseWidgetKind.IconMosaic:
+                case ShowcaseWidgetKind.Pie:
+                case ShowcaseWidgetKind.ScreenshotSlideshow:
+                case ShowcaseWidgetKind.Profile:
+                case ShowcaseWidgetKind.Statistics:
+                    return true;
+                default:
+                    return false;
+            }
+        }
+
+        // A source saved as the former "Pinned" stands for its collection: an achievement one on
+        // the achievement grid and achievement mosaic, a game one on the game grid and game mosaic.
+        // A slideshow's former collection sources name their kind.
+        private static ShowcaseCollectionType LegacyCollectionType(ShowcaseWidgetInstanceSettings settings)
+        {
+            if (settings?.Kind == ShowcaseWidgetKind.ScreenshotSlideshow)
+            {
+                string raw = null;
+                settings.Options?.TryGetValue(Source, out raw);
+                switch (raw?.Trim())
+                {
+                    case "GameCollection":
+                        return ShowcaseCollectionType.Games;
+                    case "AchievementCollection":
+                        return ShowcaseCollectionType.Achievements;
+                    default:
+                        return ShowcaseCollectionType.None;
+                }
+            }
+
+            if (!IsLegacyPinnedSource(settings))
+            {
+                return ShowcaseCollectionType.None;
+            }
+
+            return OffersAchievementCollections(settings)
+                ? ShowcaseCollectionType.Achievements
+                : ShowcaseCollectionType.Games;
+        }
+
+        private static bool IsLegacyPinnedSource(ShowcaseWidgetInstanceSettings settings) =>
+            settings?.Options != null &&
+            settings.Options.TryGetValue(Source, out var raw) &&
+            string.Equals(raw?.Trim(), LegacyPinnedSource, StringComparison.OrdinalIgnoreCase);
+
+        // Writes a former Pinned source's collection type before a source or content change
+        // replaces the value it is read from.
+        private static void KeepLegacyCollection(ShowcaseWidgetInstanceSettings settings)
+        {
+            if (settings != null &&
+                settings.Options?.ContainsKey(CollectionType) != true &&
+                IsLegacyPinnedSource(settings))
+            {
+                SetCollectionType(settings, LegacyCollectionType(settings));
+            }
         }
 
         public static string GetPinCollectionId(ShowcaseWidgetInstanceSettings settings)
@@ -611,6 +852,20 @@ namespace PlayniteAchievements.Models
         public static void SetScoreCardShowTotal(ShowcaseWidgetInstanceSettings settings, bool value) =>
             settings?.SetOption(ScoreCardShowTotal, value);
 
+        /// <summary>Whether a points card shows its games' unlocks per rarity under the bar; unset means hidden.</summary>
+        public static bool GetScoreCardShowRarityBadges(ShowcaseWidgetInstanceSettings settings) =>
+            settings?.GetOption(ScoreCardShowRarityBadges, false) ?? false;
+
+        public static void SetScoreCardShowRarityBadges(ShowcaseWidgetInstanceSettings settings, bool value) =>
+            settings?.SetOption(ScoreCardShowRarityBadges, value);
+
+        /// <summary>What a points card narrowed to one game shows in its icon slot; unset means the platform icon.</summary>
+        public static ShowcaseScoreCardArt GetScoreCardArt(ShowcaseWidgetInstanceSettings settings) =>
+            GetEnum(settings, ScoreCardArt, ShowcaseScoreCardArt.ProviderIcon);
+
+        public static void SetScoreCardArt(ShowcaseWidgetInstanceSettings settings, ShowcaseScoreCardArt value) =>
+            settings?.SetOption(ScoreCardArt, value);
+
         /// <summary>True for a Scores widget saved with the legacy Mode of Both and no card option.</summary>
         public static bool IsLegacyDualScores(ShowcaseWidgetInstanceSettings settings) =>
             settings?.Kind == ShowcaseWidgetKind.Scores &&
@@ -668,6 +923,44 @@ namespace PlayniteAchievements.Models
         public static void SetPieMode(ShowcaseWidgetInstanceSettings settings, ShowcasePieMode value) =>
             settings?.SetOption(Mode, value);
 
+        /// <summary>What a Provider pie counts per platform; other modes ignore it.</summary>
+        public static ShowcasePieCount GetPieCount(ShowcaseWidgetInstanceSettings settings) =>
+            GetEnum(settings, PieCount, ShowcasePieCount.Achievements);
+
+        public static void SetPieCount(ShowcaseWidgetInstanceSettings settings, ShowcasePieCount value) =>
+            settings?.SetOption(PieCount, value);
+
+        private const string PieCount = "PieCount";
+
+        /// <summary>
+        /// Whether the widget, as set, counts achievements, so its Tags, Rarity and Trophy
+        /// filters apply. A widget counting games (a Completions pie, a Provider pie counting
+        /// completed games, a Completions timeline or calendar) hides them: they narrow
+        /// achievements, never games.
+        /// </summary>
+        public static bool CountsAchievements(ShowcaseWidgetInstanceSettings settings)
+        {
+            switch (settings?.Kind)
+            {
+                case ShowcaseWidgetKind.Pie:
+                    switch (GetPieMode(settings))
+                    {
+                        case ShowcasePieMode.CompletedGames:
+                            return false;
+                        case ShowcasePieMode.Provider:
+                            return GetPieCount(settings) == ShowcasePieCount.Achievements;
+                        default:
+                            return true;
+                    }
+
+                case ShowcaseWidgetKind.Timeline:
+                case ShowcaseWidgetKind.ActivityCalendar:
+                    return ShowcaseTimelineOptions.GetCount(settings) == ShowcaseTimelineCount.Unlocks;
+                default:
+                    return true;
+            }
+        }
+
         /// <summary>
         /// Falls back to the legacy show-percentage toggle for widgets saved before the center
         /// mode existed: on reads as <see cref="PieCenterMode.Percentage"/>, off as
@@ -706,10 +999,11 @@ namespace PlayniteAchievements.Models
         public static void SetPieIncludeLocked(ShowcaseWidgetInstanceSettings settings, bool value) =>
             settings?.SetOption(IncludeLocked, value);
 
-        public static bool GetPieShowLegend(ShowcaseWidgetInstanceSettings settings) =>
+        /// <summary>Whether a pie or activity calendar shows its legend; unset means shown.</summary>
+        public static bool GetShowLegend(ShowcaseWidgetInstanceSettings settings) =>
             settings?.GetOption(ShowLegend, true) ?? true;
 
-        public static void SetPieShowLegend(ShowcaseWidgetInstanceSettings settings, bool value) =>
+        public static void SetShowLegend(ShowcaseWidgetInstanceSettings settings, bool value) =>
             settings?.SetOption(ShowLegend, value);
 
         public static PieLegendPosition GetPieLegendPosition(ShowcaseWidgetInstanceSettings settings) =>
@@ -732,25 +1026,177 @@ namespace PlayniteAchievements.Models
             OverviewPieSmallSliceMode value) => settings?.SetOption(SmallSliceMode, value);
 
         /// <summary>
-        /// Whether the pie shows a game control bar above the chart. Its filters narrow the games
-        /// the pie's totals are computed from, and stay in effect while the bar is hidden.
+        /// Prefix of the widget options holding control bar filter state (search text and filter
+        /// selections). Those options belong to the user, not the layout: an export strips them,
+        /// and the widget settings dialog leaves them as the bar last saved them.
         /// </summary>
-        public static bool GetPieShowControlBar(ShowcaseWidgetInstanceSettings settings) =>
-            settings?.GetOption(ShowControlBar, false) ?? false;
+        public const string ControlBarStatePrefix = "ControlBar.";
 
-        public static void SetPieShowControlBar(ShowcaseWidgetInstanceSettings settings, bool value) =>
+        /// <summary>
+        /// Whether the widget shows a control bar at all, off by default. A grid widget saved
+        /// before it had this option of its own reads its grid surface's Show Control Bar,
+        /// <paramref name="gridSurfaceVisible"/>.
+        /// </summary>
+        public static bool GetShowControlBar(
+            ShowcaseWidgetInstanceSettings settings,
+            bool? gridSurfaceVisible = null)
+        {
+            if (settings?.Options != null &&
+                settings.Options.TryGetValue(ShowControlBar, out var raw) &&
+                bool.TryParse(raw, out var shown))
+            {
+                return shown;
+            }
+
+            return gridSurfaceVisible ?? false;
+        }
+
+        public static void SetShowControlBar(ShowcaseWidgetInstanceSettings settings, bool value) =>
             settings?.SetOption(ShowControlBar, value);
 
         /// <summary>
-        /// Whether a Timeline or Activity Calendar widget shows its own controls (the time window,
-        /// and for the timeline its bar width and platform split) above the chart. Shares the
-        /// pie's option, so one widget has one Show Control Bar setting whatever its kind.
+        /// Whether the widget's control bar shows the item <paramref name="itemId"/> (one of
+        /// <see cref="ShowcaseControlBarItems"/>): only while the widget shows its control bar
+        /// (<see cref="GetShowControlBar"/>), and then unless the item is turned off on its own. A
+        /// hidden item's filter stays in effect, and its editor stays in the widget settings.
         /// </summary>
-        public static bool GetShowControls(ShowcaseWidgetInstanceSettings settings) =>
-            settings?.GetOption(ShowControlBar, false) ?? false;
+        public static bool GetControlBarItemVisible(
+            ShowcaseWidgetInstanceSettings settings,
+            string itemId,
+            bool? gridSurfaceVisible = null) =>
+            !string.IsNullOrWhiteSpace(itemId) &&
+            GetShowControlBar(settings, gridSurfaceVisible) &&
+            GetControlBarItemChecked(settings, itemId);
 
-        public static void SetShowControls(ShowcaseWidgetInstanceSettings settings, bool value) =>
-            settings?.SetOption(ShowControlBar, value);
+        /// <summary>The item's own choice, on unless turned off, whether or not the bar shows.</summary>
+        public static bool GetControlBarItemChecked(ShowcaseWidgetInstanceSettings settings, string itemId) =>
+            settings?.Options == null ||
+            !settings.Options.TryGetValue(ControlBarItemPrefix + itemId, out var raw) ||
+            !bool.TryParse(raw, out var visible) ||
+            visible;
+
+        /// <summary>
+        /// Shows the widget's control bar with only <paramref name="shown"/> of
+        /// <paramref name="items"/> turned on.
+        /// </summary>
+        public static void ShowOnlyControlBarItems(
+            ShowcaseWidgetInstanceSettings settings,
+            IEnumerable<string> items,
+            params string[] shown)
+        {
+            SetShowControlBar(settings, true);
+            foreach (var item in items ?? Enumerable.Empty<string>())
+            {
+                SetControlBarItemVisible(settings, item, shown.Contains(item));
+            }
+        }
+
+        public static void SetControlBarItemVisible(
+            ShowcaseWidgetInstanceSettings settings,
+            string itemId,
+            bool value)
+        {
+            if (!string.IsNullOrWhiteSpace(itemId))
+            {
+                settings?.SetOption(ControlBarItemPrefix + itemId, value);
+            }
+        }
+
+        /// <summary>
+        /// The settings dialog's edited options applied over <paramref name="target"/>'s: every
+        /// option comes from <paramref name="edited"/> except the control bar filter state, which
+        /// the bar saves to the live widget while the dialog is open and the edited copy only
+        /// holds as it was when the dialog opened.
+        /// </summary>
+        public static Dictionary<string, string> MergeEditedOptions(
+            ShowcaseWidgetInstanceSettings target,
+            ShowcaseWidgetInstanceSettings edited)
+        {
+            var merged = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var pair in edited?.Options ?? new Dictionary<string, string>())
+            {
+                if (!IsControlBarState(pair.Key))
+                {
+                    merged[pair.Key] = pair.Value;
+                }
+            }
+
+            foreach (var pair in target?.Options ?? new Dictionary<string, string>())
+            {
+                if (IsControlBarState(pair.Key))
+                {
+                    merged[pair.Key] = pair.Value;
+                }
+            }
+
+            return merged;
+        }
+
+        public static bool IsControlBarState(string key) =>
+            key != null && key.StartsWith(ControlBarStatePrefix, StringComparison.OrdinalIgnoreCase);
+
+        // The control bar state field holding Game selections, which are this library's game IDs.
+        private const string ControlBarGamesField = "Games";
+
+        /// <summary>
+        /// The part of a control bar's saved state that travels with a page: everything but its
+        /// Game selections, which name this library's games. Null when nothing is left.
+        /// </summary>
+        public static string PortableControlBarState(string json)
+        {
+            var state = ParseControlBarState(json);
+            if (state == null)
+            {
+                return null;
+            }
+
+            state.Remove(ControlBarGamesField);
+            foreach (var property in state.Properties().ToList())
+            {
+                if (property.Value.Type == Newtonsoft.Json.Linq.JTokenType.Null)
+                {
+                    property.Remove();
+                }
+            }
+
+            return state.HasValues ? state.ToString(Newtonsoft.Json.Formatting.None) : null;
+        }
+
+        /// <summary>
+        /// <paramref name="portableJson"/> with the Game selections of <paramref name="localJson"/>
+        /// put back, so a page update that brings a control bar's filters keeps the games this
+        /// library picked. Null when neither has anything.
+        /// </summary>
+        public static string WithLocalControlBarGames(string portableJson, string localJson)
+        {
+            var games = ParseControlBarState(localJson)?[ControlBarGamesField];
+            var state = ParseControlBarState(portableJson);
+            if (games == null || games.Type == Newtonsoft.Json.Linq.JTokenType.Null)
+            {
+                return state == null ? null : PortableControlBarState(portableJson);
+            }
+
+            state = state ?? new Newtonsoft.Json.Linq.JObject();
+            state[ControlBarGamesField] = games.DeepClone();
+            return state.ToString(Newtonsoft.Json.Formatting.None);
+        }
+
+        private static Newtonsoft.Json.Linq.JObject ParseControlBarState(string json)
+        {
+            if (string.IsNullOrWhiteSpace(json))
+            {
+                return null;
+            }
+
+            try
+            {
+                return Newtonsoft.Json.Linq.JObject.Parse(json);
+            }
+            catch (Newtonsoft.Json.JsonException)
+            {
+                return null;
+            }
+        }
 
         /// <summary>
         /// Which counts the profile medal row shows. Trophy is only meaningful for a library
@@ -787,12 +1233,48 @@ namespace PlayniteAchievements.Models
         public static void SetProfileShowLinks(ShowcaseWidgetInstanceSettings settings, bool value) =>
             settings?.SetOption(ProfileLinks, value);
 
-        public static GameActivityScope GetGameActivityScope(ShowcaseWidgetInstanceSettings settings) =>
-            GetEnum(settings, ActivityScope, GameActivityScope.All);
+        /// <summary>Standard-density profile picture size, shown in the editor when no size is set.</summary>
+        public const int DefaultProfileAvatarSize = 72;
 
-        public static void SetGameActivityScope(
-            ShowcaseWidgetInstanceSettings settings,
-            GameActivityScope value) => settings?.SetOption(ActivityScope, value);
+        /// <summary>Profile link icon size, shown in the editor when no size is set.</summary>
+        public const int DefaultProfileLinkIconSize = 18;
+
+        /// <summary>
+        /// A fixed profile picture width in pixels, or null to follow the widget's density. Width
+        /// and height are separate, so the picture need not be square.
+        /// </summary>
+        public static int? GetProfileAvatarWidthOverride(ShowcaseWidgetInstanceSettings settings) =>
+            GetPixelOverride(settings, ProfileAvatarWidth, MinProfileAvatarSize, MaxProfileAvatarSize);
+
+        public static int GetProfileAvatarWidth(ShowcaseWidgetInstanceSettings settings) =>
+            GetProfileAvatarWidthOverride(settings) ?? DefaultProfileAvatarSize;
+
+        public static void SetProfileAvatarWidth(ShowcaseWidgetInstanceSettings settings, int value) =>
+            settings?.SetOption(ProfileAvatarWidth, Clamp(value, MinProfileAvatarSize, MaxProfileAvatarSize));
+
+        /// <summary>A fixed profile picture height in pixels, or null to follow the widget's density.</summary>
+        public static int? GetProfileAvatarHeightOverride(ShowcaseWidgetInstanceSettings settings) =>
+            GetPixelOverride(settings, ProfileAvatarHeight, MinProfileAvatarSize, MaxProfileAvatarSize);
+
+        public static int GetProfileAvatarHeight(ShowcaseWidgetInstanceSettings settings) =>
+            GetProfileAvatarHeightOverride(settings) ?? DefaultProfileAvatarSize;
+
+        public static void SetProfileAvatarHeight(ShowcaseWidgetInstanceSettings settings, int value) =>
+            settings?.SetOption(ProfileAvatarHeight, Clamp(value, MinProfileAvatarSize, MaxProfileAvatarSize));
+
+        /// <summary>The profile link icon size in pixels; unset means <see cref="DefaultProfileLinkIconSize"/>.</summary>
+        public static int GetProfileLinkIconSize(ShowcaseWidgetInstanceSettings settings) =>
+            GetPixelOverride(settings, ProfileLinkIconSize, MinProfileLinkIconSize, MaxProfileLinkIconSize)
+            ?? DefaultProfileLinkIconSize;
+
+        public static void SetProfileLinkIconSize(ShowcaseWidgetInstanceSettings settings, int value) =>
+            settings?.SetOption(ProfileLinkIconSize, Clamp(value, MinProfileLinkIconSize, MaxProfileLinkIconSize));
+
+        private const int MinProfileAvatarSize = 16;
+        private const int MaxProfileAvatarSize = 512;
+        private const int MinProfileLinkIconSize = 8;
+        private const int MaxProfileLinkIconSize = 64;
+
 
         public static ShowcasePointsGrouping GetPointsGrouping(ShowcaseWidgetInstanceSettings settings) =>
             GetEnum(settings, Grouping, ShowcasePointsGrouping.Provider);
@@ -808,11 +1290,15 @@ namespace PlayniteAchievements.Models
             settings?.SetOption(TopN, Clamp(value, 1, 25));
 
         public static ShowcaseMosaicSource GetMosaicSource(ShowcaseWidgetInstanceSettings settings) =>
-            GetEnum(settings, Source, ShowcaseMosaicSource.Recent);
+            GetEnum(settings, Source, ShowcaseMosaicSource.All);
 
         public static void SetMosaicSource(
             ShowcaseWidgetInstanceSettings settings,
-            ShowcaseMosaicSource value) => settings?.SetOption(Source, value);
+            ShowcaseMosaicSource value)
+        {
+            KeepLegacyCollection(settings);
+            settings?.SetOption(Source, value);
+        }
 
         /// <summary>Standard-density achievement icon size, shown when no size is set.</summary>
         public const int DefaultMosaicIconSize = 42;
@@ -846,14 +1332,17 @@ namespace PlayniteAchievements.Models
         private const int MinMosaicTileSize = 16;
         private const int MaxMosaicTileSize = 256;
 
-        private static int? GetPixelOverride(ShowcaseWidgetInstanceSettings settings, string key)
+        private static int? GetPixelOverride(ShowcaseWidgetInstanceSettings settings, string key) =>
+            GetPixelOverride(settings, key, MinMosaicTileSize, MaxMosaicTileSize);
+
+        private static int? GetPixelOverride(ShowcaseWidgetInstanceSettings settings, string key, int min, int max)
         {
             if (settings?.Options == null || !settings.Options.ContainsKey(key))
             {
                 return null;
             }
 
-            return Clamp(settings.GetOption(key, 0), MinMosaicTileSize, MaxMosaicTileSize);
+            return Clamp(settings.GetOption(key, 0), min, max);
         }
 
         /// <summary>Space around each mosaic tile, in pixels (0-40); 6 is the original fixed margin.</summary>
@@ -868,16 +1357,6 @@ namespace PlayniteAchievements.Models
 
         public static void SetMosaicCount(ShowcaseWidgetInstanceSettings settings, int value) =>
             settings?.SetOption(Count, Clamp(value, 1, 200));
-
-        /// <summary>
-        /// Whether the mosaic shows a control bar above its tiles. Shared by the achievement and
-        /// game contents; the filter runs over the whole source before the Count cap.
-        /// </summary>
-        public static bool GetMosaicShowControlBar(ShowcaseWidgetInstanceSettings settings) =>
-            settings?.GetOption(ShowControlBar, false) ?? false;
-
-        public static void SetMosaicShowControlBar(ShowcaseWidgetInstanceSettings settings, bool value) =>
-            settings?.SetOption(ShowControlBar, value);
 
         /// <summary>Whether achievement mosaic tiles show the rarity bar along their bottom edge.</summary>
         public static bool GetMosaicShowRarityBar(ShowcaseWidgetInstanceSettings settings) =>
@@ -981,14 +1460,14 @@ namespace PlayniteAchievements.Models
 
         /// <summary>
         /// Most rows a single game may contribute to Unlock Next. The pool the overview builder
-        /// hydrates retains a bounded slice per game, so the value caps at 10, well below it,
-        /// rather than accepting an amount the pool could not honour.
+        /// hydrates retains this many per game from each of its rankings, so a larger value costs
+        /// a rebuild and more retained locked rows.
         /// </summary>
         public static int GetMaxPerGame(ShowcaseWidgetInstanceSettings settings) =>
-            Clamp(settings?.GetOption(MaxPerGame, 1) ?? 1, 1, 10);
+            Clamp(settings?.GetOption(MaxPerGame, 1) ?? 1, 1, 9999);
 
         public static void SetMaxPerGame(ShowcaseWidgetInstanceSettings settings, int value) =>
-            settings?.SetOption(MaxPerGame, Clamp(value, 1, 10));
+            settings?.SetOption(MaxPerGame, Clamp(value, 1, 9999));
 
         public static bool GetIncludeHiddenAchievements(ShowcaseWidgetInstanceSettings settings) =>
             settings?.GetOption(IncludeHiddenAchievements, false) ?? false;
@@ -1021,6 +1500,26 @@ namespace PlayniteAchievements.Models
         }
 
         /// <summary>
+        /// The largest Max per game among the live widgets - dashboard or start page - that draw
+        /// from the Unlock Next pool; 0 when none does.
+        /// </summary>
+        public static int GetUnlockNextMaxPerGame(ShowcaseSettings showcase)
+        {
+            if (showcase == null)
+            {
+                return 0;
+            }
+
+            return (showcase.WidgetInstances ?? new List<ShowcaseWidgetInstanceSettings>())
+                .Concat((showcase.StartPageInstances ??
+                         new Dictionary<string, ShowcaseWidgetInstanceSettings>()).Values)
+                .Where(RequiresUnlockNextPool)
+                .Select(GetMaxPerGame)
+                .DefaultIfEmpty(0)
+                .Max();
+        }
+
+        /// <summary>
         /// Whether any live widget - dashboard or start page - draws from the Unlock Next pool.
         /// </summary>
         public static bool RequiresUnlockNextPool(ShowcaseSettings showcase)
@@ -1047,35 +1546,81 @@ namespace PlayniteAchievements.Models
 
         public static void SetMosaicContent(
             ShowcaseWidgetInstanceSettings settings,
-            ShowcaseMosaicContent value) => settings?.SetOption(Content, value);
+            ShowcaseMosaicContent value)
+        {
+            KeepLegacyCollection(settings);
+            settings?.SetOption(Content, value);
+        }
 
         public static ShowcaseAchievementGridSource GetAchievementGridSource(ShowcaseWidgetInstanceSettings settings) =>
             GetEnum(settings, Source, ShowcaseAchievementGridSource.All);
 
         public static void SetAchievementGridSource(
             ShowcaseWidgetInstanceSettings settings,
-            ShowcaseAchievementGridSource value) => settings?.SetOption(Source, value);
+            ShowcaseAchievementGridSource value)
+        {
+            KeepLegacyCollection(settings);
+            settings?.SetOption(Source, value);
+        }
 
         public static ShowcaseGameGridSource GetGameGridSource(ShowcaseWidgetInstanceSettings settings) =>
             GetEnum(settings, Source, ShowcaseGameGridSource.Library);
 
         public static void SetGameGridSource(
             ShowcaseWidgetInstanceSettings settings,
-            ShowcaseGameGridSource value) => settings?.SetOption(Source, value);
+            ShowcaseGameGridSource value)
+        {
+            KeepLegacyCollection(settings);
+            settings?.SetOption(Source, value);
+        }
 
-        public static ShowcaseSlideshowSource GetSlideshowSource(ShowcaseWidgetInstanceSettings settings) =>
-            GetEnum(settings, Source, ShowcaseSlideshowSource.All);
+        /// <summary>
+        /// Moves a Screenshot Slideshow's screenshot style from its options into its control bar's
+        /// saved state, where the bar's Style item keeps it. True when the widget changed.
+        /// </summary>
+        public static bool MigrateSlideshowVariant(ShowcaseWidgetInstanceSettings settings)
+        {
+            if (settings?.Kind != ShowcaseWidgetKind.ScreenshotSlideshow ||
+                settings.Options == null ||
+                !settings.Options.TryGetValue(Variant, out var raw))
+            {
+                return false;
+            }
 
-        public static void SetSlideshowSource(
-            ShowcaseWidgetInstanceSettings settings,
-            ShowcaseSlideshowSource value) => settings?.SetOption(Source, value);
+            settings.Options.Remove(Variant);
+            if (!Enum.TryParse(raw?.Trim(), true, out ShowcaseScreenshotVariant variant) ||
+                !Enum.IsDefined(typeof(ShowcaseScreenshotVariant), variant) ||
+                variant == ShowcaseScreenshotVariant.All)
+            {
+                return true;
+            }
 
-        public static ShowcaseScreenshotVariant GetScreenshotVariant(ShowcaseWidgetInstanceSettings settings) =>
-            GetEnum(settings, Variant, ShowcaseScreenshotVariant.All);
+            Newtonsoft.Json.Linq.JObject state = null;
+            if (settings.Options.TryGetValue(AchievementControlBarStateKey, out var stateJson) &&
+                !string.IsNullOrWhiteSpace(stateJson))
+            {
+                try
+                {
+                    state = Newtonsoft.Json.Linq.JObject.Parse(stateJson);
+                }
+                catch (Newtonsoft.Json.JsonException)
+                {
+                    state = null;
+                }
+            }
 
-        public static void SetScreenshotVariant(
-            ShowcaseWidgetInstanceSettings settings,
-            ShowcaseScreenshotVariant value) => settings?.SetOption(Variant, value);
+            state = state ?? new Newtonsoft.Json.Linq.JObject();
+            if (state["Variant"] == null)
+            {
+                state["Variant"] = variant.ToString();
+            }
+
+            settings.Options[AchievementControlBarStateKey] = state.ToString(Newtonsoft.Json.Formatting.None);
+            return true;
+        }
+
+        // The achievement control bar's saved state (CrossGameAchievementControlBarAdapter.StateKey).
+        private const string AchievementControlBarStateKey = ControlBarStatePrefix + "Achievements";
 
         public static int GetSlideshowIntervalSeconds(ShowcaseWidgetInstanceSettings settings) =>
             Clamp(settings?.GetOption(IntervalSeconds, 8) ?? 8, 1, 300);
@@ -1105,18 +1650,171 @@ namespace PlayniteAchievements.Models
             ShowcaseWidgetInstanceSettings settings,
             ShowcaseInfoPanelPosition value) => settings?.SetOption(InfoPanel, value);
 
-        public static bool GetHideCompleted(ShowcaseWidgetInstanceSettings settings) =>
-            settings?.GetOption(HideCompleted, false) ?? false;
 
-        public static void SetHideCompleted(ShowcaseWidgetInstanceSettings settings, bool value) =>
-            settings?.SetOption(HideCompleted, value);
-
+        // A former Pinned game mosaic showed every pinned game, so it reads as All with its collection.
         public static ShowcaseGameMosaicSource GetGameMosaicSource(ShowcaseWidgetInstanceSettings settings) =>
-            GetEnum(settings, Source, ShowcaseGameMosaicSource.Completed);
+            IsLegacyPinnedSource(settings)
+                ? ShowcaseGameMosaicSource.All
+                : GetEnum(settings, Source, ShowcaseGameMosaicSource.All);
+
+        /// <summary>
+        /// Turns a game mosaic on the former Completed source into the All source with its Progress
+        /// filter on Complete, which lists the same games in the same order. Completed was also
+        /// what a game mosaic showed for any source value that is not a game source (unset, or an
+        /// achievement mosaic's), so those move too. True when the widget changed.
+        /// </summary>
+        public static bool MigrateCompletedGameMosaic(ShowcaseWidgetInstanceSettings settings)
+        {
+            if (settings?.Kind != ShowcaseWidgetKind.IconMosaic ||
+                GetMosaicContent(settings) != ShowcaseMosaicContent.Games ||
+                IsLegacyPinnedSource(settings))
+            {
+                return false;
+            }
+
+            string raw = null;
+            settings.Options?.TryGetValue(Source, out raw);
+            if (Enum.TryParse(raw?.Trim(), true, out ShowcaseGameMosaicSource current) &&
+                Enum.IsDefined(typeof(ShowcaseGameMosaicSource), current))
+            {
+                return false;
+            }
+
+            settings.SetOption(Source, ShowcaseGameMosaicSource.All);
+            Newtonsoft.Json.Linq.JObject state = null;
+            if (settings.Options.TryGetValue(GameControlBarStateKey, out var stateJson) &&
+                !string.IsNullOrWhiteSpace(stateJson))
+            {
+                try
+                {
+                    state = Newtonsoft.Json.Linq.JObject.Parse(stateJson);
+                }
+                catch (Newtonsoft.Json.JsonException)
+                {
+                    state = null;
+                }
+            }
+
+            state = state ?? new Newtonsoft.Json.Linq.JObject();
+            // The first Progress option is Complete.
+            state["Progress"] = new Newtonsoft.Json.Linq.JArray(0);
+            settings.Options[GameControlBarStateKey] = state.ToString(Newtonsoft.Json.Formatting.None);
+            return true;
+        }
+
+        /// <summary>
+        /// Moves an achievement mosaic off a former source: Recent is All, Rarest is All sorted
+        /// rarest first (unless a sort was already chosen), and Capstones is All with the control
+        /// bar's Capstone filter. True when the widget changed.
+        /// </summary>
+        public static bool MigrateAchievementMosaicSource(ShowcaseWidgetInstanceSettings settings)
+        {
+            if (settings?.Kind != ShowcaseWidgetKind.IconMosaic ||
+                GetMosaicContent(settings) != ShowcaseMosaicContent.Achievements ||
+                settings.Options == null ||
+                !settings.Options.TryGetValue(Source, out var raw))
+            {
+                return false;
+            }
+
+            switch (raw?.Trim().ToLowerInvariant())
+            {
+                case "recent":
+                    settings.SetOption(Source, ShowcaseMosaicSource.All);
+                    return true;
+                case "rarest":
+                    settings.SetOption(Source, ShowcaseMosaicSource.All);
+                    if (GetMosaicSort(settings) == CompactListSortMode.None)
+                    {
+                        SetMosaicSort(settings, CompactListSortMode.Rarity);
+                        SetMosaicSortDescending(settings, false);
+                    }
+
+                    return true;
+                case "capstones":
+                    settings.SetOption(Source, ShowcaseMosaicSource.All);
+                    var state = ParseControlBarState(
+                        settings.Options.TryGetValue(AchievementControlBarStateKey, out var json) ? json : null)
+                        ?? new Newtonsoft.Json.Linq.JObject();
+                    state["Capstones"] = true;
+                    settings.Options[AchievementControlBarStateKey] = state.ToString(Newtonsoft.Json.Formatting.None);
+                    return true;
+                default:
+                    return false;
+            }
+        }
+
+        /// <summary>
+        /// Moves a Game Summaries grid's former Hide Completed and Activity options into its control
+        /// bar's Progress and Activity filters, which match the same games. Only the Library source
+        /// applied them; on the other sources they are dropped. True when the widget changed.
+        /// </summary>
+        public static bool MigrateGameGridScope(ShowcaseWidgetInstanceSettings settings)
+        {
+            if (settings?.Kind != ShowcaseWidgetKind.GameSummaries ||
+                settings.Options == null ||
+                (!settings.Options.ContainsKey(HideCompleted) && !settings.Options.ContainsKey(ActivityScope)))
+            {
+                return false;
+            }
+
+            var hideCompleted = settings.GetOption(HideCompleted, false);
+            var activity = settings.GetOption(ActivityScope, GameActivityScope.All);
+            settings.Options.Remove(HideCompleted);
+            settings.Options.Remove(ActivityScope);
+            if (GetGameGridSource(settings) != ShowcaseGameGridSource.Library)
+            {
+                return true;
+            }
+
+            // Option positions, as the bar saves them: Progress is Complete, In Progress, No
+            // Progress; Activity is Played, Unplayed.
+            var progress = hideCompleted ? new[] { 1, 2 } : null;
+            var activityPositions = activity == GameActivityScope.Played
+                ? new[] { 0 }
+                : activity == GameActivityScope.Unplayed ? new[] { 1 } : null;
+            if (progress == null && activityPositions == null)
+            {
+                return true;
+            }
+
+            var state = ParseControlBarState(
+                settings.Options.TryGetValue(GameControlBarStateKey, out var json) ? json : null)
+                ?? new Newtonsoft.Json.Linq.JObject();
+            NarrowPositions(state, "Progress", progress);
+            NarrowPositions(state, "Activity", activityPositions);
+            settings.Options[GameControlBarStateKey] = state.ToString(Newtonsoft.Json.Formatting.None);
+            return true;
+        }
+
+        // Limits a saved position filter to <paramref name="allowed"/>: the filter's own picks
+        // among them, or all of them when it had none.
+        private static void NarrowPositions(Newtonsoft.Json.Linq.JObject state, string field, int[] allowed)
+        {
+            if (allowed == null)
+            {
+                return;
+            }
+
+            var picked = (state[field] as Newtonsoft.Json.Linq.JArray)?
+                .Select(token => (int?)token)
+                .Where(value => value.HasValue && allowed.Contains(value.Value))
+                .Select(value => value.Value)
+                .ToArray();
+            var hadPicks = (state[field] as Newtonsoft.Json.Linq.JArray)?.Count > 0;
+            state[field] = new Newtonsoft.Json.Linq.JArray(hadPicks && picked.Length > 0 ? picked : allowed);
+        }
+
+        // The game control bar's saved state (GameSummaryGridControlBarAdapter.StateKey).
+        private const string GameControlBarStateKey = ControlBarStatePrefix + "Games";
 
         public static void SetGameMosaicSource(
             ShowcaseWidgetInstanceSettings settings,
-            ShowcaseGameMosaicSource value) => settings?.SetOption(Source, value);
+            ShowcaseGameMosaicSource value)
+        {
+            KeepLegacyCollection(settings);
+            settings?.SetOption(Source, value);
+        }
 
         public static int GetGameMosaicCount(ShowcaseWidgetInstanceSettings settings) =>
             Clamp(settings?.GetOption(Count, 24) ?? 24, 1, 200);
@@ -1155,6 +1853,13 @@ namespace PlayniteAchievements.Models
         public static void SetImagePath(ShowcaseWidgetInstanceSettings settings, string value) =>
             SetString(settings, ImagePath, value);
 
+        /// <summary>The activity calendar's cell color as hex text; null uses the theme accent.</summary>
+        public static string GetActivityColor(ShowcaseWidgetInstanceSettings settings) =>
+            GetString(settings, ActivityColor);
+
+        public static void SetActivityColor(ShowcaseWidgetInstanceSettings settings, string value) =>
+            SetString(settings, ActivityColor, value);
+
         /// <summary>The Text widget's text, in inline markdown; null while empty.</summary>
         public static string GetText(ShowcaseWidgetInstanceSettings settings) =>
             GetString(settings, TextContent, trim: false);
@@ -1164,6 +1869,12 @@ namespace PlayniteAchievements.Models
 
         public static ShowcaseHorizontalAlignment GetHorizontalAlignment(ShowcaseWidgetInstanceSettings settings) =>
             GetEnum(settings, HorizontalAlign, ShowcaseHorizontalAlignment.Center);
+
+        /// <summary>The widget's horizontal alignment, or <paramref name="fallback"/> while unset.</summary>
+        public static ShowcaseHorizontalAlignment GetHorizontalAlignment(
+            ShowcaseWidgetInstanceSettings settings,
+            ShowcaseHorizontalAlignment fallback) =>
+            GetEnum(settings, HorizontalAlign, fallback);
 
         public static void SetHorizontalAlignment(
             ShowcaseWidgetInstanceSettings settings,
@@ -1286,7 +1997,7 @@ namespace PlayniteAchievements.Models
                 case ShowcaseWidgetKind.Pie:
                     ShowcaseWidgetOptions.SetPieMode(settings, ShowcasePieMode.CompletedGames);
                     ShowcaseWidgetOptions.SetPieCenterMode(settings, PieCenterMode.Percentage);
-                    ShowcaseWidgetOptions.SetPieShowLegend(settings, true);
+                    ShowcaseWidgetOptions.SetShowLegend(settings, true);
                     ShowcaseWidgetOptions.SetPieLegendPosition(settings, PieLegendPosition.Right);
                     ShowcaseWidgetOptions.SetPieShowIcons(settings, true);
                     ShowcaseWidgetOptions.SetPieIncludeLocked(settings, true);
@@ -1310,15 +2021,13 @@ namespace PlayniteAchievements.Models
                     break;
                 case ShowcaseWidgetKind.IconMosaic:
                     ShowcaseWidgetOptions.SetMosaicContent(settings, ShowcaseMosaicContent.Achievements);
-                    ShowcaseWidgetOptions.SetMosaicSource(settings, ShowcaseMosaicSource.Recent);
+                    ShowcaseWidgetOptions.SetMosaicSource(settings, ShowcaseMosaicSource.All);
                     ShowcaseWidgetOptions.SetMosaicCount(settings, 24);
                     ShowcaseWidgetOptions.SetMosaicShowRarityGlow(settings, true);
                     ShowcaseWidgetOptions.SetMosaicSort(settings, CompactListSortMode.None);
                     ShowcaseWidgetOptions.SetMosaicSortDescending(settings, true);
                     break;
                 case ShowcaseWidgetKind.ScreenshotSlideshow:
-                    ShowcaseWidgetOptions.SetSlideshowSource(settings, ShowcaseSlideshowSource.All);
-                    ShowcaseWidgetOptions.SetScreenshotVariant(settings, ShowcaseScreenshotVariant.All);
                     ShowcaseWidgetOptions.SetShuffle(settings, true);
                     ShowcaseWidgetOptions.SetSlideshowIntervalSeconds(settings, 8);
                     ShowcaseWidgetOptions.SetImageFitMode(settings, ShowcaseImageFitMode.Fit);
@@ -1329,8 +2038,6 @@ namespace PlayniteAchievements.Models
                     break;
                 case ShowcaseWidgetKind.GameSummaries:
                     ShowcaseWidgetOptions.SetGameGridSource(settings, ShowcaseGameGridSource.Library);
-                    ShowcaseWidgetOptions.SetHideCompleted(settings, false);
-                    ShowcaseWidgetOptions.SetGameActivityScope(settings, GameActivityScope.All);
                     break;
                 case ShowcaseWidgetKind.ActivityCalendar:
                     ShowcaseTimelineOptions.SetWindow(settings, TimeWindow.All);

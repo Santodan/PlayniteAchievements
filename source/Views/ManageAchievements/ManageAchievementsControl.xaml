@@ -360,7 +360,7 @@
                                             <ColumnDefinition Width="Auto" />
                                             <ColumnDefinition Width="*" />
                                         </Grid.ColumnDefinitions>
-                                        <TextBlock Style="{StaticResource ChipTextStyle}" VerticalAlignment="Center" Text="{DynamicResource LOCNotesLabel}" />
+                                        <TextBlock Style="{StaticResource ChipTextStyle}" VerticalAlignment="Center" Text="{DynamicResource LOCPlayAch_Common_Notes}" />
                                         <TextBlock Style="{StaticResource SidebarStatValueStyle}" Text="{Binding SidebarSummary.Notes.Text}" />
                                     </Grid>
                                 </Border>
@@ -394,7 +394,7 @@
 
                     <StackPanel Grid.Row="4">
                         <RadioButton x:Name="OverviewTabButton"
-                                     Content="{DynamicResource LOCOverviewLabel}"
+                                     Content="{DynamicResource LOCPlayAch_Common_Overview}"
                                      Style="{StaticResource NavTabRadioStyle}"
                                      IsChecked="{Binding SelectedTab, Mode=TwoWay, Converter={StaticResource EnumToBool}, ConverterParameter=Overview}" />
                         <!-- Not gated on HasAchievementData: it is the Custom tab widened to every
@@ -411,8 +411,13 @@
                                      Visibility="{Binding HasAchievementData, Converter={StaticResource BoolToVis}}"
                                      IsChecked="{Binding SelectedTab, Mode=TwoWay, Converter={StaticResource EnumToBool}, ConverterParameter=Category}" />
 
+                        <RadioButton x:Name="TagsTabButton"
+                                     Content="{DynamicResource LOCPlayAch_Common_Tags}"
+                                     Style="{StaticResource NavTabRadioStyle}"
+                                     IsChecked="{Binding SelectedTab, Mode=TwoWay, Converter={StaticResource EnumToBool}, ConverterParameter=Tags}" />
+
                         <RadioButton x:Name="NotificationsTabButton"
-                                     Content="{DynamicResource LOCNotifications}"
+                                     Content="{DynamicResource LOCPlayAch_Common_Notifications}"
                                      Style="{StaticResource NavTabRadioStyle}"
                                      IsChecked="{Binding SelectedTab, Mode=TwoWay, Converter={StaticResource EnumToBool}, ConverterParameter=Notifications}" />
                     </StackPanel>
@@ -481,6 +486,20 @@
                         </Style>
                     </Grid.Style>
                     <ContentControl x:Name="CategoryHost" />
+                </Grid>
+
+                <Grid>
+                    <Grid.Style>
+                        <Style TargetType="{x:Type Grid}">
+                            <Setter Property="Visibility" Value="Hidden" />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding SelectedTab}" Value="Tags">
+                                    <Setter Property="Visibility" Value="Visible" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </Grid.Style>
+                    <ContentControl x:Name="TagsHost" />
                 </Grid>
 
                 <Grid>

@@ -18,7 +18,7 @@ using System.Threading.Tasks;
 
 namespace PlayniteAchievements.Providers.Epic
 {
-    public sealed class EpicDataProvider : DataProviderBase<EpicSettings>, IDataProvider, IAchievementPageLinkProvider, IProviderOverride, IRefreshAuthContextReceiver, IInGameProgressSource, IDisposable
+    public sealed class EpicDataProvider : DataProviderBase<EpicSettings>, IDataProvider, IAchievementPageLinkProvider, IProviderOverride, IRefreshAuthContextReceiver, IInGameProgressSource, IEnglishTitleSource, IDisposable
     {
         /// <summary>
         /// Cadence for the remote player-record poll while an Epic game runs. Epic has no local
@@ -167,6 +167,25 @@ namespace PlayniteAchievements.Providers.Epic
             CancellationToken cancel)
         {
             return _scanner.RefreshAsync(gamesToRefresh, onGameStarting, onGameCompleted, cancel);
+        }
+
+        /// <summary>The game's achievement schema read again with the en-US locale.</summary>
+        async Task<IList<AchievementDetail>> IEnglishTitleSource.GetEnglishTitlesAsync(Game game, GameAchievementData data, CancellationToken ct)
+        {
+            if (!TryGetEpicGameId(game, out var gameId))
+            {
+                return null;
+            }
+
+            var items = await _apiClient.GetEnglishSchemaAsync(gameId, ct).ConfigureAwait(false);
+            return items?
+                .Select(item => new AchievementDetail
+                {
+                    ApiName = item.AchievementId,
+                    DisplayName = string.IsNullOrWhiteSpace(item.Title) ? item.AchievementId : item.Title,
+                    Description = item.Description ?? string.Empty
+                })
+                .ToList();
         }
 
         /// <summary>

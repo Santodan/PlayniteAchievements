@@ -63,6 +63,8 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             public string DisplayName { get; set; }
 
             public ProviderOverrideDescriptor Descriptor { get; set; }
+
+            internal IDataProvider Provider { get; set; }
         }
 
         private readonly Guid _gameId;
@@ -110,11 +112,6 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         private bool _hasProviderOverride;
         private string _providerOverrideKey = ProviderOverrideNoneKey;
         private string _providerOverrideValue;
-        private string _exophaseEnrichmentSlugInput;
-        private bool _hasExophaseEnrichmentSlugOverride;
-        private string _exophaseEnrichmentSlugValue;
-        private string _exophaseEnrichmentSlugPlaceholder;
-        private bool _isExophaseEnrichmentSlugSectionVisible;
         private bool _canExportCustomJson;
         private const string ManualProviderKey = "Manual";
 
@@ -128,8 +125,9 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         public AsyncCommand OpenAchievementPageCommand { get; }
         public RelayCommand ApplyProviderOverrideCommand { get; }
         public RelayCommand ClearProviderOverrideCommand { get; }
-        public RelayCommand ApplyExophaseEnrichmentSlugCommand { get; }
-        public RelayCommand ClearExophaseEnrichmentSlugCommand { get; }
+
+        /// <summary>The game's links to metadata sources, one editable row per source.</summary>
+        public MetadataLinksViewModel MetadataLinks { get; }
         public RelayCommand FollowSavedFiltersCommand { get; }
         public RelayCommand UnlinkManualTrackingCommand { get; }
         public RelayCommand RefreshStateCommand { get; }
@@ -170,8 +168,17 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             OpenAchievementPageCommand = new AsyncCommand(_ => OpenAchievementPageAsync(), _ => HasGame && HasAchievementPageLink);
             ApplyProviderOverrideCommand = new RelayCommand(_ => ApplyProviderOverride(), _ => HasGame);
             ClearProviderOverrideCommand = new RelayCommand(_ => ClearProviderOverride(), _ => HasGame && HasProviderOverride);
-            ApplyExophaseEnrichmentSlugCommand = new RelayCommand(_ => ApplyExophaseEnrichmentSlug(), _ => HasGame);
-            ClearExophaseEnrichmentSlugCommand = new RelayCommand(_ => ClearExophaseEnrichmentSlug(), _ => HasGame && HasExophaseEnrichmentSlugOverride);
+            MetadataLinks = new MetadataLinksViewModel(
+                () => _plugin?.MetadataLinks,
+                () => _plugin?.ProviderRegistry?.GetMetadataProviders(),
+                gameId => _plugin?.AchievementDataService?.GetGameAchievementData(gameId)?.Achievements,
+                () => GameName,
+                () => _settings?.Persisted,
+                () =>
+                {
+                    Reload();
+                    TriggerRefresh();
+                });
             FollowSavedFiltersCommand = new RelayCommand(_ => FollowSavedFilters(), _ => HasGame && IsExclusionOverridingFilter);
             UnlinkManualTrackingCommand = new RelayCommand(_ => UnlinkManualTracking(), _ => HasGame && HasManualTrackingLink);
             RefreshStateCommand = new RelayCommand(_ => Reload());
@@ -286,7 +293,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                     return L("LOCPlayAch_ManageAchievements_Overrides_LockedIcons_StatusSettings");
                 }
 
-                return L("LOCDisabledTitle");
+                return L("LOCPlayAch_Common_Disabled");
             }
         }
 
@@ -330,7 +337,6 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             {
                 if (SetValueAndReturn(ref _hasProviderOverride, value))
                 {
-                    OnPropertyChanged(nameof(ProviderOverrideStatusText));
                     RaiseCommandStates();
                 }
             }
@@ -341,10 +347,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             get => _providerOverrideValue;
             private set
             {
-                if (SetValueAndReturn(ref _providerOverrideValue, value ?? string.Empty))
-                {
-                    OnPropertyChanged(nameof(ProviderOverrideStatusText));
-                }
+                SetValue(ref _providerOverrideValue, value ?? string.Empty);
             }
         }
 
@@ -360,7 +363,8 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
 
         public bool IsProviderOverrideTextVisible =>
             IsProviderOverrideProviderSelected &&
-            SelectedProviderOverrideValueKind == ProviderOverrideValueKind.Text;
+            SelectedProviderOverrideValueKind == ProviderOverrideValueKind.Text &&
+            !IsProviderOverrideSearchVisible;
 
         public bool IsProviderOverrideChoiceVisible =>
             IsProviderOverrideProviderSelected &&
@@ -370,86 +374,6 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             GetProviderOverrideDescriptor(SelectedProviderOverrideKey)?.Choices ?? Array.Empty<ProviderOverrideChoice>();
 
         public string ProviderOverrideInputLabel => GetProviderOverrideInputLabel(SelectedProviderOverrideKey);
-
-        public string ProviderOverrideStatusText
-        {
-            get
-            {
-                if (!HasProviderOverride)
-                {
-                    return L("LOCPlayAch_Common_Status_NoOverrideSet");
-                }
-
-                var providerName = GetProviderOverrideDisplayName(_providerOverrideKey);
-                var descriptor = GetProviderOverrideDescriptor(_providerOverrideKey);
-
-                if (descriptor != null &&
-                    descriptor.ValueKind == ProviderOverrideValueKind.None)
-                {
-                    return string.Format(
-                        L("LOCPlayAch_ManageAchievements_Overrides_ProviderStatusNoValue"),
-                        providerName);
-                }
-
-                if (string.IsNullOrWhiteSpace(ProviderOverrideValue) &&
-                    (descriptor?.ValueOptional ?? false))
-                {
-                    return string.Format(
-                        L("LOCPlayAch_ManageAchievements_Overrides_ProviderStatusAuto"),
-                        providerName);
-                }
-
-                var valueDisplay = descriptor?.GetValueDisplay(ProviderOverrideValue) ?? ProviderOverrideValue;
-                return string.Format(
-                    L("LOCPlayAch_ManageAchievements_Overrides_ProviderStatusValue"),
-                    providerName,
-                    valueDisplay);
-            }
-        }
-
-        public string ExophaseEnrichmentSlugInput
-        {
-            get => _exophaseEnrichmentSlugInput;
-            set
-            {
-                if (SetValueAndReturn(ref _exophaseEnrichmentSlugInput, value ?? string.Empty))
-                {
-                    RaiseCommandStates();
-                }
-            }
-        }
-
-        public bool HasExophaseEnrichmentSlugOverride
-        {
-            get => _hasExophaseEnrichmentSlugOverride;
-            private set
-            {
-                if (SetValueAndReturn(ref _hasExophaseEnrichmentSlugOverride, value))
-                {
-                    OnPropertyChanged(nameof(ExophaseEnrichmentSlugStatusText));
-                    RaiseCommandStates();
-                }
-            }
-        }
-
-        public bool IsExophaseEnrichmentSlugSectionVisible
-        {
-            get => _isExophaseEnrichmentSlugSectionVisible;
-            private set => SetValue(ref _isExophaseEnrichmentSlugSectionVisible, value);
-        }
-
-        public string ExophaseEnrichmentSlugPlaceholder
-        {
-            get => _exophaseEnrichmentSlugPlaceholder;
-            private set => SetValue(ref _exophaseEnrichmentSlugPlaceholder, value);
-        }
-
-        public string ExophaseEnrichmentSlugStatusText =>
-            HasExophaseEnrichmentSlugOverride
-                ? string.Format(
-                    L("LOCPlayAch_ManageAchievements_Overrides_ProviderStatusNoValue"),
-                    _exophaseEnrichmentSlugValue)
-                : L("LOCPlayAch_Common_Status_NoOverrideSet");
 
         public bool HasGame
         {
@@ -626,7 +550,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
 
         public IReadOnlyList<GameExclusionOption> ExclusionModeOptions { get; } = new[]
         {
-            new GameExclusionOption(GameExclusionMode.None, L("LOCNone")),
+            new GameExclusionOption(GameExclusionMode.None, L("LOCPlayAch_Common_None")),
             new GameExclusionOption(GameExclusionMode.Refreshes, L("LOCPlayAch_ManageAchievements_Status_ExcludedFromRefreshes")),
             new GameExclusionOption(GameExclusionMode.Summaries, L("LOCPlayAch_ManageAchievements_Status_ExcludedFromSummaries"))
         };
@@ -927,7 +851,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                     ? capstone.DisplayName.Trim()
                     : !string.IsNullOrWhiteSpace(capstone?.ApiName)
                         ? capstone.ApiName.Trim()
-                        : L("LOCNone");
+                        : L("LOCPlayAch_Common_None");
                 HasAchievementData = (gameData?.HasAchievements ?? false) && list.Count > 0;
 
                 var currentCustomData = TryLoadStoredCustomData(_plugin?.GameCustomDataStore);
@@ -942,8 +866,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                     currentCustomData?.UseSeparateLockedIconsOverride == true);
                 OnPropertyChanged(nameof(SeparateLockedIconsStatusText));
                 ReloadProviderOverrideState(currentCustomData);
-                ReloadExophaseEnrichmentSlugState(currentCustomData, game, gameData?.ProviderGameKey);
-
+                MetadataLinks.Load(HasGame ? _gameId : Guid.Empty, _cachedProviderKey);
                 HasManualTrackingLink = hasManualLink;
                 ManualTrackingSummary = ManualAchievementsProvider.GetManageAchievementsLinkSummary(manualLink);
                 HasAchievementPageLink = HasGame && _achievementPageLinkResolver.CanResolve(
@@ -1029,7 +952,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             var lines = ManageOverviewSummaryBuilder.BuildCapstones(achievements)
                 .Select(capstone => capstone.Item1 == null
                     ? capstone.Item2
-                    : AchievementCategoryTypeHelper.ToCategoryLabelDisplayText(capstone.Item1) + ": " + capstone.Item2)
+                    : AchievementCategoryHelper.ToCategoryLabelDisplayText(capstone.Item1) + ": " + capstone.Item2)
                 .ToList();
             return lines.Count > 0 ? string.Join(Environment.NewLine, lines) : null;
         }
@@ -1187,76 +1110,6 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             {
                 Reload();
             }
-        }
-
-        private void ApplyExophaseEnrichmentSlug()
-        {
-            if (string.IsNullOrWhiteSpace(ExophaseEnrichmentSlugInput))
-            {
-                _playniteApi?.Dialogs?.ShowMessage(
-                    L("LOCPlayAch_ManageAchievements_Overrides_ProviderValueRequired"),
-                    L("LOCPlayAch_Title_PluginName"),
-                    MessageBoxButton.OK,
-                    MessageBoxImage.Warning);
-                return;
-            }
-
-            if (!ExophaseApiClient.TryNormalizeSlugInput(ExophaseEnrichmentSlugInput, out var slug))
-            {
-                _playniteApi?.Dialogs?.ShowMessage(
-                    L("LOCPlayAch_ManageAchievements_Overrides_ExophaseEnrichmentInvalid"),
-                    L("LOCPlayAch_Title_PluginName"),
-                    MessageBoxButton.OK,
-                    MessageBoxImage.Warning);
-                return;
-            }
-
-            if (TrySetExophaseEnrichmentSlug(slug))
-            {
-                Reload();
-            }
-        }
-
-        private void ClearExophaseEnrichmentSlug()
-        {
-            if (TrySetExophaseEnrichmentSlug(null))
-            {
-                Reload();
-            }
-        }
-
-        private bool TrySetExophaseEnrichmentSlug(string slug)
-        {
-            var game = _playniteApi?.Database?.Games?.Get(_gameId);
-            if (game == null)
-            {
-                return false;
-            }
-
-            if (_achievementOverridesService != null)
-            {
-                _achievementOverridesService.SetExophaseEnrichmentSlugOverride(_gameId, slug);
-            }
-            else
-            {
-                var store = _plugin?.GameCustomDataStore;
-                if (store == null)
-                {
-                    return false;
-                }
-
-                store.Update(_gameId, customData =>
-                {
-                    customData.ExophaseEnrichmentSlugOverride = string.IsNullOrWhiteSpace(slug) ? null : slug.Trim();
-                });
-            }
-
-            _persistSettingsForUi?.Invoke();
-            _logger?.Info(string.IsNullOrWhiteSpace(slug)
-                ? $"Cleared Exophase enrichment slug override for '{game.Name}'"
-                : $"Set Exophase enrichment slug override for '{game.Name}' to '{slug}'");
-            TriggerRefresh();
-            return true;
         }
 
         private void ExportCustom()
@@ -1826,8 +1679,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             OpenAchievementPageCommand?.RaiseCanExecuteChanged();
             ApplyProviderOverrideCommand?.RaiseCanExecuteChanged();
             ClearProviderOverrideCommand?.RaiseCanExecuteChanged();
-            ApplyExophaseEnrichmentSlugCommand?.RaiseCanExecuteChanged();
-            ClearExophaseEnrichmentSlugCommand?.RaiseCanExecuteChanged();
+            _chooseProviderOverrideGameCommand?.RaiseCanExecuteChanged();
             FollowSavedFiltersCommand?.RaiseCanExecuteChanged();
             UnlinkManualTrackingCommand?.RaiseCanExecuteChanged();
             RefreshStateCommand?.RaiseCanExecuteChanged();
@@ -1852,7 +1704,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         internal void NotifyCapstoneChanged(string displayName)
         {
             CurrentCapstoneName = string.IsNullOrWhiteSpace(displayName)
-                ? L("LOCNone")
+                ? L("LOCPlayAch_Common_None")
                 : displayName.Trim();
             RefreshCustomDataState();
             // The sidebar's capstone chip comes from OverviewSummary, which only the shell reload
@@ -2110,34 +1962,21 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             }
         }
 
-        private void ReloadExophaseEnrichmentSlugState(
-            GameCustomDataFile currentCustomData,
-            Playnite.SDK.Models.Game game,
-            string providerGameKey)
-        {
-            var slug = (currentCustomData?.ExophaseEnrichmentSlugOverride ?? string.Empty).Trim();
-            _exophaseEnrichmentSlugValue = slug;
-            HasExophaseEnrichmentSlugOverride = !string.IsNullOrWhiteSpace(slug);
-            ExophaseEnrichmentSlugInput = slug;
-            OnPropertyChanged(nameof(ExophaseEnrichmentSlugStatusText));
-            ExophaseEnrichmentSlugPlaceholder =
-                ExophaseRarityEnrichment.GetCandidateSlug(_cachedProviderKey, game, providerGameKey) ?? string.Empty;
-
-            // Raw ProviderKey (not EffectiveProviderKey): Exophase-serviced games report their
-            // proxied platform as the effective key but never run the enricher.
-            IsExophaseEnrichmentSlugSectionVisible =
-                HasGame && ExophaseRarityEnrichment.IsEnabledForProvider(_cachedProviderKey);
-        }
-
         private void OnProviderOverrideSelectionChanged()
         {
             OnPropertyChanged(nameof(IsProviderOverrideProviderSelected));
             OnPropertyChanged(nameof(IsProviderOverrideValueVisible));
             OnPropertyChanged(nameof(IsProviderOverrideTextVisible));
             OnPropertyChanged(nameof(IsProviderOverrideChoiceVisible));
+            OnPropertyChanged(nameof(IsProviderOverrideSearchVisible));
+            OnPropertyChanged(nameof(IsProviderOverrideApplyVisible));
             OnPropertyChanged(nameof(ProviderOverrideChoices));
             OnPropertyChanged(nameof(ProviderOverrideInputLabel));
-            OnPropertyChanged(nameof(ProviderOverrideStatusText));
+            if (!_isLoadingProviderOverride)
+            {
+                ReloadProviderOverrideGameName();
+            }
+
             RaiseCommandStates();
         }
 
@@ -2182,7 +2021,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 new ProviderOverrideOption
                 {
                     ProviderKey = ProviderOverrideNoneKey,
-                    DisplayName = L("LOCNone"),
+                    DisplayName = L("LOCPlayAch_Common_None"),
                     Descriptor = null
                 }
             };
@@ -2197,7 +2036,8 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                     {
                         ProviderKey = provider.ProviderKey,
                         DisplayName = ProviderRegistry.GetLocalizedName(provider.ProviderKey),
-                        Descriptor = overrideProvider.OverrideDescriptor
+                        Descriptor = overrideProvider.OverrideDescriptor,
+                        Provider = provider
                     });
                 }
             }
@@ -2220,7 +2060,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             var normalizedKey = NormalizeProviderOverrideSelection(providerKey);
             if (string.Equals(normalizedKey, ProviderOverrideNoneKey, StringComparison.OrdinalIgnoreCase))
             {
-                return L("LOCNone");
+                return L("LOCPlayAch_Common_None");
             }
 
             return ProviderRegistry.GetLocalizedName(normalizedKey);

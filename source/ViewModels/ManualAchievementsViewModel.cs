@@ -21,6 +21,7 @@ using PlayniteAchievements.Services;
 using PlayniteAchievements.Services.Achievements;
 using PlayniteAchievements.Services.Cache;
 using PlayniteAchievements.Services.GameCustomData;
+using PlayniteAchievements.Services.GameSearch;
 using PlayniteAchievements.Services.Refresh;
 using PlayniteAchievements.Services.Search;
 using PlayniteAchievements.ViewModels.Items;
@@ -61,11 +62,9 @@ namespace PlayniteAchievements.ViewModels
         private readonly bool _startAtEditingStage;
         private readonly ManualAchievementLink _existingLink;
         private CancellationTokenSource _refreshCts;
-        private CancellationTokenSource _searchCts;
+        private IManualSource _searchedSource;
         private ManualAchievementLink _lastSavedLink;
         private List<InheritedUnlockEntry> _pendingInheritedUnlocks;
-
-        private bool RequireExophaseAuthentication => ProviderRegistry.Settings<ManualSettings>().RequireExophaseAuthentication;
 
         private GameCustomDataStore GameCustomDataStore => PlayniteAchievementsPlugin.Instance?.GameCustomDataStore;
 
@@ -75,11 +74,6 @@ namespace PlayniteAchievements.ViewModels
         private bool _canCancelRefresh = true;
         private string _errorMessage = string.Empty;
 
-        // Search stage properties
-        private string _searchText = string.Empty;
-        private bool _isSearching;
-        private ManualGameSearchResult _selectedResult;
-        private string _searchStatusMessage = string.Empty;
         private IManualSource _selectedSource;
 
         // Edit stage properties
@@ -155,17 +149,9 @@ namespace PlayniteAchievements.ViewModels
                     OnPropertyChanged();
                     OnPropertyChanged(nameof(SelectedSourceKey));
                     OnPropertyChanged(nameof(ManualSourceName));
-                    OnPropertyChanged(nameof(ShowPlatformColumn));
 
-                    // Clear search results and trigger new search when source changes
-                    SearchResults.Clear();
-                    SelectedResult = null;
-
-                    // Auto-search if there's search text
-                    if (!string.IsNullOrWhiteSpace(SearchText))
-                    {
-                        _ = ExecuteSearchAsync();
-                    }
+                    // The same text is searched again on the new source.
+                    SyncSearchSource();
                 }
             }
         }
@@ -225,64 +211,8 @@ namespace PlayniteAchievements.ViewModels
 
         #region Search Stage Properties
 
-        public string SearchText
-        {
-            get => _searchText;
-            set
-            {
-                if (_searchText != value)
-                {
-                    _searchText = value ?? string.Empty;
-                    OnPropertyChanged();
-                    SearchCommand.RaiseCanExecuteChanged();
-                }
-            }
-        }
-
-        public bool IsSearching
-        {
-            get => _isSearching;
-            private set
-            {
-                if (_isSearching != value)
-                {
-                    _isSearching = value;
-                    OnPropertyChanged();
-                    SearchCommand.RaiseCanExecuteChanged();
-                    NextCommand.RaiseCanExecuteChanged();
-                }
-            }
-        }
-
-        public ObservableCollection<ManualGameSearchResult> SearchResults { get; } =
-            new ObservableCollection<ManualGameSearchResult>();
-
-        public ManualGameSearchResult SelectedResult
-        {
-            get => _selectedResult;
-            set
-            {
-                if (_selectedResult != value)
-                {
-                    _selectedResult = value;
-                    OnPropertyChanged();
-                    NextCommand.RaiseCanExecuteChanged();
-                }
-            }
-        }
-
-        public string SearchStatusMessage
-        {
-            get => _searchStatusMessage;
-            private set
-            {
-                if (_searchStatusMessage != value)
-                {
-                    _searchStatusMessage = value;
-                    OnPropertyChanged();
-                }
-            }
-        }
+        /// <summary>The search stage: the selected source's catalog, searched by name or by a pasted id.</summary>
+        public GameSearchViewModel Search { get; }
 
         #endregion
 
@@ -346,12 +276,6 @@ namespace PlayniteAchievements.ViewModels
             }
         }
 
-        /// <summary>
-        /// Gets whether the platform column should be visible in search results.
-        /// Only Exophase provides platform information.
-        /// </summary>
-        public bool ShowPlatformColumn => _source?.SourceKey == "Exophase";
-
         private string _sourceGameId;
 
         public string SourceGameId
@@ -397,7 +321,6 @@ namespace PlayniteAchievements.ViewModels
 
         #region Commands
 
-        public RelayCommand SearchCommand { get; }
         public AsyncCommand NextCommand { get; }
         public ICommand SaveCommand { get; }
         public ICommand CancelCommand { get; }
@@ -460,13 +383,27 @@ namespace PlayniteAchievements.ViewModels
                 }
             }
 
-            // Initialize search text with game name for auto-search
-            _searchText = startAtEditingStage ? string.Empty : playniteGame.Name;
-
-            // Search commands
-            SearchCommand = new RelayCommand(
-                async _ => await ExecuteSearchAsync(),
-                _ => !IsSearching && !string.IsNullOrWhiteSpace(SearchText));
+            // The search starts on the game's name; a relink preselects the game linked now.
+            var current = !startAtEditingStage &&
+                          ManualAchievementsProvider.TryGetManualLink(playniteGame.Id, out var linked) &&
+                          string.Equals(linked?.SourceKey, _source.SourceKey, StringComparison.OrdinalIgnoreCase) &&
+                          !string.IsNullOrWhiteSpace(linked.SourceGameId)
+                ? new[] { new GameSearchResult(linked.SourceGameId, linked.SourceGameId) }
+                : null;
+            _searchedSource = _source;
+            Search = new GameSearchViewModel(
+                new ManualSourceGameSearch(_source, _language),
+                startAtEditingStage ? string.Empty : playniteGame.Name,
+                current,
+                logger);
+            Search.PropertyChanged += (sender, args) =>
+            {
+                if (args.PropertyName == nameof(GameSearchViewModel.SelectedItem) ||
+                    args.PropertyName == nameof(GameSearchViewModel.IsSearching))
+                {
+                    NextCommand?.RaiseCanExecuteChanged();
+                }
+            };
 
             // Navigation commands
             NextCommand = new AsyncCommand(_ => TransitionToRefreshingAsync(), _ => CanTransitionToNext());
@@ -493,86 +430,20 @@ namespace PlayniteAchievements.ViewModels
         private bool CanTransitionToNext()
         {
             return CurrentStage == WizardStage.Search &&
-                   SelectedResult != null &&
-                   !IsSearching;
+                   Search.SelectedItem != null &&
+                   !Search.IsSearching;
         }
 
-        public async Task ExecuteSearchAsync()
+        /// <summary>Points the search at the selected source when it changed; a new source searches the same text.</summary>
+        private void SyncSearchSource()
         {
-            if (string.IsNullOrWhiteSpace(SearchText) || IsSearching)
+            if (ReferenceEquals(_searchedSource, _source))
             {
                 return;
             }
 
-            // Cancel any previous search
-            _searchCts?.Cancel();
-            _searchCts?.Dispose();
-            _searchCts = new CancellationTokenSource();
-
-            var ct = _searchCts.Token;
-            IsSearching = true;
-            SearchStatusMessage = ResourceProvider.GetString("LOCPlayAch_Status_Refreshing");
-            SearchResults.Clear();
-            SelectedResult = null;
-
-            try
-            {
-                var results = await _source.SearchGamesAsync(SearchText.Trim(), _language, ct);
-
-                if (ct.IsCancellationRequested)
-                {
-                    return;
-                }
-
-                if (results == null || results.Count == 0)
-                {
-                    SearchStatusMessage = ResourceProvider.GetString("LOCPlayAch_ManualAchievements_Search_NoResults");
-                    return;
-                }
-
-                foreach (var result in results)
-                {
-                    if (result != null)
-                    {
-                        SearchResults.Add(result);
-                    }
-                }
-
-                SearchStatusMessage = string.Format(
-                    FormattingCulture.Current,
-                    ResourceProvider.GetString("LOCPlayAch_ManualAchievements_Search_ResultsFormat"),
-                    SearchResults.Count);
-
-                // Auto-select first result
-                if (SearchResults.Count > 0)
-                {
-                    SelectedResult = SearchResults[0];
-                }
-            }
-            catch (OperationCanceledException)
-            {
-                // Search was cancelled
-            }
-            catch (ManualSourceAuthenticationException ex)
-            {
-                SearchStatusMessage = ManualSourceAuthentication.ResolveLocalizedMessage(ex);
-            }
-            catch (Exception ex)
-            {
-                _logger?.Error(ex, "Manual achievement search failed");
-                SearchStatusMessage = string.Format(
-                    ResourceProvider.GetString("LOCPlayAch_Status_Failed"),
-                    ex.Message);
-            }
-            finally
-            {
-                IsSearching = false;
-            }
-        }
-
-        public void CancelSearch()
-        {
-            _searchCts?.Cancel();
+            _searchedSource = _source;
+            Search.SetSource(new ManualSourceGameSearch(_source, _language));
         }
 
         #endregion
@@ -581,12 +452,12 @@ namespace PlayniteAchievements.ViewModels
 
         private async Task TransitionToRefreshingAsync()
         {
-            if (CurrentStage != WizardStage.Search || SelectedResult == null)
+            var selectedResult = Search.SelectedItem?.Result;
+            if (CurrentStage != WizardStage.Search || selectedResult == null)
             {
                 return;
             }
 
-            var selectedResult = SelectedResult;
             CurrentStage = WizardStage.Refreshing;
             ErrorMessage = string.Empty;
             ProgressMessage = ResourceProvider.GetString("LOCPlayAch_Status_Refreshing");
@@ -596,10 +467,7 @@ namespace PlayniteAchievements.ViewModels
 
             try
             {
-                await ManualSourceAuthentication.EnsureAuthenticatedIfRequiredAsync(
-                    _source,
-                    RequireExophaseAuthentication,
-                    CancellationToken.None);
+                await ManualSourceAuthentication.EnsureAuthenticatedAsync(_source, CancellationToken.None);
             }
             catch (ManualSourceAuthenticationException ex)
             {
@@ -615,10 +483,9 @@ namespace PlayniteAchievements.ViewModels
             var link = new ManualAchievementLink
             {
                 SourceKey = _source.SourceKey,
-                SourceGameId = selectedResult.SourceGameId,
+                SourceGameId = selectedResult.Id,
                 UnlockTimes = new Dictionary<string, DateTime?>(),
                 UnlockStates = new Dictionary<string, bool>(),
-                AllowUnauthenticatedSchemaFetch = ResolveAllowUnauthenticatedSchemaFetch(_source?.SourceKey),
                 CreatedUtc = DateTime.UtcNow,
                 LastModifiedUtc = DateTime.UtcNow
             };
@@ -805,11 +672,7 @@ namespace PlayniteAchievements.ViewModels
 
             try
             {
-                await ManualSourceAuthentication.EnsureAuthenticatedIfRequiredAsync(
-                    _source,
-                    RequireExophaseAuthentication,
-                    _existingLink,
-                    refreshCts.Token);
+                await ManualSourceAuthentication.EnsureAuthenticatedAsync(_source, refreshCts.Token);
 
                 _refreshService.RebuildProgress += OnRebuildProgress;
 
@@ -943,8 +806,6 @@ namespace PlayniteAchievements.ViewModels
             ErrorMessage = string.Empty;
             CanCancelRefresh = false;
             _pendingInheritedUnlocks = null;
-            SearchResults.Clear();
-            SelectedResult = null;
 
             // Set the preserved source
             _source = preservedSource;
@@ -957,12 +818,13 @@ namespace PlayniteAchievements.ViewModels
             OnPropertyChanged(nameof(SelectedSourceKey));
             OnPropertyChanged(nameof(SelectedSource));
             OnPropertyChanged(nameof(ManualSourceName));
-            OnPropertyChanged(nameof(ShowPlatformColumn));
 
-            if (string.IsNullOrWhiteSpace(SearchText))
+            if (string.IsNullOrWhiteSpace(Search.SearchText))
             {
-                SearchText = _playniteGame?.Name ?? string.Empty;
+                Search.SearchText = _playniteGame?.Name ?? string.Empty;
             }
+
+            SyncSearchSource();
         }
 
         private async Task HandleRefreshFailureAsync(string dialogMessage = null, bool rerunSearch = true)
@@ -990,9 +852,9 @@ namespace PlayniteAchievements.ViewModels
                 {
                     ResetToSearchStage(currentSource);
 
-                    if (rerunSearch && !string.IsNullOrWhiteSpace(SearchText))
+                    if (rerunSearch && !string.IsNullOrWhiteSpace(Search.SearchText))
                     {
-                        await ExecuteSearchAsync();
+                        await Search.SearchAsync();
                     }
                 }
             }
@@ -1000,9 +862,9 @@ namespace PlayniteAchievements.ViewModels
             {
                 ResetToSearchStage(currentSource);
 
-                if (rerunSearch && !string.IsNullOrWhiteSpace(SearchText))
+                if (rerunSearch && !string.IsNullOrWhiteSpace(Search.SearchText))
                 {
-                    await ExecuteSearchAsync();
+                    await Search.SearchAsync();
                 }
             }
         }
@@ -1180,16 +1042,6 @@ namespace PlayniteAchievements.ViewModels
             }
 
             return string.IsNullOrWhiteSpace(_source.SourceName) ? _source.SourceKey : _source.SourceName;
-        }
-
-        private bool? ResolveAllowUnauthenticatedSchemaFetch(string sourceKey)
-        {
-            if (string.Equals(sourceKey, "Exophase", StringComparison.OrdinalIgnoreCase))
-            {
-                return !RequireExophaseAuthentication;
-            }
-
-            return null;
         }
 
         private void EnsureManualProviderEnabledForLinking()
@@ -1433,8 +1285,6 @@ namespace PlayniteAchievements.ViewModels
                 SourceGameId = SourceGameId,
                 UnlockTimes = new Dictionary<string, DateTime?>(),
                 UnlockStates = new Dictionary<string, bool>(),
-                AllowUnauthenticatedSchemaFetch = _existingLink?.AllowUnauthenticatedSchemaFetch
-                    ?? ResolveAllowUnauthenticatedSchemaFetch(_source?.SourceKey),
                 DisplayPlatformKeyOverride =
                     ManualDisplayPlatformResolver.NormalizeOverride(_displayPlatformKeyOverride),
                 CreatedUtc = _existingLink?.CreatedUtc ?? now,
@@ -1632,9 +1482,7 @@ namespace PlayniteAchievements.ViewModels
 
         public void Cleanup()
         {
-            _searchCts?.Cancel();
-            _searchCts?.Dispose();
-            _searchCts = null;
+            Search.Cleanup();
 
             _refreshCts?.Cancel();
             _refreshCts?.Dispose();

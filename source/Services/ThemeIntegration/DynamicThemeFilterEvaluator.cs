@@ -88,9 +88,12 @@ namespace PlayniteAchievements.Services.ThemeIntegration
                 case DynamicThemeViewKeys.Bronze:
                     return IsTrophyType(item, filterKey);
                 default:
-                    if (CategoryTypeFilterKeys.Contains(filterKey ?? string.Empty))
+                    if (Services.Achievements.AchievementClassificationFilter.IsFilterKey(filterKey))
                     {
-                        return IsCategoryType(item, filterKey);
+                        return item != null && Services.Achievements.AchievementClassificationFilter.Matches(
+                            item.CategoryKind,
+                            item.Tags,
+                            filterKey);
                     }
 
                     return true;
@@ -139,33 +142,15 @@ namespace PlayniteAchievements.Services.ThemeIntegration
             return string.Equals(item.TrophyType, trophyKey, StringComparison.OrdinalIgnoreCase);
         }
 
-        private static readonly HashSet<string> CategoryTypeFilterKeys = new HashSet<string>(
-            DynamicThemeOptionGroups.AchievementCategoryTypeFilterKeys
-                .Where(key => !string.Equals(key, DynamicThemeViewKeys.All, StringComparison.OrdinalIgnoreCase)),
-            StringComparer.OrdinalIgnoreCase);
-
         /// <summary>
-        /// A category type key in its current spelling, so a theme still naming a renamed type
-        /// (SideProgression) filters by the type it became. Any other key is returned unchanged.
+        /// A kind or tag key in its current spelling, so a theme still naming a renamed key
+        /// (SideProgression) filters by the one it became. Any other key is returned unchanged.
         /// </summary>
         private static string CanonicalizeCategoryTypeKey(string filterKey)
         {
-            var categoryType = Services.Achievements.AchievementCategoryTypeHelper.Normalize(filterKey);
-            return categoryType != null && CategoryTypeFilterKeys.Contains(categoryType)
-                ? categoryType
+            return Services.Achievements.AchievementClassificationFilter.IsFilterKey(filterKey)
+                ? Services.Achievements.AchievementClassificationFilter.Canonicalize(filterKey)
                 : filterKey;
-        }
-
-        private static bool IsCategoryType(AchievementDetail item, string typeKey)
-        {
-            if (item == null || string.IsNullOrWhiteSpace(typeKey))
-            {
-                return false;
-            }
-
-            // CategoryType is multi-valued ("Base|DLC"); ParseValues canonicalizes aliases.
-            return Services.Achievements.AchievementCategoryTypeHelper.ParseValues(item.CategoryType)
-                .Contains(typeKey, StringComparer.OrdinalIgnoreCase);
         }
     }
 }

@@ -98,7 +98,7 @@ namespace PlayniteAchievements.Providers.Manual
             {
                 new ProviderOverrideChoice(
                     string.Empty,
-                    ResourceProvider.GetString("LOCDefault"))
+                    ResourceProvider.GetString("LOCPlayAch_Common_Default"))
             };
 
             options.AddRange(GetSelectablePlatformKeys()

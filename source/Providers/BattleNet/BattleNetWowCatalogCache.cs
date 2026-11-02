@@ -14,7 +14,7 @@ namespace PlayniteAchievements.Providers.BattleNet
 {
     internal sealed class BattleNetWowCatalogCache
     {
-        private const int SchemaVersion = 3;
+        private const int SchemaVersion = 4;
         private static readonly TimeSpan MaxAge = TimeSpan.FromDays(7);
 
         private readonly string _cacheRoot;
@@ -226,7 +226,8 @@ namespace PlayniteAchievements.Providers.BattleNet
                 LockedIconPath = detail.LockedIconPath,
                 Points = detail.Points,
                 ScaledPoints = detail.ScaledPoints,
-                CategoryType = detail.CategoryType,
+                Tags = detail.Tags,
+                CategoryKind = detail.CategoryKind,
                 Category = detail.Category,
                 TrophyType = detail.TrophyType,
                 IsCapstone = detail.IsCapstone,
@@ -250,7 +251,8 @@ namespace PlayniteAchievements.Providers.BattleNet
                 LockedIconPath = item.LockedIconPath,
                 Points = item.Points,
                 ScaledPoints = item.ScaledPoints,
-                CategoryType = item.CategoryType,
+                Tags = item.Tags,
+                CategoryKind = item.CategoryKind,
                 Category = item.Category,
                 TrophyType = item.TrophyType,
                 IsCapstone = item.IsCapstone,
@@ -319,7 +321,8 @@ namespace PlayniteAchievements.Providers.BattleNet
             public string LockedIconPath { get; set; }
             public int? Points { get; set; }
             public int? ScaledPoints { get; set; }
-            public string CategoryType { get; set; }
+            public string Tags { get; set; }
+            public string CategoryKind { get; set; }
             public string Category { get; set; }
             public string TrophyType { get; set; }
             public bool IsCapstone { get; set; }

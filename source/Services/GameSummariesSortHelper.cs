@@ -34,6 +34,10 @@ namespace PlayniteAchievements.Services
             GameSummariesSortMode.Progress => nameof(GameSummaryItem.Progression),
             GameSummariesSortMode.Alphabetical => "SortingName",
             GameSummariesSortMode.PinOrder => null,
+            GameSummariesSortMode.DateAdded => nameof(GameSummaryItem.Added),
+            GameSummariesSortMode.ReleaseDate => nameof(GameSummaryItem.ReleaseDate),
+            GameSummariesSortMode.Playtime => nameof(GameSummaryItem.PlaytimeSeconds),
+            GameSummariesSortMode.Remaining => nameof(GameSummaryItem.RemainingAchievements),
             _ => nameof(GameSummaryItem.LastUnlockUtc)
         };
 
@@ -44,6 +48,7 @@ namespace PlayniteAchievements.Services
             GameSummariesSortMode.TotalAchievements => nameof(GameSummaryItem.TotalAchievements),
             GameSummariesSortMode.Progress => nameof(GameSummaryItem.Progression),
             GameSummariesSortMode.Alphabetical => "SortingName",
+            GameSummariesSortMode.Playtime => nameof(GameSummaryItem.PlaytimeSeconds),
             _ => null
         };
     }
@@ -329,6 +334,21 @@ namespace PlayniteAchievements.Services
                     b,
                     sortMemberPath,
                     CompareDateTime(a?.LastPlayed, b?.LastPlayed, direction)),
+                nameof(GameSummaryItem.Added) => (a, b) => CompareWithTieBreakers(
+                    a,
+                    b,
+                    sortMemberPath,
+                    CompareDateTime(a?.Added, b?.Added, direction)),
+                nameof(GameSummaryItem.ReleaseDate) => (a, b) => CompareWithTieBreakers(
+                    a,
+                    b,
+                    sortMemberPath,
+                    CompareDateTime(a?.ReleaseDate, b?.ReleaseDate, direction)),
+                nameof(GameSummaryItem.RemainingAchievements) => (a, b) => CompareWithTieBreakers(
+                    a,
+                    b,
+                    sortMemberPath,
+                    CompareInt(a?.RemainingAchievements ?? 0, b?.RemainingAchievements ?? 0, direction)),
                 nameof(GameSummaryItem.TotalAchievements) => (a, b) => CompareWithTieBreakers(
                     a,
                     b,

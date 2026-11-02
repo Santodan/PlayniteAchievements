@@ -30,8 +30,8 @@ namespace PlayniteAchievements.Services.Tests
                 ProviderUnlockTimeUtc = new DateTime(2026, 1, 2, 3, 4, 5, DateTimeKind.Utc),
                 Category = "Base",
                 ProviderCategory = "Base",
-                CategoryType = "Base",
-                ProviderCategoryType = "Base",
+                Tags = "Progression",
+                ProviderTags = "Progression",
                 Note = null,
                 UnlockedIconPath = "icon_cache\\first.png",
                 ProviderUnlockedIconPath = "icon_cache\\first.png",
@@ -77,8 +77,8 @@ namespace PlayniteAchievements.Services.Tests
             inputs.ProviderUnlockTimeUtc = null;
             inputs.Category = null;
             inputs.ProviderCategory = null;
-            inputs.CategoryType = null;
-            inputs.ProviderCategoryType = null;
+            inputs.Tags = null;
+            inputs.ProviderTags = null;
             inputs.ProviderUnlockedIconPath = null;
 
             Assert.AreEqual(
@@ -283,14 +283,14 @@ namespace PlayniteAchievements.Services.Tests
         }
 
         [TestMethod]
-        public void Recategorized_ReportsBothCategoryAndType()
+        public void Recategorized_ReportsBothCategoryAndTags()
         {
             var inputs = Untouched();
             inputs.Category = "Endgame";
-            inputs.CategoryType = "DLC";
+            inputs.Tags = "Missable";
 
             Assert.AreEqual(
-                AchievementCustomizationFacet.Category | AchievementCustomizationFacet.CategoryType,
+                AchievementCustomizationFacet.Category | AchievementCustomizationFacet.Tags,
                 AchievementCustomizationRules.Resolve(inputs));
         }
 
@@ -302,11 +302,11 @@ namespace PlayniteAchievements.Services.Tests
             var inputs = Untouched();
             inputs.ProviderCategory = "Default";
             inputs.Category = "Endgame";
-            inputs.ProviderCategoryType = "Default";
-            inputs.CategoryType = "DLC";
+            inputs.ProviderTags = null;
+            inputs.Tags = "Missable";
 
             Assert.AreEqual(
-                AchievementCustomizationFacet.Category | AchievementCustomizationFacet.CategoryType,
+                AchievementCustomizationFacet.Category | AchievementCustomizationFacet.Tags,
                 AchievementCustomizationRules.Resolve(inputs));
         }
 
@@ -317,8 +317,8 @@ namespace PlayniteAchievements.Services.Tests
             var inputs = Untouched();
             inputs.Category = "Default";
             inputs.ProviderCategory = "Default";
-            inputs.CategoryType = "Default";
-            inputs.ProviderCategoryType = "Default";
+            inputs.Tags = null;
+            inputs.ProviderTags = null;
 
             Assert.AreEqual(
                 AchievementCustomizationFacet.None,

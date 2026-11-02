@@ -321,6 +321,27 @@ namespace PlayniteAchievements.Services.UI
         }
 
         /// <summary>
+        /// Stores where the card sits in its frames for a card with a blurred background, once per
+        /// item. UI thread only; like the shadow layer it lives on the track, which the worker never
+        /// reads.
+        /// </summary>
+        public void SetBlur(AchievementToastViewModel vm, ToastBlurPatch blur)
+        {
+            if (vm == null || blur == null)
+            {
+                return;
+            }
+
+            GetOrCreateState(vm).Track.Blur = blur;
+        }
+
+        /// <summary>Whether the item's track already carries its blur geometry.</summary>
+        public bool HasBlur(AchievementToastViewModel vm)
+        {
+            return vm != null && _items.TryGetValue(vm, out var state) && state.Track.Blur != null;
+        }
+
+        /// <summary>
         /// Stores the card's shadow/glow difference layer (with-effects render minus
         /// effects-stripped render, premultiplied BGRA at the card's pixel size). Compressed here,
         /// once per capture — a few milliseconds, paid before the wave's slide begins. UI thread

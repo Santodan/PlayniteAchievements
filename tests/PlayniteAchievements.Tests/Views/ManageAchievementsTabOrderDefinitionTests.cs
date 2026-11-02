@@ -24,9 +24,9 @@ namespace PlayniteAchievements.Tests.Views
             var focusOrder = ReadFocusButtonOrder();
 
             Assert.AreEqual(
-                4,
+                5,
                 xamlOrder.Count,
-                "Expected 4 tabs in the nav rail; update this test if a tab was added or removed.");
+                "Expected 5 tabs in the nav rail; update this test if a tab was added or removed.");
 
             CollectionAssert.AreEqual(
                 xamlOrder,
@@ -64,12 +64,12 @@ namespace PlayniteAchievements.Tests.Views
         {
             var xaml = ReadControlXaml();
 
-            // The rail is four tabs, so it lists them flat. The Overrides tab folded into the
+            // The rail lists its tabs flat. The Overrides tab folded into the
             // Overview, which left each remaining group with a single entry, and the headers went
             // with it.
             var formerHeaderKeys = new[]
             {
-                "LOCGeneralLabel",
+                "LOCPlayAch_Common_General",
                 "LOCPlayAch_Settings_Appearance",
                 "LOCPlayAch_Settings_Maintenance_Title",
                 "LOCPlayAch_Achievements"

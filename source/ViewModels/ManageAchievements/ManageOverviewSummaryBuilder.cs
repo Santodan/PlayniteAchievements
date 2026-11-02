@@ -58,12 +58,12 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
     /// </summary>
     internal static class ManageOverviewSummaryBuilder
     {
-        public const string CustomAchievementsLabelKey = "LOCCustomLabel";
+        public const string CustomAchievementsLabelKey = "LOCPlayAch_Common_Custom";
+        public const string AutoCapstoneLabelKey = "LOCPlayAch_ManageAchievements_Custom_AutoCapstone";
         public const string OrderLabelKey = "LOCPlayAch_ManageAchievements_Tab_AchievementOrder";
         public const string CategoryArtLabelKey = "LOCPlayAch_Column_CategoryArt";
-        public const string NotificationsLabelKey = "LOCNotifications";
+        public const string NotificationsLabelKey = "LOCPlayAch_Common_Notifications";
         public const string ProviderOverrideLabelKey = "LOCPlayAch_ManageAchievements_Overrides_ProviderHeader";
-        public const string ExophaseEnrichmentLabelKey = "LOCPlayAch_ManageAchievements_Overrides_ExophaseEnrichmentHeader";
         public const string SeparateLockedIconsLabelKey = "LOCPlayAch_ManageAchievements_Overrides_LockedIconsHeader";
 
         public static ManageOverviewBreakdown BuildBreakdown(IEnumerable<AchievementDetail> achievements)
@@ -116,9 +116,9 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 }
 
                 var label = CategoryPathHelper.NormalizePath(
-                    AchievementCategoryTypeHelper.NormalizeCategory(achievement.Category));
+                    AchievementCategoryHelper.NormalizeCategory(achievement.Category));
                 if (!string.IsNullOrWhiteSpace(label) &&
-                    !string.Equals(label, AchievementCategoryTypeHelper.DefaultCategoryLabel, StringComparison.OrdinalIgnoreCase))
+                    !string.Equals(label, AchievementCategoryHelper.DefaultCategoryLabel, StringComparison.OrdinalIgnoreCase))
                 {
                     breakdown.CategorizedCount++;
                 }
@@ -138,8 +138,8 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 .Select(a =>
                 {
                     var category = CategoryPathHelper.NormalizePath(
-                        AchievementCategoryTypeHelper.NormalizeCategory(a.Category));
-                    if (string.Equals(category, AchievementCategoryTypeHelper.DefaultCategoryLabel, StringComparison.OrdinalIgnoreCase))
+                        AchievementCategoryHelper.NormalizeCategory(a.Category));
+                    if (string.Equals(category, AchievementCategoryHelper.DefaultCategoryLabel, StringComparison.OrdinalIgnoreCase))
                     {
                         category = null;
                     }
@@ -173,17 +173,35 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 return result;
             }
 
-            AddCount(result, CustomAchievementsLabelKey, data.CustomAchievements?.Count(item => item != null) ?? 0);
+            // Auto capstones are written by the plugin, not the user: one count of their own, and
+            // left out of every other count, Custom included.
+            var autoCapstones = (data.CustomAchievements ?? new List<CustomAchievementDefinition>())
+                .Where(item => item?.IsAutoCapstone == true)
+                .ToList();
+            var autoCapstoneNames = new HashSet<string>(
+                autoCapstones
+                    .Select(item => CustomAchievementProjectionService.BuildApiName(item.Id))
+                    .Where(HasText),
+                StringComparer.OrdinalIgnoreCase);
+            bool IsUserAchievement(string apiName) => !autoCapstoneNames.Contains(apiName?.Trim() ?? string.Empty);
+
+            AddCount(
+                result,
+                CustomAchievementsLabelKey,
+                data.CustomAchievements?.Count(item => item != null && !item.IsAutoCapstone) ?? 0);
+            AddCount(result, AutoCapstoneLabelKey, autoCapstones.Count);
 
             var overrides = (data.AchievementOverrides ?? new Dictionary<string, AchievementOverride>())
-                .Where(pair => !string.IsNullOrWhiteSpace(pair.Key) && pair.Value != null)
+                .Where(pair => !string.IsNullOrWhiteSpace(pair.Key) && pair.Value != null && IsUserAchievement(pair.Key))
                 .ToList();
             var customs = (data.CustomAchievements ?? new List<CustomAchievementDefinition>())
-                .Where(item => item != null)
+                .Where(item => item != null && !item.IsAutoCapstone)
                 .Select(item => new KeyValuePair<string, CustomAchievementDefinition>(
                     CustomAchievementProjectionService.BuildApiName(item.Id), item))
                 .Where(pair => pair.Key != null)
                 .ToList();
+            int CountUserDistinct(IEnumerable<string> apiNames) =>
+                CountDistinct((apiNames ?? Enumerable.Empty<string>()).Where(IsUserAchievement));
 
             int Count(Func<AchievementOverride, bool> inOverride, Func<CustomAchievementDefinition, bool> inCustom)
             {
@@ -223,8 +241,8 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                     case AchievementCustomizationFacet.Category:
                         count = Count(o => HasText(o.Category), c => IsNamedCategory(c.Category));
                         break;
-                    case AchievementCustomizationFacet.CategoryType:
-                        count = Count(o => HasText(o.CategoryType), c => IsNamedCategoryType(c.CategoryType));
+                    case AchievementCustomizationFacet.Tags:
+                        count = Count(o => o.ClearTags || o.Tags != null, c => HasText(c.Tags));
                         break;
                     case AchievementCustomizationFacet.Hidden:
                         count = Count(o => o.Hidden.HasValue, c => c.Hidden);
@@ -233,17 +251,17 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                         count = overrides.Count(pair => HasText(pair.Value.Note));
                         break;
                     case AchievementCustomizationFacet.FilterScope:
-                        count = CountDistinct((data.FilteredAchievementApiNames ?? new List<string>())
+                        count = CountUserDistinct((data.FilteredAchievementApiNames ?? new List<string>())
                             .Concat(data.SummaryFilteredAchievementApiNames ?? new List<string>()));
                         break;
                     case AchievementCustomizationFacet.Goal:
-                        count = CountDistinct(data.GoalAchievementApiNames);
+                        count = CountUserDistinct(data.GoalAchievementApiNames);
                         break;
                     case AchievementCustomizationFacet.Capstone:
                         // A materialized set names every capstone, custom ones included; before
                         // that, a custom achievement's own flag is what makes it one.
                         count = data.CapstonesMaterialized
-                            ? data.Capstones?.Count(item => item != null) ?? 0
+                            ? CountUserDistinct(data.Capstones?.Where(item => item != null).Select(item => item.ApiName))
                             : customs.Count(pair => pair.Value.IsCapstone);
                         break;
                     default:
@@ -275,7 +293,6 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 HasText(data.ShadPS4MatchIdOverride) ||
                 data.ForceUseExophase == true ||
                 HasText(data.ExophaseSlugOverride));
-            AddFlag(result, ExophaseEnrichmentLabelKey, HasText(data.ExophaseEnrichmentSlugOverride));
             AddFlag(result, SeparateLockedIconsLabelKey, data.UseSeparateLockedIconsOverride == true);
 
             return result;
@@ -308,20 +325,13 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
 
         private static bool HasText(string value) => !string.IsNullOrWhiteSpace(value);
 
-        // A custom achievement left in the Default bucket, or with the Default type, has chosen
+        // A custom achievement left in the Default bucket has chosen
         // nothing; the projection files it there when the field is blank.
         private static bool IsNamedCategory(string category) =>
             HasText(category) &&
             !string.Equals(
                 CategoryPathHelper.NormalizePath(category),
-                AchievementCategoryTypeHelper.DefaultCategoryLabel,
-                StringComparison.OrdinalIgnoreCase);
-
-        private static bool IsNamedCategoryType(string categoryType) =>
-            HasText(categoryType) &&
-            !string.Equals(
-                AchievementCategoryTypeHelper.NormalizeOrDefault(categoryType),
-                AchievementCategoryTypeHelper.DefaultCategoryType,
+                AchievementCategoryHelper.DefaultCategoryLabel,
                 StringComparison.OrdinalIgnoreCase);
     }
 }

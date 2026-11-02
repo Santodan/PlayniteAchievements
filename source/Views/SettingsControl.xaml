@@ -30,22 +30,22 @@
     <Grid Margin="24,20,24,24">
         <TabControl x:Name="SettingsTabControl" SelectionChanged="TabControl_SelectionChanged" BorderThickness="0">
             <!-- ================== TAB: GENERAL SETTINGS ================== -->
-            <TabItem x:Name="GeneralTab" AutomationProperties.Name="{DynamicResource LOCGeneralLabel}">
+            <TabItem x:Name="GeneralTab" AutomationProperties.Name="{DynamicResource LOCPlayAch_Common_General}">
                 <TabItem.Header>
                     <StackPanel Style="{StaticResource TabHeaderWithIconStyle}">
                         <controls:GlyphIcon Style="{StaticResource HeaderGlyphStyle}" Glyph="&#xEF3A;"/>
-                        <TextBlock Text="{DynamicResource LOCGeneralLabel}" VerticalAlignment="Center"/>
+                        <TextBlock Text="{DynamicResource LOCPlayAch_Common_General}" VerticalAlignment="Center"/>
                     </StackPanel>
                 </TabItem.Header>
                 <ContentControl x:Name="GeneralSettingsContent"/>
             </TabItem>
 
             <!-- ================== TAB: PROVIDERS ================== -->
-            <TabItem x:Name="ProvidersTab" AutomationProperties.Name="{DynamicResource LOCPlatformsTitle}">
+            <TabItem x:Name="ProvidersTab" AutomationProperties.Name="{DynamicResource LOCPlayAch_Common_Platforms}">
                 <TabItem.Header>
                     <StackPanel Style="{StaticResource TabHeaderWithIconStyle}">
                         <controls:GlyphIcon Style="{StaticResource HeaderGlyphStyle}" Glyph="&#xEA30;"/>
-                        <TextBlock Text="{DynamicResource LOCPlatformsTitle}" VerticalAlignment="Center"/>
+                        <TextBlock Text="{DynamicResource LOCPlayAch_Common_Platforms}" VerticalAlignment="Center"/>
                     </StackPanel>
                 </TabItem.Header>
                 <nav:SettingsMasterDetailControl
@@ -53,6 +53,17 @@
                     SelectedItem="{Binding SelectedProviderNavigationItem, ElementName=SettingsControlRoot, Mode=TwoWay}"
                     ShowSearch="True"
                     EnableGrouping="True"/>
+            </TabItem>
+
+            <!-- ================== TAB: METADATA ================== -->
+            <TabItem x:Name="MetadataTab" AutomationProperties.Name="{DynamicResource LOCPlayAch_Common_Metadata}">
+                <TabItem.Header>
+                    <StackPanel Style="{StaticResource TabHeaderWithIconStyle}">
+                        <controls:GlyphIcon Style="{StaticResource HeaderGlyphStyle}" Glyph="&#xF005;"/>
+                        <TextBlock Text="{DynamicResource LOCPlayAch_Common_Metadata}" VerticalAlignment="Center"/>
+                    </StackPanel>
+                </TabItem.Header>
+                <ContentControl x:Name="MetadataSettingsContent"/>
             </TabItem>
 
             <!-- ================== TAB: FRIENDS ================== -->
@@ -79,22 +90,22 @@
             </TabItem>
 
             <!-- ================== TAB: THEMES ================== -->
-            <TabItem x:Name="ThemesTab" AutomationProperties.Name="{DynamicResource LOCThemes}">
+            <TabItem x:Name="ThemesTab" AutomationProperties.Name="{DynamicResource LOCPlayAch_Common_Themes}">
                 <TabItem.Header>
                     <StackPanel Style="{StaticResource TabHeaderWithIconStyle}">
                         <controls:GlyphIcon Style="{StaticResource HeaderGlyphStyle}" Glyph="&#xEDE4;"/>
-                        <TextBlock Text="{DynamicResource LOCThemes}" VerticalAlignment="Center"/>
+                        <TextBlock Text="{DynamicResource LOCPlayAch_Common_Themes}" VerticalAlignment="Center"/>
                     </StackPanel>
                 </TabItem.Header>
                 <ContentControl x:Name="ThemesSettingsContent"/>
             </TabItem>
 
             <!-- ================== TAB: NOTIFICATIONS ================== -->
-            <TabItem x:Name="NotificationsTab" AutomationProperties.Name="{DynamicResource LOCNotifications}">
+            <TabItem x:Name="NotificationsTab" AutomationProperties.Name="{DynamicResource LOCPlayAch_Common_Notifications}">
                 <TabItem.Header>
                     <StackPanel Style="{StaticResource TabHeaderWithIconStyle}">
                         <controls:GlyphIcon Style="{StaticResource HeaderGlyphStyle}" Glyph="&#xEEA3;"/>
-                        <TextBlock Text="{DynamicResource LOCNotifications}" VerticalAlignment="Center"/>
+                        <TextBlock Text="{DynamicResource LOCPlayAch_Common_Notifications}" VerticalAlignment="Center"/>
                     </StackPanel>
                 </TabItem.Header>
                 <ContentControl x:Name="NotificationsSettingsContent"/>

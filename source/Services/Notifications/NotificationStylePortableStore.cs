@@ -334,10 +334,9 @@ namespace PlayniteAchievements.Services.Notifications
                 foreach (var pair in imageSources.OrderBy(a => a.Key, StringComparer.OrdinalIgnoreCase))
                 {
                     var imageEntry = archive.CreateEntry(pair.Key, CompressionLevel.Optimal);
-                    using (var source = File.OpenRead(pair.Value))
                     using (var destination = imageEntry.Open())
                     {
-                        source.CopyTo(destination);
+                        PackageImageFormat.CopyPortable(pair.Value, destination);
                     }
                 }
 
@@ -364,7 +363,7 @@ namespace PlayniteAchievements.Services.Notifications
                     continue;
                 }
 
-                var extension = NormalizeImageExtension(Path.GetExtension(path));
+                var extension = PackageImageFormat.EntryExtension(path, NormalizeImageExtension(Path.GetExtension(path)));
                 var entryName = ImagesFolderName + "/" + BuildEntryStem(notificationKind, slot) + extension;
                 imageSources[entryName] = path;
                 NotificationImageSlotMap.SetPath(styleCopy, slot, entryName);

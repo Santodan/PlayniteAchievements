@@ -378,7 +378,7 @@
                                 VerticalAlignment="Center"
                                 Margin="18,0,0,0">
                         <Button x:Name="OverviewSubViewButton"
-                                Content="{DynamicResource LOCOverviewLabel}"
+                                Content="{DynamicResource LOCPlayAch_Common_Overview}"
                                 Click="OverviewSubViewButton_Click">
                             <Button.Style>
                                 <Style TargetType="Button" BasedOn="{StaticResource OverviewSubViewSwitchButtonStyle}">
@@ -449,6 +449,7 @@
                                 VerticalAlignment="Center">
                             <Button.ContextMenu>
                                 <ContextMenu x:Name="RefreshModeSelectionContextMenu"
+                                             helpers:SelectorSearch.IsDisabled="True"
                                              Style="{StaticResource AchievementSelectorContextMenuStyle}"
                                              ItemContainerStyle="{StaticResource AchievementMultiSelectMenuItemStyle}"/>
                             </Button.ContextMenu>
@@ -827,7 +828,6 @@
                                                                  ShowGameColumn="True"
                                                                  UseCoverImages="{Binding UseCoverImagesRecentAchievements}"
                                                                  ShowRarityGlow="{Binding ShowRarityGlowRecentAchievements}"
-                                                                 ColorNamesByRarity="{Binding ColorNamesByRarityRecentAchievements}"
                                                                  ColorRarityColumnsByRarity="{Binding ColorRarityColumnsByRarityRecentAchievements}"
                                                                  ShowColumnHeaders="{Binding ShowOverviewRecentAchievementsGridColumnHeaders}"
                                                                  FixedRowHeight="{Binding OverviewRecentAchievementsGridRowHeight}"
@@ -868,7 +868,6 @@
                                                                  DrilledCategoryPath="{Binding SelectedGameDrilledCategoryPath, Mode=OneWayToSource}"
                                                                  DataGridMaxHeight="{x:Static sys:Double.NaN}"
                                                                  ShowRarityGlow="{Binding ShowRarityGlowSelectedGame}"
-                                                                 ColorNamesByRarity="{Binding ColorNamesByRaritySelectedGame}"
                                                                  ColorRarityColumnsByRarity="{Binding ColorRarityColumnsByRaritySelectedGame}"
                                                                  ShowsRarity="{Binding DisplayedSelectedGame.ShowsRarity, FallbackValue=True}"
                                                                  ShowColumnHeaders="{Binding ShowOverviewSelectedGameGridColumnHeaders}"

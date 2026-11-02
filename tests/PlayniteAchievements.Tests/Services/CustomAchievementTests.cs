@@ -34,7 +34,8 @@ namespace PlayniteAchievements.Services.Tests
                             Points = -10,
                             ScaledPoints = 25,
                             Category = " Main Story ",
-                            CategoryType = "dlc",
+                            // Stored under the pre-v9 type field, which the normalizer splits.
+                            CategoryKind = "dlc",
                             TrophyType = "GOLD",
                             Rarity = "rare",
                             GlobalPercentUnlocked = 101,
@@ -68,7 +69,8 @@ namespace PlayniteAchievements.Services.Tests
             Assert.IsNull(normalized.CustomAchievements[0].Points);
             Assert.AreEqual(25, normalized.CustomAchievements[0].ScaledPoints);
             Assert.AreEqual("Main Story", normalized.CustomAchievements[0].Category);
-            Assert.AreEqual("DLC", normalized.CustomAchievements[0].CategoryType);
+            Assert.AreEqual("DLC", normalized.CustomAchievements[0].CategoryKind);
+            Assert.IsNull(normalized.CustomAchievements[0].Tags);
             Assert.AreEqual("gold", normalized.CustomAchievements[0].TrophyType);
             Assert.AreEqual("Rare", normalized.CustomAchievements[0].Rarity);
             Assert.IsNull(normalized.CustomAchievements[0].GlobalPercentUnlocked);
@@ -95,7 +97,7 @@ namespace PlayniteAchievements.Services.Tests
                         Unlocked = true,
                         UnlockTimeUtc = new DateTime(2026, 1, 2, 3, 4, 5, DateTimeKind.Utc),
                         Points = 10,
-                        CategoryType = "mp",
+                        Tags = "mp",
                         TrophyType = "Silver",
                         Rarity = "UltraRare",
                         GlobalPercentUnlocked = 4.5,
@@ -112,7 +114,8 @@ namespace PlayniteAchievements.Services.Tests
             Assert.AreEqual(CustomAchievementProjectionService.ProviderKey, achievement.ProviderKey);
             Assert.IsTrue(achievement.Unlocked);
             Assert.AreEqual(10, achievement.Points);
-            Assert.AreEqual("Multiplayer", achievement.CategoryType);
+            Assert.IsNull(achievement.CategoryKind);
+            Assert.AreEqual("Multiplayer", achievement.Tags);
             Assert.AreEqual("silver", achievement.TrophyType);
             Assert.AreEqual(RarityTier.UltraRare, achievement.Rarity);
             Assert.AreEqual(4.5, achievement.GlobalPercentUnlocked);
@@ -679,6 +682,18 @@ namespace PlayniteAchievements.Services.Tests
             var unassigned = CustomAchievementProjectionService.CreateSyntheticGameData(gameId, null, definitions);
             Assert.IsNull(unassigned.ProviderPlatformKey);
             Assert.AreEqual(CustomAchievementProjectionService.ProviderKey, unassigned.EffectiveProviderKey);
+        }
+
+        [TestMethod]
+        public void CreateSyntheticGameData_RecordsNoPlatformOrMetadataLayer()
+        {
+            var data = CustomAchievementProjectionService.CreateSyntheticGameData(
+                Guid.NewGuid(),
+                null,
+                new List<CustomAchievementDefinition> { new CustomAchievementDefinition { DisplayName = "Solo" } });
+
+            Assert.AreEqual(PlayniteAchievements.Models.Tagging.CustomizationArea.None, data.PlatformFields);
+            Assert.AreEqual(PlayniteAchievements.Models.Tagging.CustomizationArea.None, data.MetadataFields);
         }
 
         [TestMethod]

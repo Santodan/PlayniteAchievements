@@ -15,7 +15,7 @@ namespace PlayniteAchievements.Services.Workshop.Preview
         UnlockedIcon = 1 << 2,
         LockedIcon = 1 << 3,
         Category = 1 << 4,
-        CategoryType = 1 << 5,
+        Tags = 1 << 5,
         Capstone = 1 << 6,
         Note = 1 << 7,
         Filter = 1 << 8,
@@ -62,7 +62,7 @@ namespace PlayniteAchievements.Services.Workshop.Preview
         public string Category { get; set; }
 
         /// <summary>The category type.</summary>
-        public string CategoryType { get; set; }
+        public string Tags { get; set; }
 
         /// <summary>True when the achievement is a capstone.</summary>
         public bool IsCapstone { get; set; }

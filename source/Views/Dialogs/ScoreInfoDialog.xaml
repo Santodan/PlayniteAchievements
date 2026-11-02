@@ -322,7 +322,7 @@
                     HorizontalAlignment="Right"
                     Margin="0,16,0,0">
             <Button Style="{StaticResource PlayAch.Button.BaseStyle}"
-                    Content="{DynamicResource LOCOKLabel}"
+                    Content="{DynamicResource LOCPlayAch_Common_OK}"
                     Click="CloseButton_Click"
                     Padding="{StaticResource PlayAch.Thickness.ButtonPadding.Wide}"
                     MinWidth="84"

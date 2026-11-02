@@ -67,6 +67,7 @@ namespace PlayniteAchievements.Models.Settings
         private Dictionary<string, GridVerticalAlignment> _cellVerticalAlignments = new Dictionary<string, GridVerticalAlignment>(StringComparer.OrdinalIgnoreCase);
         private Dictionary<string, GridAlignment> _headerAlignments = new Dictionary<string, GridAlignment>(StringComparer.OrdinalIgnoreCase);
         private Dictionary<string, bool> _locked = new Dictionary<string, bool>(StringComparer.OrdinalIgnoreCase);
+        private Dictionary<string, bool> _hiddenHeaders = new Dictionary<string, bool>(StringComparer.OrdinalIgnoreCase);
 
         public Dictionary<string, bool> Visibility
         {
@@ -115,6 +116,17 @@ namespace PlayniteAchievements.Models.Settings
             set => SetValue(ref _locked, NormalizeVisibility(value));
         }
 
+        /// <summary>
+        /// Columns whose header text is blanked (true) or explicitly shown (false): the header
+        /// menu's eye. The header keeps its size, sort arrow and click-to-sort; only the text is
+        /// not drawn. A column absent from the map shows its text unless its grid defaults it to hidden.
+        /// </summary>
+        public Dictionary<string, bool> HiddenHeaders
+        {
+            get => _hiddenHeaders;
+            set => SetValue(ref _hiddenHeaders, NormalizeVisibility(value));
+        }
+
         public GridColumnLayoutOptions Clone()
         {
             return new GridColumnLayoutOptions
@@ -125,7 +137,8 @@ namespace PlayniteAchievements.Models.Settings
                 CellAlignments = CellAlignments,
                 CellVerticalAlignments = CellVerticalAlignments,
                 HeaderAlignments = HeaderAlignments,
-                Locked = Locked
+                Locked = Locked,
+                HiddenHeaders = HiddenHeaders
             };
         }
 
@@ -248,6 +261,47 @@ namespace PlayniteAchievements.Models.Settings
             set => SetValue(ref _showControlBar, value);
         }
 
+        private IReadOnlyList<string> _hiddenControlBarItems;
+
+        /// <summary>
+        /// The control bar items (by id) this grid's bar leaves out while it shows; null or empty
+        /// shows every item. Always replaced, never edited in place, so a settings snapshot can
+        /// restore it.
+        /// </summary>
+        [Newtonsoft.Json.JsonProperty(ObjectCreationHandling = Newtonsoft.Json.ObjectCreationHandling.Replace)]
+        public IReadOnlyList<string> HiddenControlBarItems
+        {
+            get => _hiddenControlBarItems;
+            set => SetValue(
+                ref _hiddenControlBarItems,
+                value == null || value.Count == 0 ? null : (IReadOnlyList<string>)value.Distinct(StringComparer.OrdinalIgnoreCase).ToList());
+        }
+
+        public bool IsControlBarItemHidden(string itemId) =>
+            !string.IsNullOrWhiteSpace(itemId) &&
+            _hiddenControlBarItems?.Contains(itemId, StringComparer.OrdinalIgnoreCase) == true;
+
+        /// <summary>Shows or hides one control bar item, replacing the list.</summary>
+        public void SetControlBarItemHidden(string itemId, bool hidden)
+        {
+            if (string.IsNullOrWhiteSpace(itemId) || IsControlBarItemHidden(itemId) == hidden)
+            {
+                return;
+            }
+
+            var items = (_hiddenControlBarItems ?? Array.Empty<string>()).ToList();
+            if (hidden)
+            {
+                items.Add(itemId);
+            }
+            else
+            {
+                items.RemoveAll(item => string.Equals(item, itemId, StringComparison.OrdinalIgnoreCase));
+            }
+
+            HiddenControlBarItems = items;
+        }
+
         public double? RowHeight
         {
             get => _rowHeight;
@@ -270,6 +324,7 @@ namespace PlayniteAchievements.Models.Settings
         {
             target.ShowColumnHeaders = ShowColumnHeaders;
             target.ShowControlBar = ShowControlBar;
+            target.HiddenControlBarItems = HiddenControlBarItems?.ToList();
             target.RowHeight = RowHeight;
             target.MaxRows = MaxRows;
             target.Columns = Columns?.Clone() ?? new GridColumnLayoutOptions();
@@ -280,7 +335,9 @@ namespace PlayniteAchievements.Models.Settings
     {
         private bool _useCoverImages;
         private bool _showRarityGlow = true;
-        private bool _colorNamesByRarity;
+        private AchievementNameColorSource _nameColor;
+        private AchievementTagDisplay _tagDisplay = AchievementTagDisplay.Icons;
+        private AchievementStatusColorMode _statusColor = AchievementStatusColorMode.MissableUnobtainable;
         private bool _colorRarityColumnsByRarity;
         private DateDisplayMode _unlockDateMode = DateDisplayMode.DateAndTime;
         private CompactListSortMode _sortMode = CompactListSortMode.UnlockTime;
@@ -301,10 +358,60 @@ namespace PlayniteAchievements.Models.Settings
             set => SetValue(ref _showRarityGlow, value);
         }
 
+        public AchievementNameColorSource NameColor
+        {
+            get => _nameColor;
+            set
+            {
+                if (_nameColor == value)
+                {
+                    return;
+                }
+
+                var wasRarity = ColorNamesByRarity;
+                SetValue(ref _nameColor, value);
+                if (wasRarity != ColorNamesByRarity)
+                {
+                    OnPropertyChanged(nameof(ColorNamesByRarity));
+                }
+            }
+        }
+
+        /// <summary>
+        /// Compatibility view of <see cref="NameColor"/> for the flat settings names themes bind:
+        /// true while names follow rarity. Clearing it turns name colors off only when they
+        /// followed rarity. Read from older settings and showcase page files but never written
+        /// (<see cref="ShouldSerializeColorNamesByRarity"/>), so a file carrying it still loads
+        /// and still passes the Workshop field list.
+        /// </summary>
         public bool ColorNamesByRarity
         {
-            get => _colorNamesByRarity;
-            set => SetValue(ref _colorNamesByRarity, value);
+            get => _nameColor == AchievementNameColorSource.Rarity;
+            set
+            {
+                if (value)
+                {
+                    NameColor = AchievementNameColorSource.Rarity;
+                }
+                else if (_nameColor == AchievementNameColorSource.Rarity)
+                {
+                    NameColor = AchievementNameColorSource.None;
+                }
+            }
+        }
+
+        public bool ShouldSerializeColorNamesByRarity() => false;
+
+        public AchievementTagDisplay TagDisplay
+        {
+            get => _tagDisplay;
+            set => SetValue(ref _tagDisplay, value);
+        }
+
+        public AchievementStatusColorMode StatusColor
+        {
+            get => _statusColor;
+            set => SetValue(ref _statusColor, value);
         }
 
         public bool ColorRarityColumnsByRarity
@@ -357,7 +464,9 @@ namespace PlayniteAchievements.Models.Settings
             CopyCommonTo(clone);
             clone.UseCoverImages = UseCoverImages;
             clone.ShowRarityGlow = ShowRarityGlow;
-            clone.ColorNamesByRarity = ColorNamesByRarity;
+            clone.NameColor = NameColor;
+            clone.TagDisplay = TagDisplay;
+            clone.StatusColor = StatusColor;
             clone.ColorRarityColumnsByRarity = ColorRarityColumnsByRarity;
             clone.UnlockDateMode = UnlockDateMode;
             clone.SortMode = SortMode;
@@ -375,6 +484,8 @@ namespace PlayniteAchievements.Models.Settings
         private bool _showMetadataPlatform = true;
         private bool _showMetadataPlaytime = true;
         private bool _showMetadataRegion = true;
+        private bool _showMetadataTotal;
+        private bool _showMetadataPoints;
         private bool _showCompletionGlow = true;
         private bool _colorRarityColumnsByRarity;
         private bool _showNameAboveProgress;
@@ -406,6 +517,20 @@ namespace PlayniteAchievements.Models.Settings
         {
             get => _showMetadataRegion;
             set => SetValue(ref _showMetadataRegion, value);
+        }
+
+        // Adds the total achievement count to the line under the name.
+        public bool ShowMetadataTotal
+        {
+            get => _showMetadataTotal;
+            set => SetValue(ref _showMetadataTotal, value);
+        }
+
+        // Adds the earned points to the line under the name.
+        public bool ShowMetadataPoints
+        {
+            get => _showMetadataPoints;
+            set => SetValue(ref _showMetadataPoints, value);
         }
 
         public bool ShowCompletionGlow
@@ -471,6 +596,8 @@ namespace PlayniteAchievements.Models.Settings
             clone.ShowMetadataPlatform = ShowMetadataPlatform;
             clone.ShowMetadataPlaytime = ShowMetadataPlaytime;
             clone.ShowMetadataRegion = ShowMetadataRegion;
+            clone.ShowMetadataTotal = ShowMetadataTotal;
+            clone.ShowMetadataPoints = ShowMetadataPoints;
             clone.ShowCompletionGlow = ShowCompletionGlow;
             clone.ColorRarityColumnsByRarity = ColorRarityColumnsByRarity;
             clone.ShowNameAboveProgress = ShowNameAboveProgress;
@@ -551,6 +678,9 @@ namespace PlayniteAchievements.Models.Settings
         private bool _colorRarityColumnsByRarity;
         private bool _showNameAboveProgress;
         private bool _showRarityBadgesBelowProgress = true;
+        private bool _showMetadataTotal;
+        private bool _showMetadataPoints;
+        private bool _showTreeOnly;
 
         public GridColumnLayoutOptions Columns
         {
@@ -607,6 +737,27 @@ namespace PlayniteAchievements.Models.Settings
             set => SetValue(ref _showRarityBadgesBelowProgress, value);
         }
 
+        // Adds the total achievement count to the line under the category name.
+        public bool ShowMetadataTotal
+        {
+            get => _showMetadataTotal;
+            set => SetValue(ref _showMetadataTotal, value);
+        }
+
+        // Adds the earned points to the line under the category name.
+        public bool ShowMetadataPoints
+        {
+            get => _showMetadataPoints;
+            set => SetValue(ref _showMetadataPoints, value);
+        }
+
+        // Leaves only the tree guide in the category name cell, so a row without one is blank.
+        public bool ShowTreeOnly
+        {
+            get => _showTreeOnly;
+            set => SetValue(ref _showTreeOnly, value);
+        }
+
         public CategorySummaryGridOptions Clone()
         {
             return new CategorySummaryGridOptions
@@ -618,7 +769,10 @@ namespace PlayniteAchievements.Models.Settings
                 ShowCompletionGlow = ShowCompletionGlow,
                 ColorRarityColumnsByRarity = ColorRarityColumnsByRarity,
                 ShowNameAboveProgress = ShowNameAboveProgress,
-                ShowRarityBadgesBelowProgress = ShowRarityBadgesBelowProgress
+                ShowRarityBadgesBelowProgress = ShowRarityBadgesBelowProgress,
+                ShowMetadataTotal = ShowMetadataTotal,
+                ShowMetadataPoints = ShowMetadataPoints,
+                ShowTreeOnly = ShowTreeOnly
             };
         }
     }
@@ -826,6 +980,34 @@ namespace PlayniteAchievements.Models.Settings
 
             DetachOptions(options);
             return _gameSummaries.Remove(id);
+        }
+
+        public bool RemoveCategorySummaries(string id)
+        {
+            if (string.IsNullOrWhiteSpace(id) || !_categorySummaries.TryGetValue(id, out var options))
+            {
+                return false;
+            }
+
+            DetachOptions(options);
+            return _categorySummaries.Remove(id);
+        }
+
+        /// <summary>
+        /// Stores a clone of <paramref name="options"/> under the surface, replacing (and
+        /// detaching) any existing record so change notifications follow the new instance.
+        /// </summary>
+        public void SetCategorySummaries(string id, CategorySummaryGridOptions options)
+        {
+            if (string.IsNullOrWhiteSpace(id) || options == null)
+            {
+                return;
+            }
+
+            RemoveCategorySummaries(id);
+            var copy = options.Clone();
+            _categorySummaries[id] = copy;
+            AttachOptions(CategorySummariesKindName, id, copy);
         }
 
         /// <summary>
@@ -1041,6 +1223,12 @@ namespace PlayniteAchievements.Models.Settings
 
         public static string ResolveCategorySummariesId(string columnSettingsKey)
         {
+            // An achievement grid widget's category list keeps its own per-instance record.
+            if (ShowcaseGridSurfaces.IsAchievementCategorySurface(columnSettingsKey))
+            {
+                return columnSettingsKey;
+            }
+
             switch (columnSettingsKey)
             {
                 case "OverviewSelectedGameCategorySummaries":

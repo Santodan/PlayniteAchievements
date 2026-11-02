@@ -96,11 +96,20 @@ namespace PlayniteAchievements.Services.Tests
         }
 
         [TestMethod]
-        public void BuildOptions_DedupesCaseInsensitively()
+        public void BuildOptions_KeepsCaseVariantsApart()
         {
-            var options = CategoryPickerResolver.BuildOptions(new[] { "Story", "STORY", "  " });
+            var options = CategoryPickerResolver.BuildOptions(new[] { "Story", "STORY", "Story", "  " });
 
-            Assert.AreEqual(1, options.Count);
+            Assert.AreEqual(2, options.Count);
+        }
+
+        [TestMethod]
+        public void Resolve_MatchesTypedTextByExactCase()
+        {
+            var options = CategoryPickerResolver.BuildOptions(new[] { "DLC1" });
+
+            Assert.AreEqual("DLC1", CategoryPickerResolver.Resolve("DLC1", null, options));
+            Assert.AreNotEqual("DLC1", CategoryPickerResolver.Resolve("dlc1", null, options));
         }
 
         [TestMethod]
@@ -151,28 +160,6 @@ namespace PlayniteAchievements.Services.Tests
             var options = CategoryPickerResolver.BuildOptions(new[] { "Story" });
 
             Assert.IsNull(CategoryPickerResolver.Resolve("   ", null, options));
-        }
-
-        [TestMethod]
-        public void CreateNewRow_CarriesItsTextAndNoLabel()
-        {
-            var row = CategoryPickerOption.CreateNewRow("New Category...");
-
-            Assert.IsTrue(row.IsCreateNew);
-            Assert.AreEqual("New Category...", row.LeafDisplay);
-            Assert.IsNull(row.Label);
-        }
-
-        [TestMethod]
-        public void Resolve_IgnoresTheCreateRow()
-        {
-            var createRow = CategoryPickerOption.CreateNewRow("Story");
-            var options = CategoryPickerResolver.BuildOptions(new[] { "Multiplayer" });
-            options.Insert(0, createRow);
-
-            // Neither picking it nor matching its text may resolve to it: the row asks for a
-            // category to be created, and naming one is the host's answer, not a label.
-            Assert.AreEqual("Story", CategoryPickerResolver.Resolve("Story", createRow, options));
         }
 
         [TestMethod]

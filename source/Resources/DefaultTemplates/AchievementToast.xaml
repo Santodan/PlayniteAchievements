@@ -82,8 +82,12 @@
                 <!-- Opaque card surface: the shadow caster for a normal card. Goes transparent when
                      a user background image defines the card shape, so the drop shadow / glow then
                      wraps the image's own (possibly rounded/transparent) alpha via the blurred
-                     backing image below, instead of a solid rectangle. -->
-                <Border CornerRadius="8"
+                     backing image below, instead of a solid rectangle. A blurred card keeps it
+                     opaque, so its glow keeps the full card shape and never shows through the
+                     translucent tint; the live blur covers it from the content layer. Named so the
+                     saved-output renders can leave it out (ToastBlurLayers). -->
+                <Border x:Name="CardSurface"
+                        CornerRadius="8"
                         BorderBrush="{DynamicResource PlayAch.Brush.PopupBorder}">
                     <Border.Style>
                         <Style TargetType="Border">
@@ -92,6 +96,12 @@
                             <Style.Triggers>
                                 <DataTrigger Binding="{Binding HasToastBackground}" Value="True">
                                     <Setter Property="Background" Value="Transparent"/>
+                                    <Setter Property="BorderThickness" Value="0"/>
+                                </DataTrigger>
+                                <!-- Fully opaque even when the theme's surface is not, and without
+                                     its border: the tint layer above draws the card's one edge. -->
+                                <DataTrigger Binding="{Binding HasToastBlur}" Value="True">
+                                    <Setter Property="Background" Value="{Binding ToastBlurSurfaceBrush}"/>
                                     <Setter Property="BorderThickness" Value="0"/>
                                 </DataTrigger>
                             </Style.Triggers>
@@ -117,6 +127,28 @@
             <Border CornerRadius="8"
                     ClipToBounds="True">
                 <Grid>
+                    <!-- Live blurred background: the game behind the card, captured and blurred by
+                         the plugin every frame (ToastLiveBackdrop), with the tint over it. Until the
+                         first frame arrives the image is empty and the opaque card surface shows
+                         through the tint. Named so the saved-output renders can leave the image out:
+                         screenshots and clips blur their own frame under the card. -->
+                    <Border x:Name="LiveBlurImage"
+                            CornerRadius="8"
+                            RenderOptions.BitmapScalingMode="Linear"
+                            Visibility="{Binding HasToastBlur, Converter={StaticResource BooleanToVisibilityConverter}}">
+                        <Border.Background>
+                            <ImageBrush ImageSource="{Binding LiveBackdrop}"
+                                        Viewbox="{Binding LiveBackdropViewbox}"
+                                        ViewboxUnits="RelativeToBoundingBox"
+                                        Stretch="Fill"/>
+                        </Border.Background>
+                    </Border>
+                    <Border CornerRadius="8"
+                            Background="{Binding ToastBlurTintBrush}"
+                            BorderBrush="{DynamicResource PlayAch.Brush.PopupBorder}"
+                            BorderThickness="1"
+                            Visibility="{Binding HasToastBlur, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+
                     <!-- Crisp user background image (what is actually seen), full-bleed behind the
                          content and covering the backing copy above. It is here rather than reusing
                          that copy because this layer carries no effect: content inside an effect is
@@ -550,7 +582,7 @@
                                         <Setter Property="Visibility" Value="{Binding TitleLine.ShowName, Converter={StaticResource BooleanToVisibilityConverter}}"/>
                                         <Style.Triggers>
                                             <DataTrigger Binding="{Binding IsGameCompleted}" Value="True">
-                                                <Setter Property="helpers:InlineMarkdownFormatter.MarkupText" Value="{DynamicResource LOCPlayAch_Toast_GameComplete}"/>
+                                                <Setter Property="helpers:InlineMarkdownFormatter.MarkupText" Value="{Binding TitleLine.CompletionTitleText}"/>
                                                 <Setter Property="Foreground" Value="{Binding TitleLine.CompletedTitleBrush}"/>
                                                 <Setter Property="Visibility" Value="Visible"/>
                                             </DataTrigger>
@@ -672,10 +704,10 @@
 
                 <!-- Countdown bar: depletes over the toast's display duration. A direct child of the
                      content grid (outside the padding border) so it ignores the user's left/right
-                     card padding and spans the card width. A hairline flush with the bottom edge,
-                     so it reads as part of the card's edge rather than a row of its own; the small
-                     side insets keep its ends inside the 8-radius corners, which the content layer
-                     does not clip. A pure bottom overlay that reserves no layout space, so it never
+                     card padding and spans the card width. A hairline just above the bottom edge,
+                     so it reads as part of the card's edge rather than a row of its own while
+                     staying clear of the card border; the small side insets keep its ends inside
+                     the 8-radius corners, which the content layer does not clip. A pure bottom overlay that reserves no layout space, so it never
                      enlarges the card. The service runs PlayAch.Storyboard.ToastCountdown against
                      this ScaleX; the transform is reassigned in code before animating (a frozen
                      template transform can't be animated), so this inline transform is a no-op
@@ -684,7 +716,7 @@
                         VerticalAlignment="Bottom"
                         HorizontalAlignment="Stretch"
                         Height="2"
-                        Margin="6,0,6,0"
+                        Margin="6,0,6,3"
                         CornerRadius="1"
                         Background="{Binding CountdownBarBrush}"
                         Visibility="{Binding ShowCountdownBar, Converter={StaticResource BooleanToVisibilityConverter}}"

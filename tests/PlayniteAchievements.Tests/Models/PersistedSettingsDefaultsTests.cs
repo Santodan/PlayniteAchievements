@@ -8,6 +8,7 @@ using PlayniteAchievements.Models;
 using PlayniteAchievements.Models.Achievements;
 using PlayniteAchievements.Models.Settings;
 using PlayniteAchievements.Models.Tagging;
+using PlayniteAchievements.Providers.Metadata;
 using PlayniteAchievements.Services.Showcase;
 
 namespace PlayniteAchievements.Models.Tests
@@ -114,6 +115,63 @@ namespace PlayniteAchievements.Models.Tests
                 Assert.IsFalse(copy.UnlockScreenshotFramedAlwaysCaptureCompletion);
                 Assert.AreEqual(RaritySelection.Common, copy.UnlockRecordingRarities);
             }
+        }
+
+        [TestMethod]
+        public void CloneAndCopyFrom_PreserveMetadataChoices()
+        {
+            var source = new PersistedSettings
+            {
+                MetadataDefaults = new MetadataChoices { Icons = "PlayStation", Categories = "", Rarity = "", CapstoneArt = "" },
+                MetadataPlatformChoices = new Dictionary<string, MetadataChoices>
+                {
+                    ["Xbox"] = new MetadataChoices { Rarity = "Exophase" }
+                },
+                MetadataChoicesSeeded = false
+            };
+
+            var clone = source.Clone();
+            var target = new PersistedSettings();
+            target.CopyFrom(source);
+
+            foreach (var copy in new[] { clone, target })
+            {
+                Assert.AreEqual("PlayStation", copy.MetadataDefaults.Icons);
+                Assert.AreEqual("Exophase", copy.MetadataPlatformChoices["xbox"].Rarity);
+                Assert.IsFalse(copy.MetadataChoicesSeeded);
+                Assert.AreNotSame(source.MetadataDefaults, copy.MetadataDefaults);
+                Assert.AreNotSame(source.MetadataPlatformChoices["Xbox"], copy.MetadataPlatformChoices["Xbox"]);
+            }
+        }
+
+        [TestMethod]
+        public void MetadataChoices_PlatformFieldsOverrideTheDefaults()
+        {
+            var settings = new PersistedSettings
+            {
+                MetadataDefaults = new MetadataChoices
+                {
+                    Icons = "PlayStation",
+                    Categories = "SteamHunters",
+                    Rarity = "",
+                    CapstoneArt = ""
+                },
+                MetadataPlatformChoices = new Dictionary<string, MetadataChoices>
+                {
+                    ["Xbox"] = new MetadataChoices { Icons = "", Rarity = "Exophase" },
+                    ["Steam"] = new MetadataChoices { Rarity = "Exophase" }
+                }
+            };
+
+            var xbox = settings.ResolveMetadataChoices("Xbox");
+            Assert.AreEqual("", xbox.Icons);
+            Assert.AreEqual("SteamHunters", xbox.Categories);
+            Assert.AreEqual("PlayStation", settings.ResolveMetadataChoices("Epic").Icons);
+
+            Assert.AreEqual("Exophase", settings.ResolveMetadataChoices("Xbox").Rarity);
+            Assert.AreEqual("", settings.ResolveMetadataChoices("Epic").Rarity);
+            // Steam has rarity of its own, whatever its row says.
+            Assert.AreEqual("", settings.ResolveMetadataChoices("Steam").Rarity);
         }
 
         [TestMethod]
@@ -523,6 +581,37 @@ namespace PlayniteAchievements.Models.Tests
             settings.ResetDisplaySettingsToDefaults();
 
             Assert.AreEqual(CategoryCompletionBadgeMode.All, settings.CategoryCompletionBadgeMode);
+        }
+
+        [TestMethod]
+        public void IconScaleMode_DefaultsToStretchAndSurvivesCloneCopyAndReset()
+        {
+            Assert.AreEqual(IconScaleMode.Stretch, new PersistedSettings().IconScaleMode);
+
+            var source = new PersistedSettings { IconScaleMode = IconScaleMode.OwnSizeMax };
+            var target = new PersistedSettings();
+            target.CopyFrom(source);
+
+            Assert.AreEqual(IconScaleMode.OwnSizeMax, source.Clone().IconScaleMode);
+            Assert.AreEqual(IconScaleMode.OwnSizeMax, target.IconScaleMode);
+
+            source.ResetDisplaySettingsToDefaults();
+            Assert.AreEqual(IconScaleMode.Stretch, source.IconScaleMode);
+        }
+
+        [TestMethod]
+        public void CategoryColumnDisplay_DefaultsToSubcategoryAndSurvivesCloneCopyAndReset()
+        {
+            Assert.AreEqual(CategoryColumnDisplay.Subcategory, new PersistedSettings().CategoryColumnDisplay);
+
+            var source = new PersistedSettings { CategoryColumnDisplay = CategoryColumnDisplay.FullPath };
+            var target = new PersistedSettings();
+            target.CopyFrom(source);
+            Assert.AreEqual(CategoryColumnDisplay.FullPath, source.Clone().CategoryColumnDisplay);
+            Assert.AreEqual(CategoryColumnDisplay.FullPath, target.CategoryColumnDisplay);
+
+            source.ResetDisplaySettingsToDefaults();
+            Assert.AreEqual(CategoryColumnDisplay.Subcategory, source.CategoryColumnDisplay);
         }
 
         [TestMethod]

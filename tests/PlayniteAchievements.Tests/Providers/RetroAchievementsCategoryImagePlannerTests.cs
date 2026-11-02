@@ -54,17 +54,19 @@ namespace PlayniteAchievements.Tests.Providers
         }
 
         [TestMethod]
-        public void BuildCategoryImagePlan_DedupesLabelsFirstWinsIgnoringCase()
+        public void BuildCategoryImagePlan_DedupesLabelsFirstWinsByExactCase()
         {
             var plan = Plan(
                 ("Bonus", new RaGameInfoUserProgress { ImageIcon = "/Images/1.png" }),
+                ("Bonus", new RaGameInfoUserProgress { ImageIcon = "/Images/4.png" }),
                 ("bonus", new RaGameInfoUserProgress { ImageIcon = "/Images/2.png" }),
                 ("Multi", new RaGameInfoUserProgress { ImageIcon = "/Images/3.png" }));
 
-            Assert.AreEqual(2, plan.Count);
+            Assert.AreEqual(3, plan.Count);
             Assert.AreEqual("Bonus", plan[0].Label);
             Assert.AreEqual("https://retroachievements.org/Images/1.png", plan[0].ArtUrl);
-            Assert.AreEqual("Multi", plan[1].Label);
+            Assert.AreEqual("bonus", plan[1].Label);
+            Assert.AreEqual("Multi", plan[2].Label);
         }
 
         [TestMethod]

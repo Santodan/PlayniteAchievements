@@ -4,14 +4,14 @@ using PlayniteAchievements.Services.Achievements;
 
 namespace PlayniteAchievements.Providers.PSN
 {
-    // Classifies a PSN trophy by its trophy group: the canonical category type (Base/DLC) and the
+    // Classifies a PSN trophy by its trophy group: the canonical category kind (Base/DLC) and the
     // free-text category label. Kept separate from PsnScanner so the pure group-to-category logic is
     // unit-testable without the scanner's HTTP/session dependencies.
     internal static class PsnTrophyCategoryHelper
     {
-        // Maps a trophy's group id to the canonical category type. The base/default group (empty,
+        // Maps a trophy's group id to the canonical category kind. The base/default group (empty,
         // "default", "base", or "000") is "Base"; every other group is "DLC".
-        internal static string MapTrophyGroupToCategoryType(string trophyGroupId)
+        internal static string MapTrophyGroupToCategoryKind(string trophyGroupId)
         {
             var normalized = (trophyGroupId ?? string.Empty).Trim();
             if (string.IsNullOrWhiteSpace(normalized) ||
@@ -28,7 +28,7 @@ namespace PlayniteAchievements.Providers.PSN
         // Resolves the free-text category label for a trophy from its group title. Every group
         // (including the base/default group, whose title is typically the game name) takes its own
         // label; a group with no resolvable title returns null, which the hydrator renders as the
-        // localized "Default" label. The base group stays typed Base via MapTrophyGroupToCategoryType,
+        // localized "Default" label. The base group stays typed Base via MapTrophyGroupToCategoryKind,
         // independent of its label.
         internal static string ResolveCategory(
             string trophyGroupId,
@@ -55,8 +55,8 @@ namespace PlayniteAchievements.Providers.PSN
             string setTitle)
         {
             var title = CategoryPathHelper.SanitizeSegment(setTitle);
-            var categoryType = MapTrophyGroupToCategoryType(trophyGroupId);
-            if (string.Equals(categoryType, "DLC", StringComparison.OrdinalIgnoreCase))
+            var categoryKind = MapTrophyGroupToCategoryKind(trophyGroupId);
+            if (string.Equals(categoryKind, "DLC", StringComparison.OrdinalIgnoreCase))
             {
                 var groupName = ResolveCategory(trophyGroupId, groupNameById);
                 if (!string.IsNullOrWhiteSpace(groupName))

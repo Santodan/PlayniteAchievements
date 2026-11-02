@@ -10,23 +10,10 @@ using PlayniteAchievements.Models.Settings;
 using PlayniteAchievements.Providers;
 using PlayniteAchievements.Services.Overview;
 using PlayniteAchievements.Services.Showcase;
+using PlayniteAchievements.ViewModels.Items;
 
 namespace PlayniteAchievements.ViewModels.Showcase.Widgets
 {
-    /// <summary>A medal-count entry: a runtime badge resource key plus its formatted count.</summary>
-    public sealed class ProfileMedalViewModel
-    {
-        public ProfileMedalViewModel(string iconKey, string countText)
-        {
-            IconKey = iconKey;
-            CountText = countText;
-        }
-
-        public string IconKey { get; }
-
-        public string CountText { get; }
-    }
-
     /// <summary>A clickable platform profile link, drawn as the provider's icon.</summary>
     public sealed class ProfileLinkViewModel
     {
@@ -80,21 +67,28 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
     }
 
     /// <summary>
-    /// Backs the Profile widget: avatar, display name, and background resolved from the
-    /// provider identity with manual overrides, plus a medal-count row (rarity tiers and
+    /// Backs the Profile widget: avatar resolved from the provider identity with a manual
+    /// override, the manual display name (none while blank) and background, plus a medal-count row (rarity tiers and
     /// completions, or trophy grades) and a stat strip filling the instance's configured stat
-    /// slots. Density only scales the avatar; the same content shows at every size.
+    /// slots. Medals and stats count the games its collection and control bar keep; the
+    /// identity does not follow them. Density only scales the avatar; the same content shows at
+    /// every size.
     /// </summary>
     public sealed class ProfileWidgetViewModel : ShowcaseWidgetViewModelBase
     {
+        private readonly ShowcaseStatisticsScope _scope;
+        private GridControlBarViewModel _controlBar;
         private string _backgroundPath;
         private bool _hasBackground;
         private string _avatarPath;
         private bool _hasAvatar;
-        private double _avatarSize = 72;
+        private double _avatarWidth = 72;
+        private double _avatarHeight = 72;
+        private double _linkIconSize = 18;
         private CornerRadius _avatarCornerRadius = new CornerRadius(12);
         private int _avatarDecodePixel = 144;
         private string _displayName;
+        private bool _showDisplayName;
         private string _subtitle;
         private bool _showSubtitle;
         private bool _showMedals;
@@ -108,8 +102,28 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
         private bool _showLinks;
         private string _linksSignature;
 
-        public BulkObservableCollection<ProfileMedalViewModel> Medals { get; } =
-            new BulkObservableCollection<ProfileMedalViewModel>();
+        public ProfileWidgetViewModel()
+        {
+            _scope = new ShowcaseStatisticsScope(Refresh, capstoneJoinsTiers: true);
+        }
+
+        /// <summary>The platform, game, tag and progress filters its settings show; null when none.</summary>
+        public GridControlBarViewModel ControlBar
+        {
+            get => _controlBar;
+            private set
+            {
+                if (SetValueAndReturn(ref _controlBar, value))
+                {
+                    OnPropertyChanged(nameof(ShowControlBar));
+                }
+            }
+        }
+
+        public bool ShowControlBar => ControlBar != null;
+
+        public BulkObservableCollection<BadgeCountItem> Medals { get; } =
+            new BulkObservableCollection<BadgeCountItem>();
 
         public BulkObservableCollection<ProfileStatViewModel> Stats { get; } =
             new BulkObservableCollection<ProfileStatViewModel>();
@@ -127,13 +141,19 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
 
         public bool HasAvatar { get => _hasAvatar; private set => SetValue(ref _hasAvatar, value); }
 
-        public double AvatarSize { get => _avatarSize; private set => SetValue(ref _avatarSize, value); }
+        public double AvatarWidth { get => _avatarWidth; private set => SetValue(ref _avatarWidth, value); }
+
+        public double AvatarHeight { get => _avatarHeight; private set => SetValue(ref _avatarHeight, value); }
+
+        public double LinkIconSize { get => _linkIconSize; private set => SetValue(ref _linkIconSize, value); }
 
         public CornerRadius AvatarCornerRadius { get => _avatarCornerRadius; private set => SetValue(ref _avatarCornerRadius, value); }
 
         public int AvatarDecodePixel { get => _avatarDecodePixel; private set => SetValue(ref _avatarDecodePixel, value); }
 
         public string DisplayName { get => _displayName; private set => SetValue(ref _displayName, value); }
+
+        public bool ShowDisplayName { get => _showDisplayName; private set => SetValue(ref _showDisplayName, value); }
 
         public string Subtitle { get => _subtitle; private set => SetValue(ref _subtitle, value); }
 
@@ -194,7 +214,9 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
             var resolved = Projection?.ResolvedProfile ?? ShowcaseProfileResolver.Resolve(
                 Projection?.Profile,
                 Projection?.Snapshot?.CurrentUserIdentities);
-            var snapshot = Projection?.Snapshot ?? new OverviewDataSnapshot();
+            _scope.Apply(Projection);
+            ControlBar = _scope.ShownBar;
+            var snapshot = _scope.Snapshot;
             var compact = Density == WidgetViewportDensity.Compact;
 
             BackgroundPath = resolved.BackgroundPath;
@@ -209,15 +231,18 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
 
             AvatarPath = resolved.AvatarPath;
             HasAvatar = !string.IsNullOrWhiteSpace(resolved.AvatarPath);
-            AvatarSize = compact ? 42 : 72;
-            // Rounded rectangle, not a circle: the corner scales with the avatar so both
-            // densities read the same.
-            AvatarCornerRadius = new CornerRadius(Math.Round(AvatarSize * 0.17));
-            AvatarDecodePixel = Math.Max(64, (int)Math.Ceiling(AvatarSize * 2));
+            // A set width or height is fixed; an unset one follows the density.
+            var densitySize = compact ? 42 : ShowcaseWidgetOptions.DefaultProfileAvatarSize;
+            AvatarWidth = ShowcaseWidgetOptions.GetProfileAvatarWidthOverride(Projection?.Instance) ?? densitySize;
+            AvatarHeight = ShowcaseWidgetOptions.GetProfileAvatarHeightOverride(Projection?.Instance) ?? densitySize;
+            // Rounded rectangle, not a circle: the corner scales with the shorter side so every
+            // size reads the same.
+            AvatarCornerRadius = new CornerRadius(Math.Round(Math.Min(AvatarWidth, AvatarHeight) * 0.17));
+            AvatarDecodePixel = Math.Max(64, (int)Math.Ceiling(Math.Max(AvatarWidth, AvatarHeight) * 2));
+            LinkIconSize = ShowcaseWidgetOptions.GetProfileLinkIconSize(Projection?.Instance);
 
-            DisplayName = string.IsNullOrWhiteSpace(resolved.DisplayName)
-                ? ResourceProvider.GetString("LOCPlayAch_Showcase_Profile_DefaultName")
-                : resolved.DisplayName;
+            DisplayName = resolved.DisplayName;
+            ShowDisplayName = !string.IsNullOrWhiteSpace(resolved.DisplayName);
 
             Subtitle = resolved.Subtitle;
             ShowSubtitle = !string.IsNullOrWhiteSpace(resolved.Subtitle);
@@ -256,49 +281,45 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
             ShowLinks = Links.Count > 0;
         }
 
-        private static IReadOnlyList<ProfileMedalViewModel> BuildMedals(
+        private static IReadOnlyList<BadgeCountItem> BuildMedals(
             OverviewDataSnapshot snapshot,
             ShowcaseProfileMedalMode mode)
         {
-            var medals = new List<ProfileMedalViewModel>();
+            var medals = new List<BadgeCountItem>();
+            if (mode == ShowcaseProfileMedalMode.None)
+            {
+                return medals;
+            }
+
             if (mode != ShowcaseProfileMedalMode.Trophy)
             {
                 // Completions, not completed games: a game with several capstones is finished
                 // several times over, and the medal sits beside rarity counts that are all totals
                 // of things earned rather than counts of games.
-                AddMedal(medals, "BadgeCompletedGame", snapshot.Completions);
-                AddMedal(medals, "BadgeRarityUltraRare", snapshot.TotalUltraRare);
-                AddMedal(medals, "BadgeRarityRare", snapshot.TotalRare);
-                AddMedal(medals, "BadgeRarityUncommon", snapshot.TotalUncommon);
-                AddMedal(medals, "BadgeRarityCommon", snapshot.TotalCommon);
+                BadgeCountItem.Add(medals, "BadgeCompletedGame", snapshot.Completions);
+                medals.AddRange(BadgeCountItem.BuildRarity(
+                    snapshot.TotalUltraRare,
+                    snapshot.TotalRare,
+                    snapshot.TotalUncommon,
+                    snapshot.TotalCommon));
             }
 
             if (mode != ShowcaseProfileMedalMode.Rarity)
             {
                 // Trophy grades alone skip the completions medal: they already carry the sense of
                 // a finished game through the platinum. Both keeps it from the rarity row.
-                AddMedal(medals, "TrophyPlatinum", snapshot.TotalPlatinum);
-                AddMedal(medals, "TrophyGold", snapshot.TotalGold);
-                AddMedal(medals, "TrophySilver", snapshot.TotalSilver);
-                AddMedal(medals, "TrophyBronze", snapshot.TotalBronze);
+                BadgeCountItem.Add(medals, "TrophyPlatinum", snapshot.TotalPlatinum);
+                BadgeCountItem.Add(medals, "TrophyGold", snapshot.TotalGold);
+                BadgeCountItem.Add(medals, "TrophySilver", snapshot.TotalSilver);
+                BadgeCountItem.Add(medals, "TrophyBronze", snapshot.TotalBronze);
             }
 
             return medals;
         }
 
-        private static void AddMedal(List<ProfileMedalViewModel> medals, string iconKey, int count)
-        {
-            if (count > 0)
-            {
-                medals.Add(new ProfileMedalViewModel(
-                    iconKey,
-                    count.ToString("N0", FormattingCulture.Current)));
-            }
-        }
-
         private IReadOnlyList<ProfileStatViewModel> BuildStatStrip()
         {
-            var statistics = Projection?.Statistics ?? Array.Empty<ShowcaseStatistic>();
+            var statistics = _scope.Statistics;
             var tiles = new List<ProfileStatViewModel>();
             foreach (var key in ShowcaseWidgetOptions.GetProfileStatKeys(Projection?.Instance))
             {

@@ -121,6 +121,7 @@ namespace PlayniteAchievements.Views.ManageAchievements
             // what this window is for, so it should not depend on which control was clicked last.
             Loaded += AchievementNavigation_Loaded;
             Unloaded += AchievementNavigation_Unloaded;
+            ObserveTagIconLayout();
 
             // Dragging artwork in from outside: hovering a row selects it, so the details pane is
             // showing that achievement's icon slots by the time the pointer reaches them. On the
@@ -282,9 +283,9 @@ namespace PlayniteAchievements.Views.ManageAchievements
             ApplyCategoryFromPicker();
         }
 
-        private void CategoryPicker_CreateRequested(object sender, EventArgs e)
+        private void CategoryPicker_CreateRequested(object sender, string name)
         {
-            PromptAndCreateCategory();
+            CreateCategory(name);
         }
 
         /// <summary>
@@ -959,9 +960,9 @@ namespace PlayniteAchievements.Views.ManageAchievements
         /// Names and creates a category, filing the selection in it. Reached from the create row at
         /// the top of the picker and from the row menu, so both gestures share one set of rules.
         /// </summary>
-        private void PromptAndCreateCategory()
+        private void CreateCategory(string name)
         {
-            if (ViewModel == null || !CategoryCreationPrompt.TryPrompt(out var leafName))
+            if (ViewModel == null || !CategoryCreationPrompt.TryValidate(name, out var leafName))
             {
                 return;
             }
@@ -1100,10 +1101,12 @@ namespace PlayniteAchievements.Views.ManageAchievements
                 return;
             }
 
+            SelectorSearch.SetCreateAction(TypeSelectionContextMenu, name => ViewModel?.CreateAndAssignTag(name));
             SelectorContextMenuHelper.OpenCategoryTypeMenu(
                 TypeSelectionButton,
                 TypeSelectionContextMenu,
-                ViewModel.TypeSelectionOptions);
+                ViewModel.TagSelectionOptions,
+                ViewModel.GameId);
         }
 
         public void RefreshData()
@@ -1507,19 +1510,21 @@ namespace PlayniteAchievements.Views.ManageAchievements
             // Category and type, the same two the Category tab's row menu offers.
             var categoryMenu = new MenuItem
             {
-                Header = ResourceProvider.GetString("LOCCategoryLabel"),
+                Header = ResourceProvider.GetString("LOCPlayAch_Common_Category"),
                 IsEnabled = selection.All(row => row.CanEditAssignments)
             };
 
             AppendCategoryItems(categoryMenu.Items, selection);
+            CategoryMenuSearch.Attach(categoryMenu, CreateCategory);
             menu.Items.Add(categoryMenu);
 
             var typeMenu = new MenuItem
             {
-                Header = ResourceProvider.GetString("LOCTypeLabel"),
+                Header = ResourceProvider.GetString("LOCPlayAch_Common_Tags"),
                 IsEnabled = selection.All(row => row.CanEditAssignments)
             };
-            AppendCategoryTypeItems(typeMenu.Items, selection);
+            AppendTagItems(typeMenu.Items, selection);
+            SelectorSearch.SetCreateAction(typeMenu, name => ViewModel?.CreateAndAssignTag(name));
             menu.Items.Add(typeMenu);
 
             menu.Items.Add(CreateMenuItem(
@@ -1875,7 +1880,7 @@ namespace PlayniteAchievements.Views.ManageAchievements
 
         private void TypeCell_Click(object sender, RoutedEventArgs e)
         {
-            OpenCellMenu(sender, AppendCategoryTypeItems);
+            OpenCellMenu(sender, AppendTagItems);
         }
 
         private void NoteCell_Click(object sender, RoutedEventArgs e)
@@ -2018,8 +2023,9 @@ namespace PlayniteAchievements.Views.ManageAchievements
         }
 
         /// <summary>
-        /// The category choices for a selection, with creating one above the list and clearing
-        /// below it. Shared by the row menu and the Category column's cell menu.
+        /// The category choices for a selection: clicking the ticked one clears it, and a category
+        /// is created from the menu's search. Shared by the row menu and the Category column's cell
+        /// menu.
         /// </summary>
         private void AppendCategoryItems(ItemCollection items, IReadOnlyList<AchievementEditorRow> selection)
         {
@@ -2029,48 +2035,23 @@ namespace PlayniteAchievements.Views.ManageAchievements
                 return;
             }
 
-            // Creating one sits above the categories that exist, the same place the picker offers
-            // it, so the gesture is in reach without going to the Categories tab.
-            items.Add(CreateMenuItem(
-                ResourceProvider.GetString("LOCPlayAch_ManageAchievements_Category_NewCategoryEllipsis"),
-                PromptAndCreateCategory));
-            items.Add(new Separator());
-
-            foreach (var option in viewModel.AssignableCategoryPickerOptions.Where(option => option.IsSelectable))
-            {
-                var label = option.Label;
-                if (string.IsNullOrWhiteSpace(label))
-                {
-                    continue;
-                }
-
-                var categoryItem = new MenuItem
-                {
-                    Header = option.LeafDisplay,
-                    ToolTip = option.PathDisplay,
-                    IsCheckable = true,
-                    IsChecked = selection.All(row =>
-                        string.Equals(row.EffectiveCategoryLabel, label, StringComparison.OrdinalIgnoreCase))
-                };
-                categoryItem.Click += (_, __) => viewModel.SetCategoryForSelection(label);
-                items.Add(categoryItem);
-            }
-
-            if (!(items[items.Count - 1] is Separator))
-            {
-                items.Add(new Separator());
-            }
-
-            items.Add(CreateMenuItem(
-                ResourceProvider.GetString("LOCClearLabel"),
-                () => viewModel.SetCategoryForSelection(null)));
+            // Unticking the category every selected row is in takes them out of it.
+            var options = viewModel.AssignableCategoryOptions.ToList();
+            CategoryFilterMenuBuilder.AppendSingleChoice(
+                this,
+                items,
+                options,
+                label => selection.All(row =>
+                    string.Equals(row.EffectiveCategoryLabel, label, CategoryPathHelper.LabelComparison)),
+                viewModel.SetCategoryForSelection,
+                options);
         }
 
         /// <summary>
         /// The category-type ticks for a selection. Shared by the row menu and the Type column's
         /// cell menu.
         /// </summary>
-        private void AppendCategoryTypeItems(ItemCollection items, IReadOnlyList<AchievementEditorRow> selection)
+        private void AppendTagItems(ItemCollection items, IReadOnlyList<AchievementEditorRow> selection)
         {
             var viewModel = ViewModel;
             if (items == null || viewModel == null || selection == null)
@@ -2081,12 +2062,13 @@ namespace PlayniteAchievements.Views.ManageAchievements
             // Kept so a click can read every tick, not just its own: the menu stays open, and the
             // set the user leaves it in is what the whole selection takes.
             var typeItems = new List<MenuItem>();
-            foreach (var categoryType in AchievementCategoryTypeHelper.AssignableCategoryTypes)
+            var tags = AchievementTagRegistry.GetAssignableKeys(viewModel.GameId);
+            var iconKeys = SelectorContextMenuHelper.TagIconKeys(tags, viewModel.GameId);
+            for (var i = 0; i < tags.Count; i++)
             {
-                var captured = categoryType;
+                var captured = tags[i];
                 var typeItem = new MenuItem
                 {
-                    Header = ManageAchievementsCategoryViewModel.GetCategoryTypeDisplayName(captured),
                     IsCheckable = true,
                     StaysOpenOnClick = true,
                     Tag = captured,
@@ -2094,10 +2076,12 @@ namespace PlayniteAchievements.Views.ManageAchievements
                     // pane: reading the override alone left a provider-typed row showing the type
                     // unticked here and ticked there.
                     IsChecked = selection.All(row =>
-                        AchievementCategoryTypeHelper.ParseValues(row.EffectiveCategoryTypeValue)
+                        AchievementTagHelper.Parse(row.EffectiveTagsValue)
                             .Any(value => string.Equals(value, captured, StringComparison.OrdinalIgnoreCase)))
                 };
-                typeItem.Click += (_, __) => viewModel.SetCategoryTypesForSelection(
+                SelectorContextMenuHelper.SetTagHeader(
+                    typeItem, iconKeys, i, ManageAchievementsCategoryViewModel.GetTagDisplayName(captured, viewModel.GameId));
+                typeItem.Click += (_, __) => viewModel.SetTagsForSelection(
                     typeItems.Where(item => item.IsChecked).Select(item => item.Tag as string));
                 typeItems.Add(typeItem);
                 items.Add(typeItem);
@@ -2504,6 +2488,15 @@ namespace PlayniteAchievements.Views.ManageAchievements
                     if (columns != null)
                     {
                         columns.Locked = map;
+                    }
+                },
+                getHiddenHeaders: () => GetColumnLayout()?.HiddenHeaders,
+                setHiddenHeaders: map =>
+                {
+                    var columns = GetColumnLayout();
+                    if (columns != null)
+                    {
+                        columns.HiddenHeaders = map;
                     }
                 });
 

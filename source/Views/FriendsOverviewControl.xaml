@@ -168,6 +168,7 @@
                                 VerticalAlignment="Center">
                             <Button.ContextMenu>
                                 <ContextMenu x:Name="RefreshModeSelectionContextMenu"
+                                             helpers:SelectorSearch.IsDisabled="True"
                                              Style="{StaticResource AchievementSelectorContextMenuStyle}"
                                              ItemContainerStyle="{StaticResource AchievementMultiSelectMenuItemStyle}"/>
                             </Button.ContextMenu>
@@ -489,7 +490,6 @@
                                                      HideStatusColumn="False"
                                                      UseCoverImages="{Binding Settings.Persisted.FriendsOverviewAchievementsUseCoverImages}"
                                                      ShowRarityGlow="{Binding Settings.Persisted.FriendsOverviewAchievementsShowRarityGlow}"
-                                                     ColorNamesByRarity="{Binding Settings.Persisted.FriendsOverviewAchievementsColorNamesByRarity}"
                                                      ColorRarityColumnsByRarity="{Binding Settings.Persisted.FriendsOverviewAchievementsColorRarityColumnsByRarity}"
                                                      ShowColumnHeaders="{Binding Settings.Persisted.ShowFriendsOverviewAchievementsGridColumnHeaders}"
                                                      FixedRowHeight="{Binding Settings.Persisted.FriendsOverviewAchievementsGridRowHeight}"

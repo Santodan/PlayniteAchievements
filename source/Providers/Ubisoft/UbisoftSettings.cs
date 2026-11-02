@@ -12,7 +12,6 @@ namespace PlayniteAchievements.Providers.Ubisoft
     {
         private string _userId;
         private string _nameOnPlatform;
-        private bool _useExophaseForRarity = true;
 
         public override string ProviderKey => "Ubisoft";
 
@@ -28,16 +27,6 @@ namespace PlayniteAchievements.Providers.Ubisoft
         {
             get => _nameOnPlatform;
             set => SetValue(ref _nameOnPlatform, value);
-        }
-
-        /// <summary>
-        /// When true, fills achievement rarity from Exophase after native scanning. Ubisoft publishes
-        /// no completion rates, so this is the only rarity source.
-        /// </summary>
-        public bool UseExophaseForRarity
-        {
-            get => _useExophaseForRarity;
-            set => SetValue(ref _useExophaseForRarity, value);
         }
 
         [JsonIgnore]

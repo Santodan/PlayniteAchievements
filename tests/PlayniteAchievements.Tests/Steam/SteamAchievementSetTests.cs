@@ -1,6 +1,7 @@
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Newtonsoft.Json;
 using PlayniteAchievements.Models.Achievements;
+using PlayniteAchievements.Providers.Metadata;
 using PlayniteAchievements.Providers.Steam;
 using PlayniteAchievements.Providers.Steam.Models;
 using System;
@@ -286,9 +287,11 @@ namespace PlayniteAchievements.Steam.Tests
             var wakeUp = achievements.Single(a => a.ApiName == "ACH.SURVIVE_CONTAINER_RIDE");
             var highFive = achievements.Single(a => a.ApiName == "ACH.HI_FIVE_YOUR_PARTNER");
             Assert.AreEqual("Single Player", wakeUp.Category);
-            Assert.AreEqual("Base", wakeUp.CategoryType);
+            Assert.AreEqual("Base", wakeUp.CategoryKind);
+            Assert.IsNull(wakeUp.Tags);
             Assert.AreEqual("Cooperative", highFive.Category);
-            Assert.AreEqual("Base", highFive.CategoryType);
+            Assert.AreEqual("Base", highFive.CategoryKind);
+            Assert.IsNull(highFive.Tags);
             Assert.AreEqual(51, named.Count);
         }
 
@@ -304,9 +307,11 @@ namespace PlayniteAchievements.Steam.Tests
             var dlcAchievement = achievements.Single(a => a.ApiName == "DLC_3_1");
             var otherDlc = achievements.Single(a => a.ApiName == "DLC_4_1");
             Assert.AreEqual("DREDGE", baseAchievement.Category);
-            Assert.AreEqual("Base", baseAchievement.CategoryType);
+            Assert.AreEqual("Base", baseAchievement.CategoryKind);
+            Assert.IsNull(baseAchievement.Tags);
             Assert.AreEqual("The Pale Reach", dlcAchievement.Category);
-            Assert.AreEqual("DLC", dlcAchievement.CategoryType);
+            Assert.AreEqual("DLC", dlcAchievement.CategoryKind);
+            Assert.IsNull(dlcAchievement.Tags);
             Assert.AreEqual("The Iron Rig", otherDlc.Category);
             Assert.AreEqual(20, named.Count);
             Assert.IsFalse(named.Contains("CATCH_FISH_ROD_1"));
@@ -322,7 +327,8 @@ namespace PlayniteAchievements.Steam.Tests
             var named = SteamAchievementSetMapper.ApplySets(achievements, schema, "Game");
 
             Assert.IsNull(achievements[0].Category);
-            Assert.IsNull(achievements[0].CategoryType);
+            Assert.IsNull(achievements[0].CategoryKind);
+            Assert.IsNull(achievements[0].Tags);
             Assert.AreEqual(0, named.Count);
         }
 
@@ -344,9 +350,12 @@ namespace PlayniteAchievements.Steam.Tests
 
             SteamAchievementSetMapper.ApplySets(achievements, schema, "Game");
 
-            Assert.AreEqual("Base|Unobtainable", achievements[0].CategoryType);
-            Assert.AreEqual("DLC|Unobtainable", achievements[1].CategoryType);
-            Assert.AreEqual("Base", achievements[2].CategoryType);
+            Assert.AreEqual("Base", achievements[0].CategoryKind);
+            Assert.AreEqual("Unobtainable", achievements[0].Tags);
+            Assert.AreEqual("DLC", achievements[1].CategoryKind);
+            Assert.AreEqual("Unobtainable", achievements[1].Tags);
+            Assert.AreEqual("Base", achievements[2].CategoryKind);
+            Assert.IsNull(achievements[2].Tags);
         }
 
         [TestMethod]
@@ -363,36 +372,7 @@ namespace PlayniteAchievements.Steam.Tests
         }
 
         [TestMethod]
-        public void MergeMode_SteamHuntersLeavesNamedSetsAlone()
-        {
-            var schema = LoadApiSchema(1562430);
-            var achievements = Details(schema);
-            var named = SteamAchievementSetMapper.ApplySets(achievements, schema, "DREDGE");
-            var groups = new List<SteamHuntersAchievementGroup>
-            {
-                new SteamHuntersAchievementGroup
-                {
-                    DlcAppId = 2561440,
-                    DlcAppName = "Renamed By SteamHunters",
-                    AchievementApiNames = new List<string> { "DLC_3_1" }
-                },
-                new SteamHuntersAchievementGroup
-                {
-                    Name = "Update 1.1",
-                    AchievementApiNames = new List<string> { "CATCH_FISH_ROD_1" }
-                }
-            };
-
-            SteamHuntersCategoryEnricher.ApplyGroups(achievements, groups, "dlcandupdate", "DREDGE", named);
-
-            Assert.AreEqual("The Pale Reach", achievements.Single(a => a.ApiName == "DLC_3_1").Category);
-            var updated = achievements.Single(a => a.ApiName == "CATCH_FISH_ROD_1");
-            Assert.AreEqual("Update 1.1", updated.Category);
-            Assert.AreEqual("Base|Update", updated.CategoryType);
-        }
-
-        [TestMethod]
-        public void OverrideMode_SteamHuntersReplacesSets()
+        public void SteamHuntersReplacesSets()
         {
             var schema = LoadApiSchema(1562430);
             var achievements = Details(schema);
@@ -407,7 +387,7 @@ namespace PlayniteAchievements.Steam.Tests
                 }
             };
 
-            SteamHuntersCategoryEnricher.ApplyGroups(achievements, groups, "dlcandupdate", "DREDGE", preserveApiNames: null);
+            SteamHuntersCategoryEnricher.ApplyGroups(achievements, groups, "dlcandupdate", "DREDGE");
 
             Assert.AreEqual("Renamed By SteamHunters", achievements.Single(a => a.ApiName == "DLC_3_1").Category);
             Assert.AreEqual("DREDGE", achievements.Single(a => a.ApiName == "DLC_4_1").Category);
@@ -423,52 +403,6 @@ namespace PlayniteAchievements.Steam.Tests
             CollectionAssert.AreEquivalent(new[] { 2561440, 2561450 }, plan.Skip(1).Select(p => p.Value).ToList());
             Assert.AreEqual(0, SteamAchievementSetMapper.BuildCategoryImagePlan(
                 Schema(new SchemaAchievement { Name = "A" }), "Game", 1).Count);
-        }
-
-        [TestMethod]
-        public void CarryForwardCategories_CopiesStoredValuesExceptPreservedAndUnstored()
-        {
-            var achievements = new List<AchievementDetail>
-            {
-                new AchievementDetail { ApiName = "Base_1" },
-                new AchievementDetail { ApiName = "Set_1", Category = "The Pale Reach", CategoryType = "DLC" },
-                new AchievementDetail { ApiName = "New_1" }
-            };
-            var stored = new List<AchievementDetail>
-            {
-                new AchievementDetail { ApiName = " base_1 ", Category = "DREDGE|1.1", CategoryType = "Base|Update|Unobtainable" },
-                new AchievementDetail { ApiName = "Set_1", Category = "Stale", CategoryType = "Base" }
-            };
-
-            SteamAchievementSetMapper.CarryForwardCategories(
-                achievements,
-                stored,
-                new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "Set_1" });
-
-            Assert.AreEqual("DREDGE|1.1", achievements[0].Category);
-            Assert.AreEqual("Base|Update|Unobtainable", achievements[0].CategoryType);
-            Assert.AreEqual("The Pale Reach", achievements[1].Category);
-            Assert.AreEqual("DLC", achievements[1].CategoryType);
-            Assert.IsNull(achievements[2].Category);
-            Assert.IsNull(achievements[2].CategoryType);
-        }
-
-        [TestMethod]
-        public void CarryForwardCategories_WithoutPreserveSet_CopiesEveryStoredRow()
-        {
-            var achievements = new List<AchievementDetail>
-            {
-                new AchievementDetail { ApiName = "Set_1", Category = "The Pale Reach", CategoryType = "DLC" }
-            };
-            var stored = new List<AchievementDetail>
-            {
-                new AchievementDetail { ApiName = "Set_1", Category = "Pale Reach", CategoryType = "DLC|Update" }
-            };
-
-            SteamAchievementSetMapper.CarryForwardCategories(achievements, stored, preserveApiNames: null);
-
-            Assert.AreEqual("Pale Reach", achievements[0].Category);
-            Assert.AreEqual("DLC|Update", achievements[0].CategoryType);
         }
 
         // ------------------------------------------------------------------
@@ -610,52 +544,6 @@ namespace PlayniteAchievements.Steam.Tests
             Assert.IsTrue(result.IsOk);
             Assert.AreEqual(74d, result.Value[1], 0.01);
             Assert.AreEqual(51, result.Value.Count);
-        }
-
-        // ------------------------------------------------------------------
-        // Settings
-        // ------------------------------------------------------------------
-
-        [TestMethod]
-        public void Settings_SteamHuntersModeDefaultsToMerge_AndSerializesByName()
-        {
-            var settings = new SteamSettings();
-            Assert.AreEqual(SteamHuntersCategoryMode.Merge, settings.SteamHuntersCategoryMode);
-            Assert.IsTrue(settings.UseSteamHuntersForCategories);
-
-            settings.SteamHuntersCategoryMode = SteamHuntersCategoryMode.Off;
-            Assert.IsFalse(settings.UseSteamHuntersForCategories);
-
-            var json = JsonConvert.SerializeObject(settings);
-            StringAssert.Contains(json, "\"SteamHuntersCategoryMode\":\"Off\"");
-            Assert.IsFalse(json.Contains("UseSteamHuntersForCategories"));
-
-            var restored = JsonConvert.DeserializeObject<SteamSettings>(
-                "{\"UseSteamHuntersForCategories\":true,\"SteamHuntersCategoryMode\":\"Override\"}");
-            Assert.AreEqual(SteamHuntersCategoryMode.Override, restored.SteamHuntersCategoryMode);
-        }
-
-        [TestMethod]
-        public void Settings_LegacyCheckbox_CarriesOverToMode()
-        {
-            SteamHuntersCategoryMode Load(string json)
-            {
-                var settings = new SteamSettings();
-                settings.DeserializeFromJson(json);
-                return settings.SteamHuntersCategoryMode;
-            }
-
-            Assert.AreEqual(SteamHuntersCategoryMode.Off, Load("{\"UseSteamHuntersForCategories\":false}"));
-            Assert.AreEqual(SteamHuntersCategoryMode.Merge, Load("{\"UseSteamHuntersForCategories\":true}"));
-            Assert.AreEqual(SteamHuntersCategoryMode.Merge, Load("{\"IsEnabled\":true}"));
-            Assert.AreEqual(SteamHuntersCategoryMode.Override,
-                Load("{\"SteamHuntersCategoryMode\":\"Override\",\"UseSteamHuntersForCategories\":false}"));
-
-            // A migrated value survives the save and reload round trip.
-            var migrated = new SteamSettings();
-            migrated.DeserializeFromJson("{\"UseSteamHuntersForCategories\":false}");
-            var copy = (SteamSettings)migrated.Clone();
-            Assert.AreEqual(SteamHuntersCategoryMode.Off, copy.SteamHuntersCategoryMode);
         }
 
         // ------------------------------------------------------------------

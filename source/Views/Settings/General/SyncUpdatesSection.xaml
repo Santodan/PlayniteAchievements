@@ -115,7 +115,7 @@
                     </controls:SettingRow>
 
                     <!-- Automatic exclusions from Playnite saved filters -->
-                    <TextBlock Text="{DynamicResource LOCSettingsTopPanelFilterPresetsItem}"
+                    <TextBlock Text="{DynamicResource LOCPlayAch_Common_FilterPresets}"
                                Style="{StaticResource SubSectionHeaderStyle}"
                                Margin="{StaticResource PlayAch.Thickness.Top.Lg}"/>
                     <TextBlock Text="{DynamicResource LOCPlayAch_Settings_ExclusionFilters_Description}"
@@ -157,7 +157,7 @@
                               Margin="{StaticResource PlayAch.Thickness.Top.Lg}"
                               Padding="12,10,12,12">
                         <Expander.Header>
-                            <TextBlock Text="{DynamicResource LOCSettingsAdvancedLabel}"
+                            <TextBlock Text="{DynamicResource LOCPlayAch_Common_Advanced}"
                                        Foreground="{DynamicResource PlayAch.Brush.Text}"
                                        FontWeight="SemiBold"/>
                         </Expander.Header>

@@ -76,10 +76,9 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
 
         protected override void RefreshTiles()
         {
-            if (_controlBarSlot.Bind(Projection?.Instance?.InstanceId))
-            {
-                ControlBar = _controlBarSlot.Adapter.ControlBar;
-            }
+            _controlBarSlot.Bind(Projection?.Instance?.InstanceId);
+            _controlBarSlot.UpdateShownBar(Projection?.Instance);
+            ControlBar = _controlBarSlot.ShownBar;
 
             // The filter stays in effect while the bar is hidden. The dropdown lists the whole
             // library's platforms and rebuilds only when the library's games change.
@@ -88,11 +87,17 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
                 .Where(item => item != null)
                 .ToList();
             adapter.UpdateGames(Projection?.Snapshot?.GameSummaries);
+            adapter.GameFilter.SetScope(Projection?.Collection?.GameIds);
+            adapter.LocksRows = ShowcaseWidgetOptions.GetMosaicSource(Projection?.Instance) == ShowcaseMosaicSource.UnlockNext;
 
-            var capped = adapter.Apply(list).Take(ShowcaseWidgetOptions.GetMosaicCount(Projection?.Instance)).ToList();
+            // Sorted before the Count cap, so a sort picks which tiles show (the rarest of every
+            // unlock, not of the newest few), as the grids do. Unlock Next keeps its ranking.
+            var capped = OrderAchievements(adapter.Apply(list))
+                .Take(ShowcaseWidgetOptions.GetMosaicCount(Projection?.Instance))
+                .ToList();
 
             // The widget's own copies of any revealable tiles, so a reveal stays in this widget.
-            CollectionHelper.Replace(Items, _reveals.Map(OrderAchievements(capped)));
+            CollectionHelper.Replace(Items, _reveals.Map(capped));
         }
 
         /// <summary>

@@ -31,14 +31,23 @@ namespace PlayniteAchievements.Services.GameCustomData
         public GameCustomDataChangedEventArgs(
             Guid playniteGameId,
             bool affectsSummaryData = true,
-            bool affectsOverrideMirror = true)
+            bool affectsOverrideMirror = true,
+            bool affectsTagTotals = false)
         {
             PlayniteGameId = playniteGameId;
             AffectsSummaryData = affectsSummaryData;
             AffectsOverrideMirror = affectsOverrideMirror;
+            AffectsTagTotals = affectsTagTotals;
         }
 
         public Guid PlayniteGameId { get; }
+
+        /// <summary>
+        /// True when the write changed which tags the user put on achievements, or the store could
+        /// not tell. A tag edit leaves every other summary count alone, so its writers report
+        /// <see cref="AffectsSummaryData"/> false and subscribers recount only the game's tags.
+        /// </summary>
+        public bool AffectsTagTotals { get; }
 
         /// <summary>
         /// False when the change cannot have moved the per-achievement override mirror -- the
@@ -594,9 +603,16 @@ namespace PlayniteAchievements.Services.GameCustomData
                     _logger?.Warn(ex, $"A custom-data write subscriber failed for game {playniteGameId}.");
                 }
 
+                // Decided here rather than by each writer: the store holds both records, so every
+                // path that edits tags (the editor, combine-by-name, undo) is covered alike.
+                var affectsTagTotals = previousData == null ||
+                    !string.Equals(
+                        TagEditSignature(previousData),
+                        TagEditSignature(persisted),
+                        StringComparison.Ordinal);
                 using (PerfScope.Start(_logger, "GameCustomData.Save.RaiseChanged", thresholdMs: 10))
                 {
-                    RaiseCustomDataChanged(playniteGameId, affectsSummaryData, affectsOverrideMirror);
+                    RaiseCustomDataChanged(playniteGameId, affectsSummaryData, affectsOverrideMirror, affectsTagTotals);
                 }
             }
         }
@@ -604,6 +620,7 @@ namespace PlayniteAchievements.Services.GameCustomData
         public void Delete(Guid playniteGameId)
         {
             _repository.Delete(playniteGameId);
+            _repository.DeleteCapstoneArtRecords(playniteGameId);
             lock (_cacheSync)
             {
                 EnsureCacheCollections();
@@ -614,6 +631,32 @@ namespace PlayniteAchievements.Services.GameCustomData
             _managedCustomIconService?.ClearGameCustomCache(playniteGameId.ToString("D"));
             _notificationImageStore?.DeleteGameImages(playniteGameId);
             RaiseCustomDataChanged(playniteGameId);
+        }
+
+        /// <summary>
+        /// Loads every capstone art record. These rows live beside the per-game payload, are not
+        /// cached by this store, and are not part of portable packages.
+        /// </summary>
+        internal IReadOnlyList<CapstoneArtRecordRow> LoadAllCapstoneArtRecords()
+        {
+            return _repository.LoadAllCapstoneArtRecords();
+        }
+
+        /// <summary>
+        /// Upserts one game's capstone art record for <paramref name="apiName"/>, or deletes it
+        /// when <paramref name="record"/> is null. Raises no change event.
+        /// </summary>
+        internal void SetCapstoneArtRecord(Guid playniteGameId, string apiName, CapstoneArtRecordRow record)
+        {
+            _repository.SetCapstoneArtRecord(playniteGameId, apiName, record);
+        }
+
+        /// <summary>
+        /// Upserts every capstone art record in one transaction. Raises no change event.
+        /// </summary>
+        internal void ImportCapstoneArtRecords(IReadOnlyList<CapstoneArtRecordRow> rows)
+        {
+            _repository.ImportCapstoneArtRecords(rows);
         }
 
         /// <summary>
@@ -943,6 +986,12 @@ namespace PlayniteAchievements.Services.GameCustomData
             portable.CustomProvider = string.IsNullOrWhiteSpace(portable.CustomProviderId)
                 ? null
                 : _tryGetCustomProvider?.Invoke(portable.CustomProviderId)?.Clone();
+            if (portable.CustomProvider != null && !IsHttpUrl(portable.CustomProvider.IconSource))
+            {
+                // A local SVG path names the sharer's folders; the icon itself is IconPathData.
+                portable.CustomProvider.IconSource = null;
+            }
+
             portable.Kind = GameCustomDataPortableFile.GameCustomDataKind;
             var keys = SafeResolveGameKeys(playniteGameId);
             portable.GameKeys = keys.Count == 0 ? null : keys;
@@ -1389,7 +1438,7 @@ namespace PlayniteAchievements.Services.GameCustomData
 
             foreach (var pair in overrides.ToList())
             {
-                var category = AchievementCategoryTypeHelper.NormalizeCategoryOrDefault(pair.Key);
+                var category = AchievementCategoryHelper.NormalizeCategoryOrDefault(pair.Key);
                 if (string.IsNullOrWhiteSpace(category) || pair.Value == null)
                 {
                     overrides.Remove(pair.Key);
@@ -1456,7 +1505,7 @@ namespace PlayniteAchievements.Services.GameCustomData
 
             foreach (var pair in overrides.ToList())
             {
-                var category = AchievementCategoryTypeHelper.NormalizeCategoryOrDefault(pair.Key);
+                var category = AchievementCategoryHelper.NormalizeCategoryOrDefault(pair.Key);
                 if (string.IsNullOrWhiteSpace(category) || pair.Value == null)
                 {
                     overrides.Remove(pair.Key);
@@ -1612,7 +1661,9 @@ namespace PlayniteAchievements.Services.GameCustomData
 
             var managedIcons = GetManagedCustomIconServiceOrThrow();
             var gameIdText = playniteGameId.ToString("D");
-            if (managedIcons.IsManagedCustomIconPath(normalizedValue, gameIdText) && File.Exists(normalizedValue))
+            if ((managedIcons.IsManagedCustomIconPath(normalizedValue, gameIdText) ||
+                 AchievementIconCachePathBuilder.IsMetadataSourceIconPath(normalizedValue, gameIdText)) &&
+                File.Exists(normalizedValue))
             {
                 return normalizedValue;
             }
@@ -1936,7 +1987,7 @@ namespace PlayniteAchievements.Services.GameCustomData
 
             foreach (var pair in left)
             {
-                var key = AchievementCategoryTypeHelper.NormalizeCategoryOrDefault(pair.Key);
+                var key = AchievementCategoryHelper.NormalizeCategoryOrDefault(pair.Key);
                 if (string.IsNullOrWhiteSpace(key) ||
                     right == null ||
                     !right.TryGetValue(key, out var rightValue))
@@ -2161,7 +2212,7 @@ namespace PlayniteAchievements.Services.GameCustomData
 
             foreach (var pair in overrides)
             {
-                var category = AchievementCategoryTypeHelper.NormalizeCategoryOrDefault(pair.Key);
+                var category = AchievementCategoryHelper.NormalizeCategoryOrDefault(pair.Key);
                 if (string.IsNullOrWhiteSpace(category) || pair.Value == null)
                 {
                     continue;
@@ -2216,7 +2267,7 @@ namespace PlayniteAchievements.Services.GameCustomData
             return (portable?.AchievementCategoryImageOverrides?.Keys ?? Enumerable.Empty<string>())
                 .Concat(portable?.AchievementCategoryOrder ?? Enumerable.Empty<string>())
                 .Where(key => !string.IsNullOrWhiteSpace(key))
-                .Select(AchievementCategoryTypeHelper.NormalizeCategoryOrDefault)
+                .Select(AchievementCategoryHelper.NormalizeCategoryOrDefault)
                 .Where(key => !string.IsNullOrWhiteSpace(key))
                 .Distinct(StringComparer.OrdinalIgnoreCase);
         }
@@ -2231,17 +2282,25 @@ namespace PlayniteAchievements.Services.GameCustomData
             throw new InvalidOperationException("Managed custom icon service is not available.");
         }
 
-        private static string BuildPackageImageEntryName(string fileStem, AchievementIconVariant variant)
+        internal static string BuildPackageImageEntryName(string fileStem, AchievementIconVariant variant)
         {
+            var entryStem = PackageEntryStem(fileStem);
             var fileName = variant == AchievementIconVariant.Locked
-                ? fileStem + ".locked.png"
-                : fileStem + ".png";
+                ? entryStem + ".locked.png"
+                : entryStem + ".png";
             return PortablePackageImagesFolderName + "/" + fileName;
         }
 
-        private static string BuildPackageCategoryImageEntryName(string fileStem)
+        internal static string BuildPackageCategoryImageEntryName(string fileStem)
         {
-            return PortablePackageImagesFolderName + "/category_" + fileStem + ".png";
+            return PortablePackageImagesFolderName + "/category_" + PackageEntryStem(fileStem) + ".png";
+        }
+
+        // Readers refuse an entry name containing "..", which an API name or category label can
+        // carry ("Act I...Begin"), so each run of dots becomes one underscore.
+        private static string PackageEntryStem(string fileStem)
+        {
+            return System.Text.RegularExpressions.Regex.Replace(fileStem ?? string.Empty, @"\.{2,}", "_");
         }
 
         private static bool TryParseImageOnlyPackageEntry(
@@ -2584,7 +2643,8 @@ namespace PlayniteAchievements.Services.GameCustomData
         private void RaiseCustomDataChanged(
             Guid playniteGameId,
             bool affectsSummaryData = true,
-            bool affectsOverrideMirror = true)
+            bool affectsOverrideMirror = true,
+            bool affectsTagTotals = true)
         {
             if (playniteGameId == Guid.Empty)
             {
@@ -2596,7 +2656,32 @@ namespace PlayniteAchievements.Services.GameCustomData
                 new GameCustomDataChangedEventArgs(
                     playniteGameId,
                     affectsSummaryData,
-                    affectsOverrideMirror));
+                    affectsOverrideMirror,
+                    affectsTagTotals));
+        }
+
+        /// <summary>
+        /// The tags the user put on the game's achievements, in one comparable string: each tag
+        /// edit as its ApiName and stored value, the custom achievements' tags after them.
+        /// </summary>
+        internal static string TagEditSignature(GameCustomDataFile data)
+        {
+            var parts = new List<string>();
+            foreach (var pair in data?.AchievementOverrides ?? new Dictionary<string, AchievementOverride>())
+            {
+                if (AchievementTallyBuilder.HasTagEdit(pair.Value))
+                {
+                    parts.Add(pair.Key + "=" + (pair.Value.ClearTags ? string.Empty : pair.Value.Tags));
+                }
+            }
+
+            parts.Sort(StringComparer.OrdinalIgnoreCase);
+            foreach (var custom in data?.CustomAchievements ?? new List<CustomAchievementDefinition>())
+            {
+                parts.Add("custom:" + custom?.Id + "=" + custom?.Tags);
+            }
+
+            return string.Join("\u001f", parts);
         }
 
     }

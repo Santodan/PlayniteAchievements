@@ -66,6 +66,17 @@ namespace PlayniteAchievements.Views.Settings.Notifications
         private bool _suppressSelectionChanged;
         private bool _suppressSurfaceTabEvents;
         private AchievementToastViewModel _toastPreviewViewModel;
+        private ToastPreviewBackdrop _toastPreviewBackdrop;
+        private ItemsControl _toastPreviewSurface;
+
+        // Whether the toast preview sits on game art: a view option of this editor, never saved.
+        // Null follows the style (on while it has a blurred background); the toggle sets it until
+        // the blurred background is switched, which hands it back to the style.
+        private bool? _previewBackdropChoice;
+        private bool? _previewBackdropBlurSeen;
+        private bool _suppressPreviewBackdropToggle;
+        private string _previewBackdropScope;
+        private string _previewBackdropPath;
         private ImageSource _lastToastBackgroundRenderSource;
 
         private bool IsGameMode => _gameId != Guid.Empty;
@@ -180,7 +191,6 @@ namespace PlayniteAchievements.Views.Settings.Notifications
                 try
                 {
                     UpdateMockups();
-                    RefreshFireButtons();
                     StylePresetPicker.RefreshNow();
                 }
                 catch (Exception ex)
@@ -309,23 +319,6 @@ namespace PlayniteAchievements.Views.Settings.Notifications
                    _gameProviderKey;
         }
 
-        /// <summary>
-        /// Disables the desktop/fullscreen theme fire-test buttons when the corresponding active
-        /// theme ships no template for the surface (they would just fall back to plugin style).
-        /// </summary>
-        private void RefreshFireButtons()
-        {
-            if (NotificationThemeButton == null)
-            {
-                return;
-            }
-
-            NotificationThemeButton.IsEnabled =
-                _toastTemplateResolver.ThemeProvidesTemplate(NotificationTemplatePreviewSource.ActiveTheme, isFrame: false);
-            FrameThemeButton.IsEnabled =
-                _toastTemplateResolver.ThemeProvidesTemplate(NotificationTemplatePreviewSource.ActiveTheme, isFrame: true);
-        }
-
         private List<NotificationStylePlatformOption> BuildPlatformOptions()
         {
             var options = new List<NotificationStylePlatformOption>
@@ -452,11 +445,18 @@ namespace PlayniteAchievements.Views.Settings.Notifications
             var imageOwner = NotificationImageOwner
                 .ForProvider(editable ? option.Key : null)
                 .ForNotificationKind(editingKind ? ActiveKind : NotificationKind.Base);
+            // Captured rather than read at flush time: the editors flush a pending edit only
+            // after this method has already moved the fields to the next selection.
+            var scopeKey = option.Key;
+            var scopeStyle = style;
+            Action<NotificationStyleSettings> persist = editable && scopeKey != null
+                ? _ => PersistProviderStyle(scopeKey, scopeStyle)
+                : (Action<NotificationStyleSettings>)null;
             _toastEditorViewModel.SetStyle(
-                kindStyle, imageOwner, editable, persistStyle: null, providerKey: editable ? option.Key : null,
+                kindStyle, imageOwner, editable, persist, providerKey: editable ? option.Key : null,
                 isKindStyle: editingKind);
             _frameEditorViewModel.SetStyle(
-                kindStyle, imageOwner, editable, persistStyle: null, providerKey: editable ? option.Key : null);
+                kindStyle, imageOwner, editable, persist, providerKey: editable ? option.Key : null);
             ApplySoundsSelection();
             UpdateMockups();
             RefreshPresetRow();
@@ -740,6 +740,24 @@ namespace PlayniteAchievements.Views.Settings.Notifications
 
                 appearance.Style = style.Clone();
             });
+        }
+
+        /// <summary>
+        /// Stores the platform's style. Like <see cref="PersistGameStyle"/>, it stores the scope
+        /// style that owns the kind copies rather than the kind copy the editor may hold, so a
+        /// kind edit cannot replace the platform's whole style with that kind's.
+        /// </summary>
+        private void PersistProviderStyle(string providerKey, NotificationStyleSettings scopeStyle)
+        {
+            var persisted = _settings?.Persisted;
+            if (IsGameMode || persisted == null || scopeStyle == null || providerKey == null ||
+                persisted.GetProviderNotificationStyle(providerKey) == null)
+            {
+                return;
+            }
+
+            persisted.SetProviderNotificationStyle(providerKey, scopeStyle);
+            _plugin.PersistSettingsForUi();
         }
 
         /// <summary>
@@ -1102,7 +1120,11 @@ namespace PlayniteAchievements.Views.Settings.Notifications
             var toastTemplate = ToastSurfaceFactory.ResolveToastTemplate(
                 _toastTemplateResolver, toastItems, _currentToastUseThemeStyling, ScopeProviderKey, ScopeGameId);
             ToastMockupHost.ContentTemplate = null;
-            ToastMockupHost.Content = ToastSurfaceFactory.BuildToastSurface(toastItems, toastTemplate);
+            var toastSurface = ToastSurfaceFactory.BuildToastSurface(toastItems, toastTemplate);
+            ToastMockupHost.Content = toastSurface;
+
+            _toastPreviewSurface = toastSurface;
+            ApplyPreviewBackdrop();
 
             // The host may already have published its animated source — before this control
             // loaded, or while this very method was setting the URI — in which case no further
@@ -1306,16 +1328,19 @@ namespace PlayniteAchievements.Views.Settings.Notifications
                 return;
             }
 
+            if (_selectedProviderKey != null)
+            {
+                // The store holds a clone of the working style, so the change is stored again.
+                PersistProviderStyle(_selectedProviderKey, _currentScopeStyle);
+                return;
+            }
+
             _plugin.PersistSettingsForUi();
         }
 
         private void FireNotification_Click(object sender, RoutedEventArgs e)
         {
-            if (!TryResolvePreviewSource(sender, out var source))
-            {
-                return;
-            }
-
+            var source = ResolvePreviewSource(_currentToastUseThemeStyling);
             var kind = NotificationSampleSelector?.SelectedValue as string ?? "rare";
 
             // Flush any debounced edits so the real notification pipeline resolves the same
@@ -1334,16 +1359,20 @@ namespace PlayniteAchievements.Views.Settings.Notifications
                 args.PlayniteGameId = _gameId;
             }
 
-            args.PreviewStyleOverride = _currentStyle;
+            args.PreviewStyleOverride = _currentScopeStyle ?? _currentStyle;
 
             PlayniteAchievementsPlugin.NotifyAchievementUnlocked(args);
         }
 
-        private static bool TryResolvePreviewSource(object sender, out NotificationTemplatePreviewSource source)
+        /// <summary>
+        /// The design a test fire uses: the active theme's (falling back as a real notification
+        /// would) when the surface's "Use theme's template" checkbox is on, else the plugin's.
+        /// </summary>
+        private static NotificationTemplatePreviewSource ResolvePreviewSource(bool useThemeStyling)
         {
-            source = NotificationTemplatePreviewSource.PluginStyle;
-            return sender is Button { Tag: string tag } &&
-                   Enum.TryParse(tag, ignoreCase: true, out source);
+            return useThemeStyling
+                ? NotificationTemplatePreviewSource.ActiveTheme
+                : NotificationTemplatePreviewSource.PluginStyle;
         }
 
         /// <summary>
@@ -1352,11 +1381,7 @@ namespace PlayniteAchievements.Views.Settings.Notifications
         /// </summary>
         private void FireFrame_Click(object sender, RoutedEventArgs e)
         {
-            if (!TryResolvePreviewSource(sender, out var source))
-            {
-                return;
-            }
-
+            var source = ResolvePreviewSource(_currentFrameUseThemeStyling);
             var kind = FrameSampleSelector?.SelectedValue as string ?? "rare";
             var persisted = _settings?.Persisted;
             if (persisted == null)
@@ -1441,6 +1466,83 @@ namespace PlayniteAchievements.Views.Settings.Notifications
                 : _plugin.PlayniteApi?.Database?.GetFullFilePath(imagePath);
         }
 
+        /// <summary>
+        /// Shows or hides the game behind the toast preview per <see cref="_previewBackdropChoice"/>,
+        /// and keeps the toolbar toggle in step.
+        /// </summary>
+        private void ApplyPreviewBackdrop()
+        {
+            var vm = _toastPreviewViewModel;
+            if (vm == null || _toastPreviewSurface == null || ToastMockupFrame == null)
+            {
+                return;
+            }
+
+            if (_previewBackdropBlurSeen != vm.HasToastBlur)
+            {
+                _previewBackdropBlurSeen = vm.HasToastBlur;
+                _previewBackdropChoice = null;
+            }
+
+            var show = _previewBackdropChoice ?? vm.HasToastBlur;
+            if (PreviewBackdropToggle != null && PreviewBackdropToggle.IsChecked != show)
+            {
+                _suppressPreviewBackdropToggle = true;
+                PreviewBackdropToggle.IsChecked = show;
+                _suppressPreviewBackdropToggle = false;
+            }
+
+            _toastPreviewBackdrop = _toastPreviewBackdrop ?? new ToastPreviewBackdrop(ToastMockupFrame, ResolvePreviewBackdropPath);
+            _toastPreviewBackdrop.Apply(_toastPreviewSurface, vm, show);
+        }
+
+        private void PreviewBackdropToggle_Changed(object sender, RoutedEventArgs e)
+        {
+            if (_suppressPreviewBackdropToggle)
+            {
+                return;
+            }
+
+            _previewBackdropChoice = PreviewBackdropToggle.IsChecked == true;
+            ApplyPreviewBackdrop();
+        }
+
+        /// <summary>
+        /// The image the toast preview sits on: the edited game's background art, or
+        /// outside game mode the most recently played game's; null (a generated stand-in) when there
+        /// is none. Resolved once per scope.
+        /// </summary>
+        private string ResolvePreviewBackdropPath()
+        {
+            var scope = IsGameMode ? _gameId.ToString() : string.Empty;
+            if (string.Equals(_previewBackdropScope, scope, StringComparison.Ordinal))
+            {
+                return _previewBackdropPath;
+            }
+
+            _previewBackdropScope = scope;
+            _previewBackdropPath = null;
+            try
+            {
+                var games = _plugin.PlayniteApi?.Database?.Games;
+                var game = games == null
+                    ? null
+                    : IsGameMode
+                        ? games.Get(_gameId)
+                        : games.Where(g => !string.IsNullOrWhiteSpace(g.BackgroundImage))
+                            .OrderByDescending(g => g.LastActivity ?? DateTime.MinValue)
+                            .FirstOrDefault();
+                var path = ResolveGameImagePath(game?.BackgroundImage);
+                _previewBackdropPath = !string.IsNullOrWhiteSpace(path) && File.Exists(path) ? path : null;
+            }
+            catch (Exception ex)
+            {
+                _logger?.Debug(ex, "Failed resolving the blurred-background preview image.");
+            }
+
+            return _previewBackdropPath;
+        }
+
         private void CloseFramePreview()
         {
             try
@@ -1502,7 +1604,7 @@ namespace PlayniteAchievements.Views.Settings.Notifications
         /// </summary>
         private void ShareStyleToWorkshop(bool isFrame)
         {
-            var style = _currentStyle;
+            var style = _currentScopeStyle ?? _currentStyle;
             var store = _plugin?.NotificationStylePortableStore;
             if (style == null || store == null)
             {
@@ -1538,7 +1640,7 @@ namespace PlayniteAchievements.Views.Settings.Notifications
 
         private void ExportStyleFile_Click(object sender, RoutedEventArgs e)
         {
-            var style = _currentStyle;
+            var style = _currentScopeStyle ?? _currentStyle;
             var store = _plugin?.NotificationStylePortableStore;
             if (style == null || store == null)
             {
@@ -2096,10 +2198,10 @@ namespace PlayniteAchievements.Views.Settings.Notifications
             return target;
         }
 
-        /// <summary>Writes the active surface as the editors show it, with the scope's custom template, as a package.</summary>
+        /// <summary>Writes the scope's surface, with every separately styled kind and the scope's custom template, as a package.</summary>
         private void ExportCurrentSurface(bool isFrame, string path)
         {
-            var style = _currentStyle ?? throw new InvalidOperationException("No notification style is selected.");
+            var style = _currentScopeStyle ?? _currentStyle ?? throw new InvalidOperationException("No notification style is selected.");
             FlushEditors();
             var templateXaml = _toastTemplateResolver?.ReadCustomTemplateXaml(isFrame, ScopeProviderKey, ScopeGameId);
             _plugin.NotificationStylePortableStore.ExportSurfacePackage(isFrame, style, path, templateXaml);
@@ -2417,7 +2519,7 @@ namespace PlayniteAchievements.Views.Settings.Notifications
         {
             return new NotificationStylePlatformOption
             {
-                DisplayName = ResourceProvider.GetString("LOCDefault")
+                DisplayName = ResourceProvider.GetString("LOCPlayAch_Common_Default")
             };
         }
 

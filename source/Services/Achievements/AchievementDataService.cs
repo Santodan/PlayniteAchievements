@@ -272,14 +272,22 @@ namespace PlayniteAchievements.Services.Achievements
         }
 
         /// <summary>
-        /// Every cached game as stored, without hydration: enough for identity lookups (provider
-        /// key, app id, Playnite id, name) at a fraction of <see cref="GetAllGameAchievementData"/>.
+        /// Every cached game without its achievements (custom-only games keep theirs): enough for
+        /// identity lookups (provider key, app id, Playnite id, name) at a fraction of
+        /// <see cref="GetAllGameAchievementData"/>.
         /// </summary>
         public List<GameAchievementData> GetAllCachedGameDataForLookup()
         {
             try
             {
-                return LoadAllCachedGameData();
+                if (_cacheReadOptimizations == null)
+                {
+                    return LoadAllCachedGameData();
+                }
+
+                var result = _cacheReadOptimizations.LoadAllGameHeadersFast() ?? new List<GameAchievementData>();
+                AppendSyntheticCustomOnlyGameData(result);
+                return result;
             }
             catch (Exception ex)
             {
@@ -525,6 +533,11 @@ namespace PlayniteAchievements.Services.Achievements
                     excludedSummaryIds);
             }
 
+            // The query tallies provider tags and capstone flags; the user's tag and capstone edits
+            // move their achievements before the merge adds the custom achievements, whose edits it
+            // applies itself.
+            ApplyEditsToTallies(summaryData.Games, customDataByGameId);
+
             // SQL summaries never see custom achievements, which live only in custom data.
             CustomAchievementSummaryMerger.Merge(
                 summaryData,
@@ -563,6 +576,173 @@ namespace PlayniteAchievements.Services.Achievements
             ApplyAchievementSummaryCustomization(achievementDetails, customizationByGameId, summaryData);
 
             return summaryData;
+        }
+
+        /// <summary>
+        /// Raised on the writer's thread after a tag edit recounted one game's tallies, which the
+        /// cached summary now carries. Nothing else about the game changed.
+        /// </summary>
+        public event EventHandler<TalliesChangedEventArgs> TalliesChanged;
+
+        // The query counts provider tags and provider capstone flags; the user's tag edits and
+        // edited capstone sets move their achievements to where the user put them.
+        private void ApplyEditsToTallies(
+            IEnumerable<CachedGameSummaryData> games,
+            IReadOnlyDictionary<Guid, GameCustomDataFile> customDataByGameId)
+        {
+            var edits = new Dictionary<Guid, (Dictionary<string, AchievementOverride> Tags, HashSet<string> Capstones)>();
+            foreach (var game in games ?? Enumerable.Empty<CachedGameSummaryData>())
+            {
+                if (!(game?.PlayniteGameId is Guid gameId) || gameId == Guid.Empty || edits.ContainsKey(gameId))
+                {
+                    continue;
+                }
+
+                GameCustomDataFile customData = null;
+                customDataByGameId?.TryGetValue(gameId, out customData);
+                var tagEdits = TagEdits(customData);
+                var capstones = EditedCapstones(gameId, customData);
+                if (tagEdits.Count > 0 || capstones != null)
+                {
+                    edits[gameId] = (tagEdits, capstones);
+                }
+            }
+
+            if (edits.Count == 0)
+            {
+                return;
+            }
+
+            var states = LoadTallyStates(edits);
+            if (states == null)
+            {
+                return;
+            }
+
+            foreach (var game in games ?? Enumerable.Empty<CachedGameSummaryData>())
+            {
+                if (game?.PlayniteGameId is Guid gameId &&
+                    edits.TryGetValue(gameId, out var gameEdits) &&
+                    states.TryGetValue(gameId, out var gameStates))
+                {
+                    game.Tallies = AchievementTallyBuilder.ApplyEdits(
+                        game.Tallies,
+                        gameStates,
+                        gameEdits.Tags,
+                        gameEdits.Capstones);
+                }
+            }
+        }
+
+        // The tallied states of the achievements the edits move: each tag-edited one, and for an
+        // edited capstone set both its members and the provider capstones it may have dropped.
+        private Dictionary<Guid, Dictionary<string, AchievementTallyState>> LoadTallyStates(
+            IReadOnlyDictionary<Guid, (Dictionary<string, AchievementOverride> Tags, HashSet<string> Capstones)> edits)
+        {
+            var wanted = edits.ToDictionary(
+                pair => pair.Key,
+                pair =>
+                {
+                    var names = new HashSet<string>(pair.Value.Tags.Keys, StringComparer.OrdinalIgnoreCase);
+                    names.UnionWith(pair.Value.Capstones ?? Enumerable.Empty<string>());
+                    return names;
+                });
+            var capstoneGames = new HashSet<Guid>(edits.Where(pair => pair.Value.Capstones != null).Select(pair => pair.Key));
+            return _cacheReadOptimizations?.LoadAchievementTallyStatesFast(wanted, capstoneGames);
+        }
+
+        /// <summary>
+        /// The ApiNames of a game's user-edited capstone set, which replaces the provider's flags;
+        /// null while the game goes by the provider's.
+        /// </summary>
+        private HashSet<string> EditedCapstones(Guid gameId, GameCustomDataFile customData)
+        {
+            var capstones = customData != null
+                ? (customData.CapstonesMaterialized ? customData.Capstones ?? new List<CapstoneAssignment>() : null)
+                : ResolveFallbackCapstones(gameId);
+            if (capstones == null || (customData == null && capstones.Count == 0))
+            {
+                return null;
+            }
+
+            return new HashSet<string>(
+                capstones
+                    .Select(capstone => NormalizeText(capstone?.ApiName))
+                    .Where(apiName => !string.IsNullOrWhiteSpace(apiName)),
+                StringComparer.OrdinalIgnoreCase);
+        }
+
+        private static Dictionary<string, AchievementOverride> TagEdits(GameCustomDataFile customData)
+        {
+            var edits = new Dictionary<string, AchievementOverride>(StringComparer.OrdinalIgnoreCase);
+            foreach (var pair in customData?.AchievementOverrides ?? new Dictionary<string, AchievementOverride>())
+            {
+                if (!string.IsNullOrWhiteSpace(pair.Key) && AchievementTallyBuilder.HasTagEdit(pair.Value))
+                {
+                    edits[pair.Key.Trim()] = pair.Value;
+                }
+            }
+
+            return edits;
+        }
+
+        /// <summary>
+        /// Recounts one game's tallies after a tag edit and puts them on the cached summary in
+        /// place: two small reads for the game, not a summary patch and the whole-library refresh
+        /// that follows one.
+        /// </summary>
+        private void RefreshTallies(Guid gameId)
+        {
+            if (gameId == Guid.Empty || _cacheReadOptimizations == null)
+            {
+                return;
+            }
+
+            AchievementTally[] totals;
+            using (Common.PerfScope.Start(_logger, "Overview.RefreshTallies", thresholdMs: 10))
+            {
+                GameCustomDataFile customData = null;
+                _gameCustomDataStore?.TryLoad(gameId, out customData);
+                totals = _cacheReadOptimizations.LoadTalliesForGameFast(gameId);
+                var edits = TagEdits(customData);
+                var capstones = EditedCapstones(gameId, customData);
+                if (edits.Count > 0 || capstones != null)
+                {
+                    var states = LoadTallyStates(
+                        new Dictionary<Guid, (Dictionary<string, AchievementOverride> Tags, HashSet<string> Capstones)>
+                        {
+                            [gameId] = (edits, capstones)
+                        });
+                    if (states != null && states.TryGetValue(gameId, out var gameStates))
+                    {
+                        totals = AchievementTallyBuilder.ApplyEdits(totals, gameStates, edits, capstones);
+                    }
+                }
+
+                var builder = AchievementTallyBuilder.From(totals);
+                CustomAchievementSummaryMerger.AddCustomAchievementTags(
+                    builder,
+                    gameId,
+                    customData,
+                    PlayniteAchievementsPlugin.Instance?.ManagedCustomIconService);
+                totals = builder.Build();
+            }
+
+            lock (_overviewProjectionCacheSync)
+            {
+                foreach (var entry in _overviewSummaryCacheByLimit.Values)
+                {
+                    foreach (var game in entry?.Data?.Games ?? new List<CachedGameSummaryData>())
+                    {
+                        if (game?.PlayniteGameId == gameId)
+                        {
+                            game.Tallies = totals;
+                        }
+                    }
+                }
+            }
+
+            TalliesChanged?.Invoke(this, new TalliesChangedEventArgs(gameId, totals));
         }
 
         private Dictionary<Guid, SummaryCustomizationData> BuildSummaryCustomizationByGameId(
@@ -763,7 +943,7 @@ namespace PlayniteAchievements.Services.Achievements
                     : new List<string>(),
                 AchievementCategoryImageOverrides = hasCustomData
                     ? CloneCategoryImageOverrideMap(customData.AchievementCategoryImageOverrides)
-                    : new Dictionary<string, CategoryImageOverrideData>(StringComparer.OrdinalIgnoreCase),
+                    : new Dictionary<string, CategoryImageOverrideData>(CategoryPathHelper.LabelComparer),
                 AchievementNotes = hasCustomData
                     ? CloneNoteMap(customData.AchievementNotes)
                     : EmptyStringMap,
@@ -875,10 +1055,10 @@ namespace PlayniteAchievements.Services.Achievements
         private static List<string> CloneCategoryOrder(IEnumerable<string> source)
         {
             var result = new List<string>();
-            var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var seen = new HashSet<string>(CategoryPathHelper.LabelComparer);
             foreach (var value in source ?? Enumerable.Empty<string>())
             {
-                var normalized = AchievementCategoryTypeHelper.NormalizeCategoryOrDefault(value);
+                var normalized = AchievementCategoryHelper.NormalizeCategoryOrDefault(value);
                 if (!string.IsNullOrWhiteSpace(normalized) && seen.Add(normalized))
                 {
                     result.Add(normalized);
@@ -891,7 +1071,7 @@ namespace PlayniteAchievements.Services.Achievements
         private static Dictionary<string, CategoryImageOverrideData> CloneCategoryImageOverrideMap(
             IReadOnlyDictionary<string, CategoryImageOverrideData> source)
         {
-            var map = new Dictionary<string, CategoryImageOverrideData>(StringComparer.OrdinalIgnoreCase);
+            var map = new Dictionary<string, CategoryImageOverrideData>(CategoryPathHelper.LabelComparer);
             if (source == null || source.Count == 0)
             {
                 return map;
@@ -899,7 +1079,7 @@ namespace PlayniteAchievements.Services.Achievements
 
             foreach (var pair in source)
             {
-                var key = AchievementCategoryTypeHelper.NormalizeCategoryOrDefault(pair.Key);
+                var key = AchievementCategoryHelper.NormalizeCategoryOrDefault(pair.Key);
                 var art = NormalizeText(pair.Value?.Art);
                 if (string.IsNullOrWhiteSpace(key) || string.IsNullOrWhiteSpace(art))
                 {
@@ -989,6 +1169,8 @@ namespace PlayniteAchievements.Services.Achievements
                 ProviderPlatformKey = source.ProviderPlatformKey,
                 LibrarySourceName = source.LibrarySourceName,
                 RaritySource = source.RaritySource,
+                PlatformFields = source.PlatformFields,
+                MetadataFields = source.MetadataFields,
                 HasAchievements = source.HasAchievements && visibleAchievements.Count > 0,
                 ExcludedByUser = source.ExcludedByUser,
                 IsAppIdOverridden = source.IsAppIdOverridden,
@@ -1369,9 +1551,11 @@ namespace PlayniteAchievements.Services.Achievements
                         achievement.Category = CategoryPathHelper.NormalizePath(userOverride.Category);
                     }
 
-                    if (!string.IsNullOrWhiteSpace(userOverride.CategoryType))
+                    if (userOverride.ClearTags || userOverride.Tags != null)
                     {
-                        achievement.CategoryType = AchievementCategoryTypeHelper.NormalizeOrDefault(userOverride.CategoryType);
+                        achievement.Tags = AchievementTagHelper.ApplyOverride(
+                            achievement.Tags,
+                            userOverride.ClearTags ? string.Empty : userOverride.Tags);
                     }
 
                     var countedDate = achievement.Unlocked && achievement.UnlockTimeUtc.HasValue
@@ -1382,6 +1566,9 @@ namespace PlayniteAchievements.Services.Achievements
                 }
 
                 achievement.AchievementNote = userOverride?.Note;
+                achievement.CategoryKind = CategoryKindHelper.ResolveEffective(
+                    resolved.GetStoredCategoryKind(achievement.Category),
+                    achievement.CategoryKind);
 
                 var unlockedOverride = AchievementIconOverrideHelper.GetOverrideValue(customization.UnlockedIconOverrides, apiName);
                 if (!string.IsNullOrWhiteSpace(unlockedOverride))
@@ -1556,9 +1743,15 @@ namespace PlayniteAchievements.Services.Achievements
         private void OnCustomDataChangedForOverview(object sender, GameCustomDataChangedEventArgs e)
         {
             // A reorder-only change (goals) cannot move the filter mirror or any summary, and
-            // resyncing costs a store load plus a mirror write on every toggle.
+            // resyncing costs a store load plus a mirror write on every toggle. A tag edit moves
+            // only the game's tallies, which are recounted on their own.
             if (e != null && !e.AffectsSummaryData)
             {
+                if (e.AffectsTagTotals)
+                {
+                    RefreshTallies(e.PlayniteGameId);
+                }
+
                 return;
             }
 
@@ -1967,5 +2160,20 @@ namespace PlayniteAchievements.Services.Achievements
                 _hydrator.HydrateAllForOverview(games);
             }
         }
+    }
+
+    /// <summary>One game's tallies, recounted after a tag edit.</summary>
+    public sealed class TalliesChangedEventArgs : EventArgs
+    {
+        public TalliesChangedEventArgs(Guid playniteGameId, AchievementTally[] tagTotals)
+        {
+            PlayniteGameId = playniteGameId;
+            Tallies = tagTotals;
+        }
+
+        public Guid PlayniteGameId { get; }
+
+        /// <summary>The game's new totals; null when none of its achievements are tagged.</summary>
+        public AchievementTally[] Tallies { get; }
     }
 }

@@ -1,4 +1,5 @@
 ﻿using System;
+using Newtonsoft.Json;
 
 namespace PlayniteAchievements.Models.Settings
 {
@@ -24,7 +25,16 @@ namespace PlayniteAchievements.Models.Settings
 
         public string Category { get; set; }
 
-        public string CategoryType { get; set; }
+        /// <summary>Pipe-joined tag keys. Null for no tags.</summary>
+        public string Tags { get; set; }
+
+        /// <summary>
+        /// This achievement's own kind, standing in for the provider kind a custom achievement does
+        /// not have; the kind stored on its category still wins. Stored under its pre-v9 name, when
+        /// it held kinds and tags together.
+        /// </summary>
+        [JsonProperty("CategoryType")]
+        public string CategoryKind { get; set; }
 
         public string TrophyType { get; set; }
 
@@ -74,7 +84,8 @@ namespace PlayniteAchievements.Models.Settings
                 Points = Points,
                 ScaledPoints = ScaledPoints,
                 Category = Category,
-                CategoryType = CategoryType,
+                Tags = Tags,
+                CategoryKind = CategoryKind,
                 TrophyType = TrophyType,
                 Hidden = Hidden,
                 IsCapstone = IsCapstone,

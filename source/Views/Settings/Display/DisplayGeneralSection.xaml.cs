@@ -8,6 +8,7 @@ using PlayniteAchievements.Models;
 using PlayniteAchievements.Models.Achievements;
 using PlayniteAchievements.Models.Achievements.Scoring;
 using PlayniteAchievements.Models.Settings;
+using PlayniteAchievements.Services.UI;
 using PlayniteAchievements.Views.Helpers;
 using PlayniteAchievements.Views.Settings.Controls;
 using PlayniteAchievements.Views.Showcase;
@@ -144,10 +145,13 @@ namespace PlayniteAchievements.Views.Settings.Display
 
         private void OnPersistedPropertyChanged(object sender, PropertyChangedEventArgs e)
         {
-            if (e.PropertyName == nameof(PersistedSettings.ShowCompletedProgressColoring) ||
-                e.PropertyName == nameof(PersistedSettings.TintMissableLocks))
+            if (e.PropertyName == nameof(PersistedSettings.ShowCompletedProgressColoring))
             {
                 RarityAppearanceHelper.ApplyBadgeApplicationResources(_settings?.Persisted);
+            }
+            else if (e.PropertyName == nameof(PersistedSettings.IconScaleMode))
+            {
+                PlayAchResourceService.ApplyIconScaleToApplication(_settings?.Persisted);
             }
             else if (e.PropertyName == nameof(PersistedSettings.OverviewScoreCard1) ||
                      e.PropertyName == nameof(PersistedSettings.OverviewScoreCard2))

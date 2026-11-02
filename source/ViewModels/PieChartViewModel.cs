@@ -30,6 +30,7 @@ namespace PlayniteAchievements.ViewModels
             public int UnlockedCount { get; set; }
             public int TotalCount { get; set; }
             public bool IsLocked { get; set; }
+            public string TooltipTitle { get; set; }
         }
 
         /// <summary>
@@ -52,6 +53,7 @@ namespace PlayniteAchievements.ViewModels
             public int PieTotalCount { get; set; }
             public string PrimaryMetricText { get; set; }
             public string SecondaryMetricText { get; set; }
+            public string TooltipTitle { get; set; }
         }
 
         public SeriesCollection PieSeries { get; } = new SeriesCollection();
@@ -113,7 +115,21 @@ namespace PlayniteAchievements.ViewModels
                 nameof(IsFilled));
         }
 
-        public bool ShowCenterPercentage => _centerMode == PieCenterMode.Percentage && _includeLocked;
+        public bool ShowCenterPercentage =>
+            _centerMode == PieCenterMode.Percentage && _includeLocked && !_countsUnlocksOnly;
+
+        private bool _countsUnlocksOnly;
+
+        /// <summary>
+        /// Whether the data holds only unlocks, as when the overview cuts it to the unlocks its
+        /// filters keep. With no locked remainder the percentage would always read 100%, so the
+        /// centre hides it, as it does when the locked slice is off.
+        /// </summary>
+        public bool CountsUnlocksOnly
+        {
+            get => _countsUnlocksOnly;
+            set => SetValue(ref _countsUnlocksOnly, value, nameof(CountsUnlocksOnly), nameof(ShowCenterPercentage));
+        }
 
         public bool IsFilled => _centerMode == PieCenterMode.Filled;
 
@@ -521,6 +537,89 @@ namespace PlayniteAchievements.ViewModels
             ApplySmallSliceMode(dataPoints);
         }
 
+        // Maps display labels to tag keys for the tag pie, whose labels are user-named.
+        private readonly Dictionary<string, string> _labelToTagKey = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+
+        public string GetTagKeyFromLabel(string label) =>
+            !string.IsNullOrWhiteSpace(label) && _labelToTagKey.TryGetValue(label, out var key) ? key : null;
+
+        public string GetLabelForTagKey(string tagKey) =>
+            string.IsNullOrWhiteSpace(tagKey)
+                ? null
+                : _labelToTagKey
+                    .Where(pair => string.Equals(pair.Value, tagKey, StringComparison.OrdinalIgnoreCase))
+                    .Select(pair => pair.Key)
+                    .FirstOrDefault();
+
+        /// <summary>
+        /// Sets the pie chart data for tags: one slice per tag of its unlocked achievements, in the
+        /// order given, then the locked slice. An achievement with several tags counts under each,
+        /// so the tag slices can overlap; <paramref name="unlocked"/> and <paramref name="total"/>
+        /// count every achievement once, and are what the locked slice and the centre show.
+        /// </summary>
+        public void SetTagData(
+            IReadOnlyList<(string Key, string Label, int Unlocked, int Total, string ColorHex, string IconKey)> tags,
+            int unlocked,
+            int total,
+            string lockedLabel)
+        {
+            var locked = Math.Max(0, total - unlocked);
+            _labelToTagKey.Clear();
+            var dataPoints = new List<PieSliceInputData>();
+            foreach (var tag in tags ?? Array.Empty<(string, string, int, int, string, string)>())
+            {
+                if (tag.Unlocked <= 0 && tag.Total <= 0)
+                {
+                    continue;
+                }
+
+                var colorHex = Services.Achievements.AchievementTagHelper.NormalizeColor(tag.ColorHex) ?? "#888888";
+                var color = (Color)ColorConverter.ConvertFromString(colorHex);
+
+                _labelToTagKey[tag.Label ?? tag.Key] = tag.Key;
+                dataPoints.Add(new PieSliceInputData
+                {
+                    Label = tag.Label ?? tag.Key,
+                    Count = tag.Unlocked,
+                    IconKey = tag.IconKey ?? string.Empty,
+                    Color = color,
+                    OriginalColorHex = colorHex,
+                    UnlockedCount = tag.Unlocked,
+                    TotalCount = tag.Total,
+                    IsLocked = false,
+                    TooltipTitle = tag.Label ?? tag.Key
+                });
+            }
+
+            if (dataPoints.Count == 0)
+            {
+                UpdateExactCounts(0, 0);
+                SynchronizePieChartAndLegend(new List<PieSliceData>());
+                return;
+            }
+
+            if (_includeLocked)
+            {
+                dataPoints.Add(new PieSliceInputData
+                {
+                    Label = lockedLabel,
+                    Count = locked,
+                    IconKey = "BadgeLocked",
+                    Color = GetLockedColor(),
+                    OriginalColorHex = string.Empty,
+                    UnlockedCount = locked,
+                    TotalCount = locked,
+                    IsLocked = true
+                });
+            }
+
+            ApplySmallSliceMode(dataPoints);
+
+            // The slices add up to more than the achievements when tags overlap, so the centre
+            // takes the once-each counts instead of the slice sums.
+            UpdateExactCounts(unlocked, _includeLocked ? total : unlocked);
+        }
+
         /// <summary>
         /// Sets the pie chart data for trophy distribution (Platinum, Gold, Silver, Bronze, Locked).
         /// </summary>
@@ -817,7 +916,8 @@ namespace PlayniteAchievements.ViewModels
                 SuppressRadialIconOnCollision = suppressOnCollision,
                 PieTotalCount = pieTotalCount,
                 PrimaryMetricText = primaryMetricText,
-                SecondaryMetricText = secondaryMetricText
+                SecondaryMetricText = secondaryMetricText,
+                TooltipTitle = dataPoint.TooltipTitle
             };
         }
 
@@ -1065,9 +1165,27 @@ namespace PlayniteAchievements.ViewModels
                 }
             }
 
-            while (PieSeries.Count > targetCount)
+            // LiveCharts erases a removed series from the chart that drew it, and throws for one
+            // the chart has not drawn yet (added by a refresh just before this one). Such a series
+            // stays as an empty slice instead, and goes once a later refresh finds it drawn.
+            for (var i = PieSeries.Count - 1; i >= targetCount; i--)
             {
-                PieSeries.RemoveAt(PieSeries.Count - 1);
+                var surplus = PieSeries[i] as LiveCharts.Wpf.PieSeries;
+                if (surplus?.Model?.Chart?.View != null)
+                {
+                    PieSeries.RemoveAt(i);
+                    continue;
+                }
+
+                if (surplus != null)
+                {
+                    surplus.Title = string.Empty;
+                    surplus.StrokeThickness = 0;
+                    if (surplus.Values is ChartValues<PieSliceChartData> surplusValues && surplusValues.Count > 0)
+                    {
+                        ApplySliceChartData(surplusValues[0], null);
+                    }
+                }
             }
         }
 
@@ -1087,6 +1205,7 @@ namespace PlayniteAchievements.ViewModels
             chartData.PieTotalCount = slice?.PieTotalCount ?? 0;
             chartData.PrimaryMetricText = slice?.PrimaryMetricText ?? string.Empty;
             chartData.SecondaryMetricText = slice?.SecondaryMetricText ?? string.Empty;
+            chartData.TooltipTitle = slice?.TooltipTitle ?? string.Empty;
         }
 
         private void SynchronizeLegendItems(IReadOnlyList<PieSliceData> slices)

@@ -33,7 +33,7 @@
             <ScrollViewer Grid.Row="1"
                           VerticalScrollBarVisibility="Auto">
                 <StackPanel>
-                    <GroupBox Header="{DynamicResource LOCPlatformsTitle}"
+                    <GroupBox Header="{DynamicResource LOCPlayAch_Common_Platforms}"
                               Foreground="{DynamicResource PlayAch.Brush.Text}"
                               BorderBrush="{DynamicResource PlayAch.Brush.Border}"
                               Margin="0,0,0,10">
@@ -146,7 +146,7 @@
                         Orientation="Horizontal"
                         HorizontalAlignment="Right"
                         Margin="0,12,0,0">
-                <Button Content="{DynamicResource LOCCancelLabel}"
+                <Button Content="{DynamicResource LOCPlayAch_Common_Cancel}"
                         Click="CancelButton_Click"
                         Padding="{StaticResource PlayAch.Thickness.ButtonPadding}"
                         MinWidth="86"

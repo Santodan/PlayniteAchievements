@@ -90,7 +90,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         private ProviderOverrideChoice _selectedDisplayPlatform;
         private bool _isSyncingDisplayPlatform;
         private readonly HashSet<string> _selectedCategoryFilters =
-            new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            new HashSet<string>(CategoryPathHelper.LabelComparer);
         private readonly HashSet<string> _selectedTypeFilters =
             new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         private readonly HashSet<string> _selectedCustomizationFilters =
@@ -174,9 +174,8 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             // history is built from the writes themselves rather than from an uncommitted buffer.
             _gameCustomDataStore.CustomDataWritten += GameCustomDataStore_CustomDataWritten;
 
-            // Background capstone writes wait for this to close rather than land underneath it,
-            // where the next save would overwrite them or they would join the user's undo.
-            OpenEditorRegistry.Open(_gameId);
+            // Registered as open only while its tab shows (SetVisible): background capstone writes
+            // wait for it rather than land underneath it, where the next save would overwrite them.
             UndoCommand =new RelayCommand(_ => Undo(), _ => CanUndo && !IsSaving);
             RedoCommand = new RelayCommand(_ => Redo(), _ => CanRedo && !IsSaving);
 
@@ -185,15 +184,27 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             EditCustomProviderCommand = new RelayCommand(_ => EditCustomProvider(), _ => HasSelectedCustomProvider && _showEditor != null && !IsSaving);
 
             AchievementRows = new BulkObservableCollection<AchievementEditorRow>();
+            AchievementTagRegistry.Changed += OnTagsChanged;
+            // Rows carry the game so its own tags resolve to their names and colors.
+            AchievementRows.CollectionChanged += (_, args) =>
+            {
+                var added = args.Action == System.Collections.Specialized.NotifyCollectionChangedAction.Reset
+                    ? AchievementRows
+                    : args.NewItems?.OfType<AchievementEditorRow>() ?? Enumerable.Empty<AchievementEditorRow>();
+                foreach (var editorRow in added)
+                {
+                    editorRow.GameId = _gameId;
+                }
+            };
             CategoryFilter = BuildCategoryFilter();
             TypeFilter = BuildTypeFilter();
             CustomizationFilter = BuildCustomizationFilter();
             StateFilter = BuildStateFilter();
             AssignableCategoryOptions = new ObservableCollection<string>();
-            TypeSelectionOptions = new ObservableCollection<CategoryTypeSelectionOption>(
-                AchievementCategoryTypeHelper.AssignableCategoryTypes.Select(type =>
-                    new CategoryTypeSelectionOption(type, ManageAchievementsCategoryViewModel.GetCategoryTypeDisplayName(type))));
-            foreach (var option in TypeSelectionOptions)
+            TagSelectionOptions = new ObservableCollection<TagSelectionOption>(
+                AchievementTagRegistry.GetAssignableKeys(_gameId).Select(type =>
+                    new TagSelectionOption(type, ManageAchievementsCategoryViewModel.GetTagDisplayName(type, _gameId))));
+            foreach (var option in TagSelectionOptions)
             {
                 option.PropertyChanged += TypeSelectionOption_PropertyChanged;
             }
@@ -300,6 +311,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
 
         private DispatcherTimer _undoStepTimer;
         private bool _isDetached;
+        private bool _isRegisteredOpen;
 
         /// <summary>
         /// Set while a step is being reversed, so the write that reverses it is not itself
@@ -460,7 +472,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 nameof(AchievementEditorRow.TimeText),
                 nameof(AchievementEditorRow.SelectedTimeModeText),
                 nameof(AchievementEditorRow.CategoryLabel),
-                nameof(AchievementEditorRow.CategoryTypeValue),
+                nameof(AchievementEditorRow.TagsValue),
                 nameof(AchievementEditorRow.IsCapstone),
                 nameof(AchievementEditorRow.IsGoal),
                 nameof(AchievementEditorRow.IsFiltered),
@@ -1126,7 +1138,9 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         public ObservableCollection<string> AssignableCategoryOptions { get; }
 
         /// <summary>Category-type toggles for the selected row; changes persist immediately.</summary>
-        public ObservableCollection<CategoryTypeSelectionOption> TypeSelectionOptions { get; }
+        public Guid GameId => _gameId;
+
+        public ObservableCollection<TagSelectionOption> TagSelectionOptions { get; }
 
         public RelayCommand AddCommand { get; }
 
@@ -1672,7 +1686,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             row.PointsText = SharedValue(r => r.PointsText);
             row.TrophyType = SharedValue(r => r.TrophyType);
             row.CategoryLabel = SharedValue(r => r.EffectiveCategoryLabel);
-            row.CategoryTypeValue = SharedValue(r => r.EffectiveCategoryTypeValue);
+            row.TagsValue = SharedValue(r => r.EffectiveTagsValue);
             row.AchievementNote = SharedValue(r => r.AchievementNote);
             row.RarityInput = SharedValue(r => r.RarityInput);
             row.ProgressNumText = SharedValue(r => r.ProgressNumText);
@@ -1692,6 +1706,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             row.SuppressNotifications = false;
 
             row.PropertyChanged += BulkRow_PropertyChanged;
+            row.GameId = _gameId;
             BulkRow = row;
         }
 
@@ -1701,7 +1716,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         /// </summary>
         private bool SelectionCategoriesAreDistinct()
         {
-            var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var seen = new HashSet<string>(CategoryPathHelper.LabelComparer);
             foreach (var row in _selectedRows)
             {
                 if (row == null || string.IsNullOrWhiteSpace(row.OriginalApiName))
@@ -1709,7 +1724,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                     continue;
                 }
 
-                if (!seen.Add(AchievementCategoryTypeHelper.NormalizeCategoryOrDefault(
+                if (!seen.Add(AchievementCategoryHelper.NormalizeCategoryOrDefault(
                         row.EffectiveCategoryLabel)))
                 {
                     return false;
@@ -1765,7 +1780,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             try
             {
                 _bulkRow.CategoryLabel = SharedValue(r => r.EffectiveCategoryLabel);
-                _bulkRow.CategoryTypeValue = SharedValue(r => r.EffectiveCategoryTypeValue);
+                _bulkRow.TagsValue = SharedValue(r => r.EffectiveTagsValue);
                 _bulkRow.SetFilterScopeFromSource(SharedScope());
                 _bulkRow.SetGoalFromSource(SharedFlagOrNull(r => r.IsGoal));
                 _bulkRow.SetHiddenFromSource(SharedFlagOrNull(r => r.Hidden));
@@ -1893,7 +1908,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         public IReadOnlyList<CustomAchievementSelectionOption> TrophyTypeOptions { get; } =
             new[]
             {
-                new CustomAchievementSelectionOption(string.Empty, L("LOCNone", "None")),
+                new CustomAchievementSelectionOption(string.Empty, L("LOCPlayAch_Common_None", "None")),
                 new CustomAchievementSelectionOption("bronze", L("LOCPlayAch_Trophy_Bronze", "Bronze")),
                 new CustomAchievementSelectionOption("silver", L("LOCPlayAch_Trophy_Silver", "Silver")),
                 new CustomAchievementSelectionOption("gold", L("LOCPlayAch_Trophy_Gold", "Gold")),
@@ -2102,6 +2117,25 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         /// what lets a row tell an edited field from one the provider supplied, for the icon
         /// override writes and for the grid's customization marker alike.
         /// </summary>
+        /// <summary>A metadata source's display name, looked up once per key for the pass.</summary>
+        private static string ResolveMetadataSourceName(string sourceKey, IDictionary<string, string> cache)
+        {
+            if (string.IsNullOrWhiteSpace(sourceKey))
+            {
+                return null;
+            }
+
+            if (!cache.TryGetValue(sourceKey, out var name))
+            {
+                var provider = PlayniteAchievementsPlugin.Instance?.ProviderRegistry?.GetMetadataProviders()?
+                    .FirstOrDefault(candidate => string.Equals(candidate.Key, sourceKey, StringComparison.OrdinalIgnoreCase));
+                name = provider == null ? sourceKey : ResourceProvider.GetString(provider.DisplayNameKey);
+                cache[sourceKey] = name;
+            }
+
+            return name;
+        }
+
         private void ApplyProviderBaselines()
         {
             var fileStems = AchievementIconCachePathBuilder.BuildFileStems(
@@ -2123,6 +2157,8 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             // that directory while it runs, and it is discarded before anything can.
             var iconCacheSnapshot = PlayniteAchievementsPlugin.Instance?.DiskImageService?
                 .ScanAchievementIconCacheDirectory(_gameIdText);
+            var metadataLinks = PlayniteAchievementsPlugin.Instance?.MetadataLinks;
+            var sourceNames = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 
             foreach (var row in AchievementRows)
             {
@@ -2133,15 +2169,20 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 }
 
                 row.IconFileStem = fileStems.TryGetValue(apiName, out var stem) ? stem : null;
+                row.BorrowedIconSourceName = ResolveMetadataSourceName(
+                    metadataLinks?.GetBorrowedIconSource(_gameId, row.OriginalApiName),
+                    sourceNames);
                 if (rawByApiName.TryGetValue(apiName, out var raw))
                 {
                     row.ProviderUnlockedIconPath = ResolveProviderIconBaseline(
                         raw.UnlockedIconPath,
+                        apiName,
                         row.IconFileStem,
                         AchievementIconVariant.Unlocked,
                         iconCacheSnapshot);
                     row.ProviderLockedIconPath = ResolveProviderIconBaseline(
                         raw.LockedIconPath,
+                        apiName,
                         row.IconFileStem,
                         AchievementIconVariant.Locked,
                         iconCacheSnapshot);
@@ -2149,7 +2190,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                     // The hydrated row carries the overridden type, so the provider's own is only
                     // available here. Without it an existing type override would compare equal to
                     // "what the provider says" and be dropped on the next write.
-                    row.ProviderCategoryTypeValue = raw.CategoryType;
+                    row.ProviderTagsValue = raw.Tags;
                     row.ProviderDisplayName = raw.DisplayName;
                     row.ProviderDescription = raw.Description;
                     row.ProviderPoints = raw.Points;
@@ -2191,6 +2232,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         /// </remarks>
         private string ResolveProviderIconBaseline(
             string cachedPath,
+            string apiName,
             string fileStem,
             AchievementIconVariant variant,
             ISet<string> iconCacheSnapshot = null)
@@ -2198,6 +2240,16 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             if (!AchievementIconCachePathBuilder.IsCustomIconPath(cachedPath))
             {
                 return cachedPath;
+            }
+
+            // A borrowed metadata icon is kept only in its source folder, not under the own name.
+            if (variant == AchievementIconVariant.Unlocked)
+            {
+                var borrowed = PlayniteAchievementsPlugin.Instance?.MetadataLinks?.GetBorrowedIconPath(_gameId, apiName);
+                if (!string.IsNullOrWhiteSpace(borrowed))
+                {
+                    return borrowed;
+                }
             }
 
             if (string.IsNullOrWhiteSpace(fileStem))
@@ -2254,10 +2306,61 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         }
 
         /// <summary>
+        /// Registers the editor as open on its game while its tab shows, and unregisters it when the
+        /// user moves to another tab, so background capstone writes held back for it land then. The
+        /// Manage window reloads this tab's rows when it shows again after a change.
+        /// </summary>
+        internal void SetVisible(bool visible)
+        {
+            if (visible == _isRegisteredOpen || (visible && _isDetached))
+            {
+                return;
+            }
+
+            _isRegisteredOpen = visible;
+            if (visible)
+            {
+                OpenEditorRegistry.Open(_gameId);
+            }
+            else
+            {
+                OpenEditorRegistry.Close(_gameId);
+            }
+        }
+
+        /// <summary>
         /// Drops the store subscription when the Manage window discards this view model.
         /// </summary>
+        // Renamed or deleted tags re-read their names on every row; raised off the UI thread.
+        private void OnTagsChanged(object sender, AchievementTagsChangedEventArgs e)
+        {
+            if (e?.GameId != null && e.GameId != _gameId)
+            {
+                return;
+            }
+
+            System.Windows.Application.Current?.Dispatcher?.BeginInvoke(new Action(() =>
+            {
+                TagSelectionOption.Sync(
+                    TagSelectionOptions,
+                    AchievementTagRegistry.GetAssignableKeys(_gameId),
+                    key => ManageAchievementsCategoryViewModel.GetTagDisplayName(key, _gameId),
+                    option => option.PropertyChanged += TypeSelectionOption_PropertyChanged);
+                // A tag created from a search is already on the selection; its new option has to
+                // show that.
+                SyncTypeOptionsToEditTarget();
+                foreach (var row in AchievementRows.ToList())
+                {
+                    row?.RefreshTags();
+                }
+
+                BulkRow?.RefreshTags();
+            }));
+        }
+
         public void Detach()
         {
+            AchievementTagRegistry.Changed -= OnTagsChanged;
             // Before the notification flush, which it ends by raising itself.
             FlushManualUnlocks();
             // A pending notification must not be lost when the tab closes.
@@ -2293,7 +2396,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             if (!_isDetached)
             {
                 _isDetached = true;
-                OpenEditorRegistry.Close(_gameId);
+                SetVisible(false);
             }
 
             // The history is session-scoped, so the art it was holding for a redo goes with it.
@@ -2336,7 +2439,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 ProviderRegistry.TryResolveProviderVisuals(CustomProviderKeys.BaseKey, out var defaultIconKey, out var defaultColorHex);
                 var defaultOption = new CustomProviderOption(
                     null,
-                    ResourceProvider.GetString("LOCDefault"),
+                    ResourceProvider.GetString("LOCPlayAch_Common_Default"),
                     defaultIconKey,
                     defaultColorHex);
                 CustomProviderOptions.Add(defaultOption);
@@ -2389,7 +2492,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
 
         private void ApplyCustomProviderAssignment(string customProviderId)
         {
-            MarkUndoIntent(EditorEditIntent.Command("CustomProvider", "LOCPlatformTitle"));
+            MarkUndoIntent(EditorEditIntent.Command("CustomProvider", "LOCPlayAch_Common_Platform"));
 
             try
             {
@@ -2522,7 +2625,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
 
         private void AddRow()
         {
-            MarkUndoIntent(EditorEditIntent.Command("Add", "LOCAddTitle"));
+            MarkUndoIntent(EditorEditIntent.Command("Add", "LOCPlayAch_Common_Add"));
 
             var row = AchievementEditorRow.CreateNew(AchievementRows.Count + 1);
             AssignStableId(row);
@@ -2604,7 +2707,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 thresholdMs: 10,
                 context: "rows=" + AchievementRows.Count);
 
-            MarkUndoIntent(EditorEditIntent.Command("Category", "LOCCategoryLabel"));
+            MarkUndoIntent(EditorEditIntent.Command("Category", "LOCPlayAch_Common_Category"));
 
             var targets = ResolveSelectionTargets()
                 .Where(row => row.CanEditAssignments && !string.IsNullOrWhiteSpace(row.OriginalApiName))
@@ -2614,7 +2717,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 return;
             }
 
-            var normalized = AchievementCategoryTypeHelper.NormalizeCategory(categoryLabel);
+            var normalized = AchievementCategoryHelper.NormalizeCategory(categoryLabel);
             StageAcross(targets, row => row.CategoryLabel = normalized);
             PersistCategoryAssignmentsFromRows();
             SyncBulkRowFromSelection();
@@ -2717,15 +2820,15 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         /// An empty set is the Default type, written as an override rather than left blank: blank
         /// would fall back to each provider's own type and the ticks would come straight back.
         /// </remarks>
-        public void SetCategoryTypesForSelection(IEnumerable<string> categoryTypes)
+        public void SetTagsForSelection(IEnumerable<string> tags)
         {
             using var perfScope = Common.PerfScope.Start(
                 _logger,
-                "Editor.SetCategoryTypesForSelection",
+                "Editor.SetTagsForSelection",
                 thresholdMs: 10,
                 context: "rows=" + AchievementRows.Count);
 
-            MarkUndoIntent(EditorEditIntent.Command("CategoryType", "LOCTypeLabel"));
+            MarkUndoIntent(EditorEditIntent.Command("Tags", "LOCPlayAch_Common_Tags"));
 
             var targets = ResolveSelectionTargets()
                 .Where(row => row.CanEditAssignments && !string.IsNullOrWhiteSpace(row.OriginalApiName))
@@ -2735,37 +2838,50 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 return;
             }
 
-            var normalized = AchievementCategoryTypeHelper.NormalizeOrDefault(
-                AchievementCategoryTypeHelper.Combine(
-                    (categoryTypes ?? Enumerable.Empty<string>())
-                        .Select(AchievementCategoryTypeHelper.Normalize)
-                        .Where(categoryType => !string.IsNullOrWhiteSpace(categoryType))));
+            var normalized = AchievementTagHelper.Normalize(
+                AchievementTagHelper.Combine(
+                    (tags ?? Enumerable.Empty<string>())
+                        .Select(AchievementTagHelper.Normalize)
+                        .Where(tag => !string.IsNullOrWhiteSpace(tag))));
 
-            StageAcross(targets, row => row.CategoryTypeValue =
-                AchievementCategoryTypeHelper.OverrideOrNull(normalized, row.ProviderCategoryTypeValue));
+            StageAcross(targets, row => row.TagsValue =
+                AchievementTagHelper.OverrideOrNull(normalized, row.ProviderTagsValue));
             PersistCategoryAssignmentsFromRows();
             SyncBulkRowFromSelection();
         }
 
         /// <summary>
+        /// Creates a tag of this game's named <paramref name="name"/> (or finds the one already named
+        /// that) and adds it to every selected achievement.
+        /// </summary>
+        public void CreateAndAssignTag(string name)
+        {
+            var key = _achievementOverridesService.CreateGameTag(_gameId, name);
+            if (!string.IsNullOrWhiteSpace(key))
+            {
+                SetTagForSelection(key, isSelected: true);
+            }
+        }
+
+        /// <summary>
         /// Adds or removes one category type across the selection, merging into the types each row
-        /// already carries. Prefer <see cref="SetCategoryTypesForSelection"/> for anything driven by
+        /// already carries. Prefer <see cref="SetTagsForSelection"/> for anything driven by
         /// a set of ticks; this stays for a caller that really does mean "toggle just this one".
         /// </summary>
-        public void SetCategoryTypeForSelection(string categoryType, bool isSelected)
+        public void SetTagForSelection(string tag, bool isSelected)
         {
             using var perfScope = Common.PerfScope.Start(
                 _logger,
-                "Editor.SetCategoryTypeForSelection",
+                "Editor.SetTagForSelection",
                 thresholdMs: 10,
                 context: "rows=" + AchievementRows.Count);
 
-            MarkUndoIntent(EditorEditIntent.Command("CategoryType", "LOCTypeLabel"));
+            MarkUndoIntent(EditorEditIntent.Command("Tags", "LOCPlayAch_Common_Tags"));
 
             var targets = ResolveSelectionTargets()
                 .Where(row => row.CanEditAssignments && !string.IsNullOrWhiteSpace(row.OriginalApiName))
                 .ToList();
-            var normalizedType = AchievementCategoryTypeHelper.Normalize(categoryType);
+            var normalizedType = AchievementTagHelper.Normalize(tag);
             if (targets.Count == 0 || string.IsNullOrWhiteSpace(normalizedType))
             {
                 return;
@@ -2775,12 +2891,12 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             // no override of its own has a null one, which reads as Default, so ticking a second
             // type used to drop the provider's grouping the ticks beside it were still showing.
             // The Categories tab and the shared row menu both toggle from the effective value.
-            StageAcross(targets, row => row.CategoryTypeValue = AchievementCategoryTypeHelper.OverrideOrNull(
-                AchievementCategoryTypeHelper.WithCategoryType(
-                    AchievementCategoryTypeHelper.NormalizeOrDefault(row.EffectiveCategoryTypeValue),
+            StageAcross(targets, row => row.TagsValue = AchievementTagHelper.OverrideOrNull(
+                AchievementTagHelper.WithTag(
+                    AchievementTagHelper.Normalize(row.EffectiveTagsValue),
                     normalizedType,
                     isSelected),
-                row.ProviderCategoryTypeValue));
+                row.ProviderTagsValue));
             PersistCategoryAssignmentsFromRows();
             SyncBulkRowFromSelection();
         }
@@ -3011,7 +3127,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                     StageAcross(targets, row =>
                     {
                         row.CategoryLabel = null;
-                        row.CategoryTypeValue = null;
+                        row.TagsValue = null;
                         row.IsGoal = false;
                         row.SetFilterScopeFromSource(AchievementFilterScope.None);
                     });
@@ -3037,7 +3153,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                         _gameId,
                         apiNames,
                         BuildAssignmentMap(row => row.CategoryLabel),
-                        BuildAssignmentMap(row => row.CategoryTypeValue),
+                        BuildAssignmentMap(row => row.TagsValue, keepEmpty: true),
                         BuildFilteredApiNames(),
                         BuildSummaryFilteredApiNames(),
                         BuildGoalApiNames(),
@@ -3131,6 +3247,34 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                     (category == null
                         ? row.IsWholeGameAutoCapstone || singleCategory
                         : IsInCategory(row, category)));
+                if (existing != null && category == null && existing.IsWholeGameAutoCapstone &&
+                    authoring.MatchedCapstoneApiName(_gameId) != null)
+                {
+                    // Saved first, so the swap reads the rows as shown; then the rows are read back
+                    // from the store the swap wrote.
+                    await SaveAsync().ConfigureAwait(true);
+                    if (authoring.ReplaceWithMatchedCapstone(_gameId))
+                    {
+                        _gameDataSnapshotProvider?.Invalidate();
+                        RaiseAssignmentsChanged();
+                        ReloadData();
+
+                        var matchedApiName = authoring.MatchedCapstoneApiName(_gameId);
+                        var matched = FindRow(matchedApiName);
+                        if (matched != null)
+                        {
+                            SelectRowAndScrollTo(matched);
+                            CapstoneChanged?.Invoke(this, new CapstoneChangedEventArgs(matchedApiName, matched.DisplayName));
+                        }
+
+                        SetStatus(null, false);
+                        return;
+                    }
+
+                    // An edited auto capstone stays, and is brought up to date below.
+                    existing = FindRow(existing.OriginalApiName) ?? existing;
+                }
+
                 if (existing != null)
                 {
                     ApplyAutoCapstoneDerivation(existing);
@@ -3146,7 +3290,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 // never awarded for finishing one DLC, so a category capstone is always authored.
                 if (category == null)
                 {
-                    var platinum = AutoCapstoneAuthoring.SelectPlatinum(authoring.LoadAchievementsInOrder(_gameId));
+                    var platinum = authoring.SelectPlatinum(_gameId, authoring.LoadAchievementsInOrder(_gameId));
                     var platinumRow = FindRow(platinum?.ApiName);
                     if (platinumRow != null)
                     {
@@ -3216,8 +3360,8 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
 
             var categories = AchievementRows
                 .Where(row => row != null && !string.IsNullOrWhiteSpace(row.OriginalApiName))
-                .Select(row => AchievementCategoryTypeHelper.NormalizeCategoryOrDefault(row.EffectiveCategoryLabel))
-                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .Select(row => AchievementCategoryHelper.NormalizeCategoryOrDefault(row.EffectiveCategoryLabel))
+                .Distinct(CategoryPathHelper.LabelComparer)
                 .OrderBy(label => label, StringComparer.CurrentCultureIgnoreCase)
                 .ToList();
 
@@ -3250,12 +3394,12 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         private string PromptForAutoCapstoneCategory(IReadOnlyList<string> categories)
         {
             var wholeGame = new GenericItemOption(
-                L("LOCPlayAch_ManageAchievements_Category_Type_Base", "Base"),
+                L("LOCPlayAch_CategoryKind_Base", "Base"),
                 string.Empty);
             var options = new List<GenericItemOption> { wholeGame };
             options.AddRange(categories
                 .Select(label => new GenericItemOption(
-                    AchievementCategoryTypeHelper.ToCategoryLabelDisplayText(label),
+                    AchievementCategoryHelper.ToCategoryLabelDisplayText(label),
                     label)));
 
             var selected = API.Instance?.Dialogs?.ChooseItemWithSearch(
@@ -3276,9 +3420,9 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         private static bool IsInCategory(AchievementEditorRow row, string category)
         {
             return string.Equals(
-                AchievementCategoryTypeHelper.NormalizeCategoryOrDefault(row.EffectiveCategoryLabel),
-                AchievementCategoryTypeHelper.NormalizeCategoryOrDefault(category),
-                StringComparison.OrdinalIgnoreCase);
+                AchievementCategoryHelper.NormalizeCategoryOrDefault(row.EffectiveCategoryLabel),
+                AchievementCategoryHelper.NormalizeCategoryOrDefault(category),
+                CategoryPathHelper.LabelComparison);
         }
 
         /// <summary>
@@ -3422,7 +3566,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 return;
             }
 
-            MarkUndoIntent(EditorEditIntent.Atomic("Import", "LOCImportLabel"));
+            MarkUndoIntent(EditorEditIntent.Atomic("Import", "LOCPlayAch_Common_Import"));
 
             if (result.Definitions.Count == 0)
             {
@@ -3637,7 +3781,9 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 return null;
             }
 
-            if (_managedCustomIconService.IsManagedCustomIconPath(normalized, _gameIdText))
+            // A borrowed file, such as an auto capstone's platinum, stays where its source keeps it.
+            if (_managedCustomIconService.IsManagedCustomIconPath(normalized, _gameIdText) ||
+                AchievementIconCachePathBuilder.IsMetadataSourceIconPath(normalized, _gameIdText))
             {
                 return normalized;
             }
@@ -3970,7 +4116,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 }
 
                 var categoryOverrides = GetCurrentCategoryOverrideMap(resolved);
-                var categoryTypeOverrides = GetCurrentCategoryTypeOverrideMap(resolved);
+                var tagOverrides = GetCurrentTagOverrideMap(resolved);
                 var capstones = BuildCapstoneState(resolved);
 
                 using (Common.PerfScope.Start(_logger, "Editor.RefreshAssignmentState.Rows", thresholdMs: 10))
@@ -3986,7 +4132,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                         if (string.IsNullOrWhiteSpace(apiName))
                         {
                             row.CategoryLabel = null;
-                            row.CategoryTypeValue = null;
+                            row.TagsValue = null;
                             row.SetCapstoneStateFromSource(false, null, null, null);
                             continue;
                         }
@@ -4000,8 +4146,8 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                         row.CategoryLabel = categoryOverrides.TryGetValue(apiName, out var category)
                             ? category
                             : null;
-                        row.CategoryTypeValue = categoryTypeOverrides.TryGetValue(apiName, out var categoryType)
-                            ? categoryType
+                        row.TagsValue = tagOverrides.TryGetValue(apiName, out var tag)
+                            ? tag
                             : null;
                         ApplyCapstoneStateToRow(row, apiName, capstones);
                     }
@@ -4052,7 +4198,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
 
             // The pickers rebuild their option rows once per collection event, so an unchanged
             // label set has to raise none.
-            if (AssignableCategoryOptions.SequenceEqual(ordered, StringComparer.OrdinalIgnoreCase))
+            if (AssignableCategoryOptions.SequenceEqual(ordered, CategoryPathHelper.LabelComparer))
             {
                 return;
             }
@@ -4068,7 +4214,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
 
         private void SyncTypeOptionsToEditTarget()
         {
-            if (TypeSelectionOptions == null)
+            if (TagSelectionOptions == null)
             {
                 return;
             }
@@ -4080,9 +4226,9 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 // the type ticks describing one row while the button beside them described the
                 // whole selection.
                 var selectedTypes = new HashSet<string>(
-                    AchievementCategoryTypeHelper.ParseValues(EditTarget?.EffectiveCategoryTypeValue),
+                    AchievementTagHelper.Parse(EditTarget?.EffectiveTagsValue),
                     StringComparer.OrdinalIgnoreCase);
-                foreach (var option in TypeSelectionOptions)
+                foreach (var option in TagSelectionOptions)
                 {
                     option.IsSelected = selectedTypes.Contains(option.Value);
                 }
@@ -4096,15 +4242,15 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         private void TypeSelectionOption_PropertyChanged(object sender, System.ComponentModel.PropertyChangedEventArgs e)
         {
             if (_isSyncingTypeOptions ||
-                !string.Equals(e?.PropertyName, nameof(CategoryTypeSelectionOption.IsSelected), StringComparison.Ordinal) ||
-                !(sender is CategoryTypeSelectionOption option))
+                !string.Equals(e?.PropertyName, nameof(TagSelectionOption.IsSelected), StringComparison.Ordinal) ||
+                !(sender is TagSelectionOption option))
             {
                 return;
             }
 
             // The whole tick state, not the one that changed: the set the user has built is what
             // every selected row takes.
-            SetCategoryTypesForSelection(TypeSelectionOptions
+            SetTagsForSelection(TagSelectionOptions
                 .Where(candidate => candidate?.IsSelected == true)
                 .Select(candidate => candidate.Value));
         }
@@ -4115,7 +4261,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
 
         private void PersistAssignmentMaps(
             IReadOnlyDictionary<string, string> categoryOverrides,
-            IReadOnlyDictionary<string, string> categoryTypeOverrides)
+            IReadOnlyDictionary<string, string> tagOverrides)
         {
             try
             {
@@ -4130,7 +4276,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                     rescoped = _achievementOverridesService.SetAchievementCategoryAssignmentAndMetadata(
                         _gameId,
                         categoryOverrides,
-                        categoryTypeOverrides,
+                        tagOverrides,
                         pendingOrder,
                         GameCustomDataLookup.GetAchievementCategoryImageOverrides(_gameId, _settings?.Persisted),
                         GameCustomDataLookup.GetGameSummaryCategory(_gameId, _settings?.Persisted),
@@ -4139,7 +4285,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 }
                 else
                 {
-                    rescoped = _achievementOverridesService.SetAchievementCategoryOverrides(_gameId, categoryOverrides, categoryTypeOverrides);
+                    rescoped = _achievementOverridesService.SetAchievementCategoryOverrides(_gameId, categoryOverrides, tagOverrides);
                 }
 
                 if (rescoped)
@@ -4176,7 +4322,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 Resolver = resolver;
                 ByApiName = byApiName;
                 Materialized = materialized;
-                CategoryDisplayNames = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+                CategoryDisplayNames = new Dictionary<string, string>(CategoryPathHelper.LabelComparer);
             }
 
             public CapstoneResolver Resolver { get; }
@@ -4228,7 +4374,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
 
             // What this row's own category stands on, which is not always this row: a category with
             // no capstone of its own shows the one it inherits from an ancestor.
-            var category = AchievementCategoryTypeHelper.NormalizeCategoryOrDefault(
+            var category = AchievementCategoryHelper.NormalizeCategoryOrDefault(
                 FindAchievement(capstones, apiName)?.Category);
             var categoryApiName = resolver.ResolveForCategory(category);
 
@@ -4259,7 +4405,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             var key = category ?? string.Empty;
             if (!capstones.CategoryDisplayNames.TryGetValue(key, out var display))
             {
-                display = AchievementCategoryTypeHelper.ToCategoryLabelDisplayText(category);
+                display = AchievementCategoryHelper.ToCategoryLabelDisplayText(category);
                 capstones.CategoryDisplayNames[key] = display;
             }
 
@@ -4399,7 +4545,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             foreach (var pair in source)
             {
                 var apiName = NormalizeText(pair.Key);
-                var category = AchievementCategoryTypeHelper.NormalizeCategory(pair.Value);
+                var category = AchievementCategoryHelper.NormalizeCategory(pair.Value);
                 if (!string.IsNullOrWhiteSpace(apiName) && !string.IsNullOrWhiteSpace(category))
                 {
                     normalized[apiName] = category;
@@ -4409,18 +4555,19 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             return normalized;
         }
 
-        private Dictionary<string, string> GetCurrentCategoryTypeOverrideMap(ResolvedGameCustomData resolved = null)
+        /// <summary>
+        /// The stored tag overrides by ApiName, read from the override records: "" where the user
+        /// removed every tag, so the row keeps that rather than falling back to the provider's.
+        /// </summary>
+        private Dictionary<string, string> GetCurrentTagOverrideMap(ResolvedGameCustomData resolved = null)
         {
-            var source = (resolved ?? ResolveCurrentCustomData())?.AchievementCategoryTypeOverrides
-                ?? new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
             var normalized = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-            foreach (var pair in source)
+            foreach (var pair in GameCustomDataLookup.BuildTagOverrideMap(resolved ?? ResolveCurrentCustomData()))
             {
                 var apiName = NormalizeText(pair.Key);
-                var categoryType = AchievementCategoryTypeHelper.Normalize(pair.Value);
-                if (!string.IsNullOrWhiteSpace(apiName) && !string.IsNullOrWhiteSpace(categoryType))
+                if (!string.IsNullOrWhiteSpace(apiName))
                 {
-                    normalized[apiName] = categoryType;
+                    normalized[apiName] = AchievementTagHelper.Normalize(pair.Value) ?? string.Empty;
                 }
             }
 
@@ -4596,8 +4743,11 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             if (e.PropertyName == nameof(AchievementEditorRow.ValidationMessage) ||
                 e.PropertyName == nameof(AchievementEditorRow.DisplayIcon) ||
                 e.PropertyName == nameof(AchievementEditorRow.CategoryLabel) ||
-                e.PropertyName == nameof(AchievementEditorRow.CategoryTypeValue) ||
-                e.PropertyName == nameof(AchievementEditorRow.CategoryTypeDisplayText))
+                e.PropertyName == nameof(AchievementEditorRow.TagsValue) ||
+                e.PropertyName == nameof(AchievementEditorRow.TagsDisplayText) ||
+                e.PropertyName == nameof(AchievementEditorRow.TagChips) ||
+                e.PropertyName == nameof(AchievementEditorRow.TagsButtonText) ||
+                e.PropertyName == nameof(AchievementEditorRow.HasTagIcons))
             {
                 return;
             }
@@ -5211,10 +5361,10 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                         PersistCategoryAssignmentsFromRows();
                         return;
 
-                    case nameof(AchievementEditorRow.CategoryTypeValue):
-                        StageAcrossSelection(row => row.CategoryTypeValue = bulk.CategoryTypeValue == null
+                    case nameof(AchievementEditorRow.TagsValue):
+                        StageAcrossSelection(row => row.TagsValue = bulk.TagsValue == null
                             ? null
-                            : AchievementCategoryTypeHelper.OverrideOrNull(bulk.CategoryTypeValue, row.ProviderCategoryTypeValue));
+                            : AchievementTagHelper.OverrideOrNull(bulk.TagsValue, row.ProviderTagsValue));
                         PersistCategoryAssignmentsFromRows();
                         return;
 
@@ -5362,7 +5512,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         {
             var targets = _selectedRows.ToList();
             MarkUndoIntent(
-                EditorEditIntent.Command("Icon:" + variant, "LOCGameIconTitle"),
+                EditorEditIntent.Command("Icon:" + variant, "LOCPlayAch_Common_Icon"),
                 targets.Select(row => row.OriginalApiName));
             StageAcross(targets, apply);
             _ = ApplyIconEditAsync(targets, variant);
@@ -5467,7 +5617,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         {
             PersistAssignmentMaps(
                 BuildAssignmentMap(row => row.CategoryLabel),
-                BuildAssignmentMap(row => row.CategoryTypeValue));
+                BuildAssignmentMap(row => row.TagsValue, keepEmpty: true));
         }
 
         /// <summary>
@@ -5597,22 +5747,6 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 var materialized = await MaterializeIconSourceAsync(current, row.IconFileStem, variant, errors)
                     .ConfigureAwait(true);
 
-                // Art that turns out to be the provider's own picture - its URL pasted back, or a
-                // re-saved copy - is not a customization, so the slot goes back to the provider
-                // rather than storing a duplicate as an override.
-                var providerArt = NormalizeText(ReadProviderIcon(row, variant));
-                if (!string.IsNullOrWhiteSpace(materialized) &&
-                    !string.IsNullOrWhiteSpace(providerArt) &&
-                    await Task.Run(() => IconImageComparer.AreSameImage(materialized, providerArt)).ConfigureAwait(true))
-                {
-                    StageAcross(new[] { row }, target => WriteIcon(
-                        target,
-                        variant,
-                        variant == AchievementIconVariant.Locked ? null : providerArt));
-                    touched.Add(row);
-                    continue;
-                }
-
                 if (!string.Equals(materialized, current, StringComparison.Ordinal))
                 {
                     StageAcross(new[] { row }, target => WriteIcon(target, variant, materialized));
@@ -5697,14 +5831,19 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         /// Every non-blank assignment the rows carry, keyed by ApiName. A blank one is left out,
         /// which is what removes the override for a row whose assignment was cleared.
         /// </summary>
-        private Dictionary<string, string> BuildAssignmentMap(Func<AchievementEditorRow, string> selector)
+        /// <param name="keepEmpty">
+        /// Writes "" values too: for tags it is an override that removes every tag, where null is
+        /// none.
+        /// </param>
+        private Dictionary<string, string> BuildAssignmentMap(Func<AchievementEditorRow, string> selector, bool keepEmpty = false)
         {
             var map = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
             foreach (var row in AchievementRows)
             {
                 var apiName = row?.OriginalApiName;
                 var value = selector(row);
-                if (string.IsNullOrWhiteSpace(apiName) || string.IsNullOrWhiteSpace(value))
+                if (string.IsNullOrWhiteSpace(apiName) ||
+                    (keepEmpty ? value == null : string.IsNullOrWhiteSpace(value)))
                 {
                     continue;
                 }
@@ -6046,8 +6185,8 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
 
         private bool MatchesSelectedTypes(AchievementEditorRow row)
         {
-            var components = AchievementCategoryTypeHelper.GetCanonicalComponents(
-                row.EffectiveCategoryTypeValue);
+            var components = AchievementTagHelper.GetComponents(
+                row.EffectiveTagsValue);
             for (var i = 0; i < components.Count; i++)
             {
                 if (_selectedTypeFilters.Contains(components[i]))
@@ -6119,8 +6258,8 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 () => GetSelectedFilterText(
                     _selectedCategoryFilters,
                     _categoryFilterOptions,
-                    ResourceProvider.GetString("LOCCategoryLabel"),
-                    AchievementCategoryTypeHelper.ToCategoryLeafDisplayText),
+                    ResourceProvider.GetString("LOCPlayAch_Common_Category"),
+                    AchievementCategoryHelper.ToCategoryLeafDisplayText),
                 () => _categoryFilterOptions,
                 option => _selectedCategoryFilters.Contains(option),
                 (option, isSelected) =>
@@ -6137,20 +6276,19 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
 
         private GridMultiSelectFilter BuildTypeFilter()
         {
-            // The types this game's achievements carry, Default included when any row is untyped,
-            // so no choice filters the grid to nothing.
+            // The tags this game's achievements carry, so no choice filters the grid to nothing.
             return new GridMultiSelectFilter(
                 this,
                 nameof(FilterOptionsChanged),
                 () => GetSelectedFilterText(
                     _selectedTypeFilters,
                     _typeFilterOptions,
-                    ResourceProvider.GetString("LOCTypeLabel"),
-                    ManageAchievementsCategoryViewModel.GetCategoryTypeDisplayName),
+                    ResourceProvider.GetString("LOCPlayAch_Common_Tags"),
+                    key => ManageAchievementsCategoryViewModel.GetTagDisplayName(key, _gameId)),
                 () => _typeFilterOptions,
                 option => _selectedTypeFilters.Contains(option),
                 (option, isSelected) => ToggleFilter(_selectedTypeFilters, option, isSelected),
-                getDisplayLabel: ManageAchievementsCategoryViewModel.GetCategoryTypeDisplayName)
+                getDisplayLabel: key => ManageAchievementsCategoryViewModel.GetTagDisplayName(key, _gameId))
             {
                 MinWidth = 140
             };
@@ -6270,16 +6408,6 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         /// </summary>
         public object FilterOptionsChanged => null;
 
-        /// <summary>
-        /// This game's categories as the tree the assignment pickers draw, for the row context
-        /// menu's category submenu. Built on demand: it is read once when that menu opens.
-        /// </summary>
-        public IReadOnlyList<CategoryPickerOption> AssignableCategoryPickerOptions =>
-            CategoryPickerResolver.BuildOptions(
-                AssignableCategoryOptions.ToList(),
-                AssignableCategoryOptions.ToList(),
-                synthesizedAreSelectable: false);
-
         private void NotifyFilterChanged()
         {
             OnPropertyChanged(nameof(IsFiltering));
@@ -6306,7 +6434,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 .ToList();
 
             var removed = _selectedCategoryFilters
-                .Where(selected => !_categoryFilterOptions.Contains(selected, StringComparer.OrdinalIgnoreCase))
+                .Where(selected => !_categoryFilterOptions.Contains(selected, CategoryPathHelper.LabelComparer))
                 .ToList();
             foreach (var stale in removed)
             {
@@ -6347,15 +6475,16 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                     continue;
                 }
 
-                var components = AchievementCategoryTypeHelper.GetCanonicalComponents(
-                    row.EffectiveCategoryTypeValue);
+                var components = AchievementTagHelper.GetComponents(
+                    row.EffectiveTagsValue);
                 for (var i = 0; i < components.Count; i++)
                 {
                     present.Add(components[i]);
                 }
             }
 
-            var options = AchievementCategoryTypeHelper.AllowedCategoryTypes
+            var options = AchievementTagRegistry.GetAssignableKeys(_gameId)
+                .Concat(new[] { AchievementTagHelper.Softcore, AchievementTagHelper.Hardcore })
                 .Where(present.Contains)
                 .ToList();
             if (options.SequenceEqual(_typeFilterOptions, StringComparer.OrdinalIgnoreCase))
@@ -7336,7 +7465,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         }
 
         private string _categoryLabel;
-        private string _categoryTypeValue;
+        private string _tagsValue;
         private bool _isCapstone;
         private string _capstoneReplacesDisplayName;
         private bool _suppressCapstonePersist;
@@ -7429,7 +7558,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         /// The category type the provider gave this achievement, kept for the same reason as
         /// <see cref="ProviderCategoryLabel"/>: an assignment matching it is not an override.
         /// </summary>
-        public string ProviderCategoryTypeValue { get; set; }
+        public string ProviderTagsValue { get; set; }
 
         /// <summary>
         /// The category this achievement actually sits in: the user's override when they set one,
@@ -7452,7 +7581,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         {
             get
             {
-                var assigned = AchievementCategoryTypeHelper.NormalizeCategory(CategoryLabel);
+                var assigned = AchievementCategoryHelper.NormalizeCategory(CategoryLabel);
                 if (assigned != null)
                 {
                     return assigned;
@@ -7465,7 +7594,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 // carries a value no list item matches.
                 return IsBulkRow
                     ? null
-                    : AchievementCategoryTypeHelper.NormalizeCategoryOrDefault(ProviderCategoryLabel);
+                    : AchievementCategoryHelper.NormalizeCategoryOrDefault(ProviderCategoryLabel);
             }
         }
 
@@ -7478,17 +7607,17 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         /// <see cref="EffectiveCategoryLabel"/>: it has no provider value to fall back to, and
         /// Default is a real type rather than a stand-in for "these differ".
         /// </remarks>
-        public string EffectiveCategoryTypeValue
+        public string EffectiveTagsValue
         {
             get
             {
                 if (IsBulkRow)
                 {
-                    return AchievementCategoryTypeHelper.Normalize(CategoryTypeValue);
+                    return AchievementTagHelper.Normalize(TagsValue);
                 }
 
                 // Softcore/Hardcore always come from the provider, whatever the override says.
-                return AchievementCategoryTypeHelper.ApplyOverride(ProviderCategoryTypeValue, CategoryTypeValue);
+                return AchievementTagHelper.ApplyOverride(ProviderTagsValue, TagsValue);
             }
         }
 
@@ -7603,6 +7732,8 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             // them to decide whether they are showing the user's art or the provider's.
             OnPropertyChanged(nameof(HasUnlockedIconOverride));
             OnPropertyChanged(nameof(HasLockedIconOverride));
+            OnPropertyChanged(nameof(HasBorrowedUnlockedIcon));
+            OnPropertyChanged(nameof(BorrowedIconSourceName));
 
             AchievementEditorFieldRules.TryParsePoints(PointsText, out var points);
             CustomizationFacets = AchievementCustomizationRules.Resolve(new AchievementCustomizationInputs
@@ -7618,14 +7749,14 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 ProviderTrophyType = NormalizeRowText(ProviderTrophyType),
                 UnlockTimeUtc = UnlockTime,
                 ProviderUnlockTimeUtc = ProviderUnlockTimeUtc,
-                // The effective values, not CategoryLabel and CategoryTypeValue: those two hold
+                // The effective values, not CategoryLabel and TagsValue: those two hold
                 // the user's assignment alone and are blank on a row carrying none, so comparing
                 // them against the provider's own read every untouched achievement of a
                 // categorized game as customized.
-                Category = AchievementCategoryTypeHelper.NormalizeCategoryOrDefault(EffectiveCategoryLabel),
-                ProviderCategory = AchievementCategoryTypeHelper.NormalizeCategoryOrDefault(ProviderCategoryLabel),
-                CategoryType = AchievementCategoryTypeHelper.NormalizeOrDefault(EffectiveCategoryTypeValue),
-                ProviderCategoryType = AchievementCategoryTypeHelper.NormalizeOrDefault(ProviderCategoryTypeValue),
+                Category = AchievementCategoryHelper.NormalizeCategoryOrDefault(EffectiveCategoryLabel),
+                ProviderCategory = AchievementCategoryHelper.NormalizeCategoryOrDefault(ProviderCategoryLabel),
+                Tags = AchievementTagHelper.Normalize(EffectiveTagsValue),
+                ProviderTags = AchievementTagHelper.Normalize(ProviderTagsValue),
                 Note = AchievementNote,
                 UnlockedIconPath = NormalizeRowText(UnlockedIconPath),
                 ProviderUnlockedIconPath = NormalizeRowText(ProviderUnlockedIconPath),
@@ -7663,7 +7794,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             nameof(TrophyType),
             nameof(UnlockTime),
             nameof(CategoryLabel),
-            nameof(CategoryTypeValue),
+            nameof(TagsValue),
             nameof(AchievementNote),
             nameof(UnlockedIconPath),
             nameof(LockedIconPath),
@@ -7695,7 +7826,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
 
             if ((facets & AchievementCustomizationFacet.Authored) != 0)
             {
-                return ResourceProvider.GetString("LOCCustomLabel");
+                return ResourceProvider.GetString("LOCPlayAch_Common_Custom");
             }
 
             var lines = new List<string> { ResourceProvider.GetString("LOCPlayAch_Tagging_Customized") };
@@ -7901,17 +8032,18 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             }
         }
 
-        public string CategoryTypeValue
+        public string TagsValue
         {
-            get => _categoryTypeValue;
+            get => _tagsValue;
             set
             {
-                if (SetValueAndReturn(ref _categoryTypeValue, value))
+                if (SetValueAndReturn(ref _tagsValue, value))
                 {
-                    OnPropertyChanged(nameof(EffectiveCategoryTypeValue));
-                    OnPropertyChanged(nameof(CategoryTypeDisplayText));
+                    OnPropertyChanged(nameof(EffectiveTagsValue));
+                    NotifyTagPresentation();
                     OnPropertyChanged(nameof(IsMissable));
-                    OnPropertyChanged(nameof(IsUnobtainable));                }
+                    OnPropertyChanged(nameof(IsUnobtainable));
+                }
             }
         }
 
@@ -7919,31 +8051,71 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         /// True when the effective category type includes Missable. Drives the status column's
         /// missable lock fill and tooltip.
         /// </summary>
-        public bool IsMissable => AchievementCategoryTypeHelper.IsMissable(EffectiveCategoryTypeValue);
+        public bool IsMissable => AchievementTagHelper.IsMissable(EffectiveTagsValue);
 
         /// <summary>
         /// True when the effective category type includes Unobtainable. Drives the status
         /// column's lock fill and tooltip alongside Missable.
         /// </summary>
-        public bool IsUnobtainable => AchievementCategoryTypeHelper.IsUnobtainable(EffectiveCategoryTypeValue);
-        public string CategoryTypeDisplayText
+        public bool IsUnobtainable => AchievementTagHelper.IsUnobtainable(EffectiveTagsValue);
+        private Guid? _gameId;
+
+        /// <summary>Re-reads tag names after the tag lists changed.</summary>
+        public void RefreshTags() => NotifyTagPresentation();
+
+        private void NotifyTagPresentation()
+        {
+            OnPropertyChanged(nameof(TagsDisplayText));
+            OnPropertyChanged(nameof(TagChips));
+            OnPropertyChanged(nameof(TagsButtonText));
+            OnPropertyChanged(nameof(HasTagIcons));
+        }
+
+        /// <summary>The game the row belongs to, so its own tags resolve.</summary>
+        public Guid? GameId
+        {
+            get => _gameId;
+            set
+            {
+                if (_gameId != value)
+                {
+                    _gameId = value;
+                    NotifyTagPresentation();
+                }
+            }
+        }
+
+        public string TagsDisplayText
         {
             get
             {
-                // The Default sentinel renders blank in grid cells; a button needs a label. Except
-                // on the bulk proxy, where a blank effective value means the selection disagrees
-                // and the button has to stay empty rather than claim they are all Default.
-                var text = AchievementCategoryTypeHelper.ToDisplayText(EffectiveCategoryTypeValue);
+                // A row without tags reads None, since a button needs a label. Except on the bulk
+                // proxy, where a blank effective value means the selection disagrees and the button
+                // has to stay empty rather than claim they all have none.
+                var text = AchievementTagHelper.ToDisplayText(EffectiveTagsValue, _gameId, includeHidden: true);
                 if (!string.IsNullOrWhiteSpace(text))
                 {
                     return text;
                 }
 
-                return IsBulkRow && string.IsNullOrWhiteSpace(EffectiveCategoryTypeValue)
+                return IsBulkRow && string.IsNullOrWhiteSpace(EffectiveTagsValue)
                     ? string.Empty
-                    : AchievementCategoryTypeHelper.ToCategoryTypeDisplayText(AchievementCategoryTypeHelper.NormalizeOrDefault(null));
+                    : ResourceProvider.GetString("LOCPlayAch_Common_None");
             }
         }
+
+        /// <summary>The row's tags as the editor grid's Tags cell draws them, hidden ones included.</summary>
+        public IReadOnlyList<Tags.AchievementTagChip> TagChips =>
+            Tags.AchievementTagPresentation.Resolve(EffectiveTagsValue, _gameId, includeHidden: true);
+
+        /// <summary>
+        /// The Tags cell button's label: empty when a tag has an icon, since the cell then draws the
+        /// tags over the button instead.
+        /// </summary>
+        public string TagsButtonText => HasTagIcons ? string.Empty : TagsDisplayText;
+
+        /// <summary>True when one of the row's tags has an icon.</summary>
+        public bool HasTagIcons => TagChips.Any(chip => chip.Icon != null);
 
         public bool IsCapstone
         {
@@ -7967,11 +8139,11 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             {
                 if (IsCapstone)
                 {
-                    return ResourceProvider.GetString("LOCRemoveLabel");
+                    return ResourceProvider.GetString("LOCPlayAch_Common_Remove");
                 }
 
                 return string.IsNullOrWhiteSpace(CapstoneReplacesDisplayName)
-                    ? ResourceProvider.GetString("LOCAddTitle")
+                    ? ResourceProvider.GetString("LOCPlayAch_Common_Add")
                     : ResourceProvider.GetString("LOCPlayAch_Button_Replace");
             }
         }
@@ -8345,6 +8517,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 if (SetValueAndReturn(ref _unlockedIconPath, value))
                 {
                     OnPropertyChanged(nameof(HasUnlockedIconOverride));
+                    OnPropertyChanged(nameof(HasBorrowedUnlockedIcon));
                     OnPropertyChanged(nameof(UnlockedPreviewPath));
                     OnPropertyChanged(nameof(LockedPreviewPath));
                     OnPropertyChanged(nameof(DisplayIcon));
@@ -8375,6 +8548,16 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
 
         /// <inheritdoc cref="HasUnlockedIconOverride"/>
         public bool HasLockedIconOverride => IsIconOverride(LockedIconPath, ProviderLockedIconPath);
+
+        /// <summary>
+        /// The metadata source the unlocked icon came from (such as PlayStation), or null when it is
+        /// the platform's own. Set from the last overlay with the provider baselines.
+        /// </summary>
+        public string BorrowedIconSourceName { get; internal set; }
+
+        /// <summary>The slot shows a borrowed icon the user has not replaced, so it names the source.</summary>
+        public bool HasBorrowedUnlockedIcon =>
+            !HasUnlockedIconOverride && !string.IsNullOrWhiteSpace(BorrowedIconSourceName);
 
         /// <summary>
         /// Whether a slot holds the user's art rather than the provider's. The same test the
@@ -8857,7 +9040,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             row.ProgressNumText = FormatInt(achievement.ProgressNum);
             row.ProgressDenomText = FormatInt(achievement.ProgressDenom);
             row.CategoryLabel = achievement.Category;
-            row.CategoryTypeValue = achievement.CategoryType;
+            row.TagsValue = achievement.Tags;
             row.IsCapstone = achievement.IsCapstone;
             row.AchievementNote = achievement.AchievementNote;
             row.IsGoal = achievement.IsGoal;
@@ -9006,6 +9189,9 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 Hidden = Hidden,
                 IsAutoCapstone = IsAutoCapstone,
                 IsWholeGameAutoCapstone = IsAutoCapstone && IsWholeGameAutoCapstone,
+                // The definition's own tags, which the row reads as its provider's; the user's tag
+                // edits are stored as overrides on top, so dropping these would blank them.
+                Tags = AchievementTagHelper.Normalize(ProviderTagsValue),
                 // A stored definition always carries a rarity, whichever row built it.
                 Rarity = ManageAchievements.AchievementEditorFieldRules.NormalizeAuthoredRarity(Rarity, isBulkRow: false)
             };

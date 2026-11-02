@@ -48,20 +48,20 @@ namespace PlayniteAchievements.Views.Helpers
 
         private static void OnIsEnabledChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
         {
-            if (!(d is DataGrid grid))
+            if (!(d is FrameworkElement host))
             {
                 return;
             }
 
             var isEnabled = e.NewValue is bool value && value;
-            var state = GetState(grid);
+            var state = GetState(host);
 
             if (isEnabled)
             {
                 if (state == null)
                 {
-                    state = new HoverScrollBarState(grid);
-                    SetState(grid, state);
+                    state = new HoverScrollBarState(host);
+                    SetState(host, state);
                 }
 
                 state.Attach();
@@ -69,7 +69,7 @@ namespace PlayniteAchievements.Views.Helpers
             }
 
             state?.Detach();
-            SetState(grid, null);
+            SetState(host, null);
         }
 
         private sealed class HoverScrollBarState
@@ -80,7 +80,7 @@ namespace PlayniteAchievements.Views.Helpers
             private static readonly DependencyPropertyDescriptor ScrollBarIsEnabledDescriptor =
                 DependencyPropertyDescriptor.FromProperty(UIElement.IsEnabledProperty, typeof(ScrollBar));
 
-            private readonly DataGrid _grid;
+            private readonly FrameworkElement _host;
             private readonly DispatcherTimer _scrollRevealTimer;
             private readonly List<TrackedScrollBar> _scrollBars = new List<TrackedScrollBar>();
             private ScrollViewer _scrollViewer;
@@ -90,10 +90,10 @@ namespace PlayniteAchievements.Views.Helpers
             private bool _isScrollRevealActive;
             private bool _refreshQueued;
 
-            public HoverScrollBarState(DataGrid grid)
+            public HoverScrollBarState(FrameworkElement host)
             {
-                _grid = grid;
-                _scrollRevealTimer = new DispatcherTimer(DispatcherPriority.Background, grid.Dispatcher)
+                _host = host;
+                _scrollRevealTimer = new DispatcherTimer(DispatcherPriority.Background, host.Dispatcher)
                 {
                     Interval = ScrollRevealDuration
                 };
@@ -107,24 +107,24 @@ namespace PlayniteAchievements.Views.Helpers
                     return;
                 }
 
-                _grid.Loaded += OnLoaded;
-                _grid.Unloaded += OnUnloaded;
-                _grid.MouseEnter += OnMouseEnter;
+                _host.Loaded += OnLoaded;
+                _host.Unloaded += OnUnloaded;
+                _host.MouseEnter += OnMouseEnter;
                 // Use the tunneling PreviewMouseMove so the grid always observes the cursor
                 // first, before any descendant can mark the event handled. The column headers'
                 // resize/reorder logic handles the bubbling MouseMove, which would otherwise
                 // freeze the hover state the moment the cursor leaves the body and prevent it
                 // from updating back to "not over a body cell".
-                _grid.PreviewMouseMove += OnMouseMove;
-                _grid.MouseLeave += OnMouseLeave;
-                _grid.PreviewMouseWheel += OnPreviewMouseWheel;
-                _grid.IsKeyboardFocusWithinChanged += OnKeyboardFocusWithinChanged;
+                _host.PreviewMouseMove += OnMouseMove;
+                _host.MouseLeave += OnMouseLeave;
+                _host.PreviewMouseWheel += OnPreviewMouseWheel;
+                _host.IsKeyboardFocusWithinChanged += OnKeyboardFocusWithinChanged;
 
                 _isAttached = true;
                 _isMouseOverBody = false;
-                _isKeyboardFocusWithin = _grid.IsKeyboardFocusWithin;
+                _isKeyboardFocusWithin = _host.IsKeyboardFocusWithin;
 
-                if (_grid.IsLoaded)
+                if (_host.IsLoaded)
                 {
                     QueueRefreshScrollBars();
                 }
@@ -137,13 +137,13 @@ namespace PlayniteAchievements.Views.Helpers
                     return;
                 }
 
-                _grid.Loaded -= OnLoaded;
-                _grid.Unloaded -= OnUnloaded;
-                _grid.MouseEnter -= OnMouseEnter;
-                _grid.PreviewMouseMove -= OnMouseMove;
-                _grid.MouseLeave -= OnMouseLeave;
-                _grid.PreviewMouseWheel -= OnPreviewMouseWheel;
-                _grid.IsKeyboardFocusWithinChanged -= OnKeyboardFocusWithinChanged;
+                _host.Loaded -= OnLoaded;
+                _host.Unloaded -= OnUnloaded;
+                _host.MouseEnter -= OnMouseEnter;
+                _host.PreviewMouseMove -= OnMouseMove;
+                _host.MouseLeave -= OnMouseLeave;
+                _host.PreviewMouseWheel -= OnPreviewMouseWheel;
+                _host.IsKeyboardFocusWithinChanged -= OnKeyboardFocusWithinChanged;
 
                 ClearTrackedScrollBars();
                 DetachScrollViewer();
@@ -157,7 +157,7 @@ namespace PlayniteAchievements.Views.Helpers
             private void OnLoaded(object sender, RoutedEventArgs e)
             {
                 _isMouseOverBody = false;
-                _isKeyboardFocusWithin = _grid.IsKeyboardFocusWithin;
+                _isKeyboardFocusWithin = _host.IsKeyboardFocusWithin;
                 QueueRefreshScrollBars();
             }
 
@@ -214,11 +214,11 @@ namespace PlayniteAchievements.Views.Helpers
                 }
 
                 _refreshQueued = true;
-                _grid.Dispatcher.BeginInvoke(
+                _host.Dispatcher.BeginInvoke(
                     new Action(() =>
                     {
                         _refreshQueued = false;
-                        if (!_isAttached || !_grid.IsLoaded)
+                        if (!_isAttached || !_host.IsLoaded)
                         {
                             return;
                         }
@@ -259,7 +259,7 @@ namespace PlayniteAchievements.Views.Helpers
 
             private void RefreshScrollBars()
             {
-                var scrollViewer = VisualTreeHelpers.FindVisualChild<ScrollViewer>(_grid);
+                var scrollViewer = _host as ScrollViewer ?? VisualTreeHelpers.FindVisualChild<ScrollViewer>(_host);
                 if (scrollViewer == null)
                 {
                     return;
@@ -342,14 +342,15 @@ namespace PlayniteAchievements.Views.Helpers
                 ApplyScrollBarState();
             }
 
-            private static bool IsMouseOverBody(System.Windows.Input.MouseEventArgs e)
+            private bool IsMouseOverBody(System.Windows.Input.MouseEventArgs e)
             {
-                // The grid only raises MouseEnter/MouseMove while the cursor is within it, so
-                // any hover counts as "body" except the column-header row: its header cells,
-                // reorder visuals, and resize grippers all live under the
+                // The host only raises MouseEnter/MouseMove while the cursor is within it, so
+                // any hover counts as "body" except a DataGrid's column-header row: its header
+                // cells, reorder visuals, and resize grippers all live under the
                 // DataGridColumnHeadersPresenter.
                 return e?.OriginalSource is DependencyObject source &&
-                       VisualTreeHelpers.FindVisualParent<DataGridColumnHeadersPresenter>(source) == null;
+                       (!(_host is DataGrid) ||
+                        VisualTreeHelpers.FindVisualParent<DataGridColumnHeadersPresenter>(source) == null);
             }
 
             private static IEnumerable<ScrollBar> FindDataGridScrollBars(ScrollViewer scrollViewer)

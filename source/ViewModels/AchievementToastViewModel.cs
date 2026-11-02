@@ -12,6 +12,7 @@ using Playnite.SDK;
 using PlayniteAchievements.Models;
 using PlayniteAchievements.Models.Achievements;
 using PlayniteAchievements.Models.Settings;
+using PlayniteAchievements.Services.Capture;
 using PlayniteAchievements.Services.GameCustomData;
 using PlayniteAchievements.Services.Images;
 using PlayniteAchievements.Services.Images.Webm;
@@ -62,6 +63,8 @@ namespace PlayniteAchievements.ViewModels
         private readonly NotificationStyleSettings _style;
         private ImageSource _toastBackgroundRenderSourceOverride;
         private readonly bool _useToastBackgroundRenderSourceOverride;
+        private ImageSource _liveBackdrop;
+        private Rect _liveBackdropViewbox = new Rect(0, 0, 1, 1);
         private readonly RarityTier _rarity;
         private string _iconDisplaySource;
         private ImageSource _iconImage;
@@ -593,6 +596,15 @@ namespace PlayniteAchievements.ViewModels
         public string FriendCompletionHeaderText => ResolveFriendCompletionHeaderText(_style.Toast.HeaderTexts);
 
         /// <summary>
+        /// Title of the standalone game-completion notification ("Game Complete!" by default),
+        /// honoring the toast surface's user edit, with {0} filled by the game's name.
+        /// </summary>
+        public string CompletionTitleText => ResolveCompletionTitleText(_style.Toast.HeaderTexts);
+
+        private string ResolveCompletionTitleText(NotificationHeaderTextSettings texts) =>
+            NotificationHeaderTextService.FormatCompletionTitle(texts?.CompletionTitle, _args.GameName);
+
+        /// <summary>
         /// Header text of an incremental-progress notification ("Achievement progress" by
         /// default), honoring the toast surface's user edit. <see cref="HeaderText"/> already
         /// resolves to this for progress notifications; this is for templates that compose it.
@@ -678,7 +690,7 @@ namespace PlayniteAchievements.ViewModels
         // Raw friend identity for template composition (e.g. the friend completion header). The
         // completion texts themselves live in the templates as LOC resources, not here.
         public string FriendDisplayName => string.IsNullOrWhiteSpace(_args.FriendDisplayName)
-            ? "Friend"
+            ? ResourceProvider.GetString("LOCPlayAch_Column_Friend")
             : _args.FriendDisplayName;
 
         // Blank when masked rather than the grid's "Click to reveal": a notification cannot be
@@ -688,7 +700,7 @@ namespace PlayniteAchievements.ViewModels
         // The category's leaf name, as the grid cells show it: "DLC::Season Pass" reads as
         // "Season Pass", and the Default bucket reads as blank.
         public string Category =>
-            Services.Achievements.AchievementCategoryTypeHelper.ToCategoryLabelCellText(_args.Category);
+            Services.Achievements.AchievementCategoryHelper.ToCategoryLabelCellText(_args.Category);
         public string GameName => _args.GameName;
 
         // Absolute local paths to the Playnite game's icon and cover art; null when the game has
@@ -1379,10 +1391,108 @@ namespace PlayniteAchievements.ViewModels
         {
             get
             {
+                if (HasToastBlur)
+                {
+                    return false;
+                }
+
                 var path = _style.ToastBackgroundImagePath;
                 return !string.IsNullOrWhiteSpace(path) && File.Exists(path);
             }
         }
+
+        /// <summary>
+        /// True when the card shows a live blur of the game behind it (<see cref="LiveBackdrop"/>)
+        /// under <see cref="ToastBlurTintBrush"/>.
+        /// </summary>
+        public bool HasToastBlur => _style.Toast.BlurBackground;
+
+        /// <summary>How far the blurred background spreads, in physical screen pixels.</summary>
+        public double BlurReachPhys => ToastBlurPatch.ReachForStrength(_style.Toast.BlurStrength);
+
+        /// <summary>
+        /// The live blurred capture behind the card, or null until the first frame arrives (and
+        /// always in the settings preview, which has no game behind it). Shared by every card of a
+        /// wave; <see cref="LiveBackdropViewbox"/> picks this card's part of it.
+        /// </summary>
+        public ImageSource LiveBackdrop => _liveBackdrop;
+
+        /// <summary>This card's part of <see cref="LiveBackdrop"/>, as fractions of the image.</summary>
+        public Rect LiveBackdropViewbox => _liveBackdropViewbox;
+
+        /// <summary>Updates the live background. UI thread only, called once per rendered frame.</summary>
+        internal void SetLiveBackdrop(ImageSource source, Rect viewbox)
+        {
+            if (!ReferenceEquals(_liveBackdrop, source))
+            {
+                _liveBackdrop = source;
+                PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(LiveBackdrop)));
+            }
+
+            if (_liveBackdropViewbox != viewbox)
+            {
+                _liveBackdropViewbox = viewbox;
+                PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(LiveBackdropViewbox)));
+            }
+        }
+
+        /// <summary>
+        /// The theme surface at the style's tint opacity, drawn over the blurred backdrop. Built
+        /// from <see cref="ToastBlurSurfaceBrush"/>, so the opacity is exactly the slider's value
+        /// whatever alpha the theme's own surface carries.
+        /// </summary>
+        public Brush ToastBlurTintBrush
+        {
+            get
+            {
+                var tint = OpaqueSurfaceBrush();
+                tint.Opacity = NormalizePercent(_style.Toast.BlurTintOpacity, DefaultBlurTintOpacity);
+                tint.Freeze();
+                return tint;
+            }
+        }
+
+        /// <summary>
+        /// The theme surface made fully opaque: a blurred card's glow caster. A theme may give its
+        /// popup surface some transparency, which would let the glow and rays behind the card show
+        /// through the translucent tint; the live blur covers this surface once its first frame lands.
+        /// </summary>
+        public Brush ToastBlurSurfaceBrush
+        {
+            get
+            {
+                var surface = OpaqueSurfaceBrush();
+                surface.Freeze();
+                return surface;
+            }
+        }
+
+        private static Brush OpaqueSurfaceBrush()
+        {
+            var surface = Application.Current?.TryFindResource("PlayAch.Brush.PopupSurface") as Brush;
+            switch (surface)
+            {
+                case SolidColorBrush solid:
+                    return new SolidColorBrush(Opaque(solid.Color));
+                case GradientBrush gradient:
+                    var copy = gradient.Clone();
+                    copy.Opacity = 1;
+                    foreach (var stop in copy.GradientStops)
+                    {
+                        stop.Color = Opaque(stop.Color);
+                    }
+
+                    return copy;
+                case null:
+                    return new SolidColorBrush(Colors.Black);
+                default:
+                    var other = surface.Clone();
+                    other.Opacity = 1;
+                    return other;
+            }
+        }
+
+        private static Color Opaque(Color color) => Color.FromRgb(color.R, color.G, color.B);
 
         // Effective font family per surface: the style's family when set, otherwise the
         // theme-derived body family.
@@ -1440,6 +1550,10 @@ namespace PlayniteAchievements.ViewModels
 
         // The percent value that maps to the built-in frame vignette; shared with the editor.
         public const double DefaultFrameVignetteStrength = 50;
+
+        // The blur strength and tint opacity of a blurred toast background; shared with the editor.
+        public const double DefaultBlurStrength = ToastBlurPatch.DefaultStrength;
+        public const double DefaultBlurTintOpacity = 50;
 
         // Image shadows are single-layer (artwork has no thin glyph edges to solidify), so
         // 100 is both the default and the darkest the layer can go.
@@ -1674,7 +1788,8 @@ namespace PlayniteAchievements.ViewModels
                             isFrame ? FrameCompletedTitleBrush : CompletedTitleBrush,
                             isFrame ? FrameShowInlineBadge : ShowInlineBadge,
                             isFrame ? (object)FrameBadgeImage : ToastBadgeSource,
-                            isFrame ? FrameBadgeSize : ToastBadgeSize));
+                            isFrame ? FrameBadgeSize : ToastBadgeSize,
+                            ResolveCompletionTitleText(surface.HeaderTexts)));
                         break;
                     case NotificationSurfaceStyle.LineDescription:
                         lines.Add(new ToastDescriptionLine(

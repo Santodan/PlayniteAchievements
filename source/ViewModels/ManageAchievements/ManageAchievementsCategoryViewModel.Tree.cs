@@ -83,7 +83,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 .Where(row => row != null &&
                               !string.IsNullOrWhiteSpace(row.CategoryLabel) &&
                               !string.IsNullOrWhiteSpace(row.ProviderCategoryLabel) &&
-                              !string.Equals(row.CategoryLabel, row.ProviderCategoryLabel, StringComparison.OrdinalIgnoreCase))
+                              !string.Equals(row.CategoryLabel, row.ProviderCategoryLabel, CategoryPathHelper.LabelComparison))
                 .Select(row => new { Source = row.CategoryLabel, Target = row.ProviderCategoryLabel })
                 .ToList();
 
@@ -117,7 +117,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             _achievementOverridesService.SetAchievementCategoryMetadata(
                 _gameId,
                 order,
-                new Dictionary<string, CategoryImageOverrideData>(StringComparer.OrdinalIgnoreCase),
+                new Dictionary<string, CategoryImageOverrideData>(CategoryPathHelper.LabelComparer),
                 gameSummaryCategory: null);
             RaiseCategoryMetadataPersisted();
             RefreshCategoryRows();
@@ -184,9 +184,9 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
 
             var source = CategoryRows.ToList();
             var selectedIndexes = ResolveSelectedCategoryIndexes(source, draggedLabels);
-            var normalizedTarget = AchievementCategoryTypeHelper.NormalizeCategoryOrDefault(targetLabel);
+            var normalizedTarget = AchievementCategoryHelper.NormalizeCategoryOrDefault(targetLabel);
             var targetIndex = source.FindIndex(item =>
-                string.Equals(item?.CategoryLabel, normalizedTarget, StringComparison.OrdinalIgnoreCase));
+                string.Equals(item?.CategoryLabel, normalizedTarget, CategoryPathHelper.LabelComparison));
             return TryMoveCategoryRows(source, selectedIndexes, targetIndex, insertAfterTarget);
         }
 
@@ -240,7 +240,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 .ToDictionary(
                     row => CategoryPathHelper.NormalizePath(row.CategoryLabel),
                     row => row,
-                    StringComparer.OrdinalIgnoreCase);
+                    CategoryPathHelper.LabelComparer);
             var treeOrdered = AchievementCategoryFilterOrderHelper
                 .BuildOrderedCategoryTree(reorderedLabels, reorderedLabels)
                 .Where(rowsByLabel.ContainsKey)
@@ -254,7 +254,6 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             CollectionHelper.SynchronizeCollection(CategoryRows, treeOrdered);
             StampIndentAffordances(treeOrdered);
             StampCategoryTreeShapes(treeOrdered);
-            RefreshAssignableCategoryOptions();
             PersistCurrentCategoryMetadata();
             return true;
         }
@@ -265,9 +264,9 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         {
             var selected = new HashSet<string>(
                 (draggedLabels ?? Array.Empty<string>())
-                    .Select(AchievementCategoryTypeHelper.NormalizeCategoryOrDefault)
+                    .Select(AchievementCategoryHelper.NormalizeCategoryOrDefault)
                     .Where(label => !string.IsNullOrWhiteSpace(label)),
-                StringComparer.OrdinalIgnoreCase);
+                CategoryPathHelper.LabelComparer);
             if (selected.Count == 0)
             {
                 return new List<int>();
@@ -339,11 +338,11 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             out KeyValuePair<string, string> move)
         {
             move = default(KeyValuePair<string, string>);
-            var normalizedSourceCategory = AchievementCategoryTypeHelper.NormalizeCategory(sourceCategoryLabel);
+            var normalizedSourceCategory = AchievementCategoryHelper.NormalizeCategory(sourceCategoryLabel);
             if (string.IsNullOrWhiteSpace(normalizedSourceCategory) ||
                 string.Equals(
                     normalizedSourceCategory,
-                    AchievementCategoryTypeHelper.DefaultCategoryLabel,
+                    AchievementCategoryHelper.DefaultCategoryLabel,
                     StringComparison.OrdinalIgnoreCase))
             {
                 // The Default bucket holds every achievement without an explicit category;
@@ -364,7 +363,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             if (CategoryPathHelper.IsDescendantOf(normalizedTargetCategory, normalizedSourceCategory) ||
                 string.Equals(
                     CategoryPathHelper.Split(normalizedTargetCategory)[0],
-                    AchievementCategoryTypeHelper.DefaultCategoryLabel,
+                    AchievementCategoryHelper.DefaultCategoryLabel,
                     StringComparison.OrdinalIgnoreCase))
             {
                 return false;
@@ -394,7 +393,8 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             }
 
             var categoryOverrideMap = GetCurrentCategoryOverrideMap();
-            var categoryTypeOverrideMap = GetCurrentCategoryTypeOverrideMap();
+            var tagOverrideMap = GetCurrentTagOverrideMap();
+            var kinds = GetCurrentCategoryKinds();
             var order = GameCustomDataLookup.GetAchievementCategoryOrder(_gameId, _settings?.Persisted);
             var images = GameCustomDataLookup.GetAchievementCategoryImageOverrides(_gameId, _settings?.Persisted);
             var summaryCategory = GameCustomDataLookup.GetGameSummaryCategory(_gameId, _settings?.Persisted);
@@ -408,9 +408,12 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                         move.Key,
                         move.Value,
                         categoryOverrideMap,
-                        categoryTypeOverrideMap: null,
-                        targetGroupTypes: null,
                         rewriteDescendantPaths: true))
+                {
+                    applied = true;
+                }
+
+                if (MoveCategoryKinds(kinds, move.Key, move.Value))
                 {
                     applied = true;
                 }
@@ -448,7 +451,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             _achievementOverridesService.SetAchievementCategoryAssignmentAndMetadata(
                 _gameId,
                 categoryOverrideMap,
-                categoryTypeOverrideMap,
+                kinds,
                 order,
                 images,
                 summaryCategory,
@@ -457,7 +460,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                     imagesBefore,
                     summaryCategory,
                     images)));
-            ApplyCategoryOverrideMapsToRows(categoryOverrideMap, categoryTypeOverrideMap);
+            ApplyCategoryOverrideMapsToRows(categoryOverrideMap, tagOverrideMap);
             RaiseCategoryMetadataPersisted();
             RefreshCategoryRows();
             CategoryRowsMoved?.Invoke(
@@ -516,7 +519,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             var targets = labels
                 .Select(CategoryPathHelper.NormalizePath)
                 .Where(label => !string.IsNullOrWhiteSpace(label))
-                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .Distinct(CategoryPathHelper.LabelComparer)
                 .ToList();
 
             targets = targets
@@ -631,7 +634,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 if (string.Equals(
                         CategoryPathHelper.GetParentPath(candidate) ?? string.Empty,
                         parent ?? string.Empty,
-                        StringComparison.OrdinalIgnoreCase))
+                        CategoryPathHelper.LabelComparison))
                 {
                     previousSibling = candidate;
                 }
@@ -649,11 +652,11 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         /// </summary>
         public bool MergeCategoryInto(string sourceCategoryLabel, string targetCategoryLabel)
         {
-            var normalizedSourceCategory = AchievementCategoryTypeHelper.NormalizeCategory(sourceCategoryLabel);
+            var normalizedSourceCategory = AchievementCategoryHelper.NormalizeCategory(sourceCategoryLabel);
             if (string.IsNullOrWhiteSpace(normalizedSourceCategory) ||
                 string.Equals(
                     normalizedSourceCategory,
-                    AchievementCategoryTypeHelper.DefaultCategoryLabel,
+                    AchievementCategoryHelper.DefaultCategoryLabel,
                     StringComparison.OrdinalIgnoreCase))
             {
                 // Merging the Default bucket away is blocked; merging INTO Default remains
@@ -661,23 +664,22 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 return false;
             }
 
-            var normalizedTargetCategory = AchievementCategoryTypeHelper.NormalizeCategoryOrDefault(targetCategoryLabel);
+            var normalizedTargetCategory = AchievementCategoryHelper.NormalizeCategoryOrDefault(targetCategoryLabel);
             if (string.IsNullOrWhiteSpace(normalizedTargetCategory) ||
-                string.Equals(normalizedSourceCategory, normalizedTargetCategory, StringComparison.OrdinalIgnoreCase))
+                string.Equals(normalizedSourceCategory, normalizedTargetCategory, CategoryPathHelper.LabelComparison))
             {
                 return false;
             }
 
-            var targetGroupTypes = ResolveGroupTypesForCategory(normalizedTargetCategory);
-
             var categoryOverrideMap = GetCurrentCategoryOverrideMap();
-            var categoryTypeOverrideMap = GetCurrentCategoryTypeOverrideMap();
+            var tagOverrideMap = GetCurrentTagOverrideMap();
             var membershipChanged = ReassignEffectiveCategoryRows(
                 normalizedSourceCategory,
                 normalizedTargetCategory,
-                categoryOverrideMap,
-                categoryTypeOverrideMap,
-                targetGroupTypes);
+                categoryOverrideMap);
+            // The source folds into the target and takes its kind, so the source's own goes.
+            var kinds = GetCurrentCategoryKinds();
+            MoveCategoryKinds(kinds, normalizedSourceCategory, null);
 
             // A node with no achievements moves none, but it still occupies an order slot and can
             // hold art, so the merge proceeds on the metadata alone and folds the node away.
@@ -696,7 +698,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             _achievementOverridesService.SetAchievementCategoryAssignmentAndMetadata(
                 _gameId,
                 categoryOverrideMap,
-                categoryTypeOverrideMap,
+                kinds,
                 metadata.Order,
                 metadata.Images,
                 metadata.SummaryCategory,
@@ -705,7 +707,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                     imagesBefore,
                     metadata.SummaryCategory,
                     metadata.Images)));
-            ApplyCategoryOverrideMapsToRows(categoryOverrideMap, categoryTypeOverrideMap);
+            ApplyCategoryOverrideMapsToRows(categoryOverrideMap, tagOverrideMap);
             RaiseCategoryMetadataPersisted();
             RefreshCategoryRows();
             return true;
@@ -726,7 +728,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             if (typed != null && CategoryPathHelper.ContainsSeparator(typed))
             {
                 SetCategoryImageStatus(L("LOCPlayAch_ManageAchievements_Category_PathSeparatorNotAllowed"), isError: true);
-                row.ResetRenameOverrideTextFromCurrentCategory();
+                row.ResetRenameTextFromCurrentCategory();
                 return false;
             }
 
@@ -740,14 +742,14 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 string.IsNullOrWhiteSpace(targetCategory) ||
                 CategoryPathHelper.IsSame(sourceCategory, targetCategory))
             {
-                row.ResetRenameOverrideTextFromCurrentCategory();
+                row.ResetRenameTextFromCurrentCategory();
                 return false;
             }
 
             var renamed = RenameCategoryLabel(sourceCategory, targetCategory);
             if (!renamed)
             {
-                row.ResetRenameOverrideTextFromCurrentCategory();
+                row.ResetRenameTextFromCurrentCategory();
             }
 
             return renamed;
@@ -848,9 +850,9 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             var sources = (labels ?? Array.Empty<string>())
                 .Where(label => !string.IsNullOrWhiteSpace(label))
                 .Select(CategoryPathHelper.NormalizePath)
-                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .Distinct(CategoryPathHelper.LabelComparer)
                 .Where(label =>
-                    !string.Equals(label, AchievementCategoryTypeHelper.DefaultCategoryLabel, StringComparison.OrdinalIgnoreCase) &&
+                    !string.Equals(label, AchievementCategoryHelper.DefaultCategoryLabel, StringComparison.OrdinalIgnoreCase) &&
                     rendered.Any(existing => CategoryPathHelper.IsSame(existing, label)))
                 .ToList();
             if (sources.Count == 0)
@@ -860,8 +862,8 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
 
             var order = rendered.ToList();
             var images = GameCustomDataLookup.GetAchievementCategoryImageOverrides(_gameId, _settings?.Persisted)
-                ?.ToDictionary(pair => pair.Key, pair => pair.Value?.Clone(), StringComparer.OrdinalIgnoreCase)
-                ?? new Dictionary<string, CategoryImageOverrideData>(StringComparer.OrdinalIgnoreCase);
+                ?.ToDictionary(pair => pair.Key, pair => pair.Value?.Clone(), CategoryPathHelper.LabelComparer)
+                ?? new Dictionary<string, CategoryImageOverrideData>(CategoryPathHelper.LabelComparer);
 
             foreach (var source in sources)
             {
@@ -921,7 +923,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             var normalized = (labels ?? Array.Empty<string>())
                 .Where(label => !string.IsNullOrWhiteSpace(label))
                 .Select(CategoryPathHelper.NormalizePath)
-                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .Distinct(CategoryPathHelper.LabelComparer)
                 .ToList();
             if (normalized.Count == 0)
             {
@@ -930,7 +932,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
 
             return _allRows.Count(row => row != null && normalized.Any(label =>
                 CategoryPathHelper.IsSelfOrDescendantOf(
-                    AchievementCategoryTypeHelper.NormalizeCategoryOrDefault(row.Category),
+                    AchievementCategoryHelper.NormalizeCategoryOrDefault(row.Category),
                     label)));
         }
 
@@ -950,9 +952,9 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             var deletable = (labels ?? Array.Empty<string>())
                 .Where(label => !string.IsNullOrWhiteSpace(label))
                 .Select(CategoryPathHelper.NormalizePath)
-                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .Distinct(CategoryPathHelper.LabelComparer)
                 .Where(label =>
-                    !string.Equals(label, AchievementCategoryTypeHelper.DefaultCategoryLabel, StringComparison.OrdinalIgnoreCase) &&
+                    !string.Equals(label, AchievementCategoryHelper.DefaultCategoryLabel, StringComparison.OrdinalIgnoreCase) &&
                     rendered.Any(existing => CategoryPathHelper.IsSame(existing, label)))
                 .ToList();
 
@@ -968,18 +970,17 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
 
             // Un-categorize the whole subtree's achievements: the reassign sweeps self and
             // descendants and flattens them onto the target, which for Default is exactly
-            // "no category". Group-type tags follow the Default bucket's, like a merge into it.
+            // "no category". The deleted categories' kinds go with them.
             var categoryOverrideMap = GetCurrentCategoryOverrideMap();
-            var categoryTypeOverrideMap = GetCurrentCategoryTypeOverrideMap();
-            var defaultGroupTypes = ResolveGroupTypesForCategory(AchievementCategoryTypeHelper.DefaultCategoryLabel);
+            var tagOverrideMap = GetCurrentTagOverrideMap();
+            var kinds = GetCurrentCategoryKinds();
             foreach (var label in deletable)
             {
                 ReassignEffectiveCategoryRows(
                     label,
-                    AchievementCategoryTypeHelper.DefaultCategoryLabel,
-                    categoryOverrideMap,
-                    categoryTypeOverrideMap,
-                    defaultGroupTypes);
+                    AchievementCategoryHelper.DefaultCategoryLabel,
+                    categoryOverrideMap);
+                MoveCategoryKinds(kinds, label, null);
             }
 
             var order = rendered
@@ -987,8 +988,8 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 .ToList();
 
             var imagesBefore = GameCustomDataLookup.GetAchievementCategoryImageOverrides(_gameId, _settings?.Persisted);
-            var images = new Dictionary<string, CategoryImageOverrideData>(StringComparer.OrdinalIgnoreCase);
-            foreach (var pair in imagesBefore ?? new Dictionary<string, CategoryImageOverrideData>(StringComparer.OrdinalIgnoreCase))
+            var images = new Dictionary<string, CategoryImageOverrideData>(CategoryPathHelper.LabelComparer);
+            foreach (var pair in imagesBefore ?? new Dictionary<string, CategoryImageOverrideData>(CategoryPathHelper.LabelComparer))
             {
                 if (pair.Value == null || string.IsNullOrWhiteSpace(pair.Key) ||
                     deletable.Any(deleted => CategoryPathHelper.IsSelfOrDescendantOf(pair.Key, deleted)))
@@ -1010,7 +1011,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             _achievementOverridesService.SetAchievementCategoryAssignmentAndMetadata(
                 _gameId,
                 categoryOverrideMap,
-                categoryTypeOverrideMap,
+                kinds,
                 order,
                 images,
                 summaryCategory,
@@ -1019,7 +1020,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                     imagesBefore,
                     summaryCategory,
                     images)));
-            ApplyCategoryOverrideMapsToRows(categoryOverrideMap, categoryTypeOverrideMap);
+            ApplyCategoryOverrideMapsToRows(categoryOverrideMap, tagOverrideMap);
             RaiseCategoryMetadataPersisted();
             RefreshCategoryRows();
             return true;
@@ -1042,29 +1043,8 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             // lays it out on every notification, and each of these rows carries category art.
             CollectionHelper.Replace(CategoryRows, nextRows);
 
-            RefreshAssignableCategoryOptions();
             RefreshCategoryMetadataState();
             OnPropertyChanged(nameof(CanMergeCategories));
-        }
-
-        /// <summary>
-        /// Mirrors the rendered labels into the assignable-category options, so the Assign
-        /// sub-tab's pickers offer every category the manager shows - empty ones included.
-        /// </summary>
-        private void RefreshAssignableCategoryOptions()
-        {
-            var labels = CategoryRows
-                .Where(row => row != null && !string.IsNullOrWhiteSpace(row.CategoryLabel))
-                .Select(row => row.CategoryLabel)
-                .ToList();
-            CollectionHelper.SynchronizeCollection(AssignableCategoryOptions, labels);
-
-            // The Assign sub-tab's category filter orders itself by this canonical list, which
-            // only the reload used to take. A rename or re-parent then fell to the end of the
-            // filter out of tree order, and a flat drag or an order-only reset never reached the
-            // filter at all. The rendered rows are the tree order the user sees.
-            _canonicalCategoryLabelFilterOptions = labels;
-            RefreshCategoryLabelOptions();
         }
 
         private void CategoryMetadataRow_PropertyChanged(object sender, PropertyChangedEventArgs e)
@@ -1128,8 +1108,8 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         {
             var groups = _allRows
                 .Where(row => row != null)
-                .GroupBy(row => AchievementCategoryTypeHelper.NormalizeCategoryOrDefault(row.Category), StringComparer.OrdinalIgnoreCase)
-                .ToDictionary(group => group.Key, group => group.ToList(), StringComparer.OrdinalIgnoreCase);
+                .GroupBy(row => AchievementCategoryHelper.NormalizeCategoryOrDefault(row.Category), CategoryPathHelper.LabelComparer)
+                .ToDictionary(group => group.Key, group => group.ToList(), CategoryPathHelper.LabelComparer);
             if (groups.Count == 0)
             {
                 ReplaceCategoryRows(Array.Empty<ManageAchievementsCategoryMetadataItem>());
@@ -1196,7 +1176,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 // Default refuses renames).
                 var isDefaultLabel = string.Equals(
                     label,
-                    AchievementCategoryTypeHelper.DefaultCategoryLabel,
+                    AchievementCategoryHelper.DefaultCategoryLabel,
                     StringComparison.OrdinalIgnoreCase);
                 var providerCategoryLabel = isDefaultLabel
                     ? label
@@ -1210,7 +1190,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                     fileStem,
                     _managedCustomIconService,
                     isSummarySelected: summaryCategory != null &&
-                        string.Equals(summaryCategory.Label, label, StringComparison.OrdinalIgnoreCase),
+                        string.Equals(summaryCategory.Label, label, CategoryPathHelper.LabelComparison),
                     artFallbackSource: _allRows);
                 row.CategoryDepth = CategoryPathHelper.GetDepth(label);
                 rows.Add(row);
@@ -1221,7 +1201,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             HasCustomCategoryNames = rows.Any(row => !string.Equals(
                 CategoryPathHelper.GetLeafName(row.CategoryLabel),
                 CategoryPathHelper.GetLeafName(row.ProviderCategoryLabel),
-                StringComparison.OrdinalIgnoreCase));
+                CategoryPathHelper.LabelComparison));
             StampIndentAffordances(rows);
             StampCategoryTreeShapes(rows);
             _memberApiNamesByLabel = BuildMemberApiNamesByLabel();
@@ -1285,14 +1265,14 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         private static void EnsureDefaultCategoryLabel(List<string> orderedLabels, IReadOnlyList<string> categoryOrder)
         {
             if (orderedLabels == null ||
-                orderedLabels.Contains(AchievementCategoryTypeHelper.DefaultCategoryLabel, StringComparer.OrdinalIgnoreCase))
+                orderedLabels.Contains(AchievementCategoryHelper.DefaultCategoryLabel, StringComparer.OrdinalIgnoreCase))
             {
                 return;
             }
 
             var insertIndex = orderedLabels.Count;
             var defaultOrderIndex = AchievementCategoryFilterOrderHelper.ResolveCategoryOrderIndex(
-                AchievementCategoryTypeHelper.DefaultCategoryLabel,
+                AchievementCategoryHelper.DefaultCategoryLabel,
                 categoryOrder);
             if (defaultOrderIndex != int.MaxValue)
             {
@@ -1317,7 +1297,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 insertIndex++;
             }
 
-            orderedLabels.Insert(insertIndex, AchievementCategoryTypeHelper.DefaultCategoryLabel);
+            orderedLabels.Insert(insertIndex, AchievementCategoryHelper.DefaultCategoryLabel);
         }
 
         private void PersistCurrentCategoryMetadata()
@@ -1329,11 +1309,11 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                     .Where(row => row != null && !string.IsNullOrWhiteSpace(row.CategoryLabel))
                     .Select(row => row.CategoryLabel)
                     .ToList();
-                var imageOverrides = new Dictionary<string, CategoryImageOverrideData>(StringComparer.OrdinalIgnoreCase);
+                var imageOverrides = new Dictionary<string, CategoryImageOverrideData>(CategoryPathHelper.LabelComparer);
 
                 foreach (var row in CategoryRows.Where(row => row != null))
                 {
-                    var category = AchievementCategoryTypeHelper.NormalizeCategoryOrDefault(row.CategoryLabel);
+                    var category = AchievementCategoryHelper.NormalizeCategoryOrDefault(row.CategoryLabel);
                     if (string.IsNullOrWhiteSpace(category))
                     {
                         continue;
@@ -1414,11 +1394,11 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         /// </summary>
         private CategoryMetadataPlan PlanCategoryMergeMetadata(string sourceCategory, string targetCategory)
         {
-            var normalizedSource = AchievementCategoryTypeHelper.NormalizeCategoryOrDefault(sourceCategory);
-            var normalizedTarget = AchievementCategoryTypeHelper.NormalizeCategoryOrDefault(targetCategory);
+            var normalizedSource = AchievementCategoryHelper.NormalizeCategoryOrDefault(sourceCategory);
+            var normalizedTarget = AchievementCategoryHelper.NormalizeCategoryOrDefault(targetCategory);
             if (string.IsNullOrWhiteSpace(normalizedSource) ||
                 string.IsNullOrWhiteSpace(normalizedTarget) ||
-                string.Equals(normalizedSource, normalizedTarget, StringComparison.OrdinalIgnoreCase))
+                string.Equals(normalizedSource, normalizedTarget, CategoryPathHelper.LabelComparison))
             {
                 return CurrentCategoryMetadataPlan();
             }
@@ -1428,7 +1408,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
 
             // Collapse the source's order slot onto the target's existing position (dedupe).
             var nextOrder = new List<string>();
-            var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var seen = new HashSet<string>(CategoryPathHelper.LabelComparer);
             foreach (var label in currentOrder ?? Enumerable.Empty<string>())
             {
                 var normalized = CategoryPathHelper.NormalizePath(label);
@@ -1452,8 +1432,8 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
 
             // Drop the merged-away subtree's art overrides. Unlike the rename path, a merge does not
             // fold the source's art into the target: the target is left exactly as it was.
-            var nextImages = new Dictionary<string, CategoryImageOverrideData>(StringComparer.OrdinalIgnoreCase);
-            foreach (var pair in currentImages ?? new Dictionary<string, CategoryImageOverrideData>(StringComparer.OrdinalIgnoreCase))
+            var nextImages = new Dictionary<string, CategoryImageOverrideData>(CategoryPathHelper.LabelComparer);
+            foreach (var pair in currentImages ?? new Dictionary<string, CategoryImageOverrideData>(CategoryPathHelper.LabelComparer))
             {
                 var key = CategoryPathHelper.NormalizePath(pair.Key);
                 if (string.IsNullOrWhiteSpace(key) || pair.Value == null)
@@ -1507,8 +1487,8 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 return !ReferenceEquals(before, after);
             }
 
-            if (!string.Equals(before.Label, after.Label, StringComparison.OrdinalIgnoreCase) ||
-                !string.Equals(before.ProviderLabel, after.ProviderLabel, StringComparison.OrdinalIgnoreCase))
+            if (!string.Equals(before.Label, after.Label, CategoryPathHelper.LabelComparison) ||
+                !string.Equals(before.ProviderLabel, after.ProviderLabel, CategoryPathHelper.LabelComparison))
             {
                 return true;
             }
@@ -1572,7 +1552,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             {
                 Order = GameCustomDataLookup.GetAchievementCategoryOrder(_gameId, _settings?.Persisted)?.ToList(),
                 Images = GameCustomDataLookup.GetAchievementCategoryImageOverrides(_gameId, _settings?.Persisted)
-                    ?.ToDictionary(pair => pair.Key, pair => pair.Value?.Clone(), StringComparer.OrdinalIgnoreCase),
+                    ?.ToDictionary(pair => pair.Key, pair => pair.Value?.Clone(), CategoryPathHelper.LabelComparer),
                 SummaryCategory = GameCustomDataLookup.GetGameSummaryCategory(_gameId, _settings?.Persisted)
             };
         }
@@ -1609,7 +1589,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             string category = null;
             foreach (var item in source ?? Enumerable.Empty<ManageAchievementsCategoryItem>())
             {
-                var candidate = AchievementCategoryTypeHelper.NormalizeCategoryOrDefault(selector?.Invoke(item));
+                var candidate = AchievementCategoryHelper.NormalizeCategoryOrDefault(selector?.Invoke(item));
                 if (string.IsNullOrWhiteSpace(candidate))
                 {
                     continue;
@@ -1619,7 +1599,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 {
                     category = candidate;
                 }
-                else if (!string.Equals(category, candidate, StringComparison.OrdinalIgnoreCase))
+                else if (!string.Equals(category, candidate, CategoryPathHelper.LabelComparison))
                 {
                     return null;
                 }

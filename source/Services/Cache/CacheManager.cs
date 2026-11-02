@@ -29,7 +29,7 @@ namespace PlayniteAchievements.Services.Cache
         void ResyncAllAchievementOverrides(IReadOnlyDictionary<Guid, IReadOnlyList<AchievementOverrideMirrorEntry>> entriesByGameId);
     }
 
-    public sealed class CacheManager : ICacheManager, ICacheReadOptimizations, IAchievementOverrideMirror, IFriendCacheManager, IInGameProgressCacheWriter, IDisposable
+    public sealed class CacheManager : ICacheManager, ICacheReadOptimizations, IAchievementOverrideMirror, IMetadataStateDatabase, IFriendCacheManager, IInGameProgressCacheWriter, IDisposable
     {
         private const int MaxInMemoryGames = 256;
 
@@ -120,6 +120,15 @@ namespace PlayniteAchievements.Services.Cache
             remove => FriendCacheInvalidated -= value;
         }
 
+        // Raised at the end of ClearCache, after the database file has been deleted and recreated.
+        private event EventHandler MetadataStateCleared;
+
+        event EventHandler IMetadataStateDatabase.MetadataStateCleared
+        {
+            add => MetadataStateCleared += value;
+            remove => MetadataStateCleared -= value;
+        }
+
         public CacheManager(IPlayniteAPI api, ILogger logger, PlayniteAchievementsPlugin plugin, DiskImageService diskImageService)
         {
             _api = api;
@@ -159,6 +168,36 @@ namespace PlayniteAchievements.Services.Cache
             return LoadAllGameDataFast();
         }
 
+        List<GameAchievementData> ICacheReadOptimizations.LoadAllGameHeadersFast()
+        {
+            return LoadAllGameHeaders().ConvertAll(record => record.Value);
+        }
+
+        /// <summary>
+        /// Every current-user game without its achievements, read off <c>_sync</c>; the memory
+        /// cache is neither read nor filled, since it holds whole games.
+        /// </summary>
+        private List<KeyValuePair<string, GameAchievementData>> LoadAllGameHeaders()
+        {
+            EnsureReadyForRead("LoadAllGameHeaders");
+            var records = _store.LoadAllCurrentUserGameHeadersByCacheKey() ??
+                          new List<KeyValuePair<string, GameAchievementData>>();
+            var result = new List<KeyValuePair<string, GameAchievementData>>(records.Count);
+            foreach (var record in records)
+            {
+                var cacheKey = UserKey(record.Key);
+                if (string.IsNullOrWhiteSpace(cacheKey) || record.Value == null)
+                {
+                    continue;
+                }
+
+                NormalizeLoadedData(cacheKey, record.Value);
+                result.Add(new KeyValuePair<string, GameAchievementData>(cacheKey, record.Value));
+            }
+
+            return result;
+        }
+
         CachedSummaryData ICacheReadOptimizations.LoadCachedSummaryDataFast(int recentAchievementDetailLimit)
         {
             return LoadCachedSummaryDataFast(recentAchievementDetailLimit);
@@ -192,6 +231,78 @@ namespace PlayniteAchievements.Services.Cache
                 _logger?.Debug(ex, "Failed reading unlocked capstone ApiNames.");
                 return null;
             }
+        }
+
+        Dictionary<Guid, Dictionary<string, Models.Achievements.AchievementTallyState>> ICacheReadOptimizations.LoadAchievementTallyStatesFast(
+            IReadOnlyDictionary<Guid, HashSet<string>> wanted,
+            ISet<Guid> providerCapstoneGames)
+        {
+            try
+            {
+                lock (_sync)
+                {
+                    EnsureReady_Locked("LoadAchievementTallyStatesFast");
+                }
+
+                using (var scope = PerfScope.Start(_logger, "Cache.LoadAchievementTallyStatesFast", thresholdMs: 25))
+                {
+                    scope?.SetContext("games=" + (wanted?.Count ?? 0));
+                    return _store.LoadAchievementTallyStates(wanted, providerCapstoneGames) ??
+                        new Dictionary<Guid, Dictionary<string, Models.Achievements.AchievementTallyState>>();
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger?.Debug(ex, "Failed reading tagged achievement states.");
+                return null;
+            }
+        }
+
+        Models.Achievements.AchievementTally[] ICacheReadOptimizations.LoadTalliesForGameFast(Guid playniteGameId)
+        {
+            try
+            {
+                lock (_sync)
+                {
+                    EnsureReady_Locked("LoadTalliesForGameFast");
+                }
+
+                using (PerfScope.Start(_logger, "Cache.LoadTalliesForGameFast", thresholdMs: 25))
+                {
+                    return _store.LoadTalliesForGame(playniteGameId);
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger?.Debug(ex, $"Failed reading tallies for game {playniteGameId}.");
+                return null;
+            }
+        }
+
+        HashSet<Guid> ICacheReadOptimizations.GetGameIdsWithTag(string tagKey)
+        {
+            var result = new HashSet<Guid>();
+            try
+            {
+                lock (_sync)
+                {
+                    EnsureReady_Locked("GetGameIdsWithTag");
+                }
+
+                foreach (var key in _store.GetCacheKeysWithTag(tagKey))
+                {
+                    if (Guid.TryParse(key, out var gameId) && gameId != Guid.Empty)
+                    {
+                        result.Add(gameId);
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger?.Debug(ex, "Failed reading the games with a tag.");
+            }
+
+            return result;
         }
 
         HashSet<Guid> ICacheReadOptimizations.GetNoAchievementGameIds()
@@ -257,6 +368,63 @@ namespace PlayniteAchievements.Services.Cache
             {
                 _logger?.Warn(ex, "Failed to resync achievement filter mirror.");
             }
+        }
+
+        // Metadata state access delegates straight to the store; exceptions propagate so the
+        // consumer can tell a failed load from an empty one.
+        List<MetadataAppliedRow> IMetadataStateDatabase.LoadMetadataApplied()
+        {
+            return _store.LoadMetadataApplied();
+        }
+
+        List<MetadataCoverageRow> IMetadataStateDatabase.LoadMetadataCoverage()
+        {
+            return _store.LoadMetadataCoverage();
+        }
+
+        void IMetadataStateDatabase.SaveMetadataApplied(
+            MetadataAppliedRow applied,
+            IReadOnlyList<MetadataCoverageRow> coverage)
+        {
+            _store.SaveMetadataApplied(applied, coverage);
+        }
+
+        void IMetadataStateDatabase.DeleteMetadataApplied(string playniteGameId)
+        {
+            _store.DeleteMetadataApplied(playniteGameId);
+        }
+
+        MetadataSourceSnapshotRow IMetadataStateDatabase.GetMetadataSourceSnapshot(string playniteGameId, string sourceKey)
+        {
+            return _store.GetMetadataSourceSnapshot(playniteGameId, sourceKey);
+        }
+
+        List<MetadataSourceSnapshotRow> IMetadataStateDatabase.LoadMetadataSourceSnapshots()
+        {
+            return _store.LoadMetadataSourceSnapshots();
+        }
+
+        void IMetadataStateDatabase.SaveMetadataSourceSnapshot(MetadataSourceSnapshotRow row)
+        {
+            _store.SaveMetadataSourceSnapshot(row);
+        }
+
+        void IMetadataStateDatabase.DeleteMetadataSourceSnapshot(string playniteGameId, string sourceKey)
+        {
+            _store.DeleteMetadataSourceSnapshot(playniteGameId, sourceKey);
+        }
+
+        List<MetadataSourcePageRow> IMetadataStateDatabase.LoadMetadataSourcePages(string sourceKey)
+        {
+            return _store.LoadMetadataSourcePages(sourceKey);
+        }
+
+        void IMetadataStateDatabase.ReplaceMetadataSourcePages(
+            string playniteGameId,
+            string sourceKey,
+            IReadOnlyList<MetadataSourcePageRow> rows)
+        {
+            _store.ReplaceMetadataSourcePages(playniteGameId, sourceKey, rows);
         }
 
         private void InitializeCacheStartup()
@@ -741,6 +909,12 @@ namespace PlayniteAchievements.Services.Cache
 
             RaiseCacheDeltaUpdatedEvent(string.Empty, CacheDeltaOperationType.FullReset);
             RaiseCacheInvalidatedEvent();
+
+            try { MetadataStateCleared?.Invoke(this, EventArgs.Empty); }
+            catch (Exception ex)
+            {
+                _logger?.Error(ex, "Failed to notify metadata state subscribers.");
+            }
         }
 
         // ---------------------------
@@ -812,8 +986,10 @@ namespace PlayniteAchievements.Services.Cache
                                 }
                             }
 
+                            // The memory cache keeps its own copy; the freshly read record is
+                            // otherwise unshared, so it goes to the caller as is.
                             SetMemoryGameData_Locked(cacheKey, dbData);
-                            result.Add(CloneGameData(dbData));
+                            result.Add(dbData);
                         }
 
                         if (pruneStaleEntries)
@@ -1594,9 +1770,7 @@ namespace PlayniteAchievements.Services.Cache
 
         IReadOnlyList<CurrentUserGameLabel> IFriendCacheManager.LoadCurrentUserGameLabels()
         {
-            EnsureReadyForRead("LoadCurrentUserGameLabels");
-            var records = _store.LoadAllCurrentUserGameDataByCacheKey() ??
-                          new List<KeyValuePair<string, GameAchievementData>>();
+            var records = LoadAllGameHeaders();
 
             var labels = new List<CurrentUserGameLabel>(records.Count);
             for (var i = 0; i < records.Count; i++)
@@ -1662,6 +1836,8 @@ namespace PlayniteAchievements.Services.Cache
                 ProviderPlatformKey = source.ProviderPlatformKey,
                 LibrarySourceName = source.LibrarySourceName,
                 RaritySource = source.RaritySource,
+                PlatformFields = source.PlatformFields,
+                MetadataFields = source.MetadataFields,
                 HasAchievements = source.HasAchievements,
                 ExcludedByUser = source.ExcludedByUser,
                 GameName = source.GameName,
@@ -1695,7 +1871,8 @@ namespace PlayniteAchievements.Services.Cache
                     LockedIconPath = achievement.LockedIconPath,
                     Points = achievement.Points,
                     ScaledPoints = achievement.ScaledPoints,
-                    CategoryType = achievement.CategoryType,
+                    Tags = achievement.Tags,
+                    CategoryKind = achievement.CategoryKind,
                     Category = achievement.Category,
                     // Carried with Category, not derived from it later: hydration overwrites
                     // Category with the user's assignment and keeps the provider's own label here,
@@ -1703,6 +1880,8 @@ namespace PlayniteAchievements.Services.Cache
                     // provider label" defence dead across any cache round-trip, leaving the
                     // provider baseline to be reconstructed from a value the user can replace.
                     ProviderCategory = achievement.ProviderCategory,
+                    ProviderTags = achievement.ProviderTags,
+                    ProviderCategoryKind = achievement.ProviderCategoryKind,
                     TrophyType = achievement.TrophyType,
                     Hidden = achievement.Hidden,
                     IsCapstone = achievement.IsCapstone,

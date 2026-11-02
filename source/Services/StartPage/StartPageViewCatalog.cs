@@ -23,8 +23,6 @@ namespace PlayniteAchievements.Services.StartPage
 
         public bool HasSettings { get; set; }
 
-        public bool AllowMultipleInstances { get; set; }
-
         /// <summary>
         /// Hidden views are omitted from the StartPage add list but still resolve by id, so
         /// views placed before their widget kind was collapsed or disabled keep rendering.
@@ -201,7 +199,6 @@ namespace PlayniteAchievements.Services.StartPage
                 WidgetKind = startPageKind,
                 ShowcaseWidgetKind = showcase.Kind,
                 NameKey = showcase.NameKey,
-                AllowMultipleInstances = showcase.AllowMultipleInstances,
                 HasSettings = true,
                 Hidden = showcase.Hidden
             };

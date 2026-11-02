@@ -24,7 +24,7 @@ namespace PlayniteAchievements.Providers.GOG
     /// IDataProvider implementation for GOG achievements.
     /// Uses WebView-based authentication and GOG gameplay API.
     /// </summary>
-    public sealed class GogDataProvider : DataProviderBase<GogSettings>, IDataProvider, IProfileLinkProvider, IAchievementPageLinkProvider, IProviderOverride, IRefreshAuthContextReceiver, IInGameProgressSource, IDisposable
+    public sealed class GogDataProvider : DataProviderBase<GogSettings>, IDataProvider, IProfileLinkProvider, IAchievementPageLinkProvider, IProviderOverride, IRefreshAuthContextReceiver, IInGameProgressSource, IEnglishTitleSource, IDisposable
     {
         /// <summary>
         /// Resolved once at game start so the fast prong never repeats product/user discovery.
@@ -188,6 +188,12 @@ namespace PlayniteAchievements.Providers.GOG
             CancellationToken cancel)
         {
             return _scanner.RefreshAsync(gamesToRefresh, onGameStarting, onGameCompleted, cancel);
+        }
+
+        /// <summary>The game's achievement list fetched again from the GOG API with the English locale.</summary>
+        Task<IList<AchievementDetail>> IEnglishTitleSource.GetEnglishTitlesAsync(Game game, GameAchievementData data, CancellationToken ct)
+        {
+            return _scanner.FetchEnglishTitlesAsync(game, ct);
         }
 
         InGameProgressRegistration IInGameProgressSource.TryRegister(

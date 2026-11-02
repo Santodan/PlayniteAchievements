@@ -7,6 +7,7 @@
              xmlns:helpers="clr-namespace:PlayniteAchievements.Views.Helpers"
              xmlns:controls="clr-namespace:PlayniteAchievements.Views.Controls"
              xmlns:converters="clr-namespace:PlayniteAchievements.Views.Converters"
+             xmlns:local="clr-namespace:PlayniteAchievements.Views.ManageAchievements"
              mc:Ignorable="d"
              d:DesignHeight="620"
              d:DesignWidth="980"
@@ -290,7 +291,7 @@
             <!-- Under an icon slot's thumbnail: whether it shows the user's own art. Tag carries
                  the slot's override flag. -->
             <Style x:Key="IconSourceCaptionStyle" TargetType="TextBlock">
-                <Setter Property="Text" Value="{DynamicResource LOCDefault}" />
+                <Setter Property="Text" Value="{DynamicResource LOCPlayAch_Common_Default}" />
                 <Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
                 <Setter Property="Opacity" Value="{StaticResource PlayAch.Opacity.Secondary}" />
                 <Setter Property="FontSize" Value="{DynamicResource PlayAch.FontSize.Caption}" />
@@ -298,10 +299,19 @@
                 <Setter Property="Margin" Value="0,3,0,0" />
                 <Style.Triggers>
                     <DataTrigger Binding="{Binding Tag, RelativeSource={RelativeSource Self}}" Value="True">
-                        <Setter Property="Text" Value="{DynamicResource LOCCustomLabel}" />
+                        <Setter Property="Text" Value="{DynamicResource LOCPlayAch_Common_Custom}" />
                         <Setter Property="Foreground" Value="{DynamicResource PlayAch.Brush.Accent}" />
                         <Setter Property="FontWeight" Value="SemiBold" />
                         <Setter Property="Opacity" Value="1" />
+                    </DataTrigger>
+                </Style.Triggers>
+            </Style>
+
+            <!-- The unlocked caption names a borrowed icon's source; the user's own art still reads Custom. -->
+            <Style x:Key="UnlockedIconSourceCaptionStyle" TargetType="TextBlock" BasedOn="{StaticResource IconSourceCaptionStyle}">
+                <Style.Triggers>
+                    <DataTrigger Binding="{Binding HasBorrowedUnlockedIcon}" Value="True">
+                        <Setter Property="Text" Value="{Binding BorrowedIconSourceName}" />
                     </DataTrigger>
                 </Style.Triggers>
             </Style>
@@ -365,7 +375,7 @@
                     <StackPanel Orientation="Horizontal"
                                 Margin="0,10,0,0"
                                 Visibility="{Binding IsManuallyTrackedGame, Converter={StaticResource BoolToVis}}">
-                        <TextBlock Text="{DynamicResource LOCPlatformTitle}"
+                        <TextBlock Text="{DynamicResource LOCPlayAch_Common_Platform}"
                                    Style="{StaticResource FieldLabelStyle}"
                                    Margin="0,0,8,0"
                                    VerticalAlignment="Center" />
@@ -382,7 +392,7 @@
                     <StackPanel Margin="0,10,0,0"
                                 Visibility="{Binding IsCustomOnlyGame, Converter={StaticResource BoolToVis}}">
                         <StackPanel Orientation="Horizontal">
-                            <TextBlock Text="{DynamicResource LOCPlatformTitle}"
+                            <TextBlock Text="{DynamicResource LOCPlayAch_Common_Platform}"
                                        Style="{StaticResource FieldLabelStyle}"
                                        Margin="0,0,8,0"
                                        VerticalAlignment="Center" />
@@ -414,7 +424,7 @@
                                 </ComboBox.ItemTemplate>
                             </ComboBox>
                             <Button x:Name="AddCustomProviderButton"
-                                    Content="{DynamicResource LOCAddTitle}"
+                                    Content="{DynamicResource LOCPlayAch_Common_Add}"
                                     Command="{Binding AddCustomProviderCommand}"
                                     Style="{StaticResource ToolbarButtonStyle}"
                                     Margin="8,0,0,0" />
@@ -459,7 +469,7 @@
                     <StackPanel Orientation="Horizontal" Margin="0,0,16,0">
                         <Button x:Name="AddButton"
                                 Content="&#xEFC2;"
-                                ToolTip="{DynamicResource LOCAddTitle}"
+                                ToolTip="{DynamicResource LOCPlayAch_Common_Add}"
                                 Command="{Binding AddCommand}"
                                 Style="{StaticResource ToolbarIconButtonStyle}" />
                         <Button x:Name="DuplicateButton"
@@ -481,7 +491,7 @@
                     <StackPanel Orientation="Horizontal">
                         <Button x:Name="ImportFileButton"
                                 Content="&#xEF08;"
-                                ToolTip="{DynamicResource LOCImportLabel}"
+                                ToolTip="{DynamicResource LOCPlayAch_Common_Import}"
                                 Click="ContextMenuButton_Click"
                                 Style="{StaticResource ToolbarIconButtonStyle}">
                             <Button.ContextMenu>
@@ -547,23 +557,16 @@
                      the pane away hands the whole width to the grid. -->
                 <ColumnDefinition Width="Auto" />
             </Grid.ColumnDefinitions>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="*" />
+            </Grid.RowDefinitions>
 
-            <!-- The grid owns its own scrolling. Nested in a ScrollViewer it was measured with
-                 unbounded height, which defeats row virtualization entirely and realizes every
-                 row: fine for a handful of authored achievements, but this editor now lists a
-                 whole library. The add button therefore sits below the grid rather than trailing
-                 the last row. -->
-            <Grid Grid.Column="0">
-                <Grid.RowDefinitions>
-                    <RowDefinition Height="Auto" />
-                    <RowDefinition Height="*" />
-                    <RowDefinition Height="Auto" />
-                </Grid.RowDefinitions>
-
-                <!-- Narrowing the list and acting on a selection, above the grid they apply to.
-                     The filter drives the collection view only: the rows behind it stay whole, so
-                     every write still sees every achievement. -->
-                <Grid Grid.Row="0" Margin="0,0,0,8">
+                <!-- Narrowing the list and acting on a selection, across the grid and the details
+                     pane so the search box keeps its width beside the dropdowns. The filter drives
+                     the collection view only: the rows behind it stay whole, so every write still
+                     sees every achievement. -->
+                <Grid Grid.Row="0" Grid.ColumnSpan="3" Margin="0,0,0,8">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*" />
                         <ColumnDefinition Width="Auto" />
@@ -598,7 +601,7 @@
                                 Height="{StaticResource PlayAch.Size.Control.Height}"
                                 Margin="0,0,6,0"
                                 VerticalAlignment="Center"
-                                ToolTip="{DynamicResource LOCCategoryLabel}">
+                                ToolTip="{DynamicResource LOCPlayAch_Common_Category}">
                             <Button.ContextMenu>
                                 <ContextMenu Style="{StaticResource AchievementSelectorContextMenuStyle}"
                                              ItemContainerStyle="{StaticResource AchievementMultiSelectMenuItemStyle}" />
@@ -613,7 +616,7 @@
                                 Height="{StaticResource PlayAch.Size.Control.Height}"
                                 Margin="0,0,6,0"
                                 VerticalAlignment="Center"
-                                ToolTip="{DynamicResource LOCTypeLabel}">
+                                ToolTip="{DynamicResource LOCPlayAch_Common_Tags}">
                             <Button.ContextMenu>
                                 <ContextMenu Style="{StaticResource AchievementSelectorContextMenuStyle}"
                                              ItemContainerStyle="{StaticResource AchievementMultiSelectMenuItemStyle}" />
@@ -662,22 +665,32 @@
                                 Orientation="Horizontal"
                                 VerticalAlignment="Center">
                         <Button x:Name="SelectAllButton"
-                                Content="{DynamicResource LOCSelectAll}"
+                                Content="{DynamicResource LOCPlayAch_Common_SelectAll}"
                                 Click="SelectAllButton_Click"
                                 Height="{StaticResource PlayAch.Size.Control.Height}"
                                 Padding="10,2"
                                 Margin="{StaticResource PlayAch.Thickness.Right.Sm}" />
                         <Button x:Name="DeselectAllButton"
-                                Content="{DynamicResource LOCDeselectAll}"
+                                Content="{DynamicResource LOCPlayAch_Common_DeselectAll}"
                                 Click="DeselectAllButton_Click"
                                 Height="{StaticResource PlayAch.Size.Control.Height}"
                                 Padding="10,2" />
                     </StackPanel>
                 </Grid>
 
+            <!-- The grid owns its own scrolling. Nested in a ScrollViewer it was measured with
+                 unbounded height, which defeats row virtualization entirely and realizes every
+                 row: fine for a handful of authored achievements, but this editor now lists a
+                 whole library. The add button therefore sits below the grid rather than trailing
+                 the last row. -->
+            <Grid Grid.Row="1" Grid.Column="0">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="*" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
 
             <DataGrid x:Name="CustomAchievementsGrid"
-                      Grid.Row="1"
+                      Grid.Row="0"
                       ItemsSource="{Binding AchievementRows}"
                       SelectedItem="{Binding SelectedRow, Mode=TwoWay}"
                       SelectionChanged="AchievementsGrid_SelectionChanged"
@@ -729,8 +742,10 @@
                     <!-- Row order is the achievement order, so the list is dragged directly.
                          Custom achievements take part like any other row, which is what lets an
                          authored one sit between two provider ones. -->
-                    <DataGridTemplateColumn Width="44" MinWidth="44" MaxWidth="44" CanUserResize="False" CanUserSort="False" CanUserReorder="False" IsReadOnly="True"
-                                            helpers:ColumnVisibilityHelper.ColumnKey="EditorOrder">
+                    <DataGridTemplateColumn Header="{DynamicResource LOCPlayAch_ManageAchievements_Tab_AchievementOrder}"
+                                            Width="44" MinWidth="44" MaxWidth="44" CanUserResize="False" CanUserSort="False" CanUserReorder="False" IsReadOnly="True"
+                                            helpers:ColumnVisibilityHelper.ColumnKey="EditorOrder"
+                                            helpers:DataGridColumnLayoutService.IsHeaderTextHidden="True">
                         <DataGridTemplateColumn.CellStyle>
                             <Style TargetType="DataGridCell" BasedOn="{StaticResource ManageAchievementsControllerCellStyle}">
                                 <Setter Property="Cursor" Value="SizeAll" />
@@ -801,13 +816,15 @@
 
                     <!-- The same status glyphs the other achievement grids use: unlocked, capstone
                          and goal at a glance, rather than reading three separate controls. -->
-                    <DataGridTemplateColumn Width="36"
+                    <DataGridTemplateColumn Header="{DynamicResource LOCPlayAch_Column_Status}"
+                                            Width="36"
                                             MinWidth="36"
                                             MaxWidth="36"
                                             CanUserResize="False"
                                             CanUserReorder="False"
                                             IsReadOnly="True"
                                             helpers:ColumnVisibilityHelper.ColumnKey="EditorStatus"
+                                            helpers:DataGridColumnLayoutService.IsHeaderTextHidden="True"
                                             CellStyle="{StaticResource ManageAchievementsIconCellStyle}"
                                             CellTemplate="{StaticResource AchievementStatusTemplate}" />
 
@@ -842,11 +859,12 @@
 
                     <!-- Bounded like the other achievement grids' icon columns: the icon fills the
                          cell, so the column width is the icon size. -->
-                    <DataGridTemplateColumn Width="58"
+                    <DataGridTemplateColumn x:Name="EditorIconColumn"
+                                            Width="58"
                                             MinWidth="32"
                                             MaxWidth="180"
                                             helpers:ColumnVisibilityHelper.ColumnKey="EditorIcon"
-                                            helpers:ColumnVisibilityHelper.ColumnDisplayName="{DynamicResource LOCGameIconTitle}">
+                                            helpers:ColumnVisibilityHelper.ColumnDisplayName="{DynamicResource LOCPlayAch_Common_Icon}">
                         <!-- The column's own toggle, reaching every masked icon on screen at once
                              rather than one click per row. Shown only while something is maskable,
                              like the per-row toggles. -->
@@ -915,6 +933,7 @@
                                                RenderOptions.BitmapScalingMode="HighQuality"
                                                helpers:AsyncImage.Uri="{Binding DisplayIcon}"
                                                helpers:AsyncImage.DecodePixel="128"
+                                               helpers:AsyncImage.CapAtOwnSize="{DynamicResource PlayAch.Image.CapAtOwnSize}"
                                                PreviewMouseLeftButtonDown="IconImage_PreviewMouseLeftButtonDown">
                                             <Image.Style>
                                                 <Style TargetType="Image">
@@ -1074,7 +1093,7 @@
                                             helpers:ColumnVisibilityHelper.ColumnKey="EditorDescription"
                                             IsReadOnly="True"
                                             helpers:EditorCellRouting.RoutesToSelection="True"
-                                            helpers:ColumnVisibilityHelper.ColumnDisplayName="{DynamicResource LOCGameDescriptionTitle}">
+                                            helpers:ColumnVisibilityHelper.ColumnDisplayName="{DynamicResource LOCPlayAch_Common_Description}">
                         <DataGridTemplateColumn.Header>
                             <Grid>
                                 <Grid.ColumnDefinitions>
@@ -1090,7 +1109,7 @@
                                         Width="30"
                                         Visibility="{Binding Data.CanRevealAnyDescription, Source={StaticResource EditorTabContext}, Converter={StaticResource BoolToVis}}" />
                                 <TextBlock Grid.Column="1"
-                                           Text="{DynamicResource LOCGameDescriptionTitle}"
+                                           Text="{DynamicResource LOCPlayAch_Common_Description}"
                                            HorizontalAlignment="Center"
                                            VerticalAlignment="Center"
                                            TextTrimming="CharacterEllipsis" />
@@ -1861,7 +1880,7 @@
                          watches the shared category collection and is driven by single fields that
                          cannot stand in for one cell per row. The menu is a superset of it, since
                          clearing the category is offered here too. -->
-                    <DataGridTemplateColumn Header="{DynamicResource LOCCategoryLabel}"
+                    <DataGridTemplateColumn Header="{DynamicResource LOCPlayAch_Common_Category}"
                                             Width="168"
                                             MinWidth="110"
                                             IsReadOnly="True"
@@ -1884,25 +1903,40 @@
                         </DataGridTemplateColumn.CellTemplate>
                     </DataGridTemplateColumn>
 
-                    <DataGridTemplateColumn Header="{DynamicResource LOCTypeLabel}"
+                    <DataGridTemplateColumn Header="{DynamicResource LOCPlayAch_Common_Tags}"
                                             Width="144"
                                             MinWidth="100"
                                             IsReadOnly="True"
                                             CanUserSort="False"
-                                            SortMemberPath="CategoryTypeDisplayText"
+                                            SortMemberPath="TagsDisplayText"
                                             helpers:ColumnVisibilityHelper.ColumnKey="EditorType"
                                             helpers:EditorCellRouting.RoutesToSelection="True">
                         <DataGridTemplateColumn.CellTemplate>
                             <DataTemplate>
-                                <Button Content="{Binding CategoryTypeDisplayText}"
-                                        ToolTip="{Binding CategoryTypeDisplayText}"
-                                        Style="{StaticResource AchievementSelectorButtonStyle}"
-                                        IsEnabled="{Binding CanEditAssignments}"
-                                        Click="TypeCell_Click"
-                                        MinHeight="22"
-                                        Margin="4,0"
-                                        HorizontalAlignment="Stretch"
-                                        VerticalAlignment="Center" />
+                                <!-- The button fills the cell so tag icons can take the row's
+                                     height; they are drawn over it, inside its padding and clear
+                                     of its arrow, as large as the row's tags fit up to a ceiling. -->
+                                <Grid Margin="4,0">
+                                    <Button Content="{Binding TagsButtonText}"
+                                            ToolTip="{Binding TagsDisplayText}"
+                                            Style="{StaticResource AchievementSelectorButtonStyle}"
+                                            IsEnabled="{Binding CanEditAssignments}"
+                                            Click="TypeCell_Click"
+                                            MinHeight="22"
+                                            HorizontalAlignment="Stretch"
+                                            VerticalAlignment="Stretch" />
+                                    <controls:TagChipsPanel Chips="{Binding TagChips}"
+                                                            Display="Icons, Colors"
+                                                            MaxContentHeight="{Binding TagAreaHeight, RelativeSource={RelativeSource AncestorType={x:Type local:ManageAchievementsEditorTab}}}"
+                                                            Visibility="{Binding HasTagIcons, Converter={StaticResource BoolToVis}}"
+                                                            IsHitTestVisible="False"
+                                                            Margin="11,3,21,3"
+                                                            HorizontalAlignment="Left"
+                                                            VerticalAlignment="Center"
+                                                            TextElement.FontFamily="{DynamicResource PlayAch.FontFamily.Body}"
+                                                            TextElement.FontSize="{DynamicResource PlayAch.FontSize.Body}"
+                                                            TextElement.Foreground="{DynamicResource PlayAch.Brush.Text}" />
+                                </Grid>
                             </DataTemplate>
                         </DataGridTemplateColumn.CellTemplate>
                     </DataGridTemplateColumn>
@@ -1973,12 +2007,12 @@
 
                 <!-- A second Add directly beneath the grid, pinned rather than scrolling away. -->
                 <Button x:Name="AddRowFooterButton"
-                        Grid.Row="2"
+                        Grid.Row="1"
                         Content="&#x2B;"
                         FontSize="16"
                         FontWeight="SemiBold"
                         Command="{Binding AddCommand}"
-                        ToolTip="{DynamicResource LOCAddTitle}"
+                        ToolTip="{DynamicResource LOCPlayAch_Common_Add}"
                         HorizontalAlignment="Stretch"
                         MinHeight="26"
                         Padding="0"
@@ -1987,7 +2021,7 @@
                 <!-- Drag chrome the reorder behavior requires: the insert line marks the drop
                      position and the popup shows how many rows are moving. -->
                 <Border x:Name="DropInsertLine"
-                        Grid.Row="1"
+                        Grid.Row="0"
                         Height="2"
                         VerticalAlignment="Top"
                         HorizontalAlignment="Stretch"
@@ -1997,7 +2031,7 @@
                         Panel.ZIndex="10" />
             </Grid>
 
-            <Grid Grid.Column="2">
+            <Grid Grid.Row="1" Grid.Column="2">
             <Border x:Name="DetailsPaneCard"
                     Width="340"
                     Style="{StaticResource CardBorderStyle}"
@@ -2031,7 +2065,7 @@
                         </Button>
 
                         <StackPanel Grid.Column="1">
-                            <TextBlock Text="{DynamicResource LOCGameDetails}"
+                            <TextBlock Text="{DynamicResource LOCPlayAch_Common_Details}"
                                        Foreground="{DynamicResource TextBrush}"
                                        FontWeight="SemiBold"
                                        Visibility="{Binding IsBulkEditing, Converter={StaticResource InverseBoolToVis}}" />
@@ -2072,7 +2106,10 @@
                                 Visibility="{Binding HasEditTarget, Converter={StaticResource BoolToVis}}">
                             <StackPanel DataContext="{Binding EditTarget}">
                                 <!-- Unlock state and visibility: what the achievement is. -->
+                                <!-- Each glyph and its tick share a panel so the pair wraps as
+                                     one, never leaving a glyph at the end of a line. -->
                                 <WrapPanel Orientation="Horizontal">
+                                    <StackPanel Orientation="Horizontal" Margin="0,0,18,2">
                                     <Path Data="{StaticResource GeoCheck}"
                                           Stroke="{DynamicResource PlayAch.Brush.Glyph}"
                                           StrokeThickness="2"
@@ -2092,8 +2129,9 @@
                                               IsChecked="{Binding UnlockedState, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                               IsEnabled="{Binding CanEditUnlocked}"
                                               MinHeight="{StaticResource PlayAch.Size.Control.Height}"
-                                              Margin="0,0,18,2"
                                               VerticalContentAlignment="Center" />
+                                    </StackPanel>
+                                    <StackPanel Orientation="Horizontal" Margin="0,0,18,2">
                                     <Image Width="14"
                                            Height="14"
                                            Stretch="Uniform"
@@ -2104,8 +2142,9 @@
                                     <CheckBox Content="{DynamicResource LOCPlayAch_Filter_Hidden}"
                                               IsChecked="{Binding HiddenState, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                               MinHeight="{StaticResource PlayAch.Size.Control.Height}"
-                                              Margin="0,0,18,2"
                                               VerticalContentAlignment="Center" />
+                                    </StackPanel>
+                                    <StackPanel Orientation="Horizontal" Margin="0,0,0,2">
                                     <TextBlock Text="&#xf003;"
                                                FontFamily="{DynamicResource PlayAch.FontFamily.Icon}"
                                                FontSize="13"
@@ -2116,8 +2155,8 @@
                                               IsChecked="{Binding IsGoalState, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                               IsEnabled="{Binding CanEditGoal}"
                                               MinHeight="{StaticResource PlayAch.Size.Control.Height}"
-                                              Margin="0,0,0,2"
                                               VerticalContentAlignment="Center" />
+                                    </StackPanel>
                                 </WrapPanel>
 
                                 <!-- A capstone carries how much of the game it stands for, so this
@@ -2277,7 +2316,7 @@
                                         <TextBlock Grid.Row="1"
                                                    Grid.Column="1"
                                                    Margin="8,3,0,0"
-                                                   Style="{StaticResource IconSourceCaptionStyle}"
+                                                   Style="{StaticResource UnlockedIconSourceCaptionStyle}"
                                                    Tag="{Binding HasUnlockedIconOverride}" />
                                     </Grid>
 
@@ -2564,23 +2603,78 @@
                                 </StackPanel>
                             </Grid>
 
+                            <!-- The grid's Unlock Time editor, routed through the same handlers: the
+                                 pane's DataContext is the edit target, so they write to it directly,
+                                 a single row or the proxy for a selection. -->
+                            <TextBlock Text="{DynamicResource LOCPlayAch_Common_UnlockTime}"
+                                       Style="{StaticResource FieldLabelStyle}" />
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <CheckBox Grid.Column="0"
+                                          IsChecked="{Binding HasUnlockTime, Mode=OneWay}"
+                                          IsEnabled="{Binding Unlocked}"
+                                          VerticalAlignment="Center"
+                                          Click="RoutedCheckBox_Click"
+                                          helpers:EditorCellRouting.Field="HasUnlockTime" />
+                                <DatePicker Grid.Column="1"
+                                            SelectedDate="{Binding UnlockDate, Mode=OneWay}"
+                                            SelectedDateChanged="UnlockDateCell_SelectedDateChanged"
+                                            IsEnabled="{Binding CanEditUnlockTime}"
+                                            Padding="4,2"
+                                            Margin="6,0,6,0" />
+                                <TextBox Grid.Column="2"
+                                         Text="{Binding TimeText, Mode=OneWay}"
+                                         PreviewKeyDown="RoutedCellTextBox_KeyDown"
+                                         helpers:EditorCellRouting.Field="TimeText"
+                                         IsEnabled="{Binding CanEditUnlockTime}"
+                                         Width="58"
+                                         VerticalContentAlignment="Center"
+                                         HorizontalContentAlignment="Center"
+                                         Padding="4,0"
+                                         MaxLength="5">
+                                    <TextBox.Style>
+                                        <Style TargetType="TextBox" BasedOn="{StaticResource {x:Type TextBox}}">
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding IsValidTime}" Value="False">
+                                                    <Setter Property="BorderBrush" Value="#FFE07070" />
+                                                    <Setter Property="BorderThickness" Value="2" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </TextBox.Style>
+                                </TextBox>
+                                <ComboBox Grid.Column="3"
+                                          ItemsSource="{Binding AvailableTimeModes}"
+                                          SelectedItem="{Binding SelectedTimeModeText, Mode=OneWay}"
+                                          SelectionChanged="TimeModeCell_SelectionChanged"
+                                          IsEnabled="{Binding CanEditUnlockTime}"
+                                          Width="74"
+                                          MinHeight="26"
+                                          VerticalContentAlignment="Center"
+                                          Padding="4,0"
+                                          Margin="2,0,0,0" />
+                            </Grid>
+
                             <!-- Category and type are ApiName-keyed custom data shared with the
                                  Category tab; they persist immediately. A row gets its ApiName and
                                  first save when it is created, so they are live at once. -->
-                            <TextBlock Text="{DynamicResource LOCCategoryLabel}"
+                            <TextBlock Text="{DynamicResource LOCPlayAch_Common_Category}"
                                        Style="{StaticResource FieldLabelStyle}" />
                             <controls:CategoryPickerBox x:Name="CategoryPicker"
                                                         Categories="{Binding DataContext.AssignableCategoryOptions, RelativeSource={RelativeSource AncestorType=UserControl}}"
                                                         Placeholder="{DynamicResource LOCPlayAch_ManageAchievements_Category_InputPlaceholder}"
-                                                        AllowCreateNew="True"
-                                                        CreateNewText="{DynamicResource LOCPlayAch_ManageAchievements_Category_NewCategoryEllipsis}"
                                                         IsEnabled="{Binding CanEditAssignments}" />
 
-                            <TextBlock Text="{DynamicResource LOCTypeLabel}"
+                            <TextBlock Text="{DynamicResource LOCPlayAch_Common_Tags}"
                                        Style="{StaticResource FieldLabelStyle}" />
                             <Button x:Name="TypeSelectionButton"
                                     Style="{StaticResource AchievementSelectorButtonStyle}"
-                                    Content="{Binding CategoryTypeDisplayText}"
+                                    Content="{Binding TagsDisplayText}"
                                     IsEnabled="{Binding CanEditAssignments}"
                                     Click="TypeSelectionButton_Click"
                                     MinHeight="26"

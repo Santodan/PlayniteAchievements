@@ -88,50 +88,29 @@ namespace PlayniteAchievements.Providers.ShadPS4
             if (hasNewData)
                 _logger?.Info($"[ShadPS4] Found {npCommIdCache.Count} titles in new AppData format.");
 
-            var rarityEnricher = await CreateRarityEnricherAsync(cancel).ConfigureAwait(false);
-
-            try
-            {
-                return await ProviderRefreshExecutor.RunProviderGamesAsync(
-                    gamesToRefresh,
-                    onGameStarting,
-                    async (game, token) =>
-                    {
-                        var data = await FetchGameDataAsync(game, titleCache, npCommIdCache, token).ConfigureAwait(false);
-                        await EnrichRarityAsync(game, data, rarityEnricher, token).ConfigureAwait(false);
-                        return new ProviderRefreshExecutor.ProviderGameResult { Data = data };
-                    },
-                    onGameCompleted,
-                    isAuthRequiredException: _ => false,
-                    onGameError: (game, ex, consecutiveErrors) =>
-                        _logger?.Error(ex, $"[ShadPS4] Error processing game '{game?.Name}'"),
-                    delayBetweenGamesAsync: null,
-                    delayAfterErrorAsync: null,
-                    cancel).ConfigureAwait(false);
-            }
-            finally
-            {
-                rarityEnricher?.Dispose();
-            }
+            return await ProviderRefreshExecutor.RunProviderGamesAsync(
+                gamesToRefresh,
+                onGameStarting,
+                async (game, token) =>
+                {
+                    var data = await FetchGameDataAsync(game, titleCache, npCommIdCache, token).ConfigureAwait(false);
+                    SetMetadataHints(game, data);
+                    return new ProviderRefreshExecutor.ProviderGameResult { Data = data };
+                },
+                onGameCompleted,
+                isAuthRequiredException: _ => false,
+                onGameError: (game, ex, consecutiveErrors) =>
+                    _logger?.Error(ex, $"[ShadPS4] Error processing game '{game?.Name}'"),
+                delayBetweenGamesAsync: null,
+                delayAfterErrorAsync: null,
+                cancel).ConfigureAwait(false);
         }
 
-        private async Task<ExophaseMetadataEnricher> CreateRarityEnricherAsync(CancellationToken cancel)
-        {
-            if (_providerSettings?.UseExophaseForRarity != true)
-            {
-                return null;
-            }
-
-            var enricher = new ExophaseMetadataEnricher(_playniteApi, _logger, _settings, _pluginUserDataPath);
-            await enricher.InitializeAsync(cancel).ConfigureAwait(false);
-            return enricher;
-        }
-
-        private async Task EnrichRarityAsync(
-            Game game,
-            GameAchievementData data,
-            ExophaseMetadataEnricher rarityEnricher,
-            CancellationToken cancel)
+        /// <summary>
+        /// The trophy set's title, searched before the Playnite name, and the region of the
+        /// installed release, for the metadata sources that find the game's page.
+        /// </summary>
+        private void SetMetadataHints(Game game, GameAchievementData data)
         {
             string trophySetTitle = null;
             if (game != null)
@@ -139,21 +118,14 @@ namespace PlayniteAchievements.Providers.ShadPS4
                 _trophySetTitles.TryRemove(game.Id, out trophySetTitle);
             }
 
-            if (rarityEnricher == null || data?.Achievements == null || data.Achievements.Count == 0)
+            if (data != null)
             {
-                return;
+                data.MetadataHints = new MetadataHints
+                {
+                    SearchName = trophySetTitle,
+                    RegionHint = _provider?.ResolveRegionHintForGame(game)
+                };
             }
-
-            await rarityEnricher
-                .EnrichAsync(
-                    game,
-                    data.Achievements,
-                    "ps4",
-                    "PSN",
-                    cancel,
-                    regionHint: _provider?.ResolveRegionHintForGame(game),
-                    searchName: trophySetTitle)
-                .ConfigureAwait(false);
         }
 
         /// <summary>
@@ -210,81 +182,155 @@ namespace PlayniteAchievements.Providers.ShadPS4
             Dictionary<string, string> npCommIdCache,
             CancellationToken cancel)
         {
+            // A null result means "trophy data not located"; the refresh pipeline skips
+            // persistence for null results so previously cached achievements are preserved.
+            return TryResolveTrophyXml(game, titleCache, npCommIdCache, out var xmlPath, out var format, out var npcommid)
+                ? ParseTrophyXml(game, xmlPath, format, npcommid, cancel)
+                : Task.FromResult<GameAchievementData>(null);
+        }
+
+        /// <summary>
+        /// The game's trophy XML: a match id override first, then the new format's npcommid
+        /// from npbind.dat, then the old format's title id lookup.
+        /// </summary>
+        private bool TryResolveTrophyXml(
+            Game game,
+            Dictionary<string, string> titleCache,
+            Dictionary<string, string> npCommIdCache,
+            out string xmlPath,
+            out TrophyFormat format,
+            out string npcommid)
+        {
+            xmlPath = null;
+            format = TrophyFormat.Old;
+            npcommid = null;
+
             if (game == null)
-                return Task.FromResult<GameAchievementData>(null);
+                return false;
 
             if (GameCustomDataLookup.TryGetShadPS4MatchIdOverride(game.Id, out var overrideMatchId))
             {
-                return ResolveOverrideGameData(game, overrideMatchId, titleCache, npCommIdCache, cancel);
+                return TryResolveOverrideTrophyXml(overrideMatchId, titleCache, npCommIdCache, out xmlPath, out format, out npcommid);
             }
 
             if ((titleCache?.Count ?? 0) <= 0 && (npCommIdCache?.Count ?? 0) <= 0)
             {
-                return Task.FromResult<GameAchievementData>(null);
+                return false;
             }
 
             // Try new format: resolve npcommid from npbind.dat
             if (npCommIdCache?.Count > 0)
             {
-                var npcommid = _provider?.ResolveNpCommIdForGame(game);
-                if (!string.IsNullOrWhiteSpace(npcommid) &&
-                    npCommIdCache.TryGetValue(npcommid, out var perUserXmlPath))
+                var resolvedNpCommId = _provider?.ResolveNpCommIdForGame(game);
+                if (!string.IsNullOrWhiteSpace(resolvedNpCommId) &&
+                    npCommIdCache.TryGetValue(resolvedNpCommId, out var perUserXmlPath))
                 {
-                    return ParseTrophyXml(game, perUserXmlPath, TrophyFormat.New, npcommid, cancel);
+                    xmlPath = perUserXmlPath;
+                    format = TrophyFormat.New;
+                    npcommid = resolvedNpCommId;
+                    return true;
                 }
             }
 
             // Fall back to old format: title ID lookup.
-            // A null result means "trophy data not located"; the refresh pipeline skips
-            // persistence for null results so previously cached achievements are preserved.
             var titleId = ExtractTitleIdFromGame(game);
             if (string.IsNullOrWhiteSpace(titleId) || titleCache == null ||
                 !titleCache.TryGetValue(titleId, out var trophyDataPath))
             {
-                return Task.FromResult<GameAchievementData>(null);
+                return false;
             }
 
-            var xmlPath = Path.Combine(trophyDataPath, "trophyfiles", "trophy00", "Xml", "TROP.XML");
-            if (!File.Exists(xmlPath))
-                return Task.FromResult<GameAchievementData>(null);
-
-            return ParseTrophyXml(game, xmlPath, TrophyFormat.Old, null, cancel);
+            xmlPath = Path.Combine(trophyDataPath, "trophyfiles", "trophy00", "Xml", "TROP.XML");
+            return File.Exists(xmlPath);
         }
 
-        private Task<GameAchievementData> ResolveOverrideGameData(
-            Game game,
+        private static bool TryResolveOverrideTrophyXml(
             string overrideMatchId,
             Dictionary<string, string> titleCache,
             Dictionary<string, string> npCommIdCache,
-            CancellationToken cancel)
+            out string xmlPath,
+            out TrophyFormat format,
+            out string npcommid)
         {
+            xmlPath = null;
+            format = TrophyFormat.Old;
+            npcommid = null;
+
             switch (ShadPS4MatchIdHelper.GetKind(overrideMatchId))
             {
                 case ShadPS4MatchIdKind.NpCommId:
                     if (npCommIdCache != null &&
                         npCommIdCache.TryGetValue(overrideMatchId, out var perUserXmlPath))
                     {
-                        return ParseTrophyXml(game, perUserXmlPath, TrophyFormat.New, overrideMatchId, cancel);
+                        xmlPath = perUserXmlPath;
+                        format = TrophyFormat.New;
+                        npcommid = overrideMatchId;
+                        return true;
                     }
 
-                    return Task.FromResult<GameAchievementData>(null);
+                    return false;
 
                 case ShadPS4MatchIdKind.TitleId:
                     if (titleCache != null &&
                         titleCache.TryGetValue(overrideMatchId, out var trophyDataPath))
                     {
-                        var xmlPath = Path.Combine(trophyDataPath, "trophyfiles", "trophy00", "Xml", "TROP.XML");
-                        if (File.Exists(xmlPath))
-                        {
-                            return ParseTrophyXml(game, xmlPath, TrophyFormat.Old, null, cancel);
-                        }
+                        xmlPath = Path.Combine(trophyDataPath, "trophyfiles", "trophy00", "Xml", "TROP.XML");
+                        return File.Exists(xmlPath);
                     }
 
-                    return Task.FromResult<GameAchievementData>(null);
+                    return false;
 
                 default:
-                    return Task.FromResult<GameAchievementData>(null);
+                    return false;
             }
+        }
+
+        /// <summary>
+        /// The game's trophies with text from the English TROP_01.XML beside its trophy XML,
+        /// keyed by the same trophy ids as a refresh. Null when the trophy XML cannot be
+        /// resolved or TROP_01.XML is absent; the language-neutral TROP.XML is never used.
+        /// </summary>
+        internal IList<AchievementDetail> ReadEnglishTitles(Game game, CancellationToken cancel)
+        {
+            var titleCache = _provider?.GetOrBuildTitleCache();
+            var npCommIdCache = _provider?.GetOrBuildNpCommIdCache();
+            if (!TryResolveTrophyXml(game, titleCache, npCommIdCache, out var xmlPath, out var format, out var npcommid))
+            {
+                return null;
+            }
+
+            var doc = TryLoadXmlDocument(xmlPath, cancel);
+            string englishXmlFolder;
+            if (format == TrophyFormat.New)
+            {
+                TryLoadSharedMetadataDocument(npcommid, xmlPath, cancel, out englishXmlFolder);
+            }
+            else
+            {
+                englishXmlFolder = Path.GetDirectoryName(xmlPath);
+            }
+
+            var englishDoc = TryLoadLocalizedDocument(englishXmlFolder, "en", cancel);
+            if (doc == null || englishDoc == null)
+            {
+                return null;
+            }
+
+            var englishById = BuildTrophyElementDictionary(englishDoc);
+            var rows = new List<AchievementDetail>();
+            foreach (var trophyElement in doc.Descendants("trophy"))
+            {
+                var trophyId = trophyElement.Attribute("id")?.Value;
+                englishById.TryGetValue(NormalizeTrophyIdKey(trophyId) ?? string.Empty, out var englishElement);
+                rows.Add(new AchievementDetail
+                {
+                    ApiName = trophyId,
+                    DisplayName = GetLocalizedElement(englishElement, "name", "en")?.Trim(),
+                    Description = GetLocalizedElement(englishElement, "detail", "en")?.Trim()
+                });
+            }
+
+            return rows;
         }
 
         /// <summary>
@@ -340,7 +386,7 @@ namespace PlayniteAchievements.Providers.ShadPS4
                 var localizedGroupNamesById = BuildGroupNamesDictionary(localizedDoc, ps4Locale);
 
                 // Category label -> trophy group id, first group to use a label wins.
-                var groupIdsByLabel = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+                var groupIdsByLabel = new Dictionary<string, string>(CategoryPathHelper.LabelComparer);
 
                 foreach (var trophyElement in doc.Descendants("trophy"))
                 {
@@ -429,7 +475,7 @@ namespace PlayniteAchievements.Providers.ShadPS4
                         Rarity = GetRarityFromTrophyType(trophyTypeNormalized),
                         TrophyType = trophyTypeNormalized,
                         IsCapstone = trophyType?.ToUpperInvariant() == "P",
-                        CategoryType = MapGroupIdToCategoryType(groupId),
+                        CategoryKind = MapGroupIdToCategoryKind(groupId),
                         Category = string.IsNullOrWhiteSpace(groupName) ? null : groupName.Trim()
                     });
                 }
@@ -798,8 +844,8 @@ namespace PlayniteAchievements.Providers.ShadPS4
             var gameIdText = game.Id.ToString("D");
             foreach (var entry in groupIdsByLabel)
             {
-                var label = AchievementCategoryTypeHelper.NormalizeCategoryOrDefault(entry.Key);
-                if (string.Equals(label, AchievementCategoryTypeHelper.DefaultCategoryLabel, StringComparison.OrdinalIgnoreCase))
+                var label = AchievementCategoryHelper.NormalizeCategoryOrDefault(entry.Key);
+                if (string.Equals(label, AchievementCategoryHelper.DefaultCategoryLabel, StringComparison.OrdinalIgnoreCase))
                 {
                     continue;
                 }
@@ -821,7 +867,7 @@ namespace PlayniteAchievements.Providers.ShadPS4
 
         private static string GetTrophyGroupIconPath(string iconsFolder, string groupId)
         {
-            var fileName = string.Equals(MapGroupIdToCategoryType(groupId), "Base", StringComparison.Ordinal)
+            var fileName = string.Equals(MapGroupIdToCategoryKind(groupId), "Base", StringComparison.Ordinal)
                 ? "ICON0.PNG"
                 : int.TryParse(groupId?.Trim(), out var number) && number > 0
                     ? $"GR{number:D3}.PNG"
@@ -866,7 +912,7 @@ namespace PlayniteAchievements.Providers.ShadPS4
             }
         }
 
-        private static string MapGroupIdToCategoryType(string groupId)
+        private static string MapGroupIdToCategoryKind(string groupId)
         {
             var n = (groupId ?? string.Empty).Trim();
             return string.IsNullOrWhiteSpace(n) ||

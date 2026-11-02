@@ -1,6 +1,7 @@
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using PlayniteAchievements.Common;
 using PlayniteAchievements.Models.Achievements;
+using PlayniteAchievements.Providers.Metadata;
 using PlayniteAchievements.Providers.Steam;
 using System.Collections.Generic;
 using System.Threading;
@@ -11,6 +12,40 @@ namespace PlayniteAchievements.Steam.Tests
     [TestClass]
     public class SteamHuntersCategoryEnricherTests
     {
+        [TestMethod]
+        public void OwnRowsFor_CopiesIdentityAndCategories_WithoutIcons_OrTheSameInstances()
+        {
+            var own = new AchievementDetail
+            {
+                ApiName = "ACH_A",
+                DisplayName = "One",
+                Description = "Do it",
+                Hidden = true,
+                Category = "DREDGE",
+                CategoryKind = "Base",
+                Tags = "Unobtainable",
+                UnlockedIconPath = "https://cdn/a.jpg",
+                LockedIconPath = "https://cdn/a_gray.jpg"
+            };
+
+            var rows = SteamHuntersCategoryEnricher.OwnRowsFor(new[] { own, new AchievementDetail(), null });
+
+            Assert.AreEqual(1, rows.Count, "rows without an ApiName cannot join and are left out");
+            Assert.AreNotSame(own, rows[0]);
+            Assert.AreEqual("ACH_A", rows[0].ApiName);
+            Assert.AreEqual("One", rows[0].DisplayName);
+            Assert.AreEqual("Do it", rows[0].Description);
+            Assert.IsTrue(rows[0].Hidden);
+            Assert.AreEqual("DREDGE", rows[0].Category);
+            Assert.AreEqual("Base", rows[0].CategoryKind);
+            Assert.AreEqual("Unobtainable", rows[0].Tags);
+            Assert.IsNull(rows[0].UnlockedIconPath);
+            Assert.IsNull(rows[0].LockedIconPath);
+
+            rows[0].Category = "Changed";
+            Assert.AreEqual("DREDGE", own.Category);
+        }
+
         [TestMethod]
         public void ApplyGroups_DlcAndUpdate_TypesByDlcAppIdPresence()
         {
@@ -40,11 +75,14 @@ namespace PlayniteAchievements.Steam.Tests
 
             SteamHuntersCategoryEnricher.ApplyGroups(achievements, groups, "dlcandupdate", "My Game");
 
-            Assert.AreEqual("DLC", achievements[0].CategoryType);
+            Assert.AreEqual("DLC", achievements[0].CategoryKind);
+            Assert.IsNull(achievements[0].Tags);
             Assert.AreEqual("Expansion", achievements[0].Category);
-            Assert.AreEqual("Base|Update", achievements[1].CategoryType);
+            Assert.AreEqual("Base|Update", achievements[1].CategoryKind);
+            Assert.IsNull(achievements[1].Tags);
             Assert.AreEqual("Update #1", achievements[1].Category);
-            Assert.AreEqual("Base", achievements[2].CategoryType);
+            Assert.AreEqual("Base", achievements[2].CategoryKind);
+            Assert.IsNull(achievements[2].Tags);
             Assert.AreEqual("My Game", achievements[2].Category);
         }
 
@@ -79,9 +117,11 @@ namespace PlayniteAchievements.Steam.Tests
 
             SteamHuntersCategoryEnricher.ApplyGroups(achievements, groups, "dlcandupdate", "My Game");
 
-            Assert.AreEqual("DLC", achievements[0].CategoryType);
+            Assert.AreEqual("DLC", achievements[0].CategoryKind);
+            Assert.IsNull(achievements[0].Tags);
             Assert.AreEqual("Expansion", achievements[0].Category);
-            Assert.AreEqual("DLC|Update", achievements[1].CategoryType);
+            Assert.AreEqual("DLC|Update", achievements[1].CategoryKind);
+            Assert.IsNull(achievements[1].Tags);
             Assert.AreEqual(
                 "Expansion::Booster Pack #5",
                 achievements[1].Category,
@@ -110,9 +150,11 @@ namespace PlayniteAchievements.Steam.Tests
 
             SteamHuntersCategoryEnricher.ApplyGroups(achievements, groups, "dlcandupdate", "Cyberpunk 2077");
 
-            Assert.AreEqual("DLC", achievements[0].CategoryType);
+            Assert.AreEqual("DLC", achievements[0].CategoryKind);
+            Assert.IsNull(achievements[0].Tags);
             Assert.AreEqual("Phantom Liberty", achievements[0].Category);
-            Assert.AreEqual("Base", achievements[1].CategoryType);
+            Assert.AreEqual("Base", achievements[1].CategoryKind);
+            Assert.IsNull(achievements[1].Tags);
         }
 
         [TestMethod]
@@ -156,10 +198,14 @@ namespace PlayniteAchievements.Steam.Tests
 
             SteamHuntersCategoryEnricher.ApplyGroups(achievements, groups, "dlcandupdate", "Atomic Heart");
 
-            Assert.AreEqual("DLC", achievements[0].CategoryType);
-            Assert.AreEqual("DLC", achievements[1].CategoryType);
-            Assert.AreEqual("DLC", achievements[2].CategoryType);
-            Assert.AreEqual("DLC", achievements[3].CategoryType);
+            Assert.AreEqual("DLC", achievements[0].CategoryKind);
+            Assert.IsNull(achievements[0].Tags);
+            Assert.AreEqual("DLC", achievements[1].CategoryKind);
+            Assert.IsNull(achievements[1].Tags);
+            Assert.AreEqual("DLC", achievements[2].CategoryKind);
+            Assert.IsNull(achievements[2].Tags);
+            Assert.AreEqual("DLC", achievements[3].CategoryKind);
+            Assert.IsNull(achievements[3].Tags);
         }
 
         [TestMethod]
@@ -225,9 +271,11 @@ namespace PlayniteAchievements.Steam.Tests
 
             SteamHuntersCategoryEnricher.ApplyGroups(achievements, groups, "game");
 
-            Assert.AreEqual("Base", achievements[0].CategoryType);
+            Assert.AreEqual("Base", achievements[0].CategoryKind);
+            Assert.IsNull(achievements[0].Tags);
             Assert.AreEqual("Halo: Combat Evolved", achievements[0].Category);
-            Assert.AreEqual("Base", achievements[1].CategoryType);
+            Assert.AreEqual("Base", achievements[1].CategoryKind);
+            Assert.IsNull(achievements[1].Tags);
             Assert.AreEqual("Halo 2: Anniversary", achievements[1].Category);
         }
 
@@ -246,9 +294,11 @@ namespace PlayniteAchievements.Steam.Tests
                 groupBy: null,
                 gameName: "Fallback Game");
 
-            Assert.AreEqual("Base", achievements[0].CategoryType);
+            Assert.AreEqual("Base", achievements[0].CategoryKind);
+            Assert.IsNull(achievements[0].Tags);
             Assert.AreEqual("Fallback Game", achievements[0].Category);
-            Assert.AreEqual("Base", achievements[1].CategoryType);
+            Assert.AreEqual("Base", achievements[1].CategoryKind);
+            Assert.IsNull(achievements[1].Tags);
             Assert.AreEqual("Fallback Game", achievements[1].Category);
         }
 
@@ -392,14 +442,21 @@ namespace PlayniteAchievements.Steam.Tests
                 new SteamHuntersAchievementGroup
                 {
                     DlcAppId = 222,
+                    Name = "Expansion"
+                },
+                new SteamHuntersAchievementGroup
+                {
+                    DlcAppId = 333,
                     Name = "expansion"
                 }
             };
 
             var plan = SteamHuntersCategoryEnricher.BuildCategoryImagePlan(groups, "dlcandupdate");
 
-            Assert.AreEqual(1, plan.Count);
+            // "expansion" is a category of its own; only the exact repeat is dropped.
+            Assert.AreEqual(2, plan.Count);
             Assert.AreEqual(111, plan[0].Value);
+            Assert.AreEqual(333, plan[1].Value);
         }
 
         [TestMethod]
@@ -574,7 +631,8 @@ namespace PlayniteAchievements.Steam.Tests
 
             SteamHuntersCategoryEnricher.ApplyGroups(achievements, groups);
 
-            Assert.AreEqual("Base|Update", achievements[0].CategoryType);
+            Assert.AreEqual("Base|Update", achievements[0].CategoryKind);
+            Assert.IsNull(achievements[0].Tags);
             Assert.AreEqual("Base Label", achievements[0].Category);
         }
 
@@ -605,11 +663,14 @@ namespace PlayniteAchievements.Steam.Tests
 
             SteamHuntersCategoryEnricher.ApplyGroups(achievements, groups, "dlcandupdate", "Portal 2");
 
-            Assert.AreEqual("Base|Multiplayer", achievements[0].CategoryType);
+            Assert.AreEqual("Base", achievements[0].CategoryKind);
+            Assert.AreEqual("Multiplayer", achievements[0].Tags);
             Assert.AreEqual("Portal 2", achievements[0].Category);
-            Assert.AreEqual("Base|Update", achievements[1].CategoryType);
+            Assert.AreEqual("Base|Update", achievements[1].CategoryKind);
+            Assert.IsNull(achievements[1].Tags);
             Assert.AreEqual("Steam Summer Camp", achievements[1].Category);
-            Assert.AreEqual("Base", achievements[2].CategoryType);
+            Assert.AreEqual("Base", achievements[2].CategoryKind);
+            Assert.IsNull(achievements[2].Tags);
             Assert.AreEqual("Portal 2", achievements[2].Category);
         }
 
@@ -635,7 +696,8 @@ namespace PlayniteAchievements.Steam.Tests
 
             SteamHuntersCategoryEnricher.ApplyGroups(achievements, groups, "dlcandupdate", "My Game");
 
-            Assert.AreEqual("DLC|Update", achievements[0].CategoryType);
+            Assert.AreEqual("DLC|Update", achievements[0].CategoryKind);
+            Assert.IsNull(achievements[0].Tags);
         }
 
         [TestMethod]
@@ -646,10 +708,10 @@ namespace PlayniteAchievements.Steam.Tests
             // one, which stays untagged.
             var achievements = new List<AchievementDetail>
             {
-                new AchievementDetail { ApiName = "TF_REPLAY_YOUTUBE_VIEWS_TIER1", CategoryType = "Base" },
-                new AchievementDetail { ApiName = "broken_ach", CategoryType = "Base|Update" },
-                new AchievementDetail { ApiName = "conditional_ach", CategoryType = "Base" },
-                new AchievementDetail { ApiName = "normal_ach", CategoryType = "Base" }
+                new AchievementDetail { ApiName = "TF_REPLAY_YOUTUBE_VIEWS_TIER1", CategoryKind = "Base" },
+                new AchievementDetail { ApiName = "broken_ach", CategoryKind = "Base|Update" },
+                new AchievementDetail { ApiName = "conditional_ach", CategoryKind = "Base" },
+                new AchievementDetail { ApiName = "normal_ach", CategoryKind = "Base" }
             };
             var steamHuntersAchievements = new List<SteamHuntersAchievement>
             {
@@ -662,10 +724,14 @@ namespace PlayniteAchievements.Steam.Tests
             var updated = SteamHuntersCategoryEnricher.ApplyObtainability(achievements, steamHuntersAchievements);
 
             Assert.AreEqual(2, updated);
-            Assert.AreEqual("Base|Unobtainable", achievements[0].CategoryType);
-            Assert.AreEqual("Base|Update|Unobtainable", achievements[1].CategoryType);
-            Assert.AreEqual("Base", achievements[2].CategoryType);
-            Assert.AreEqual("Base", achievements[3].CategoryType);
+            Assert.AreEqual("Base", achievements[0].CategoryKind);
+            Assert.AreEqual("Unobtainable", achievements[0].Tags);
+            Assert.AreEqual("Base|Update", achievements[1].CategoryKind);
+            Assert.AreEqual("Unobtainable", achievements[1].Tags);
+            Assert.AreEqual("Base", achievements[2].CategoryKind);
+            Assert.IsNull(achievements[2].Tags);
+            Assert.AreEqual("Base", achievements[3].CategoryKind);
+            Assert.IsNull(achievements[3].Tags);
         }
 
         [TestMethod]
@@ -673,11 +739,12 @@ namespace PlayniteAchievements.Steam.Tests
         {
             var achievements = new List<AchievementDetail>
             {
-                new AchievementDetail { ApiName = "a", CategoryType = "DLC" }
+                new AchievementDetail { ApiName = "a", CategoryKind = "DLC" }
             };
 
             Assert.AreEqual(0, SteamHuntersCategoryEnricher.ApplyObtainability(achievements, null));
-            Assert.AreEqual("DLC", achievements[0].CategoryType);
+            Assert.AreEqual("DLC", achievements[0].CategoryKind);
+            Assert.IsNull(achievements[0].Tags);
         }
 
         [TestMethod]
@@ -708,14 +775,15 @@ namespace PlayniteAchievements.Steam.Tests
             var enricher = CreateEnricher(_ => body);
             var achievements = new List<AchievementDetail>
             {
-                new AchievementDetail { ApiName = "ach_1", Category = "Stored", CategoryType = "DLC" }
+                new AchievementDetail { ApiName = "ach_1", Category = "Stored", CategoryKind = "DLC" }
             };
 
             var applied = await enricher.EnrichAsync(620, "Portal 2", achievements, null, CancellationToken.None);
 
             Assert.IsFalse(applied);
             Assert.AreEqual("Stored", achievements[0].Category);
-            Assert.AreEqual("DLC", achievements[0].CategoryType);
+            Assert.AreEqual("DLC", achievements[0].CategoryKind);
+            Assert.IsNull(achievements[0].Tags);
         }
 
         [TestMethod]
@@ -730,7 +798,8 @@ namespace PlayniteAchievements.Steam.Tests
 
             Assert.IsTrue(applied);
             Assert.AreEqual("The Pale Reach", achievements[0].Category);
-            Assert.AreEqual("DLC", achievements[0].CategoryType);
+            Assert.AreEqual("DLC", achievements[0].CategoryKind);
+            Assert.IsNull(achievements[0].Tags);
         }
 
         [TestMethod]

@@ -57,6 +57,8 @@ namespace PlayniteAchievements.ViewModels
         private string _platformColorHex;
         private AchievementLevelSnapshot _snapshot;
         private ScoreCardType _scoreType;
+        private System.Collections.Generic.IReadOnlyList<BadgeCountItem> _rarityBadges = Array.Empty<BadgeCountItem>();
+        private string _gameArtPath;
 
         public ScoreCardViewModel(ScoreCardType scoreType)
         {
@@ -107,6 +109,35 @@ namespace PlayniteAchievements.ViewModels
         public ImageSource PlatformIcon => IsPoints
             ? ProviderIconConverter.BuildIcon(_platformIconKey, _platformColorHex)
             : null;
+
+        /// <summary>A points card's rarity badges with unlock counts, shown under the bar; empty when off.</summary>
+        public System.Collections.Generic.IReadOnlyList<BadgeCountItem> RarityBadges => _rarityBadges;
+
+        public bool HasRarityBadges => IsPoints && _rarityBadges.Count > 0;
+
+        /// <summary>The game's cover or icon a points card shows in place of the platform icon; null for the platform icon.</summary>
+        public string GameArtPath => _gameArtPath;
+
+        public bool HasGameArt => IsPoints && !string.IsNullOrWhiteSpace(_gameArtPath);
+
+        public void SetRarityBadges(System.Collections.Generic.IReadOnlyList<BadgeCountItem> badges)
+        {
+            _rarityBadges = badges ?? Array.Empty<BadgeCountItem>();
+            OnPropertyChanged(nameof(RarityBadges));
+            OnPropertyChanged(nameof(HasRarityBadges));
+        }
+
+        public void SetGameArt(string path)
+        {
+            if (string.Equals(_gameArtPath, path, StringComparison.OrdinalIgnoreCase))
+            {
+                return;
+            }
+
+            _gameArtPath = path;
+            OnPropertyChanged(nameof(GameArtPath));
+            OnPropertyChanged(nameof(HasGameArt));
+        }
 
         /// <summary>
         /// One cell per level of the current rank: completed levels solid, the level in progress

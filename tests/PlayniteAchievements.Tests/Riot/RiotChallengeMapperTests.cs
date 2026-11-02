@@ -334,8 +334,8 @@ namespace PlayniteAchievements.Riot.Tests
         [TestMethod]
         public void BuildAchievements_MarksRetiredChallengesUnobtainable()
         {
-            Assert.AreEqual("Unobtainable", Get("900001:IRON").CategoryType, "Its end timestamp has passed.");
-            Assert.IsNull(Get("101001:IRON").CategoryType, "An open-ended challenge carries no category type.");
+            Assert.AreEqual("Unobtainable", Get("900001:IRON").Tags, "Its end timestamp has passed.");
+            Assert.IsNull(Get("101001:IRON").Tags, "An open-ended challenge carries no tag.");
         }
 
         [TestMethod]
@@ -345,7 +345,7 @@ namespace PlayniteAchievements.Riot.Tests
             var beforeEnd = new DateTime(2020, 9, 12, 0, 0, 0, DateTimeKind.Utc);
             var challenge = Build(beforeEnd).Single(a => a.ApiName == "900001:IRON");
 
-            Assert.AreEqual("Missable", challenge.CategoryType);
+            Assert.AreEqual("Missable", challenge.Tags);
         }
 
         [TestMethod]

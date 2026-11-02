@@ -175,11 +175,17 @@ namespace PlayniteAchievements.Models.Achievements
 
         public string TrophyType { get; set; }
 
-        public string CategoryType { get; set; }
+        public string Tags { get; set; }
+
+        public string CategoryKind { get; set; }
 
         public string Category { get; set; }
 
         public string ProviderCategory { get; set; }
+
+        public string ProviderTags { get; set; }
+
+        public string ProviderCategoryKind { get; set; }
 
         public string ProviderKey { get; set; }
 
@@ -265,6 +271,12 @@ namespace PlayniteAchievements.Models.Achievements
 
         public bool ShowsRarity => RaritySource != PlayniteAchievements.Models.Achievements.RaritySource.None;
 
+        public PlayniteAchievements.Models.Tagging.CustomizationArea? PlatformFields { get; set; }
+
+        public PlayniteAchievements.Models.Tagging.CustomizationArea? MetadataFields { get; set; }
+
+        public bool KeepStoredMetadata { get; set; }
+
         public bool HasAchievements { get; set; } = true;
 
         public bool ExcludedFromSummaries { get; set; }
@@ -272,6 +284,8 @@ namespace PlayniteAchievements.Models.Achievements
         public bool ExcludedByUser { get; set; }
 
         public bool UseSeparateLockedIconsWhenAvailable { get; set; }
+
+        public MetadataHints MetadataHints { get; set; }
 
         public List<string> GoalAchievements { get; set; }
 
@@ -452,7 +466,22 @@ namespace PlayniteAchievements.ViewModels
 
         public string TrophyType { get; set; }
 
-        public string CategoryType { get; set; }
+        public string Tags { get; set; }
+
+        public string CategoryKind { get; set; }
+
+        public string TagsDisplay =>
+            PlayniteAchievements.Services.Achievements.AchievementTagHelper.ToDisplayText(Tags, PlayniteGameId);
+
+        public string CategoryType => string.Join("|",
+            System.Linq.Enumerable.Concat(
+                PlayniteAchievements.Services.Achievements.CategoryKindHelper.GetComponents(CategoryKind),
+                PlayniteAchievements.Services.Achievements.AchievementTagHelper.GetComponents(Tags)));
+
+        public string CategoryTypeDisplay => string.Join(", ",
+            System.Linq.Enumerable.Where(
+                new[] { PlayniteAchievements.Services.Achievements.CategoryKindHelper.ToDisplayText(CategoryKind), TagsDisplay },
+                text => !string.IsNullOrEmpty(text)));
 
         public string CategoryLabel { get; set; }
 
@@ -680,7 +709,8 @@ namespace PlayniteAchievements.ViewModels
                 PlayniteGameId = PlayniteGameId,
                 ApiName = ApiName,
                 TrophyType = TrophyType,
-                CategoryType = CategoryType,
+                Tags = Tags,
+                CategoryKind = CategoryKind,
                 CategoryLabel = CategoryLabel,
                 CategoryOrderIndex = CategoryOrderIndex,
                 CategoryArtPath = CategoryArtPath,
@@ -740,7 +770,8 @@ namespace PlayniteAchievements.ViewModels
             PlayniteGameId = playniteGameId;
             ApiName = source?.ApiName;
             TrophyType = source?.TrophyType;
-            CategoryType = source?.CategoryType;
+            Tags = source?.Tags;
+            CategoryKind = source?.CategoryKind;
             CategoryLabel = source?.Category;
             Hidden = source?.Hidden == true;
             IsCapstone = source?.IsCapstone == true;

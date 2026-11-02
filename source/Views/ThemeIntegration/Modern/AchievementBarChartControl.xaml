@@ -78,7 +78,7 @@
                          IsChecked="{Binding TimelineViewModel.TimelineRange, Converter={StaticResource EnumToBool}, ConverterParameter=OneYear, RelativeSource={RelativeSource AncestorType=base:ThemeControlBase}}"
                          Command="{Binding TimelineViewModel.SetTimeRangeCommand, RelativeSource={RelativeSource AncestorType=base:ThemeControlBase}}"
                          CommandParameter="OneYear"/>
-            <RadioButton Content="{DynamicResource LOCAll}"
+            <RadioButton Content="{DynamicResource LOCPlayAch_Common_All}"
                          GroupName="DesktopTimeRange"
                          Style="{StaticResource TimeRangeButtonStyle}"
                          IsChecked="{Binding TimelineViewModel.TimelineRange, Converter={StaticResource EnumToBool}, ConverterParameter=All, RelativeSource={RelativeSource AncestorType=base:ThemeControlBase}}"

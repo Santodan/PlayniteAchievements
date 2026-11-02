@@ -3,6 +3,7 @@ using PlayniteAchievements.Models;
 using PlayniteAchievements.Models.Achievements;
 using PlayniteAchievements.Models.Settings;
 using PlayniteAchievements.Services.GameCustomData;
+using PlayniteAchievements.Services.UI;
 using PlayniteAchievements.Tests.TestInfrastructure;
 using PlayniteAchievements.ViewModels;
 using System;
@@ -812,6 +813,73 @@ namespace PlayniteAchievements.Tests.ViewModels
                     Assert.AreEqual("Getting there", header.HeaderText);
                 }
             }
+        }
+
+        [TestMethod]
+        public void CompletionNotification_TitleHonorsTheCompletionTitleEdit()
+        {
+            var style = AllLinesVisible();
+            style.HeaderTexts.CompletionTitle = "{0} mastered";
+
+            var viewModel = BuildLineToast(style, new AchievementUnlockedEventArgs
+            {
+                GameName = "Some Game",
+                IsGameCompleted = true
+            });
+
+            Assert.AreEqual("Some Game mastered", viewModel.CompletionTitleText);
+            foreach (var line in viewModel.ToastLines)
+            {
+                if (line is ToastTitleLine title)
+                {
+                    Assert.AreEqual("Some Game mastered", title.CompletionTitleText);
+                }
+            }
+        }
+
+        [TestMethod]
+        public void GameCategoryLine_CategoryMatchingTheGameShowsTheNameOnce()
+        {
+            Assert.AreEqual("Some Game", GameCategoryTextFor("Some Game", "some game "));
+        }
+
+        [TestMethod]
+        public void GameCategoryLine_DistinctCategoryShowsBoth()
+        {
+            StringAssert.Contains(GameCategoryTextFor("Some Game", "Expansion"), "Expansion");
+            StringAssert.StartsWith(GameCategoryTextFor("Some Game", "Expansion"), "Some Game");
+        }
+
+        private static string GameCategoryTextFor(string gameName, string category)
+        {
+            var viewModel = BuildLineToast(AllLinesVisible(), new AchievementUnlockedEventArgs
+            {
+                DisplayName = "Deep Diver",
+                GameName = gameName,
+                Category = category
+            });
+            foreach (var line in viewModel.ToastLines)
+            {
+                if (line is ToastGameCategoryLine row)
+                {
+                    return row.GameCategoryText;
+                }
+            }
+
+            Assert.Fail("No game/category line.");
+            return null;
+        }
+
+        [TestMethod]
+        public void CompletionTitle_StrayBraceShowsAsTyped()
+        {
+            Assert.AreEqual("Done {", NotificationHeaderTextService.FormatCompletionTitle("Done {", "Some Game"));
+        }
+
+        [TestMethod]
+        public void CompletionTitle_TextWithoutPlaceholderShowsAsTyped()
+        {
+            Assert.AreEqual("All done", NotificationHeaderTextService.FormatCompletionTitle("All done", "Some Game"));
         }
 
         [TestMethod]

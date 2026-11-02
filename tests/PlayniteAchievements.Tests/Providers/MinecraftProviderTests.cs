@@ -45,7 +45,7 @@ namespace PlayniteAchievements.Providers.Tests
                 Assert.AreEqual("Mine Stone with your new Pickaxe", mineStone.Description);
                 Assert.AreEqual("Fixture Pack::Minecraft", mineStone.Category);
                 Assert.AreEqual(Path.GetFileName(root) + "|minecraft:story/mine_stone", data.Achievements.Single(a => a.DisplayName == "Stone Age").ApiName);
-                Assert.AreEqual("Base", mineStone.CategoryType);
+                Assert.AreEqual("Base", mineStone.CategoryKind);
                 Assert.AreEqual(RarityTier.Common, mineStone.Rarity);
             }
             finally
@@ -95,7 +95,7 @@ namespace PlayniteAchievements.Providers.Tests
                 Assert.AreEqual(3, adventuring.ProgressDenom);
                 Assert.AreEqual(RarityTier.Rare, adventuring.Rarity);
                 Assert.AreEqual("Fixture Pack::Adventure", adventuring.Category);
-                Assert.AreEqual("Base", adventuring.CategoryType);
+                Assert.AreEqual("Base", adventuring.CategoryKind);
 
                 var secret = byId["minecraft:nether/secret"];
                 Assert.IsTrue(secret.Hidden);
@@ -121,7 +121,7 @@ namespace PlayniteAchievements.Providers.Tests
                 var first = data.Achievements.Single(a => Strip(a.ApiName) == "coolmod:first");
 
                 Assert.AreEqual("Fixture Pack::Cool Mod", first.Category);
-                Assert.IsNull(first.CategoryType);
+                Assert.IsNull(first.CategoryKind);
                 Assert.AreEqual("First Steps", first.DisplayName);
                 Assert.IsTrue(first.Unlocked);
                 Assert.IsNull(first.UnlockTimeUtc);

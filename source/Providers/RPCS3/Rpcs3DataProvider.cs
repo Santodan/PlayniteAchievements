@@ -3,6 +3,7 @@ using PlayniteAchievements.Models.Achievements;
 using PlayniteAchievements.Models.Settings;
 using PlayniteAchievements.Providers;
 using PlayniteAchievements.Providers.Overrides;
+using PlayniteAchievements.Providers.PlayStationTrophies;
 using PlayniteAchievements.Providers.Settings;
 using Playnite.SDK;
 using Playnite.SDK.Models;
@@ -33,7 +34,7 @@ namespace PlayniteAchievements.Providers.RPCS3
     /// Data provider for RPCS3 PlayStation 3 emulator trophy tracking.
     /// Parses local trophy files (TROPCONF.SFM + TROPUSR.DAT) from RPCS3 installation.
     /// </summary>
-    internal sealed class Rpcs3DataProvider : DataProviderBase<Rpcs3Settings>, IDataProvider, IProviderOverride, IInGameProgressSource
+    internal sealed class Rpcs3DataProvider : DataProviderBase<Rpcs3Settings>, IDataProvider, IProviderOverride, IInGameProgressSource, IEnglishTitleSource
     {
         private sealed class Rpcs3InGameSource
         {
@@ -195,6 +196,44 @@ namespace PlayniteAchievements.Providers.RPCS3
         public string GetTrophyFolder(Game game = null)
         {
             return GetInstallationContext(game)?.TrophyFolder;
+        }
+
+        /// <summary>
+        /// Each trophy set named by the refresh's ProviderGameKey, re-read from its trophy folder
+        /// with English text only. Null when any set has no folder or no English text.
+        /// </summary>
+        Task<IList<AchievementDetail>> IEnglishTitleSource.GetEnglishTitlesAsync(Game game, GameAchievementData data, CancellationToken ct)
+        {
+            var npCommIds = (data?.ProviderGameKey ?? string.Empty)
+                .Split(new[] { '+' }, StringSplitOptions.RemoveEmptyEntries);
+            var trophyFolder = npCommIds.Length == 0 ? null : GetTrophyFolder(game);
+            if (string.IsNullOrWhiteSpace(trophyFolder))
+            {
+                return Task.FromResult<IList<AchievementDetail>>(null);
+            }
+
+            var isCollection = npCommIds.Length > 1;
+            var rows = new List<AchievementDetail>();
+            foreach (var npCommId in npCommIds)
+            {
+                ct.ThrowIfCancellationRequested();
+                var trophies = TrophyConfParser.ParseEnglishTrophyDefinitions(
+                    Path.Combine(trophyFolder, npCommId, "TROPCONF.SFM"),
+                    _logger);
+                if (trophies == null)
+                {
+                    return Task.FromResult<IList<AchievementDetail>>(null);
+                }
+
+                rows.AddRange(trophies.Select(trophy => new AchievementDetail
+                {
+                    ApiName = isCollection ? $"{npCommId}:{trophy.Id}" : trophy.Id.ToString(),
+                    DisplayName = trophy.Name,
+                    Description = trophy.Description
+                }));
+            }
+
+            return Task.FromResult<IList<AchievementDetail>>(rows);
         }
 
         public bool IsAuthenticated

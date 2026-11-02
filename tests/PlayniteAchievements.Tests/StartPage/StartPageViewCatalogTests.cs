@@ -22,7 +22,6 @@ namespace PlayniteAchievements.Tests.StartPage
             for (var i = 0; i < showcase.Count; i++)
             {
                 Assert.AreEqual(showcase[i].NameKey, visible[i].NameKey);
-                Assert.AreEqual(showcase[i].AllowMultipleInstances, visible[i].AllowMultipleInstances);
                 Assert.IsTrue(visible[i].HasSettings);
             }
         }

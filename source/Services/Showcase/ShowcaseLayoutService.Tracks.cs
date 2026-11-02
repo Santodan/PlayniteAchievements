@@ -63,18 +63,22 @@ namespace PlayniteAchievements.Services.Showcase
         /// Inserts an empty track before <paramref name="index"/> (0..count; count appends).
         /// Blocks past the line move over, blocks that straddle it grow by one track so their
         /// widget stays whole, and the new cells nothing covers become empty 1x1 blocks.
+        /// <paramref name="extentPixels"/> is the grid's current width (columns) or height
+        /// (rows); the insert is refused when it would leave a track narrower than
+        /// <see cref="MinTrackPixels"/> (see <see cref="CanInsertTrack"/>).
         /// </summary>
         public static bool TryInsertTrack(
             ShowcaseSettings settings,
             string pageId,
             bool vertical,
-            int index)
+            int index,
+            double extentPixels = 0)
         {
             Normalize(settings);
             var page = FindPage(settings, pageId);
             var axis = new TrackAxis(vertical);
             var count = page == null ? 0 : axis.Count(page);
-            if (page == null || index < 0 || index > count || count >= MaxTrackCount)
+            if (!CanInsertTrack(page, vertical, index, extentPixels))
             {
                 return false;
             }
@@ -97,7 +101,7 @@ namespace PlayniteAchievements.Services.Showcase
             var weights = axis.Weights(page);
             weights?.Insert(index, weights[index > 0 ? index - 1 : 0]);
             axis.SetCount(page, count + 1);
-            FillTrackGaps(page);
+            NormalizeTrackBlocks(page);
             return IsValidPartition(page.Blocks, page.RowCount, page.ColumnCount);
         }
 
@@ -135,7 +139,7 @@ namespace PlayniteAchievements.Services.Showcase
             }
 
             // Step the survivors aside first, clearing the empty blocks they land on; the cells
-            // those blocks also covered refill as 1x1 empties below.
+            // those blocks also covered are implicit empty cells again.
             foreach (var shift in deletion.Shifts)
             {
                 var block = FindBlock(page, shift.BlockId);
@@ -184,7 +188,7 @@ namespace PlayniteAchievements.Services.Showcase
 
             axis.Weights(page)?.RemoveAt(index);
             axis.SetCount(page, axis.Count(page) - 1);
-            FillTrackGaps(page);
+            NormalizeTrackBlocks(page);
             return IsValidPartition(page.Blocks, page.RowCount, page.ColumnCount);
         }
 
@@ -256,12 +260,14 @@ namespace PlayniteAchievements.Services.Showcase
                        axis.CrossSpan(reference));
         }
 
-        // Covers every cell no block holds with an empty 1x1 block, in row-major order.
-        private static void FillTrackGaps(ShowcasePageSettings page)
+        // Puts the stored blocks back in reading order and drops any that became empty 1x1
+        // blocks; the cells nothing covers are implicit empty blocks.
+        private static void NormalizeTrackBlocks(ShowcasePageSettings page)
         {
             page.Blocks = NormalizeBlocks(
                 page.Blocks,
                 new HashSet<string>(StringComparer.OrdinalIgnoreCase),
+                page.PageId,
                 page.RowCount,
                 page.ColumnCount);
         }

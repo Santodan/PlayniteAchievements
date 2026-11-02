@@ -39,26 +39,15 @@ namespace PlayniteAchievements.Services.Achievements
             _resolveGameData = resolveGameData;
             _notifyUnlocked = notifyUnlocked;
             _logger = logger;
-            OpenEditorRegistry.Closed += OnEditorClosed;
         }
-
-        private readonly HashSet<Guid> _waitingForEditor = new HashSet<Guid>();
 
         /// <summary>
         /// Brings a game held back while its editor was open up to date once it closes. Quietly:
         /// whatever unlock the held write would have announced happened while the user was looking
         /// at the game, and announcing it on close would read as the editor doing it.
         /// </summary>
-        private void OnEditorClosed(Guid gameId)
+        private void CatchUpAfterEditor(Guid gameId)
         {
-            lock (_pendingSync)
-            {
-                if (!_waitingForEditor.Remove(gameId))
-                {
-                    return;
-                }
-            }
-
             try
             {
                 Maintain(gameId, announceUnlocks: false);
@@ -132,17 +121,13 @@ namespace PlayniteAchievements.Services.Achievements
 
             // The open editor saves the definitions from its own rows, which would overwrite this
             // write; the game is brought up to date when the editor closes instead.
-            if (OpenEditorRegistry.IsOpen(gameId))
+            if (OpenEditorRegistry.DeferWhileOpen(gameId, this, () => CatchUpAfterEditor(gameId)))
             {
-                lock (_pendingSync)
-                {
-                    _waitingForEditor.Add(gameId);
-                }
-
                 return;
             }
 
-            var definitions = _store.LoadOrDefault(gameId)?.CustomAchievements;
+            var customData = _store.LoadOrDefault(gameId);
+            var definitions = customData?.CustomAchievements;
             if (definitions == null || definitions.Count == 0)
             {
                 return;
@@ -166,13 +151,34 @@ namespace PlayniteAchievements.Services.Achievements
             }
 
             var gameData = _resolveGameData?.Invoke(gameId);
+
+            // In the order the game shows them, so a capstone filed below is filed in the first
+            // of the main game's categories.
+            var achievements = AchievementOrderHelper.ApplyOrder(
+                gameData?.Achievements ?? new List<AchievementDetail>(),
+                achievement => achievement?.ApiName,
+                gameData?.AchievementOrder);
             var replacement = definitions
                 .Select(definition => definition?.Clone())
                 .Where(definition => definition != null)
                 .ToList();
 
             var announce = new List<CustomAchievementDefinition>();
+            var filings = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
             var changed = false;
+
+            // Capstones the order never names, which authoring before they were placed first left
+            // at the bottom. The order is only written when rows are moved, so one it does not name
+            // is one nobody has placed. The whole-game capstone leads.
+            var ordered = new HashSet<string>(
+                customData.AchievementOrder ?? new List<string>(),
+                StringComparer.OrdinalIgnoreCase);
+            var placeFirst = indexes
+                .Select(index => definitions[index])
+                .OrderBy(definition => definition.IsWholeGameAutoCapstone ? 0 : 1)
+                .Select(definition => CustomAchievementProjectionService.BuildApiName(definition.Id))
+                .Where(apiName => !ordered.Contains(apiName))
+                .ToList();
 
             foreach (var index in indexes)
             {
@@ -183,13 +189,24 @@ namespace PlayniteAchievements.Services.Achievements
                 // unlock. The scope comes from its hydrated row: the definition's category is only
                 // ever the default, while the category the user filed it in lives in the overrides.
                 var derived = AutoCapstoneCalculator.DeriveForCapstone(
-                    gameData?.Achievements,
+                    achievements,
                     apiName,
                     current.IsWholeGameAutoCapstone,
-                    current.Category);
+                    current.Category,
+                    gameData?.AchievementCategoryOrder);
                 if (derived == null)
                 {
                     continue;
+                }
+
+                // A whole-game capstone still in the default category, where capstones authored
+                // before they were filed with the main game were left. Filing one in a category by
+                // hand makes it that category's, so a whole-game one there was never moved.
+                if (current.IsWholeGameAutoCapstone &&
+                    derived.Category != null &&
+                    IsInDefaultCategory(customData, apiName))
+                {
+                    filings[apiName] = derived.Category;
                 }
 
                 var updated = current.Clone();
@@ -197,6 +214,18 @@ namespace PlayniteAchievements.Services.Achievements
                 updated.UnlockTimeUtc = derived.Unlocked ? derived.UnlockTimeUtc : null;
                 updated.GlobalPercentUnlocked = derived.GlobalPercentUnlocked;
                 updated.Rarity = derived.Rarity ?? updated.Rarity;
+
+                // The tags of what it stands for, as its own baseline: a tag the user set on the
+                // capstone itself is an override and still wins over these.
+                updated.Tags = derived.Tags;
+
+                // Capstones authored, or imported, before they carried a kind sat without one beside a
+                // game of kind Base. A kind of their own is left alone.
+                if (derived.CategoryKind != null && CategoryKindHelper.Normalize(current.CategoryKind) == null)
+                {
+                    updated.CategoryKind = derived.CategoryKind;
+                }
+
                 if (!HasChanges(current, updated))
                 {
                     continue;
@@ -214,14 +243,18 @@ namespace PlayniteAchievements.Services.Achievements
                 }
             }
 
-            if (!changed)
+            if (!changed && filings.Count == 0 && placeFirst.Count == 0)
             {
                 return;
             }
 
             // One write for the whole set: each store update fans out a synchronous whole-library
             // recompute, so one per capstone would pay for it several times over.
-            _overridesService.SetCustomAchievements(gameId, replacement);
+            _overridesService.SetCustomAchievements(
+                gameId,
+                replacement,
+                categoryFilings: filings,
+                placeFirst: placeFirst);
 
             if (!announceUnlocks || announce.Count == 0)
             {
@@ -256,12 +289,29 @@ namespace PlayniteAchievements.Services.Achievements
             }
         }
 
+        private static bool IsInDefaultCategory(GameCustomDataFile customData, string apiName)
+        {
+            var overrides = customData?.AchievementOverrides;
+            var category = overrides != null && overrides.TryGetValue(apiName, out var entry)
+                ? entry?.Category
+                : null;
+            return string.Equals(
+                AchievementCategoryHelper.NormalizeCategoryOrDefault(category),
+                AchievementCategoryHelper.DefaultCategoryLabel,
+                StringComparison.OrdinalIgnoreCase);
+        }
+
         private static bool HasChanges(CustomAchievementDefinition current, CustomAchievementDefinition updated)
         {
             return current.Unlocked != updated.Unlocked ||
                    !Nullable.Equals(current.UnlockTimeUtc, updated.UnlockTimeUtc) ||
                    !Nullable.Equals(current.GlobalPercentUnlocked, updated.GlobalPercentUnlocked) ||
-                   !string.Equals(current.Rarity, updated.Rarity, StringComparison.OrdinalIgnoreCase);
+                   !string.Equals(current.Rarity, updated.Rarity, StringComparison.OrdinalIgnoreCase) ||
+                   !string.Equals(current.CategoryKind, updated.CategoryKind, StringComparison.OrdinalIgnoreCase) ||
+                   !string.Equals(
+                       AchievementTagHelper.Normalize(current.Tags),
+                       AchievementTagHelper.Normalize(updated.Tags),
+                       StringComparison.OrdinalIgnoreCase);
         }
 
         /// <summary>

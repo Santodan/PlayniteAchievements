@@ -1,0 +1,295 @@
+<UserControl x:Class="PlayniteAchievements.Views.Controls.AchievementTagListEditor"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:local="clr-namespace:PlayniteAchievements.Views.Controls"
+             xmlns:converters="clr-namespace:PlayniteAchievements.Views.Converters"
+             mc:Ignorable="d"
+             d:DesignHeight="300"
+             d:DesignWidth="700">
+    <!-- DataContext: AchievementTagListViewModel. One row per tag: drag handle, icon, name, color
+         (swatch, hex, Pick, Reset), then Show/Hide, Make Global (a game's own tags) and Remove. -->
+    <UserControl.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceDictionary Source="pack://application:,,,/PlayniteAchievements;component/Resources/CommonResources.xaml"/>
+            </ResourceDictionary.MergedDictionaries>
+            <BooleanToVisibilityConverter x:Key="TagEditorBoolToVisibility"/>
+            <converters:BrushToHexConverter x:Key="TagEditorBrushToHex"/>
+
+            <Style x:Key="TagRowStyle" TargetType="DataGridRow" BasedOn="{StaticResource AchievementRowStyle}">
+                <Setter Property="MinHeight" Value="36"/>
+                <Setter Property="Cursor" Value="Arrow"/>
+            </Style>
+
+            <Style x:Key="TagIconButtonStyle" TargetType="Button" BasedOn="{StaticResource PlayAch.Button.ToolbarIconStyle}">
+                <Setter Property="Margin" Value="4,0"/>
+                <Setter Property="ContentTemplate" Value="{StaticResource PlayAch.ButtonContent.Glyph}"/>
+            </Style>
+
+            <!-- A hidden tag's icon, name and color cells fade, so it reads as hidden at a glance. -->
+            <Style x:Key="TagDimWhenHiddenCellStyle" TargetType="DataGridCell" BasedOn="{StaticResource AchievementCellStyle}">
+                <Style.Triggers>
+                    <DataTrigger Binding="{Binding IsHidden}" Value="True">
+                        <Setter Property="Opacity" Value="{StaticResource PlayAch.Opacity.Placeholder}"/>
+                    </DataTrigger>
+                </Style.Triggers>
+            </Style>
+
+        </ResourceDictionary>
+    </UserControl.Resources>
+
+    <StackPanel>
+        <Grid HorizontalAlignment="Left">
+            <DataGrid x:Name="TagGrid"
+                      Style="{StaticResource PlayAch.DataGrid.BaseStyle}"
+                      ItemsSource="{Binding Rows}"
+                      AutoGenerateColumns="False"
+                      CanUserAddRows="False"
+                      CanUserDeleteRows="False"
+                      CanUserResizeRows="False"
+                      CanUserResizeColumns="False"
+                      CanUserReorderColumns="False"
+                      CanUserSortColumns="False"
+                      SelectionMode="Single"
+                      SelectionUnit="FullRow"
+                      HeadersVisibility="None"
+                      IsReadOnly="False"
+                      GridLinesVisibility="None"
+                      BorderThickness="0"
+                      Background="{DynamicResource PlayAch.Brush.Grid.Background}"
+                      RowBackground="{DynamicResource PlayAch.Brush.Grid.RowBackground}"
+                      Foreground="{DynamicResource PlayAch.Brush.Text}"
+                      CellStyle="{StaticResource AchievementCellStyle}"
+                      RowStyle="{StaticResource TagRowStyle}"
+                      AllowDrop="True">
+                <DataGrid.Columns>
+                    <DataGridTemplateColumn Width="32" MinWidth="32" MaxWidth="32" CanUserResize="False" IsReadOnly="True">
+                        <DataGridTemplateColumn.CellTemplate>
+                            <DataTemplate>
+                                <Border Tag="DragHandle"
+                                        Background="Transparent"
+                                        HorizontalAlignment="Stretch"
+                                        VerticalAlignment="Stretch"
+                                        Cursor="SizeAll">
+                                    <TextBlock Tag="DragHandle"
+                                               Text="☰"
+                                               HorizontalAlignment="Center"
+                                               VerticalAlignment="Center"
+                                               Foreground="{DynamicResource PlayAch.Brush.Text}"
+                                               Opacity="0.65"/>
+                                </Border>
+                            </DataTemplate>
+                        </DataGridTemplateColumn.CellTemplate>
+                    </DataGridTemplateColumn>
+
+                    <!-- An ordinary button like the color's Pick and Reset: the icon when one is set,
+                         a dimmed tag otherwise. -->
+                    <DataGridTemplateColumn Width="Auto" IsReadOnly="True" CellStyle="{StaticResource TagDimWhenHiddenCellStyle}">
+                        <DataGridTemplateColumn.CellTemplate>
+                            <DataTemplate>
+                                <Button Command="{Binding PickIconCommand}"
+                                        ToolTip="{DynamicResource LOCPlayAch_Common_ChooseIcon}"
+                                        MinWidth="58"
+                                        Margin="4,0"
+                                        VerticalAlignment="Center">
+                                    <Grid>
+                                        <local:GlyphIcon Glyph="&#xF004;"
+                                                         FontFamily="{DynamicResource PlayAch.FontFamily.Icon}"
+                                                         Size="16"
+                                                         Foreground="{DynamicResource PlayAch.Brush.Text}"
+                                                         HorizontalAlignment="Center"
+                                                         VerticalAlignment="Center"
+                                                         Opacity="{StaticResource PlayAch.Opacity.Hint}">
+                                            <local:GlyphIcon.Style>
+                                                <Style TargetType="local:GlyphIcon">
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding HasGlyph}" Value="True">
+                                                            <Setter Property="Visibility" Value="Collapsed"/>
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </local:GlyphIcon.Style>
+                                        </local:GlyphIcon>
+                                        <local:GlyphIcon Glyph="{Binding Glyph}"
+                                                         FontFamily="{DynamicResource PlayAch.FontFamily.Icon}"
+                                                         Size="16"
+                                                         Foreground="{DynamicResource PlayAch.Brush.Text}"
+                                                         HorizontalAlignment="Center"
+                                                         VerticalAlignment="Center"
+                                                         Visibility="{Binding HasGlyph, Converter={StaticResource TagEditorBoolToVisibility}}"/>
+                                    </Grid>
+                                </Button>
+                            </DataTemplate>
+                        </DataGridTemplateColumn.CellTemplate>
+                    </DataGridTemplateColumn>
+
+                    <DataGridTemplateColumn Width="Auto" IsReadOnly="True" CellStyle="{StaticResource TagDimWhenHiddenCellStyle}">
+                        <DataGridTemplateColumn.CellTemplate>
+                            <DataTemplate>
+                                <!-- A system tag carries behavior under any name, so its built-in name
+                                     shows as the hint while the box is empty and as the tooltip once
+                                     it is renamed. -->
+                                <Grid Width="220" Margin="4,2" VerticalAlignment="Center">
+                                    <TextBox x:Name="NameInput"
+                                             Text="{Binding Name, UpdateSourceTrigger=LostFocus}"
+                                             ToolTip="{Binding RenamedSystemName}"
+                                             VerticalContentAlignment="Center"
+                                             Padding="6,3"
+                                             KeyDown="CommitOnEnter_KeyDown"/>
+                                    <TextBlock Text="{Binding SystemName}"
+                                               Tag="{Binding Text, ElementName=NameInput}"
+                                               Style="{StaticResource SearchPlaceholderTextStyle}"
+                                               Foreground="{DynamicResource PlayAch.Brush.Text}"
+                                               Opacity="{StaticResource PlayAch.Opacity.Placeholder}"
+                                               IsHitTestVisible="False"
+                                               VerticalAlignment="Center"
+                                               Margin="9,0,0,0"/>
+                                </Grid>
+                            </DataTemplate>
+                        </DataGridTemplateColumn.CellTemplate>
+                    </DataGridTemplateColumn>
+
+                    <!-- Color, laid out like Display > Colors: swatch, hex, Pick, Reset. -->
+                    <DataGridTemplateColumn Width="Auto" IsReadOnly="True" CellStyle="{StaticResource TagDimWhenHiddenCellStyle}">
+                        <DataGridTemplateColumn.CellTemplate>
+                            <DataTemplate>
+                                <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="8,0,4,0">
+                                    <Grid Width="22" Height="22" VerticalAlignment="Center">
+                                        <!-- No color: a tag uses the theme's text color, shown here and as
+                                             the hex box's placeholder. -->
+                                        <Border x:Name="DefaultSwatch"
+                                                Background="{DynamicResource PlayAch.Brush.Text}"
+                                                BorderBrush="{DynamicResource PlayAch.Brush.Border}"
+                                                BorderThickness="{StaticResource PlayAch.Thickness.Border}"/>
+                                        <Border Background="{Binding Brush}"
+                                                BorderBrush="{DynamicResource PlayAch.Brush.Border}"
+                                                BorderThickness="{StaticResource PlayAch.Thickness.Border}"
+                                                Visibility="{Binding HasColor, Converter={StaticResource TagEditorBoolToVisibility}}"/>
+                                    </Grid>
+                                    <!-- Blank means the default color, whose hex shows dimmed. -->
+                                    <Grid Width="90" Margin="8,0,0,0" VerticalAlignment="Center">
+                                        <TextBox x:Name="HexBox"
+                                                 Text="{Binding ColorText, UpdateSourceTrigger=LostFocus}"
+                                                 VerticalContentAlignment="Center"
+                                                 Padding="6,3"
+                                                 KeyDown="CommitOnEnter_KeyDown"/>
+                                        <TextBlock Text="{Binding Background, ElementName=DefaultSwatch, Converter={StaticResource TagEditorBrushToHex}}"
+                                                   Margin="9,0,0,0"
+                                                   VerticalAlignment="Center"
+                                                   IsHitTestVisible="False"
+                                                   Foreground="{DynamicResource PlayAch.Brush.Text}"
+                                                   Opacity="{StaticResource PlayAch.Opacity.Hint}">
+                                            <TextBlock.Style>
+                                                <Style TargetType="TextBlock">
+                                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding Text, ElementName=HexBox}" Value="">
+                                                            <Setter Property="Visibility" Value="Visible"/>
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </TextBlock.Style>
+                                        </TextBlock>
+                                    </Grid>
+                                    <Button Content="{DynamicResource LOCPlayAch_Button_Pick}"
+                                            Command="{Binding PickColorCommand}"
+                                            Margin="8,0,0,0"
+                                            MinWidth="58"/>
+                                    <Button Content="{DynamicResource LOCPlayAch_Common_Reset}"
+                                            Command="{Binding ClearColorCommand}"
+                                            IsEnabled="{Binding HasColor}"
+                                            Margin="8,0,0,0"
+                                            MinWidth="58"/>
+                                </StackPanel>
+                            </DataTemplate>
+                        </DataGridTemplateColumn.CellTemplate>
+                    </DataGridTemplateColumn>
+
+                    <DataGridTemplateColumn Width="Auto" IsReadOnly="True">
+                        <DataGridTemplateColumn.CellTemplate>
+                            <DataTemplate>
+                                <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="4,0">
+                                    <!-- On while the tag is hidden, which shows it only in the Manage
+                                         Achievements editor; drawn like the control bar's Hidden filter.
+                                         The click runs the command and the check only mirrors IsHidden:
+                                         the DataGrid holds a cell's two-way update, so it never saved. -->
+                                    <ToggleButton Content="&#xEF22;"
+                                                  IsChecked="{Binding IsHidden, Mode=OneWay}"
+                                                  Command="{Binding ToggleHiddenCommand}"
+                                                  ToolTip="{DynamicResource LOCPlayAch_Filter_Hidden}"
+                                                  Style="{StaticResource PlayAch.ToggleButton.FilterStyle}"
+                                                  ContentTemplate="{StaticResource PlayAch.ButtonContent.Glyph}"
+                                                  Width="34"
+                                                  MinHeight="30"
+                                                  Padding="0"
+                                                  Margin="4,0"/>
+                                    <Button Content="&#xEF3E;"
+                                            Command="{Binding MakeGlobalCommand}"
+                                            ToolTip="{DynamicResource LOCPlayAch_ManageAchievements_Tags_MakeGlobal}"
+                                            Style="{StaticResource TagIconButtonStyle}"
+                                            Visibility="{Binding CanMakeGlobal, Converter={StaticResource TagEditorBoolToVisibility}}"/>
+                                    <!-- System tags carry behavior, and a game's fetched tags come back with
+                                         its data, so both can be renamed and recolored but not removed; a
+                                         lock stands where Remove would be. -->
+                                    <Button Command="{Binding DeleteCommand}">
+                                        <Button.Style>
+                                            <Style TargetType="Button" BasedOn="{StaticResource TagIconButtonStyle}">
+                                                <Setter Property="Content" Value="&#xEC53;"/>
+                                                <Setter Property="ToolTip" Value="{DynamicResource LOCPlayAch_Common_Remove}"/>
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding IsFetched}" Value="True">
+                                                        <Setter Property="Content" Value="&#xEC61;"/>
+                                                        <Setter Property="ToolTip" Value="{DynamicResource LOCPlayAch_ManageAchievements_Tags_FetchedHint}"/>
+                                                    </DataTrigger>
+                                                    <DataTrigger Binding="{Binding IsSystem}" Value="True">
+                                                        <Setter Property="Content" Value="&#xEC61;"/>
+                                                        <Setter Property="ToolTip" Value="{DynamicResource LOCPlayAch_Common_BuiltInTagHint}"/>
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </Button.Style>
+                                    </Button>
+                                </StackPanel>
+                            </DataTemplate>
+                        </DataGridTemplateColumn.CellTemplate>
+                    </DataGridTemplateColumn>
+                </DataGrid.Columns>
+            </DataGrid>
+
+            <Border x:Name="DropInsertLine"
+                    Height="2"
+                    VerticalAlignment="Top"
+                    HorizontalAlignment="Stretch"
+                    Background="{DynamicResource PlayAch.Brush.Accent}"
+                    Visibility="Collapsed"
+                    IsHitTestVisible="False"
+                    Panel.ZIndex="10"/>
+
+            <Popup x:Name="DragCountPopup"
+                   Placement="AbsolutePoint"
+                   AllowsTransparency="True"
+                   StaysOpen="True"
+                   IsHitTestVisible="False">
+                <Border Background="{StaticResource PlayAch.Brush.DialogBackdrop}"
+                        BorderBrush="{DynamicResource PlayAch.Brush.Accent}"
+                        BorderThickness="{StaticResource PlayAch.Thickness.Border}"
+                        CornerRadius="10"
+                        Padding="8,3">
+                    <TextBlock x:Name="DragCountText"
+                               Foreground="White"
+                               FontWeight="SemiBold"
+                               FontSize="{DynamicResource PlayAch.FontSize.Caption}"/>
+                </Border>
+            </Popup>
+        </Grid>
+
+        <Button Content="{DynamicResource LOCPlayAch_Common_Add}"
+                Command="{Binding AddCommand}"
+                HorizontalAlignment="Left"
+                Padding="{StaticResource PlayAch.Thickness.ButtonPadding}"
+                MinWidth="80"
+                Margin="{StaticResource PlayAch.Thickness.Top.Sm}"/>
+    </StackPanel>
+</UserControl>

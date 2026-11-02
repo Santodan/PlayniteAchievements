@@ -93,14 +93,6 @@
             </StackPanel>
         </Border>
 
-            <Border Style="{StaticResource SectionBorderStyle}" IsEnabled="{Binding Settings.IsEnabled}"
-                    Grid.IsSharedSizeScope="True">
-                <controls:SettingRow Label="{DynamicResource LOCPlayAch_Settings_UseExophaseForMetadata}"
-                                     Hint="{DynamicResource LOCPlayAch_Settings_UseExophaseForMetadata_Help}"
-                                     Margin="0">
-                    <CheckBox IsChecked="{Binding Settings.UseExophaseForRarity, Mode=TwoWay}"/>
-                </controls:SettingRow>
-            </Border>
     </StackPanel>
 </ScrollViewer>
 </settings:ProviderSettingsViewBase>

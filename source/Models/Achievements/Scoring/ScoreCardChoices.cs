@@ -5,9 +5,9 @@ using System.Linq;
 namespace PlayniteAchievements.Models.Achievements.Scoring
 {
     /// <summary>
-    /// The cards a score card picker offers: Collection, Prestige, the always-listed points
-    /// families, and every other family the library last had points for. The library's families
-    /// are published by whichever build last summed the points totals.
+    /// The cards a score card picker offers: Collection, Prestige, and the points families the
+    /// library last had points for. The library's families are published by whichever build last
+    /// summed the points totals.
     /// </summary>
     public static class ScoreCardChoices
     {
@@ -48,7 +48,7 @@ namespace PlayniteAchievements.Models.Achievements.Scoring
             }
 
             var cards = new List<ScoreCardType> { ScoreCardType.Collection, ScoreCardType.Prestige };
-            foreach (var family in PointsFamilies.AlwaysListed.Concat(withPoints))
+            foreach (var family in withPoints)
             {
                 AddDistinct(cards, ScoreCardType.Points(family));
             }
@@ -59,18 +59,6 @@ namespace PlayniteAchievements.Models.Achievements.Scoring
             }
 
             return cards;
-        }
-
-        /// <summary>The families a per-game points picker lists, with <paramref name="current"/> kept.</summary>
-        public static IReadOnlyList<string> BuildFamilies(params string[] current)
-        {
-            return Build()
-                .Where(card => card.IsPoints)
-                .Select(card => card.PointsFamily)
-                .Concat((current ?? Array.Empty<string>()).Select(PointsFamilies.Normalize))
-                .Where(family => family != null)
-                .Distinct(StringComparer.OrdinalIgnoreCase)
-                .ToList();
         }
 
         private static void AddDistinct(List<ScoreCardType> cards, ScoreCardType card)

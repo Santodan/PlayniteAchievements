@@ -30,10 +30,30 @@ namespace PlayniteAchievements.Services.Overview
         public bool UnlockNextPoolBuilt { get; set; }
 
         /// <summary>
+        /// Locked rows per game the pool retained from each ranking. A widget asking for more per
+        /// game than this triggers a rebuild.
+        /// </summary>
+        public int UnlockNextPoolSlice { get; set; }
+
+        /// <summary>
         /// Whether this snapshot was cut to the unlocks an achievement filter keeps, so its
         /// achievement totals count those unlocks only and it holds no locked remainder.
         /// </summary>
         public bool IsAchievementClip { get; set; }
+
+        /// <summary>
+        /// Set when this snapshot's completions count only those finished inside this span
+        /// (see <see cref="OverviewLinkedSnapshots.ClipCompletionsToSpan"/>), with no remainder of
+        /// completions still possible; null when completions are counted whole.
+        /// </summary>
+        public UnlockDaySpan? CompletionSpan { get; set; }
+
+        /// <summary>
+        /// The widget achievement filter this snapshot's achievement totals were counted through
+        /// (see <see cref="OverviewLinkedSnapshots.FilterAchievements"/>); null when every
+        /// achievement counts. A count over the games' tallies applies it too.
+        /// </summary>
+        public Func<Models.Achievements.AchievementTally, bool> TallyFilter { get; set; }
 
         /// <summary>
         /// Every achievement pin (see <see cref="AchievementPinKey"/>) the build considered when it

@@ -73,6 +73,23 @@ namespace PlayniteAchievements.Tests.Services
         }
 
         [TestMethod]
+        public void SelectAchievements_DeepensTheSliceToTheRequestedMaxPerGame()
+        {
+            var achievements = new List<AchievementDetail>();
+            for (var i = 0; i < 100; i++)
+            {
+                achievements.Add(Achievement("locked" + i, order: i, percent: i));
+            }
+
+            var slice = UnlockNextCandidateSelector.SliceFor(30);
+            var selected = UnlockNextCandidateSelector.SelectAchievements(achievements, slice);
+
+            Assert.AreEqual(30, slice);
+            Assert.AreEqual(60, selected.Count, "30 from the order head plus 30 most common, disjoint here");
+            Assert.AreEqual(UnlockNextCandidateSelector.PerGameSlice, UnlockNextCandidateSelector.SliceFor(1));
+        }
+
+        [TestMethod]
         public void SelectAchievements_LeavesRowsWithoutARarityOutOfTheCommonnessSlice()
         {
             var unknown = Achievement("unknown", order: 50, percent: null);

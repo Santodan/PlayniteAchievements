@@ -1,6 +1,9 @@
+using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
+using Playnite.SDK;
 using PlayniteAchievements.Models.Settings;
+using PlayniteAchievements.Views.Converters;
 
 namespace PlayniteAchievements.Views.Settings.Controls
 {
@@ -124,6 +127,48 @@ namespace PlayniteAchievements.Views.Settings.Controls
             editor.SetValue(FriendSummaryOptionsPropertyKey, e.NewValue as FriendSummaryGridOptions);
             editor.SetValue(CategorySummaryOptionsPropertyKey, e.NewValue as CategorySummaryGridOptions);
             editor.SetValue(CommonOptionsPropertyKey, e.NewValue as GridCommonOptions);
+            editor.RebuildControlBarItemRows();
+        }
+
+        /// <summary>
+        /// The grid's control bar items, which the editor lists under Show Control Bar with a
+        /// checkbox each; null or empty lists none.
+        /// </summary>
+        public static readonly DependencyProperty ControlBarEntriesProperty = DependencyProperty.Register(
+            nameof(ControlBarEntries),
+            typeof(System.Collections.Generic.IReadOnlyList<PlayniteAchievements.ViewModels.Items.IGridControlBarEntry>),
+            typeof(GridOptionsEditor),
+            new PropertyMetadata(null, (d, e) => ((GridOptionsEditor)d).RebuildControlBarItemRows()));
+
+        public System.Collections.Generic.IReadOnlyList<PlayniteAchievements.ViewModels.Items.IGridControlBarEntry> ControlBarEntries
+        {
+            get => (System.Collections.Generic.IReadOnlyList<PlayniteAchievements.ViewModels.Items.IGridControlBarEntry>)GetValue(ControlBarEntriesProperty);
+            set => SetValue(ControlBarEntriesProperty, value);
+        }
+
+        private static readonly DependencyPropertyKey ControlBarItemRowsPropertyKey =
+            DependencyProperty.RegisterReadOnly(
+                nameof(ControlBarItemRows),
+                typeof(System.Collections.Generic.IReadOnlyList<ControlBarItemRow>),
+                typeof(GridOptionsEditor),
+                new PropertyMetadata(null));
+
+        /// <summary>One row per control bar item, for the record being edited.</summary>
+        public System.Collections.Generic.IReadOnlyList<ControlBarItemRow> ControlBarItemRows =>
+            (System.Collections.Generic.IReadOnlyList<ControlBarItemRow>)GetValue(ControlBarItemRowsPropertyKey.DependencyProperty);
+
+        private void RebuildControlBarItemRows()
+        {
+            var options = CommonOptions;
+            var entries = ControlBarEntries;
+            SetValue(
+                ControlBarItemRowsPropertyKey,
+                options == null || entries == null
+                    ? null
+                    : entries
+                        .Where(entry => entry != null && !string.IsNullOrWhiteSpace(entry.Id) && !string.IsNullOrWhiteSpace(entry.LabelKey))
+                        .Select(entry => new ControlBarItemRow(options, entry))
+                        .ToList());
         }
 
         public static readonly DependencyProperty HeaderProperty = DependencyProperty.Register(
@@ -187,6 +232,39 @@ namespace PlayniteAchievements.Views.Settings.Controls
             editor.ShowMetadataRows = rows.ShowMetadataRows;
             editor.ShowCompletionGlowRow = rows.ShowCompletionGlowRow;
             editor.ShowGameSortPinOrderChoice = rows.ShowGameSortPinOrderChoice;
+            editor.ShowLibraryGameSortChoices = rows.ShowLibraryGameSortChoices;
+        }
+
+        // The Tags selector's checkable menu. Each toggle reads the record fresh, because the menu
+        // stays open across clicks.
+        private void TagDisplayButton_Click(object sender, RoutedEventArgs e)
+        {
+            if (!(sender is Button button) || button.ContextMenu == null || AchievementOptions == null)
+            {
+                return;
+            }
+
+            var menu = button.ContextMenu;
+            menu.Items.Clear();
+            menu.Items.Add(CreateTagDisplayItem(button, AchievementTagDisplayTextConverter.IconsKey, AchievementTagDisplay.Icons));
+            menu.Items.Add(CreateTagDisplayItem(button, AchievementTagDisplayTextConverter.ColorsKey, AchievementTagDisplay.Colors));
+            MultiSelectMenu.Open(button, menu);
+        }
+
+        private MenuItem CreateTagDisplayItem(Button button, string labelKey, AchievementTagDisplay flag)
+        {
+            return MultiSelectMenu.CreateItem(
+                button,
+                ResourceProvider.GetString(labelKey),
+                (AchievementOptions.TagDisplay & flag) != 0,
+                isChecked =>
+                {
+                    var options = AchievementOptions;
+                    if (options != null)
+                    {
+                        options.TagDisplay = isChecked ? options.TagDisplay | flag : options.TagDisplay & ~flag;
+                    }
+                });
         }
 
         private static DependencyProperty RegisterFlag(string name, bool defaultValue)
@@ -237,5 +315,10 @@ namespace PlayniteAchievements.Views.Settings.Controls
         // order is user-controlled (the showcase pinned-games grid) enable it.
         public static readonly DependencyProperty ShowGameSortPinOrderChoiceProperty = RegisterFlag(nameof(ShowGameSortPinOrderChoice), false);
         public bool ShowGameSortPinOrderChoice { get => (bool)GetValue(ShowGameSortPinOrderChoiceProperty); set => SetValue(ShowGameSortPinOrderChoiceProperty, value); }
+
+        // Offers the date added, release date, playtime and remaining game sort choices, which
+        // read the user's own library and achievement counts.
+        public static readonly DependencyProperty ShowLibraryGameSortChoicesProperty = RegisterFlag(nameof(ShowLibraryGameSortChoices), false);
+        public bool ShowLibraryGameSortChoices { get => (bool)GetValue(ShowLibraryGameSortChoicesProperty); set => SetValue(ShowLibraryGameSortChoicesProperty, value); }
     }
 }

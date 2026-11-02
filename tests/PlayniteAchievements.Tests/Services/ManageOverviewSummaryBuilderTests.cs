@@ -128,7 +128,40 @@ namespace PlayniteAchievements.Tests.Services
             Assert.AreEqual(1, counts["LOCPlayAch_ManageAchievements_Notes_Note"]);
             Assert.AreEqual(1, counts["LOCPlayAch_Common_UnlockTime"]);
             Assert.AreEqual(1, counts["LOCPlayAch_Filter_Hidden"]);
-            Assert.IsFalse(counts.ContainsKey("LOCGameDescriptionTitle"));
+            Assert.IsFalse(counts.ContainsKey("LOCPlayAch_Common_Description"));
+        }
+
+        [TestMethod]
+        public void BuildCustomizationCounts_AutoCapstoneCountsOnlyAsItself()
+        {
+            var autoApiName = CustomAchievementProjectionService.BuildApiName("auto");
+            var data = new GameCustomDataFile
+            {
+                CustomAchievements = new List<CustomAchievementDefinition>
+                {
+                    new CustomAchievementDefinition
+                    {
+                        Id = "auto",
+                        DisplayName = "Platinum",
+                        Description = "Earn them all",
+                        UnlockedIconPath = "p.png",
+                        TrophyType = "platinum",
+                        IsCapstone = true,
+                        IsAutoCapstone = true
+                    }
+                },
+                CapstonesMaterialized = true,
+                Capstones = new List<CapstoneAssignment> { new CapstoneAssignment { ApiName = autoApiName } },
+                AchievementOverrides = new Dictionary<string, AchievementOverride>(StringComparer.OrdinalIgnoreCase)
+                {
+                    [autoApiName] = new AchievementOverride { Note = "n" }
+                }
+            };
+
+            var counts = ToMap(ManageOverviewSummaryBuilder.BuildCustomizationCounts(data));
+
+            Assert.AreEqual(1, counts.Count);
+            Assert.AreEqual(1, counts[ManageOverviewSummaryBuilder.AutoCapstoneLabelKey]);
         }
 
         [TestMethod]
@@ -150,14 +183,14 @@ namespace PlayniteAchievements.Tests.Services
                         IsCapstone = true,
                         Unlocked = true,
                         UnlockTimeUtc = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc),
-                        CategoryType = "Default"
+                        Tags = null
                     },
                     new CustomAchievementDefinition
                     {
                         Id = "two",
                         DisplayName = "Other",
                         Category = "DLC",
-                        CategoryType = "Story",
+                        Tags = "Story",
                         UnlockTimeUtc = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc)
                     }
                 },
@@ -172,14 +205,14 @@ namespace PlayniteAchievements.Tests.Services
             var counts = ToMap(ManageOverviewSummaryBuilder.BuildCustomizationCounts(data));
 
             Assert.AreEqual(2, counts["LOCPlayAch_Column_AchievementName"]);
-            Assert.AreEqual(2, counts["LOCGameDescriptionTitle"]);
+            Assert.AreEqual(2, counts["LOCPlayAch_Common_Description"]);
             Assert.AreEqual(1, counts["LOCPlayAch_Column_Points"]);
             Assert.AreEqual(1, counts["LOCPlayAch_Column_Trophy"]);
             Assert.AreEqual(1, counts["LOCPlayAch_Filter_Hidden"]);
             Assert.AreEqual(1, counts["LOCPlayAch_Dynamic_Capstone"]);
             Assert.AreEqual(1, counts["LOCPlayAch_Common_UnlockTime"], "A locked custom's stored time is not in effect.");
-            Assert.AreEqual(2, counts["LOCCategoryLabel"]);
-            Assert.AreEqual(1, counts[AchievementCustomizationFacetLabels.GetLabelKey(AchievementCustomizationFacet.CategoryType)]);
+            Assert.AreEqual(2, counts["LOCPlayAch_Common_Category"]);
+            Assert.AreEqual(1, counts[AchievementCustomizationFacetLabels.GetLabelKey(AchievementCustomizationFacet.Tags)]);
         }
 
         [TestMethod]

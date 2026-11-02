@@ -57,13 +57,33 @@ namespace PlayniteAchievements.ViewModels.Items
         public List<string> CategoryLabelFilters { get; set; } = new List<string>();
     }
 
-    public abstract class GridControlBarItem : PlayniteAchievements.Common.ObservableObject
+    /// <summary>
+    /// A control bar entry a widget can show or hide on its own: the search box or an item.
+    /// <see cref="Id"/> names its visibility option; <see cref="LabelKey"/> labels its row in
+    /// the widget settings.
+    /// </summary>
+    public interface IGridControlBarEntry
+    {
+        string Id { get; }
+
+        string LabelKey { get; }
+
+        /// <summary>Resets the entry to applying no filter: no text, no selection, no range.</summary>
+        void ClearSelection();
+    }
+
+    public abstract class GridControlBarItem : PlayniteAchievements.Common.ObservableObject, IGridControlBarEntry
     {
         private bool _isVisible = true;
         private bool _autoHideWhenUnavailable = true;
         private double _width = double.NaN;
         private double _minWidth = 0d;
         private string _toolTip;
+
+        /// <summary>Null for an item no widget shows or hides on its own.</summary>
+        public string Id { get; set; }
+
+        public string LabelKey { get; set; }
 
         public bool IsVisible
         {
@@ -115,10 +135,15 @@ namespace PlayniteAchievements.ViewModels.Items
             OnPropertyChanged(nameof(EffectiveIsVisible));
         }
 
+        /// <summary>Resets the item to applying no filter; items that filter nothing do nothing.</summary>
+        public virtual void ClearSelection()
+        {
+        }
+
         protected virtual bool HasAvailableAction => true;
     }
 
-    public sealed class GridSearchControl : PlayniteAchievements.Common.ObservableObject
+    public sealed class GridSearchControl : PlayniteAchievements.Common.ObservableObject, IGridControlBarEntry
     {
         private readonly Func<string> _getText;
         private readonly Action<string> _setText;
@@ -167,6 +192,10 @@ namespace PlayniteAchievements.ViewModels.Items
 
         public string Placeholder { get; }
 
+        public string Id { get; set; }
+
+        public string LabelKey { get; set; }
+
         public double MinWidth
         {
             get => _minWidth;
@@ -191,6 +220,8 @@ namespace PlayniteAchievements.ViewModels.Items
         {
             OnPropertyChanged(nameof(Text));
         }
+
+        public void ClearSelection() => Clear();
 
         internal static void Subscribe(INotifyPropertyChanged source, string propertyName, Action refresh)
         {
@@ -321,11 +352,77 @@ namespace PlayniteAchievements.ViewModels.Items
             return _isMarked?.Invoke(option) == true;
         }
 
+        /// <summary>
+        /// The image resource key of an option's badge, or null for none. When set, the dropdown
+        /// shows each option's badge before its label, and the button shows the picked options'
+        /// badges in place of their names.
+        /// </summary>
+        public Func<string, string> IconKeyOf { get; set; }
+
+        public bool HasIcons => IconKeyOf != null;
+
+        /// <summary>
+        /// The badges of the picked options, in option order; none when any picked option has no
+        /// badge, so the button names them instead of leaving one out.
+        /// </summary>
+        public IReadOnlyList<string> SelectedIconKeys
+        {
+            get
+            {
+                if (IconKeyOf == null)
+                {
+                    return Array.Empty<string>();
+                }
+
+                var keys = (Options ?? Array.Empty<string>())
+                    .Where(IsSelected)
+                    .Select(IconKeyOf)
+                    .ToList();
+                return keys.Any(string.IsNullOrWhiteSpace) ? (IReadOnlyList<string>)Array.Empty<string>() : keys;
+            }
+        }
+
+        /// <summary>Whether the button shows badges rather than text.</summary>
+        public bool ShowsSelectedIcons => SelectedIconKeys.Count > 0;
+
+        /// <summary>The button's text: the selection's names, or nothing while badges stand in for them.</summary>
+        public string ButtonText => ShowsSelectedIcons ? string.Empty : DisplayText;
+
+        /// <summary>The button's tooltip, which names the picked options while badges stand in for them.</summary>
+        public string ButtonToolTip => ShowsSelectedIcons ? DisplayText : ToolTip;
+
+        /// <summary>
+        /// Clears every selection, for a filter that keeps selections its options do not list;
+        /// null unpicks the listed options.
+        /// </summary>
+        public Action ClearAll { get; set; }
+
+        public override void ClearSelection()
+        {
+            if (ClearAll != null)
+            {
+                ClearAll();
+            }
+            else
+            {
+                foreach (var option in (Options ?? Array.Empty<string>()).Where(IsSelected).ToList())
+                {
+                    _setSelection?.Invoke(option, false);
+                }
+            }
+
+            Refresh();
+        }
+
         public override void Refresh()
         {
             OnPropertyChanged(nameof(DisplayText));
             OnPropertyChanged(nameof(Options));
             OnPropertyChanged(nameof(EffectiveIsVisible));
+            OnPropertyChanged(nameof(SelectedIconKeys));
+            OnPropertyChanged(nameof(ShowsSelectedIcons));
+            OnPropertyChanged(nameof(ButtonText));
+            OnPropertyChanged(nameof(ButtonToolTip));
         }
 
         private void Subscribe(INotifyPropertyChanged source, string propertyName)
@@ -390,6 +487,17 @@ namespace PlayniteAchievements.ViewModels.Items
         public GridToggleFilterIcon Icon { get; }
 
         protected override bool HasAvailableAction => (_getIsAvailable?.Invoke() ?? true) || !IsChecked;
+
+        /// <summary>The state that filters nothing, which clearing the toggle restores; null leaves it as is.</summary>
+        public bool? ClearedValue { get; set; }
+
+        public override void ClearSelection()
+        {
+            if (ClearedValue.HasValue)
+            {
+                IsChecked = ClearedValue.Value;
+            }
+        }
 
         public bool IsChecked
         {
@@ -541,6 +649,12 @@ namespace PlayniteAchievements.ViewModels.Items
             }
         }
 
+        public override void ClearSelection()
+        {
+            _set?.Invoke(null, null);
+            Refresh();
+        }
+
         public bool HasFrom => From.HasValue;
 
         public bool HasTo => To.HasValue;
@@ -661,6 +775,18 @@ namespace PlayniteAchievements.ViewModels.Items
         public void OnClosed()
         {
             _closed?.Invoke();
+        }
+
+        public override void ClearSelection()
+        {
+            foreach (var group in (Groups ?? new ObservableCollection<ProviderFilterGroup>())
+                         .Where(group => group?.HasAnySelected == true)
+                         .ToList())
+            {
+                group.SetAll(false);
+            }
+
+            Refresh();
         }
 
         public override void Refresh()

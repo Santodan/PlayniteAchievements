@@ -102,9 +102,12 @@ namespace PlayniteAchievements.Tests.Services
         }
 
         [TestMethod]
-        public void PlanNestMoves_MatchesCaseInsensitively()
+        public void PlanNestMoves_MatchesByExactCase()
         {
-            var moves = CategoryNestPlanner.PlanNestMoves(Snapshot, new[] { "d", "D" }, "e");
+            // "d" and "e" are not categories here; only "D" and "E" are.
+            Assert.AreEqual(0, CategoryNestPlanner.PlanNestMoves(Snapshot, new[] { "d" }, "E").Count);
+
+            var moves = CategoryNestPlanner.PlanNestMoves(Snapshot, new[] { "d", "D" }, "E");
 
             Assert.AreEqual(1, moves.Count);
             Assert.AreEqual("E::D", moves[0].Value);

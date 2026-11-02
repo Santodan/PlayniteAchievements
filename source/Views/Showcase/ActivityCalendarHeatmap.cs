@@ -8,6 +8,7 @@ using System.Windows.Controls.Primitives;
 using System.Windows.Documents;
 using System.Windows.Input;
 using System.Windows.Media;
+using PlayniteAchievements.Common;
 using PlayniteAchievements.ViewModels.Showcase.Widgets;
 
 namespace PlayniteAchievements.Views.Showcase
@@ -84,6 +85,23 @@ namespace PlayniteAchievements.Views.Showcase
         {
             get => (bool)GetValue(ShowMonthLabelsProperty);
             set => SetValue(ShowMonthLabelsProperty, value);
+        }
+
+        /// <summary>The color the intensity ramp is built from; null uses the theme accent.</summary>
+        public static readonly DependencyProperty CellColorProperty =
+            DependencyProperty.Register(
+                nameof(CellColor),
+                typeof(Brush),
+                typeof(ActivityCalendarHeatmap),
+                new FrameworkPropertyMetadata(
+                    null,
+                    FrameworkPropertyMetadataOptions.AffectsRender,
+                    (d, __) => ((ActivityCalendarHeatmap)d)._intensityBrushes = null));
+
+        public Brush CellColor
+        {
+            get => (Brush)GetValue(CellColorProperty);
+            set => SetValue(CellColorProperty, value);
         }
 
         /// <summary>
@@ -334,7 +352,7 @@ namespace PlayniteAchievements.Views.Showcase
             {
                 text = new FormattedText(
                     label,
-                    CultureInfo.CurrentCulture,
+                    FormattingCulture.Current,
                     FlowDirection.LeftToRight,
                     typeface,
                     size,
@@ -381,11 +399,9 @@ namespace PlayniteAchievements.Views.Showcase
             }
 
             _monthLabels.Clear();
-            var accent = TryFindResource("PlayAch.Brush.Accent") as Brush ?? Brushes.SteelBlue;
-            _emptyBrush = TryFindResource("PlayAch.Brush.Overlay.Tint.08") as Brush ??
-                new SolidColorBrush(Color.FromArgb(0x14, 0xFF, 0xFF, 0xFF));
+            _emptyBrush = ResolveEmptyBrush(this);
             _textBrush = TryFindResource("PlayAch.Brush.Text") as Brush ?? Brushes.Gray;
-            _intensityBrushes = BuildIntensityBrushes(accent);
+            _intensityBrushes = BuildIntensityBrushes(this, CellColor);
             // The text brush contrasts both the empty tint and every accent intensity, so the
             // outline stays visible on any cell in either theme.
             _hoverPen = new Pen(_textBrush, 1);
@@ -753,8 +769,20 @@ namespace PlayniteAchievements.Views.Showcase
             }
         }
 
-        private static Brush[] BuildIntensityBrushes(Brush accent)
+        /// <summary>The level-0 (no unlocks) cell brush from the theme.</summary>
+        internal static Brush ResolveEmptyBrush(FrameworkElement owner)
         {
+            return owner.TryFindResource("PlayAch.Brush.Overlay.Tint.08") as Brush ??
+                new SolidColorBrush(Color.FromArgb(0x14, 0xFF, 0xFF, 0xFF));
+        }
+
+        /// <summary>
+        /// The level 1-4 cell brushes: <paramref name="cellColor"/>, or the theme accent when it
+        /// is null, at the ramp's opacities. Shared with the legend so both draw the same colors.
+        /// </summary>
+        internal static Brush[] BuildIntensityBrushes(FrameworkElement owner, Brush cellColor)
+        {
+            var accent = cellColor ?? owner.TryFindResource("PlayAch.Brush.Accent") as Brush ?? Brushes.SteelBlue;
             var brushes = new Brush[IntensityOpacity.Length];
             var solid = accent as SolidColorBrush;
             for (var index = 0; index < IntensityOpacity.Length; index++)
@@ -877,12 +905,88 @@ namespace PlayniteAchievements.Views.Showcase
             {
                 yield return new FormattedText(
                     labels[index] ?? string.Empty,
-                    CultureInfo.CurrentCulture,
+                    FormattingCulture.Current,
                     FlowDirection.LeftToRight,
                     typeface,
                     metrics.LabelFontSize,
                     textBrush,
                     pixelsPerDip);
+            }
+        }
+    }
+
+    /// <summary>
+    /// The Less-to-More legend's five swatches, drawn from the heatmap's own brushes so a custom
+    /// cell color and an appearance change recolor both alike.
+    /// </summary>
+    public sealed class ActivityCalendarLegendSwatches : FrameworkElement
+    {
+        private const double SwatchSize = 10;
+        private const double SwatchMargin = 1;
+        private const double SwatchCornerRadius = 2;
+
+        public static readonly DependencyProperty CellColorProperty =
+            DependencyProperty.Register(
+                nameof(CellColor),
+                typeof(Brush),
+                typeof(ActivityCalendarLegendSwatches),
+                new FrameworkPropertyMetadata(null, FrameworkPropertyMetadataOptions.AffectsRender));
+
+        /// <summary>Matches <see cref="ActivityCalendarHeatmap.CellColor"/>; null uses the theme accent.</summary>
+        public Brush CellColor
+        {
+            get => (Brush)GetValue(CellColorProperty);
+            set => SetValue(CellColorProperty, value);
+        }
+
+        private bool _appearanceHooked;
+
+        public ActivityCalendarLegendSwatches()
+        {
+            // Same guard as the heatmap: Loaded can re-fire without an intervening Unloaded.
+            Loaded += (_, __) =>
+            {
+                if (!_appearanceHooked)
+                {
+                    _appearanceHooked = true;
+                    PlayniteAchievements.Models.Achievements.RarityAppearanceHelper
+                        .AppearanceChanged += OnAppearanceChanged;
+                }
+            };
+            Unloaded += (_, __) =>
+            {
+                if (_appearanceHooked)
+                {
+                    _appearanceHooked = false;
+                    PlayniteAchievements.Models.Achievements.RarityAppearanceHelper
+                        .AppearanceChanged -= OnAppearanceChanged;
+                }
+            };
+        }
+
+        private void OnAppearanceChanged(object sender, EventArgs e) => InvalidateVisual();
+
+        protected override Size MeasureOverride(Size availableSize)
+        {
+            var box = SwatchSize + (2 * SwatchMargin);
+            return new Size(5 * box, box);
+        }
+
+        protected override void OnRender(DrawingContext drawingContext)
+        {
+            var intensityBrushes = ActivityCalendarHeatmap.BuildIntensityBrushes(this, CellColor);
+            var box = SwatchSize + (2 * SwatchMargin);
+            for (var level = 0; level <= intensityBrushes.Length; level++)
+            {
+                var brush = level == 0
+                    ? ActivityCalendarHeatmap.ResolveEmptyBrush(this)
+                    : intensityBrushes[level - 1];
+                drawingContext.DrawRoundedRectangle(
+                    brush,
+                    null,
+                    new Rect((level * box) + SwatchMargin, SwatchMargin, SwatchSize, SwatchSize),
+                    SwatchCornerRadius,
+                    SwatchCornerRadius);
             }
         }
     }

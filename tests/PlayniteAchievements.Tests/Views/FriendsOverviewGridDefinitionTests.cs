@@ -56,7 +56,7 @@ namespace PlayniteAchievements.Tests.Views
                 "Header=\"{DynamicResource LOCPlayAch_Column_Owned}\"",
                 "SortMemberPath=\"Owned\"",
                 "CellStyle=\"{StaticResource AchievementStatusCellStyle}\"",
-                "Text=\"{Binding}\" Opacity=\"0\"",
+                "helpers:DataGridColumnLayoutService.IsHeaderTextHidden=\"True\"",
                 "Visibility=\"{Binding Owned, Converter={StaticResource BooleanToVisibilityConverter}}",
                 "Data=\"{StaticResource GeoCheck}\"",
                 "Stroke=\"{DynamicResource PlayAch.Brush.Glyph}\"");
@@ -149,11 +149,11 @@ namespace PlayniteAchievements.Tests.Views
 
             AssertContainsAll(
                 builder,
-                "GameName = presentation.DisplayName ?? gameData.GameName ?? \"Unknown\"",
+                "GameName = presentation.DisplayName ?? gameData.GameName ?? ResourceProvider.GetString(\"LOCPlayAch_Common_Unknown\")",
                 "SortingName = presentation.SortingName ?? presentation.DisplayName ?? gameData.GameName ?? \"Unknown\"");
             AssertContainsAll(
                 overview,
-                "GameName = presentation.DisplayName ?? game.GameName ?? \"Unknown\"",
+                "GameName = presentation.DisplayName ?? game.GameName ?? ResourceProvider.GetString(\"LOCPlayAch_Common_Unknown\")",
                 "SortingName = presentation.SortingName ?? presentation.DisplayName ?? game.GameName ?? \"Unknown\"");
         }
 
@@ -252,7 +252,7 @@ namespace PlayniteAchievements.Tests.Views
                 xaml,
                 "x:Name=\"OverviewSubViewButton\"",
                 "x:Name=\"FriendsSubViewButton\"",
-                "LOCOverviewLabel",
+                "LOCPlayAch_Common_Overview",
                 "LOCPlayAch_Settings_Friends",
                 "ActiveRefreshHeader.RefreshModeSelectionText",
                 "ActiveRefreshHeader.RefreshOrCancelCommand",

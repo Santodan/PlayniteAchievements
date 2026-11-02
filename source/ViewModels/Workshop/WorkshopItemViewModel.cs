@@ -245,7 +245,7 @@ namespace PlayniteAchievements.ViewModels.Workshop
             switch (kind)
             {
                 case WorkshopItemKind.Colors: return ResourceProvider.GetString("LOCPlayAch_Workshop_Kind_Colors");
-                case WorkshopItemKind.NotificationStyle: return ResourceProvider.GetString("LOCNotifications");
+                case WorkshopItemKind.NotificationStyle: return ResourceProvider.GetString("LOCPlayAch_Common_Notifications");
                 case WorkshopItemKind.ScreenshotFrame: return ResourceProvider.GetString("LOCPlayAch_Workshop_Kind_ScreenshotFrame");
                 case WorkshopItemKind.ShowcasePage: return ResourceProvider.GetString("LOCPlayAch_Workshop_Kind_ShowcasePage");
                 case WorkshopItemKind.UnlockSounds: return ResourceProvider.GetString("LOCPlayAch_Workshop_Share_Sounds");
@@ -262,13 +262,15 @@ namespace PlayniteAchievements.ViewModels.Workshop
             }
 
             var parts = new List<string>();
-            void Count(string key, string label)
+            void Count(string key, string labelKey)
             {
                 var token = contents[key];
                 if (token == null)
                 {
                     return;
                 }
+
+                var label = ResourceProvider.GetString(labelKey);
 
                 if (token.Type == JTokenType.Integer && token.Value<int>() > 0)
                 {
@@ -283,13 +285,14 @@ namespace PlayniteAchievements.ViewModels.Workshop
             switch (kind)
             {
                 case WorkshopItemKind.GameCustomData:
-                    Count("achievementIcons", "Icons");
-                    Count("customAchievements", "Custom achievements");
-                    Count("categories", "Categories");
-                    Count("capstones", "Capstones");
-                    Count("achievementOverrides", "Overrides");
-                    Count("notes", "Notes");
-                    Count("achievementOrder", "Order");
+                    Count("achievementIcons", "LOCPlayAch_ManageAchievements_Tab_CustomIcons");
+                    Count("customAchievements", "LOCPlayAch_Workshop_Contents_CustomAchievements");
+                    Count("categories", "LOCPlayAch_ManageAchievements_Tab_Category");
+                    Count("capstones", "LOCPlayAch_Tagging_Area_Capstones");
+                    Count("achievementOverrides", "LOCPlayAch_Workshop_Contents_Overrides");
+                    Count("notes", "LOCPlayAch_Tagging_Area_Notes");
+                    Count("achievementOrder", "LOCPlayAch_ManageAchievements_Tab_AchievementOrder");
+                    Count("metadataLinks", "LOCPlayAch_ManageAchievements_Overview_MetadataLinks");
                     break;
                 case WorkshopItemKind.UnlockSounds:
                     if (contents["slots"] is JArray slots)
@@ -306,19 +309,20 @@ namespace PlayniteAchievements.ViewModels.Workshop
 
                     break;
                 case WorkshopItemKind.ShowcasePage:
-                    Count("widgets", "Widgets");
-                    Count("images", "Images");
+                    Count("widgets", "LOCPlayAch_Workshop_Contents_Widgets");
+                    Count("images", "LOCPlayAch_Workshop_Contents_Images");
                     break;
                 case WorkshopItemKind.Colors:
-                    Count("rarityColors", "Rarity colors");
-                    Count("providerColors", "Provider colors");
-                    Count("resourceOverrides", "Resource overrides");
+                    // The same labels the color set preview gives these groups.
+                    Count("rarityColors", "LOCPlayAch_Column_Rarity");
+                    Count("providerColors", "LOCPlayAch_Settings_Appearance_ProviderColors");
+                    Count("resourceOverrides", "LOCPlayAch_Settings_Appearance_AdvancedResources");
                     break;
                 default:
-                    Count("toastTemplate", "Custom template");
-                    Count("frameTemplate", "Custom frame template");
-                    Count("images", "Images");
-                    Count("kindStyles", "Per-kind styles");
+                    Count("toastTemplate", "LOCPlayAch_Workshop_Contents_CustomTemplate");
+                    Count("frameTemplate", "LOCPlayAch_Workshop_Contents_CustomFrameTemplate");
+                    Count("images", "LOCPlayAch_Workshop_Contents_Images");
+                    Count("kindStyles", "LOCPlayAch_Workshop_Contents_KindStyles");
                     break;
             }
 

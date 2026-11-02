@@ -19,7 +19,7 @@ namespace PlayniteAchievements.Providers.Exophase
     /// Full data provider for Exophase achievement tracking.
     /// Supports automatic game claiming by platform and per-game overrides.
     /// </summary>
-    internal sealed class ExophaseDataProvider : DataProviderBase<ExophaseSettings>, IDataProvider, IProfileLinkProvider, IAchievementPageLinkProvider, IProviderOverride
+    internal sealed class ExophaseDataProvider : DataProviderBase<ExophaseSettings>, IDataProvider, IProfileLinkProvider, IAchievementPageLinkProvider, IProviderOverride, IEnglishTitleSource
     {
         // Optional value: an empty slug means auto-detect via game-name/platform search.
         public ProviderOverrideDescriptor OverrideDescriptor { get; } = ProviderOverrideDescriptor.Text(
@@ -245,12 +245,6 @@ namespace PlayniteAchievements.Providers.Exophase
                 return true;
             }
 
-            // Log why it wasn't capable for debugging
-            LogCapability(
-                game,
-                $"false (Token={platformToken ?? "null"}, " +
-                $"Source={game.Source?.Name ?? "null"}, " +
-                $"Platforms={string.Join(", ", game.Platforms?.Select(p => p.Name) ?? Array.Empty<string>())})");
             return false;
         }
 
@@ -272,6 +266,20 @@ namespace PlayniteAchievements.Providers.Exophase
             }
 
             _logger.Debug($"Exophase IsCapable for '{game.Name}': {verdict}");
+        }
+
+        /// <summary>The refresh's own rows: the award page is loaded without a language path whatever the plugin language.</summary>
+        Task<IList<AchievementDetail>> IEnglishTitleSource.GetEnglishTitlesAsync(Game game, GameAchievementData data, CancellationToken ct)
+        {
+            return Task.FromResult<IList<AchievementDetail>>(data?.Achievements?
+                .Where(achievement => achievement != null)
+                .Select(achievement => new AchievementDetail
+                {
+                    ApiName = achievement.ApiName,
+                    DisplayName = achievement.DisplayName,
+                    Description = achievement.Description
+                })
+                .ToList());
         }
 
         /// <summary>

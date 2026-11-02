@@ -13,6 +13,7 @@ namespace PlayniteAchievements.Services.GameCustomData
     internal sealed class GameCustomDataRepository
     {
         private const string TableName = "GameCustomData";
+        private const string CapstoneArtTableName = "CapstoneArtRecords";
 
         private sealed class GameCustomDataRow
         {
@@ -391,6 +392,128 @@ namespace PlayniteAchievements.Services.GameCustomData
             });
         }
 
+        /// <summary>
+        /// Loads every CapstoneArtRecords row. Returns an empty list when the database file does
+        /// not exist.
+        /// </summary>
+        public IReadOnlyList<CapstoneArtRecordRow> LoadAllCapstoneArtRecords()
+        {
+            return WithDb(
+                createIfMissing: false,
+                db => db.Load<CapstoneArtRecordRow>(
+                        $@"SELECT PlayniteGameId, ApiName, Title, Description, Source, Path, Length, WriteUtc
+                           FROM {CapstoneArtTableName};")
+                    .Where(row => row != null)
+                    .ToList(),
+                new List<CapstoneArtRecordRow>());
+        }
+
+        /// <summary>
+        /// Upserts one game's capstone art record for <paramref name="apiName"/>, or deletes it
+        /// when <paramref name="record"/> is null. The row is keyed by the given game and api name,
+        /// not by the record's own PlayniteGameId and ApiName.
+        /// </summary>
+        public void SetCapstoneArtRecord(Guid playniteGameId, string apiName, CapstoneArtRecordRow record)
+        {
+            if (playniteGameId == Guid.Empty || string.IsNullOrWhiteSpace(apiName))
+            {
+                return;
+            }
+
+            var gameIdText = ToGuidText(playniteGameId);
+            if (record == null)
+            {
+                WithDb(createIfMissing: false, db =>
+                {
+                    db.ExecuteNonQuery(
+                        $"DELETE FROM {CapstoneArtTableName} WHERE PlayniteGameId = ? AND ApiName = ?;",
+                        gameIdText,
+                        apiName);
+                });
+                return;
+            }
+
+            WithDb(createIfMissing: true, db =>
+            {
+                UpsertCapstoneArtRecord(db, gameIdText, apiName, record);
+            });
+        }
+
+        /// <summary>
+        /// Upserts every row in one transaction. Rows without a parseable non-empty PlayniteGameId
+        /// or with a blank ApiName are skipped.
+        /// </summary>
+        public void ImportCapstoneArtRecords(IReadOnlyList<CapstoneArtRecordRow> rows)
+        {
+            var valid = new List<KeyValuePair<string, CapstoneArtRecordRow>>();
+            foreach (var row in rows ?? Array.Empty<CapstoneArtRecordRow>())
+            {
+                if (row == null ||
+                    string.IsNullOrWhiteSpace(row.ApiName) ||
+                    !Guid.TryParse(row.PlayniteGameId, out var gameId) ||
+                    gameId == Guid.Empty)
+                {
+                    continue;
+                }
+
+                valid.Add(new KeyValuePair<string, CapstoneArtRecordRow>(ToGuidText(gameId), row));
+            }
+
+            if (valid.Count == 0)
+            {
+                return;
+            }
+
+            WithDb(createIfMissing: true, db =>
+            {
+                db.RunTransaction(() =>
+                {
+                    foreach (var pair in valid)
+                    {
+                        UpsertCapstoneArtRecord(db, pair.Key, pair.Value.ApiName, pair.Value);
+                    }
+                });
+            });
+        }
+
+        /// <summary>
+        /// Deletes every CapstoneArtRecords row for one game.
+        /// </summary>
+        public void DeleteCapstoneArtRecords(Guid playniteGameId)
+        {
+            if (playniteGameId == Guid.Empty)
+            {
+                return;
+            }
+
+            WithDb(createIfMissing: false, db =>
+            {
+                db.ExecuteNonQuery(
+                    $"DELETE FROM {CapstoneArtTableName} WHERE PlayniteGameId = ?;",
+                    ToGuidText(playniteGameId));
+            });
+        }
+
+        private static void UpsertCapstoneArtRecord(
+            SQLiteDatabase db,
+            string gameIdText,
+            string apiName,
+            CapstoneArtRecordRow record)
+        {
+            db.ExecuteNonQuery(
+                $@"INSERT OR REPLACE INTO {CapstoneArtTableName}
+                       (PlayniteGameId, ApiName, Title, Description, Source, Path, Length, WriteUtc)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?);",
+                gameIdText,
+                apiName,
+                record.Title,
+                record.Description,
+                record.Source,
+                record.Path,
+                record.Length.HasValue ? (object)record.Length.Value : null,
+                record.WriteUtc);
+        }
+
         private bool TryDeserialize(
             Guid playniteGameId,
             string payloadJson,
@@ -515,6 +638,20 @@ namespace PlayniteAchievements.Services.GameCustomData
                     PlayniteGameId TEXT PRIMARY KEY NOT NULL,
                     PayloadJson TEXT NOT NULL,
                     UpdatedUtc TEXT NOT NULL
+                );");
+            // Not part of PayloadJson: portable packages and Workshop exports read the payload
+            // only, so these rows stay local to this database.
+            db.ExecuteNonQuery(
+                $@"CREATE TABLE IF NOT EXISTS {CapstoneArtTableName} (
+                    PlayniteGameId TEXT NOT NULL,
+                    ApiName TEXT NOT NULL COLLATE NOCASE,
+                    Title TEXT NULL,
+                    Description TEXT NULL,
+                    Source TEXT NULL,
+                    Path TEXT NULL,
+                    Length INTEGER NULL,
+                    WriteUtc TEXT NULL,
+                    PRIMARY KEY (PlayniteGameId, ApiName)
                 );");
         }
 

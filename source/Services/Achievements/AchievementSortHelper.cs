@@ -729,8 +729,9 @@ namespace PlayniteAchievements.Services.Achievements
                 "ProviderKey" => ApplyDirection(
                     (a, b) => CompareText(a?.ProviderKey, b?.ProviderKey),
                     direction),
-                "CategoryType" => ApplyDirection(
-                    (a, b) => CompareByCategoryTypeThenUnlock(a, b, scope),
+                "CategoryType" => ApplyDirection(CreateTagCountComparison(scope), direction),
+                "CategoryKind" => ApplyDirection(
+                    (a, b) => CompareByCategoryKindThenUnlock(a, b, scope),
                     direction),
                 "CategoryLabel" => ApplyDirection(
                     (a, b) => CompareByCategoryLabelThenUnlock(a, b, scope),
@@ -996,17 +997,61 @@ namespace PlayniteAchievements.Services.Achievements
                 b?.SortingName ?? b?.GameName);
         }
 
-        private static int CompareByCategoryTypeThenUnlock(
+        /// <summary>
+        /// The Tags column's order: by how many tags an achievement shows, then by the tags
+        /// themselves so equal sets sit together, then by unlock time. Each row's tags resolve
+        /// once per sort, since resolving them on every comparison made sorting large lists lag.
+        /// </summary>
+        private static Comparison<AchievementDisplayItem> CreateTagCountComparison(AchievementSortScope scope)
+        {
+            var keys = new Dictionary<AchievementDisplayItem, KeyValuePair<int, string>>();
+
+            KeyValuePair<int, string> KeyOf(AchievementDisplayItem item)
+            {
+                if (item == null)
+                {
+                    return new KeyValuePair<int, string>(0, string.Empty);
+                }
+
+                if (!keys.TryGetValue(item, out var key))
+                {
+                    var tags = AchievementTagRegistry.ResolveVisible(item.Tags, item.PlayniteGameId);
+                    key = new KeyValuePair<int, string>(
+                        tags.Count,
+                        string.Join(", ", tags.Select(AchievementTagRegistry.GetName)));
+                    keys[item] = key;
+                }
+
+                return key;
+            }
+
+            return (a, b) =>
+            {
+                var keyA = KeyOf(a);
+                var keyB = KeyOf(b);
+                var comparison = keyA.Key.CompareTo(keyB.Key);
+                if (comparison == 0)
+                {
+                    comparison = CompareText(keyA.Value, keyB.Value);
+                }
+
+                return comparison != 0
+                    ? comparison
+                    : CompareByUnlockTime(a, b, ListSortDirection.Ascending, scope);
+            };
+        }
+
+        private static int CompareByCategoryKindThenUnlock(
             AchievementDisplayItem a,
             AchievementDisplayItem b,
             AchievementSortScope scope)
         {
-            var typeComparison = CompareText(
-                AchievementCategoryTypeHelper.ToDisplayText(a?.CategoryType),
-                AchievementCategoryTypeHelper.ToDisplayText(b?.CategoryType));
-            if (typeComparison != 0)
+            var kindComparison = string.CompareOrdinal(
+                CategoryKindHelper.ToSortKey(a?.CategoryKind),
+                CategoryKindHelper.ToSortKey(b?.CategoryKind));
+            if (kindComparison != 0)
             {
-                return typeComparison;
+                return kindComparison;
             }
 
             return CompareByUnlockTime(a, b, ListSortDirection.Ascending, scope);
@@ -1037,9 +1082,9 @@ namespace PlayniteAchievements.Services.Achievements
                 return indexComparison;
             }
 
-            return CompareText(
-                AchievementCategoryTypeHelper.NormalizeCategoryOrDefault(a?.CategoryLabel),
-                AchievementCategoryTypeHelper.NormalizeCategoryOrDefault(b?.CategoryLabel));
+            return CompareCategoryLabel(
+                AchievementCategoryHelper.NormalizeCategoryOrDefault(a?.CategoryLabel),
+                AchievementCategoryHelper.NormalizeCategoryOrDefault(b?.CategoryLabel));
         }
 
         private static int CompareByAchievementNote(
@@ -1294,8 +1339,9 @@ namespace PlayniteAchievements.Services.Achievements
                 gameCoverPath: null);
             item.ProviderKey = detail?.ProviderKey ?? item.ProviderKey;
             item.PointsValue = detail?.ScaledPoints ?? detail?.Points;
-            item.CategoryType = AchievementCategoryTypeHelper.NormalizeOrDefault(detail?.CategoryType);
-            item.CategoryLabel = AchievementCategoryTypeHelper.NormalizeCategoryOrDefault(detail?.Category);
+            item.Tags = AchievementTagHelper.Normalize(detail?.Tags);
+            item.CategoryKind = CategoryKindHelper.Normalize(detail?.CategoryKind);
+            item.CategoryLabel = AchievementCategoryHelper.NormalizeCategoryOrDefault(detail?.Category);
             item.CategoryOrderIndex = detail?.CategoryOrderIndex ?? int.MaxValue;
             return item;
         }
@@ -1397,6 +1443,19 @@ namespace PlayniteAchievements.Services.Achievements
         private static int CompareText(string a, string b)
         {
             return string.Compare(a, b, StringComparison.OrdinalIgnoreCase);
+        }
+
+        /// <summary>
+        /// Category labels are case-sensitive, so labels differing only in case are distinct
+        /// categories: they sort together by their case-insensitive text, then by exact text so
+        /// their relative order is stable.
+        /// </summary>
+        private static int CompareCategoryLabel(string a, string b)
+        {
+            var comparison = string.Compare(a, b, StringComparison.OrdinalIgnoreCase);
+            return comparison != 0
+                ? comparison
+                : string.Compare(a, b, CategoryPathHelper.LabelComparison);
         }
     }
 }

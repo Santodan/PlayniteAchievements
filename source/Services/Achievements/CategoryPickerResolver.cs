@@ -16,28 +16,13 @@ namespace PlayniteAchievements.Services.Achievements
             string leafDisplay,
             string pathDisplay,
             CategoryTreeShape treeShape = null,
-            bool isSelectable = true,
-            bool isCreateNew = false)
+            bool isSelectable = true)
         {
             Label = label;
             LeafDisplay = leafDisplay;
             PathDisplay = pathDisplay;
             TreeShape = treeShape;
             IsSelectable = isSelectable;
-            IsCreateNew = isCreateNew;
-        }
-
-        /// <summary>
-        /// The row that offers to create a category rather than naming one that exists. It carries no
-        /// label: picking it is a request the host answers, and the box puts the previous pick back.
-        /// </summary>
-        public static CategoryPickerOption CreateNewRow(string leafDisplay)
-        {
-            return new CategoryPickerOption(
-                label: null,
-                leafDisplay: leafDisplay,
-                pathDisplay: null,
-                isCreateNew: true);
         }
 
         /// <summary>Storage form - the value written back, never shown.</summary>
@@ -61,12 +46,6 @@ namespace PlayniteAchievements.Services.Achievements
         /// target a caller can resolve to.
         /// </summary>
         public bool IsSelectable { get; }
-
-        /// <summary>
-        /// True for the create-a-category row. It is an action rather than a target, so it never
-        /// resolves to a label and never stays selected.
-        /// </summary>
-        public bool IsCreateNew { get; }
     }
 
     /// <summary>
@@ -124,7 +103,7 @@ namespace PlayniteAchievements.Services.Achievements
             IReadOnlyList<string> preferredOrder = null,
             bool synthesizedAreSelectable = true)
         {
-            var present = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var present = new HashSet<string>(CategoryPathHelper.LabelComparer);
             var normalized = new List<string>();
             foreach (var raw in labels ?? Enumerable.Empty<string>())
             {
@@ -156,8 +135,8 @@ namespace PlayniteAchievements.Services.Achievements
                 var label = ordered[i];
                 options.Add(new CategoryPickerOption(
                     label,
-                    AchievementCategoryTypeHelper.ToCategoryLeafDisplayText(label),
-                    AchievementCategoryTypeHelper.ToCategoryLabelDisplayText(label),
+                    AchievementCategoryHelper.ToCategoryLeafDisplayText(label),
+                    AchievementCategoryHelper.ToCategoryLabelDisplayText(label),
                     shapes?[i],
                     synthesizedAreSelectable || present.Contains(label)));
             }
@@ -170,9 +149,10 @@ namespace PlayniteAchievements.Services.Achievements
         ///
         /// A row the user actually picked wins outright, including when its leaf is ambiguous - it
         /// is the one unambiguous signal available. Otherwise the typed text is matched against the
-        /// existing leaves: exactly one match adopts that category, so typing the name of something
-        /// that already exists targets it instead of creating a second one alongside it. Anything
-        /// else - no match, or several - becomes a new root category.
+        /// existing leaves, case included: exactly one match adopts that category, so typing the
+        /// name of something that already exists targets it instead of creating a second one
+        /// alongside it. Anything else - no match, several, or a name differing only in case -
+        /// becomes a new root category.
         ///
         /// Rows that only carry the tree are not candidates for either route: they are structure,
         /// not categories this picker offers.
@@ -190,8 +170,7 @@ namespace PlayniteAchievements.Services.Achievements
 
             if (pickedOption != null &&
                 pickedOption.IsSelectable &&
-                !pickedOption.IsCreateNew &&
-                string.Equals(pickedOption.LeafDisplay, text, StringComparison.OrdinalIgnoreCase))
+                string.Equals(pickedOption.LeafDisplay, text, CategoryPathHelper.LabelComparison))
             {
                 return pickedOption.Label;
             }
@@ -204,8 +183,7 @@ namespace PlayniteAchievements.Services.Achievements
             var matches = (options ?? new List<CategoryPickerOption>())
                 .Where(option => option != null &&
                     option.IsSelectable &&
-                    !option.IsCreateNew &&
-                    string.Equals(option.LeafDisplay, text, StringComparison.OrdinalIgnoreCase))
+                    string.Equals(option.LeafDisplay, text, CategoryPathHelper.LabelComparison))
                 .ToList();
 
             return matches.Count == 1

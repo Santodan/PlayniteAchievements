@@ -412,10 +412,10 @@ namespace PlayniteAchievements.ViewModels
         {
             switch (source)
             {
-                case UnlockSoundSource.Custom: return "LOCCustomLabel";
+                case UnlockSoundSource.Custom: return "LOCPlayAch_Common_Custom";
                 case UnlockSoundSource.Theme: return "LOCPlayAch_Settings_Style_FireTheme";
-                case UnlockSoundSource.Default: return "LOCDefault";
-                default: return "LOCNone";
+                case UnlockSoundSource.Default: return "LOCPlayAch_Common_Default";
+                default: return "LOCPlayAch_Common_None";
             }
         }
     }

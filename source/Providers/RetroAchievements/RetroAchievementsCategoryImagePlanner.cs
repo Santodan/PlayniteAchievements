@@ -29,7 +29,7 @@ namespace PlayniteAchievements.Providers.RetroAchievements
                 return plan;
             }
 
-            var seenLabels = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var seenLabels = new HashSet<string>(CategoryPathHelper.LabelComparer);
             foreach (var source in sources)
             {
                 var artUrl = NormalizeMediaUrl(source.Info?.ImageIcon);
@@ -40,9 +40,9 @@ namespace PlayniteAchievements.Providers.RetroAchievements
 
                 // Blank labels normalize to the Default category, which the display-side
                 // resolver never serves default art for, so skip them entirely.
-                var label = AchievementCategoryTypeHelper.NormalizeCategory(source.CategoryLabel);
+                var label = AchievementCategoryHelper.NormalizeCategory(source.CategoryLabel);
                 if (label == null ||
-                    string.Equals(label, AchievementCategoryTypeHelper.DefaultCategoryLabel, StringComparison.OrdinalIgnoreCase) ||
+                    string.Equals(label, AchievementCategoryHelper.DefaultCategoryLabel, StringComparison.OrdinalIgnoreCase) ||
                     !seenLabels.Add(label))
                 {
                     continue;

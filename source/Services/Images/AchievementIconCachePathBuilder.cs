@@ -4,6 +4,7 @@ using System.IO;
 using System.Linq;
 using System.Security.Cryptography;
 using System.Text;
+using PlayniteAchievements.Services.Achievements;
 
 namespace PlayniteAchievements.Services.Images
 {
@@ -19,10 +20,12 @@ namespace PlayniteAchievements.Services.Images
         internal const string IconCacheFolderName = "icon_cache";
         internal const string LockedFileNameSuffix = ".locked";
         private const int MaxStemLength = 96;
+        private const int MaxListFolderLength = 48;
         internal const string CustomFolderName = "custom";
         internal const string ModeFolderName = "original";
         internal const string LegacyCompressedModeFolderName = "128";
         internal const string DefaultCategoryFolderName = "category_defaults";
+        internal const string MetadataSourceFolderName = "metadata";
         private static readonly HashSet<string> ReservedFileNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
         {
             "CON",
@@ -196,6 +199,40 @@ namespace PlayniteAchievements.Services.Images
             }
         }
 
+        /// <summary>
+        /// Whether a path names an icon borrowed from a metadata source: a file in a source list's
+        /// shared folder, or in one of the game's own metadata source folders from before lists
+        /// were shared.
+        /// </summary>
+        internal static bool IsMetadataSourceIconPath(string path, string gameId)
+        {
+            if (!IsCachedIconPath(path))
+            {
+                return false;
+            }
+
+            try
+            {
+                var listFolder = Path.GetDirectoryName(path);
+                var sourceFolder = Path.GetDirectoryName(listFolder);
+                var parent = Path.GetDirectoryName(sourceFolder);
+                if (string.Equals(Path.GetFileName(parent), MetadataSourceFolderName, StringComparison.OrdinalIgnoreCase) &&
+                    string.Equals(Path.GetFileName(Path.GetDirectoryName(parent)), IconCacheFolderName, StringComparison.OrdinalIgnoreCase))
+                {
+                    return true;
+                }
+
+                return !string.IsNullOrWhiteSpace(gameId) &&
+                    string.Equals(Path.GetFileName(sourceFolder), MetadataSourceFolderName, StringComparison.OrdinalIgnoreCase) &&
+                    string.Equals(Path.GetFileName(parent), gameId.Trim(), StringComparison.OrdinalIgnoreCase) &&
+                    string.Equals(Path.GetFileName(Path.GetDirectoryName(parent)), IconCacheFolderName, StringComparison.OrdinalIgnoreCase);
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
         public static string BuildCustomRelativePath(
             string gameId,
             string fileStem,
@@ -237,13 +274,13 @@ namespace PlayniteAchievements.Services.Images
         {
             var normalizedLabel = (categoryLabel ?? string.Empty).Trim();
             var stem = SanitizeApiName(normalizedLabel);
-            var suffix = "_" + GetApiNameHashSuffix(normalizedLabel.ToLowerInvariant());
+            var suffix = "_" + GetApiNameHashSuffix(normalizedLabel);
             return TrimStemForSuffix(stem, suffix.Length) + suffix;
         }
 
         public static IReadOnlyDictionary<string, string> BuildCategoryFileStems(IEnumerable<string> categoryLabels)
         {
-            var result = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            var result = new Dictionary<string, string>(CategoryPathHelper.LabelComparer);
             foreach (var label in categoryLabels ?? Array.Empty<string>())
             {
                 if (string.IsNullOrWhiteSpace(label))
@@ -285,18 +322,39 @@ namespace PlayniteAchievements.Services.Images
         // (enrichment download) and the read side (display probe) agree without persisting anything
         // in the database. Lives outside the custom folder so cache clears wipe defaults but keep
         // user files.
+        // Labels are case-sensitive, so the hash covers the label as written: "dlc1" and "DLC1"
+        // get separate files.
         public static string BuildDefaultCategoryRelativePath(
             string gameId,
             string categoryLabel)
+        {
+            var normalizedLabel = (categoryLabel ?? string.Empty).Trim();
+            return BuildDefaultCategoryRelativePath(gameId, normalizedLabel, normalizedLabel);
+        }
+
+        // The path default category art had when its hash covered the lowercased label. Equal to
+        // BuildDefaultCategoryRelativePath for an all-lowercase label; differs once the label has
+        // capitals, and the reader adopts a file found here into the current path.
+        public static string BuildLegacyDefaultCategoryRelativePath(
+            string gameId,
+            string categoryLabel)
+        {
+            var normalizedLabel = (categoryLabel ?? string.Empty).Trim();
+            return BuildDefaultCategoryRelativePath(gameId, normalizedLabel, normalizedLabel.ToLowerInvariant());
+        }
+
+        private static string BuildDefaultCategoryRelativePath(
+            string gameId,
+            string normalizedLabel,
+            string hashInput)
         {
             if (string.IsNullOrWhiteSpace(gameId))
             {
                 gameId = Guid.Empty.ToString("D");
             }
 
-            var normalizedLabel = (categoryLabel ?? string.Empty).Trim();
             var stem = SanitizeSegment(normalizedLabel);
-            var suffix = "_" + GetApiNameHashSuffix(normalizedLabel.ToLowerInvariant());
+            var suffix = "_" + GetApiNameHashSuffix(hashInput);
             var fileName = "category_" + TrimStemForSuffix(stem, suffix.Length) + suffix + ".jpg";
 
             return Path.Combine(
@@ -304,6 +362,65 @@ namespace PlayniteAchievements.Services.Images
                 gameId.Trim(),
                 DefaultCategoryFolderName,
                 fileName);
+        }
+
+        // Root of the metadata sources' shared list folders, beside the per-game folders.
+        public static string BuildMetadataListsRootRelativePath()
+        {
+            return Path.Combine(IconCacheFolderName, MetadataSourceFolderName);
+        }
+
+        // Folder holding one list's row icons from a metadata source, shared by every game linked
+        // to that list. Named by the source's own list id, percent escapes decoded and kept short
+        // so the icon paths stay within MAX_PATH, with a hash of the raw id, so ids that sanitize
+        // or shorten alike stay apart and no list folder takes a reserved folder name.
+        public static string BuildMetadataListFolderRelativePath(
+            string sourceKey,
+            string listId)
+        {
+            var id = (listId ?? string.Empty).Trim();
+            var suffix = "_" + GetApiNameHashSuffix(id);
+            return Path.Combine(
+                BuildMetadataListsRootRelativePath(),
+                SanitizeSegment(sourceKey),
+                TrimStemForSuffix(SanitizeSegment(UnescapeListId(id)), suffix.Length, MaxListFolderLength) + suffix);
+        }
+
+        // A list id with its percent escapes decoded ("steinsgate-%e7%b7%9a" -> "steinsgate-線");
+        // the id as given when it holds a malformed escape.
+        private static string UnescapeListId(string id)
+        {
+            if (id.IndexOf('%') < 0)
+            {
+                return id;
+            }
+
+            try
+            {
+                return Uri.UnescapeDataString(id);
+            }
+            catch (UriFormatException)
+            {
+                return id;
+            }
+        }
+
+        // A game's own folder of one metadata source's row icons, from before lists were shared;
+        // read only to move its files into the list folders.
+        public static string BuildMetadataSourceFolderRelativePath(
+            string gameId,
+            string sourceKey)
+        {
+            if (string.IsNullOrWhiteSpace(gameId))
+            {
+                gameId = Guid.Empty.ToString("D");
+            }
+
+            return Path.Combine(
+                IconCacheFolderName,
+                gameId.Trim(),
+                MetadataSourceFolderName,
+                SanitizeSegment(sourceKey));
         }
 
         private static string SanitizeApiName(string apiName)
@@ -380,9 +497,9 @@ namespace PlayniteAchievements.Services.Images
             }
         }
 
-        private static string TrimStemForSuffix(string stem, int suffixLength)
+        private static string TrimStemForSuffix(string stem, int suffixLength, int maxStemLength = MaxStemLength)
         {
-            var maxLength = Math.Max(1, MaxStemLength - Math.Max(0, suffixLength));
+            var maxLength = Math.Max(1, maxStemLength - Math.Max(0, suffixLength));
             if (string.IsNullOrWhiteSpace(stem) || stem.Length <= maxLength)
             {
                 return string.IsNullOrWhiteSpace(stem) ? FallbackStem : stem;

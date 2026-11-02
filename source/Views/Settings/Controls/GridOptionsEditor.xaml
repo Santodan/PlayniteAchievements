@@ -5,6 +5,7 @@
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:settings="clr-namespace:PlayniteAchievements.Models.Settings"
+             xmlns:converters="clr-namespace:PlayniteAchievements.Views.Converters"
              mc:Ignorable="d"
              d:DesignHeight="400"
              d:DesignWidth="500">
@@ -14,6 +15,92 @@
                 <ResourceDictionary Source="pack://application:,,,/PlayniteAchievements;component/Resources/SettingsScopedControlStyles.xaml"/>
                 <ResourceDictionary Source="pack://application:,,,/PlayniteAchievements;component/Resources/CommonResources.xaml"/>
             </ResourceDictionary.MergedDictionaries>
+
+            <converters:AchievementTagDisplayTextConverter x:Key="AchievementTagDisplayTextConverter"/>
+
+            <!-- One option row, laid out like the showcase widget settings rows: a semibold label
+                 in the left two fifths, the control in the right three. The header wraps, so a
+                 long label grows only its own row. -->
+            <Style x:Key="OptionRowStyle" TargetType="HeaderedContentControl">
+                <Setter Property="Focusable" Value="False"/>
+                <Setter Property="IsTabStop" Value="False"/>
+                <Setter Property="Margin" Value="{StaticResource PlayAch.Thickness.Bottom.Md}"/>
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="HeaderedContentControl">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="2*"/>
+                                    <ColumnDefinition Width="3*"/>
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Text="{Binding Header, RelativeSource={RelativeSource TemplatedParent}}"
+                                           Margin="0,0,8,0"
+                                           FontWeight="SemiBold"
+                                           TextWrapping="Wrap"
+                                           VerticalAlignment="Center"
+                                           Foreground="{DynamicResource PlayAch.Brush.Text}"/>
+                                <ContentPresenter Grid.Column="1" VerticalAlignment="Center"/>
+                            </Grid>
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
+            </Style>
+
+            <!-- A dropdown row. Its control shares one height with the showcase widget settings'
+                 dropdowns and control bar rows when the editor sits in that dialog, whose panel
+                 is the shared size scope. -->
+            <Style x:Key="OptionChoiceRowStyle" TargetType="HeaderedContentControl" BasedOn="{StaticResource OptionRowStyle}">
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="HeaderedContentControl">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="2*"/>
+                                    <ColumnDefinition Width="3*"/>
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Text="{Binding Header, RelativeSource={RelativeSource TemplatedParent}}"
+                                           Margin="0,0,8,0"
+                                           FontWeight="SemiBold"
+                                           TextWrapping="Wrap"
+                                           VerticalAlignment="Center"
+                                           Foreground="{DynamicResource PlayAch.Brush.Text}"/>
+                                <Grid Grid.Column="1" VerticalAlignment="Center">
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto" SharedSizeGroup="OptionControlRow"/>
+                                    </Grid.RowDefinitions>
+                                    <ContentPresenter/>
+                                </Grid>
+                            </Grid>
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
+            </Style>
+
+            <Style x:Key="OptionCheckBoxStyle" TargetType="CheckBox" BasedOn="{StaticResource PlayAch.CheckBox.BaseStyle}">
+                <Setter Property="HorizontalAlignment" Value="Left"/>
+                <Setter Property="VerticalAlignment" Value="Center"/>
+            </Style>
+
+            <Style x:Key="OptionComboBoxStyle" TargetType="ComboBox" BasedOn="{StaticResource PlayAch.ComboBox.BaseStyle}">
+                <Setter Property="MinHeight" Value="30"/>
+            </Style>
+
+            <Style x:Key="OptionNumberBoxStyle" TargetType="TextBox" BasedOn="{StaticResource PlayAch.TextBox.BaseStyle}">
+                <Setter Property="MinHeight" Value="30"/>
+                <Setter Property="Width" Value="80"/>
+                <Setter Property="DockPanel.Dock" Value="Left"/>
+                <Setter Property="VerticalContentAlignment" Value="Center"/>
+            </Style>
+
+            <!-- The unit after a number box, e.g. "pixels (empty = automatic)": the box keeps a
+                 fixed width and the unit takes the rest of the row. -->
+            <Style x:Key="OptionUnitTextStyle" TargetType="TextBlock">
+                <Setter Property="VerticalAlignment" Value="Center"/>
+                <Setter Property="TextWrapping" Value="Wrap"/>
+                <Setter Property="Margin" Value="{StaticResource PlayAch.Thickness.Left.Sm}"/>
+                <Setter Property="Foreground" Value="{DynamicResource PlayAch.Brush.Text}"/>
+                <Setter Property="Opacity" Value="{StaticResource PlayAch.Opacity.Muted}"/>
+            </Style>
 
             <!-- Collapses a typed row panel when the editor's typed options cast is null. -->
             <Style x:Key="AchievementPanelStyle" TargetType="StackPanel">
@@ -67,206 +154,298 @@
 
         <!-- Achievement-specific leading rows -->
         <StackPanel Style="{StaticResource AchievementPanelStyle}">
-            <CheckBox Content="{DynamicResource LOCPlayAch_UseCoverImages}"
-                      IsChecked="{Binding AchievementOptions.UseCoverImages, ElementName=EditorRoot}"
-                      Visibility="{Binding ShowCoverImagesRow, ElementName=EditorRoot, Converter={StaticResource BoolToVis}}"
-                      Margin="{StaticResource PlayAch.Thickness.Bottom.Sm}"/>
-            <CheckBox Content="{DynamicResource LOCPlayAch_Settings_ShowRarityGlow}"
-                      IsChecked="{Binding AchievementOptions.ShowRarityGlow, ElementName=EditorRoot}"
-                      Visibility="{Binding ShowRarityGlowRow, ElementName=EditorRoot, Converter={StaticResource BoolToVis}}"
-                      Margin="{StaticResource PlayAch.Thickness.Bottom.Sm}"/>
-            <CheckBox Content="{DynamicResource LOCPlayAch_Settings_ColorNamesByRarity}"
-                      IsChecked="{Binding AchievementOptions.ColorNamesByRarity, ElementName=EditorRoot}"
-                      Visibility="{Binding ShowColorNamesRow, ElementName=EditorRoot, Converter={StaticResource BoolToVis}}"
-                      Margin="{StaticResource PlayAch.Thickness.Bottom.Sm}"/>
-            <CheckBox Content="{DynamicResource LOCPlayAch_Settings_ColorRarityTextByRarity}"
-                      IsChecked="{Binding AchievementOptions.ColorRarityColumnsByRarity, ElementName=EditorRoot}"
-                      Visibility="{Binding ShowColorNamesRow, ElementName=EditorRoot, Converter={StaticResource BoolToVis}}"
-                      Margin="{StaticResource PlayAch.Thickness.Bottom.Sm}"/>
+            <HeaderedContentControl Header="{DynamicResource LOCPlayAch_UseCoverImages}"
+                                    Style="{StaticResource OptionRowStyle}"
+                                    Visibility="{Binding ShowCoverImagesRow, ElementName=EditorRoot, Converter={StaticResource BoolToVis}}">
+                <CheckBox Style="{StaticResource OptionCheckBoxStyle}"
+                          IsChecked="{Binding AchievementOptions.UseCoverImages, ElementName=EditorRoot}"/>
+            </HeaderedContentControl>
+            <HeaderedContentControl Header="{DynamicResource LOCPlayAch_Settings_ShowRarityGlow}"
+                                    Style="{StaticResource OptionRowStyle}"
+                                    Visibility="{Binding ShowRarityGlowRow, ElementName=EditorRoot, Converter={StaticResource BoolToVis}}">
+                <CheckBox Style="{StaticResource OptionCheckBoxStyle}"
+                          IsChecked="{Binding AchievementOptions.ShowRarityGlow, ElementName=EditorRoot}"/>
+            </HeaderedContentControl>
+            <!-- Name color, rarity text color, tag display and status color: the grid's own
+                 coloring choices. -->
+            <StackPanel Visibility="{Binding ShowColorNamesRow, ElementName=EditorRoot, Converter={StaticResource BoolToVis}}">
+                <HeaderedContentControl Header="{DynamicResource LOCPlayAch_Settings_NameColor}"
+                                        Style="{StaticResource OptionChoiceRowStyle}">
+                    <ComboBox Style="{StaticResource OptionComboBoxStyle}"
+                              SelectedValue="{Binding AchievementOptions.NameColor, ElementName=EditorRoot, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                              SelectedValuePath="Tag">
+                        <ComboBoxItem Content="{DynamicResource LOCPlayAch_Common_None}" Tag="{x:Static settings:AchievementNameColorSource.None}"/>
+                        <ComboBoxItem Content="{DynamicResource LOCPlayAch_Column_Rarity}" Tag="{x:Static settings:AchievementNameColorSource.Rarity}"/>
+                        <ComboBoxItem Content="{DynamicResource LOCPlayAch_Column_Trophy}" Tag="{x:Static settings:AchievementNameColorSource.Trophy}"/>
+                        <ComboBoxItem Content="{DynamicResource LOCPlayAch_Common_Tag}" Tag="{x:Static settings:AchievementNameColorSource.Tag}"/>
+                    </ComboBox>
+                </HeaderedContentControl>
+                <HeaderedContentControl Header="{DynamicResource LOCPlayAch_Settings_ColorRarityTextByRarity}"
+                                        Style="{StaticResource OptionRowStyle}">
+                    <CheckBox Style="{StaticResource OptionCheckBoxStyle}"
+                              IsChecked="{Binding AchievementOptions.ColorRarityColumnsByRarity, ElementName=EditorRoot}"/>
+                </HeaderedContentControl>
+                <HeaderedContentControl Header="{DynamicResource LOCPlayAch_Common_Tags}"
+                                        Style="{StaticResource OptionChoiceRowStyle}">
+                    <Button x:Name="TagDisplayButton"
+                            Style="{StaticResource AchievementSelectorButtonStyle}"
+                            Content="{Binding AchievementOptions.TagDisplay, ElementName=EditorRoot, Converter={StaticResource AchievementTagDisplayTextConverter}}"
+                            Click="TagDisplayButton_Click"
+                            HorizontalAlignment="Stretch"
+                            MinHeight="30">
+                        <Button.ContextMenu>
+                            <ContextMenu Style="{StaticResource AchievementSelectorContextMenuStyle}"
+                                         ItemContainerStyle="{StaticResource AchievementMultiSelectMenuItemStyle}"/>
+                        </Button.ContextMenu>
+                    </Button>
+                </HeaderedContentControl>
+                <HeaderedContentControl Header="{DynamicResource LOCPlayAch_Settings_StatusColor}"
+                                        Style="{StaticResource OptionChoiceRowStyle}">
+                    <ComboBox Style="{StaticResource OptionComboBoxStyle}"
+                              SelectedValue="{Binding AchievementOptions.StatusColor, ElementName=EditorRoot, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                              SelectedValuePath="Tag">
+                        <ComboBoxItem Content="{DynamicResource LOCPlayAch_Common_None}" Tag="{x:Static settings:AchievementStatusColorMode.None}"/>
+                        <ComboBoxItem Content="{DynamicResource LOCPlayAch_Settings_StatusColor_MissableUnobtainable}" Tag="{x:Static settings:AchievementStatusColorMode.MissableUnobtainable}"/>
+                        <ComboBoxItem Content="{DynamicResource LOCPlayAch_Common_All}" Tag="{x:Static settings:AchievementStatusColorMode.AllTags}"/>
+                    </ComboBox>
+                </HeaderedContentControl>
+            </StackPanel>
         </StackPanel>
 
         <!-- Game-summary-specific leading rows -->
         <StackPanel Style="{StaticResource GameSummaryPanelStyle}">
-            <CheckBox Content="{DynamicResource LOCPlayAch_UseCoverImages}"
-                      IsChecked="{Binding GameSummaryOptions.UseCoverImages, ElementName=EditorRoot}"
-                      Visibility="{Binding ShowCoverImagesRow, ElementName=EditorRoot, Converter={StaticResource BoolToVis}}"
-                      Margin="{StaticResource PlayAch.Thickness.Bottom.Sm}"/>
-            <StackPanel Visibility="{Binding ShowMetadataRows, ElementName=EditorRoot, Converter={StaticResource BoolToVis}}">
-                <TextBlock Text="{DynamicResource LOCPlayAch_Settings_GameMetadataHeader}"
-                           Style="{StaticResource SubSectionHeaderStyle}"
-                           Margin="{StaticResource PlayAch.Thickness.Bottom.Sm}"/>
-                <StackPanel Margin="16,0,0,0">
-                    <CheckBox Content="{DynamicResource LOCPlatformTitle}"
+            <HeaderedContentControl Header="{DynamicResource LOCPlayAch_UseCoverImages}"
+                                    Style="{StaticResource OptionRowStyle}"
+                                    Visibility="{Binding ShowCoverImagesRow, ElementName=EditorRoot, Converter={StaticResource BoolToVis}}">
+                <CheckBox Style="{StaticResource OptionCheckBoxStyle}"
+                          IsChecked="{Binding GameSummaryOptions.UseCoverImages, ElementName=EditorRoot}"/>
+            </HeaderedContentControl>
+            <HeaderedContentControl Header="{DynamicResource LOCPlayAch_Settings_GameMetadataHeader}"
+                                    Style="{StaticResource OptionRowStyle}"
+                                    Visibility="{Binding ShowMetadataRows, ElementName=EditorRoot, Converter={StaticResource BoolToVis}}">
+                <StackPanel>
+                    <CheckBox Content="{DynamicResource LOCPlayAch_Common_Platform}"
+                              Style="{StaticResource OptionCheckBoxStyle}"
                               IsChecked="{Binding GameSummaryOptions.ShowMetadataPlatform, ElementName=EditorRoot}"
-                              Margin="{StaticResource PlayAch.Thickness.Bottom.Sm}"/>
+                              Margin="{StaticResource PlayAch.Thickness.Bottom.Xs}"/>
                     <CheckBox Content="{DynamicResource LOCPlayAch_Common_Label_Playtime}"
+                              Style="{StaticResource OptionCheckBoxStyle}"
                               IsChecked="{Binding GameSummaryOptions.ShowMetadataPlaytime, ElementName=EditorRoot}"
-                              Margin="{StaticResource PlayAch.Thickness.Bottom.Sm}"/>
-                    <CheckBox Content="{DynamicResource LOCRegionLabel}"
+                              Margin="{StaticResource PlayAch.Thickness.Bottom.Xs}"/>
+                    <CheckBox Content="{DynamicResource LOCPlayAch_Common_Region}"
+                              Style="{StaticResource OptionCheckBoxStyle}"
                               IsChecked="{Binding GameSummaryOptions.ShowMetadataRegion, ElementName=EditorRoot}"
-                              Margin="{StaticResource PlayAch.Thickness.Bottom.Sm}"/>
+                              Margin="{StaticResource PlayAch.Thickness.Bottom.Xs}"/>
+                    <CheckBox Content="{DynamicResource LOCPlayAch_Column_Total}"
+                              Style="{StaticResource OptionCheckBoxStyle}"
+                              IsChecked="{Binding GameSummaryOptions.ShowMetadataTotal, ElementName=EditorRoot}"
+                              Margin="{StaticResource PlayAch.Thickness.Bottom.Xs}"/>
+                    <CheckBox Content="{DynamicResource LOCPlayAch_Column_Points}"
+                              Style="{StaticResource OptionCheckBoxStyle}"
+                              IsChecked="{Binding GameSummaryOptions.ShowMetadataPoints, ElementName=EditorRoot}"/>
                 </StackPanel>
-            </StackPanel>
-            <CheckBox Content="{DynamicResource LOCPlayAch_Settings_ShowCompletionGlow}"
-                      IsChecked="{Binding GameSummaryOptions.ShowCompletionGlow, ElementName=EditorRoot}"
-                      Visibility="{Binding ShowCompletionGlowRow, ElementName=EditorRoot, Converter={StaticResource BoolToVis}}"
-                      Margin="{StaticResource PlayAch.Thickness.Bottom.Sm}"/>
+            </HeaderedContentControl>
+            <HeaderedContentControl Header="{DynamicResource LOCPlayAch_Settings_ShowCompletionGlow}"
+                                    Style="{StaticResource OptionRowStyle}"
+                                    Visibility="{Binding ShowCompletionGlowRow, ElementName=EditorRoot, Converter={StaticResource BoolToVis}}">
+                <CheckBox Style="{StaticResource OptionCheckBoxStyle}"
+                          IsChecked="{Binding GameSummaryOptions.ShowCompletionGlow, ElementName=EditorRoot}"/>
+            </HeaderedContentControl>
             <!-- Gated with the completion glow: both decorate a completed game's cover, and
                  every surface that offers one has the Cover column. -->
-            <CheckBox Content="{DynamicResource LOCPlayAch_Settings_ShowCompletionFrame}"
-                      IsChecked="{Binding GameSummaryOptions.ShowCompletionFrame, ElementName=EditorRoot}"
-                      Visibility="{Binding ShowCompletionGlowRow, ElementName=EditorRoot, Converter={StaticResource BoolToVis}}"
-                      Margin="{StaticResource PlayAch.Thickness.Bottom.Sm}"/>
-            <CheckBox Content="{DynamicResource LOCPlayAch_Settings_ColorRarityTextByRarity}"
-                      IsChecked="{Binding GameSummaryOptions.ColorRarityColumnsByRarity, ElementName=EditorRoot}"
-                      Visibility="{Binding ShowColorNamesRow, ElementName=EditorRoot, Converter={StaticResource BoolToVis}}"
-                      Margin="{StaticResource PlayAch.Thickness.Bottom.Sm}"/>
-            <CheckBox Content="{DynamicResource LOCPlayAch_Settings_ShowNameAboveProgress}"
-                      IsChecked="{Binding GameSummaryOptions.ShowNameAboveProgress, ElementName=EditorRoot}"
-                      Margin="{StaticResource PlayAch.Thickness.Bottom.Sm}"/>
-            <CheckBox Content="{DynamicResource LOCPlayAch_Settings_ShowRarityBadgesBelowProgress}"
-                      IsChecked="{Binding GameSummaryOptions.ShowRarityBadgesBelowProgress, ElementName=EditorRoot}"
-                      Margin="{StaticResource PlayAch.Thickness.Bottom.Sm}"/>
+            <HeaderedContentControl Header="{DynamicResource LOCPlayAch_Settings_ShowCompletionFrame}"
+                                    Style="{StaticResource OptionRowStyle}"
+                                    Visibility="{Binding ShowCompletionGlowRow, ElementName=EditorRoot, Converter={StaticResource BoolToVis}}">
+                <CheckBox Style="{StaticResource OptionCheckBoxStyle}"
+                          IsChecked="{Binding GameSummaryOptions.ShowCompletionFrame, ElementName=EditorRoot}"/>
+            </HeaderedContentControl>
+            <HeaderedContentControl Header="{DynamicResource LOCPlayAch_Settings_ColorRarityTextByRarity}"
+                                    Style="{StaticResource OptionRowStyle}"
+                                    Visibility="{Binding ShowColorNamesRow, ElementName=EditorRoot, Converter={StaticResource BoolToVis}}">
+                <CheckBox Style="{StaticResource OptionCheckBoxStyle}"
+                          IsChecked="{Binding GameSummaryOptions.ColorRarityColumnsByRarity, ElementName=EditorRoot}"/>
+            </HeaderedContentControl>
+            <HeaderedContentControl Header="{DynamicResource LOCPlayAch_Settings_ShowNameAboveProgress}"
+                                    Style="{StaticResource OptionRowStyle}">
+                <CheckBox Style="{StaticResource OptionCheckBoxStyle}"
+                          IsChecked="{Binding GameSummaryOptions.ShowNameAboveProgress, ElementName=EditorRoot}"/>
+            </HeaderedContentControl>
+            <HeaderedContentControl Header="{DynamicResource LOCPlayAch_Settings_ShowRarityBadgesBelowProgress}"
+                                    Style="{StaticResource OptionRowStyle}">
+                <CheckBox Style="{StaticResource OptionCheckBoxStyle}"
+                          IsChecked="{Binding GameSummaryOptions.ShowRarityBadgesBelowProgress, ElementName=EditorRoot}"/>
+            </HeaderedContentControl>
         </StackPanel>
 
         <!-- Category-summary rows -->
         <StackPanel Style="{StaticResource CategorySummaryPanelStyle}">
-            <CheckBox Content="{DynamicResource LOCPlayAch_Settings_CategoryGridUseCoverImages}"
-                      IsChecked="{Binding CategorySummaryOptions.UseCoverImages, ElementName=EditorRoot}"
-                      Visibility="{Binding ShowCoverImagesRow, ElementName=EditorRoot, Converter={StaticResource BoolToVis}}"
-                      Margin="{StaticResource PlayAch.Thickness.Bottom.Sm}"/>
-            <CheckBox Content="{DynamicResource LOCPlayAch_Settings_ShowAchievementGridColumnHeaders}"
-                      IsChecked="{Binding CategorySummaryOptions.ShowColumnHeaders, ElementName=EditorRoot}"
-                      Visibility="{Binding ShowColumnHeadersRow, ElementName=EditorRoot, Converter={StaticResource BoolToVis}}"
-                      Margin="{StaticResource PlayAch.Thickness.Bottom.Sm}"/>
-            <CheckBox Content="{DynamicResource LOCPlayAch_Settings_ShowCompletionGlow}"
-                      IsChecked="{Binding CategorySummaryOptions.ShowCompletionGlow, ElementName=EditorRoot}"
-                      Visibility="{Binding ShowCompletionGlowRow, ElementName=EditorRoot, Converter={StaticResource BoolToVis}}"
-                      Margin="{StaticResource PlayAch.Thickness.Bottom.Sm}"/>
-            <CheckBox Content="{DynamicResource LOCPlayAch_Settings_ColorRarityTextByRarity}"
-                      IsChecked="{Binding CategorySummaryOptions.ColorRarityColumnsByRarity, ElementName=EditorRoot}"
-                      Visibility="{Binding ShowColorNamesRow, ElementName=EditorRoot, Converter={StaticResource BoolToVis}}"
-                      Margin="{StaticResource PlayAch.Thickness.Bottom.Sm}"/>
-            <CheckBox Content="{DynamicResource LOCPlayAch_Settings_ShowNameAboveProgress}"
-                      IsChecked="{Binding CategorySummaryOptions.ShowNameAboveProgress, ElementName=EditorRoot}"
-                      Margin="{StaticResource PlayAch.Thickness.Bottom.Sm}"/>
-            <CheckBox Content="{DynamicResource LOCPlayAch_Settings_ShowRarityBadgesBelowProgress}"
-                      IsChecked="{Binding CategorySummaryOptions.ShowRarityBadgesBelowProgress, ElementName=EditorRoot}"
-                      Margin="{StaticResource PlayAch.Thickness.Bottom.Sm}"/>
-            <StackPanel Orientation="Horizontal"
-                        Visibility="{Binding ShowRowHeightRow, ElementName=EditorRoot, Converter={StaticResource BoolToVis}}"
-                        Margin="{StaticResource PlayAch.Thickness.Bottom.Sm}">
-                <TextBlock Text="{DynamicResource LOCPlayAch_Settings_GridRowHeight}"
-                           VerticalAlignment="Center"/>
-                <TextBox Text="{Binding CategorySummaryOptions.RowHeight, ElementName=EditorRoot, UpdateSourceTrigger=LostFocus, Converter={StaticResource NullableDoubleTextConverter}, ConverterParameter=32}"
-                         Width="80" Margin="{StaticResource PlayAch.Thickness.Left.Sm}"/>
-                <TextBlock Text="{DynamicResource LOCPlayAch_Settings_PixelsAutomaticUnit}"
-                           VerticalAlignment="Center" Margin="{StaticResource PlayAch.Thickness.Left.Xs}" Opacity="{StaticResource PlayAch.Opacity.Muted}"/>
-            </StackPanel>
+            <HeaderedContentControl Header="{DynamicResource LOCPlayAch_Settings_CategoryGridUseCoverImages}"
+                                    Style="{StaticResource OptionRowStyle}"
+                                    Visibility="{Binding ShowCoverImagesRow, ElementName=EditorRoot, Converter={StaticResource BoolToVis}}">
+                <CheckBox Style="{StaticResource OptionCheckBoxStyle}"
+                          IsChecked="{Binding CategorySummaryOptions.UseCoverImages, ElementName=EditorRoot}"/>
+            </HeaderedContentControl>
+            <!-- Category rows have no platform, playtime or region; only the counts apply. -->
+            <HeaderedContentControl Header="{DynamicResource LOCPlayAch_Settings_GameMetadataHeader}"
+                                    Style="{StaticResource OptionRowStyle}"
+                                    Visibility="{Binding ShowMetadataRows, ElementName=EditorRoot, Converter={StaticResource BoolToVis}}">
+                <StackPanel>
+                    <CheckBox Content="{DynamicResource LOCPlayAch_Column_Total}"
+                              Style="{StaticResource OptionCheckBoxStyle}"
+                              IsChecked="{Binding CategorySummaryOptions.ShowMetadataTotal, ElementName=EditorRoot}"
+                              Margin="{StaticResource PlayAch.Thickness.Bottom.Xs}"/>
+                    <CheckBox Content="{DynamicResource LOCPlayAch_Column_Points}"
+                              Style="{StaticResource OptionCheckBoxStyle}"
+                              IsChecked="{Binding CategorySummaryOptions.ShowMetadataPoints, ElementName=EditorRoot}"/>
+                </StackPanel>
+            </HeaderedContentControl>
+            <HeaderedContentControl Header="{DynamicResource LOCPlayAch_Settings_ShowAchievementGridColumnHeaders}"
+                                    Style="{StaticResource OptionRowStyle}"
+                                    Visibility="{Binding ShowColumnHeadersRow, ElementName=EditorRoot, Converter={StaticResource BoolToVis}}">
+                <CheckBox Style="{StaticResource OptionCheckBoxStyle}"
+                          IsChecked="{Binding CategorySummaryOptions.ShowColumnHeaders, ElementName=EditorRoot}"/>
+            </HeaderedContentControl>
+            <HeaderedContentControl Header="{DynamicResource LOCPlayAch_Settings_ShowCompletionGlow}"
+                                    Style="{StaticResource OptionRowStyle}"
+                                    Visibility="{Binding ShowCompletionGlowRow, ElementName=EditorRoot, Converter={StaticResource BoolToVis}}">
+                <CheckBox Style="{StaticResource OptionCheckBoxStyle}"
+                          IsChecked="{Binding CategorySummaryOptions.ShowCompletionGlow, ElementName=EditorRoot}"/>
+            </HeaderedContentControl>
+            <HeaderedContentControl Header="{DynamicResource LOCPlayAch_Settings_ColorRarityTextByRarity}"
+                                    Style="{StaticResource OptionRowStyle}"
+                                    Visibility="{Binding ShowColorNamesRow, ElementName=EditorRoot, Converter={StaticResource BoolToVis}}">
+                <CheckBox Style="{StaticResource OptionCheckBoxStyle}"
+                          IsChecked="{Binding CategorySummaryOptions.ColorRarityColumnsByRarity, ElementName=EditorRoot}"/>
+            </HeaderedContentControl>
+            <HeaderedContentControl Header="{DynamicResource LOCPlayAch_Settings_ShowNameAboveProgress}"
+                                    Style="{StaticResource OptionRowStyle}">
+                <CheckBox Style="{StaticResource OptionCheckBoxStyle}"
+                          IsChecked="{Binding CategorySummaryOptions.ShowNameAboveProgress, ElementName=EditorRoot}"/>
+            </HeaderedContentControl>
+            <HeaderedContentControl Header="{DynamicResource LOCPlayAch_Settings_ShowTreeOnly}"
+                                    Style="{StaticResource OptionRowStyle}">
+                <CheckBox Style="{StaticResource OptionCheckBoxStyle}"
+                          IsChecked="{Binding CategorySummaryOptions.ShowTreeOnly, ElementName=EditorRoot}"/>
+            </HeaderedContentControl>
+            <HeaderedContentControl Header="{DynamicResource LOCPlayAch_Settings_ShowRarityBadgesBelowProgress}"
+                                    Style="{StaticResource OptionRowStyle}">
+                <CheckBox Style="{StaticResource OptionCheckBoxStyle}"
+                          IsChecked="{Binding CategorySummaryOptions.ShowRarityBadgesBelowProgress, ElementName=EditorRoot}"/>
+            </HeaderedContentControl>
+            <HeaderedContentControl Header="{DynamicResource LOCPlayAch_Settings_GridRowHeight}"
+                                    Style="{StaticResource OptionChoiceRowStyle}"
+                                    Visibility="{Binding ShowRowHeightRow, ElementName=EditorRoot, Converter={StaticResource BoolToVis}}">
+                <DockPanel LastChildFill="True">
+                    <TextBox Style="{StaticResource OptionNumberBoxStyle}"
+                             Text="{Binding CategorySummaryOptions.RowHeight, ElementName=EditorRoot, UpdateSourceTrigger=LostFocus, Converter={StaticResource NullableDoubleTextConverter}, ConverterParameter=32}"/>
+                    <TextBlock Text="{DynamicResource LOCPlayAch_Settings_PixelsAutomaticUnit}"
+                               Style="{StaticResource OptionUnitTextStyle}"/>
+                </DockPanel>
+            </HeaderedContentControl>
         </StackPanel>
 
         <!-- Common rows -->
         <StackPanel Style="{StaticResource CommonPanelStyle}">
-            <CheckBox IsChecked="{Binding CommonOptions.ShowColumnHeaders, ElementName=EditorRoot}"
-                      Visibility="{Binding ShowColumnHeadersRow, ElementName=EditorRoot, Converter={StaticResource BoolToVis}}"
-                      Margin="{StaticResource PlayAch.Thickness.Bottom.Sm}">
-                <CheckBox.Style>
-                    <Style TargetType="CheckBox" BasedOn="{StaticResource PlayAch.CheckBox.BaseStyle}">
-                        <Setter Property="Content" Value="{DynamicResource LOCPlayAch_Settings_ShowAchievementGridColumnHeaders}"/>
-                        <Style.Triggers>
-                            <DataTrigger Binding="{Binding AchievementOptions, ElementName=EditorRoot}" Value="{x:Null}">
-                                <Setter Property="Content" Value="{DynamicResource LOCPlayAch_Settings_ShowAchievementGridColumnHeaders}"/>
-                            </DataTrigger>
-                        </Style.Triggers>
-                    </Style>
-                </CheckBox.Style>
-            </CheckBox>
-            <CheckBox Content="{DynamicResource LOCPlayAch_Settings_ShowGridControlBar}"
-                      IsChecked="{Binding CommonOptions.ShowControlBar, ElementName=EditorRoot}"
-                      Visibility="{Binding ShowControlBarRow, ElementName=EditorRoot, Converter={StaticResource BoolToVis}}"
-                      Margin="{StaticResource PlayAch.Thickness.Bottom.Sm}"/>
+            <HeaderedContentControl Header="{DynamicResource LOCPlayAch_Settings_ShowAchievementGridColumnHeaders}"
+                                    Style="{StaticResource OptionRowStyle}"
+                                    Visibility="{Binding ShowColumnHeadersRow, ElementName=EditorRoot, Converter={StaticResource BoolToVis}}">
+                <CheckBox Style="{StaticResource OptionCheckBoxStyle}"
+                          IsChecked="{Binding CommonOptions.ShowColumnHeaders, ElementName=EditorRoot}"/>
+            </HeaderedContentControl>
+            <HeaderedContentControl Header="{DynamicResource LOCPlayAch_Settings_ShowGridControlBar}"
+                                    Style="{StaticResource OptionRowStyle}"
+                                    Visibility="{Binding ShowControlBarRow, ElementName=EditorRoot, Converter={StaticResource BoolToVis}}">
+                <CheckBox Style="{StaticResource OptionCheckBoxStyle}"
+                          IsChecked="{Binding CommonOptions.ShowControlBar, ElementName=EditorRoot}"/>
+            </HeaderedContentControl>
+            <!-- One row per bar item: unchecked leaves it out of the bar and clears its filter. -->
+            <ItemsControl ItemsSource="{Binding ControlBarItemRows, ElementName=EditorRoot}"
+                          IsEnabled="{Binding CommonOptions.ShowControlBar, ElementName=EditorRoot}"
+                          Visibility="{Binding ShowControlBarRow, ElementName=EditorRoot, Converter={StaticResource BoolToVis}}">
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate>
+                        <HeaderedContentControl Header="{Binding Label}"
+                                                Style="{StaticResource OptionRowStyle}">
+                            <CheckBox Style="{StaticResource OptionCheckBoxStyle}"
+                                      IsChecked="{Binding IsShown, Mode=TwoWay}"/>
+                        </HeaderedContentControl>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
         </StackPanel>
 
         <!-- Achievement category mode row -->
         <StackPanel Style="{StaticResource AchievementPanelStyle}">
-            <StackPanel Visibility="{Binding ShowCategoryModeRow, ElementName=EditorRoot, Converter={StaticResource BoolToVis}}">
-                <CheckBox Content="{DynamicResource LOCPlayAch_Settings_StartInCategoryMode}"
-                          IsChecked="{Binding AchievementOptions.StartInCategoryMode, ElementName=EditorRoot}"
-                          Margin="{StaticResource PlayAch.Thickness.Bottom.Sm}"/>
-            </StackPanel>
+            <HeaderedContentControl Header="{DynamicResource LOCPlayAch_Settings_StartInCategoryMode}"
+                                    Style="{StaticResource OptionRowStyle}"
+                                    Visibility="{Binding ShowCategoryModeRow, ElementName=EditorRoot, Converter={StaticResource BoolToVis}}">
+                <CheckBox Style="{StaticResource OptionCheckBoxStyle}"
+                          IsChecked="{Binding AchievementOptions.StartInCategoryMode, ElementName=EditorRoot}"/>
+            </HeaderedContentControl>
         </StackPanel>
 
         <!-- Game-summary date row -->
         <StackPanel Style="{StaticResource GameSummaryPanelStyle}">
-            <StackPanel Orientation="Horizontal"
-                        Visibility="{Binding ShowDateModeRow, ElementName=EditorRoot, Converter={StaticResource BoolToVis}}"
-                        Margin="{StaticResource PlayAch.Thickness.Bottom.Sm}">
-                <TextBlock Text="{DynamicResource LOCPlayAch_Settings_LastPlayedDateDisplay}"
-                           VerticalAlignment="Center"/>
-                <ComboBox SelectedValue="{Binding GameSummaryOptions.LastPlayedDateMode, ElementName=EditorRoot, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                          SelectedValuePath="Tag"
-                          MinWidth="140"
-                          Margin="{StaticResource PlayAch.Thickness.Left.Sm}">
+            <HeaderedContentControl Header="{DynamicResource LOCPlayAch_Settings_LastPlayedDateDisplay}"
+                                    Style="{StaticResource OptionChoiceRowStyle}"
+                                    Visibility="{Binding ShowDateModeRow, ElementName=EditorRoot, Converter={StaticResource BoolToVis}}">
+                <ComboBox Style="{StaticResource OptionComboBoxStyle}"
+                          SelectedValue="{Binding GameSummaryOptions.LastPlayedDateMode, ElementName=EditorRoot, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                          SelectedValuePath="Tag">
                     <ComboBoxItem Content="{DynamicResource LOCPlayAch_Settings_DateDisplayMode_DateAndTime}" Tag="{x:Static settings:DateDisplayMode.DateAndTime}"/>
                     <ComboBoxItem Content="{DynamicResource LOCPlayAch_Settings_DateDisplayMode_DateOnly}" Tag="{x:Static settings:DateDisplayMode.DateOnly}"/>
                     <ComboBoxItem Content="{DynamicResource LOCPlayAch_Settings_DateDisplayMode_Relative}" Tag="{x:Static settings:DateDisplayMode.Relative}"/>
                 </ComboBox>
-            </StackPanel>
+            </HeaderedContentControl>
         </StackPanel>
 
         <!-- Common numeric rows -->
         <StackPanel Style="{StaticResource CommonPanelStyle}">
-            <StackPanel Orientation="Horizontal"
-                        Visibility="{Binding ShowRowHeightRow, ElementName=EditorRoot, Converter={StaticResource BoolToVis}}"
-                        Margin="{StaticResource PlayAch.Thickness.Bottom.Sm}">
-                <TextBlock Text="{DynamicResource LOCPlayAch_Settings_GridRowHeight}"
-                           VerticalAlignment="Center"/>
-                <TextBox Text="{Binding CommonOptions.RowHeight, ElementName=EditorRoot, UpdateSourceTrigger=LostFocus, Converter={StaticResource NullableDoubleTextConverter}, ConverterParameter=32}"
-                         Width="80" Margin="{StaticResource PlayAch.Thickness.Left.Sm}"/>
-                <TextBlock Text="{DynamicResource LOCPlayAch_Settings_PixelsAutomaticUnit}"
-                           VerticalAlignment="Center" Margin="{StaticResource PlayAch.Thickness.Left.Xs}" Opacity="{StaticResource PlayAch.Opacity.Muted}"/>
-            </StackPanel>
-            <StackPanel Orientation="Horizontal"
-                        Visibility="{Binding ShowMaxRowsRow, ElementName=EditorRoot, Converter={StaticResource BoolToVis}}"
-                        Margin="{StaticResource PlayAch.Thickness.Bottom.Sm}">
-                <TextBlock Text="{DynamicResource LOCPlayAch_Settings_GridMaxRows}"
-                           VerticalAlignment="Center"/>
-                <TextBox Text="{Binding CommonOptions.MaxRows, ElementName=EditorRoot, UpdateSourceTrigger=LostFocus, Converter={StaticResource NullableIntTextConverter}, ConverterParameter=1}"
-                         Width="80" Margin="{StaticResource PlayAch.Thickness.Left.Sm}"/>
-                <TextBlock Text="{DynamicResource LOCPlayAch_Settings_RowsUnlimitedUnit}"
-                           VerticalAlignment="Center" Margin="{StaticResource PlayAch.Thickness.Left.Xs}" Opacity="{StaticResource PlayAch.Opacity.Muted}"/>
-            </StackPanel>
+            <HeaderedContentControl Header="{DynamicResource LOCPlayAch_Settings_GridRowHeight}"
+                                    Style="{StaticResource OptionChoiceRowStyle}"
+                                    Visibility="{Binding ShowRowHeightRow, ElementName=EditorRoot, Converter={StaticResource BoolToVis}}">
+                <DockPanel LastChildFill="True">
+                    <TextBox Style="{StaticResource OptionNumberBoxStyle}"
+                             Text="{Binding CommonOptions.RowHeight, ElementName=EditorRoot, UpdateSourceTrigger=LostFocus, Converter={StaticResource NullableDoubleTextConverter}, ConverterParameter=32}"/>
+                    <TextBlock Text="{DynamicResource LOCPlayAch_Settings_PixelsAutomaticUnit}"
+                               Style="{StaticResource OptionUnitTextStyle}"/>
+                </DockPanel>
+            </HeaderedContentControl>
+            <HeaderedContentControl Header="{DynamicResource LOCPlayAch_Settings_GridMaxRows}"
+                                    Style="{StaticResource OptionChoiceRowStyle}"
+                                    Visibility="{Binding ShowMaxRowsRow, ElementName=EditorRoot, Converter={StaticResource BoolToVis}}">
+                <DockPanel LastChildFill="True">
+                    <TextBox Style="{StaticResource OptionNumberBoxStyle}"
+                             Text="{Binding CommonOptions.MaxRows, ElementName=EditorRoot, UpdateSourceTrigger=LostFocus, Converter={StaticResource NullableIntTextConverter}, ConverterParameter=1}"/>
+                    <TextBlock Text="{DynamicResource LOCPlayAch_Settings_RowsUnlimitedUnit}"
+                               Style="{StaticResource OptionUnitTextStyle}"/>
+                </DockPanel>
+            </HeaderedContentControl>
         </StackPanel>
 
         <!-- Achievement trailing rows: max height and sort -->
         <StackPanel Style="{StaticResource AchievementPanelStyle}">
-            <StackPanel Orientation="Horizontal"
-                        Visibility="{Binding ShowMaxHeightRow, ElementName=EditorRoot, Converter={StaticResource BoolToVis}}"
-                        Margin="{StaticResource PlayAch.Thickness.Bottom.Sm}">
-                <TextBlock Text="{DynamicResource LOCPlayAch_Settings_AchievementDataGridMaxHeight}"
-                           VerticalAlignment="Center"/>
-                <TextBox Text="{Binding AchievementOptions.MaxHeight, ElementName=EditorRoot, UpdateSourceTrigger=LostFocus, Converter={StaticResource NullableDoubleTextConverter}, ConverterParameter=88}"
-                         Width="80" Margin="{StaticResource PlayAch.Thickness.Left.Sm}"/>
-                <TextBlock Text="{DynamicResource LOCPlayAch_Settings_PixelsUnit}"
-                           VerticalAlignment="Center" Margin="{StaticResource PlayAch.Thickness.Left.Xs}" Opacity="{StaticResource PlayAch.Opacity.Muted}"/>
-            </StackPanel>
-            <StackPanel Visibility="{Binding ShowSortRow, ElementName=EditorRoot, Converter={StaticResource BoolToVis}}">
-                <TextBlock Text="{DynamicResource LOCMenuSortByTitle}"
-                           Style="{StaticResource SubSectionHeaderStyle}"
-                           Margin="{StaticResource PlayAch.Thickness.Bottom.Sm}"/>
-                <StackPanel Orientation="Horizontal">
-                    <ComboBox SelectedValue="{Binding AchievementOptions.SortMode, ElementName=EditorRoot, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                              SelectedValuePath="Tag"
-                              MinWidth="180">
-                        <ComboBoxItem Content="{DynamicResource LOCDefault}" Tag="{x:Static settings:CompactListSortMode.None}"/>
-                        <ComboBoxItem Content="{DynamicResource LOCPlayAch_Common_UnlockTime}" Tag="{x:Static settings:CompactListSortMode.UnlockTime}"/>
-                        <ComboBoxItem Content="{DynamicResource LOCPlayAch_Column_Rarity}" Tag="{x:Static settings:CompactListSortMode.Rarity}"/>
-                    </ComboBox>
-                    <ToggleButton ToolTip="{DynamicResource LOCPlayAch_Settings_SortDirection_Tooltip}"
+            <HeaderedContentControl Header="{DynamicResource LOCPlayAch_Settings_AchievementDataGridMaxHeight}"
+                                    Style="{StaticResource OptionChoiceRowStyle}"
+                                    Visibility="{Binding ShowMaxHeightRow, ElementName=EditorRoot, Converter={StaticResource BoolToVis}}">
+                <DockPanel LastChildFill="True">
+                    <TextBox Style="{StaticResource OptionNumberBoxStyle}"
+                             Text="{Binding AchievementOptions.MaxHeight, ElementName=EditorRoot, UpdateSourceTrigger=LostFocus, Converter={StaticResource NullableDoubleTextConverter}, ConverterParameter=88}"/>
+                    <TextBlock Text="{DynamicResource LOCPlayAch_Settings_PixelsUnit}"
+                               Style="{StaticResource OptionUnitTextStyle}"/>
+                </DockPanel>
+            </HeaderedContentControl>
+            <HeaderedContentControl Header="{DynamicResource LOCPlayAch_Common_SortBy}"
+                                    Style="{StaticResource OptionChoiceRowStyle}"
+                                    ToolTip="{DynamicResource LOCPlayAch_Settings_SortResetHint}"
+                                    Visibility="{Binding ShowSortRow, ElementName=EditorRoot, Converter={StaticResource BoolToVis}}">
+                <DockPanel LastChildFill="True">
+                    <ToggleButton DockPanel.Dock="Right"
+                                  ToolTip="{DynamicResource LOCPlayAch_Settings_SortDirection_Tooltip}"
                                   Margin="{StaticResource PlayAch.Thickness.Left.Xs}"
-                                  VerticalAlignment="Center"
+                                  VerticalAlignment="Stretch"
                                   IsChecked="{Binding AchievementOptions.SortDescending, ElementName=EditorRoot}">
-                        <TextBlock FontFamily="{DynamicResource CommonFont}" FontSize="18">
+                        <TextBlock FontFamily="{DynamicResource CommonFont}" FontSize="18" VerticalAlignment="Center">
                             <TextBlock.Style>
                                 <Style TargetType="TextBlock">
                                     <Setter Property="Text" Value="&#xea65;"/>
@@ -279,38 +458,30 @@
                             </TextBlock.Style>
                         </TextBlock>
                     </ToggleButton>
-                </StackPanel>
-                <TextBlock Text="{DynamicResource LOCPlayAch_Settings_SortResetHint}"
-                           Style="{StaticResource MutedTextStyle}"
-                           TextWrapping="Wrap"
-                           Margin="{StaticResource PlayAch.Thickness.Top.Sm}"/>
-            </StackPanel>
+                    <ComboBox Style="{StaticResource OptionComboBoxStyle}"
+                              SelectedValue="{Binding AchievementOptions.SortMode, ElementName=EditorRoot, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                              SelectedValuePath="Tag">
+                        <ComboBoxItem Content="{DynamicResource LOCPlayAch_Common_Default}" Tag="{x:Static settings:CompactListSortMode.None}"/>
+                        <ComboBoxItem Content="{DynamicResource LOCPlayAch_Common_UnlockTime}" Tag="{x:Static settings:CompactListSortMode.UnlockTime}"/>
+                        <ComboBoxItem Content="{DynamicResource LOCPlayAch_Column_Rarity}" Tag="{x:Static settings:CompactListSortMode.Rarity}"/>
+                    </ComboBox>
+                </DockPanel>
+            </HeaderedContentControl>
         </StackPanel>
 
         <!-- Game-summary trailing rows: sort -->
         <StackPanel Style="{StaticResource GameSummaryPanelStyle}">
-            <StackPanel Visibility="{Binding ShowSortRow, ElementName=EditorRoot, Converter={StaticResource BoolToVis}}">
-                <TextBlock Text="{DynamicResource LOCMenuSortByTitle}"
-                           Style="{StaticResource SubSectionHeaderStyle}"
-                           Margin="{StaticResource PlayAch.Thickness.Bottom.Sm}"/>
-                <StackPanel Orientation="Horizontal">
-                    <ComboBox SelectedValue="{Binding GameSummaryOptions.SortMode, ElementName=EditorRoot, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                              SelectedValuePath="Tag"
-                              MinWidth="180">
-                        <ComboBoxItem Content="{DynamicResource LOCPlayAch_Settings_GameSummariesSort_PinOrder}"
-                                      Tag="{x:Static settings:GameSummariesSortMode.PinOrder}"
-                                      Visibility="{Binding ShowGameSortPinOrderChoice, ElementName=EditorRoot, Converter={StaticResource BoolToVis}}"/>
-                        <ComboBoxItem Content="{DynamicResource LOCPlayAch_Common_LastUnlock}" Tag="{x:Static settings:GameSummariesSortMode.RecentUnlock}"/>
-                        <ComboBoxItem Content="{DynamicResource LOCLastPlayed}" Tag="{x:Static settings:GameSummariesSortMode.LastPlayed}"/>
-                        <ComboBoxItem Content="{DynamicResource LOCPlayAch_Column_Total}" Tag="{x:Static settings:GameSummariesSortMode.TotalAchievements}"/>
-                        <ComboBoxItem Content="{DynamicResource LOCPlayAch_Progress}" Tag="{x:Static settings:GameSummariesSortMode.Progress}"/>
-                        <ComboBoxItem Content="{DynamicResource LOCNameLabel}" Tag="{x:Static settings:GameSummariesSortMode.Alphabetical}"/>
-                    </ComboBox>
-                    <ToggleButton ToolTip="{DynamicResource LOCPlayAch_Settings_SortDirection_Tooltip}"
+            <HeaderedContentControl Header="{DynamicResource LOCPlayAch_Common_SortBy}"
+                                    Style="{StaticResource OptionChoiceRowStyle}"
+                                    ToolTip="{DynamicResource LOCPlayAch_Settings_SortResetHint}"
+                                    Visibility="{Binding ShowSortRow, ElementName=EditorRoot, Converter={StaticResource BoolToVis}}">
+                <DockPanel LastChildFill="True">
+                    <ToggleButton DockPanel.Dock="Right"
+                                  ToolTip="{DynamicResource LOCPlayAch_Settings_SortDirection_Tooltip}"
                                   Margin="{StaticResource PlayAch.Thickness.Left.Xs}"
-                                  VerticalAlignment="Center"
+                                  VerticalAlignment="Stretch"
                                   IsChecked="{Binding GameSummaryOptions.SortDescending, ElementName=EditorRoot}">
-                        <TextBlock FontFamily="{DynamicResource CommonFont}" FontSize="18">
+                        <TextBlock FontFamily="{DynamicResource CommonFont}" FontSize="18" VerticalAlignment="Center">
                             <TextBlock.Style>
                                 <Style TargetType="TextBlock">
                                     <Setter Property="Text" Value="&#xea65;"/>
@@ -323,12 +494,28 @@
                             </TextBlock.Style>
                         </TextBlock>
                     </ToggleButton>
-                </StackPanel>
-                <TextBlock Text="{DynamicResource LOCPlayAch_Settings_SortResetHint}"
-                           Style="{StaticResource MutedTextStyle}"
-                           TextWrapping="Wrap"
-                           Margin="{StaticResource PlayAch.Thickness.Top.Sm}"/>
-            </StackPanel>
+                    <ComboBox Style="{StaticResource OptionComboBoxStyle}"
+                              SelectedValue="{Binding GameSummaryOptions.SortMode, ElementName=EditorRoot, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                              SelectedValuePath="Tag">
+                        <ComboBoxItem Content="{DynamicResource LOCPlayAch_Settings_GameSummariesSort_PinOrder}"
+                                      Tag="{x:Static settings:GameSummariesSortMode.PinOrder}"
+                                      Visibility="{Binding ShowGameSortPinOrderChoice, ElementName=EditorRoot, Converter={StaticResource BoolToVis}}"/>
+                        <ComboBoxItem Content="{DynamicResource LOCPlayAch_Common_LastUnlock}" Tag="{x:Static settings:GameSummariesSortMode.RecentUnlock}"/>
+                        <ComboBoxItem Content="{DynamicResource LOCPlayAch_Common_LastPlayed}" Tag="{x:Static settings:GameSummariesSortMode.LastPlayed}"/>
+                        <ComboBoxItem Content="{DynamicResource LOCPlayAch_Column_Total}" Tag="{x:Static settings:GameSummariesSortMode.TotalAchievements}"/>
+                        <ComboBoxItem Content="{DynamicResource LOCPlayAch_Progress}" Tag="{x:Static settings:GameSummariesSortMode.Progress}"/>
+                        <ComboBoxItem Content="{DynamicResource LOCPlayAch_Common_Name}" Tag="{x:Static settings:GameSummariesSortMode.Alphabetical}"/>
+                        <ComboBoxItem Content="{DynamicResource LOCPlayAch_Common_DateAdded}" Tag="{x:Static settings:GameSummariesSortMode.DateAdded}"
+                                      Visibility="{Binding ShowLibraryGameSortChoices, ElementName=EditorRoot, Converter={StaticResource BoolToVis}}"/>
+                        <ComboBoxItem Content="{DynamicResource LOCPlayAch_Common_ReleaseDate}" Tag="{x:Static settings:GameSummariesSortMode.ReleaseDate}"
+                                      Visibility="{Binding ShowLibraryGameSortChoices, ElementName=EditorRoot, Converter={StaticResource BoolToVis}}"/>
+                        <ComboBoxItem Content="{DynamicResource LOCPlayAch_Common_Label_Playtime}" Tag="{x:Static settings:GameSummariesSortMode.Playtime}"
+                                      Visibility="{Binding ShowLibraryGameSortChoices, ElementName=EditorRoot, Converter={StaticResource BoolToVis}}"/>
+                        <ComboBoxItem Content="{DynamicResource LOCPlayAch_Common_Locked}" Tag="{x:Static settings:GameSummariesSortMode.Remaining}"
+                                      Visibility="{Binding ShowLibraryGameSortChoices, ElementName=EditorRoot, Converter={StaticResource BoolToVis}}"/>
+                    </ComboBox>
+                </DockPanel>
+            </HeaderedContentControl>
         </StackPanel>
     </StackPanel>
 </UserControl>

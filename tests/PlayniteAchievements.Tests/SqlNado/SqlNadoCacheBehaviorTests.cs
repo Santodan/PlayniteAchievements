@@ -303,7 +303,7 @@ namespace PlayniteAchievements.SqlNado.Tests
                     LockedIconUrl = "locked.png",
                     Points = 90,
                     Category = "Finale Pack",
-                    CategoryType = "DLC",
+                    CategoryKind = "DLC",
                     TrophyType = "platinum",
                     Hidden = true,
                     GlobalPercentUnlocked = 1.2,
@@ -323,7 +323,8 @@ namespace PlayniteAchievements.SqlNado.Tests
             Assert.AreEqual("locked.png", defs[0].LockedIconPath);
             Assert.AreEqual(90, defs[0].Points);
             Assert.AreEqual("Finale Pack", defs[0].Category);
-            Assert.AreEqual("DLC", defs[0].CategoryType);
+            Assert.AreEqual("DLC", defs[0].CategoryKind);
+            Assert.IsNull(defs[0].Tags);
             Assert.AreEqual("platinum", defs[0].TrophyType);
             Assert.IsTrue(defs[0].Hidden);
             Assert.IsTrue(defs[0].IsCapstone);
@@ -359,18 +360,18 @@ namespace PlayniteAchievements.SqlNado.Tests
         [TestMethod]
         public void ComputeDefinitionCategoryBackfills_FillsOnlyDefaultPlaceholders()
         {
-            var existing = new List<(long Id, string ApiName, string Category, string CategoryType)>
+            var existing = new List<(long Id, string ApiName, string Category, string Tags, string CategoryKind)>
             {
-                (1, "ach_blank", null, null),
-                (2, "ach_default", "Default", "Default"),
-                (3, "ach_categorized", "Base Game", "Base"),
-                (4, "ach_no_incoming", "Default", "Default")
+                (1, "ach_blank", null, null, null),
+                (2, "ach_default", "Default", null, null),
+                (3, "ach_categorized", "Base Game", null, "Base"),
+                (4, "ach_no_incoming", "Default", null, null)
             };
             var incoming = new List<AchievementDetail>
             {
-                new AchievementDetail { ApiName = "ach_blank", Category = "Phantom Liberty", CategoryType = "DLC" },
-                new AchievementDetail { ApiName = "ach_default", Category = "Phantom Liberty", CategoryType = "DLC" },
-                new AchievementDetail { ApiName = "ach_categorized", Category = "Renamed Group", CategoryType = "DLC" }
+                new AchievementDetail { ApiName = "ach_blank", Category = "Phantom Liberty", CategoryKind = "DLC" },
+                new AchievementDetail { ApiName = "ach_default", Category = "Phantom Liberty", CategoryKind = "DLC" },
+                new AchievementDetail { ApiName = "ach_categorized", Category = "Renamed Group", CategoryKind = "DLC" }
             };
 
             var backfills = SqlNadoCacheBehavior.ComputeDefinitionCategoryBackfills(existing, incoming);
@@ -378,46 +379,50 @@ namespace PlayniteAchievements.SqlNado.Tests
             Assert.AreEqual(2, backfills.Count);
             Assert.AreEqual(1L, backfills[0].DefinitionId);
             Assert.AreEqual("Phantom Liberty", backfills[0].Category);
-            Assert.AreEqual("DLC", backfills[0].CategoryType);
+            Assert.AreEqual("DLC", backfills[0].CategoryKind);
+            Assert.IsNull(backfills[0].Tags);
             Assert.AreEqual(2L, backfills[1].DefinitionId);
             Assert.AreEqual("Phantom Liberty", backfills[1].Category);
-            Assert.AreEqual("DLC", backfills[1].CategoryType);
+            Assert.AreEqual("DLC", backfills[1].CategoryKind);
+            Assert.IsNull(backfills[1].Tags);
         }
 
         [TestMethod]
         public void ComputeDefinitionCategoryBackfills_FillsPartiallyMissingFieldsIndependently()
         {
-            var existing = new List<(long Id, string ApiName, string Category, string CategoryType)>
+            var existing = new List<(long Id, string ApiName, string Category, string Tags, string CategoryKind)>
             {
-                (1, "ach_label_only", "Existing Label", "Default"),
-                (2, "ach_type_only", "Default", "DLC")
+                (1, "ach_label_only", "Existing Label", null, null),
+                (2, "ach_type_only", "Default", null, "DLC")
             };
             var incoming = new List<AchievementDetail>
             {
-                new AchievementDetail { ApiName = "ach_label_only", Category = "Incoming Label", CategoryType = "DLC" },
-                new AchievementDetail { ApiName = "ach_type_only", Category = "Incoming Label", CategoryType = "Base" }
+                new AchievementDetail { ApiName = "ach_label_only", Category = "Incoming Label", CategoryKind = "DLC" },
+                new AchievementDetail { ApiName = "ach_type_only", Category = "Incoming Label", CategoryKind = "Base" }
             };
 
             var backfills = SqlNadoCacheBehavior.ComputeDefinitionCategoryBackfills(existing, incoming);
 
             Assert.AreEqual(2, backfills.Count);
             Assert.AreEqual("Existing Label", backfills[0].Category);
-            Assert.AreEqual("DLC", backfills[0].CategoryType);
+            Assert.AreEqual("DLC", backfills[0].CategoryKind);
+            Assert.IsNull(backfills[0].Tags);
             Assert.AreEqual("Incoming Label", backfills[1].Category);
-            Assert.AreEqual("DLC", backfills[1].CategoryType);
+            Assert.AreEqual("DLC", backfills[1].CategoryKind);
+            Assert.IsNull(backfills[1].Tags);
         }
 
         [TestMethod]
         public void ComputeDefinitionCategoryBackfills_SkipsDefaultOnlyIncomingAndUnknownApiNames()
         {
-            var existing = new List<(long Id, string ApiName, string Category, string CategoryType)>
+            var existing = new List<(long Id, string ApiName, string Category, string Tags, string CategoryKind)>
             {
-                (1, "ach_one", null, null)
+                (1, "ach_one", null, null, null)
             };
             var incoming = new List<AchievementDetail>
             {
-                new AchievementDetail { ApiName = "ach_one", Category = "  ", CategoryType = "Default" },
-                new AchievementDetail { ApiName = "ach_unknown", Category = "DLC Pack", CategoryType = "DLC" },
+                new AchievementDetail { ApiName = "ach_one", Category = "  ", Tags = null },
+                new AchievementDetail { ApiName = "ach_unknown", Category = "DLC Pack", CategoryKind = "DLC" },
                 null
             };
 
@@ -870,9 +875,9 @@ namespace PlayniteAchievements.SqlNado.Tests
             StringAssert.Contains(store, "GameCustomDataLookup.ResolveGameCustomData(");
             StringAssert.Contains(store, "_plugin?.GameCustomDataStore");
             StringAssert.Contains(store, "customData.AchievementCategoryOverrides");
-            StringAssert.Contains(store, "customData.AchievementCategoryTypeOverrides");
-            StringAssert.Contains(store, "AchievementCategoryTypeHelper.NormalizeCategoryOrDefault(categoryOverride)");
-            StringAssert.Contains(store, "AchievementCategoryTypeHelper.ApplyOverride(item.CategoryType, categoryTypeOverride)");
+            StringAssert.Contains(store, "customData.ResolveAchievementOverrides()?.TryGetValue(apiName, out userOverride);");
+            StringAssert.Contains(store, "AchievementCategoryHelper.NormalizeCategoryOrDefault(categoryOverride)");
+            StringAssert.Contains(store, "customData.GetStoredCategoryKind(item.CategoryLabel)");
         }
 
         [TestMethod]

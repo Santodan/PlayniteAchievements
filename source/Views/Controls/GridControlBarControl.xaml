@@ -4,6 +4,7 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:controls="clr-namespace:PlayniteAchievements.Views.Controls"
              xmlns:helpers="clr-namespace:PlayniteAchievements.Views.Helpers"
+             xmlns:converters="clr-namespace:PlayniteAchievements.Views.Converters"
              xmlns:vm="clr-namespace:PlayniteAchievements.ViewModels.Items"
              UseLayoutRounding="True"
              SnapsToDevicePixels="True">
@@ -16,6 +17,7 @@
             </ResourceDictionary.MergedDictionaries>
 
             <BooleanToVisibilityConverter x:Key="GridControlBarBoolToVis"/>
+            <converters:ControlBarItemWidthConverter x:Key="GridControlBarItemWidth"/>
 
             <!-- Toolbar mode toggle (category-summaries mode), rendered as the right half of a
                  segmented unit: a bordered, icon-only button that butts flush against the category
@@ -278,22 +280,64 @@
             </DataTemplate>
 
             <DataTemplate DataType="{x:Type vm:GridMultiSelectFilter}">
-                <Button x:Name="FilterButton"
-                        Style="{StaticResource AchievementSelectorButtonStyle}"
-                        Content="{Binding DisplayText}"
-                        Click="MultiSelectFilter_Click"
-                        Width="{Binding Width}"
-                        MinWidth="{Binding MinWidth}"
-                        Height="{StaticResource PlayAch.Size.Control.Height}"
-                        Margin="{StaticResource PlayAch.Thickness.Left.Xs}"
-                        VerticalAlignment="Center"
-                        ToolTip="{Binding ToolTip}"
-                        Visibility="{Binding EffectiveIsVisible, Converter={StaticResource GridControlBarBoolToVis}}">
-                    <Button.ContextMenu>
-                        <ContextMenu Style="{StaticResource AchievementSelectorContextMenuStyle}"
-                                     ItemContainerStyle="{StaticResource AchievementMultiSelectMenuItemStyle}"/>
-                    </Button.ContextMenu>
-                </Button>
+                <Grid Margin="{StaticResource PlayAch.Thickness.Left.Xs}"
+                      VerticalAlignment="Center"
+                      Visibility="{Binding EffectiveIsVisible, Converter={StaticResource GridControlBarBoolToVis}}">
+                    <Button x:Name="FilterButton"
+                            Style="{StaticResource AchievementSelectorButtonStyle}"
+                            Content="{Binding ButtonText}"
+                            Click="MultiSelectFilter_Click"
+                            MinWidth="{Binding MinWidth}"
+                            Height="{StaticResource PlayAch.Size.Control.Height}"
+                            ToolTip="{Binding ButtonToolTip}">
+                        <Button.Width>
+                            <MultiBinding Converter="{StaticResource GridControlBarItemWidth}">
+                                <Binding Path="Width"/>
+                                <Binding Path="FillsWidth" ElementName="Root"/>
+                                <Binding Path="ActualWidth" ElementName="Root"/>
+                            </MultiBinding>
+                        </Button.Width>
+                        <Button.ContextMenu>
+                            <ContextMenu Style="{StaticResource AchievementSelectorContextMenuStyle}"
+                                         ItemContainerStyle="{StaticResource AchievementMultiSelectMenuItemStyle}"/>
+                        </Button.ContextMenu>
+                    </Button>
+                    <!-- The picked options' badges in place of their names, where the text sits. -->
+                    <ItemsControl ItemsSource="{Binding SelectedIconKeys}"
+                                  IsHitTestVisible="False"
+                                  Margin="10,0,20,0"
+                                  HorizontalAlignment="Left"
+                                  VerticalAlignment="Center"
+                                  ClipToBounds="True"
+                                  Visibility="{Binding ShowsSelectedIcons, Converter={StaticResource GridControlBarBoolToVis}}">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <StackPanel Orientation="Horizontal"/>
+                            </ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <!-- A gap before every badge but the first. -->
+                                <Image helpers:ImageResourceKey.Key="{Binding}"
+                                       Width="16"
+                                       Height="16"
+                                       Stretch="Uniform"
+                                       VerticalAlignment="Center">
+                                    <Image.Style>
+                                        <Style TargetType="Image">
+                                            <Setter Property="Margin" Value="4,0,0,0"/>
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding RelativeSource={RelativeSource PreviousData}}" Value="{x:Null}">
+                                                    <Setter Property="Margin" Value="0"/>
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </Image.Style>
+                                </Image>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </Grid>
                 <DataTemplate.Triggers>
                     <!-- Segmented with the mode toggle on its right: flat right edge. The toggle
                          carries the 1px overlap that closes the seam. -->
@@ -307,13 +351,19 @@
                 <Button Style="{StaticResource AchievementSelectorButtonStyle}"
                         Content="{Binding DisplayText}"
                         Click="ProviderFilter_Click"
-                        Width="{Binding Width}"
                         MinWidth="{Binding MinWidth}"
                         Height="{StaticResource PlayAch.Size.Control.Height}"
                         Margin="{StaticResource PlayAch.Thickness.Left.Xs}"
                         VerticalAlignment="Center"
                         ToolTip="{Binding ToolTip}"
                         Visibility="{Binding EffectiveIsVisible, Converter={StaticResource GridControlBarBoolToVis}}">
+                    <Button.Width>
+                            <MultiBinding Converter="{StaticResource GridControlBarItemWidth}">
+                                <Binding Path="Width"/>
+                                <Binding Path="FillsWidth" ElementName="Root"/>
+                                <Binding Path="ActualWidth" ElementName="Root"/>
+                            </MultiBinding>
+                    </Button.Width>
                     <Button.ContextMenu>
                         <ContextMenu Style="{StaticResource ProviderFilterContextMenuStyle}"
                                      Closed="ProviderFilterContextMenu_Closed"/>
@@ -321,54 +371,8 @@
                 </Button>
             </DataTemplate>
 
-            <!-- Filter toggle: rests on the same button background and border as the other
-                 control bar buttons (GridActionButtonStyle, GridModeToggleButtonStyle) so it
-                 reads as a button when inactive; the border turns to the accent color (with a
-                 subtle selection fill) to signal the active state, and the glyph keeps its
-                 normal brush. Keys on IsChecked, the ToggleButton analog of the tab style's
-                 IsSelected trigger (PlayAch.TabItem.BaseStyle in CommonResources.xaml). -->
-            <Style x:Key="GridToggleFilterButtonStyle" TargetType="ToggleButton">
-                <Setter Property="Background" Value="{DynamicResource PlayAch.Brush.Button.Background}"/>
-                <Setter Property="BorderBrush" Value="{DynamicResource PlayAch.Brush.Button.Border}"/>
-                <Setter Property="BorderThickness" Value="{StaticResource PlayAch.Thickness.Border}"/>
-                <Setter Property="Foreground" Value="{DynamicResource PlayAch.Brush.Text}"/>
-                <Setter Property="Padding" Value="8,4"/>
-                <Setter Property="Cursor" Value="Hand"/>
-                <Setter Property="Focusable" Value="False"/>
-                <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
-                <Setter Property="Template">
-                    <Setter.Value>
-                        <ControlTemplate TargetType="ToggleButton">
-                            <Border x:Name="Chrome"
-                                    Background="{TemplateBinding Background}"
-                                    BorderBrush="{TemplateBinding BorderBrush}"
-                                    BorderThickness="{TemplateBinding BorderThickness}"
-                                    CornerRadius="{StaticResource PlayAch.Radius.Small}"
-                                    SnapsToDevicePixels="True">
-                                <ContentPresenter Margin="{TemplateBinding Padding}"
-                                                  HorizontalAlignment="Center"
-                                                  VerticalAlignment="Center"/>
-                            </Border>
-                            <ControlTemplate.Triggers>
-                                <Trigger Property="IsMouseOver" Value="True">
-                                    <Setter TargetName="Chrome" Property="Background" Value="{DynamicResource PlayAch.Brush.Button.Background.Hover}"/>
-                                    <Setter TargetName="Chrome" Property="BorderBrush" Value="{DynamicResource PlayAch.Brush.Accent}"/>
-                                </Trigger>
-                                <Trigger Property="IsChecked" Value="True">
-                                    <Setter TargetName="Chrome" Property="Background" Value="{DynamicResource PlayAch.Brush.Button.Background.Selected}"/>
-                                    <Setter TargetName="Chrome" Property="BorderBrush" Value="{DynamicResource PlayAch.Brush.Accent}"/>
-                                </Trigger>
-                                <Trigger Property="IsEnabled" Value="False">
-                                    <Setter TargetName="Chrome" Property="Opacity" Value="{StaticResource PlayAch.Opacity.Disabled}"/>
-                                </Trigger>
-                            </ControlTemplate.Triggers>
-                        </ControlTemplate>
-                    </Setter.Value>
-                </Setter>
-            </Style>
-
             <DataTemplate DataType="{x:Type vm:GridToggleFilter}">
-                <ToggleButton Style="{StaticResource GridToggleFilterButtonStyle}"
+                <ToggleButton Style="{StaticResource PlayAch.ToggleButton.FilterStyle}"
                               IsChecked="{Binding IsChecked, Mode=TwoWay}"
                               Height="{StaticResource PlayAch.Size.Control.Height}"
                               VerticalAlignment="Center"
@@ -502,9 +506,16 @@
                             Content="{Binding DisplayText}"
                             Click="DateRange_Click"
                             Tag="{Binding ElementName=RangePopup}"
-                            Width="{Binding Width}"
                             Height="{StaticResource PlayAch.Size.Control.Height}"
-                            VerticalAlignment="Center"/>
+                            VerticalAlignment="Center">
+                        <Button.Width>
+                            <MultiBinding Converter="{StaticResource GridControlBarItemWidth}">
+                                <Binding Path="Width"/>
+                                <Binding Path="FillsWidth" ElementName="Root"/>
+                                <Binding Path="ActualWidth" ElementName="Root"/>
+                            </MultiBinding>
+                        </Button.Width>
+                    </Button>
                     <Popup x:Name="RangePopup"
                            PlacementTarget="{Binding ElementName=RangeButton}"
                            Placement="Bottom"
@@ -547,7 +558,7 @@
                                         Width="24"
                                         Height="{StaticResource PlayAch.Size.Control.Height}"
                                         Margin="6,0,0,6"
-                                        ToolTip="{DynamicResource LOCClearLabel}"
+                                        ToolTip="{DynamicResource LOCPlayAch_Common_Clear}"
                                         Visibility="{Binding HasFrom, Converter={StaticResource GridControlBarBoolToVis}}"/>
                                 <TextBlock Grid.Row="1"
                                            Text="{DynamicResource LOCPlayAch_DateRange_To}"
@@ -568,12 +579,12 @@
                                         Width="24"
                                         Height="{StaticResource PlayAch.Size.Control.Height}"
                                         Margin="6,0,0,0"
-                                        ToolTip="{DynamicResource LOCClearLabel}"
+                                        ToolTip="{DynamicResource LOCPlayAch_Common_Clear}"
                                         Visibility="{Binding HasTo, Converter={StaticResource GridControlBarBoolToVis}}"/>
                                 <Button Grid.Row="2"
                                         Grid.ColumnSpan="3"
                                         Style="{StaticResource GridActionButtonStyle}"
-                                        Content="{DynamicResource LOCClearLabel}"
+                                        Content="{DynamicResource LOCPlayAch_Common_Clear}"
                                         Click="DateRangeClear_Click"
                                         HorizontalAlignment="Right"
                                         Height="{StaticResource PlayAch.Size.Control.Height}"
@@ -618,9 +629,9 @@
             </ItemsControl.ItemsPanel>
         </ItemsControl>
 
-        <ContentControl Content="{Binding ControlBar.Search, ElementName=Root}"/>
+        <ContentControl Content="{Binding ShownSearch, ElementName=Root}"/>
 
-        <ItemsControl ItemsSource="{Binding ControlBar.Items, ElementName=Root}"
+        <ItemsControl ItemsSource="{Binding ShownItems, ElementName=Root}"
                       VerticalAlignment="Center">
             <ItemsControl.Style>
                 <Style TargetType="ItemsControl">

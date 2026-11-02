@@ -4,7 +4,9 @@ using System.Linq;
 using Playnite.SDK;
 using PlayniteAchievements.Common;
 using PlayniteAchievements.Models;
+using PlayniteAchievements.Models.Achievements;
 using PlayniteAchievements.Models.Settings;
+using PlayniteAchievements.Services.Achievements;
 using PlayniteAchievements.Services.Overview;
 using PlayniteAchievements.ViewModels;
 using PlayniteAchievements.ViewModels.Items;
@@ -17,7 +19,8 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
     /// and its side are per-widget settings that the chart control renders. A fresh chart is
     /// produced per refresh so the bound control always reflects the latest data. The widget's
     /// control bar filters the games the totals are computed from, so a pie can cover a single
-    /// platform or progress bucket.
+    /// platform or progress bucket, and on a pie counting achievements its tag, rarity and trophy
+    /// filters narrow which achievements count, locked ones included.
     /// </summary>
     public sealed class PieWidgetViewModel : ShowcaseWidgetViewModelBase, IDisposable
     {
@@ -25,27 +28,40 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
         private readonly ShowcaseControlBarSlot<PieControlBarAdapter> _controlBarSlot;
         private PieChartViewModel _chart = new PieChartViewModel();
         private GridControlBarViewModel _controlBar;
-        private bool _showControlBar;
+
+        private readonly AchievementDataService _dataService;
+
+        // Bumped when tallies or tag definitions change, which a Tag pie cannot see in its
+        // snapshot: totals are replaced on the rows in place, and names and colors live elsewhere.
+        private int _tagVersion;
 
         public PieWidgetViewModel()
         {
             _controlBarSlot = new ShowcaseControlBarSlot<PieControlBarAdapter>(Refresh);
+            AchievementTagRegistry.Changed += OnTagDefinitionsChanged;
+            _dataService = PlayniteAchievementsPlugin.Instance?.AchievementDataService;
+            if (_dataService != null)
+            {
+                _dataService.TalliesChanged += OnTalliesChanged;
+            }
         }
 
         public PieChartViewModel Chart { get => _chart; private set => SetValue(ref _chart, value); }
 
-        /// <summary>Game filter bar shown when the widget's Show Control Bar option is on.</summary>
+        /// <summary>The game filter items the widget's settings show; null when they show none.</summary>
         public GridControlBarViewModel ControlBar
         {
             get => _controlBar;
-            private set => SetValue(ref _controlBar, value);
+            private set
+            {
+                if (SetValueAndReturn(ref _controlBar, value))
+                {
+                    OnPropertyChanged(nameof(ShowControlBar));
+                }
+            }
         }
 
-        public bool ShowControlBar
-        {
-            get => _showControlBar;
-            private set => SetValue(ref _showControlBar, value);
-        }
+        public bool ShowControlBar => ControlBar != null;
 
         public ShowcasePieMode Mode { get; private set; }
 
@@ -65,15 +81,22 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
             // A linked pie's snapshot already follows the overview's filters; its own control bar
             // narrows that further.
             var linked = Projection?.IsLinked == true;
-            ShowControlBar = ShowcaseWidgetOptions.GetPieShowControlBar(Projection?.Instance);
-            var snapshot = ApplyControlBarFilter(Projection?.Snapshot ?? new OverviewDataSnapshot(), linked);
             var mode = ShowcaseWidgetOptions.GetPieMode(Projection?.Instance);
             Mode = mode;
+            var snapshot = ApplyControlBarFilter(Projection?.Snapshot ?? new OverviewDataSnapshot(), linked);
+            var tagScope = mode == ShowcasePieMode.Tag ? ResolveTagScope(snapshot, linked) : null;
 
             // A linked pie is reprojected when the overview's selection moves even though its
             // data did not; then only the highlight changes, and rebuilding the chart would
-            // redraw every slice for it.
+            // redraw every slice for it. A Tag pie also redraws for what its snapshot does not
+            // show: the tags picked, the games they resolve on, and a tag change.
             var optionsKey = OptionsKey(Projection?.Instance);
+            if (tagScope != null)
+            {
+                optionsKey += "\u001ftags=" + string.Join(",", _controlBarSlot.Adapter.TagFilter.SelectedTags.OrderBy(key => key, StringComparer.OrdinalIgnoreCase)) +
+                              "\u001fscope=" + string.Join(",", tagScope.OrderBy(id => id)) +
+                              "\u001fv=" + _tagVersion;
+            }
             if (linked &&
                 Chart != null &&
                 ReferenceEquals(snapshot, _chartSnapshot) &&
@@ -98,9 +121,15 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
                 IncludeLocked = ShowcaseWidgetOptions.GetPieIncludeLocked(Projection?.Instance),
                 CenterMode = ShowcaseWidgetOptions.GetPieCenterMode(Projection?.Instance),
                 ShowIcons = ShowcaseWidgetOptions.GetPieShowIcons(Projection?.Instance),
-                ShowLegend = ShowcaseWidgetOptions.GetPieShowLegend(Projection?.Instance),
+                ShowLegend = ShowcaseWidgetOptions.GetShowLegend(Projection?.Instance),
                 LegendPosition = ShowcaseWidgetOptions.GetPieLegendPosition(Projection?.Instance)
             };
+            // Set on a reused chart too: the same options can show a cut view after a whole one.
+            // A pie counting games is cut when its completions are cut to a span.
+            var countsAchievements = ShowcaseWidgetOptions.CountsAchievements(Projection?.Instance);
+            chart.CountsUnlocksOnly = countsAchievements
+                ? snapshot.IsAchievementClip
+                : snapshot.CompletionSpan.HasValue;
             switch (mode)
             {
                 case ShowcasePieMode.Provider:
@@ -122,6 +151,37 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
                         group => group.Select(game => game.Provider)
                             .FirstOrDefault(value => !string.IsNullOrWhiteSpace(value)) ?? group.Key,
                         StringComparer.OrdinalIgnoreCase);
+                    if (ShowcaseWidgetOptions.GetPieCount(Projection?.Instance) == ShowcasePieCount.CompletedGames)
+                    {
+                        // Games rather than achievements: each platform's completed games, then
+                        // every game not completed yet. Cut to a span, only the games completed
+                        // in it count, with no remainder.
+                        var completedInSpan = snapshot.CompletionSpan is UnlockDaySpan span
+                            ? OverviewLinkedSnapshots.GamesCompletedDuring(snapshot, span)
+                            : null;
+                        Func<GameSummaryItem, bool> isCompleted = completedInSpan == null
+                            ? (Func<GameSummaryItem, bool>)(game => game.IsCompleted)
+                            : game => game.PlayniteGameId is Guid id && completedInSpan.Contains(id);
+                        var completed = providerGroups.ToDictionary(
+                            group => group.Key,
+                            group => group.Count(isCompleted),
+                            StringComparer.OrdinalIgnoreCase);
+                        var gameCounts = completedInSpan == null
+                            ? providerGroups.ToDictionary(
+                                group => group.Key,
+                                group => group.Count(),
+                                StringComparer.OrdinalIgnoreCase)
+                            : completed;
+                        chart.SetProviderData(
+                            completed.Where(pair => pair.Value > 0).ToDictionary(pair => pair.Key, pair => pair.Value, StringComparer.OrdinalIgnoreCase),
+                            gameCounts,
+                            gameCounts.Values.Sum() - completed.Values.Sum(),
+                            Localize("LOCPlayAch_Overview_Incomplete"),
+                            metadata,
+                            providerNames);
+                        break;
+                    }
+
                     chart.SetProviderData(
                         snapshot.UnlockedByProvider,
                         snapshot.TotalByProvider,
@@ -146,6 +206,9 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
                         Localize("LOCPlayAch_Rarity_Rare"),
                         Localize("LOCPlayAch_Rarity_UltraRare"),
                         Localize("LOCPlayAch_Common_Locked"));
+                    break;
+                case ShowcasePieMode.Tag:
+                    SetTagData(chart, snapshot, tagScope);
                     break;
                 case ShowcasePieMode.Trophy:
                     chart.SetTrophyData(
@@ -195,20 +258,53 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
         private HashSet<GameSummaryItem> _narrowedGames;
         private OverviewDataSnapshot _narrowed;
 
+        // The last view counted through the achievement filters, reused while its source and
+        // picks are unchanged, for the same reason.
+        private OverviewDataSnapshot _filteredFrom;
+        private string _filteredKey;
+        private OverviewDataSnapshot _filtered;
+
         /// <summary>
-        /// Filters the snapshot's games through the widget instance's control bar (which stays in
-        /// effect while the bar is hidden) and returns a snapshot of the remaining games' totals.
-        /// The original snapshot is returned when the filter keeps every game. A linked view keeps
-        /// what the overview's filters made of it, cut to matching unlocks where it was.
+        /// Filters the snapshot through the widget instance's control bar (which stays in effect
+        /// while the bar is hidden): its game filters narrow the games, then, on a pie counting
+        /// achievements, its tag, rarity and trophy filters narrow their achievements, locked ones
+        /// included. The original snapshot is returned when nothing is filtered. A linked view
+        /// keeps what the overview's filters made of it, cut to matching unlocks where it was.
         /// </summary>
         private OverviewDataSnapshot ApplyControlBarFilter(OverviewDataSnapshot snapshot, bool linked)
         {
-            if (_controlBarSlot.Bind(Projection?.Instance?.InstanceId))
+            var narrowed = ApplyGameFilter(snapshot, linked);
+            var adapter = _controlBarSlot.Adapter;
+            if (!adapter.HasAchievementSelection)
             {
-                ControlBar = _controlBarSlot.Adapter.ControlBar;
+                return narrowed;
             }
 
+            var key = string.Join(",", adapter.TagFilter.SelectedTags.OrderBy(tag => tag, StringComparer.OrdinalIgnoreCase)) +
+                      "|" + adapter.TierFilters.SelectedRarityText + "|" + adapter.TierFilters.SelectedTrophyText;
+            if (!ReferenceEquals(_filteredFrom, narrowed) || !string.Equals(_filteredKey, key, StringComparison.Ordinal))
+            {
+                _filteredFrom = narrowed;
+                _filteredKey = key;
+                _filtered = OverviewLinkedSnapshots.FilterAchievements(
+                    narrowed,
+                    adapter.MatchesAchievement,
+                    adapter.MatchesTally);
+            }
+
+            return _filtered;
+        }
+
+        // The snapshot narrowed to the games the bar's game filters keep.
+        private OverviewDataSnapshot ApplyGameFilter(OverviewDataSnapshot snapshot, bool linked)
+        {
+            _controlBarSlot.Bind(Projection?.Instance?.InstanceId);
+            _controlBarSlot.UpdateShownBar(Projection?.Instance);
+            ControlBar = _controlBarSlot.ShownBar;
+
             var adapter = _controlBarSlot.Adapter;
+            adapter.SetAchievementFiltersApply(ShowcaseWidgetOptions.CountsAchievements(Projection?.Instance));
+            var collection = Projection?.Collection;
             var games = (snapshot.GameSummaries ?? new List<GameSummaryItem>())
                 .Where(game => game != null)
                 .ToList();
@@ -216,8 +312,12 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
             adapter.UpdateOptions(linked && Projection?.LinkedOptionGames != null
                 ? Projection.LinkedOptionGames.Where(game => game != null)
                 : games);
+            adapter.GameFilter.SetScope(collection?.GameIds);
 
-            var filtered = adapter.Apply(games);
+            // The widget's collection comes before the bar, so its games are all the bar offers.
+            var filtered = adapter.Apply(collection == null
+                ? games
+                : games.Where(game => collection.ContainsGame(game.PlayniteGameId)));
             if (filtered.Count == games.Count)
             {
                 return snapshot;
@@ -271,6 +371,11 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
                     return string.Equals(label, Localize("LOCPlayAch_Common_Locked"), StringComparison.OrdinalIgnoreCase)
                         ? OverviewLinkedSliceKeys.Locked
                         : label;
+                case ShowcasePieMode.Tag:
+                    // Tag names are the user's, so a slice maps back through its tag key.
+                    return string.Equals(label, Localize("LOCPlayAch_Common_Locked"), StringComparison.OrdinalIgnoreCase)
+                        ? OverviewLinkedSliceKeys.Locked
+                        : Chart?.GetTagKeyFromLabel(label);
                 default:
                     return null;
             }
@@ -291,6 +396,8 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
                 case ShowcasePieMode.Rarity:
                 case ShowcasePieMode.Trophy:
                     return key;
+                case ShowcasePieMode.Tag:
+                    return chart.GetLabelForTagKey(key);
                 default:
                     return null;
             }
@@ -305,6 +412,131 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
         public void Dispose()
         {
             _chart?.Dispose();
+            AchievementTagRegistry.Changed -= OnTagDefinitionsChanged;
+            if (_dataService != null)
+            {
+                _dataService.TalliesChanged -= OnTalliesChanged;
+            }
+        }
+
+        // Distinct colors for tags the user left uncolored, by their place in the pie.
+        private static readonly string[] TagPalette =
+        {
+            "#4E79A7", "#F28E2B", "#E15759", "#76B7B2", "#59A14F",
+            "#EDC948", "#B07AA1", "#FF9DA7", "#9C755F", "#86BCB6"
+        };
+
+        /// <summary>
+        /// The games a Tag pie's tags resolve on: the games its bar picked, else the game a linked
+        /// pie's overview narrowed it to, else none (the global tags).
+        /// </summary>
+        private IReadOnlyCollection<Guid> ResolveTagScope(OverviewDataSnapshot snapshot, bool linked)
+        {
+            var picked = _controlBarSlot.Adapter.GameFilter.SelectedGameIds;
+            if (picked.Count > 0)
+            {
+                return picked.ToList();
+            }
+
+            if (linked && !string.IsNullOrEmpty(Projection?.ContextLabel))
+            {
+                var narrowedTo = (snapshot.GameSummaries ?? new List<GameSummaryItem>())
+                    .Where(game => game?.PlayniteGameId != null)
+                    .Select(game => game.PlayniteGameId.Value)
+                    .Distinct()
+                    .ToList();
+                if (narrowedTo.Count == 1)
+                {
+                    return narrowedTo;
+                }
+            }
+
+            return Array.Empty<Guid>();
+        }
+
+        private static IReadOnlyList<string> TagOptions(OverviewDataSnapshot snapshot, IReadOnlyCollection<Guid> scope) =>
+            AchievementTagScope.OptionKeys(
+                scope,
+                gameId => (snapshot.GameSummaries ?? new List<GameSummaryItem>())
+                    .Where(game => game?.PlayniteGameId == gameId)
+                    .SelectMany(game => game.Tallies ?? Array.Empty<AchievementTally>())
+                    .SelectMany(tally => tally.Tags));
+
+        /// <summary>
+        /// One slice per picked tag (every offered tag when none are picked) of its unlocked
+        /// achievements, then the locked ones among them, each counted once however many of the
+        /// drawn tags it carries; the centre counts the same way. A view cut to matching unlocks
+        /// has only unlocked rows to count, so there every count is of unlocks.
+        /// </summary>
+        private void SetTagData(PieChartViewModel chart, OverviewDataSnapshot snapshot, IReadOnlyCollection<Guid> scope)
+        {
+            var options = TagOptions(snapshot, scope);
+            var picked = _controlBarSlot.Adapter.TagFilter.SelectedTags;
+            var keys = options.Where(key => picked.Count == 0 || picked.Contains(key)).ToList();
+            IEnumerable<AchievementTally> tallies;
+            if (snapshot.IsAchievementClip)
+            {
+                var unlockedRows = new AchievementTallyBuilder();
+                foreach (var row in snapshot.Achievements ?? new List<AchievementDisplayItem>())
+                {
+                    if (row?.Unlocked == true)
+                    {
+                        unlockedRows.Add(row.Tags, unlocked: true);
+                    }
+                }
+
+                tallies = unlockedRows.Build() ?? Array.Empty<AchievementTally>();
+            }
+            else
+            {
+                // The bar's rarity and trophy filters count here as they count everywhere else;
+                // its tags are the slices themselves.
+                var keep = snapshot.TallyFilter;
+                tallies = (snapshot.GameSummaries ?? new List<GameSummaryItem>())
+                    .SelectMany(game => game?.Tallies ?? Array.Empty<AchievementTally>())
+                    .Where(tally => keep == null || keep(tally));
+            }
+
+            var (counts, unlocked, total) = AchievementTallyBuilder.CountShown(tallies, keys);
+            var namingGame = AchievementTagScope.NamingGame(scope);
+            var slices = new List<(string Key, string Label, int Unlocked, int Total, string ColorHex, string IconKey)>();
+            foreach (var key in keys)
+            {
+                var count = counts[key];
+                if (count.Total <= 0)
+                {
+                    continue;
+                }
+
+                var definition = AchievementTagRegistry.Resolve(key, namingGame);
+                slices.Add((
+                    key,
+                    AchievementTagRegistry.GetName(key, namingGame),
+                    count.Unlocked,
+                    count.Total,
+                    AchievementTagHelper.NormalizeColor(definition?.Color) ?? TagPalette[slices.Count % TagPalette.Length],
+                    Views.Converters.ProviderIconConverter.TagIconKey(definition?.Icon)));
+            }
+
+            chart.SetTagData(slices, unlocked, total, Localize("LOCPlayAch_Common_Locked"));
+        }
+
+        private void OnTagDefinitionsChanged(object sender, AchievementTagsChangedEventArgs e) => RefreshTagPie();
+
+        private void OnTalliesChanged(object sender, TalliesChangedEventArgs e) => RefreshTagPie();
+
+        private void RefreshTagPie()
+        {
+            System.Windows.Application.Current?.Dispatcher?.InvokeIfNeeded(() =>
+            {
+                if (Mode != ShowcasePieMode.Tag || Projection == null)
+                {
+                    return;
+                }
+
+                _tagVersion++;
+                Refresh();
+            });
         }
 
         private static string Localize(string key) => ResourceProvider.GetString(key);

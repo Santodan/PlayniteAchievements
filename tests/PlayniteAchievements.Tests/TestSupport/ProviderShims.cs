@@ -38,14 +38,9 @@ namespace PlayniteAchievements.Providers
         bool CanAttemptOfflineRefresh { get; }
     }
 
-    internal interface IDefinitionCachePreferenceProvider
+    internal interface IEnglishTitleSource
     {
-        Task<RebuildPayload> RefreshAsync(
-            IReadOnlyList<Game> gamesToRefresh,
-            Action<Game> onGameStarting,
-            Func<Game, GameAchievementData, Task> onGameCompleted,
-            bool preferCachedDefinitions,
-            CancellationToken cancel);
+        Task<IList<AchievementDetail>> GetEnglishTitlesAsync(Game game, GameAchievementData data, CancellationToken ct);
     }
 }
 
@@ -150,74 +145,6 @@ namespace PlayniteAchievements.Providers.Exophase
         {
             LoadCookiesCallCount++;
             CookieLoader?.Invoke(cookieJar);
-        }
-    }
-
-    [Flags]
-    internal enum ExophaseMetadataFields
-    {
-        None = 0,
-        Rarity = 1,
-        IconPaths = 2
-    }
-
-    internal sealed class ExophaseMetadataEnricher
-    {
-        public sealed class RecordedEnrichCall
-        {
-            public string GameName { get; set; }
-
-            public string SearchName { get; set; }
-
-            public bool FallBackToGameName { get; set; }
-
-            public int AchievementCount { get; set; }
-        }
-
-        // Scanners construct the enricher internally, so tests observe calls through
-        // this static log. Clear it at the start of each test that asserts on it.
-        public static readonly List<RecordedEnrichCall> EnrichCalls = new List<RecordedEnrichCall>();
-
-        public ExophaseMetadataEnricher(
-            IPlayniteAPI playniteApi,
-            ILogger logger,
-            PlayniteAchievementsSettings settings,
-            string pluginUserDataPath)
-        {
-        }
-
-        public Task InitializeAsync(CancellationToken ct)
-        {
-            return Task.CompletedTask;
-        }
-
-        public Task EnrichAsync(
-            Game game,
-            IList<AchievementDetail> achievements,
-            string fallbackPlatformSlug,
-            string providerPlatformKey,
-            CancellationToken ct,
-            ExophaseMetadataFields fields = ExophaseMetadataFields.Rarity,
-            string regionHint = null,
-            string searchName = null,
-            bool fallBackToGameName = true)
-        {
-            lock (EnrichCalls)
-            {
-                EnrichCalls.Add(new RecordedEnrichCall
-                {
-                    GameName = game?.Name,
-                    SearchName = searchName,
-                    FallBackToGameName = fallBackToGameName,
-                    AchievementCount = achievements?.Count ?? 0
-                });
-            }
-
-            return Task.CompletedTask;
-        }
-
-        public void Dispose()
-        {
         }
     }
 }

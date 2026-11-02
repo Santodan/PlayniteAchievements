@@ -57,12 +57,13 @@ namespace PlayniteAchievements.Tests.Models
             CollectionAssert.AreEqual(page.RowWeights, imported.RowWeights);
             Assert.AreEqual(page.Blocks.Count, imported.Blocks.Count);
 
-            var originalBlockIds = new HashSet<string>(page.Blocks.Select(block => block.BlockId));
+            var sourceBlocks = ShowcaseLayoutService.DenseBlocks(page);
+            var copyBlocks = ShowcaseLayoutService.DenseBlocks(imported);
+            Assert.AreEqual(sourceBlocks.Count, copyBlocks.Count);
+            var originalBlockIds = new HashSet<string>(sourceBlocks.Select(block => block.BlockId));
             var originalWidgetIds = new HashSet<string>(page.Blocks
                 .Select(block => block.WidgetInstanceId)
                 .Where(id => id != null));
-            var sourceBlocks = page.Blocks.OrderBy(block => block.Row).ThenBy(block => block.Column).ToList();
-            var copyBlocks = imported.Blocks.OrderBy(block => block.Row).ThenBy(block => block.Column).ToList();
             for (var i = 0; i < sourceBlocks.Count; i++)
             {
                 var source = sourceBlocks[i];
@@ -93,9 +94,14 @@ namespace PlayniteAchievements.Tests.Models
         }
 
         [TestMethod]
-        public void Export_StripsPinsControlBarStateAndProfileIdentity()
+        public void Export_StripsPinsGameSelectionsAndProfileIdentity()
         {
-            var (settings, grids, page, recent, _) = BuildSource();
+            var (settings, grids, page, recent, games) = BuildSource();
+            recent.Options["ControlBar.Achievements"] =
+                "{\"SearchText\":\"zelda\",\"Games\":[\"" + Guid.NewGuid().ToString("D") + "\"],\"Rarities\":[2]}";
+            games.Options["ControlBar.Games"] = "{\"Games\":[\"" + Guid.NewGuid().ToString("D") + "\"]}";
+            ShowcaseWidgetOptions.SetShowControlBar(recent, true);
+            ShowcaseWidgetOptions.SetControlBarItemVisible(recent, ShowcaseControlBarItems.Rarity, true);
             var background = Path.Combine(_tempDirectory, "banner.png");
             File.WriteAllBytes(background, new byte[] { 1, 2, 3, 4 });
             var profile = AddProfile(settings, page, new ShowcaseProfileSettings
@@ -122,7 +128,15 @@ namespace PlayniteAchievements.Tests.Models
 
             var exportedRecent = portable.Widgets.Single(w => w.Kind == ShowcaseWidgetKind.RecentAchievements);
             Assert.IsNull(ShowcaseWidgetOptions.GetPinCollectionId(exportedRecent));
-            Assert.IsFalse(exportedRecent.Options.Keys.Any(key => key.StartsWith("ControlBar.")));
+            Assert.AreEqual(
+                "{\"SearchText\":\"zelda\",\"Rarities\":[2]}",
+                exportedRecent.Options["ControlBar.Achievements"],
+                "the bar's filters travel without its game selections");
+            var exportedGames = portable.Widgets.Single(w => w.Kind == ShowcaseWidgetKind.GameSummaries);
+            Assert.IsFalse(exportedGames.Options.ContainsKey("ControlBar.Games"), "a bar with only game selections is dropped");
+            Assert.IsTrue(
+                ShowcaseWidgetOptions.GetControlBarItemVisible(exportedRecent, ShowcaseControlBarItems.Rarity),
+                "which items the bar shows is part of the page");
             Assert.AreEqual("custom-pins", ShowcaseWidgetOptions.GetPinCollectionId(recent), "source untouched");
 
             var exportedProfile = portable.Widgets.Single(w => w.Kind == ShowcaseWidgetKind.Profile).Profile;
@@ -135,7 +149,7 @@ namespace PlayniteAchievements.Tests.Models
 
             var json = ReadManifest(path);
             StringAssert.DoesNotMatch(json, new System.Text.RegularExpressions.Regex(
-                @"Secret Name|Secret Subtitle|secret-user|avatar\.png|custom-pins|zelda|ControlBar\.|GameIds"));
+                @"Secret Name|Secret Subtitle|secret-user|avatar\.png|custom-pins|GameIds|\\""Games\\"""));
             StringAssert.Contains(json, "images/banner.png");
             using (var archive = ZipFile.OpenRead(path))
             {
@@ -273,6 +287,30 @@ namespace PlayniteAchievements.Tests.Models
         }
 
         [TestMethod]
+        public void Write_BitmapPicture_IsBundledAsPng()
+        {
+            var (settings, grids, page, _, _) = BuildSource();
+            var picture = Path.Combine(_tempDirectory, "picture.bmp");
+            PlayniteAchievements.Services.Tests.NotificationStylePortableStoreTests.WriteBmpFile(picture);
+            var image = AddWidget(settings, page, ShowcaseWidgetKind.Image);
+            ShowcaseWidgetOptions.SetImagePath(image, picture);
+            var path = Path.Combine(_tempDirectory, "page.pashowcase");
+
+            var built = ShowcasePagePortableStore.BuildPortable(settings, grids, page.PageId);
+            Assert.AreEqual("images/picture.png", ShowcaseWidgetOptions.GetImagePath(
+                built.Widgets.Single(w => w.Kind == ShowcaseWidgetKind.Image)));
+            ShowcasePagePortableStore.Write(path, built);
+
+            using (var archive = ZipFile.OpenRead(path))
+            using (var stream = archive.GetEntry("images/picture.png").Open())
+            {
+                var head = new byte[16];
+                Array.Resize(ref head, stream.Read(head, 0, head.Length));
+                Assert.IsTrue(PlayniteAchievements.Services.Images.PackageImageFormat.IsPortable(head));
+            }
+        }
+
+        [TestMethod]
         public void Export_DropsAnImageWidgetsPictureWhoseFileIsGone()
         {
             var (settings, grids, page, _, _) = BuildSource();
@@ -323,6 +361,21 @@ namespace PlayniteAchievements.Tests.Models
             Assert.IsTrue(grids.Achievement[recentKey].UseCoverImages);
             Assert.IsTrue(grids.GameSummaries.ContainsKey(gamesKey));
             Assert.IsFalse(grids.GameSummaries[gamesKey].UseCoverImages);
+            var categoriesKey = ShowcaseGridSurfaces.ResolveCategorySurface(recentKey);
+            Assert.IsTrue(grids.CategorySummaries.ContainsKey(categoriesKey));
+            Assert.IsTrue(grids.CategorySummaries[categoriesKey].ShowNameAboveProgress);
+        }
+
+        [TestMethod]
+        public void RoundTrip_CarriesTheAchievementGridWidgetsCategoryList()
+        {
+            var (settings, grids, page, recent, _) = BuildSource();
+            var path = Path.Combine(_tempDirectory, "page.pashowcase");
+            ShowcasePagePortableStore.Write(path, ShowcasePagePortableStore.BuildPortable(settings, grids, page.PageId));
+
+            var read = ShowcasePagePortableStore.Read(path);
+
+            Assert.IsTrue(read.CategoryGridSurfaces[recent.InstanceId].ShowNameAboveProgress);
         }
 
         [TestMethod]
@@ -332,11 +385,11 @@ namespace PlayniteAchievements.Tests.Models
             var portable = ShowcasePagePortableStore.BuildPortable(settings, grids, page.PageId);
             portable.Widgets[0].Kind = (ShowcaseWidgetKind)6;
             var retiredId = portable.Widgets[0].InstanceId;
-            var blockIndex = portable.Page.Blocks.FindIndex(block => block.WidgetInstanceId == retiredId);
+            var retired = portable.Page.Blocks.Single(block => block.WidgetInstanceId == retiredId);
 
             var imported = ShowcasePagePortableStore.ApplyPortable(settings, grids, portable, page.PageId);
 
-            Assert.IsNull(imported.Blocks[blockIndex].WidgetInstanceId);
+            Assert.IsNull(ShowcaseLayoutService.ResolveCell(imported, retired.Row, retired.Column).WidgetInstanceId);
             Assert.AreEqual(
                 page.Blocks.Count(block => block.WidgetInstanceId != null) - 1,
                 imported.Blocks.Count(block => block.WidgetInstanceId != null));
@@ -412,7 +465,7 @@ namespace PlayniteAchievements.Tests.Models
             var games = ShowcaseLayoutService.CreateWidget(settings, ShowcaseWidgetKind.GameSummaries);
             var pie = ShowcaseLayoutService.CreateWidget(settings, ShowcaseWidgetKind.Pie);
 
-            var blocks = page.Blocks.OrderBy(block => block.Row).ThenBy(block => block.Column).ToList();
+            var blocks = ShowcaseLayoutService.DenseBlocks(page);
             Assert.IsTrue(ShowcaseLayoutService.PlaceWidget(settings, page.PageId, blocks[0].BlockId, recent.InstanceId));
             Assert.IsTrue(ShowcaseLayoutService.PlaceWidget(settings, page.PageId, blocks[1].BlockId, games.InstanceId));
             Assert.IsTrue(ShowcaseLayoutService.PlaceWidget(settings, page.PageId, blocks[2].BlockId, pie.InstanceId));
@@ -422,6 +475,9 @@ namespace PlayniteAchievements.Tests.Models
                 .UseCoverImages = true;
             grids.GetGameSummaries(ShowcaseGridSurfaces.ResolveWidgetSurface(games.Kind, games.InstanceId))
                 .UseCoverImages = false;
+            grids.GetCategorySummaries(ShowcaseGridSurfaces.ResolveCategorySurface(
+                    ShowcaseGridSurfaces.ResolveWidgetSurface(recent.Kind, recent.InstanceId)))
+                .ShowNameAboveProgress = true;
 
             // Drop the pages AddPage's default settings may have seeded, keeping only this one.
             settings.Pages.RemoveAll(candidate => candidate != page);
@@ -436,9 +492,7 @@ namespace PlayniteAchievements.Tests.Models
         {
             var widget = ShowcaseLayoutService.CreateWidget(settings, ShowcaseWidgetKind.Profile);
             widget.Profile = profile;
-            var block = page.Blocks
-                .OrderBy(candidate => candidate.Row)
-                .ThenBy(candidate => candidate.Column)
+            var block = ShowcaseLayoutService.DenseBlocks(page)
                 .First(candidate => candidate.WidgetInstanceId == null);
             Assert.IsTrue(ShowcaseLayoutService.PlaceWidget(settings, page.PageId, block.BlockId, widget.InstanceId));
             return widget;
@@ -450,9 +504,7 @@ namespace PlayniteAchievements.Tests.Models
             ShowcaseWidgetKind kind)
         {
             var widget = ShowcaseLayoutService.CreateWidget(settings, kind);
-            var block = page.Blocks
-                .OrderBy(candidate => candidate.Row)
-                .ThenBy(candidate => candidate.Column)
+            var block = ShowcaseLayoutService.DenseBlocks(page)
                 .First(candidate => candidate.WidgetInstanceId == null);
             Assert.IsTrue(ShowcaseLayoutService.PlaceWidget(settings, page.PageId, block.BlockId, widget.InstanceId));
             return widget;

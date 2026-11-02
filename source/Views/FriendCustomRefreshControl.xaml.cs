@@ -354,7 +354,7 @@ namespace PlayniteAchievements.Views
         private void InitializeProviders()
         {
             var readyText = L("LOCPlayAch_CustomRefresh_ProviderStatus_Ready");
-            var disabledText = L("LOCDisabledTitle");
+            var disabledText = L("LOCPlayAch_Common_Disabled");
             var noAuthText = L("LOCPlayAch_Common_NotAuthenticated");
 
             foreach (var provider in _refreshRuntime.Providers ?? Array.Empty<IDataProvider>())
@@ -726,7 +726,7 @@ namespace PlayniteAchievements.Views
                 .Where(name => !string.IsNullOrWhiteSpace(name))
                 .ToList();
             var providerDisplay = selectedProviders.Count == 0
-                ? L("LOCNone")
+                ? L("LOCPlayAch_Common_None")
                 : string.Join(", ", selectedProviders);
             var scopeDisplay = ScopeOptions
                 .FirstOrDefault(option => option.Scope == SelectedScope)

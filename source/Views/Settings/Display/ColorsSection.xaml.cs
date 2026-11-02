@@ -525,7 +525,7 @@ namespace PlayniteAchievements.Views.Settings.Display
             for (int i = 0; i < presets.Length; i++)
             {
                 presets[i].DisplayLabel = i == 0
-                    ? ResourceProvider.GetString("LOCDefault")
+                    ? ResourceProvider.GetString("LOCPlayAch_Common_Default")
                     : string.Format(
                         ResourceProvider.GetString("LOCPlayAch_Settings_Appearance_PresetNumbered"),
                         i);

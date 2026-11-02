@@ -113,7 +113,15 @@ namespace PlayniteAchievements.Views.Controls
                 nameof(ColumnSettingsKey),
                 typeof(string),
                 typeof(FriendSummariesGridControl),
-                new PropertyMetadata("FriendsOverviewFriendSummaries"));
+                new PropertyMetadata("FriendsOverviewFriendSummaries", (d, e) => ((FriendSummariesGridControl)d).UpdateControlBarOptions()));
+
+        // The bar leaves out the items this grid's Display Settings hide.
+        private void UpdateControlBarOptions()
+        {
+            ControlBarHost.GridOptions = Helpers.GridSurfaceOptions.Resolve(
+                Settings.Controls.GridOptionKind.FriendSummaries,
+                ColumnSettingsKey);
+        }
 
         public string ColumnSettingsKey
         {
@@ -268,6 +276,7 @@ namespace PlayniteAchievements.Views.Controls
 
         private void OnLoaded(object sender, RoutedEventArgs e)
         {
+            UpdateControlBarOptions();
             if (_isAttached)
             {
                 return;
@@ -373,6 +382,15 @@ namespace PlayniteAchievements.Views.Controls
                     if (columns != null)
                     {
                         columns.Locked = map;
+                    }
+                },
+                getHiddenHeaders: () => GetColumnLayoutOptions(settings)?.HiddenHeaders,
+                setHiddenHeaders: map =>
+                {
+                    var columns = GetColumnLayoutOptions(settings);
+                    if (columns != null)
+                    {
+                        columns.HiddenHeaders = map;
                     }
                 });
             _columnPersistence.DelayInitialRenderUntilNormalized = DelayInitialRenderUntilNormalized;

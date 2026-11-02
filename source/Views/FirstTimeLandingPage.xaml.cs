@@ -127,7 +127,7 @@ namespace PlayniteAchievements.Views
                     }
                     if (!IsEnabled)
                     {
-                        return ResourceProvider.GetString("LOCDisabledTitle");
+                        return ResourceProvider.GetString("LOCPlayAch_Common_Disabled");
                     }
                     return IsAuthenticated
                         ? ResourceProvider.GetString("LOCPlayAch_CustomRefresh_ProviderStatus_Ready")
@@ -172,7 +172,7 @@ namespace PlayniteAchievements.Views
             SelectedRefreshMode,
             RefreshModeType.Custom.GetKey(),
             StringComparison.Ordinal)
-            ? ResourceProvider.GetString("LOCConfigure")
+            ? ResourceProvider.GetString("LOCPlayAch_Common_Configure")
             : ResourceProvider.GetString("LOCPlayAch_Landing_BeginRefresh");
 
         /// <summary>
@@ -865,8 +865,8 @@ namespace PlayniteAchievements.Views
                 if (result.FilesBackedUp > 0)
                 {
                     _api?.Dialogs?.ShowMessage(
-                        result.Message + "\n\nPlease restart Playnite to apply the theme changes.",
-                        "Theme Migration",
+                        result.Message + "\n\n" + ResourceProvider.GetString("LOCPlayAch_ThemeMigration_RestartRequired"),
+                        ResourceProvider.GetString("LOCPlayAch_ThemeMigration_Title"),
                         MessageBoxButton.OK,
                         MessageBoxImage.Information);
                 }
@@ -902,7 +902,7 @@ namespace PlayniteAchievements.Views
                 _logger.Info($"Theme revert successful: {themePath}");
 
                 _api?.Dialogs?.ShowMessage(
-                    result.Message + "\n\nPlease restart Playnite to apply the theme changes.",
+                    result.Message + "\n\n" + ResourceProvider.GetString("LOCPlayAch_ThemeMigration_RestartRequired"),
                     ResourceProvider.GetString("LOCPlayAch_ThemeMigration_Revert"),
                     MessageBoxButton.OK,
                     MessageBoxImage.Information);

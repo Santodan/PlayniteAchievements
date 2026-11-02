@@ -72,18 +72,33 @@ namespace PlayniteAchievements.Models.ThemeIntegration
             DynamicThemeViewKeys.Bronze
         };
 
-        // Canonical category-type vocabulary minus "Default" ("no type filter" is expressed
-        // by All, and "Default" would collide with the Default sort key's label).
+        // The kinds and built-in tags, plus the derived unlock modes themes could always filter by.
+        // User tags are not listed but still filter: the group map recognizes any tag key.
         private static readonly string[] CategoryTypeKeys =
-            Services.Achievements.AchievementCategoryTypeHelper.AllowedCategoryTypes
-                .Where(type => !string.Equals(
-                    type,
-                    Services.Achievements.AchievementCategoryTypeHelper.DefaultCategoryType,
-                    StringComparison.OrdinalIgnoreCase))
+            Services.Achievements.CategoryKindHelper.AssignableKinds
+                .Concat(Services.Achievements.AchievementTagHelper.BuiltInTagKeys)
+                .Concat(new[] { Services.Achievements.AchievementTagHelper.Softcore, Services.Achievements.AchievementTagHelper.Hardcore })
                 .ToArray();
 
         public static readonly string[] AchievementCategoryTypeFilterKeys =
             new[] { DynamicThemeViewKeys.All }.Concat(CategoryTypeKeys).ToArray();
+
+        /// <summary>
+        /// The type filter options for <paramref name="gameId"/> (every game when null): All, the
+        /// kinds, the tags available there (user tags included), then the unlock modes.
+        /// </summary>
+        public static IReadOnlyList<string> GetAchievementCategoryTypeFilterKeys(Guid? gameId = null) =>
+            new[] { DynamicThemeViewKeys.All }
+                .Concat(Services.Achievements.AchievementClassificationFilter.GetFilterKeys(gameId))
+                .Concat(new[] { Services.Achievements.AchievementTagHelper.Softcore, Services.Achievements.AchievementTagHelper.Hardcore })
+                .ToList();
+
+        /// <summary>
+        /// <see cref="GetAchievementCategoryTypeFilterKeys"/> for every game, read afresh on each use,
+        /// for option bindings built once.
+        /// </summary>
+        public static readonly IReadOnlyList<string> LiveAchievementCategoryTypeFilterKeys =
+            new LiveKeyList(() => GetAchievementCategoryTypeFilterKeys());
 
         public static readonly string[] AchievementCustomizationFilterKeys =
         {
@@ -262,7 +277,7 @@ namespace PlayniteAchievements.Models.ThemeIntegration
             CreateCanonicalKeyMap(SortDirectionKeys);
 
         public static readonly IReadOnlyDictionary<string, string> AchievementFilterGroupMap =
-            CreateGroupMap(
+            new ClassificationAwareGroupMap(CreateGroupMap(
                 Group(AchievementStatusGroup, DynamicThemeViewKeys.Unlocked, DynamicThemeViewKeys.Locked),
                 Group(AchievementProgressGroup, DynamicThemeViewKeys.InProgress, DynamicThemeViewKeys.NoProgress),
                 Group(AchievementVisibilityGroup, DynamicThemeViewKeys.Visible, DynamicThemeViewKeys.Hidden),
@@ -270,7 +285,7 @@ namespace PlayniteAchievements.Models.ThemeIntegration
                 Group(AchievementSpecialGroup, DynamicThemeViewKeys.Capstone),
                 Group(AchievementRarityGroup, DynamicThemeViewKeys.Common, DynamicThemeViewKeys.Uncommon, DynamicThemeViewKeys.Rare, DynamicThemeViewKeys.UltraRare),
                 Group(AchievementTrophyGroup, DynamicThemeViewKeys.Platinum, DynamicThemeViewKeys.Gold, DynamicThemeViewKeys.Silver, DynamicThemeViewKeys.Bronze),
-                Group(AchievementCategoryTypeGroup, CategoryTypeKeys));
+                Group(AchievementCategoryTypeGroup, CategoryTypeKeys)));
 
         public static readonly IReadOnlyDictionary<string, string> GameSummaryFilterGroupMap =
             CreateGroupMap(
@@ -431,9 +446,73 @@ namespace PlayniteAchievements.Models.ThemeIntegration
             return map;
         }
 
+        private sealed class LiveKeyList : IReadOnlyList<string>
+        {
+            private readonly Func<IReadOnlyList<string>> _read;
+
+            public LiveKeyList(Func<IReadOnlyList<string>> read)
+            {
+                _read = read;
+            }
+
+            public string this[int index] => _read()[index];
+
+            public int Count => _read().Count;
+
+            public IEnumerator<string> GetEnumerator() => _read().GetEnumerator();
+
+            System.Collections.IEnumerator System.Collections.IEnumerable.GetEnumerator() => GetEnumerator();
+        }
+
         private static (string GroupKey, string[] Keys) Group(string groupKey, params string[] keys)
         {
             return (groupKey, keys);
+        }
+
+        /// <summary>
+        /// The achievement filter group map, which also places any kind or tag key outside the
+        /// listed vocabulary (a user tag, a renamed key a theme still names) in the type group.
+        /// </summary>
+        private sealed class ClassificationAwareGroupMap : IReadOnlyDictionary<string, string>
+        {
+            private readonly IReadOnlyDictionary<string, string> _inner;
+
+            public ClassificationAwareGroupMap(IReadOnlyDictionary<string, string> inner)
+            {
+                _inner = inner;
+            }
+
+            public string this[string key] =>
+                TryGetValue(key, out var value) ? value : throw new KeyNotFoundException(key);
+
+            public IEnumerable<string> Keys => _inner.Keys;
+
+            public IEnumerable<string> Values => _inner.Values;
+
+            public int Count => _inner.Count;
+
+            public bool ContainsKey(string key) => TryGetValue(key, out _);
+
+            public bool TryGetValue(string key, out string value)
+            {
+                if (key != null && _inner.TryGetValue(key, out value))
+                {
+                    return true;
+                }
+
+                if (Services.Achievements.AchievementClassificationFilter.IsFilterKey(key))
+                {
+                    value = AchievementCategoryTypeGroup;
+                    return true;
+                }
+
+                value = null;
+                return false;
+            }
+
+            public IEnumerator<KeyValuePair<string, string>> GetEnumerator() => _inner.GetEnumerator();
+
+            System.Collections.IEnumerator System.Collections.IEnumerable.GetEnumerator() => GetEnumerator();
         }
     }
 }

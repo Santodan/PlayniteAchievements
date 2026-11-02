@@ -30,8 +30,9 @@ namespace PlayniteAchievements.Providers.Exophase
         }
 
         /// <summary>
-        /// Normalizes a game name for use in a slug: edition-stripped, lowercased, with
-        /// runs of non-alphanumeric characters collapsed to single hyphens.
+        /// Normalizes a game name for use in a slug: edition-stripped, lowercased, apostrophes
+        /// dropped ("Marvel’s" becomes "marvels", not "marvel-s"), with runs of other
+        /// non-alphanumeric characters collapsed to single hyphens.
         /// </summary>
         public static string NormalizeGameNameForSlug(string name)
         {
@@ -40,7 +41,7 @@ namespace PlayniteAchievements.Providers.Exophase
                 return null;
             }
 
-            var normalized = NormalizeGameName(name).ToLowerInvariant();
+            var normalized = GameNameNormalizer.StripApostrophes(NormalizeGameName(name)).ToLowerInvariant();
 
             var chars = new char[normalized.Length];
             var charIndex = 0;

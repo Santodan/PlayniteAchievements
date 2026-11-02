@@ -17,6 +17,12 @@ namespace PlayniteAchievements.Services.Cache
     {
         List<GameAchievementData> LoadAllGameDataFast();
 
+        /// <summary>
+        /// Every cached game with its identity (name, provider, ids) and no achievements, for
+        /// lookups that would otherwise read every achievement in the library.
+        /// </summary>
+        List<GameAchievementData> LoadAllGameHeadersFast();
+
         CachedSummaryData LoadCachedSummaryDataFast(int recentAchievementDetailLimit = 0);
 
         /// <summary>
@@ -45,5 +51,20 @@ namespace PlayniteAchievements.Services.Cache
         /// </remarks>
         Dictionary<Guid, HashSet<string>> LoadUnlockedApiNamesFast(
             IReadOnlyDictionary<Guid, HashSet<string>> wanted);
+
+        /// <summary>
+        /// The asked-for achievements as the tallies counted them, per game and ApiName, plus the
+        /// provider capstones of <paramref name="providerCapstoneGames"/>, for applying the user's
+        /// tag and capstone edits to the summary's tallies. Null on failure.
+        /// </summary>
+        Dictionary<Guid, Dictionary<string, Models.Achievements.AchievementTallyState>> LoadAchievementTallyStatesFast(
+            IReadOnlyDictionary<Guid, HashSet<string>> wanted,
+            ISet<Guid> providerCapstoneGames = null);
+
+        /// <summary>One game's provider tallies, read on its own; null on failure.</summary>
+        Models.Achievements.AchievementTally[] LoadTalliesForGameFast(Guid playniteGameId);
+
+        /// <summary>Games whose cached achievements carry the tag <paramref name="tagKey"/>; empty on failure.</summary>
+        HashSet<Guid> GetGameIdsWithTag(string tagKey);
     }
 }

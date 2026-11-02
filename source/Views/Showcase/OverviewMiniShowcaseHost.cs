@@ -68,6 +68,9 @@ namespace PlayniteAchievements.Views.Showcase
                     projection.LinkedSliceKeys = _overview.GetLinkedSliceKeys(ShowcaseWidgetOptions.GetPieMode(widget));
                     projection.LinkedOptionGames = _overview.LatestSnapshot?.GameSummaries;
                     break;
+                case ShowcaseWidgetKind.Statistics:
+                    projection.LinkedOptionGames = _overview.LatestSnapshot?.GameSummaries;
+                    break;
                 case ShowcaseWidgetKind.Timeline:
                     projection.HighlightedSpan = _overview.UnlockSpanFilter;
                     break;
@@ -125,8 +128,9 @@ namespace PlayniteAchievements.Views.Showcase
         /// game when it has that data, and the timeline and calendar mark the unlock range they
         /// set rather than narrowing to it. Every other widget follows the range and the rarity
         /// and trophy filters: to the games with matching unlocks, and to those unlocks where it
-        /// counts achievements. The platform and completions pies count whole games, so they keep
-        /// every achievement of the games kept, locked ones included.
+        /// counts achievements. The completions pie, and a platform pie counting completed games,
+        /// count whole games, so they keep every achievement of the games kept, locked ones
+        /// included; a platform pie counting achievements counts only the matching unlocks.
         /// </summary>
         private static (OverviewLinkedFilter Exclude, OverviewLinkedSelection Selection, bool CountsGames) LinkRule(
             ShowcaseWidgetInstanceSettings widget)
@@ -137,11 +141,18 @@ namespace PlayniteAchievements.Views.Showcase
                     switch (ShowcaseWidgetOptions.GetPieMode(widget))
                     {
                         case ShowcasePieMode.Provider:
-                            return (OverviewLinkedFilter.Provider, OverviewLinkedSelection.Ignore, true);
+                            return (
+                                OverviewLinkedFilter.Provider,
+                                OverviewLinkedSelection.Ignore,
+                                !ShowcaseWidgetOptions.CountsAchievements(widget));
                         case ShowcasePieMode.Rarity:
                             return (OverviewLinkedFilter.Rarity, OverviewLinkedSelection.WhenRarityData, false);
                         case ShowcasePieMode.Trophy:
                             return (OverviewLinkedFilter.Trophy, OverviewLinkedSelection.WhenTrophyData, false);
+                        case ShowcasePieMode.Tag:
+                            // A selected game narrows it to that game, whose own tags it then shows;
+                            // its own slices set the tag filter, so that one is left out.
+                            return (OverviewLinkedFilter.Tag, OverviewLinkedSelection.Always, false);
                         default:
                             return (OverviewLinkedFilter.Completeness, OverviewLinkedSelection.Ignore, true);
                     }

@@ -1,0 +1,30 @@
+<UserControl x:Class="PlayniteAchievements.Views.Settings.Metadata.AchievementTagsSettingsSection"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:controls="clr-namespace:PlayniteAchievements.Views.Controls"
+             mc:Ignorable="d"
+             d:DesignHeight="400"
+             d:DesignWidth="700">
+    <UserControl.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceDictionary Source="pack://application:,,,/PlayniteAchievements;component/Resources/SettingsScopedControlStyles.xaml"/>
+                <ResourceDictionary Source="pack://application:,,,/PlayniteAchievements;component/Resources/CommonResources.xaml"/>
+            </ResourceDictionary.MergedDictionaries>
+        </ResourceDictionary>
+    </UserControl.Resources>
+    <!-- Scrolled by the Metadata tab, which shows it as its own page. -->
+    <Border Style="{StaticResource SectionBorderStyle}">
+        <StackPanel>
+            <TextBlock Text="{DynamicResource LOCPlayAch_Common_Tags}"
+                       Style="{StaticResource SectionHeaderStyle}"/>
+            <TextBlock Text="{DynamicResource LOCPlayAch_Settings_Tags_Hint}"
+                       Style="{StaticResource MutedTextStyle}"
+                       Margin="{StaticResource PlayAch.Thickness.Bottom.Md}"
+                       TextWrapping="Wrap"/>
+            <controls:AchievementTagListEditor x:Name="Editor"/>
+        </StackPanel>
+    </Border>
+</UserControl>
