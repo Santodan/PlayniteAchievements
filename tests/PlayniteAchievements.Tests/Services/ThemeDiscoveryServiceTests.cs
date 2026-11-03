@@ -1,4 +1,4 @@
-﻿using Microsoft.VisualStudio.TestTools.UnitTesting;
+using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Playnite.SDK;
 using Playnite.SDK.Models;
 using Playnite.SDK.Plugins;
@@ -14,6 +14,40 @@ namespace PlayniteAchievements.ThemeMigration.Tests
     public class ThemeDiscoveryServiceTests
     {
         [TestMethod]
+        public void ForkCacheIsOptInAndChangingTheOptionDoesNotAffectUpstreamDiscovery()
+        {
+            var root = CreateThemesRoot();
+            try
+            {
+                var theme = Path.Combine(root, "Desktop", "ForkScopeTest");
+                Directory.CreateDirectory(theme);
+                File.WriteAllText(Path.Combine(theme, "theme.yaml"), "Name: Scope Test\nVersion: 1.0\n");
+                File.WriteAllText(Path.Combine(theme, "View.xaml"),
+                    "<TextBlock Text=\"SuccessStory\" /> <!-- " + Guid.NewGuid() + " -->");
+                var enabled = false;
+                var fork = new ThemeDiscoveryService(new FakeLogger(), new FakePlayniteApi(), () => enabled);
+                var upstream = new ThemeDiscoveryService(new FakeLogger(), new FakePlayniteApi());
+                var misses = ThemeDiscoveryService.ContentScanMisses;
+                Assert.IsTrue(upstream.DiscoverThemes(root).Single().NeedsMigration);
+                Assert.IsTrue(fork.DiscoverThemes(root).Single().NeedsMigration);
+                Assert.AreEqual(misses, ThemeDiscoveryService.ContentScanMisses);
+                enabled = true;
+                Assert.IsTrue(fork.DiscoverThemes(root).Single().NeedsMigration);
+                Assert.IsTrue(ThemeDiscoveryService.ContentScanMisses > misses);
+                misses = ThemeDiscoveryService.ContentScanMisses;
+                Assert.IsTrue(fork.DiscoverThemes(root).Single().NeedsMigration);
+                Assert.AreEqual(misses, ThemeDiscoveryService.ContentScanMisses);
+                enabled = false;
+                File.AppendAllText(Path.Combine(theme, "View.xaml"), "<!-- changed -->");
+                Assert.IsTrue(fork.DiscoverThemes(root).Single().NeedsMigration);
+                Assert.IsTrue(upstream.DiscoverThemes(root).Single().NeedsMigration);
+                Assert.AreEqual(misses, ThemeDiscoveryService.ContentScanMisses,
+                    "Disabled fork scans and upstream scans must bypass the cache entirely.");
+            }
+            finally { DeleteDirectory(root); }
+        }
+
+        [TestMethod]
         public void DiscoverThemes_CachedScanDetectsSameLengthEditAndRevertAcrossInstances()
         {
             var themesRoot = CreateThemesRoot();
@@ -27,18 +61,18 @@ namespace PlayniteAchievements.ThemeMigration.Tests
                 var edited = original.Replace("SuccessStory", "PlainContent");
                 File.WriteAllText(viewPath, original);
                 var timestamp = File.GetLastWriteTimeUtc(viewPath);
-                Assert.IsTrue(new ThemeDiscoveryService(new FakeLogger(), new FakePlayniteApi())
+                Assert.IsTrue(new ThemeDiscoveryService(new FakeLogger(), new FakePlayniteApi(), () => true)
                     .DiscoverThemes(themesRoot).Single().NeedsMigration);
 
                 File.WriteAllText(viewPath, edited);
                 File.SetLastWriteTimeUtc(viewPath, timestamp);
                 Assert.AreEqual(original.Length, edited.Length);
-                Assert.IsFalse(new ThemeDiscoveryService(new FakeLogger(), new FakePlayniteApi())
+                Assert.IsFalse(new ThemeDiscoveryService(new FakeLogger(), new FakePlayniteApi(), () => true)
                     .DiscoverThemes(themesRoot).Single().NeedsMigration);
 
                 File.WriteAllText(viewPath, original);
                 File.SetLastWriteTimeUtc(viewPath, timestamp);
-                Assert.IsTrue(new ThemeDiscoveryService(new FakeLogger(), new FakePlayniteApi())
+                Assert.IsTrue(new ThemeDiscoveryService(new FakeLogger(), new FakePlayniteApi(), () => true)
                     .DiscoverThemes(themesRoot).Single().NeedsMigration);
             }
             finally { DeleteDirectory(themesRoot); }

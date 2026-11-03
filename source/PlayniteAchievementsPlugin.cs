@@ -1048,7 +1048,8 @@ namespace PlayniteAchievements
                 AchievementNotificationDebugLog.Initialize(pluginUserDataPath);
                 var startupNotificationSettings = ProviderRegistry.Settings<Providers.Local.LocalSettings>();
                 AchievementNotificationDebugLog.SetEnabled(startupNotificationSettings?.EnableOverlayDebugLogging == true);
-                PollingDebugLog.Configure(pluginUserDataPath, startupNotificationSettings?.EnablePollingDebugLogging == true);
+                PollingDebugLog.Configure(pluginUserDataPath, startupNotificationSettings?.EnablePollingDebugLogging == true,
+                    startupNotificationSettings?.SampleProcessCpuThreads == true);
                 AchievementNotificationDebugLog.LogSettingsSnapshot(
                     startupNotificationSettings,
                     settings.Persisted,

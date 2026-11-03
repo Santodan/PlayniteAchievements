@@ -70,6 +70,16 @@
                         <ContentControl x:Name="AchievementNotificationsContent"/>
                     </TabItem>
 
+                    <TabItem x:Name="ForkPerformanceTab" AutomationProperties.Name="Performance">
+                        <TabItem.Header>
+                            <StackPanel Style="{StaticResource TabHeaderWithIconStyle}">
+                                <controls:GlyphIcon Style="{StaticResource HeaderGlyphStyle}" Glyph="&#xEF3A;"/>
+                                <TextBlock Text="Performance" VerticalAlignment="Center"/>
+                            </StackPanel>
+                        </TabItem.Header>
+                        <ContentControl x:Name="ForkPerformanceSettingsContent"/>
+                    </TabItem>
+
                     <!-- Fork migration workflow retained as a separate page alongside v3 migration. -->
                     <TabItem x:Name="ForkThemeMigrationTab"
                              AutomationProperties.Name="{DynamicResource LOCPlayAch_ThemeMigration_Title}">

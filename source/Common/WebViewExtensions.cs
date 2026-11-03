@@ -18,7 +18,8 @@ namespace PlayniteAchievements.Common
         {
             var operation = api.MainView.UIDispatcher.InvokeAsync(async () =>
             {
-                using (var view = api.WebViews.CreateOffscreenView())
+                using (PlayniteAchievements.Services.Logging.CefDebugTrace.Begin("temporary-offscreen-lifetime"))
+                using (var view = PlayniteAchievements.Services.Logging.CefDebugTrace.Run("create-offscreen", () => api.WebViews.CreateOffscreenView()))
                 {
                     return await work(view);
                 }
@@ -53,7 +54,7 @@ namespace PlayniteAchievements.Common
             {
                 api.MainView.UIDispatcher.Invoke(() =>
                 {
-                    using (var view = api.WebViews.CreateOffscreenView())
+                    using (var view = PlayniteAchievements.Services.Logging.CefDebugTrace.Run("create-offscreen", () => api.WebViews.CreateOffscreenView()))
                     {
                         foreach (var domain in domains)
                         {
@@ -70,6 +71,8 @@ namespace PlayniteAchievements.Common
 
         public static async Task NavigateAndWaitAsync(this IWebView webView, string url, int timeoutMs = DefaultNavigationTimeoutMs)
         {
+            using var browserNavigation = PlayniteAchievements.Services.Logging.CefDebugTrace.Begin("navigate host=" + PlayniteAchievements.Services.Logging.CefDebugTrace.Host(url) +
+                " objectId=" + System.Runtime.CompilerServices.RuntimeHelpers.GetHashCode(webView));
             var tcs = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
 
             void OnLoadingChanged(object sender, WebViewLoadingChangedEventArgs e)

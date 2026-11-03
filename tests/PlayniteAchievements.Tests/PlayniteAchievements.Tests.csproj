@@ -9,7 +9,14 @@
 
   <ItemGroup>
     <Compile Include="..\..\source\Services\Logging\ForkLogger.cs" Link="Source\Services\Logging\ForkLogger.cs" />
+    <Compile Include="..\..\source\Services\Logging\CefDebugTrace.cs" Link="Source\Services\Logging\CefDebugTrace.cs" />
+    <Compile Include="..\..\source\Services\InGameMonitoring\SantodanStartupBaselineStore.cs" Link="Source\Services\InGameMonitoring\SantodanStartupBaselineStore.cs" />
+    <Compile Include="..\..\source\Services\InGameMonitoring\SantodanPollingConfiguration.cs" Link="Source\Services\InGameMonitoring\SantodanPollingConfiguration.cs" />
+    <Compile Include="..\..\source\Services\Logging\ProcessThreadCpuSampler.cs" Link="Source\Services\Logging\ProcessThreadCpuSampler.cs" />
     <Compile Include="..\..\source\Services\Logging\PollingDebugLog.cs" Link="Source\Services\Logging\PollingDebugLog.cs" />
+    <Compile Include="..\..\source\Services\InGameMonitoring\SantodanPollingScope.cs" Link="Source\Services\InGameMonitoring\SantodanPollingScope.cs" />
+    <Compile Include="..\..\source\Services\InGameMonitoring\LocalPollingDirectoryCache.cs" Link="Source\Services\InGameMonitoring\LocalPollingDirectoryCache.cs" />
+    <Compile Include="..\..\source\Services\InGameMonitoring\LocalPollingFingerprintGate.cs" Link="Source\Services\InGameMonitoring\LocalPollingFingerprintGate.cs" />
     <Compile Include="..\..\source\Services\Logging\FileLogger.cs" Link="Source\Services\Logging\FileLogger.cs" />
     <Compile Include="..\..\source\Services\Logging\NamedLoggerWrapper.cs" Link="Source\Services\Logging\NamedLoggerWrapper.cs" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.11.1" />
@@ -108,6 +115,7 @@
     <Compile Include="..\..\source\Providers\Steam\Local\SteamBinaryKeyValuesReader.cs" Link="Source\Providers\Steam\Local\SteamBinaryKeyValuesReader.cs" />
     <Compile Include="..\..\source\Providers\Steam\Local\SteamLocalStatsReader.cs" Link="Source\Providers\Steam\Local\SteamLocalStatsReader.cs" />
     <Compile Include="..\..\source\Providers\Steam\SteamHuntersApiClient.cs" Link="Source\Providers\Steam\SteamHuntersApiClient.cs" />
+    <Compile Include="..\..\source\Providers\Steam\SteamHuntersCategoryEnricher.SantodanCache.cs" Link="Source\Providers\Steam\SteamHuntersCategoryEnricher.SantodanCache.cs" />
     <Compile Include="..\..\source\Providers\Steam\SteamHuntersCategoryEnricher.cs" Link="Source\Providers\Steam\SteamHuntersCategoryEnricher.cs" />
     <Compile Include="..\..\source\Providers\Steam\SteamFriendListItem.cs" Link="Source\Providers\Steam\SteamFriendListItem.cs" />
     <Compile Include="..\..\source\Providers\Steam\SteamFriendListBuilder.cs" Link="Source\Providers\Steam\SteamFriendListBuilder.cs" />
@@ -695,6 +703,7 @@
     <Compile Include="..\..\source\Services\ThemeMigration\ControlMappings.cs" Link="Source\Services\ThemeMigration\ControlMappings.cs" />
     <Compile Include="..\..\source\Services\ThemeMigration\CustomMigrationSelection.cs" Link="Source\Services\ThemeMigration\CustomMigrationSelection.cs" />
     <Compile Include="..\..\source\Services\ThemeMigration\MigrationMode.cs" Link="Source\Services\ThemeMigration\MigrationMode.cs" />
+    <Compile Include="..\..\source\Services\ThemeMigration\ThemeDiscoveryService.SantodanCache.cs" Link="Source\Services\ThemeMigration\ThemeDiscoveryService.SantodanCache.cs" />
     <Compile Include="..\..\source\Services\ThemeMigration\ThemeDiscoveryService.cs" Link="Source\Services\ThemeMigration\ThemeDiscoveryService.cs" />
     <Compile Include="..\..\source\Services\ThemeMigration\ThemeMigrationResult.cs" Link="Source\Services\ThemeMigration\ThemeMigrationResult.cs" />
     <Compile Include="..\..\source\Services\ThemeMigration\ThemeMigrationService.cs" Link="Source\Services\ThemeMigration\ThemeMigrationService.cs" />

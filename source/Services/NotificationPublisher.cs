@@ -1,4 +1,4 @@
-﻿using ForkLog = PlayniteAchievements.Services.Logging.ForkLogger;
+using ForkLog = PlayniteAchievements.Services.Logging.ForkLogger;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -35,7 +35,7 @@ using PlayniteAchievements.Services.UI;
 
 namespace PlayniteAchievements.Services
 {
-    public class NotificationPublisher
+    public partial class NotificationPublisher
     {
         private static readonly Regex OverlayTemplateTokenPattern = new Regex("<([a-zA-Z0-9]+)>", RegexOptions.Compiled);
         private static readonly object NotificationScoreCacheLock = new object();
@@ -8065,7 +8065,8 @@ if ({JsBool(settings?.OverlayCustomAutoResizeToContent == true)} && !sanProgress
         private static NotificationScoreContext GetNotificationScoreContext(Game game, string gameName, string achievementName, string achievementRarity)
         {
             using var pollingStage = PollingDebugLog.Stage("notification.scores");
-            var cacheKey = $"{game?.Id.ToString() ?? gameName ?? string.Empty}|{achievementName ?? string.Empty}|{achievementRarity ?? string.Empty}";
+            var scoreCacheEnabled = Providers.ProviderRegistry.Settings<Providers.Local.LocalSettings>()?.UseForkNotificationSummaryCache == true;
+            var cacheKey = $"{scoreCacheEnabled}|{game?.Id.ToString() ?? gameName ?? string.Empty}|{achievementName ?? string.Empty}|{achievementRarity ?? string.Empty}";
             lock (NotificationScoreCacheLock)
             {
                 if (_notificationScoreCache != null &&
@@ -8091,52 +8092,7 @@ if ({JsBool(settings?.OverlayCustomAutoResizeToContent == true)} && !sanProgress
 
             try
             {
-                var dataService = plugin?.AchievementDataService;
-                var gameData = game != null && game.Id != Guid.Empty
-                    ? dataService?.GetVisibleGameAchievementData(game.Id)
-                    : null;
-                // Reuse library totals and patch only changed games after polling writes.
-                // Only the notified game needs full achievement objects.
-                var summaries = dataService?.GetNotificationGameSummaries();
-                var namedGame = summaries?.FirstOrDefault(data =>
-                    !string.IsNullOrWhiteSpace(gameName) &&
-                    string.Equals(data?.GameName, gameName, StringComparison.OrdinalIgnoreCase));
-                if (gameData == null && namedGame?.PlayniteGameId.HasValue == true)
-                {
-                    gameData = dataService?.GetVisibleGameAchievementData(namedGame.PlayniteGameId.Value);
-                }
-                var achievement = gameData?.Achievements?.FirstOrDefault(item =>
-                    string.Equals(item?.DisplayName, achievementName, StringComparison.OrdinalIgnoreCase) ||
-                    string.Equals(item?.ApiName, achievementName, StringComparison.OrdinalIgnoreCase));
-
-                if (achievement != null)
-                {
-                    context.AchievementCollectionScore = achievement.CollectionScore;
-                    context.AchievementPrestigeScore = achievement.PrestigeScore;
-                }
-                else
-                {
-                    var fallbackTier = ResolveNotificationRarityTier(achievementRarity);
-                    context.AchievementCollectionScore = AchievementScoreCalculator.GetCollectionValue(fallbackTier);
-                    context.AchievementPrestigeScore = AchievementScoreCalculator.GetPrestigeValue(
-                        TryParseRarityPercent(achievementRarity),
-                        fallbackTier);
-                }
-                context.AchievementType = achievement?.CategoryType ?? string.Empty;
-                context.AchievementCategory = achievement?.Category ?? string.Empty;
-                PopulateGameNotificationScores(context, gameData);
-
-                var collectionScore = SumNotificationValues(summaries?.Where(item => item != null).Select(item => item.CollectionScore));
-                var prestigeScore = SumNotificationValues(summaries?.Where(item => item != null).Select(item => item.PrestigeScore));
-                if (context.TotalCollectionScore <= 0)
-                {
-                    context.TotalCollectionScore = collectionScore;
-                }
-                if (context.TotalPrestigeScore <= 0)
-                {
-                    context.TotalPrestigeScore = prestigeScore;
-                }
-                context.TotalPoints = SumNotificationValues(summaries?.Where(item => item != null).Select(item => item.Points));
+                PopulateSantodanNotificationScores(context, game, gameName, achievementName, achievementRarity);
             }
             catch
             {

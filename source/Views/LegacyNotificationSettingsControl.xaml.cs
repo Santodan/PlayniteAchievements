@@ -773,7 +773,8 @@ namespace PlayniteAchievements.Views
             _logger = logger;
             _providerRegistry = providerRegistry ?? throw new ArgumentNullException(nameof(providerRegistry));
 
-            _themeDiscovery = new ThemeDiscoveryService(_logger, plugin.PlayniteApi);
+            _themeDiscovery = new ThemeDiscoveryService(_logger, plugin.PlayniteApi,
+                () => (_providerRegistry.GetSettingsForEdit("Local") as LocalSettings)?.UseForkThemeMigrationCache == true);
             _themeMigration = new ThemeMigrationService(
                 _logger,
                 _settingsViewModel.Settings,

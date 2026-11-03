@@ -18,7 +18,7 @@ using PlayniteAchievements.Services.ThemeIntegration;
 
 namespace PlayniteAchievements.Services.Library
 {
-    internal sealed class LibraryProjectionService : IDisposable
+    internal sealed partial class LibraryProjectionService : IDisposable
     {
         private const int WarmDebounceMs = 1500;
         private static readonly TimeSpan MinEagerWarmInterval = TimeSpan.FromSeconds(30);
@@ -238,6 +238,7 @@ namespace PlayniteAchievements.Services.Library
             lock (_sync)
             {
                 _warmSuppressed = active;
+                CancelSantodanPendingWarm(active);
             }
         }
 
@@ -565,6 +566,7 @@ namespace PlayniteAchievements.Services.Library
                     return;
                 }
 
+                if (ShouldSkipSantodanWarm(generation)) return;
                 lock (_sync)
                 {
                     _lastWarmStartedUtc = DateTime.UtcNow;

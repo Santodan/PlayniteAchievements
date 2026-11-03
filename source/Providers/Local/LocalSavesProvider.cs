@@ -34,7 +34,7 @@ using PlayniteAchievements.Providers.Overrides;
 
 namespace PlayniteAchievements.Providers.Local
 {
-    public class LocalSavesProvider : IDataProvider, IProviderOverride
+    public partial class LocalSavesProvider : IDataProvider, IProviderOverride
     {
         private static readonly HashSet<Guid> ReportedAmbiguousFolderGames = new HashSet<Guid>();
         private static readonly Regex GenericAchievementNamePattern = new Regex(
@@ -865,23 +865,7 @@ namespace PlayniteAchievements.Providers.Local
                 return data;
             }
 
-            // Optional web metadata must never hold up live unlock detection. A cold
-            // SteamHunters request can retry for a minute before this poll can publish
-            // any progress. Normal/manual refreshes populate the persisted categories.
-            if (PlayniteAchievements.Services.Logging.RealtimePollingLogScope.IsActive)
-            {
-                if (data.PlayniteGameId.HasValue)
-                {
-                    var cached = PlayniteAchievementsPlugin.Instance?.CacheManager?
-                        .LoadGameData(data.PlayniteGameId.Value.ToString());
-                    if (cached != null && cached.AppId == data.AppId &&
-                        string.Equals(cached.ProviderKey, "Local", StringComparison.OrdinalIgnoreCase))
-                    {
-                        SteamHuntersCategoryEnricher.ApplyCachedCategories(data.Achievements, cached.Achievements);
-                    }
-                }
-                return data;
-            }
+            if (TryReuseSantodanPollingCategories(data)) return data;
 
             var steamProvider = ProviderRegistry.Instance?.GetProvider("Steam") as SteamDataProvider;
             if (steamProvider == null)
@@ -911,6 +895,7 @@ namespace PlayniteAchievements.Providers.Local
             {
                     if (token.IsCancellationRequested) break;
 
+                var startupBaseline = CaptureSantodanStartupBaseline(game);
                 var data = await GetAchievementsAsync(game, null);
                 if (data != null)
                 {
@@ -921,18 +906,17 @@ namespace PlayniteAchievements.Providers.Local
                     ProviderRegistry.Write(localSettings);
                     
                     await onAchievementsUpdated(game, data);
+                    SaveSantodanStartupBaseline(game, data, startupBaseline);
                     // Report only completed writes, so refresh completion can invalidate
                     // these games rather than clearing every notification summary.
-                    summary.RefreshedGameIds.Add(game.Id);
-                    summary.GamesRefreshed++;
-                    if (data.HasAchievements) summary.GamesWithAchievements++;
-                    else summary.GamesWithoutAchievements++;
+                    RecordSantodanPollingRefresh(summary, game, data);
                     Log($"DATABASE: Submitted {game.Name} (Count: {data.Achievements.Count})");
                 }
                 
                 if (games?.Count > 0) onGameProcessed(game);
             }
-            return new RebuildPayload { Summary = summary };
+            return PlayniteAchievements.Services.InGameMonitoring.SantodanPollingScope.IsActive
+                ? new RebuildPayload { Summary = summary } : new RebuildPayload();
         }
 
         internal bool TryGetActiveMonitorSourceFingerprint(Game game, out string fingerprint)

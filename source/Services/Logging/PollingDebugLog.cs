@@ -16,6 +16,7 @@ namespace PlayniteAchievements.Services.Logging
         private static readonly AsyncLocal<long> Poll = new AsyncLocal<long>();
         private static readonly Dictionary<string, string> Files = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         private static FileLogger _logger;
+        private static ProcessThreadCpuSampler _cpuSampler;
         private static long _nextPoll;
         private static long _nextStage;
         private static readonly AsyncLocal<long> CurrentStage = new AsyncLocal<long>();
@@ -44,12 +45,14 @@ namespace PlayniteAchievements.Services.Logging
 
         private static string Number(double value) => double.IsNaN(value) ? "unavailable" : value.ToString("F2", CultureInfo.InvariantCulture);
 
-        public static void Configure(string directory, bool enabled)
+        public static void Configure(string directory, bool enabled, bool sampleProcessThreads = false)
         {
             lock (Sync)
             {
                 if (!enabled)
                 {
+                    _cpuSampler?.Dispose();
+                    _cpuSampler = null;
                     // FileLogger may skip its final queued entry during shutdown. Keep
                     // a terminal marker after the diagnostic measurements being drained.
                     _logger?.Info("Polling diagnostics stopping.");
@@ -58,13 +61,48 @@ namespace PlayniteAchievements.Services.Logging
                     Files.Clear();
                     return;
                 }
-                if (_logger != null) return;
+                if (_logger != null)
+                {
+                    ConfigureCpuSampler(sampleProcessThreads);
+                    return;
+                }
                 _logger = new FileLogger(directory, "PollingDebug.log");
                 _logger.Info("Polling diagnostics enabled. pid=" + Process.GetCurrentProcess().Id +
                     " processors=" + Environment.ProcessorCount + " runtime=" + Environment.Version +
                     " utc=" + DateTime.UtcNow.ToString("O") + " qpc=" + Stopwatch.GetTimestamp() +
                     " qpcFrequency=" + Stopwatch.Frequency);
                 _logger.Info("Elapsed, process CPU, GC and heap deltas cover the entire measurement window. Thread CPU/allocation deltas include other work on that thread and are unavailable if the stage switches threads. Nested stages overlap; do not sum them. File metadata changes are not content hashes. Optional ETW provider: PlayniteAchievements-Polling.");
+                ConfigureCpuSampler(sampleProcessThreads);
+            }
+        }
+
+        private static void ConfigureCpuSampler(bool enabled)
+        {
+            if (!enabled)
+            {
+                _cpuSampler?.Dispose();
+                _cpuSampler = null;
+                return;
+            }
+            if (_cpuSampler != null) return;
+            try
+            {
+                _cpuSampler = new ProcessThreadCpuSampler(WriteExternal);
+                _logger.Info("Per-thread CPU sampling enabled. topThreads contains OS thread IDs and CPU milliseconds. Windows CPU counters are quantized; exited threads can be missing. The sampler's own work is included in process CPU; sampleOverheadMs measures its collection/formatting time.");
+            }
+            catch (Exception ex) { _logger.Warn("Could not start per-thread CPU sampler: " + ex.GetType().Name); }
+        }
+
+        internal static bool IsEnabled { get { lock (Sync) return _logger != null; } }
+
+        // Browser work can happen outside any polling context, including settings/startup.
+        internal static void WriteExternal(string message)
+        {
+            lock (Sync)
+            {
+                if (_logger == null) return;
+                _logger.Info("poll=" + Poll.Value + " managedTid=" + Thread.CurrentThread.ManagedThreadId +
+                    " osTid=" + GetCurrentThreadId() + " qpc=" + Stopwatch.GetTimestamp() + " " + message);
             }
         }
 

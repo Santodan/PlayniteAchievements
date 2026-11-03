@@ -24,7 +24,7 @@
                 <StackPanel>
                     <TextBlock Text="Logs" Style="{StaticResource SubSectionHeaderStyle}"/>
                     <controls:SettingRow Label="Debug mode"
-                                         Hint="Record detailed performance diagnostics during polling, including thread activity, CPU timings, and memory statistics, in PollingDebug.log. Enable only while investigating a problem.">
+                                         Hint="Record detailed performance diagnostics during polling, including thread activity, CPU timings, memory statistics, and Steam/shared CEF browser lifecycle events, in PollingDebug.log. Enable only while investigating a problem.">
                         <CheckBox x:Name="DebugModeCheckBox"
                                   IsChecked="{Binding EnablePollingDebugLogging, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                   Checked="DebugMode_Changed" Unchecked="DebugMode_Changed"/>

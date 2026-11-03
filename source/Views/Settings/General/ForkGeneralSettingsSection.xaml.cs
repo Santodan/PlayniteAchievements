@@ -26,7 +26,8 @@ namespace PlayniteAchievements.Views.Settings.General
             if (!(sender is CheckBox checkBox) || !(checkBox.DataContext is Providers.Local.LocalSettings)) return;
             try
             {
-                Services.Logging.PollingDebugLog.Configure(_plugin.GetPluginUserDataPath(), checkBox.IsChecked == true);
+                Services.Logging.PollingDebugLog.Configure(_plugin.GetPluginUserDataPath(), checkBox.IsChecked == true,
+                    (checkBox.DataContext as Providers.Local.LocalSettings)?.SampleProcessCpuThreads == true);
             }
             catch (Exception ex)
             {

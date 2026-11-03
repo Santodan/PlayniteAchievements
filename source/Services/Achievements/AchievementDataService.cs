@@ -18,7 +18,7 @@ namespace PlayniteAchievements.Services.Achievements
     /// <summary>
     /// Centralized read-side service for cached achievement data and hydration overlays.
     /// </summary>
-    public sealed class AchievementDataService
+    public sealed partial class AchievementDataService
     {
         private static readonly IReadOnlyDictionary<string, string> EmptyIconOverrides =
             new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
@@ -82,7 +82,6 @@ namespace PlayniteAchievements.Services.Achievements
 
         private readonly Dictionary<int, OverviewSummaryMemoEntry> _overviewSummaryCacheByLimit =
             new Dictionary<int, OverviewSummaryMemoEntry>();
-        private readonly NotificationGameSummaryCache _notificationGameSummaries = new NotificationGameSummaryCache();
 
         // Bumped on every invalidation; a summary loaded before an invalidation must not be
         // memoized after it (it may have been built against since-replaced filter mirror rows).
@@ -500,21 +499,6 @@ namespace PlayniteAchievements.Services.Achievements
         internal CachedSummaryData GetCachedSummaryDataForTheme(int recentAchievementDetailLimit = 0)
         {
             return GetCachedSummaryDataForOverview(recentAchievementDetailLimit);
-        }
-
-        internal IReadOnlyList<CachedGameSummaryData> GetNotificationGameSummaries()
-        {
-            return _notificationGameSummaries.Get(
-                () =>
-                {
-                    var data = GetCachedSummaryData(1);
-                    return data == null ? null : ApplyOverviewSummaryHydration(data, 1);
-                },
-                gameId =>
-                {
-                    var data = _cacheReadOptimizations?.LoadCachedSummaryDataForGameFast(gameId);
-                    return data == null ? null : ApplyOverviewSummaryHydration(data, 0, new[] { gameId });
-                });
         }
 
         /// <summary>
@@ -1578,7 +1562,7 @@ namespace PlayniteAchievements.Services.Achievements
         {
             // A normal write already names its game. Preserve that scope for notification
             // totals while retaining the existing overview invalidation behavior.
-            _notificationGameSummaries.InvalidateDelta(e);
+            InvalidateSantodanNotificationDelta(e);
             InvalidateOverviewProjectionCaches(invalidateNotificationSummaries: false);
         }
 
@@ -1785,7 +1769,7 @@ namespace PlayniteAchievements.Services.Achievements
             bool invalidateNotificationSummaries = true)
         {
             var scoped = changedGameIds?.Where(id => id != Guid.Empty).ToList();
-            if (invalidateNotificationSummaries) _notificationGameSummaries.Invalidate(scoped);
+            if (invalidateNotificationSummaries) InvalidateSantodanNotificationSummaries(scoped);
             if (scoped == null ||
                 scoped.Count == 0 ||
                 scoped.Count > Models.CacheInvalidatedEventArgs.MaxScopedGames)

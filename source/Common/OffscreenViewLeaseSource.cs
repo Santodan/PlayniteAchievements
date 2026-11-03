@@ -93,7 +93,7 @@ namespace PlayniteAchievements.Common
 
             try
             {
-                toDispose.Dispose();
+                PlayniteAchievements.Services.Logging.CefDebugTrace.Run<object>("dispose-leased-offscreen", () => { toDispose.Dispose(); return null; });
             }
             catch (Exception ex)
             {
@@ -120,14 +120,14 @@ namespace PlayniteAchievements.Common
                 {
                     if (_leasedView == null)
                     {
-                        _leasedView = _api.WebViews.CreateOffscreenView();
+                        _leasedView = PlayniteAchievements.Services.Logging.CefDebugTrace.Run("create-offscreen", () => _api.WebViews.CreateOffscreenView());
                     }
 
                     return (_leasedView, false);
                 }
             }
 
-            return (_api.WebViews.CreateOffscreenView(), true);
+            return (PlayniteAchievements.Services.Logging.CefDebugTrace.Run("create-offscreen", () => _api.WebViews.CreateOffscreenView()), true);
         }
 
         /// <summary>
@@ -159,7 +159,7 @@ namespace PlayniteAchievements.Common
 
             try
             {
-                view.Dispose();
+                PlayniteAchievements.Services.Logging.CefDebugTrace.Run<object>("dispose-offscreen", () => { view.Dispose(); return null; });
             }
             catch (Exception ex)
             {
@@ -215,6 +215,7 @@ namespace PlayniteAchievements.Common
             var faulted = false;
             try
             {
+                using var browserOperation = PlayniteAchievements.Services.Logging.CefDebugTrace.Begin("offscreen-work " + work.Method.DeclaringType?.Name + "." + work.Method.Name);
                 return await work(view).ConfigureAwait(false);
             }
             catch

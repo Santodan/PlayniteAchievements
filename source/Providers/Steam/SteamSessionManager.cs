@@ -679,11 +679,12 @@ namespace PlayniteAchievements.Providers.Steam
 
         public static bool HasSteamSessionCookies(IPlayniteAPI api, ILogger logger)
         {
+            using var browserCookies = PlayniteAchievements.Services.Logging.CefDebugTrace.Begin("cookie-probe");
             try
             {
                 return InvokeOnUi(api, () =>
                 {
-                    using (var view = api.WebViews.CreateOffscreenView())
+                    using (var view = PlayniteAchievements.Services.Logging.CefDebugTrace.Run("create-offscreen", () => api.WebViews.CreateOffscreenView()))
                     {
                         return HasSteamSessionCookies(view.GetCookies());
                     }
@@ -813,11 +814,12 @@ namespace PlayniteAchievements.Providers.Steam
 
         public static void ClearSteamCookiesFromCef(IPlayniteAPI api, ILogger logger)
         {
+            using var browserCookies = PlayniteAchievements.Services.Logging.CefDebugTrace.Begin("cookie-clear");
             try
             {
                 InvokeOnUi(api, () =>
                 {
-                    using (var view = api.WebViews.CreateOffscreenView())
+                    using (var view = PlayniteAchievements.Services.Logging.CefDebugTrace.Run("create-offscreen", () => api.WebViews.CreateOffscreenView()))
                     {
                         // Explicit host and dotted-domain clears are more reliable across CEF cookie stores.
                         view.DeleteDomainCookies(".steamcommunity.com");
