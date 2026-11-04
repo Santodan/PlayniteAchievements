@@ -57,9 +57,12 @@ namespace PlayniteAchievements.Models.Tagging
         }
 
         private bool _enableTagging = false;
+        private bool _enableFeatureSync = false;
         private bool _setCompletionStatus = false;
+        private bool _completionStatusSwitchSeeded = false;
         private Guid? _completionStatusId;
         private Dictionary<TagType, TagConfig> _tagConfigs;
+        private Dictionary<TagType, TagConfig> _featureConfigs;
 
         /// <summary>
         /// Master switch to enable or disable tag syncing.
@@ -72,12 +75,34 @@ namespace PlayniteAchievements.Models.Tagging
         }
 
         /// <summary>
+        /// Master switch for Playnite feature syncing, the same way as <see cref="EnableTagging"/>
+        /// for tags. When disabled, all PA features are removed from games.
+        /// </summary>
+        public bool EnableFeatureSync
+        {
+            get => _enableFeatureSync;
+            set => SetValue(ref _enableFeatureSync, value);
+        }
+
+        /// <summary>
         /// Whether to automatically set Playnite's completion status for completed games.
+        /// Independent of <see cref="EnableTagging"/>.
         /// </summary>
         public bool SetCompletionStatus
         {
             get => _setCompletionStatus;
             set => SetValue(ref _setCompletionStatus, value);
+        }
+
+        /// <summary>
+        /// Set once <see cref="SetCompletionStatus"/> has been reconciled with the version in
+        /// which it stopped depending on <see cref="EnableTagging"/>: a saved file from before
+        /// then can hold the switch on with tagging off, a state the UI never showed.
+        /// </summary>
+        public bool CompletionStatusSwitchSeeded
+        {
+            get => _completionStatusSwitchSeeded;
+            set => SetValue(ref _completionStatusSwitchSeeded, value);
         }
 
         /// <summary>
@@ -102,6 +127,27 @@ namespace PlayniteAchievements.Models.Tagging
             set => SetValue(ref _tagConfigs, value);
         }
 
+        /// <summary>
+        /// Configuration for each Playnite feature the plugin maintains, keyed by the same kinds
+        /// as <see cref="TagConfigs"/> but independent of it: its own names, enable flags and
+        /// Playnite ids (<see cref="TagConfig.TagId"/> holds the feature's id here). Only the
+        /// kinds in <see cref="FeatureKinds"/> are used.
+        /// </summary>
+        [Newtonsoft.Json.JsonConverter(typeof(KnownTagConfigsConverter))]
+        public Dictionary<TagType, TagConfig> FeatureConfigs
+        {
+            get => _featureConfigs;
+            set => SetValue(ref _featureConfigs, value);
+        }
+
+        /// <summary>The kinds feature sync covers: where a game's achievements come from.</summary>
+        public static readonly IReadOnlyList<TagType> FeatureKinds = new[]
+        {
+            TagType.HasAchievements,
+            TagType.CustomAchievements,
+            TagType.ManualAchievements
+        };
+
         // Individual tag config properties for WPF binding convenience.
         // Not serialized: TagConfigs is the single persisted source of truth.
         [DontSerialize]
@@ -122,13 +168,13 @@ namespace PlayniteAchievements.Models.Tagging
         public TagConfig ExcludedFromSummariesConfig => GetOrCreateTagConfig(TagType.ExcludedFromSummaries);
 
         /// <summary>
-        /// The status kinds as settings rows: achievements (platform, custom, none), progress and
-        /// exclusion.
+        /// The status kinds as settings rows: achievements (platform, custom, manual, none),
+        /// progress and exclusion.
         /// </summary>
         [DontSerialize]
         public IReadOnlyList<TagRow> StatusRows => new[]
         {
-            Row("LOCPlayAch_Achievements", TagType.HasAchievements, TagType.CustomAchievements, TagType.NoAchievements, null),
+            Row("LOCPlayAch_Achievements", TagType.HasAchievements, TagType.CustomAchievements, TagType.ManualAchievements, TagType.NoAchievements),
             Row("LOCPlayAch_Progress", TagType.InProgress, TagType.Completed, null, null),
             Row("LOCPlayAch_ManageAchievements_Status_Excluded", TagType.Excluded, TagType.ExcludedFromSummaries, null, null)
         };
@@ -148,29 +194,54 @@ namespace PlayniteAchievements.Models.Tagging
                     area.Tag(TagLayer.None))))
                 .ToList();
 
+        /// <summary>
+        /// The feature kinds as one settings row, over <see cref="FeatureConfigs"/>: platform,
+        /// custom and manual achievements.
+        /// </summary>
+        [DontSerialize]
+        public IReadOnlyList<TagRow> FeatureStatusRows => new[]
+        {
+            Row(FeatureConfigsOrNew(), "LOCPlayAch_Achievements", TagType.HasAchievements, TagType.CustomAchievements, TagType.ManualAchievements, null)
+        };
+
         private TagRow Row(string labelKey, TagType? first, TagType? second, TagType? third, TagType? fourth)
         {
-            TagConfig Config(TagType? tagType) => tagType.HasValue ? GetOrCreateTagConfig(tagType.Value) : null;
+            return Row(TagConfigsOrNew(), labelKey, first, second, third, fourth);
+        }
+
+        private static TagRow Row(
+            Dictionary<TagType, TagConfig> configs,
+            string labelKey,
+            TagType? first,
+            TagType? second,
+            TagType? third,
+            TagType? fourth)
+        {
+            TagConfig Config(TagType? tagType) => tagType.HasValue ? GetOrCreateConfig(configs, tagType.Value) : null;
             return new TagRow(labelKey, Config(first), Config(second), Config(third), Config(fourth));
         }
 
-        private TagConfig GetOrCreateTagConfig(TagType tagType)
-        {
-            if (TagConfigs == null)
-            {
-                TagConfigs = new Dictionary<TagType, TagConfig>();
-            }
+        private TagConfig GetOrCreateTagConfig(TagType tagType) => GetOrCreateConfig(TagConfigsOrNew(), tagType);
 
-            if (!TagConfigs.ContainsKey(tagType))
+        private Dictionary<TagType, TagConfig> TagConfigsOrNew() =>
+            TagConfigs ?? (TagConfigs = new Dictionary<TagType, TagConfig>());
+
+        private Dictionary<TagType, TagConfig> FeatureConfigsOrNew() =>
+            FeatureConfigs ?? (FeatureConfigs = new Dictionary<TagType, TagConfig>());
+
+        private static TagConfig GetOrCreateConfig(Dictionary<TagType, TagConfig> configs, TagType tagType)
+        {
+            if (!configs.TryGetValue(tagType, out var config) || config == null)
             {
-                TagConfigs[tagType] = new TagConfig
+                config = new TagConfig
                 {
                     DisplayName = GetDefaultDisplayName(tagType),
                     IsEnabled = IsEnabledByDefault(tagType)
                 };
+                configs[tagType] = config;
             }
 
-            return TagConfigs[tagType];
+            return config;
         }
 
         /// <summary>
@@ -179,36 +250,44 @@ namespace PlayniteAchievements.Models.Tagging
         public TaggingSettings()
         {
             TagConfigs = new Dictionary<TagType, TagConfig>();
+            FeatureConfigs = new Dictionary<TagType, TagConfig>();
         }
 
         /// <summary>
-        /// Initializes default tag configurations with localized display names.
-        /// Should be called after the settings are loaded to ensure all tag types exist.
+        /// Initializes default tag and feature configurations with localized display names.
+        /// Should be called after the settings are loaded to ensure all kinds exist.
         /// </summary>
-        /// <param name="getDefaultName">Function to get the localized default name for a tag type.</param>
+        /// <param name="getDefaultName">Function to get the localized default name for a kind.</param>
         public void InitializeDefaults(Func<TagType, string> getDefaultName)
         {
-            if (TagConfigs == null)
-            {
-                TagConfigs = new Dictionary<TagType, TagConfig>();
-            }
+            FillDefaults(TagConfigsOrNew(), (TagType[])System.Enum.GetValues(typeof(TagType)), getDefaultName);
+            FillDefaults(FeatureConfigsOrNew(), FeatureKinds, getDefaultName);
+        }
 
-            // Ensure all tag types have a config
-            foreach (TagType tagType in System.Enum.GetValues(typeof(TagType)))
+        /// <summary>
+        /// Gives every kind in <paramref name="kinds"/> a config, and a blank display name its
+        /// default. Existing names and enable flags are kept.
+        /// </summary>
+        private static void FillDefaults(
+            Dictionary<TagType, TagConfig> configs,
+            IEnumerable<TagType> kinds,
+            Func<TagType, string> getDefaultName)
+        {
+            foreach (var tagType in kinds)
             {
-                if (!TagConfigs.ContainsKey(tagType))
+                if (!configs.TryGetValue(tagType, out var config) || config == null)
                 {
-                    TagConfigs[tagType] = new TagConfig
+                    configs[tagType] = new TagConfig
                     {
                         DisplayName = getDefaultName?.Invoke(tagType) ?? GetDefaultDisplayName(tagType),
                         IsEnabled = IsEnabledByDefault(tagType)
                     };
                 }
-                else if (string.IsNullOrWhiteSpace(TagConfigs[tagType].DisplayName))
+                else if (string.IsNullOrWhiteSpace(config.DisplayName))
                 {
-                    // Fill in missing display names
-                    TagConfigs[tagType].DisplayName = getDefaultName?.Invoke(tagType) ?? GetDefaultDisplayName(tagType);
-                }            }
+                    config.DisplayName = getDefaultName?.Invoke(tagType) ?? GetDefaultDisplayName(tagType);
+                }
+            }
         }
 
         /// <summary>
@@ -221,6 +300,7 @@ namespace PlayniteAchievements.Models.Tagging
             {
                 TagType.HasAchievements => "[PA] Platform Achievements",
                 TagType.CustomAchievements => "[PA] Custom Achievements",
+                TagType.ManualAchievements => "[PA] Manual Achievements",
                 TagType.InProgress => "[PA] In Progress",
                 TagType.Completed => "[PA] Completed",
                 TagType.NoAchievements => "[PA] No Achievements",
@@ -251,29 +331,41 @@ namespace PlayniteAchievements.Models.Tagging
         /// </summary>
         public TagConfig GetConfig(TagType tagType) => GetOrCreateTagConfig(tagType);
 
+        /// <summary>The feature config for a kind, created with its defaults when missing.</summary>
+        public TagConfig GetFeatureConfig(TagType tagType) => GetOrCreateConfig(FeatureConfigsOrNew(), tagType);
+
         /// <summary>
         /// Creates a deep copy of this TaggingSettings instance.
         /// </summary>
         public TaggingSettings Clone()
         {
-            var clone = new TaggingSettings
+            return new TaggingSettings
             {
                 EnableTagging = EnableTagging,
+                EnableFeatureSync = EnableFeatureSync,
                 SetCompletionStatus = SetCompletionStatus,
-                CompletionStatusId = CompletionStatusId
+                CompletionStatusSwitchSeeded = CompletionStatusSwitchSeeded,
+                CompletionStatusId = CompletionStatusId,
+                TagConfigs = CloneConfigs(TagConfigs),
+                FeatureConfigs = CloneConfigs(FeatureConfigs)
             };
+        }
 
-            if (TagConfigs != null)
+        private static Dictionary<TagType, TagConfig> CloneConfigs(Dictionary<TagType, TagConfig> configs)
+        {
+            var clone = new Dictionary<TagType, TagConfig>();
+            if (configs == null)
             {
-                clone.TagConfigs = new Dictionary<TagType, TagConfig>();
-                foreach (var kvp in TagConfigs)
+                return clone;
+            }
+
+            foreach (var kvp in configs)
+            {
+                clone[kvp.Key] = kvp.Value?.Clone() ?? new TagConfig
                 {
-                    clone.TagConfigs[kvp.Key] = kvp.Value?.Clone() ?? new TagConfig
-                    {
-                        DisplayName = GetDefaultDisplayName(kvp.Key),
-                        IsEnabled = IsEnabledByDefault(kvp.Key)
-                    };
-                }
+                    DisplayName = GetDefaultDisplayName(kvp.Key),
+                    IsEnabled = IsEnabledByDefault(kvp.Key)
+                };
             }
 
             return clone;
