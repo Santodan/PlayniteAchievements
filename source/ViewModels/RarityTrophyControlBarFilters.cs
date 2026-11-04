@@ -97,17 +97,52 @@ namespace PlayniteAchievements.ViewModels
             TrophyChoices.Where(choice => _trophies.Contains(choice.Type)).Select(choice => choice.Key),
             "LOCPlayAch_Column_Trophy");
 
+        /// <summary>True while the Rarity filter would drop a row: a tier or Capstone is picked.</summary>
+        public bool HasRaritySelection => _rarities.Count > 0 || _capstone;
+
+        /// <summary>True while the Trophy filter would drop a row.</summary>
+        public bool HasTrophySelection => _trophies.Count > 0;
+
         /// <summary>True while either filter would drop a row.</summary>
-        public bool HasSelection => _rarities.Count > 0 || _capstone || _trophies.Count > 0;
+        public bool HasSelection => HasRaritySelection || HasTrophySelection;
+
+        /// <summary>The picked Rarity options' labels in menu order, Capstone last.</summary>
+        public IReadOnlyList<string> SelectedRarityLabels =>
+            RarityOptions.Where(IsRaritySelected).ToList();
+
+        /// <summary>The picked Trophy options' labels in menu order.</summary>
+        public IReadOnlyList<string> SelectedTrophyLabels =>
+            TrophyChoices.Where(choice => _trophies.Contains(choice.Type))
+                .Select(choice => ResourceProvider.GetString(choice.Key))
+                .ToList();
+
+        /// <summary>A text of the Rarity picks, the same for the same picks; empty while none.</summary>
+        public string RarityKey =>
+            string.Join(",", _rarities.Select(tier => (int)tier).OrderBy(tier => tier).Select(tier => tier.ToString())
+                .Concat(_capstone ? new[] { "capstone" } : Array.Empty<string>()));
+
+        /// <summary>A text of the Trophy picks, the same for the same picks; empty while none.</summary>
+        public string TrophyKey =>
+            string.Join(",", _trophies.OrderBy(trophy => trophy, StringComparer.OrdinalIgnoreCase));
 
         /// <summary>
         /// Offers the trophy types only while some library game has trophies. True when that
         /// changed, so the bar's item visibility needs a refresh.
         /// </summary>
-        public bool UpdateGames(IEnumerable<GameSummaryItem> games)
+        public bool UpdateGames(IEnumerable<GameSummaryItem> games) =>
+            OfferTrophies((games ?? Enumerable.Empty<GameSummaryItem>())
+                .Any(game => game?.HasTrophyPieChartData == true));
+
+        /// <summary>
+        /// Offers the trophy types only while some row has a trophy type. True when that
+        /// changed, so the bar's item visibility needs a refresh.
+        /// </summary>
+        public bool UpdateRows(IEnumerable<AchievementDisplayItem> rows) =>
+            OfferTrophies((rows ?? Enumerable.Empty<AchievementDisplayItem>())
+                .Any(row => !string.IsNullOrWhiteSpace(row?.TrophyType)));
+
+        private bool OfferTrophies(bool hasTrophies)
         {
-            var hasTrophies = (games ?? Enumerable.Empty<GameSummaryItem>())
-                .Any(game => game?.HasTrophyPieChartData == true);
             if (hasTrophies == (TrophyOptions.Count > 0))
             {
                 return false;
@@ -137,8 +172,15 @@ namespace PlayniteAchievements.ViewModels
 
         /// <summary>True for a row both filters keep; every row while nothing is selected.</summary>
         public bool Matches(AchievementDisplayItem row) =>
+            MatchesRarity(row) && MatchesTrophy(row);
+
+        /// <summary>True for a row the Rarity filter keeps; every row while no tier or Capstone is picked.</summary>
+        public bool MatchesRarity(AchievementDisplayItem row) =>
+            row != null && MatchesRarity(row.Rarity, row.IsCapstone);
+
+        /// <summary>True for a row the Trophy filter keeps; every row while no trophy type is picked.</summary>
+        public bool MatchesTrophy(AchievementDisplayItem row) =>
             row != null &&
-            MatchesRarity(row.Rarity, row.IsCapstone) &&
             (_trophies.Count == 0 || _trophies.Contains((row.TrophyType ?? string.Empty).Trim()));
 
         /// <summary>
@@ -198,7 +240,26 @@ namespace PlayniteAchievements.ViewModels
             return labels.Count == 0 ? ResourceProvider.GetString(placeholderKey) : string.Join(", ", labels);
         }
 
-        private bool IsRaritySelected(string label) =>
+        /// <summary>Drops every Rarity pick, one change notice per pick.</summary>
+        public void ClearRarity()
+        {
+            foreach (var label in SelectedRarityLabels)
+            {
+                SetRaritySelected(label, false);
+            }
+        }
+
+        /// <summary>Drops every Trophy pick, one change notice per pick.</summary>
+        public void ClearTrophy()
+        {
+            foreach (var label in SelectedTrophyLabels)
+            {
+                SetTrophySelected(label, false);
+            }
+        }
+
+        /// <summary>True while the Rarity option labelled <paramref name="label"/> is picked.</summary>
+        public bool IsRaritySelected(string label) =>
             IsCapstoneLabel(label)
                 ? _capstone
                 : RarityChoices.Any(choice => _rarities.Contains(choice.Tier) &&
@@ -217,11 +278,13 @@ namespace PlayniteAchievements.ViewModels
             TrophyChoices.FirstOrDefault(choice =>
                 string.Equals(ResourceProvider.GetString(choice.Key), label, StringComparison.Ordinal)).IconKey;
 
-        private bool IsTrophySelected(string label) =>
+        /// <summary>True while the Trophy option labelled <paramref name="label"/> is picked.</summary>
+        public bool IsTrophySelected(string label) =>
             TrophyChoices.Any(choice => _trophies.Contains(choice.Type) &&
                                         string.Equals(ResourceProvider.GetString(choice.Key), label, StringComparison.Ordinal));
 
-        private void SetRaritySelected(string label, bool selected)
+        /// <summary>Picks or drops the Rarity option labelled <paramref name="label"/>.</summary>
+        public void SetRaritySelected(string label, bool selected)
         {
             if (IsCapstoneLabel(label))
             {
@@ -246,7 +309,8 @@ namespace PlayniteAchievements.ViewModels
             }
         }
 
-        private void SetTrophySelected(string label, bool selected)
+        /// <summary>Picks or drops the Trophy option labelled <paramref name="label"/>.</summary>
+        public void SetTrophySelected(string label, bool selected)
         {
             foreach (var choice in TrophyChoices.Where(choice =>
                          string.Equals(ResourceProvider.GetString(choice.Key), label, StringComparison.Ordinal)))

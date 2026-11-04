@@ -50,6 +50,8 @@ namespace PlayniteAchievements.Tests.Models
                 {
                     ShowcaseControlBarItems.Tag,
                     ShowcaseControlBarItems.Category,
+                    ShowcaseControlBarItems.Rarity,
+                    ShowcaseControlBarItems.Trophy,
                     ShowcaseControlBarItems.Compare,
                     ShowcaseControlBarItems.Unlocked,
                     ShowcaseControlBarItems.Locked,

@@ -385,34 +385,12 @@ namespace PlayniteAchievements.ViewModels
                 AutoHideWhenUnavailable = false,
                 Width = 190
             });
-            // Rarity and trophy type; a rarity or trophy pie slice in the mini-showcase toggles
-            // them too. The trophy filter hides while no unlock has a trophy type.
-            RecentAchievementsControlBar.Items.Add(new GridMultiSelectFilter(
-                this,
-                nameof(SelectedRarityFilterText),
-                () => SelectedRarityFilterText,
-                () => RarityFilterOptions,
-                IsRarityFilterSelected,
-                SetRarityFilterSelected)
-            {
-                Id = ShowcaseControlBarItems.Rarity,
-                LabelKey = "LOCPlayAch_Column_Rarity",
-                Width = 130,
-                IconKeyOf = RarityFilterIconKey
-            });
-            RecentAchievementsControlBar.Items.Add(new GridMultiSelectFilter(
-                this,
-                nameof(SelectedTrophyFilterText),
-                () => SelectedTrophyFilterText,
-                () => TrophyFilterOptions,
-                IsTrophyFilterSelected,
-                SetTrophyFilterSelected)
-            {
-                Id = ShowcaseControlBarItems.Trophy,
-                LabelKey = "LOCPlayAch_Column_Trophy",
-                Width = 130,
-                IconKeyOf = TrophyFilterIconKey
-            });
+            // Rarity (the tiers and Capstone) and trophy type, the widget bars' own filters; a
+            // rarity or trophy pie slice in the mini-showcase toggles them too. The trophy filter
+            // hides while no unlock has a trophy type.
+            _tierFilters = new RarityTrophyControlBarFilters(ScheduleAchievementFilterApply);
+            RecentAchievementsControlBar.Items.Add(_tierFilters.RarityItem);
+            RecentAchievementsControlBar.Items.Add(_tierFilters.TrophyItem);
             // Achievement tags; a tag pie slice in the mini-showcase toggles them too. The grid
             // lists every game here, so it offers the global tags; a selected game's grid has its
             // own Tags filter with that game's tags.
