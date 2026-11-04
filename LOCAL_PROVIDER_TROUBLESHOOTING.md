@@ -144,3 +144,68 @@ When reporting a problem, include:
 - the relevant Playnite log - `Playnite\ExtensionsData\e6aad2c9-6e06-4d8d-ac55-ac3b252b5f7b\playniteachievements.log` .
 
 Do not publish account tokens, cookies, full user profiles, or save files containing personal data.
+
+## Reduce CPU usage while a game is idle
+
+Open **Add-ons > Extension settings > Playnite Achievements > Santodan-Fork > Performance**.
+These optional settings reduce repeated Local-provider work while a game is running.
+They do not change your configured polling interval. Brief activity at game start
+or when processing an unlocked achievement can still occur.
+
+### Recommended starting configuration
+
+Enable **Use custom Local polling mechanism**, then enable all the options in its
+**Custom Local polling** group. Keep your preferred polling interval; five seconds
+is a useful starting point when notification timing matters. Save settings, stop the
+game, and launch it again before comparing CPU usage.
+
+Leave **Debug mode** in **Santodan-Fork > General** and **Sample process CPU by
+thread** off for normal use. They collect diagnostic information rather than
+reduce CPU usage. Thread sampling adds measurement overhead.
+
+The two options for notification summaries and theme analysis are separate from
+polling. Enable them if you want caching for those fork features; they are not
+required to reduce idle Local polling work.
+
+### What each Performance setting does
+
+| Setting | Meaning |
+| --- | --- |
+| **Use custom Local polling mechanism** | Checks supported source files for changes and skips a full refresh when they are unchanged. The other options in this group require it. Disable it to return to upstream polling. |
+| **Limit authentication checks to Local** | Prevents a custom Local poll from checking unrelated platform accounts. This avoids repeatedly opening a Steam authentication browser, which can otherwise happen even without a linked Steam account. Manual refreshes and other providers keep their normal authentication checks. |
+| **Check available sources while waiting for an achievement file** | Checks other supported source files even while the monitor is waiting for its expected achievement file. If those sources are known and unchanged, it can skip a full refresh. If no usable source fingerprint is available, it refreshes normally. |
+| **Reuse folder discovery within each poll** | Reuses identical folder-search results during one poll, including refresh and monitor setup. Results expire after that poll, so a missing file is searched for again next poll. Achievement contents are still read fresh. |
+| **Use lightweight game-start discovery** | Checks a previously validated achievement-file path before scanning folders at game start. Missing files or invalid records fall back to normal discovery. It needs a successful refresh with this option enabled to prepare the path. |
+| **Reuse a validated startup baseline** | Avoids the first full polling refresh when a successful refresh from the last 24 hours recorded matching source files, settings and cached data before this game session. Changed or unavailable data triggers normal refresh. |
+| **Cache installation-folder discovery** | Reuses discovered installation folders across polls within a game session. Directory or relevant settings changes invalidate the cache. Unlike per-poll reuse, this cache can survive more than one poll. |
+| **Reuse SteamHunters category metadata** | Reuses cached achievement categories during custom polling while reading fresh unlocks and progress. Manual refreshes still fetch metadata according to the provider settings. |
+| **Defer background overview rebuilds during gameplay** | Cancels pending background overview precomputation when gameplay begins. Opening the overview can still load fresh data. |
+| **Cache notification score summaries** | Reuses library score summaries for the fork notification's score wildcards and progress bars. Game changes invalidate the summaries. |
+| **Cache theme-content analysis** | Reuses content-analysis results in the fork's Theme Migration tab. Files are still read to detect edits. It does not change upstream migration pages. |
+| **Sample process CPU by thread** | With Debug mode enabled, records process CPU and the busiest operating-system threads every second in `PollingDebug.log`. Use only when investigating CPU activity. |
+
+Custom polling, startup reuse, lightweight startup, and the three authentication/
+source-check/per-poll discovery switches default to off. Installation-folder caching,
+category reuse, and overview deferral default to on but only apply when custom
+polling is enabled. Notification-summary caching, theme-analysis caching, and CPU
+thread sampling default to off.
+
+### Check that it helps
+
+1. Complete one normal game refresh or launch/quit cycle with your options enabled
+   to prepare startup records. The first run can still perform the normal scans.
+2. Record an idle period without unlocking achievements, then unlock an achievement
+   and verify that its notification arrives at the expected time.
+3. If idle activity remains high, compare one option at a time, restarting the game
+   between runs. Record the times of game launch and achievement unlocks.
+4. For investigation, enable Debug mode and optionally thread sampling, save, and
+   collect a fresh `PollingDebug.log` alongside PerfView and your CPU recording.
+   Turn diagnostics off afterward.
+
+A poll can start asynchronous work that continues beyond the second it began, so
+CPU activity between polling timestamps does not by itself rule polling out.
+Task Manager and psrecord also use different CPU percentage scales and sample
+windows; compare recordings made with the same tool and conditions.
+
+For implementation details and startup-record validation, see
+[Optional fork performance changes](docs/ForkPerformanceOptions.md).

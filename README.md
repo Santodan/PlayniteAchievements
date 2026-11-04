@@ -58,6 +58,8 @@
 
 Guides available in [Achievement Notifications Guide](ACHIEVEMENT_NOTIFICATIONS_GUIDE.md) and [Local Provider Troubleshooting](LOCAL_PROVIDER_TROUBLESHOOTING.md)
 
+For idle CPU usage, see [Local polling performance settings](LOCAL_PROVIDER_TROUBLESHOOTING.md#reduce-cpu-usage-while-a-game-is-idle) for recommended settings, explanations of each option, and testing steps.
+
 ## Local Provider Folder List And Browse Flow
 
 You can set any custom folder where you have saves located in your system as exception to never detect achievements from it
