@@ -434,7 +434,8 @@ namespace PlayniteAchievements.Services.UI
             }
 
             return UnlockScreenshotVariantPolicy.Resolve(
-                ResolveRarity(args), IsCompletionUnlock(args), args.ProviderKey, persisted, gameData)
+                ResolveRarity(args), IsCompletionUnlock(args), args.ProviderKey, persisted, gameData,
+                bypassRarity: args.IsTestFire)
                 != ScreenshotVariants.None;
         }
 
@@ -3501,14 +3502,16 @@ namespace PlayniteAchievements.Services.UI
             foreach (var vm in wave)
             {
                 // Each variant is gated independently by its own per-variant rarity threshold and
-                // completion bypass. The policy ANDs the screenshots master switch into each
-                // variant flag. A wave never mixes games, so the first item's game data serves all.
+                // completion bypass; a retrigger skips the thresholds. The policy ANDs the
+                // screenshots master switch into each variant flag. A wave never mixes games, so
+                // the first item's game data serves all.
                 var variants = UnlockScreenshotVariantPolicy.Resolve(
                     vm.Rarity,
                     vm.IsGameCompleted || vm.IsCompletionAchievement || vm.IsCapstone,
                     vm.ProviderKey,
                     persisted,
-                    gameData);
+                    gameData,
+                    bypassRarity: vm.IsTestFire);
 
                 if (variants != ScreenshotVariants.None)
                 {
