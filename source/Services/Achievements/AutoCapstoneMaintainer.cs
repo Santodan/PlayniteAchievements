@@ -6,6 +6,7 @@ using PlayniteAchievements.Services.GameCustomData;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading;
 
 namespace PlayniteAchievements.Services.Achievements
 {
@@ -24,19 +25,26 @@ namespace PlayniteAchievements.Services.Achievements
         private readonly GameCustomDataStore _store;
         private readonly AchievementOverridesService _overridesService;
         private readonly Func<Guid, GameAchievementData> _resolveGameData;
+        private readonly Func<bool, string> _configuredTags;
         private readonly Action<AchievementUnlockedEventArgs> _notifyUnlocked;
         private readonly ILogger _logger;
 
+        /// <param name="configuredTags">
+        /// The tags the settings give a capstone, whole-game (true) or category (false), read at
+        /// each maintenance; null for none.
+        /// </param>
         public AutoCapstoneMaintainer(
             GameCustomDataStore store,
             AchievementOverridesService overridesService,
             Func<Guid, GameAchievementData> resolveGameData,
+            Func<bool, string> configuredTags,
             Action<AchievementUnlockedEventArgs> notifyUnlocked,
             ILogger logger)
         {
             _store = store;
             _overridesService = overridesService;
             _resolveGameData = resolveGameData;
+            _configuredTags = configuredTags;
             _notifyUnlocked = notifyUnlocked;
             _logger = logger;
         }
@@ -84,6 +92,38 @@ namespace PlayniteAchievements.Services.Achievements
                     _logger?.Debug(ex, $"Auto capstone maintenance failed for gameId={gameId}.");
                 }
             }
+        }
+
+        /// <summary>
+        /// Quietly maintains every game in the library that holds an auto capstone, for a change
+        /// in the settings the capstones derive from rather than in provider data: nothing it
+        /// finds unlocked was earned just now, so nothing is announced.
+        /// </summary>
+        /// <returns>How many games were looked at.</returns>
+        public int MaintainAll(CancellationToken cancel = default(CancellationToken))
+        {
+            var gameIds = _store?.QueryAll(records => records
+                    .Where(record => record?.CustomAchievements?.Any(definition => definition?.IsAutoCapstone == true) == true)
+                    .Select(record => record.PlayniteGameId)
+                    .Where(id => id != Guid.Empty)
+                    .ToList())
+                ?? new List<Guid>();
+
+            foreach (var gameId in gameIds)
+            {
+                cancel.ThrowIfCancellationRequested();
+                try
+                {
+                    Maintain(gameId, announceUnlocks: false);
+                }
+                catch (Exception ex)
+                {
+                    _logger?.Debug(ex, $"Auto capstone maintenance failed for gameId={gameId}.");
+                }
+            }
+
+            _logger?.Info($"Auto capstone maintenance swept {gameIds.Count} game(s).");
+            return gameIds.Count;
         }
 
         /// <summary>
@@ -193,7 +233,8 @@ namespace PlayniteAchievements.Services.Achievements
                     apiName,
                     current.IsWholeGameAutoCapstone,
                     current.Category,
-                    gameData?.AchievementCategoryOrder);
+                    gameData?.AchievementCategoryOrder,
+                    _configuredTags?.Invoke(current.IsWholeGameAutoCapstone));
                 if (derived == null)
                 {
                     continue;
@@ -215,8 +256,9 @@ namespace PlayniteAchievements.Services.Achievements
                 updated.GlobalPercentUnlocked = derived.GlobalPercentUnlocked;
                 updated.Rarity = derived.Rarity ?? updated.Rarity;
 
-                // The tags of what it stands for, as its own baseline: a tag the user set on the
-                // capstone itself is an override and still wins over these.
+                // The tags of what it stands for, plus the settings' tags for its kind, as its own
+                // baseline: a tag the user set on the capstone itself is an override and still
+                // wins over these.
                 updated.Tags = derived.Tags;
 
                 // Capstones authored, or imported, before they carried a kind sat without one beside a
