@@ -32,14 +32,15 @@
         </Setter>
     </Style>
 
-    <!-- Value/label tile used by the Statistics widget. -->
+    <!-- Value/label tile used by the Statistics widget. The border fills its cell; the stack
+         follows the widget's vertical alignment within it. -->
     <DataTemplate x:Key="ShowcaseStatTileTemplate">
         <Border Background="{DynamicResource PlayAch.Brush.Overlay.Tint.08}"
                 CornerRadius="{StaticResource PlayAch.Radius.Card}"
                 Margin="3"
                 Padding="8,6"
                 ClipToBounds="True">
-            <StackPanel>
+            <StackPanel VerticalAlignment="{Binding DataContext.VerticalAlignment, RelativeSource={RelativeSource AncestorType=ItemsControl}}">
                 <TextBlock Text="{Binding Value}"
                            Foreground="{DynamicResource PlayAch.Brush.Text}"
                            FontWeight="SemiBold"
@@ -649,7 +650,9 @@
                                         ShowControlBar="{Binding ShowControlBar}"/>
         <ScrollViewer VerticalScrollBarVisibility="Auto"
                       HorizontalScrollBarVisibility="Disabled">
-            <!-- TextBlock.TextAlignment inherits, so every tile's value and label follow it. -->
+            <!-- TextBlock.TextAlignment inherits, so every tile's value and label follow it. The
+                 UniformGrid spreads the viewport height across its rows, so each tile's stack
+                 has room to follow the widget's vertical alignment within its cell. -->
             <ItemsControl ItemsSource="{Binding Tiles}"
                           ItemTemplate="{StaticResource ShowcaseStatTileTemplate}"
                           TextBlock.TextAlignment="{Binding TextAlignment}">
